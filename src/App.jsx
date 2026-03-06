@@ -145,7 +145,7 @@ const mkSegundoIngreso = () => ({
     terminal: c.defaultTerminal, saturado: false, retornos: false,
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { saturado: false, lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { saturado: false, retornos: false, lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 // ── Carriles Tab: expo/impo por acceso ────────────────────────────────────────
@@ -1117,9 +1117,14 @@ function SegundoAccesoTab() {
               </div>
             </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-              <button onClick={() => updateIngreso(carril.id,"saturado",!st.saturado)} style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628", border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`, borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", transition:"all 0.15s" }}>{st.saturado?"✗ SATURADO":"✓ LIBRE"}</button>
-              <button onClick={() => updateIngreso(carril.id,"retornos",!st.retornos)} style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628", border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`, borderRadius:"8px", color: st.retornos?"#f97316":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", transition:"all 0.15s" }}>↩ {st.retornos?"CON RETORNOS":"SIN RETORNOS"}</button>
+            <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+              <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400", transition:"all 0.15s" }}>✓ LIBRE</button>
+              <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400",  transition:"all 0.15s" }}>✗ SATURADO</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+              <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400", transition:"all 0.15s" }}>✓ SIN RETORNOS</button>
+              <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400",  transition:"all 0.15s" }}>↩ CON RETORNOS</button>
             </div>
           </div>
         );
@@ -1145,7 +1150,15 @@ function SegundoAccesoTab() {
             <div style={{ color:"#475569", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
           </div>
         </div>
-        <button onClick={() => updateSalida("saturado",!carriles.c4.saturado)} style={{ width:"100%", padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628", border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`, borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700", transition:"all 0.15s" }}>{carriles.c4.saturado?"✗ SALIDA SATURADA":"✓ SALIDA FLUIDA"}</button>
+        <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+          <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
+          <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+          <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
+          <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+        </div>
       </div>
 
       <ToastBox toast={toast} />
