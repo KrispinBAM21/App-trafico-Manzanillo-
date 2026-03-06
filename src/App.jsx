@@ -449,11 +449,11 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           <div style={{ fontSize:"11px",color:"#38bdf855",fontFamily:MN,letterSpacing:"2px" }}>MANZANILLO — EN VIVO</div>
           <div style={{ fontSize:"10px",color:"#47556944",marginTop:"4px",fontFamily:MN }}>{active.length} incidente(s)</div>
         </div>
-        <a href="https://maps.google.com/?q=19.0525,-104.3154&z=15" target="_blank" rel="noopener noreferrer" style={{
+        <button onClick={() => { window.location.href = "https://maps.google.com/?q=19.0525,-104.3154&z=15"; }} style={{
           position:"absolute",bottom:"10px",right:"10px",
           background:"#38bdf8",color:"#0a0f1e",padding:"5px 10px",borderRadius:"6px",
-          fontSize:"10px",fontFamily:MN,fontWeight:"700",textDecoration:"none",display:"inline-block",
-        }}>VER EN MAPS ↗</a>
+          fontSize:"10px",fontFamily:MN,fontWeight:"700",border:"none",cursor:"pointer",
+        }}>VER EN MAPS ↗</button>
       </div>
 
       {/* ── ACCESOS PRINCIPALES ── */}
