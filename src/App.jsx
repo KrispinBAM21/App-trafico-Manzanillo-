@@ -224,8 +224,9 @@ function ToastBox({ toast }) {
 }
 
 // Muestra en tiempo real cuántos votos hay para una opción
-function useVoteCount(key) {
+function VoteCountBadge({ accesoId, status, myId }) {
   const [count, setCount] = React.useState(0);
+  const key = `acceso_${accesoId}_${status}`;
   useEffect(() => {
     sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
     const chan = sb.channel(`voto-${key}`)
@@ -234,61 +235,9 @@ function useVoteCount(key) {
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, [key]);
-  return count;
-}
-
-function VoteCountBadge({ accesoId, status }) {
-  const count = useVoteCount(`acceso_${accesoId}_${status}`);
   if (count === 0) return null;
   return (
     <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
-  );
-}
-
-// Componente que agrupa los 4 botones de estatus con highlight dinámico por votos
-function AccesoStatusButtons({ acc, st, voteAcceso, myId }) {
-  const counts = Object.fromEntries(
-    ACCESO_STATUS_OPTIONS.map(o => [o.id, useVoteCount(`acceso_${acc.id}_${o.id}`)])
-  );
-  const maxCount    = Math.max(...Object.values(counts));
-  // El "líder" en votos: si hay empate, no se fuerza ninguno
-  const leadingIds  = maxCount > 0
-    ? ACCESO_STATUS_OPTIONS.filter(o => counts[o.id] === maxCount).map(o => o.id)
-    : [];
-  const leadingId   = leadingIds.length === 1 ? leadingIds[0] : null;
-
-  return (
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
-      {ACCESO_STATUS_OPTIONS.map(o => {
-        const isConfirmed = st.status === o.id;
-        const isLeading   = !isConfirmed && leadingId === o.id && counts[o.id] > 0;
-        const borderColor = isConfirmed ? o.color : isLeading ? o.color+"99" : "#1e3a5f";
-        const bgColor     = isConfirmed ? o.color+"33" : isLeading ? o.color+"18" : "#0a1628";
-        const textColor   = isConfirmed ? o.color : isLeading ? o.color+"cc" : "#64748b";
-        return (
-          <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{
-            padding:"8px 6px",
-            background: bgColor,
-            border:`1px solid ${borderColor}`,
-            borderRadius:"8px", color: textColor,
-            fontFamily:MN, fontSize:"10px", cursor:"pointer",
-            transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
-            fontWeight: isConfirmed || isLeading ? "700" : "400",
-            boxShadow: isLeading ? `0 0 8px ${o.color}44` : "none",
-          }}>
-            {o.icon} {o.label}
-            {counts[o.id] > 0 && (
-              <span style={{
-                background: isConfirmed ? "#fff" : o.color,
-                color: isConfirmed ? o.color : "#0a0f1e",
-                borderRadius:"3px", padding:"0 5px", fontSize:"9px", fontWeight:"700",
-              }}>{counts[o.id]}</span>
-            )}
-            {isLeading && <span style={{ fontSize:"8px", color:o.color }}>▲</span>}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -558,7 +507,26 @@ function TraficoTab({ myId, incidents, setIncidents }) {
 
             {/* Estatus voting */}
             <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO:</div>
-            <AccesoStatusButtons acc={acc} st={st} voteAcceso={voteAcceso} myId={myId} />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
+              {ACCESO_STATUS_OPTIONS.map(o => {
+                const key    = `${acc.id}_${o.id}`;
+                const vCount = (st.pendingVoters[key] || []).length;
+                const isAct  = st.status === o.id;
+                return (
+                  <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{
+                    padding:"8px 6px",
+                    background: isAct ? o.color+"33" : "#0a1628",
+                    border:`1px solid ${isAct ? o.color : "#1e3a5f"}`,
+                    borderRadius:"8px", color: isAct ? o.color : "#64748b",
+                    fontFamily:MN, fontSize:"10px", cursor:"pointer",
+                    transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
+                  }}>
+                    {o.icon} {o.label}
+                    <VoteCountBadge accesoId={acc.id} status={o.id} myId={myId} />
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Retornos — 3 opciones */}
             <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>TIPO DE RETORNO:</div>
