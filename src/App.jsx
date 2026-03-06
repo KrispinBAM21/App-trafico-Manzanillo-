@@ -304,7 +304,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     if (!inc) return;
     if (inc.votes[myId] !== undefined) return notify("Ya votaste en este reporte", "#f97316");
     const votes   = { ...inc.votes, [myId]: 1 };
-    const visible = Object.values(votes).filter(v => v === 1).length >= 3;
+    const visible = Object.values(votes).filter(v => v === 1).length >= 15;
     await sb.from("incidents").update({ votes, visible }).eq("id", id);
     if (visible && !inc.visible) notify("✅ Reporte verificado — ya aparece en el mapa", "#22c55e");
     else notify("✓ Voto registrado", "#38bdf8");
@@ -322,10 +322,10 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     if (!inc) return;
     if (inc.resolveVotes[myId]) return notify("Ya reportaste esto como resuelto", "#f97316");
     const rv       = { ...inc.resolveVotes, [myId]: 1 };
-    const resolved = Object.keys(rv).length >= 2;
+    const resolved = Object.keys(rv).length >= 15;
     await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
     if (resolved) notify("✓ Incidente marcado como resuelto", "#22c55e");
-    else notify(`Voto registrado (${Object.keys(rv).length}/2 para resolver)`, "#38bdf8");
+    else notify(`Voto registrado (${Object.keys(rv).length}/15 para resolver)`, "#38bdf8");
   };
 
   const clearIncidents = async () => {
@@ -369,8 +369,8 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     // Contar votos totales para esta opción
     const { count } = await sb.from("votos").select("id", { count: "exact" }).eq("key", key);
     const total = count || 1;
-    notify(`Voto registrado (${total}/2 confirmaciones)`, "#38bdf8");
-    if (total >= 2) {
+    notify(`Voto registrado (${total}/50 confirmaciones)`, "#38bdf8");
+    if (total >= 50) {
       // Limpiar votos de este acceso y actualizar estatus
       await sb.from("votos").delete().eq("acceso_id", accesoId).eq("tipo", "acceso");
       await sb.from("accesos").upsert({ id: accesoId, status: newStatus, retornos: accesos[accesoId]?.retornos || "none", pending_voters: {}, last_update: Date.now(), updated_by: `${total} usuarios` });
@@ -566,7 +566,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
                   </div>
                   <Badge color="#f97316" small>PENDIENTE</Badge>
                 </div>
-                <VoteBar count={conf} needed={3} />
+                <VoteBar count={conf} needed={15} />
                 {myVote === undefined ? (
                   <div style={{ display:"flex", gap:"8px", marginTop:"10px" }}>
                     <button onClick={() => voteConfirm(inc.id)} style={{ flex:1, padding:"7px", background:"#16a34a22", border:"1px solid #16a34a55", borderRadius:"6px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700" }}>✓ CONFIRMAR</button>
@@ -609,13 +609,13 @@ function TraficoTab({ myId, incidents, setIncidents }) {
               <Badge color={t.color} small>ACTIVO</Badge>
             </div>
             <div style={{ borderTop:"1px solid #1e3a5f", paddingTop:"8px" }}>
-              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={2} color="#22c55e" /></div>}
+              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={15} color="#22c55e" /></div>}
               <button onClick={() => voteResolve(inc.id)} style={{
                 width:"100%", padding:"8px", background:"#22c55e15",
                 border:"1px solid #22c55e44", borderRadius:"6px",
                 color:"#22c55e", fontFamily:MN, fontSize:"11px",
                 cursor:"pointer", fontWeight:"700",
-              }}>✓ YA SE RESOLVIÓ ({rvCount}/2)</button>
+              }}>✓ YA SE RESOLVIÓ ({rvCount}/15)</button>
             </div>
           </div>
         );
@@ -786,7 +786,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
                   </div>
                   <Badge color="#f97316" small>PENDIENTE</Badge>
                 </div>
-                <VoteBar count={conf} needed={3} />
+                <VoteBar count={conf} needed={15} />
               </div>
             );
           })}
@@ -853,8 +853,8 @@ function TerminalesTab({ myId }) {
     // Contar votos totales para esta opción
     const { count } = await sb.from("votos").select("id", { count: "exact" }).eq("key", key);
     const total = count || 1;
-    notify(`Voto registrado (${total}/2 confirmaciones)`, "#38bdf8");
-    if (total >= 2) {
+    notify(`Voto registrado (${total}/50 confirmaciones)`, "#38bdf8");
+    if (total >= 50) {
       await sb.from("votos").delete().eq("terminal_id", termId).eq("tipo", "terminal");
       await sb.from("terminals").upsert({ id: termId, status: newStatus, pending_voters: {}, last_update: Date.now(), updated_by: `${total} usuarios` });
       notify(`✅ ${TERMINAL_STATUS_OPTIONS.find(o=>o.id===newStatus)?.label} confirmado!`, "#22c55e");
