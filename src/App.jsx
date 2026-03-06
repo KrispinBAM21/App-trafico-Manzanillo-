@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
@@ -223,6 +223,24 @@ function ToastBox({ toast }) {
   );
 }
 
+// Muestra en tiempo real cuántos votos hay para una opción
+function VoteCountBadge({ accesoId, status, myId }) {
+  const [count, setCount] = React.useState(0);
+  const key = `acceso_${accesoId}_${status}`;
+  useEffect(() => {
+    sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
+    const chan = sb.channel(`voto-${key}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "votos" }, () => {
+        sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, [key]);
+  if (count === 0) return null;
+  return (
+    <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
+  );
+}
+
 function SectionLabel({ text, rightBtn }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -321,13 +339,13 @@ function TraficoTab({ myId, incidents, setIncidents }) {
       if (!data || data.length === 0) {
         await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({
           id: a.id, status: "libre", retornos: "none",
-          last_update: Date.now(), updated_by: "Sistema"
+          pending_voters: {}, last_update: Date.now(), updated_by: "Sistema"
         })));
         return;
       }
       const map = {};
       data.forEach(r => {
-        map[r.id] = { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: {} };
+        map[r.id] = { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
       });
       setAccesos(prev => ({ ...prev, ...map }));
     });
@@ -335,24 +353,28 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     const chan = sb.channel("accesos-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, ({ new: r }) => {
         if (!r) return;
-        setAccesos(prev => ({ ...prev, [r.id]: { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: prev[r.id]?.pendingVoters || {} } }));
+        setAccesos(prev => ({ ...prev, [r.id]: { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
       }).subscribe();
 
     return () => sb.removeChannel(chan);
   }, []);
 
   const voteAcceso = async (accesoId, newStatus) => {
-    const key    = `${accesoId}_${newStatus}`;
-    const voters = accesos[accesoId].pendingVoters[key] || [];
-    if (voters.includes(myId)) return notify("Ya votaste por este estatus", "#f97316");
-    const nv = [...voters, myId];
-    if (nv.length >= 2) {
-      await sb.from("accesos").upsert({ id: accesoId, status: newStatus, retornos: accesos[accesoId].retornos, last_update: Date.now(), updated_by: `${nv.length} usuarios` });
-      setAccesos(prev => ({ ...prev, [accesoId]: { ...prev[accesoId], pendingVoters: {} } }));
+    const key = `acceso_${accesoId}_${newStatus}`;
+    // Verificar si ya votó este dispositivo
+    const { data: existing } = await sb.from("votos").select("id").eq("key", key).eq("user_id", myId).single();
+    if (existing) return notify("Ya votaste por este estatus", "#f97316");
+    // Registrar voto
+    await sb.from("votos").insert({ key, user_id: myId, acceso_id: accesoId, status: newStatus, tipo: "acceso" });
+    // Contar votos totales para esta opción
+    const { count } = await sb.from("votos").select("id", { count: "exact" }).eq("key", key);
+    const total = count || 1;
+    notify(`Voto registrado (${total}/2 confirmaciones)`, "#38bdf8");
+    if (total >= 2) {
+      // Limpiar votos de este acceso y actualizar estatus
+      await sb.from("votos").delete().eq("acceso_id", accesoId).eq("tipo", "acceso");
+      await sb.from("accesos").upsert({ id: accesoId, status: newStatus, retornos: accesos[accesoId]?.retornos || "none", pending_voters: {}, last_update: Date.now(), updated_by: `${total} usuarios` });
       notify(`✅ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label} confirmado!`, "#22c55e");
-    } else {
-      setAccesos(prev => ({ ...prev, [accesoId]: { ...prev[accesoId], pendingVoters: { ...prev[accesoId].pendingVoters, [key]: nv } } }));
-      notify(`Voto registrado (${nv.length}/2 confirmaciones)`, "#38bdf8");
     }
   };
 
@@ -362,13 +384,12 @@ function TraficoTab({ myId, incidents, setIncidents }) {
   };
 
   const resetAcceso = async (accesoId) => {
-    await sb.from("accesos").upsert({ id: accesoId, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Reset" });
-    setAccesos(prev => ({ ...prev, [accesoId]: { ...prev[accesoId], pendingVoters: {} } }));
+    await sb.from("accesos").upsert({ id: accesoId, status: "libre", retornos: "none", pending_voters: {}, last_update: Date.now(), updated_by: "Reset" });
     notify("✓ Acceso restablecido", "#22c55e");
   };
 
   const resetAll = async () => {
-    await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Reset" })));
+    await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", pending_voters: {}, last_update: Date.now(), updated_by: "Reset" })));
     await sb.from("incidents").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     notify("✓ Todo normal", "#22c55e");
   };
@@ -490,7 +511,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
                     transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
                   }}>
                     {o.icon} {o.label}
-                    {vCount > 0 && <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700" }}>{vCount}</span>}
+                    <VoteCountBadge accesoId={acc.id} status={o.id} myId={myId} />
                   </button>
                 );
               })}
@@ -803,7 +824,7 @@ function TerminalesTab({ myId }) {
       }
       const mapN = {}; const mapS = {};
       data.forEach(r => {
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by };
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
         if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
         else mapS[r.id] = entry;
       });
@@ -814,7 +835,7 @@ function TerminalesTab({ myId }) {
     const chan = sb.channel("terminals-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
         if (!r) return;
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by };
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
         if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => ({ ...prev, [r.id]: entry }));
         else setStS(prev => ({ ...prev, [r.id]: entry }));
       }).subscribe();
@@ -823,17 +844,20 @@ function TerminalesTab({ myId }) {
   }, []);
 
   const vote = async (termId, newStatus) => {
-    const key    = `${termId}_${newStatus}`;
-    const voters = [...(pvotes[key] || [])];
-    if (voters.includes(myId)) return notify("Ya votaste por este estatus", "#f97316");
-    voters.push(myId);
-    setPvotes(p => ({ ...p, [key]: voters }));
-    if (voters.length >= 2) {
-      await sb.from("terminals").upsert({ id: termId, status: newStatus, last_update: Date.now(), updated_by: `${voters.length} usuarios` });
-      setPvotes(p => { const n={...p}; delete n[key]; return n; });
+    const key = `terminal_${termId}_${newStatus}`;
+    // Verificar si ya votó este dispositivo
+    const { data: existing } = await sb.from("votos").select("id").eq("key", key).eq("user_id", myId).single();
+    if (existing) return notify("Ya votaste por este estatus", "#f97316");
+    // Registrar voto
+    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
+    // Contar votos totales para esta opción
+    const { count } = await sb.from("votos").select("id", { count: "exact" }).eq("key", key);
+    const total = count || 1;
+    notify(`Voto registrado (${total}/2 confirmaciones)`, "#38bdf8");
+    if (total >= 2) {
+      await sb.from("votos").delete().eq("terminal_id", termId).eq("tipo", "terminal");
+      await sb.from("terminals").upsert({ id: termId, status: newStatus, pending_voters: {}, last_update: Date.now(), updated_by: `${total} usuarios` });
       notify(`✅ ${TERMINAL_STATUS_OPTIONS.find(o=>o.id===newStatus)?.label} confirmado!`, "#22c55e");
-    } else {
-      notify(`Voto registrado (${voters.length}/2 confirmaciones)`, "#38bdf8");
     }
   };
 
@@ -914,7 +938,6 @@ function TerminalesTab({ myId }) {
                     transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
                   }}>
                     {o.icon} {o.label}
-                    {vCount>0 && <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700" }}>{vCount}</span>}
                   </button>
                 );
               })}
@@ -1551,7 +1574,14 @@ function TutorialTab({ setActive }) {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [active,    setActive]    = useState("trafico");
-  const [myId]                    = useState(uid);
+  // ID permanente por dispositivo — sobrevive recargas
+  const [myId] = useState(() => {
+    const stored = localStorage.getItem("puerto_trafico_uid");
+    if (stored) return stored;
+    const newId = uid();
+    localStorage.setItem("puerto_trafico_uid", newId);
+    return newId;
+  });
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
 
