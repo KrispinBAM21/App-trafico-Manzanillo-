@@ -246,11 +246,13 @@ function VoteCountBadge({ accesoId, status, myId }) {
 }
 
 // ─── SISTEMA DE COLORES POR VOTOS ─────────────────────────────────────────────
-// 🟠 Naranja = líder en votos, en proceso (< 50)
-// 🟣 Morado  = confirmado oficialmente (≥ 50 votos)
+// Sin votos  → color natural del estatus
+// En proceso → color del estatus ganador (verde/amarillo/naranja/rojo)
+// Confirmado → morado (llegó a 50 votos)
 const VOTE_CONFIRMED_THRESHOLD = 50;
 const COLOR_CONFIRMED = "#a855f7";
-const COLOR_LEADING   = "#f97316";
+const STATUS_COLORS = { libre:"#22c55e", lento:"#eab308", saturado:"#f97316", cerrado:"#ef4444" };
+const STATUS_VOTE_ICONS = { libre:"🟢", lento:"🟡", saturado:"🟠", cerrado:"🔴" };
 
 function useActiveAccesoStatus(accId, confirmedStatus) {
   const c0 = useVoteCount(`acceso_${accId}_libre`);
@@ -272,9 +274,9 @@ function AccesoCard({ acc, st, voteAcceso, setRetornos, resetAcceso, getRetOpt }
   const activeOpt  = ACCESO_STATUS_OPTIONS.find(o => o.id === activeId) || ACCESO_STATUS_OPTIONS[0];
   const retOpt     = getRetOpt(st.retornos);
   const isChanged  = activeId !== "libre" || st.retornos !== "none";
-  const activeColor = voteState === "none" ? activeOpt.color
-                    : voteState === "confirmed" ? COLOR_CONFIRMED
-                    : COLOR_LEADING;
+  const activeColor = voteState === "confirmed" ? COLOR_CONFIRMED
+                    : voteState === "leading"   ? (STATUS_COLORS[activeId] || activeOpt.color)
+                    : activeOpt.color;
 
   return (
     <div style={{
@@ -295,7 +297,7 @@ function AccesoCard({ acc, st, voteAcceso, setRetornos, resetAcceso, getRetOpt }
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
           <div style={{ background:activeColor+"22", border:`1px solid ${activeColor}99`, color:activeColor, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"5px", transition:"all 0.3s" }}>
-            {voteState === "confirmed" ? "🟣" : voteState === "leading" ? "🟠" : activeOpt.icon}
+            {voteState === "confirmed" ? "🟣" : voteState === "leading" ? (STATUS_VOTE_ICONS[activeId] || activeOpt.icon) : activeOpt.icon}
             {activeOpt.label}
           </div>
           {voteState !== "none" && (
@@ -311,9 +313,9 @@ function AccesoCard({ acc, st, voteAcceso, setRetornos, resetAcceso, getRetOpt }
       </div>
 
       {/* Leyenda */}
-      <div style={{ display:"flex", gap:"12px", marginBottom:"10px" }}>
-        {[[COLOR_LEADING,"🟠","En proceso"],[COLOR_CONFIRMED,"🟣","Confirmado (50v)"]].map(([c,icon,label]) => (
-          <div key={label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"10px", flexWrap:"wrap" }}>
+        {[["🟢","Libre"],["🟡","Lento"],["🟠","Saturado"],["🔴","Cerrado"],["🟣","Confirmado"]].map(([icon,label]) => (
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
             <span style={{ fontSize:"10px" }}>{icon}</span>
             <span style={{ fontSize:"9px", color:"#475569", fontFamily:MN }}>{label}</span>
           </div>
