@@ -224,20 +224,151 @@ function ToastBox({ toast }) {
 }
 
 // Muestra en tiempo real cuántos votos hay para una opción
-function VoteCountBadge({ accesoId, status, myId }) {
+function useVoteCount(key) {
   const [count, setCount] = React.useState(0);
-  const key = `acceso_${accesoId}_${status}`;
   useEffect(() => {
     sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
-    const chan = sb.channel(`voto-${key}`)
+    const chan = sb.channel(`vc-${key}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "votos" }, () => {
         sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, [key]);
+  return count;
+}
+
+function VoteCountBadge({ accesoId, status, myId }) {
+  const count = useVoteCount(`acceso_${accesoId}_${status}`);
   if (count === 0) return null;
   return (
     <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
+  );
+}
+
+// ─── SISTEMA DE COLORES POR VOTOS ─────────────────────────────────────────────
+// 🟠 Naranja = líder en votos, en proceso (< 50)
+// 🟣 Morado  = confirmado oficialmente (≥ 50 votos)
+const VOTE_CONFIRMED_THRESHOLD = 50;
+const COLOR_CONFIRMED = "#a855f7";
+const COLOR_LEADING   = "#f97316";
+
+function useActiveAccesoStatus(accId, confirmedStatus) {
+  const c0 = useVoteCount(`acceso_${accId}_libre`);
+  const c1 = useVoteCount(`acceso_${accId}_lento`);
+  const c2 = useVoteCount(`acceso_${accId}_saturado`);
+  const c3 = useVoteCount(`acceso_${accId}_cerrado`);
+  const counts = { libre: c0, lento: c1, saturado: c2, cerrado: c3 };
+  const total  = c0 + c1 + c2 + c3;
+  if (total === 0) return { activeId: confirmedStatus, counts, voteState: "none", maxCount: 0 };
+  const maxCount = Math.max(c0, c1, c2, c3);
+  const leaders  = ACCESO_STATUS_OPTIONS.filter(o => counts[o.id] === maxCount);
+  const activeId = leaders.length === 1 ? leaders[0].id : confirmedStatus;
+  const voteState = maxCount >= VOTE_CONFIRMED_THRESHOLD ? "confirmed" : "leading";
+  return { activeId, counts, voteState, maxCount };
+}
+
+function AccesoCard({ acc, st, voteAcceso, setRetornos, resetAcceso, getRetOpt }) {
+  const { activeId, counts, voteState, maxCount } = useActiveAccesoStatus(acc.id, st.status);
+  const activeOpt  = ACCESO_STATUS_OPTIONS.find(o => o.id === activeId) || ACCESO_STATUS_OPTIONS[0];
+  const retOpt     = getRetOpt(st.retornos);
+  const isChanged  = activeId !== "libre" || st.retornos !== "none";
+  const activeColor = voteState === "none" ? activeOpt.color
+                    : voteState === "confirmed" ? COLOR_CONFIRMED
+                    : COLOR_LEADING;
+
+  return (
+    <div style={{
+      background:"#0d1b2e", border:`2px solid ${activeColor}66`,
+      borderRadius:"14px", padding:"14px", marginBottom:"14px",
+      boxShadow:`0 0 24px ${activeColor}12`, transition:"all 0.3s",
+    }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
+            <div style={{ width:"10px", height:"10px", background:acc.color, borderRadius:"50%", boxShadow:`0 0 8px ${acc.color}` }} />
+            <span style={{ color:acc.color, fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{acc.label}</span>
+          </div>
+          <div style={{ color:"#475569", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>
+            {acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}
+          </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
+          <div style={{ background:activeColor+"22", border:`1px solid ${activeColor}99`, color:activeColor, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"5px", transition:"all 0.3s" }}>
+            {voteState === "confirmed" ? "🟣" : voteState === "leading" ? "🟠" : activeOpt.icon}
+            {activeOpt.label}
+          </div>
+          {voteState !== "none" && (
+            <div style={{ fontSize:"9px", fontFamily:MN, color:activeColor }}>
+              {voteState === "confirmed" ? `✓ CONFIRMADO (${maxCount} votos)` : `EN PROCESO · ${maxCount}/${VOTE_CONFIRMED_THRESHOLD}`}
+            </div>
+          )}
+          {st.retornos !== "none" && <Badge color={retOpt.color} small>{retOpt.icon} {retOpt.label}</Badge>}
+          {isChanged && (
+            <button onClick={() => resetAcceso(acc.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>
+          )}
+        </div>
+      </div>
+
+      {/* Leyenda */}
+      <div style={{ display:"flex", gap:"12px", marginBottom:"10px" }}>
+        {[[COLOR_LEADING,"🟠","En proceso"],[COLOR_CONFIRMED,"🟣","Confirmado (50v)"]].map(([c,icon,label]) => (
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+            <span style={{ fontSize:"10px" }}>{icon}</span>
+            <span style={{ fontSize:"9px", color:"#475569", fontFamily:MN }}>{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Botones estatus */}
+      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO:</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
+        {ACCESO_STATUS_OPTIONS.map(o => {
+          const isActive = activeId === o.id;
+          const vCount   = counts[o.id] || 0;
+          const btnColor = isActive ? activeColor : "#1e3a5f";
+          return (
+            <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{
+              padding:"8px 6px",
+              background: isActive ? activeColor+"28" : "#0a1628",
+              border:`2px solid ${isActive ? activeColor : vCount > 0 ? o.color+"33" : "#1e3a5f"}`,
+              borderRadius:"8px", color: isActive ? activeColor : vCount > 0 ? "#94a3b8" : "#64748b",
+              fontFamily:MN, fontSize:"10px", cursor:"pointer",
+              transition:"all 0.3s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
+              fontWeight: isActive ? "700" : "400",
+              boxShadow: isActive ? `0 0 12px ${activeColor}44` : "none",
+            }}>
+              {o.icon} {o.label}
+              {vCount > 0 && (
+                <span style={{ background: isActive ? activeColor : "#1e3a5f", color: isActive ? "#fff" : "#94a3b8", borderRadius:"3px", padding:"0 5px", fontSize:"9px", fontWeight:"700" }}>
+                  {vCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Retornos */}
+      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>TIPO DE RETORNO:</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px" }}>
+        {RETORNO_OPTIONS.map(r => {
+          const isAct = st.retornos === r.id;
+          return (
+            <button key={r.id} onClick={() => setRetornos(acc.id, r.id)} style={{
+              padding:"10px 4px", background: isAct ? r.color+"33" : "#0a1628",
+              border:`1px solid ${isAct ? r.color : "#1e3a5f"}`, borderRadius:"8px",
+              color: isAct ? r.color : "#64748b", fontFamily:MN, fontSize:"10px",
+              cursor:"pointer", fontWeight: isAct ? "700" : "400",
+              transition:"all 0.15s", textAlign:"center",
+            }}>
+              <div style={{ fontSize:"16px" }}>{r.icon}</div>
+              <div style={{ marginTop:"3px", fontSize:"9px", lineHeight:"1.3" }}>{r.label}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -471,85 +602,17 @@ function TraficoTab({ myId, incidents, setIncidents }) {
       <SectionLabel text="ACCESOS PRINCIPALES" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
 
       {ACCESOS_PRINCIPALES.map(acc => {
-        const st     = accesos[acc.id];
-        const opt    = getAcOpt(st.status);
-        const retOpt = getRetOpt(st.retornos);
-        const isChanged = st.status !== "libre" || st.retornos !== "none";
+        const st = accesos[acc.id];
         return (
-          <div key={acc.id} style={{
-            background:"#0d1b2e", border:`2px solid ${acc.color}44`,
-            borderRadius:"14px", padding:"14px", marginBottom:"14px",
-            boxShadow:`0 0 24px ${acc.color}0a`,
-          }}>
-            {/* Header */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
-              <div>
-                <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
-                  <div style={{ width:"10px", height:"10px", background:acc.color, borderRadius:"50%", boxShadow:`0 0 8px ${acc.color}` }} />
-                  <span style={{ color:acc.color, fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{acc.label}</span>
-                </div>
-                <div style={{ color:"#475569", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>
-                  {acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}
-                </div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>
-                  {opt.icon} {opt.label}
-                </div>
-                {st.retornos !== "none" && (
-                  <Badge color={retOpt.color} small>{retOpt.icon} {retOpt.label}</Badge>
-                )}
-                {isChanged && (
-                  <button onClick={() => resetAcceso(acc.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>
-                )}
-              </div>
-            </div>
-
-            {/* Estatus voting */}
-            <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
-              {ACCESO_STATUS_OPTIONS.map(o => {
-                const key    = `${acc.id}_${o.id}`;
-                const vCount = (st.pendingVoters[key] || []).length;
-                const isAct  = st.status === o.id;
-                return (
-                  <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{
-                    padding:"8px 6px",
-                    background: isAct ? o.color+"33" : "#0a1628",
-                    border:`1px solid ${isAct ? o.color : "#1e3a5f"}`,
-                    borderRadius:"8px", color: isAct ? o.color : "#64748b",
-                    fontFamily:MN, fontSize:"10px", cursor:"pointer",
-                    transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px",
-                  }}>
-                    {o.icon} {o.label}
-                    <VoteCountBadge accesoId={acc.id} status={o.id} myId={myId} />
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Retornos — 3 opciones */}
-            <div style={{ fontSize:"10px", color:"#64748b", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>TIPO DE RETORNO:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px" }}>
-              {RETORNO_OPTIONS.map(r => {
-                const isAct = st.retornos === r.id;
-                return (
-                  <button key={r.id} onClick={() => setRetornos(acc.id, r.id)} style={{
-                    padding:"10px 4px",
-                    background: isAct ? r.color+"33" : "#0a1628",
-                    border:`1px solid ${isAct ? r.color : "#1e3a5f"}`,
-                    borderRadius:"8px", color: isAct ? r.color : "#64748b",
-                    fontFamily:MN, fontSize:"10px", cursor:"pointer",
-                    fontWeight: isAct ? "700" : "400",
-                    transition:"all 0.15s", textAlign:"center",
-                  }}>
-                    <div style={{ fontSize:"16px" }}>{r.icon}</div>
-                    <div style={{ marginTop:"3px", fontSize:"9px", lineHeight:"1.3" }}>{r.label}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <AccesoCard
+            key={acc.id}
+            acc={acc}
+            st={st}
+            voteAcceso={voteAcceso}
+            setRetornos={setRetornos}
+            resetAcceso={resetAcceso}
+            getRetOpt={getRetOpt}
+          />
         );
       })}
 
