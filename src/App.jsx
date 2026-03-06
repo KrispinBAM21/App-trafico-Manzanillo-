@@ -449,7 +449,18 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           <div style={{ fontSize:"11px",color:"#38bdf855",fontFamily:MN,letterSpacing:"2px" }}>MANZANILLO — EN VIVO</div>
           <div style={{ fontSize:"10px",color:"#47556944",marginTop:"4px",fontFamily:MN }}>{active.length} incidente(s)</div>
         </div>
-        <button onClick={() => { window.location.href = "https://maps.google.com/?q=19.0525,-104.3154&z=15"; }} style={{
+        <button onClick={() => {
+          const lat = 19.0525, lng = -104.3154;
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          const isAndroid = /Android/.test(navigator.userAgent);
+          if (isIOS) {
+            window.location.href = `maps://?q=${lat},${lng}`;
+          } else if (isAndroid) {
+            window.location.href = `geo:${lat},${lng}?q=${lat},${lng}(Puerto+Manzanillo)`;
+          } else {
+            window.open(`https://maps.google.com/?q=${lat},${lng}&z=15`, "_blank");
+          }
+        }} style={{
           position:"absolute",bottom:"10px",right:"10px",
           background:"#38bdf8",color:"#0a0f1e",padding:"5px 10px",borderRadius:"6px",
           fontSize:"10px",fontFamily:MN,fontWeight:"700",border:"none",cursor:"pointer",
