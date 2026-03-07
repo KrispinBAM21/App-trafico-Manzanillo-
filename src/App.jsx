@@ -110,6 +110,24 @@ const TODAS_TERMINALES = [
   { id: "cemex",      name: "CEMEX",      zona: "Sur"   },
 ];
 
+const PATIOS_REGULADORES = [
+  { id: "cima1",     name: "CIMA 1",    fullName: "Patio Regulador CIMA 1"    },
+  { id: "cima2",     name: "CIMA 2",    fullName: "Patio Regulador CIMA 2"    },
+  { id: "isl",       name: "ISL",       fullName: "Patio Regulador ISL"       },
+  { id: "alman",     name: "ALMAN",     fullName: "Patio Regulador ALMAN"     },
+  { id: "sia",       name: "SIA",       fullName: "Patio Regulador SIA"       },
+  { id: "timsa_p",   name: "TIMSA",     fullName: "Patio Regulador TIMSA"     },
+  { id: "almacont",  name: "ALMACONT",  fullName: "Patio Regulador ALMACONT"  },
+  { id: "ssa_p",     name: "SSA",       fullName: "Patio Regulador SSA"       },
+];
+
+const PATIO_STATUS_OPTIONS = [
+  { id: "libre",    label: "Patio Libre",    color: "#22c55e", icon: "✓" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "✗" },
+  { id: "cerrado",  label: "Cerrado",         color: "#6b7280", icon: "⛔" },
+  { id: "lleno",    label: "Patio Lleno",     color: "#f97316", icon: "⚠" },
+];
+
 const ACCESOS_SEGUNDO = [
   {
     id: "pezvela", label: "Acceso Pez Vela", color: "#a78bfa", zona: "Sur",
@@ -167,6 +185,9 @@ const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
 
 const mkTerminals = (list) =>
   Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
+
+const mkPatios = () =>
+  Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} }]));
 
 const mkAccesos = () =>
   Object.fromEntries(ACCESOS_PRINCIPALES.map(a => [a.id, {
@@ -306,42 +327,51 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
 
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
 function NavBar({ active, set }) {
-  const tabs = [
+  const row1 = [
     { id: "trafico",    label: "Tráfico",    icon: "🗺️" },
     { id: "reporte",    label: "Reportar",   icon: "📍"  },
     { id: "terminales", label: "Terminales", icon: "⚓"  },
+    { id: "patio",      label: "Patios",     icon: "🏭"  },
     { id: "segundo",    label: "2do Acceso", icon: "🛣️" },
-    { id: "carriles",   label: "Carriles",   icon: "🚦"  },
-    { id: "noticias",   label: "Noticias",   icon: "📰"  },
-    { id: "donativos",  label: "Donativos",  icon: "💙"  },
-    { id: "tutorial",   label: "Tutorial",   icon: "📖"  },
   ];
+  const row2 = [
+    { id: "carriles",  label: "Carriles",  icon: "🚦" },
+    { id: "noticias",  label: "Noticias",  icon: "📰" },
+    { id: "donativos", label: "Donativos", icon: "💙" },
+    { id: "tutorial",  label: "Tutorial",  icon: "📖" },
+  ];
+
+  const TabBtn = (t) => (
+    <button key={t.id} onClick={() => set(t.id)} style={{
+      flex: 1, padding: "9px 4px",
+      background: active === t.id ? "rgba(255,255,255,0.15)" : "transparent",
+      border: "none",
+      borderBottom: active === t.id ? "2px solid rgba(255,255,255,0.9)" : "2px solid transparent",
+      color: active === t.id ? "#ffffff" : "rgba(255,255,255,0.4)",
+      fontSize: "9px", fontFamily: MN, fontWeight: active === t.id ? "600" : "400",
+      cursor: "pointer", display: "flex", flexDirection: "column",
+      alignItems: "center", gap: "3px", transition: "all 0.2s",
+      letterSpacing: "0.5px", whiteSpace: "nowrap", minWidth: "0",
+    }}>
+      <span style={{ fontSize: "14px" }}>{t.icon}</span>
+      {t.label.toUpperCase()}
+    </button>
+  );
+
   return (
     <nav style={{
-      display: "flex",
       background: "rgba(255,255,255,0.07)",
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
       borderBottom: "1px solid rgba(255,255,255,0.12)",
       position: "sticky", top: 0, zIndex: 100,
-      overflowX: "auto",
     }}>
-      {tabs.map(t => (
-        <button key={t.id} onClick={() => set(t.id)} style={{
-          flex: 1, padding: "11px 4px",
-          background: active === t.id ? "rgba(255,255,255,0.15)" : "transparent",
-          border: "none",
-          borderBottom: active === t.id ? "2px solid rgba(255,255,255,0.9)" : "2px solid transparent",
-          color: active === t.id ? "#ffffff" : "rgba(255,255,255,0.4)",
-          fontSize: "9px", fontFamily: MN, fontWeight: active === t.id ? "600" : "400",
-          cursor: "pointer", display: "flex", flexDirection: "column",
-          alignItems: "center", gap: "3px", transition: "all 0.2s",
-          letterSpacing: "0.5px", whiteSpace: "nowrap", minWidth: "60px",
-        }}>
-          <span style={{ fontSize: "15px" }}>{t.icon}</span>
-          {t.label.toUpperCase()}
-        </button>
-      ))}
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        {row1.map(TabBtn)}
+      </div>
+      <div style={{ display: "flex" }}>
+        {row2.map(TabBtn)}
+      </div>
     </nav>
   );
 }
@@ -827,6 +857,8 @@ function TerminalesTab({ myId }) {
     }
     const key = `terminal_${termId}_${newStatus}`;
     await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
+    // Guardar voto del usuario en localStorage para sobrevivir la limpieza de 15 min
+    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
     const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
     const conteo = {};
     (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
@@ -1395,6 +1427,141 @@ function DonativosTab() {
   );
 }
 
+// ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
+function PatioReguladorTab({ myId }) {
+  const [patios,      setPatios]      = useState(mkPatios);
+  const [toast,       setToast]       = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
+
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
+
+  useEffect(() => {
+    sb.from("patios").select("*").then(async ({ data }) => {
+      if (!data || data.length === 0) {
+        await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Sistema", pending_voters: {} })));
+        return;
+      }
+      const map = {};
+      data.forEach(r => {
+        map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+      });
+      setPatios(prev => ({ ...prev, ...map }));
+    });
+    const chan = sb.channel("patios-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "patios" }, ({ new: r }) => {
+        if (!r) return;
+        setPatios(prev => ({ ...prev, [r.id]: { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const vote = async (patioId, newStatus, forceChange = false) => {
+    const rl = rateLimiter.check(`patio_vote_${myId}`, 30000);
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
+    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio");
+    if (yaVoto && yaVoto.length > 0 && !forceChange) {
+      const label = PATIO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "patio", id: patioId, newStatus, label });
+      return;
+    }
+    if (yaVoto && yaVoto.length > 0 && forceChange) {
+      await sb.from("votos").delete().eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio");
+    }
+    const key = `patio_${patioId}_${newStatus}`;
+    await sb.from("votos").insert({ key, user_id: myId, patio_id: patioId, status: newStatus, tipo: "patio" });
+    // Persistir voto en localStorage para sobrevivir la limpieza de 15 min
+    try { localStorage.setItem(`last_vote_patio_${patioId}_${myId}`, newStatus); } catch {}
+    const { data: todosVotos } = await sb.from("votos").select("status").eq("patio_id", patioId).eq("tipo", "patio");
+    const conteo = {};
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
+    const [statusGanador, votosGanador] = ganadora;
+    await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    const patioNombre = PATIOS_REGULADORES.find(p => p.id === patioId)?.name || patioId.toUpperCase();
+    await publicarNoticia({ tipo: "patio", icono: "🏭", color: "#fb923c", titulo: `Patio ${patioNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+  };
+
+  const resetAll = async () => {
+    await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
+    notify("✓ Todos los patios marcados como Libres", "#22c55e");
+  };
+
+  const resetOne = async (id) => {
+    await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
+    notify("✓ Patio marcado como Libre", "#22c55e");
+  };
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
+      </div>
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {PATIO_STATUS_OPTIONS.map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:MN }}>{o.label}</span>
+          </div>
+        ))}
+      </div>
+      <SectionLabel text="PATIOS REGULADORES" rightBtn={<NormalBtn onClick={resetAll} label="TODOS LIBRES" />} />
+      {PATIOS_REGULADORES.map(patio => {
+        const st  = patios[patio.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
+        const opt = getOpt(st.status);
+        const votes = st.pendingVoters || {};
+        const totalVotes = Object.values(votes).reduce((a,b)=>a+b,0);
+        return (
+          <div key={patio.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+              <div>
+                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{patio.name}</div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{patio.fullName}</div>
+                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
+                {totalVotes > 0 && <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN }}>{totalVotes} voto(s)</span>}
+                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
+              </div>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+              {PATIO_STATUS_OPTIONS.map(o => {
+                const isAct = st.status === o.id;
+                return (
+                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                    {o.icon} {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <ToastBox toast={toast} />
+      {changeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
+            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
+            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"12px", marginBottom:"20px" }}>
+              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#fb923c", fontWeight:"700" }}>{changeModal.label}</span>?
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#fb923c22", border:"1px solid #fb923c", borderRadius:"8px", color:"#fb923c", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
 function TutorialTab({ setActive }) {
   const [open, setOpen] = useState(null);
@@ -1417,7 +1584,8 @@ function TutorialTab({ setActive }) {
     { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
       { label: "Zona Norte", desc: "CONTECON y HAZESA. Cada terminal puede estar: Libre, Llena, Retorno Terminal o Retorno ASIPONA." },
       { label: "Zona Sur", desc: "TIMSA, SSA, OCUPA, MULTIMODAL, FRIMAN, LA JUNTA y CEMEX. Mismos estados que Zona Norte." },
-      { label: "Actualizar estatus", desc: "Toca el estatus deseado. El cambio aplica de inmediato con registro de hora." },
+      { label: "Actualizar estatus", desc: "Toca el estatus deseado. El sistema contabiliza los votos de la comunidad y muestra el que tenga más consenso." },
+      { label: "Votos cada 15 minutos", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener el estatus actualizado. Tu selección se guarda en tu dispositivo y se re-envía automáticamente — no necesitas volver a votar en cada ciclo." },
       { label: "TODO NORMAL", desc: "Restablece todas las terminales a Libre de una sola vez." },
     ]},
     { id: "segundo", icon: "🛣️", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
@@ -1429,6 +1597,13 @@ function TutorialTab({ setActive }) {
       { label: "Exportación 📤", desc: "Carriles para camiones que llevan carga al barco. Se marcan como ABIERTO o CERRADO." },
       { label: "Importación 📥", desc: "Carriles para retiro de mercancía del buque. Misma lógica que exportación." },
       { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado de una sola vez." },
+    ]},
+    { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los 8 patios del puerto", items: [
+      { label: "¿Qué es el Patio Regulador?", desc: "Son las áreas de espera y almacenaje externas al puerto donde los camiones aguardan instrucciones antes de ingresar a una terminal. Hay 8 patios: CIMA 1, CIMA 2, ISL, ALMAN, SIA, TIMSA, ALMACONT y SSA." },
+      { label: "Estados posibles", desc: "Patio Libre (verde): hay espacio disponible. Saturado (rojo): sin espacio, alta demanda. Cerrado (gris): patio fuera de servicio. Patio Lleno (naranja): capacidad máxima alcanzada." },
+      { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos de la comunidad y muestra el estatus con más consenso." },
+      { label: "Actualización automática", desc: "Los votos se renuevan cada 15 minutos para que el estatus refleje la situación actual. Tu selección se guarda y se re-envía automáticamente en cada ciclo, sin necesidad de votar de nuevo." },
+      { label: "TODO NORMAL", desc: "El botón 'TODOS LIBRES' restablece todos los patios a Libre de una sola vez, útil al inicio del turno o cuando la situación se normaliza." },
     ]},
     { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
       { label: "¿Para qué sirven?", desc: "Cubren costos de servidor, desarrollo y mejoras continuas para que la app siga funcionando." },
@@ -1565,16 +1740,36 @@ function App() {
     setConsent("essential");
   };
 
-  // Limpiar votos expirados cada minuto
+  // Limpiar votos expirados cada minuto y re-insertar votos del usuario para no perder su selección
   useEffect(() => {
     const limpiar = async () => {
       const expiry = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       await sb.from("votos").delete().lt("created_at", expiry);
+      // Reenviar votos guardados del usuario para que su selección persista
+      try {
+        const reinserts = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith("last_vote_")) continue;
+          const parts = k.replace("last_vote_", "").split("_");
+          // formato: last_vote_terminal_{termId}_{myId} o last_vote_patio_{patioId}_{myId}
+          const tipo = parts[0];
+          const userId = parts[parts.length - 1];
+          if (userId !== myId) continue;
+          const entityId = parts.slice(1, -1).join("_");
+          const status = localStorage.getItem(k);
+          if (!status) continue;
+          const key = `${tipo}_${entityId}_${status}`;
+          const col = tipo === "terminal" ? "terminal_id" : "patio_id";
+          reinserts.push(sb.from("votos").insert({ key, user_id: userId, [col]: entityId, status, tipo }).then(() => {}).catch(() => {}));
+        }
+        await Promise.all(reinserts);
+      } catch {}
     };
     limpiar();
     const interval = setInterval(limpiar, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [myId]);
 
   // Cargar incidentes
   useEffect(() => {
@@ -1639,6 +1834,7 @@ function App() {
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
+        {active === "patio"      && <PatioReguladorTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab />}
