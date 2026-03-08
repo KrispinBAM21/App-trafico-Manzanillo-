@@ -75,11 +75,54 @@ const TERMINAL_STATUS_OPTIONS = [
   { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#a855f7", icon: "⚓" },
 ];
 
+const INCIDENT_CATEGORIAS = [
+  { id: "incidente", label: "Incidente", icon: "⚠️", color: "#f97316" },
+  { id: "accidente", label: "Accidente", icon: "🚨", color: "#ef4444" },
+];
+
+const INCIDENT_SUBCATEGORIAS = {
+  incidente: [
+    { id: "falla_mecanica",     label: "Camión con falla mecánica",      icon: "🔧" },
+    { id: "camion_atravesado",  label: "Camión obstruyendo (atravesado)", icon: "🚛" },
+    { id: "falta_diesel",       label: "Camión con falta de diesel",      icon: "⛽" },
+    { id: "contenedor_ladeado", label: "Camión con contenedor ladeado",   icon: "📦" },
+    { id: "plataforma_abandonada", label: "Plataforma abandonada",        icon: "🚚" },
+    { id: "carga_abandonada",   label: "Carga abandonada",                icon: "📫" },
+    { id: "camion_abandonado",  label: "Camión abandonado",               icon: "🅿️" },
+  ],
+  accidente: [
+    { id: "atropellado",        label: "Atropellado",                     icon: "🚶" },
+    { id: "choque",             label: "Choque entre vehículos",          icon: "💥" },
+    { id: "volcadura_contenedor", label: "Volcadura de contenedor",       icon: "📦" },
+    { id: "herido",             label: "Herido",                          icon: "🏥" },
+    { id: "caida_material",     label: "Caída de material",               icon: "⬇️" },
+    { id: "camion_volcado",     label: "Camión volcado",                  icon: "🔄" },
+    { id: "zona_asalto",        label: "Zona de asalto",                  icon: "🚔" },
+    { id: "zona_robo",          label: "Zona de robo",                    icon: "⚡" },
+  ],
+};
+
 const INCIDENT_TYPES = [
-  { id: "accidente", label: "Accidente",       icon: "🚨", color: "#ef4444" },
-  { id: "trafico",   label: "Tráfico Pesado",  icon: "🚦", color: "#f97316" },
-  { id: "bloqueo",   label: "Bloqueo / Corte", icon: "🚧", color: "#eab308" },
-  { id: "obra",      label: "Obra / Desvío",   icon: "🏗️", color: "#3b82f6" },
+  { id: "incidente", label: "Incidente",      icon: "⚠️", color: "#f97316" },
+  { id: "accidente", label: "Accidente",      icon: "🚨", color: "#ef4444" },
+  { id: "bloqueo",   label: "Bloqueo / Corte",icon: "🚧", color: "#eab308" },
+  { id: "obra",      label: "Obra / Desvío",  icon: "🏗️", color: "#3b82f6" },
+];
+
+const VIALIDADES = [
+  { id: "jalipa_puerto",    name: "Jalipa → Puerto",              fullName: "Vialidad Jalipa - Puerto" },
+  { id: "puerto_jalipa",    name: "Puerto → Jalipa",              fullName: "Vialidad Puerto - Jalipa" },
+  { id: "libramiento",      name: "Cihuatlán-Manzanillo",         fullName: "Libramiento Cihuatlán-Manzanillo" },
+  { id: "mzllo_colima",     name: "Manzanillo → Colima",          fullName: "Carretera Manzanillo-Colima" },
+  { id: "colima_mzllo",     name: "Colima → Manzanillo",          fullName: "Carretera Colima-Manzanillo" },
+  { id: "algodones",        name: "Calle Algodones",              fullName: "Calle Algodones" },
+];
+
+const VIALIDAD_STATUS_OPTIONS = [
+  { id: "libre",    label: "Libre",             color: "#22c55e", icon: "✓" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#eab308", icon: "⚠" },
+  { id: "saturado", label: "Saturado",           color: "#f97316", icon: "🔶" },
+  { id: "detenido", label: "Tráfico Detenido",   color: "#ef4444", icon: "✗" },
 ];
 
 const ACCESOS_PRINCIPALES = [
@@ -185,6 +228,9 @@ const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
 
 const mkTerminals = (list) =>
   Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
+
+const mkVialidades = () =>
+  Object.fromEntries(VIALIDADES.map(v => [v.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} }]));
 
 const mkPatios = () =>
   Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} }]));
@@ -332,13 +378,14 @@ function NavBar({ active, set }) {
     { id: "reporte",    label: "Reportar",   icon: "📍"  },
     { id: "terminales", label: "Terminales", icon: "⚓"  },
     { id: "patio",      label: "Patios",     icon: "🏭"  },
-    { id: "segundo",    label: "2do Acceso", icon: "🛣️" },
+    { id: "vialidades", label: "Vialidades", icon: "🛣️" },
   ];
   const row2 = [
-    { id: "carriles",  label: "Carriles",  icon: "🚦" },
-    { id: "noticias",  label: "Noticias",  icon: "📰" },
-    { id: "donativos", label: "Donativos", icon: "💙" },
-    { id: "tutorial",  label: "Tutorial",  icon: "📖" },
+    { id: "segundo",   label: "2do Acceso", icon: "🚪"  },
+    { id: "carriles",  label: "Carriles",   icon: "🚦"  },
+    { id: "noticias",  label: "Noticias",   icon: "📰"  },
+    { id: "donativos", label: "Donativos",  icon: "💙"  },
+    { id: "tutorial",  label: "Tutorial",   icon: "📖"  },
   ];
 
   const TabBtn = (t) => (
@@ -711,19 +758,28 @@ function TraficoTab({ myId, incidents, setIncidents }) {
   );
 }
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
-  const [newInc, setNewInc] = useState({ type: "trafico", location: "", acceso: "", desc: "" });
-  const [toast,  setToast]  = useState(null);
+  const [categoria, setCategoria] = useState("incidente");
+  const [subcat,    setSubcat]    = useState("");
+  const [acceso,    setAcceso]    = useState("");
+  const [location,  setLocation]  = useState("");
+  const [toast,     setToast]     = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
+  const subcats = INCIDENT_SUBCATEGORIAS[categoria] || [];
+  const catObj  = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
+  const subcatObj = subcats.find(s => s.id === subcat);
+
   const submit = async () => {
-    if (!newInc.location.trim()) return notify("Ingresa la ubicación del incidente", "#ef4444");
+    if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
+    if (!location.trim()) return notify("Ingresa la ubicación", "#ef4444");
     const rl = rateLimiter.check(`report_${myId}`, 120000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316");
-    const safeLoc  = sanitize(newInc.acceso ? `${newInc.acceso} — ${newInc.location}` : newInc.location);
-    const safeDesc = sanitize(newInc.desc || "");
+    const labelFull = `${subcatObj?.icon || ""} ${subcatObj?.label || subcat}`;
+    const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
+    const safeDesc  = sanitize(labelFull);
     if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
-    await sb.from("incidents").insert({ type: newInc.type, location: safeLoc, description: safeDesc, votes: {}, resolve_votes: {}, visible: false, resolved: false, ts: Date.now() });
-    setNewInc({ type: "trafico", location: "", acceso: "", desc: "" });
+    await sb.from("incidents").insert({ type: categoria, location: safeLoc, description: safeDesc, votes: {}, resolve_votes: {}, visible: false, resolved: false, ts: Date.now() });
+    setSubcat(""); setLocation(""); setAcceso("");
     notify("📍 Reporte enviado — se verificará con la comunidad", "#22c55e");
     setTimeout(() => setActiveTab("trafico"), 1200);
   };
@@ -732,51 +788,69 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
   const pendingMine = incidents.filter(i => !i.visible && !i.resolved);
 
   return (
-    <div style={{ padding: "16px", paddingBottom: "80px" }}>
+    <div style={{ padding:"16px", paddingBottom:"80px" }}>
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
         <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Tu reporte será verificado por la comunidad antes de aparecer en el mapa. Se necesitan 3 confirmaciones.</div>
+        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Tu reporte será verificado por la comunidad antes de aparecer en el mapa.</div>
       </div>
+
+      {/* Paso 1: Categoría */}
       <div style={{ marginBottom:"16px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>TIPO DE INCIDENTE</div>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 1 · CATEGORÍA</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-          {INCIDENT_TYPES.map(t => (
-            <button key={t.id} onClick={() => setNewInc(p=>({...p,type:t.id}))} style={{ padding:"12px 8px", border:`1px solid ${newInc.type===t.id ? t.color : "#1e3a5f"}`, background: newInc.type===t.id ? t.color+"22" : "#0d1b2e", borderRadius:"10px", color: newInc.type===t.id ? t.color : "#64748b", fontFamily:MN, fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"5px", fontWeight: newInc.type===t.id ? "700" : "400" }}>
-              <span style={{ fontSize:"22px" }}>{t.icon}</span>{t.label}
+          {INCIDENT_CATEGORIAS.map(cat => (
+            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }} style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:MN, fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
+              <span style={{ fontSize:"26px" }}>{cat.icon}</span>{cat.label}
             </button>
           ))}
         </div>
       </div>
-      <div style={{ marginBottom:"14px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>ZONA / ACCESO (opcional)</div>
-        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-          {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
-            <button key={a} onClick={() => setNewInc(p=>({...p,acceso:a}))} style={{ padding:"6px 10px", background: newInc.acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${newInc.acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: newInc.acceso===a ? "#38bdf8" : "#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>{a === "" ? "Sin zona" : a}</button>
+
+      {/* Paso 2: Subcategoría */}
+      <div style={{ marginBottom:"16px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 2 · TIPO ESPECÍFICO</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+          {subcats.map(s => (
+            <button key={s.id} onClick={() => setSubcat(s.id)} style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:MN, fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
+              <span style={{ fontSize:"18px", flexShrink:0 }}>{s.icon}</span>{s.label}
+            </button>
           ))}
         </div>
       </div>
-      <div style={{ marginBottom:"12px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>UBICACIÓN *</div>
-        <input value={newInc.location} onChange={e => setNewInc(p=>({...p,location:e.target.value}))} placeholder="Ej: km 8, frente a caseta, carril derecho..." style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none" }} />
+
+      {/* Paso 3: Zona */}
+      <div style={{ marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 3 · ZONA / ACCESO (opcional)</div>
+        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+          {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
+            <button key={a} onClick={() => setAcceso(a)} style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>{a === "" ? "Sin zona" : a}</button>
+          ))}
+        </div>
       </div>
+
+      {/* Paso 4: Ubicación */}
       <div style={{ marginBottom:"18px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>DESCRIPCIÓN (opcional)</div>
-        <textarea value={newInc.desc} onChange={e => setNewInc(p=>({...p,desc:e.target.value}))} placeholder="Detalles del incidente, carriles afectados..." rows={3} style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", resize:"none" }} />
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
+        <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: km 8, frente a caseta, carril derecho..." style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none" }} />
       </div>
-      {(newInc.location || newInc.acceso) && (
-        <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${incType(newInc.type).color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
+
+      {/* Vista previa */}
+      {subcat && location && (
+        <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${catObj.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
           <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>VISTA PREVIA</div>
           <div style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
-            <span style={{ fontSize:"18px" }}>{incType(newInc.type).icon}</span>
+            <span style={{ fontSize:"20px" }}>{subcatObj?.icon}</span>
             <div>
-              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", fontWeight:"700" }}>{newInc.acceso ? `${newInc.acceso}${newInc.location ? ` — ${newInc.location}` : ""}` : newInc.location}</div>
-              {newInc.desc && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"2px" }}>{newInc.desc}</div>}
+              <div style={{ color:catObj.color, fontFamily:MN, fontSize:"11px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
             </div>
           </div>
         </div>
       )}
-      <button onClick={submit} style={{ width:"100%", padding:"14px", background: "linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:MN, fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>ENVIAR REPORTE →</button>
+
+      <button onClick={submit} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:MN, fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>ENVIAR REPORTE →</button>
+
       {pendingMine.length > 0 && (
         <>
           <SectionLabel text="REPORTES PENDIENTES DE VERIFICACIÓN" />
@@ -1427,6 +1501,137 @@ function DonativosTab() {
   );
 }
 
+// ─── TAB: VIALIDADES ──────────────────────────────────────────────────────────
+function VialidadesTab({ myId }) {
+  const [vialidades,  setVialidades]  = useState(mkVialidades);
+  const [toast,       setToast]       = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
+
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const getOpt = (id) => VIALIDAD_STATUS_OPTIONS.find(o => o.id === id) || VIALIDAD_STATUS_OPTIONS[0];
+
+  useEffect(() => {
+    sb.from("vialidades").select("*").then(async ({ data }) => {
+      if (!data || data.length === 0) {
+        await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema", pending_voters: {} })));
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+      setVialidades(prev => ({ ...prev, ...map }));
+    });
+    const chan = sb.channel("vialidades-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, ({ new: r }) => {
+        if (!r) return;
+        setVialidades(prev => ({ ...prev, [r.id]: { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const vote = async (vialId, newStatus, forceChange = false) => {
+    const rl = rateLimiter.check(`vial_vote_${myId}`, 30000);
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
+    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("vialidad_id", vialId).eq("tipo", "vialidad");
+    if (yaVoto && yaVoto.length > 0 && !forceChange) {
+      const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "vialidad", id: vialId, newStatus, label });
+      return;
+    }
+    if (yaVoto && yaVoto.length > 0 && forceChange) {
+      await sb.from("votos").delete().eq("user_id", myId).eq("vialidad_id", vialId).eq("tipo", "vialidad");
+    }
+    const key = `vialidad_${vialId}_${newStatus}`;
+    await sb.from("votos").insert({ key, user_id: myId, vialidad_id: vialId, status: newStatus, tipo: "vialidad" });
+    try { localStorage.setItem(`last_vote_vialidad_${vialId}_${myId}`, newStatus); } catch {}
+    const { data: todosVotos } = await sb.from("votos").select("status").eq("vialidad_id", vialId).eq("tipo", "vialidad");
+    const conteo = {};
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
+    const [statusGanador, votosGanador] = ganadora;
+    await sb.from("vialidades").upsert({ id: vialId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    const vialNombre = VIALIDADES.find(v => v.id === vialId)?.name || vialId;
+    await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `${vialNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+  };
+
+  const resetAll = async () => {
+    await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
+    notify("✓ Todas las vialidades marcadas como Libres", "#22c55e");
+  };
+
+  const resetOne = async (id) => {
+    await sb.from("vialidades").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
+    notify("✓ Vialidad restablecida", "#22c55e");
+  };
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>VIALIDADES — MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estado del tráfico en las principales vialidades del puerto.</div>
+      </div>
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {VIALIDAD_STATUS_OPTIONS.map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:MN }}>{o.label}</span>
+          </div>
+        ))}
+      </div>
+      <SectionLabel text="VIALIDADES PRINCIPALES" rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
+      {VIALIDADES.map(vial => {
+        const st  = vialidades[vial.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
+        const opt = getOpt(st.status);
+        const totalVotes = Object.values(st.pendingVoters || {}).reduce((a,b)=>a+b,0);
+        return (
+          <div key={vial.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+              <div>
+                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{vial.name}</div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{vial.fullName}</div>
+                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
+                {totalVotes > 0 && <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN }}>{totalVotes} voto(s)</span>}
+                {st.status !== "libre" && <button onClick={() => resetOne(vial.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
+              </div>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+              {VIALIDAD_STATUS_OPTIONS.map(o => {
+                const isAct = st.status === o.id;
+                return (
+                  <button key={o.id} onClick={() => vote(vial.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                    {o.icon} {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <ToastBox toast={toast} />
+      {changeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
+            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
+            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"12px", marginBottom:"20px" }}>
+              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#38bdf822", border:"1px solid #38bdf8", borderRadius:"8px", color:"#38bdf8", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
 function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
@@ -1576,10 +1781,11 @@ function TutorialTab({ setActive }) {
       { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad. Puedes votar para marcarlos como resueltos." },
     ]},
     { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
-      { label: "Tipo de Incidente", desc: "Elige entre: Accidente, Tráfico Pesado, Bloqueo/Corte u Obra/Desvío." },
-      { label: "Ubicación", desc: "Escribe el punto exacto del problema para que otros conductores puedan identificarlo." },
-      { label: "Descripción (opcional)", desc: "Añade detalles extra: carriles afectados, servicios de emergencia, tiempo estimado." },
-      { label: "Enviar Reporte", desc: "Tu reporte aparece como PENDIENTE y necesita votos de confirmación para ser visible." },
+      { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
+      { label: "Paso 2 · Tipo específico", desc: "Selecciona el tipo exacto de la lista predefinida: falla mecánica, camión atravesado, choque, volcadura, zona de asalto, etc." },
+      { label: "Paso 3 · Zona (opcional)", desc: "Indica en qué acceso o zona ocurrió el incidente para mayor contexto." },
+      { label: "Paso 4 · Ubicación", desc: "Escribe el punto exacto: km, referencia, carril. Este campo es obligatorio." },
+      { label: "Enviar Reporte", desc: "Tu reporte aparece como PENDIENTE y necesita votos de la comunidad para ser visible en el mapa." },
     ]},
     { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
       { label: "Zona Norte", desc: "CONTECON y HAZESA. Cada terminal puede estar: Libre, Llena, Retorno Terminal o Retorno ASIPONA." },
@@ -1598,12 +1804,17 @@ function TutorialTab({ setActive }) {
       { label: "Importación 📥", desc: "Carriles para retiro de mercancía del buque. Misma lógica que exportación." },
       { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado de una sola vez." },
     ]},
+    { id: "vialidades", icon: "🛣️", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
+      { label: "¿Qué son las Vialidades?", desc: "Son las carreteras y calles principales de acceso a Manzanillo: Jalipa-Puerto, Puerto-Jalipa, Libramiento Cihuatlán-Manzanillo, Carretera Manzanillo-Colima, Carretera Colima-Manzanillo y Calle Algodones." },
+      { label: "Estados disponibles", desc: "Libre (verde): tráfico fluido. Tráfico Lento (amarillo): demoras moderadas. Saturado (naranja): alta congestión. Tráfico Detenido (rojo): sin avance." },
+      { label: "Cómo votar", desc: "Toca el estado que observas en la vialidad. El sistema muestra el estatus con mayor consenso entre todos los votos." },
+      { label: "Renovación cada 15 min", desc: "Los votos se limpian automáticamente para mantener la información actualizada. Tu voto se guarda y se reenvía sin que tengas que votar de nuevo." },
+    ]},
     { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los 8 patios del puerto", items: [
       { label: "¿Qué es el Patio Regulador?", desc: "Son las áreas de espera y almacenaje externas al puerto donde los camiones aguardan instrucciones antes de ingresar a una terminal. Hay 8 patios: CIMA 1, CIMA 2, ISL, ALMAN, SIA, TIMSA, ALMACONT y SSA." },
       { label: "Estados posibles", desc: "Patio Libre (verde): hay espacio disponible. Saturado (rojo): sin espacio, alta demanda. Cerrado (gris): patio fuera de servicio. Patio Lleno (naranja): capacidad máxima alcanzada." },
-      { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos de la comunidad y muestra el estatus con más consenso." },
-      { label: "Actualización automática", desc: "Los votos se renuevan cada 15 minutos para que el estatus refleje la situación actual. Tu selección se guarda y se re-envía automáticamente en cada ciclo, sin necesidad de votar de nuevo." },
-      { label: "TODO NORMAL", desc: "El botón 'TODOS LIBRES' restablece todos los patios a Libre de una sola vez, útil al inicio del turno o cuando la situación se normaliza." },
+      { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos y muestra el estatus con más consenso." },
+      { label: "TODO NORMAL", desc: "El botón 'TODOS LIBRES' restablece todos los patios de una sola vez, útil al inicio del turno." },
     ]},
     { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
       { label: "¿Para qué sirven?", desc: "Cubren costos de servidor, desarrollo y mejoras continuas para que la app siga funcionando." },
@@ -1835,6 +2046,7 @@ function App() {
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
+        {active === "vialidades" && <VialidadesTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab />}
