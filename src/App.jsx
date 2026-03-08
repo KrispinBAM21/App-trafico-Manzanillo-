@@ -437,16 +437,17 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     const inc = incidents.find(i => i.id === id);
     if (!inc) return;
     if (inc.votes[myId] !== undefined && !forceChange) {
-      setChangeModal({ type: "incident_confirm", id, newStatus: 1, label: "CONFIRMAR" });
+      setChangeModal({ type: "incident_confirm", id, newStatus: 1, label: "CONFIRMO" });
       return;
     }
     const votes   = { ...inc.votes, [myId]: 1 };
-    const visible = Object.values(votes).filter(v => v === 1).length >= 15;
+    const conf    = Object.values(votes).filter(v => v === 1).length;
+    const visible = conf >= 3;
     await sb.from("incidents").update({ votes, visible }).eq("id", id);
     if (visible && !inc.visible) {
       notify("✅ Reporte verificado — ya aparece en el mapa", "#22c55e");
       await publicarNoticia({ tipo: "incidente", icono: "🚨", color: "#ef4444", titulo: `Incidente verificado — ${inc.location}`, detalle: inc.desc || "Reportado y verificado por la comunidad" });
-    } else notify("✓ Voto registrado", "#38bdf8");
+    } else notify(`✓ Confirmado (${conf}/3)`, "#22c55e");
   };
 
   const voteFalse = async (id, forceChange = false) => {
@@ -457,8 +458,9 @@ function TraficoTab({ myId, incidents, setIncidents }) {
       return;
     }
     const votes = { ...inc.votes, [myId]: -1 };
+    const falsos = Object.values(votes).filter(v => v === -1).length;
     await sb.from("incidents").update({ votes }).eq("id", id);
-    notify("✗ Voto actualizado", "#ef4444");
+    notify(`✗ Marcado como falso (${falsos} voto${falsos>1?"s":""})`, "#ef4444");
   };
 
   const voteResolve = async (id) => {
@@ -466,13 +468,13 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     if (!inc) return;
     if (inc.resolveVotes[myId]) return notify("Ya reportaste esto como resuelto", "#f97316");
     const rv       = { ...inc.resolveVotes, [myId]: 1 };
-    const resolved = Object.keys(rv).length >= 15;
+    const resolved = Object.keys(rv).length >= 3;
     await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
     if (resolved) {
       notify("✓ Incidente marcado como resuelto", "#22c55e");
       const incObj = incidents.find(i => i.id === id);
       await publicarNoticia({ tipo: "resuelto", icono: "✅", color: "#22c55e", titulo: `Incidente resuelto — ${incObj?.location || ""}`, detalle: "Marcado como resuelto por la comunidad" });
-    } else notify(`Voto registrado (${Object.keys(rv).length}/15 para resolver)`, "#38bdf8");
+    } else notify(`Voto registrado (${Object.keys(rv).length}/3 para resolver)`, "#38bdf8");
   };
 
   const clearIncidents = async () => {
@@ -555,6 +557,15 @@ function TraficoTab({ myId, incidents, setIncidents }) {
   const pending  = incidents.filter(i => !i.visible && !i.resolved);
   const resolved = incidents.filter(i =>  i.resolved);
 
+  // Color del borde según votos
+  const incidentBorderColor = (inc) => {
+    const conf   = Object.values(inc.votes).filter(v => v === 1).length;
+    const falsos = Object.values(inc.votes).filter(v => v === -1).length;
+    if (falsos > conf && falsos >= 2) return "#ef4444";
+    if (conf >= 2) return "#22c55e";
+    return "#f97316";
+  };
+
   return (
     <div style={{ padding: "16px", paddingBottom: "80px" }}>
       {/* Mapa */}
@@ -614,12 +625,12 @@ function TraficoTab({ myId, incidents, setIncidents }) {
                 {isChanged && <button onClick={() => resetAcceso(acc.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
               </div>
             </div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO: <span style={{ color:"#475569", fontSize:"9px", letterSpacing:"0px", fontWeight:"normal" }}>(doble click para cambiar)</span></div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO:</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
               {ACCESO_STATUS_OPTIONS.map(o => {
                 const isAct = st.status === o.id;
                 return (
-                  <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} onDoubleClick={() => voteAcceso(acc.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                  <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
                     {o.icon} {o.label}
                     <VoteCountBadge accesoId={acc.id} status={o.id} myId={myId} />
                   </button>
@@ -643,40 +654,51 @@ function TraficoTab({ myId, incidents, setIncidents }) {
       })}
 
       <div style={{ borderTop:"1px solid rgba(255,255,255,0.15)", margin:"4px 0 16px" }} />
+
+      {/* PENDIENTES */}
       {pending.length > 0 && (
         <>
           <SectionLabel text="PENDIENTES DE VERIFICACIÓN" />
           {pending.map(inc => {
-            const t = incType(inc.type);
+            const t      = incType(inc.type);
             const myVote = inc.votes[myId];
             const conf   = Object.values(inc.votes).filter(v => v === 1).length;
+            const falsos = Object.values(inc.votes).filter(v => v === -1).length;
+            const borderC = incidentBorderColor(inc);
             return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${t.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"10px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
+              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
                   <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                    <span style={{ fontSize:"16px" }}>{t.icon}</span>
+                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
                     <div>
                       <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"12px" }}>{inc.location}</div>
-                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
+                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
                       <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"3px", fontFamily:MN }}>{timeAgo(inc.ts)}</div>
                     </div>
                   </div>
-                  <Badge color="#f97316" small>PENDIENTE</Badge>
-                </div>
-                <VoteBar count={conf} needed={15} />
-                {myVote === undefined ? (
-                  <div style={{ display:"flex", gap:"8px", marginTop:"10px" }}>
-                    <button onClick={() => voteConfirm(inc.id)} style={{ flex:1, padding:"7px", background:"#16a34a22", border:"1px solid #16a34a55", borderRadius:"6px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700" }}>✓ CONFIRMAR</button>
-                    <button onClick={() => voteFalse(inc.id)}   style={{ flex:1, padding:"7px", background:"#ef444422", border:"1px solid #ef444455", borderRadius:"6px", color:"#ef4444", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700" }}>✗ FALSO</button>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
+                    <Badge color={borderC} small>PENDIENTE</Badge>
+                    <div style={{ fontSize:"9px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
                   </div>
-                ) : (
-                  <div style={{ marginTop:"8px" }}>
-                    <div style={{ fontSize:"10px", color: myVote === 1 ? "#22c55e" : "#ef4444", fontFamily:MN, marginBottom:"4px" }}>{myVote === 1 ? "✓ Confirmaste este reporte" : "✗ Marcaste como falso"}</div>
-                    <div style={{ display:"flex", gap:"6px" }}>
-                      <button onDoubleClick={() => voteConfirm(inc.id)} style={{ flex:1, padding:"5px", background: myVote===1 ? "#16a34a22":"transparent", border:`1px solid ${myVote===1?"#16a34a55":"#1e3a5f"}`, borderRadius:"6px", color: myVote===1?"#22c55e":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer" }}>✓ CONFIRMAR</button>
-                      <button onDoubleClick={() => voteFalse(inc.id)}   style={{ flex:1, padding:"5px", background: myVote===-1?"#ef444422":"transparent", border:`1px solid ${myVote===-1?"#ef444455":"#1e3a5f"}`, borderRadius:"6px", color: myVote===-1?"#ef4444":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer" }}>✗ FALSO</button>
-                    </div>
-                    <div style={{ fontSize:"9px", color:"#475569", fontFamily:MN, marginTop:"3px", textAlign:"center" }}>Doble click para cambiar voto</div>
+                </div>
+                <VoteBar count={conf} needed={3} />
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+                  <button onClick={() => voteConfirm(inc.id)} style={{ padding:"9px 4px", background: myVote===1 ? "#22c55e33" : "#16a34a15", border:`1px solid ${myVote===1 ? "#22c55e" : "#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>✅</span>
+                    <span>CONFIRMO</span>
+                  </button>
+                  <button onClick={() => voteFalse(inc.id)} style={{ padding:"9px 4px", background: myVote===-1 ? "#ef444433" : "#ef444415", border:`1px solid ${myVote===-1 ? "#ef4444" : "#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>❌</span>
+                    <span>FALSO</span>
+                  </button>
+                  <button onClick={() => voteResolve(inc.id)} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>🏁</span>
+                    <span>RESUELTO</span>
+                  </button>
+                </div>
+                {myVote !== undefined && (
+                  <div style={{ fontSize:"9px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:MN, marginTop:"6px", textAlign:"center" }}>
+                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"} · toca de nuevo para cambiar
                   </div>
                 )}
               </div>
@@ -685,6 +707,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
         </>
       )}
 
+      {/* ACTIVOS */}
       <SectionLabel text="INCIDENTES ACTIVOS" rightBtn={active.length > 0 ? <NormalBtn onClick={clearIncidents} label="LIMPIAR TODO" /> : null} />
       {active.length === 0 && (
         <div style={{ textAlign:"center", color:"rgba(255,255,255,0.3)", padding:"26px", fontFamily:MN, fontSize:"12px", border:"1px dashed #1e3a5f", borderRadius:"10px", marginBottom:"12px" }}>Sin incidentes activos ✓</div>
@@ -692,11 +715,12 @@ function TraficoTab({ myId, incidents, setIncidents }) {
       {active.map(inc => {
         const t       = incType(inc.type);
         const rvCount = Object.keys(inc.resolveVotes).length;
+        const myRv    = inc.resolveVotes[myId];
         return (
-          <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${t.color}66`, borderRadius:"10px", padding:"12px", marginBottom:"10px", boxShadow:`0 0 16px ${t.color}0d` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
+          <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${t.color}88`, borderRadius:"12px", padding:"12px", marginBottom:"10px", boxShadow:`0 0 16px ${t.color}18` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
               <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                <span style={{ fontSize:"18px" }}>{t.icon}</span>
+                <span style={{ fontSize:"20px" }}>{t.icon}</span>
                 <div>
                   <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"12px" }}>{inc.location}</div>
                   {inc.desc && <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
@@ -705,20 +729,24 @@ function TraficoTab({ myId, incidents, setIncidents }) {
               </div>
               <Badge color={t.color} small>ACTIVO</Badge>
             </div>
-            <div style={{ borderTop:"1px solid rgba(255,255,255,0.15)", paddingTop:"8px" }}>
-              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={15} color="#22c55e" /></div>}
-              <button onClick={() => voteResolve(inc.id)} style={{ width:"100%", padding:"8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"6px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700" }}>✓ YA SE RESOLVIÓ ({rvCount}/15)</button>
+            <div style={{ borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"10px" }}>
+              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={3} color="#22c55e" /></div>}
+              <button onClick={() => voteResolve(inc.id)} style={{ width:"100%", padding:"10px", background: myRv ? "#22c55e22" : "#22c55e15", border:`1px solid ${myRv ? "#22c55e" : "#22c55e44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+                <span>🏁</span> {myRv ? `YA VOTÉ COMO RESUELTO (${rvCount}/3)` : `YA SE RESOLVIÓ (${rvCount}/3)`}
+              </button>
             </div>
           </div>
         );
       })}
+
+      {/* RESUELTOS */}
       {resolved.length > 0 && (
         <>
           <SectionLabel text="RESUELTOS RECIENTES" />
           {resolved.map(inc => {
             const t = incType(inc.type);
             return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid #1e3a5f33", borderRadius:"10px", padding:"10px", marginBottom:"8px", opacity:0.5 }}>
+              <div key={inc.id} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid #1e3a5f33", borderRadius:"10px", padding:"10px", marginBottom:"8px", opacity:0.55 }}>
                 <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
                   <span style={{ fontSize:"14px" }}>{t.icon}</span>
                   <div style={{ flex:1 }}>
@@ -732,6 +760,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           })}
         </>
       )}
+
       <ToastBox toast={toast} />
       {changeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
