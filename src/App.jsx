@@ -249,9 +249,10 @@ const SEGUNDO_CARRILES_INGRESO = [
 const mkSegundoIngreso = () => ({
   ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
     terminal: c.defaultTerminal, saturado: false, retornos: false,
+    contenedor: "cerrado",
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { saturado: false, retornos: false, lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { saturado: false, retornos: false, contenedor: "cerrado", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 const ACCESOS_CARRILES = [
@@ -1255,7 +1256,7 @@ function SegundoAccesoTab() {
 
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, contenedor: "cerrado", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril restablecido", "#22c55e");
@@ -1310,7 +1311,7 @@ function SegundoAccesoTab() {
         const st        = carriles[carril.id];
         const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
         const zonaColor = termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
-        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal;
+        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || st.contenedor === "puerta_abierta";
         return (
           <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
@@ -1325,6 +1326,7 @@ function SegundoAccesoTab() {
                 <div style={{ display:"flex", gap:"5px" }}>
                   <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
                   {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
+                  {st.contenedor === "puerta_abierta" && <Badge color="#f59e0b" small>🔓 PUERTA ABIERTA</Badge>}
                 </div>
                 {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
               </div>
@@ -1355,9 +1357,14 @@ function SegundoAccesoTab() {
               <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
               <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
               <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
               <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CONTENEDOR:</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+              <button onClick={() => updateIngreso(carril.id,"contenedor","cerrado")} style={{ padding:"9px", background: (st.contenedor==="cerrado"||!st.contenedor)?"#38bdf822":"#0a1628", border:`1px solid ${(st.contenedor==="cerrado"||!st.contenedor)?"#38bdf8":"#1e3a5f"}`, borderRadius:"8px", color: (st.contenedor==="cerrado"||!st.contenedor)?"#38bdf8":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:(st.contenedor==="cerrado"||!st.contenedor)?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>📦 CERRADO</button>
+              <button onClick={() => updateIngreso(carril.id,"contenedor","puerta_abierta")} style={{ padding:"9px", background: st.contenedor==="puerta_abierta"?"#f59e0b22":"#0a1628", border:`1px solid ${st.contenedor==="puerta_abierta"?"#f59e0b":"#1e3a5f"}`, borderRadius:"8px", color: st.contenedor==="puerta_abierta"?"#f59e0b":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:st.contenedor==="puerta_abierta"?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>🔓 PUERTA ABIERTA</button>
             </div>
           </div>
         );
@@ -1386,9 +1393,14 @@ function SegundoAccesoTab() {
           <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
           <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
           <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
           <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+        </div>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CONTENEDOR:</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+          <button onClick={() => updateSalida("contenedor","cerrado")} style={{ padding:"10px", background: (carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf822":"#0a1628", border:`1px solid ${(carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf8":"#1e3a5f"}`, borderRadius:"8px", color: (carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf8":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:(carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>📦 CERRADO</button>
+          <button onClick={() => updateSalida("contenedor","puerta_abierta")} style={{ padding:"10px", background: carriles.c4.contenedor==="puerta_abierta"?"#f59e0b22":"#0a1628", border:`1px solid ${carriles.c4.contenedor==="puerta_abierta"?"#f59e0b":"#1e3a5f"}`, borderRadius:"8px", color: carriles.c4.contenedor==="puerta_abierta"?"#f59e0b":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:carriles.c4.contenedor==="puerta_abierta"?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>🔓 PUERTA ABIERTA</button>
         </div>
       </div>
       <ToastBox toast={toast} />
