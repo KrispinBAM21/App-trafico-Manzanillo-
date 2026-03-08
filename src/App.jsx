@@ -757,11 +757,87 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     </div>
   );
 }
+const UBICACIONES_REPORTE = [
+  { grupo: "Carreteras", icon: "🛣️", opciones: [
+    "Carretera Manzanillo–Colima",
+    "Carretera Colima–Manzanillo",
+    "Carretera Manzanillo–Cihuatlán",
+    "Carretera Manzanillo–Minatitlán",
+    "Carretera Federal 200",
+    "Carretera Federal 98",
+  ]},
+  { grupo: "Bulevares y Avenidas", icon: "🏙️", opciones: [
+    "Boulevard Costero Miguel de la Madrid",
+    "Avenida Elías Zamora Verduzco",
+    "Avenida Lázaro Cárdenas",
+    "Avenida Manzanillo",
+    "Avenida Tapeixtles",
+    "Avenida San Pedrito",
+  ]},
+  { grupo: "Accesos y Zonas Portuarias", icon: "⚓", opciones: [
+    "Segundo Acceso",
+    "Confinada",
+    "Calle Norte 1",
+    "Calle Poniente",
+    "Calle Antonio Suárez",
+    "Calle Algodones",
+  ]},
+  { grupo: "Calles — Fauna Marina", icon: "🐟", opciones: [
+    "Calle Nutria",
+    "Calle Anguila",
+    "Calle Ballena",
+    "Calle Orca",
+    "Calle Delfín",
+    "Calle Marlín",
+    "Calle Tiburón",
+    "Calle Pez Vela",
+    "Calle Camarón",
+    "Calle Jaiba",
+    "Calle Pulpo",
+    "Calle Medusa",
+    "Calle Erizo",
+    "Calle Langosta",
+    "Calle Caracol",
+    "Calle Ostión",
+    "Calle Mero",
+    "Calle Bagre",
+    "Calle Atún",
+    "Calle Sardina",
+  ]},
+  { grupo: "Calles — Minerales", icon: "⚙️", opciones: [
+    "Calle Aluminio",
+    "Calle Cobre",
+    "Calle Zinc",
+    "Calle Hierro",
+    "Calle Acero",
+  ]},
+  { grupo: "Calles — Otras", icon: "🏘️", opciones: [
+    "Calle José Mesina",
+    "Calle Hidalgo",
+    "Calle Niños",
+  ]},
+  { grupo: "Sitios de Referencia", icon: "📌", opciones: [
+    "Caseta de Cobro Manzanillo",
+    "Glorieta Pez Vela",
+    "Glorieta Zona Norte",
+    "Puerta 15",
+    "ASIPONA",
+    "Plaza Manzanillo",
+    "Hospital General Manzanillo",
+    "Aeropuerto Playa de Oro",
+    "Central de Autobuses",
+    "Pemex Tapeixtles",
+    "Pemex Salagua",
+  ]},
+];
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
   const [categoria, setCategoria] = useState("incidente");
   const [subcat,    setSubcat]    = useState("");
   const [acceso,    setAcceso]    = useState("");
   const [location,  setLocation]  = useState("");
+  const [showUbic,  setShowUbic]  = useState(false);
+  const [grupoOpen, setGrupoOpen] = useState(null);
   const [toast,     setToast]     = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
@@ -832,7 +908,40 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
       {/* Paso 4: Ubicación */}
       <div style={{ marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
-        <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: km 8, frente a caseta, carril derecho..." style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none" }} />
+
+        {/* Botón desplegable de ubicaciones */}
+        <button onClick={() => setShowUbic(p => !p)} style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`, borderRadius: showUbic ? "10px 10px 0 0" : "10px", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"12px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0", boxSizing:"border-box" }}>
+          <span>📍 Seleccionar ubicación predefinida</span>
+          <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
+        </button>
+
+        {showUbic && (
+          <div style={{ background:"#060e1a", border:"1px solid #38bdf855", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:"320px", overflowY:"auto", marginBottom:"8px" }}>
+            {UBICACIONES_REPORTE.map(grupo => (
+              <div key={grupo.grupo}>
+                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)} style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:MN, fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
+                  <span>{grupo.icon}</span>
+                  <span style={{ flex:1 }}>{grupo.grupo}</span>
+                  <span style={{ fontSize:"9px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
+                </button>
+                {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
+                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }} style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:MN, fontSize:"11px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
+                    {location===op && <span style={{ color:"#38bdf8", fontSize:"10px" }}>✓</span>}
+                    {op}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Campo de texto para detalles adicionales */}
+        <input
+          value={location}
+          onChange={e => setLocation(e.target.value)}
+          placeholder="O escribe la ubicación / añade detalle (km, carril, referencia...)"
+          style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", marginTop:"8px" }}
+        />
       </div>
 
       {/* Vista previa */}
@@ -1784,7 +1893,7 @@ function TutorialTab({ setActive }) {
       { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
       { label: "Paso 2 · Tipo específico", desc: "Selecciona el tipo exacto de la lista predefinida: falla mecánica, camión atravesado, choque, volcadura, zona de asalto, etc." },
       { label: "Paso 3 · Zona (opcional)", desc: "Indica en qué acceso o zona ocurrió el incidente para mayor contexto." },
-      { label: "Paso 4 · Ubicación", desc: "Escribe el punto exacto: km, referencia, carril. Este campo es obligatorio." },
+      { label: "Paso 4 · Ubicación", desc: "Selecciona una ubicación predefinida del menú desplegable (carreteras, avenidas, calles, sitios de referencia) o escribe manualmente el punto exacto con detalle adicional como km, carril o referencia visual." },
       { label: "Enviar Reporte", desc: "Tu reporte aparece como PENDIENTE y necesita votos de la comunidad para ser visible en el mapa." },
     ]},
     { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
