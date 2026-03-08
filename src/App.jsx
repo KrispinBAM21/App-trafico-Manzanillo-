@@ -1716,6 +1716,30 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
         </div>
       </div>
+      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"12px" }}>
+        <div style={{ background:"linear-gradient(135deg,#00b1ea22,#009ee322)", border:"2px solid #00b1ea88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ fontSize:"28px" }}>💳</div>
+            <div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONAR CON MERCADO PAGO</div>
+              <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Tú eliges cuánto aportar</div>
+            </div>
+          </div>
+          <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
+        </div>
+      </a>
+      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
+        <div style={{ background:"linear-gradient(135deg,#00b1ea11,#009ee311)", border:"1px solid #00b1ea44", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ fontSize:"28px" }}>⚡</div>
+            <div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONACIÓN RÁPIDA</div>
+              <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Mercado Pago · Rápido y seguro</div>
+            </div>
+          </div>
+          <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
+        </div>
+      </a>
       <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
         <div style={{ background:"linear-gradient(135deg,#ff5e5b22,#ff914d22)", border:"2px solid #ff5e5b88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", transition:"all 0.2s" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
