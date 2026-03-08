@@ -2078,7 +2078,8 @@ function RedesSocialesTab() {
 
   const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
-  const FB_PAGE    = "https://www.facebook.com/conectmanzaillooficial/";
+  const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
+  const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
 
   // WhatsApp SVG icon
   const IconWA = ({ size = 22 }) => (
@@ -2232,12 +2233,60 @@ function RedesSocialesTab() {
         </div>
       </div>
 
+      {/* ── Instagram ──────────────────────────────────────── */}
+      <div style={{ marginBottom: "14px", background: "rgba(225,48,108,0.06)", border: "1px solid rgba(225,48,108,0.28)", borderRadius: "16px", overflow: "hidden" }}>
+        <div style={{ background: "rgba(225,48,108,0.13)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(225,48,108,0.13)" }}>
+          <span style={{ fontSize: "14px" }}>📸</span>
+          <span style={{ fontFamily: MN, fontSize: "10px", fontWeight: "700", color: "#f472b6", letterSpacing: "1.5px" }}>PERFIL OFICIAL · INSTAGRAM</span>
+        </div>
+        <div style={{ padding: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
+            <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+              <defs>
+                <radialGradient id="ig_grad" cx="30%" cy="107%" r="150%">
+                  <stop offset="0%" stopColor="#fdf497"/>
+                  <stop offset="10%" stopColor="#fdf497"/>
+                  <stop offset="50%" stopColor="#fd5949"/>
+                  <stop offset="68%" stopColor="#d6249f"/>
+                  <stop offset="100%" stopColor="#285AEB"/>
+                </radialGradient>
+              </defs>
+              <rect width="42" height="42" rx="12" fill="url(#ig_grad)"/>
+              <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2" fill="none"/>
+              <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2" fill="none"/>
+              <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
+            </svg>
+            <div>
+              <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "13px", color: "#ffffff" }}>@conectmanzanillo</div>
+              <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>Fotos, videos y noticias del puerto en Instagram</div>
+            </div>
+          </div>
+          <a href={IG_PAGE} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <button style={{
+              width: "100%", padding: "13px 16px",
+              background: "linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)",
+              border: "none", borderRadius: "12px", color: "#ffffff",
+              fontFamily: MN, fontSize: "12px", fontWeight: "700", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              boxShadow: "0 4px 20px rgba(225,48,108,0.4)", letterSpacing: "0.5px",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 42 42" fill="none">
+                <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2.5" fill="none"/>
+                <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2.5" fill="none"/>
+                <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
+              </svg>
+              SEGUIR EN INSTAGRAM
+            </button>
+          </a>
+        </div>
+      </div>
+
       {/* Footer info */}
       <div style={{ textAlign: "center", marginTop: "24px", padding: "16px", background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
         <div style={{ fontSize: "20px", marginBottom: "8px" }}>⚓</div>
         <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.3)", lineHeight: "1.9" }}>
           Únete a la comunidad de Conect Manzanillo<br/>
-          <span style={{ color: "#25D366" }}>WhatsApp</span> · <span style={{ color: "#1877F2" }}>Facebook</span> · información en tiempo real
+          <span style={{ color: "#25D366" }}>WhatsApp</span> · <span style={{ color: "#1877F2" }}>Facebook</span> · <span style={{ color: "#f472b6" }}>Instagram</span> · información en tiempo real
         </div>
       </div>
     </div>
@@ -2306,6 +2355,29 @@ function App() {
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
+  const [visitas,   setVisitas]   = useState(null);
+
+  // Contador de visitas unicas (una por dispositivo)
+  useEffect(() => {
+    const TABLA_V = "visitas";
+    const registrar = async () => {
+      try {
+        const uid_local = (() => { try { return localStorage.getItem("puerto_trafico_uid"); } catch { return null; } })();
+        if (uid_local) {
+          await sb.from(TABLA_V).upsert({ id: uid_local, last_seen: new Date().toISOString() }, { onConflict: "id" });
+        }
+        const { count } = await sb.from(TABLA_V).select("id", { count: "exact", head: true });
+        setVisitas(count || 0);
+      } catch { setVisitas(null); }
+    };
+    registrar();
+    const chan = sb.channel("visitas-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA_V }, async () => {
+        const { count } = await sb.from(TABLA_V).select("id", { count: "exact", head: true });
+        setVisitas(count || 0);
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
 
   // ID permanente por dispositivo
   const [myId] = useState(() => {
@@ -2414,9 +2486,18 @@ function App() {
             <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:"#ffffff" }}>Conect Manzanillo</div>
             <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>COMUNIDAD EN VIVO · PUERTO</div>
           </div>
-          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
-            <div style={{ width:"7px", height:"7px", background:"#4ade80", borderRadius:"50%", boxShadow:"0 0 8px #4ade80", animation:"pulse 2s infinite" }} />
-            <span style={{ fontSize:"10px", color:"#4ade80", fontFamily:"'DM Sans',sans-serif", fontWeight:"600" }}>EN VIVO</span>
+          <div style={{ marginLeft:"auto", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px", flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+              <div style={{ width:"7px", height:"7px", background:"#4ade80", borderRadius:"50%", boxShadow:"0 0 8px #4ade80", animation:"pulse 2s infinite" }} />
+              <span style={{ fontSize:"10px", color:"#4ade80", fontFamily:"'DM Sans',sans-serif", fontWeight:"600" }}>EN VIVO</span>
+            </div>
+            {visitas !== null && (
+              <div style={{ display:"flex", alignItems:"center", gap:"4px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"6px", padding:"2px 7px" }}>
+                <span style={{ fontSize:"10px" }}>👁</span>
+                <span style={{ fontSize:"10px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>{visitas.toLocaleString()}</span>
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans',sans-serif" }}>visitas</span>
+              </div>
+            )}
           </div>
         </div>
 
