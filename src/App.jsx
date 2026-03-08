@@ -442,12 +442,12 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     }
     const votes   = { ...inc.votes, [myId]: 1 };
     const conf    = Object.values(votes).filter(v => v === 1).length;
-    const visible = conf >= 3;
+    const visible = conf >= 15;
     await sb.from("incidents").update({ votes, visible }).eq("id", id);
     if (visible && !inc.visible) {
       notify("✅ Reporte verificado — ya aparece en el mapa", "#22c55e");
       await publicarNoticia({ tipo: "incidente", icono: "🚨", color: "#ef4444", titulo: `Incidente verificado — ${inc.location}`, detalle: inc.desc || "Reportado y verificado por la comunidad" });
-    } else notify(`✓ Confirmado (${conf}/3)`, "#22c55e");
+    } else notify(`✓ Confirmado (${conf}/15)`, "#22c55e");
   };
 
   const voteFalse = async (id, forceChange = false) => {
@@ -468,7 +468,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
     if (!inc) return;
     if (inc.resolveVotes[myId]) return notify("Ya reportaste esto como resuelto", "#f97316");
     const rv       = { ...inc.resolveVotes, [myId]: 1 };
-    const resolved = Object.keys(rv).length >= 3;
+    const resolved = Object.keys(rv).length >= 15;
     await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
     if (resolved) {
       notify("✓ Incidente marcado como resuelto", "#22c55e");
@@ -681,7 +681,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
                     <div style={{ fontSize:"9px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
                   </div>
                 </div>
-                <VoteBar count={conf} needed={3} />
+                <VoteBar count={conf} needed={15} />
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
                   <button onClick={() => voteConfirm(inc.id)} style={{ padding:"9px 4px", background: myVote===1 ? "#22c55e33" : "#16a34a15", border:`1px solid ${myVote===1 ? "#22c55e" : "#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>✅</span>
@@ -730,9 +730,9 @@ function TraficoTab({ myId, incidents, setIncidents }) {
               <Badge color={t.color} small>ACTIVO</Badge>
             </div>
             <div style={{ borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"10px" }}>
-              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={3} color="#22c55e" /></div>}
+              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={15} color="#22c55e" /></div>}
               <button onClick={() => voteResolve(inc.id)} style={{ width:"100%", padding:"10px", background: myRv ? "#22c55e22" : "#22c55e15", border:`1px solid ${myRv ? "#22c55e" : "#22c55e44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-                <span>🏁</span> {myRv ? `YA VOTÉ COMO RESUELTO (${rvCount}/3)` : `YA SE RESOLVIÓ (${rvCount}/3)`}
+                <span>🏁</span> {myRv ? `YA VOTÉ COMO RESUELTO (${rvCount}/15)` : `YA SE RESOLVIÓ (${rvCount}/15)`}
               </button>
             </div>
           </div>
@@ -993,19 +993,61 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         <>
           <SectionLabel text="REPORTES PENDIENTES DE VERIFICACIÓN" />
           {pendingMine.map(inc => {
-            const t    = incType(inc.type);
-            const conf = Object.values(inc.votes).filter(v=>v===1).length;
+            const t      = incType(inc.type);
+            const myVote = inc.votes[myId];
+            const conf   = Object.values(inc.votes).filter(v=>v===1).length;
+            const falsos = Object.values(inc.votes).filter(v=>v===-1).length;
+            const borderC = falsos > conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : "#f97316";
             return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${t.color}33`, borderRadius:"10px", padding:"12px", marginBottom:"8px" }}>
-                <div style={{ display:"flex", gap:"8px", alignItems:"flex-start", marginBottom:"8px" }}>
-                  <span style={{ fontSize:"15px" }}>{t.icon}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", fontWeight:"700" }}>{inc.location}</div>
-                    <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"2px" }}>{timeAgo(inc.ts)}</div>
+              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+                  <div style={{ display:"flex", gap:"8px", flex:1 }}>
+                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
+                    <div>
+                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", fontWeight:"700" }}>{inc.location}</div>
+                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
+                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(inc.ts)}</div>
+                    </div>
                   </div>
-                  <Badge color="#f97316" small>PENDIENTE</Badge>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
+                    <Badge color={borderC} small>PENDIENTE</Badge>
+                    <div style={{ fontSize:"9px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
+                  </div>
                 </div>
                 <VoteBar count={conf} needed={15} />
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+                  <button onClick={async () => {
+                    const votes = { ...inc.votes, [myId]: 1 };
+                    const visible = Object.values(votes).filter(v=>v===1).length >= 15;
+                    await sb.from("incidents").update({ votes, visible }).eq("id", inc.id);
+                    notify(visible ? "✅ Reporte verificado" : `✓ Confirmado (${Object.values(votes).filter(v=>v===1).length}/15)`, "#22c55e");
+                  }} style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>✅</span>
+                    <span>CONFIRMO</span>
+                  </button>
+                  <button onClick={async () => {
+                    const votes = { ...inc.votes, [myId]: -1 };
+                    await sb.from("incidents").update({ votes }).eq("id", inc.id);
+                    notify("✗ Marcado como falso", "#ef4444");
+                  }} style={{ padding:"9px 4px", background: myVote===-1?"#ef444433":"#ef444415", border:`1px solid ${myVote===-1?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>❌</span>
+                    <span>FALSO</span>
+                  </button>
+                  <button onClick={async () => {
+                    const rv = { ...inc.resolveVotes, [myId]: 1 };
+                    const resolved = Object.keys(rv).length >= 15;
+                    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", inc.id);
+                    notify(resolved ? "✓ Marcado como resuelto" : `Voto (${Object.keys(rv).length}/15)`, "#6b7280");
+                  }} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>🏁</span>
+                    <span>RESUELTO</span>
+                  </button>
+                </div>
+                {myVote !== undefined && (
+                  <div style={{ fontSize:"9px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:MN, marginTop:"6px", textAlign:"center" }}>
+                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"}
+                  </div>
+                )}
               </div>
             );
           })}
