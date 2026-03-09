@@ -594,8 +594,44 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           allowFullScreen
           src="https://www.google.com/maps/d/embed?mid=1cCBCrR6eT0Sfa2jWAdVeKFaHyWy8YNY&ehbc=2E312F&noprof=1"
         />
-        {/* Leyenda de accesos */}
-        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.9))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+        {/* Pins HTML con nombres encima del mapa */}
+        {(() => {
+          // Bounding box aproximado del área visible del mapa (zoom 14 centrado en el puerto)
+          const latMin = 19.065, latMax = 19.112;
+          const lngMin = -104.308, lngMax = -104.268;
+          const mapH = 240;
+          // Altura reservada para barra inferior de Google Maps (~30px)
+          const usableH = mapH - 30;
+          const toXY = (lat, lng) => ({
+            x: ((lng - lngMin) / (lngMax - lngMin)) * 100,
+            y: ((latMax - lat) / (latMax - latMin)) * usableH,
+          });
+          const pins = [
+            { lat: 19.07633, lng: -104.28718, label: "Pez Vela",       color: "#a78bfa", acc: "pezvela"   },
+            { lat: 19.08682, lng: -104.29706, label: "Zona Norte",      color: "#38bdf8", acc: "zonanorte" },
+            { lat: 19.07785, lng: -104.28848, label: "Puerta 15",       color: "#f97316", acc: null        },
+            { lat: 19.10358, lng: -104.27031, label: "Patio Regulador", color: "#22c55e", acc: null        },
+          ];
+          return pins.map(p => {
+            const { x, y } = toXY(p.lat, p.lng);
+            const st  = p.acc ? accesos[p.acc] : null;
+            const opt = st ? getAcOpt(st.status) : null;
+            return (
+              <div key={p.label} style={{ position:"absolute", left:`${x}%`, top:`${y}px`, transform:"translate(-50%,-100%)", zIndex:10, pointerEvents:"none" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+                  <div style={{ background:"rgba(10,15,30,0.85)", border:`2px solid ${opt ? opt.color : p.color}`, borderRadius:"6px", padding:"2px 6px", whiteSpace:"nowrap", marginBottom:"3px" }}>
+                    <span style={{ fontSize:"9px", color: opt ? opt.color : p.color, fontFamily:MN, fontWeight:"700" }}>{p.label}</span>
+                    {opt && <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.6)", fontFamily:MN }}> · {opt.icon} {opt.label}</span>}
+                  </div>
+                  <div style={{ width:"10px", height:"10px", background: opt ? opt.color : p.color, borderRadius:"50%", boxShadow:`0 0 8px ${opt ? opt.color : p.color}`, border:"2px solid rgba(255,255,255,0.8)" }} />
+                  <div style={{ width:"2px", height:"8px", background: opt ? opt.color : p.color, opacity:0.7 }} />
+                </div>
+              </div>
+            );
+          });
+        })()}
+        {/* Leyenda inferior */}
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.9))", padding:"6px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
             {[
               { color:"#a78bfa", label:"Pez Vela" },
@@ -604,7 +640,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
               { color:"#22c55e", label:"Patio Regulador" },
             ].map(p => (
               <div key={p.label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-                <div style={{ width:"8px", height:"8px", background:p.color, borderRadius:"50%", boxShadow:`0 0 6px ${p.color}` }} />
+                <div style={{ width:"7px", height:"7px", background:p.color, borderRadius:"50%", boxShadow:`0 0 5px ${p.color}` }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.8)", fontFamily:MN, fontWeight:"600" }}>{p.label}</span>
               </div>
             ))}
