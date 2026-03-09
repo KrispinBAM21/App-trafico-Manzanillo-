@@ -592,7 +592,7 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           style={{ border: 0, display: "block" }}
           loading="lazy"
           allowFullScreen
-          src="https://maps.google.com/maps?q=19.0863,-104.2971&z=14&output=embed&hl=es"
+          src="https://www.google.com/maps/d/embed?mid=1cCBCrR6eT0Sfa2jWAdVeKFaHyWy8YNY&ehbc=2E312F&noprof=1"
         />
         {/* Leyenda de accesos */}
         <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.9))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
