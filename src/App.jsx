@@ -583,39 +583,40 @@ function TraficoTab({ myId, incidents, setIncidents }) {
 
   return (
     <div style={{ padding: "16px", paddingBottom: "80px" }}>
-      {/* Mapa */}
-      <div style={{ background: "linear-gradient(135deg,#0d1b2e,#0a2540,#061a30)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", height: "180px", marginBottom: "16px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position:"absolute",inset:0, backgroundImage:"linear-gradient(#1e3a5f22 1px,transparent 1px),linear-gradient(90deg,#1e3a5f22 1px,transparent 1px)", backgroundSize:"28px 28px" }} />
-        {active.map((inc, i) => {
-          const t = incType(inc.type);
-          return (
-            <div key={inc.id} style={{ position:"absolute", top:`${20+i*28}%`, left:`${18+i*18}%`, zIndex:3 }}>
-              <div style={{ background:t.color, borderRadius:"50% 50% 50% 0", width:"24px", height:"24px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"11px", transform:"rotate(-45deg)", boxShadow:`0 0 12px ${t.color}99` }}>
-                <span style={{ transform:"rotate(45deg)" }}>{t.icon}</span>
+      {/* Mapa Google Maps real con accesos */}
+      <div style={{ border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", height: "240px", marginBottom: "16px", position: "relative", overflow: "hidden" }}>
+        <iframe
+          title="Mapa Accesos Puerto Manzanillo"
+          width="100%"
+          height="100%"
+          style={{ border: 0, display: "block" }}
+          loading="lazy"
+          allowFullScreen
+          referrerPolicy="no-referrer-when-downgrade"
+          src={`https://www.google.com/maps?q=19.0863,−104.2971&z=14&output=embed&markers=color:purple%7Clabel:PV%7C19.07633,-104.28718&markers=color:blue%7Clabel:N%7C19.08682,-104.29706&markers=color:orange%7Clabel:15%7C19.07785,-104.28848&markers=color:green%7Clabel:PR%7C19.10358,-104.27031`}
+        />
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.85))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end", pointerEvents:"none" }}>
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+            {[
+              { color:"#a78bfa", label:"Pez Vela" },
+              { color:"#38bdf8", label:"Zona Norte" },
+              { color:"#f97316", label:"Puerta 15" },
+              { color:"#22c55e", label:"Patio Regulador" },
+            ].map(p => (
+              <div key={p.label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+                <div style={{ width:"8px", height:"8px", background:p.color, borderRadius:"50%", boxShadow:`0 0 6px ${p.color}` }} />
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontWeight:"600" }}>{p.label}</span>
               </div>
-            </div>
-          );
-        })}
-        {[{ left:"18%", color:"#a78bfa", label:"Pez Vela", acc:"pezvela" }, { right:"18%", color:"#38bdf8", label:"Zona Norte", acc:"zonanorte" }].map(p => {
-          const st  = accesos[p.acc];
-          const opt = getAcOpt(st.status);
-          const ro  = getRetOpt(st.retornos);
-          return (
-            <div key={p.acc} style={{ position:"absolute", top:"18%", left:p.left, right:p.right, zIndex:2 }}>
-              <div style={{ background:p.color, borderRadius:"50% 50% 50% 0", width:"26px", height:"26px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", transform:"rotate(-45deg)", boxShadow:`0 0 14px ${p.color}99`, border:`2px solid ${opt.color}` }}>
-                <span style={{ transform:"rotate(45deg)" }}>📍</span>
-              </div>
-              <div style={{ marginTop:"3px", fontSize:"8px", color:p.color, fontFamily:MN, whiteSpace:"nowrap", fontWeight:"700" }}>{p.label}</div>
-              <div style={{ fontSize:"7px", color:opt.color, fontFamily:MN, whiteSpace:"nowrap" }}>{opt.icon} {opt.label}</div>
-              {st.retornos !== "none" && <div style={{ fontSize:"7px", color:ro.color, fontFamily:MN }}>{ro.icon} {ro.label}</div>}
-            </div>
-          );
-        })}
-        <div style={{ position:"relative",zIndex:1,height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
-          <div style={{ fontSize:"11px",color:"#38bdf855",fontFamily:MN,letterSpacing:"2px" }}>MANZANILLO — EN VIVO</div>
-          <div style={{ fontSize:"10px",color:"#47556944",marginTop:"4px",fontFamily:MN }}>{active.length} incidente(s)</div>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              const url = "https://www.google.com/maps/dir/?api=1&destination=19.08682,-104.29706&travelmode=driving";
+              window.open(url, "_blank");
+            }}
+            style={{ pointerEvents:"auto", background:"#38bdf8", color:"#0a0f1e", padding:"5px 10px", borderRadius:"6px", fontSize:"10px", fontFamily:MN, fontWeight:"700", border:"none", cursor:"pointer" }}
+          >VER EN MAPS ↗</button>
         </div>
-        <button onClick={() => { const lat=19.0525,lng=-104.3154; const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent); const isAndroid=/Android/.test(navigator.userAgent); if(isIOS){window.location.href=`maps://?q=${lat},${lng}`;}else if(isAndroid){window.location.href=`geo:${lat},${lng}?q=${lat},${lng}(Puerto+Manzanillo)`;}else{window.open(`https://maps.google.com/?q=${lat},${lng}&z=15`,"_blank");} }} style={{ position:"absolute",bottom:"10px",right:"10px",background:"#38bdf8",color:"#0a0f1e",padding:"5px 10px",borderRadius:"6px",fontSize:"10px",fontFamily:MN,fontWeight:"700",border:"none",cursor:"pointer" }}>VER EN MAPS ↗</button>
       </div>
 
       <SectionLabel text="ACCESOS PRINCIPALES" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
