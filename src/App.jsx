@@ -592,10 +592,10 @@ function TraficoTab({ myId, incidents, setIncidents }) {
           style={{ border: 0, display: "block" }}
           loading="lazy"
           allowFullScreen
-          referrerPolicy="no-referrer-when-downgrade"
-          src={`https://www.google.com/maps?q=19.0863,−104.2971&z=14&output=embed&markers=color:purple%7Clabel:PV%7C19.07633,-104.28718&markers=color:blue%7Clabel:N%7C19.08682,-104.29706&markers=color:orange%7Clabel:15%7C19.07785,-104.28848&markers=color:green%7Clabel:PR%7C19.10358,-104.27031`}
+          src="https://maps.google.com/maps?q=19.0863,-104.2971&z=14&output=embed&hl=es"
         />
-        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.85))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end", pointerEvents:"none" }}>
+        {/* Leyenda de accesos */}
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.9))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
             {[
               { color:"#a78bfa", label:"Pez Vela" },
@@ -605,16 +605,13 @@ function TraficoTab({ myId, incidents, setIncidents }) {
             ].map(p => (
               <div key={p.label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
                 <div style={{ width:"8px", height:"8px", background:p.color, borderRadius:"50%", boxShadow:`0 0 6px ${p.color}` }} />
-                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontWeight:"600" }}>{p.label}</span>
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.8)", fontFamily:MN, fontWeight:"600" }}>{p.label}</span>
               </div>
             ))}
           </div>
           <button
-            onClick={() => {
-              const url = "https://www.google.com/maps/dir/?api=1&destination=19.08682,-104.29706&travelmode=driving";
-              window.open(url, "_blank");
-            }}
-            style={{ pointerEvents:"auto", background:"#38bdf8", color:"#0a0f1e", padding:"5px 10px", borderRadius:"6px", fontSize:"10px", fontFamily:MN, fontWeight:"700", border:"none", cursor:"pointer" }}
+            onClick={() => window.open("https://www.google.com/maps/search/Puerto+de+Manzanillo/@19.0863,-104.2971,14z", "_blank")}
+            style={{ background:"#38bdf8", color:"#0a0f1e", padding:"5px 10px", borderRadius:"6px", fontSize:"10px", fontFamily:MN, fontWeight:"700", border:"none", cursor:"pointer" }}
           >VER EN MAPS ↗</button>
         </div>
       </div>
