@@ -246,13 +246,20 @@ const SEGUNDO_CARRILES_INGRESO = [
   { id: "c2", label: "Carril 2", defaultTerminal: "timsa" },
   { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
 ];
+const SEGUNDO_TRAFICO_OPTS = [
+  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "✓" },
+  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "✗" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "🐢" },
+  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "🛑" },
+];
+
 const mkSegundoIngreso = () => ({
   ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
     terminal: c.defaultTerminal, saturado: false, retornos: false,
-    contenedor: "cerrado",
+    expo: "libre", impo: "libre",
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { saturado: false, retornos: false, contenedor: "cerrado", lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { saturado: false, retornos: false, expo: "libre", impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 const ACCESOS_CARRILES = [
@@ -1256,7 +1263,7 @@ function SegundoAccesoTab() {
 
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, contenedor: "cerrado", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril restablecido", "#22c55e");
@@ -1297,7 +1304,7 @@ function SegundoAccesoTab() {
           </div>
         </div>
         <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-          {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+          {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
             <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
               <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
               <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
@@ -1311,7 +1318,9 @@ function SegundoAccesoTab() {
         const st        = carriles[carril.id];
         const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
         const zonaColor = termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
-        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || st.contenedor === "puerta_abierta";
+        const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+        const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
         return (
           <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
@@ -1323,10 +1332,11 @@ function SegundoAccesoTab() {
                 <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                <div style={{ display:"flex", gap:"5px" }}>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
                   <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
                   {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
-                  {st.contenedor === "puerta_abierta" && <Badge color="#f59e0b" small>🔓 PUERTA ABIERTA</Badge>}
+                  {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.icon}</Badge>}
+                  {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.icon}</Badge>}
                 </div>
                 {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
               </div>
@@ -1357,14 +1367,23 @@ function SegundoAccesoTab() {
               <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
               <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
               <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
               <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
             </div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CONTENEDOR:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-              <button onClick={() => updateIngreso(carril.id,"contenedor","cerrado")} style={{ padding:"9px", background: (st.contenedor==="cerrado"||!st.contenedor)?"#38bdf822":"#0a1628", border:`1px solid ${(st.contenedor==="cerrado"||!st.contenedor)?"#38bdf8":"#1e3a5f"}`, borderRadius:"8px", color: (st.contenedor==="cerrado"||!st.contenedor)?"#38bdf8":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:(st.contenedor==="cerrado"||!st.contenedor)?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>📦 CERRADO</button>
-              <button onClick={() => updateIngreso(carril.id,"contenedor","puerta_abierta")} style={{ padding:"9px", background: st.contenedor==="puerta_abierta"?"#f59e0b22":"#0a1628", border:`1px solid ${st.contenedor==="puerta_abierta"?"#f59e0b":"#1e3a5f"}`, borderRadius:"8px", color: st.contenedor==="puerta_abierta"?"#f59e0b":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:st.contenedor==="puerta_abierta"?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>🔓 PUERTA ABIERTA</button>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+              <div>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN</div>
+                <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN</div>
+                <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         );
@@ -1393,15 +1412,30 @@ function SegundoAccesoTab() {
           <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
           <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
           <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
           <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
         </div>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CONTENEDOR:</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-          <button onClick={() => updateSalida("contenedor","cerrado")} style={{ padding:"10px", background: (carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf822":"#0a1628", border:`1px solid ${(carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf8":"#1e3a5f"}`, borderRadius:"8px", color: (carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"#38bdf8":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:(carriles.c4.contenedor==="cerrado"||!carriles.c4.contenedor)?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>📦 CERRADO</button>
-          <button onClick={() => updateSalida("contenedor","puerta_abierta")} style={{ padding:"10px", background: carriles.c4.contenedor==="puerta_abierta"?"#f59e0b22":"#0a1628", border:`1px solid ${carriles.c4.contenedor==="puerta_abierta"?"#f59e0b":"#1e3a5f"}`, borderRadius:"8px", color: carriles.c4.contenedor==="puerta_abierta"?"#f59e0b":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:carriles.c4.contenedor==="puerta_abierta"?"700":"400", display:"flex", alignItems:"center", justifyContent:"center", gap:"5px" }}>🔓 PUERTA ABIERTA</button>
-        </div>
+        {(() => {
+          const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
+          const c4ImpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.impo || "libre"));
+          return (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+              <div>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN</div>
+                <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN</div>
+                <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          );
+        })()}
       </div>
       <ToastBox toast={toast} />
     </div>
