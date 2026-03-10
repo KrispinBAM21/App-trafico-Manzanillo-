@@ -806,10 +806,18 @@ function TraficoTab({ myId, incidents, setIncidents }) {
 }
 
 // ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
+const MAP_TILES = [
+  { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",        attr: "CartoDB" },
+  { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr: "Esri" },
+  { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",       attr: "CartoDB" },
+];
+
 function MapaTrafico({ incidents, accesos, vialidades }) {
   const mapRef    = useRef(null);
   const leafRef   = useRef(null);
   const layersRef = useRef({});
+  const tileRef   = useRef(null);
+  const [tileMode, setTileMode] = useState("dark");
 
   // Datos exactos del KML
   const KML_POINTS = [
@@ -900,7 +908,7 @@ function MapaTrafico({ incidents, accesos, vialidades }) {
         attributionControl: false,
         scrollWheelZoom: true,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
+      tileRef.current = L.tileLayer(MAP_TILES[0].url, { maxZoom: 19 }).addTo(map);
       leafRef.current = map;
 
       // Líneas KML
@@ -966,6 +974,15 @@ function MapaTrafico({ incidents, accesos, vialidades }) {
     }
     return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
   }, []);
+
+  // Cambiar capa de tiles cuando cambia el modo
+  useEffect(() => {
+    if (!leafRef.current || !tileRef.current || !window.L) return;
+    const L = window.L;
+    const t = MAP_TILES.find(t => t.id === tileMode);
+    if (!t) return;
+    tileRef.current.setUrl(t.url);
+  }, [tileMode]);
 
   // Actualizar estilos cuando cambian incidentes
   useEffect(() => {
@@ -1038,11 +1055,21 @@ function MapaTrafico({ incidents, accesos, vialidades }) {
           <span style={{ fontSize: "13px" }}>🗺️</span>
           <span style={{ fontFamily: TITLE, fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>Mapa del Puerto</span>
           <span style={{ fontFamily: MN, fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· tráfico en tiempo real</span>
-          {activeIncidents.length > 0 && (
-            <span style={{ marginLeft: "auto", background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "2px 9px", fontSize: "11px", color: "#ef4444", fontFamily: MN, fontWeight: "700" }}>
-              {activeIncidents.length} incidente{activeIncidents.length > 1 ? "s" : ""}
-            </span>
-          )}
+          <div style={{ marginLeft: "auto", display: "flex", gap: "4px", alignItems: "center" }}>
+            {MAP_TILES.map(t => (
+              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
+                background: tileMode === t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
+                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
+                fontFamily: MN, fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
+              }}>{t.icon} {t.label}</button>
+            ))}
+            {activeIncidents.length > 0 && (
+              <span style={{ background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "2px 9px", fontSize: "11px", color: "#ef4444", fontFamily: MN, fontWeight: "700", marginLeft: "4px" }}>
+                {activeIncidents.length} incidente{activeIncidents.length > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
         <div ref={mapRef} style={{ width: "100%", height: "320px", background: "#040c18" }} />
       </div>
