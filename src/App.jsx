@@ -596,7 +596,7 @@ function NavBar({ active, set }) {
   );
 }
 
-function TraficoTab({ myId, incidents, setIncidents }) {
+function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [accesos,     setAccesos]     = useState(mkAccesos);
   const [vialidades,  setVialidades]  = useState(mkVialidades);
   const [toast,       setToast]       = useState(null);
@@ -2734,6 +2734,8 @@ function CookieBanner({ onAccept, onReject }) {
 
 
 function App() {
+  const { isAdmin, handleLogoTap, logout, Modal } = useAdminMode();
+
   const [active,    setActiveRaw]  = useState(() => {
     try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
   });
@@ -2893,7 +2895,7 @@ function App() {
         <NavBar active={active} set={setActive} />
 
         {active === "inicio"      && <InicioTab />}
-        {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} />}
+        {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
