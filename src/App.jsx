@@ -980,6 +980,7 @@ const GEO_LINES = [
     name: "Vialidad Confinada",
     matchKeys: ["confinada", "vialidad confinada"],
     color: "#a78bfa",
+    weight: 5,
     coords: [
       [-104.2877084,19.0785651],[-104.288041,19.0790468],[-104.289205,19.0804967],
       [-104.2899722,19.0815005],[-104.2909378,19.0827223],[-104.2912703,19.0829808],
@@ -993,6 +994,7 @@ const GEO_LINES = [
     name: "Segundo Acceso",
     matchKeys: ["segundo acceso", "segundo", "puerta 15"],
     color: "#38bdf8",
+    weight: 6,
     coords: [
       [-104.2957224,19.0861153],[-104.2934479,19.0834082],[-104.292654,19.0825058],
       [-104.2923106,19.0823942],[-104.2920102,19.0824044],[-104.2911519,19.0827288],
@@ -1008,20 +1010,20 @@ const GEO_LINES = [
 ];
 
 const GEO_POINTS = [
-  { id:"pezvela",    name:"Pez Vela",    matchKeys:["acceso pez vela","pez vela"],                          color:"#a78bfa", coords:[-104.2872312,19.0764056], icon:"⚓" },
-  { id:"puerta15",   name:"Puerta 15",   matchKeys:["puerta 15","acceso puerta"],                           color:"#f97316", coords:[-104.288465,19.0778657],  icon:"🚪" },
-  { id:"zonanorte",  name:"Zona Norte",  matchKeys:["acceso zona norte","zona norte"],                      color:"#38bdf8", coords:[-104.2971921,19.0867863], icon:"⬆️" },
-  { id:"patio_acc",  name:"Patios",      matchKeys:["patio regulador","patio","cima","isl","alman","sia","almacont"], color:"#22c55e", coords:[-104.2703336,19.103568], icon:"🏭" },
-  { id:"ssa",        name:"SSA",         matchKeys:["terminal ssa"," ssa"],                                 color:"#38bdf8", coords:[-104.2898778,19.0715354], icon:"🏗" },
-  { id:"contecon",   name:"CONTECON",    matchKeys:["contecon"],                                            color:"#38bdf8", coords:[-104.300012,19.0798514],  icon:"🏗" },
-  { id:"lajunta",    name:"La Junta",    matchKeys:["la junta","tap"],                                      color:"#38bdf8", coords:[-104.2913354,19.0631117], icon:"🏗" },
-  { id:"timsa",      name:"TIMSA",       matchKeys:["timsa"],                                               color:"#38bdf8", coords:[-104.2910225,19.061327],  icon:"🏗" },
-  { id:"friman",     name:"FRIMAN",      matchKeys:["friman"],                                              color:"#38bdf8", coords:[-104.2954986,19.057065],  icon:"🏗" },
-  { id:"multimodal", name:"Multimodal",  matchKeys:["multimodal"],                                          color:"#38bdf8", coords:[-104.2943184,19.0572374], icon:"🏗" },
-  { id:"ocupa",      name:"OCUPA",       matchKeys:["ocupa","multipropósito","multiproposito"],             color:"#38bdf8", coords:[-104.3008416,19.0565276], icon:"🏗" },
-  { id:"cemex",      name:"CEMEX",       matchKeys:["cemex"],                                               color:"#38bdf8", coords:[-104.2996151,19.0577258], icon:"🏗" },
-  { id:"hazesa",     name:"HAZESA",      matchKeys:["hazesa"],                                              color:"#38bdf8", coords:[-104.2946041,19.0834164], icon:"🏗" },
-  { id:"asipona",    name:"ASIPONA",     matchKeys:["asipona"],                                             color:"#fbbf24", coords:[-104.3035361,19.0560156], icon:"⚓" },
+  { id:"pezvela",    name:"Acceso Pez Vela",    matchKeys:["acceso pez vela","pez vela"],                          color:"#a78bfa", coords:[19.0764056,-104.2872312] },
+  { id:"puerta15",   name:"Acceso Puerta 15",   matchKeys:["puerta 15","acceso puerta"],                           color:"#f97316", coords:[19.0778657,-104.288465]  },
+  { id:"zonanorte",  name:"Acceso Zona Norte",  matchKeys:["acceso zona norte","zona norte"],                      color:"#38bdf8", coords:[19.0867863,-104.2971921] },
+  { id:"patio_acc",  name:"Acceso Patios",      matchKeys:["patio regulador","patio","cima","isl","alman","sia","almacont"], color:"#22c55e", coords:[19.103568,-104.2703336] },
+  { id:"ssa",        name:"Terminal SSA",        matchKeys:["terminal ssa"," ssa"],                                 color:"#60a5fa", coords:[19.0715354,-104.2898778] },
+  { id:"contecon",   name:"CONTECON",            matchKeys:["contecon"],                                            color:"#60a5fa", coords:[19.0798514,-104.300012]  },
+  { id:"lajunta",    name:"La Junta (TAP)",      matchKeys:["la junta","tap"],                                      color:"#60a5fa", coords:[19.0631117,-104.2913354] },
+  { id:"timsa",      name:"TIMSA",               matchKeys:["timsa"],                                               color:"#60a5fa", coords:[19.061327,-104.2910225]  },
+  { id:"friman",     name:"FRIMAN",              matchKeys:["friman"],                                              color:"#60a5fa", coords:[19.057065,-104.2954986]  },
+  { id:"multimodal", name:"Multimodal",          matchKeys:["multimodal"],                                          color:"#60a5fa", coords:[19.0572374,-104.2943184] },
+  { id:"ocupa",      name:"OCUPA",               matchKeys:["ocupa","multipropósito","multiproposito"],             color:"#60a5fa", coords:[19.0565276,-104.3008416] },
+  { id:"cemex",      name:"CEMEX",               matchKeys:["cemex"],                                               color:"#60a5fa", coords:[19.0577258,-104.2996151] },
+  { id:"hazesa",     name:"HAZESA",              matchKeys:["hazesa"],                                              color:"#60a5fa", coords:[19.0834164,-104.2946041] },
+  { id:"asipona",    name:"ASIPONA",             matchKeys:["asipona"],                                             color:"#fbbf24", coords:[19.0560156,-104.3035361] },
 ];
 
 function matchGeoElements(locationStr, accesoStr) {
@@ -1031,24 +1033,22 @@ function matchGeoElements(locationStr, accesoStr) {
   return { hitLines, hitPoints };
 }
 
-// ─── COMPONENTE: Mapa SVG de incidentes ──────────────────────────────────────
+// ─── COMPONENTE: Mapa Leaflet real ───────────────────────────────────────────
 function MapaIncidentes({ incidents, highlightLocation, highlightAcceso }) {
-  const W = 360, H = 300;
-  // Bbox ajustado para centrar bien el puerto de Manzanillo
-  const BBOX = { minLon:-104.315, maxLon:-104.258, minLat:19.052, maxLat:19.112 };
-
-  const project = ([lon, lat]) => [
-    ((lon - BBOX.minLon) / (BBOX.maxLon - BBOX.minLon)) * W,
-    H - ((lat - BBOX.minLat) / (BBOX.maxLat - BBOX.minLat)) * H,
-  ];
-
-  const lineToPath = (coords) =>
-    coords.map((c,i) => { const [x,y] = project(c); return `${i===0?"M":"L"}${x.toFixed(1)},${y.toFixed(1)}`; }).join(" ");
+  const mapRef    = useRef(null);
+  const leafletRef = useRef(null);   // instancia L.map
+  const layersRef  = useRef({});     // id -> layer
+  const markersRef = useRef({});     // id -> marker
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+  const { hitLines, hitPoints } = matchGeoElements(highlightLocation || "", highlightAcceso || "");
+  const hlLineIds  = new Set(hitLines.map(l => l.id));
+  const hlPointIds = new Set(hitPoints.map(p => p.id));
+
+  // Incidentes activos por geoId
   const incidentGeoMap = {};
   activeIncidents.forEach(inc => {
-    const text = (inc.location || "").toLowerCase();
+    const text  = (inc.location || "").toLowerCase();
     const color = inc.type === "accidente" ? "#ef4444" : inc.type === "bloqueo" ? "#eab308" : "#f97316";
     [...GEO_LINES, ...GEO_POINTS].forEach(geo => {
       if (geo.matchKeys.some(k => text.includes(k))) {
@@ -1058,246 +1058,250 @@ function MapaIncidentes({ incidents, highlightLocation, highlightAcceso }) {
     });
   });
 
-  const { hitLines: hlLines, hitPoints: hlPoints } = matchGeoElements(highlightLocation || "", highlightAcceso || "");
-  const hlLineIds  = new Set(hlLines.map(l => l.id));
-  const hlPointIds = new Set(hlPoints.map(p => p.id));
+  // Inicializar mapa una sola vez
+  useEffect(() => {
+    if (leafletRef.current) return;
 
-  // Puntos de la costa / silueta del área portuaria (aproximados)
-  const coastLine = [
-    [-104.315,19.095],[-104.310,19.090],[-104.305,19.082],[-104.302,19.075],
-    [-104.300,19.068],[-104.298,19.060],[-104.295,19.055],[-104.290,19.052],
-    [-104.285,19.053],[-104.280,19.056],[-104.275,19.060],[-104.270,19.065],
-    [-104.265,19.072],[-104.260,19.080],[-104.258,19.090],
-  ];
+    const L = window.L;
+    if (!L) return;
 
-  const coastPath = coastLine.map((c,i) => {
-    const [x,y] = project(c);
-    return `${i===0?"M":"L"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ") + " L360,300 L0,300 Z";
+    const map = L.map(mapRef.current, {
+      center: [19.075, -104.295],
+      zoom: 14,
+      zoomControl: true,
+      attributionControl: false,
+      scrollWheelZoom: true,
+    });
 
-  // Línea del muelle / borde portuario (costa norte)
-  const muelleCoords = [
-    [-104.312,19.092],[-104.305,19.085],[-104.298,19.078],[-104.292,19.070],
-    [-104.288,19.063],[-104.284,19.057],[-104.280,19.054],
-  ];
-  const muellePath = muelleCoords.map((c,i)=>{const[x,y]=project(c);return`${i===0?"M":"L"}${x.toFixed(1)},${y.toFixed(1)}`;}).join(" ");
+    // Tiles oscuros de CartoDB — perfectos para interfaz dark
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+    }).addTo(map);
 
-  // Carretera de referencia (Blvd Miguel de la Madrid)
-  const blvdCoords = [
-    [-104.315,19.098],[-104.308,19.095],[-104.300,19.092],[-104.292,19.090],
-    [-104.285,19.089],[-104.278,19.090],[-104.270,19.093],[-104.262,19.097],
-  ];
-  const blvdPath = blvdCoords.map((c,i)=>{const[x,y]=project(c);return`${i===0?"M":"L"}${x.toFixed(1)},${y.toFixed(1)}`;}).join(" ");
+    leafletRef.current = map;
+
+    // Agregar líneas base (siempre visibles, tenues)
+    GEO_LINES.forEach(line => {
+      const latlngs = line.coords.map(([lon, lat]) => [lat, lon]);
+      const poly = L.polyline(latlngs, {
+        color: line.color,
+        weight: line.weight || 4,
+        opacity: 0.35,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(map);
+      poly.bindTooltip(line.name, { sticky: true, className: "cm-tooltip" });
+      layersRef.current[line.id] = poly;
+    });
+
+    // Agregar puntos base
+    GEO_POINTS.forEach(pt => {
+      const marker = L.circleMarker(pt.coords, {
+        radius: 6,
+        color: pt.color,
+        fillColor: pt.color,
+        fillOpacity: 0.5,
+        weight: 1.5,
+        opacity: 0.5,
+      }).addTo(map);
+      marker.bindTooltip(pt.name, { sticky: true, className: "cm-tooltip" });
+      markersRef.current[pt.id] = marker;
+    });
+
+    // Inyectar CSS para tooltips
+    const tooltipStyle = document.createElement("style");
+    tooltipStyle.textContent = `
+      .cm-tooltip {
+        background: rgba(4,12,24,0.92) !important;
+        border: 1px solid rgba(56,189,248,0.4) !important;
+        border-radius: 6px !important;
+        color: rgba(255,255,255,0.9) !important;
+        font-family: 'SoftSans', sans-serif !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        padding: 4px 8px !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important;
+        white-space: nowrap !important;
+      }
+      .cm-tooltip::before { display: none !important; }
+      .leaflet-tooltip-left.cm-tooltip::before { display: none !important; }
+      .leaflet-control-zoom a {
+        background: rgba(4,12,24,0.9) !important;
+        color: rgba(255,255,255,0.7) !important;
+        border-color: rgba(255,255,255,0.1) !important;
+      }
+      .leaflet-control-zoom a:hover {
+        background: rgba(56,189,248,0.2) !important;
+        color: #fff !important;
+      }
+    `;
+    document.head.appendChild(tooltipStyle);
+
+    return () => {
+      map.remove();
+      leafletRef.current = null;
+    };
+  }, []);
+
+  // Actualizar estilos de líneas y puntos cuando cambia el estado
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !leafletRef.current) return;
+
+    // Actualizar líneas
+    GEO_LINES.forEach(line => {
+      const poly = layersRef.current[line.id];
+      if (!poly) return;
+      const hasInc = incidentGeoMap[line.id];
+      const isHL   = hlLineIds.has(line.id);
+      const color  = hasInc ? hasInc.color : line.color;
+      const weight = hasInc ? (line.weight || 4) + 2 : isHL ? (line.weight || 4) + 1 : (line.weight || 4);
+      const opacity = hasInc || isHL ? 0.95 : 0.35;
+      const dashArray = hasInc ? "10, 6" : null;
+      poly.setStyle({ color, weight, opacity, dashArray });
+
+      // Popup con info de incidente
+      if (hasInc) {
+        poly.bindPopup(
+          `<div style="font-family:'SoftSans',sans-serif;padding:4px">
+            <b style="color:${hasInc.color}">${line.name}</b><br/>
+            <span style="color:rgba(255,255,255,0.7);font-size:11px">⚠ ${hasInc.count} incidente${hasInc.count>1?"s":""} activo${hasInc.count>1?"s":""}</span>
+          </div>`,
+          { className: "cm-tooltip" }
+        );
+      }
+    });
+
+    // Actualizar puntos
+    GEO_POINTS.forEach(pt => {
+      const marker = markersRef.current[pt.id];
+      if (!marker) return;
+      const hasInc = incidentGeoMap[pt.id];
+      const isHL   = hlPointIds.has(pt.id);
+      const color  = hasInc ? hasInc.color : pt.color;
+      const radius = hasInc ? 10 : isHL ? 9 : 6;
+      const fillOpacity = hasInc || isHL ? 0.9 : 0.45;
+      const opacity = hasInc || isHL ? 1 : 0.5;
+      marker.setStyle({ color, fillColor: color, radius, fillOpacity, opacity, weight: hasInc ? 2.5 : 1.5 });
+
+      if (hasInc) {
+        marker.bindPopup(
+          `<div style="font-family:'SoftSans',sans-serif;padding:4px">
+            <b style="color:${hasInc.color}">${pt.name}</b><br/>
+            <span style="color:rgba(255,255,255,0.7);font-size:11px">⚠ ${hasInc.count} incidente${hasInc.count>1?"s":""} activo${hasInc.count>1?"s":""}</span>
+          </div>`,
+          { className: "cm-tooltip" }
+        );
+      }
+    });
+
+    // Si hay selección activa, hacer zoom suave al elemento
+    if (hitLines.length > 0 && leafletRef.current) {
+      const allCoords = hitLines.flatMap(l => l.coords.map(([lon, lat]) => [lat, lon]));
+      const bounds = window.L.latLngBounds(allCoords);
+      leafletRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
+    } else if (hitPoints.length > 0 && leafletRef.current) {
+      leafletRef.current.flyTo(hitPoints[0].coords, 15, { animate: true, duration: 0.8 });
+    }
+
+  }, [JSON.stringify(incidentGeoMap), JSON.stringify([...hlLineIds]), JSON.stringify([...hlPointIds])]);
+
+  // Cargar Leaflet CSS + JS si no están ya
+  useEffect(() => {
+    if (window.L) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = () => {
+      // Re-render al cargar
+      if (mapRef.current && !leafletRef.current) {
+        const L = window.L;
+        const map = L.map(mapRef.current, {
+          center: [19.075, -104.295],
+          zoom: 14,
+          zoomControl: true,
+          attributionControl: false,
+          scrollWheelZoom: true,
+        });
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
+        leafletRef.current = map;
+
+        GEO_LINES.forEach(line => {
+          const latlngs = line.coords.map(([lon, lat]) => [lat, lon]);
+          const poly = L.polyline(latlngs, { color: line.color, weight: line.weight || 4, opacity: 0.35, lineCap: "round" }).addTo(map);
+          poly.bindTooltip(line.name, { sticky: true, className: "cm-tooltip" });
+          layersRef.current[line.id] = poly;
+        });
+        GEO_POINTS.forEach(pt => {
+          const marker = L.circleMarker(pt.coords, { radius: 6, color: pt.color, fillColor: pt.color, fillOpacity: 0.5, weight: 1.5, opacity: 0.5 }).addTo(map);
+          marker.bindTooltip(pt.name, { sticky: true, className: "cm-tooltip" });
+          markersRef.current[pt.id] = marker;
+        });
+      }
+    };
+    document.head.appendChild(script);
+  }, []);
 
   return (
     <div style={{
-      borderRadius:"14px", overflow:"hidden",
-      border:"1px solid rgba(255,255,255,0.1)",
-      background:"#040c18",
-      marginBottom:"16px",
-      boxShadow:"0 4px 24px rgba(0,0,0,0.5)",
+      borderRadius: "14px",
+      overflow: "hidden",
+      border: "1px solid rgba(255,255,255,0.1)",
+      marginBottom: "16px",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
     }}>
       {/* Header */}
       <div style={{
-        padding:"10px 14px",
-        background:"rgba(255,255,255,0.04)",
-        borderBottom:"1px solid rgba(255,255,255,0.07)",
-        display:"flex", alignItems:"center", gap:"8px",
+        padding: "10px 14px",
+        background: "rgba(4,12,24,0.95)",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        display: "flex", alignItems: "center", gap: "8px",
       }}>
-        <span style={{ fontSize:"12px" }}>🗺️</span>
-        <span style={{ fontFamily:TITLE, fontSize:"13px", fontWeight:"700", color:"rgba(255,255,255,0.85)", letterSpacing:"0.5px" }}>
+        <span style={{ fontSize: "13px" }}>🗺️</span>
+        <span style={{ fontFamily: TITLE, fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>
           Puerto de Manzanillo
         </span>
-        <span style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.35)", marginLeft:"2px" }}>
-          · incidentes en tiempo real
+        <span style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+          · toca para ver detalles
         </span>
         {activeIncidents.length > 0 && (
           <span style={{
-            marginLeft:"auto", background:"#ef444418",
-            border:"1px solid #ef444455", borderRadius:"20px",
-            padding:"2px 8px", fontSize:"9px", color:"#ef4444",
-            fontFamily:MN, fontWeight:"700",
+            marginLeft: "auto",
+            background: "#ef444418", border: "1px solid #ef444455",
+            borderRadius: "20px", padding: "2px 9px",
+            fontSize: "10px", color: "#ef4444", fontFamily: MN, fontWeight: "700",
           }}>
-            {activeIncidents.length} activo{activeIncidents.length>1?"s":""}
+            {activeIncidents.length} activo{activeIncidents.length > 1 ? "s" : ""}
           </span>
         )}
       </div>
 
-      {/* SVG */}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", display:"block" }}>
-        <defs>
-          <radialGradient id="bahiaGrad" cx="50%" cy="60%" r="60%">
-            <stop offset="0%" stopColor="#0d2a4a" stopOpacity="1"/>
-            <stop offset="100%" stopColor="#040c18" stopOpacity="1"/>
-          </radialGradient>
-          <radialGradient id="tierraGrad" cx="40%" cy="40%" r="70%">
-            <stop offset="0%" stopColor="#0a1e30" stopOpacity="1"/>
-            <stop offset="100%" stopColor="#060f1e" stopOpacity="1"/>
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-          <filter id="softglow">
-            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
+      {/* Mapa */}
+      <div ref={mapRef} style={{ width: "100%", height: "280px", background: "#040c18" }} />
 
-        {/* Fondo tierra */}
-        <rect width={W} height={H} fill="url(#tierraGrad)"/>
-
-        {/* Mar / bahía */}
-        <path d={coastPath} fill="url(#bahiaGrad)"/>
-
-        {/* Texto bahía */}
-        <text x="290" y="255" textAnchor="middle"
-          fill="rgba(56,189,248,0.12)" fontSize="8"
-          fontFamily="sans-serif" letterSpacing="3" fontWeight="600">
-          BAHÍA DE MANZANILLO
-        </text>
-
-        {/* Línea del muelle (costa) */}
-        <path d={muellePath} stroke="rgba(56,189,248,0.2)" strokeWidth="1" fill="none" strokeDasharray="4,3"/>
-
-        {/* Blvd Miguel de la Madrid (referencia) */}
-        <path d={blvdPath} stroke="rgba(255,255,255,0.07)" strokeWidth="2" fill="none" strokeLinecap="round"/>
-        <text fontSize="6" fill="rgba(255,255,255,0.2)" fontFamily="sans-serif">
-          <textPath href="#blvdRef">Blvd. Miguel de la Madrid</textPath>
-        </text>
-        <path id="blvdRef" d={blvdPath} fill="none"/>
-
-        {/* Grid de referencia sutil */}
-        {[0.2,0.4,0.6,0.8].map(t => (
-          <line key={t}
-            x1={0} y1={H*t} x2={W} y2={H*t}
-            stroke="rgba(255,255,255,0.025)" strokeWidth="0.5"
-          />
+      {/* Leyenda inferior */}
+      <div style={{
+        padding: "8px 14px",
+        background: "rgba(4,12,24,0.95)",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        display: "flex", gap: "14px", flexWrap: "wrap",
+      }}>
+        {[
+          { color: "#ef4444", label: "Accidente" },
+          { color: "#f97316", label: "Incidente" },
+          { color: "#eab308", label: "Bloqueo" },
+          { color: "rgba(255,255,255,0.3)", label: "Ruta normal" },
+        ].map(({ color, label }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, flexShrink: 0 }} />
+            <span style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.45)" }}>{label}</span>
+          </div>
         ))}
-
-        {/* ═══ LÍNEAS KML ═══ */}
-        {GEO_LINES.map(line => {
-          const hasInc = incidentGeoMap[line.id];
-          const isHL   = hlLineIds.has(line.id);
-          const stroke = hasInc ? hasInc.color : isHL ? "#ffffff" : line.color;
-          const width  = hasInc ? 4 : isHL ? 3.5 : 2;
-          const alpha  = hasInc || isHL ? 1 : 0.4;
-          const path   = lineToPath(line.coords);
-
-          // Punto medio para etiqueta
-          const mid = Math.floor(line.coords.length / 2);
-          const [lx, ly] = project(line.coords[mid]);
-
-          return (
-            <g key={line.id}>
-              {/* Glow exterior */}
-              {(hasInc || isHL) && (
-                <path d={path} stroke={stroke} strokeWidth={width+8}
-                  fill="none" opacity="0.12" strokeLinecap="round" filter="url(#softglow)"/>
-              )}
-              {/* Línea principal */}
-              <path d={path} stroke={stroke} strokeWidth={width}
-                fill="none" opacity={alpha} strokeLinecap="round" strokeLinejoin="round"
-                strokeDasharray={hasInc ? "7,3" : "none"}
-              />
-              {/* Etiqueta flotante */}
-              {(hasInc || isHL) && (
-                <g>
-                  <rect x={lx-30} y={ly-11} width="60" height="13" rx="3"
-                    fill={stroke} opacity="0.92"/>
-                  <text x={lx} y={ly-1} textAnchor="middle"
-                    fill="#050d1a" fontSize="6.5" fontFamily="sans-serif" fontWeight="bold">
-                    {line.name}
-                  </text>
-                  {hasInc && (
-                    <text x={lx+34} y={ly-1} fill={stroke} fontSize="9" fontFamily="sans-serif">⚠</text>
-                  )}
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* ═══ PUNTOS KML ═══ */}
-        {GEO_POINTS.map(pt => {
-          const hasInc = incidentGeoMap[pt.id];
-          const isHL   = hlPointIds.has(pt.id);
-          const [px, py] = project(pt.coords);
-          const color = hasInc ? hasInc.color : isHL ? "#ffffff" : pt.color;
-          const r     = hasInc ? 7 : isHL ? 6 : 4;
-          const alpha = hasInc || isHL ? 1 : 0.45;
-
-          return (
-            <g key={pt.id}>
-              {/* Anillo exterior animable */}
-              {(hasInc || isHL) && (
-                <circle cx={px} cy={py} r={r+8} fill={color} opacity="0.08" filter="url(#glow)"/>
-              )}
-              {(hasInc || isHL) && (
-                <circle cx={px} cy={py} r={r+4} fill="none" stroke={color} strokeWidth="1" opacity="0.4"/>
-              )}
-              {/* Círculo principal */}
-              <circle cx={px} cy={py} r={r} fill={color} opacity={alpha}/>
-              {/* Punto central */}
-              <circle cx={px} cy={py} r={r*0.3} fill="#040c18" opacity="0.9"/>
-
-              {/* Etiqueta */}
-              {(hasInc || isHL) ? (
-                <g>
-                  <rect x={px-22} y={py-r-15} width="44" height="13" rx="3"
-                    fill={color} opacity="0.93"/>
-                  <text x={px} y={py-r-5} textAnchor="middle"
-                    fill="#050d1a" fontSize="6.5" fontFamily="sans-serif" fontWeight="bold">
-                    {pt.name}
-                  </text>
-                </g>
-              ) : (
-                <text x={px+r+2} y={py+3} fill={color} fontSize="5.5"
-                  fontFamily="sans-serif" opacity="0.6" fontWeight="600">
-                  {pt.name}
-                </text>
-              )}
-            </g>
-          );
-        })}
-
-        {/* ═══ LEYENDA ═══ */}
-        <g transform={`translate(8,${H-52})`}>
-          <rect width="96" height="48" rx="6"
-            fill="rgba(4,12,24,0.88)" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8"/>
-          {[
-            { color:"#ef4444", label:"Accidente", y:13 },
-            { color:"#f97316", label:"Incidente",  y:26 },
-            { color:"#eab308", label:"Bloqueo",    y:39 },
-          ].map(({color,label,y}) => (
-            <g key={label}>
-              <circle cx="11" cy={y} r="3.5" fill={color} opacity="0.9"/>
-              <text x="20" y={y+4} fill="rgba(255,255,255,0.6)"
-                fontSize="6.5" fontFamily="sans-serif">{label}</text>
-            </g>
-          ))}
-        </g>
-
-        {/* ═══ COMPASS ═══ */}
-        <g transform={`translate(${W-24},20)`}>
-          <circle cx="0" cy="0" r="10" fill="rgba(4,12,24,0.7)" stroke="rgba(255,255,255,0.1)" strokeWidth="0.8"/>
-          <text x="0" y="-3" textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize="7" fontFamily="sans-serif" fontWeight="bold">N</text>
-          <line x1="0" y1="-8" x2="0" y2="2" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeLinecap="round"/>
-          <polygon points="0,-8 -2,-2 2,-2" fill="#38bdf8" opacity="0.8"/>
-        </g>
-
-        {/* Estado vacío */}
-        {activeIncidents.length === 0 && !highlightLocation && !highlightAcceso && (
-          <g>
-            <rect x={W/2-55} y={H/2-12} width="110" height="22" rx="5"
-              fill="rgba(4,12,24,0.75)" stroke="rgba(255,255,255,0.07)" strokeWidth="0.8"/>
-            <text x={W/2} y={H/2+3} textAnchor="middle"
-              fill="rgba(255,255,255,0.22)" fontSize="8" fontFamily="sans-serif">
-              Sin incidentes activos
-            </text>
-          </g>
-        )}
-      </svg>
+      </div>
     </div>
   );
 }
