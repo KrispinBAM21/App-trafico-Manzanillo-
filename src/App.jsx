@@ -388,19 +388,19 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
 function NavBar({ active, set }) {
   const row1 = [
-    { id: "trafico",    label: "Tráfico",    icon: "🗺️" },
-    { id: "reporte",    label: "Reportar",   icon: "📍"  },
-    { id: "terminales", label: "Terminales", icon: "⚓"  },
-    { id: "patio",      label: "Patios",     icon: "🏭"  },
-    { id: "vialidades", label: "Vialidades", icon: "🛣️" },
+    { id: "inicio",      label: "Inicio",      icon: "🏠"  },
+    { id: "trafico",     label: "Tráfico",     icon: "🗺️" },
+    { id: "reporte",     label: "Reportar",    icon: "📍"  },
+    { id: "terminales",  label: "Terminales",  icon: "⚓"  },
+    { id: "patio",       label: "Patios",      icon: "🏭"  },
   ];
   const row2 = [
-    { id: "segundo",   label: "2do Acceso", icon: "🚪"  },
-    { id: "carriles",  label: "Carriles",   icon: "🚦"  },
-    { id: "noticias",  label: "Noticias",   icon: "📰"  },
-    { id: "donativos", label: "Donativos",  icon: "💙"  },
-    { id: "tutorial",  label: "Tutorial",   icon: "📖"  },
-    { id: "redes",     label: "Redes",      icon: "📲"  },
+    { id: "vialidades", label: "Vialidades", icon: "🛣️" },
+    { id: "segundo",    label: "2do Acceso", icon: "🚪"  },
+    { id: "carriles",   label: "Carriles",   icon: "🚦"  },
+    { id: "noticias",   label: "Noticias",   icon: "📰"  },
+    { id: "donativos",  label: "Donativos",  icon: "💙"  },
+    { id: "tutorial",   label: "Tutorial",   icon: "📖"  },
   ];
 
   const TabBtn = (t) => (
@@ -2219,7 +2219,7 @@ function TutorialTab({ setActive }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function RedesSocialesTab() {
+function InicioTab() {
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
 
@@ -2260,13 +2260,56 @@ function RedesSocialesTab() {
 
   return (
     <div style={{ padding: "20px 16px", paddingBottom: "100px" }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: "28px" }}>
-        <div style={{ fontSize: "40px", marginBottom: "10px" }}>📲</div>
-        <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "14px", letterSpacing: "2px", color: "rgba(255,255,255,0.95)", marginBottom: "6px" }}>REDES SOCIALES</div>
-        <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.4)", letterSpacing: "1px" }}>CONECT MANZANILLO · COMUNIDAD</div>
-        <div style={{ width: "40px", height: "2px", background: "linear-gradient(90deg,#25D366,#1877F2)", margin: "12px auto 0" }} />
+
+      {/* ─── SPEECH ──────────────────────────────────────────────────────────── */}
+      <div style={{
+        marginBottom: "28px",
+        background: "linear-gradient(135deg, rgba(56,189,248,0.07) 0%, rgba(167,139,250,0.07) 100%)",
+        border: "1px solid rgba(56,189,248,0.2)",
+        borderRadius: "16px",
+        padding: "22px 18px",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{ position:"absolute", top:"-30px", right:"-30px", width:"110px", height:"110px", background:"radial-gradient(circle, rgba(56,189,248,0.13) 0%, transparent 70%)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", bottom:"-20px", left:"-20px", width:"90px", height:"90px", background:"radial-gradient(circle, rgba(167,139,250,0.10) 0%, transparent 70%)", pointerEvents:"none" }} />
+
+        {/* Logo / título app */}
+        <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"18px" }}>
+          <div style={{ width:"46px", height:"46px", background:"linear-gradient(135deg,rgba(56,189,248,0.2),rgba(167,139,250,0.2))", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"12px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", flexShrink:0 }}>⚓</div>
+          <div>
+            <div style={{ fontFamily:TITLE, fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
+            <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
+          </div>
+        </div>
+
+        <p style={{ fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.78)", lineHeight:"1.8", margin:"0 0 16px 0" }}>
+          Esta aplicación nació para que <span style={{ color:"#38bdf8", fontWeight:"700" }}>operadores, transportistas y cualquier persona en el puerto</span> puedan compartir en tiempo real el estado de las operaciones. La información que ves la genera <span style={{ color:"#a78bfa", fontWeight:"700" }}>la propia comunidad</span> — no un sistema centralizado.
+        </p>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:"9px", marginBottom:"18px" }}>
+          {[
+            { icon:"📡", color:"#38bdf8", text:"Reporta lo que ves en ruta: un acceso saturado, un retorno activo, un camión varado. Tu reporte llega al instante a todos los usuarios." },
+            { icon:"🗳️", color:"#a78bfa", text:"Cualquier usuario puede votar. Con 15 confirmaciones, un reporte se valida y se vuelve visible como incidente activo en el mapa." },
+            { icon:"🏁", color:"#22c55e", text:"Cuando la situación se resuelve, la comunidad lo cierra. Así el mapa siempre refleja la realidad del momento." },
+          ].map((item, i) => (
+            <div key={i} style={{ display:"flex", gap:"10px", alignItems:"flex-start", background:"rgba(255,255,255,0.04)", border:`1px solid ${item.color}22`, borderRadius:"10px", padding:"10px 12px" }}>
+              <span style={{ fontSize:"16px", flexShrink:0, marginTop:"1px" }}>{item.icon}</span>
+              <span style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", paddingTop:"14px", display:"flex", alignItems:"center", gap:"10px" }}>
+          <div style={{ width:"3px", height:"38px", background:"linear-gradient(to bottom, #38bdf8, #a78bfa)", borderRadius:"2px", flexShrink:0 }} />
+          <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7", margin:0, fontStyle:"italic" }}>
+            "La operación del puerto nos afecta a todos. Compartir lo que sabes es ayudar a quien viene detrás. <span style={{ color:"rgba(56,189,248,0.85)", fontStyle:"normal", fontWeight:"600" }}>Juntos hacemos la diferencia.</span>"
+          </p>
+        </div>
       </div>
+
+      {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
+      <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
       {/* ── WhatsApp Channel ─────────────────────────────────── */}
       <div style={{ marginBottom: "14px", background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "16px", overflow: "hidden" }}>
@@ -2512,7 +2555,13 @@ function CookieBanner({ onAccept, onReject }) {
 
 
 function App() {
-  const [active,    setActive]    = useState("trafico");
+  const [active,    setActiveRaw]  = useState(() => {
+    try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
+  });
+  const setActive = (tab) => {
+    try { localStorage.setItem("puerto_active_tab", tab); } catch {}
+    setActiveRaw(tab);
+  };
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
@@ -2664,6 +2713,7 @@ function App() {
 
         <NavBar active={active} set={setActive} />
 
+        {active === "inicio"      && <InicioTab />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
@@ -2674,7 +2724,6 @@ function App() {
         {active === "noticias"   && <NoticiasTab />}
         {active === "donativos"  && <DonativosTab />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} />}
-        {active === "redes"      && <RedesSocialesTab />}
 
         {/* ✅ FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
