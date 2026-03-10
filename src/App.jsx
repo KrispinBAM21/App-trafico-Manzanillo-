@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "35841912";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -2905,8 +2905,8 @@ function App() {
         {/* ✅ FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
-          {AdminModal}
         )}
+        {AdminModal}
 
         <DonateBanner active={active} />
       </div>
