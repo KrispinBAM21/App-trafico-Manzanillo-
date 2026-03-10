@@ -321,7 +321,16 @@ function useAdminMode() {
   const handleLogoTap = () => {
     const next = tapCount + 1;
     setTapCount(next);
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => setTapCount(0), 3000);
   };
+
+  useEffect(() => {
+    if (tapCount >= 5) {
+      setTapCount(0);
+      setShowModal(true);
+    }
+  }, [tapCount]);
 
   const tryLogin = () => {
     if (pass === ADMIN_PASS) {
