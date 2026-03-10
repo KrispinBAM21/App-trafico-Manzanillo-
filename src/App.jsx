@@ -40,18 +40,11 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
-// Inject Google Fonts (DM Sans body)
-const dmSansLink = document.createElement('link');
-dmSansLink.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap';
-dmSansLink.rel = 'stylesheet';
-document.head.appendChild(dmSansLink);
-
-// Inject custom fonts
-const customFontStyle = document.createElement('style');
-customFontStyle.textContent = [
-  `@font-face { font-family: 'Folklore'; src: url('data:font/otf;base64,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/mUAQwBZ/6AAQwBa/6AAQwBb/6AAQwBc/6AARAAm/1UARAAq/1UARAAy/1UARAA0/1UARAA3/pgARAA4/1UARAA5/hoARAA6/hoARAA8/jkARAA//h8ARABD/hoARABG/1UARABK/1UARABS/1UARABU/1UARABX/pgARABY/1UARABZ/hoARABa/hoARABc/jkARQAk/5kARQA5/5kARQA6/5kARQA7/1oARQA8/3oARQA//38ARQBD/5kARQBE/5kARQBZ/5kARQBa/5kARQBb/1oARQBc/3oARgAk/1UARgA5/1UARgA6/1UARgA7/vYARgA8/xYARgA//xsARgBA/3QARgBD/1UARgBE/1UARgBZ/1UARgBa/1UARgBb/vYARgBc/xYARwAk/1UARwA5/1UARwA6/1UARwA7/xYARwA8/xYARwA//xsARwBA/3QARwBD/1UARwBE/1UARwBZ/1UARwBa/1UARwBb/xYARwBc/xYASQAk/0AASQAt/qMASQBC/UgASQBE/0AASQBN/qMASgA3/5QASgA5/5QASgA6/5QASgA8/5QASgA//5kASgBD/5QASgBX/5QASgBZ/5QASgBa/5QASgBc/5QATQAk/1EATQBE/1EATgAm/vYATgAq/vYATgAy/vYATgA0/vYATgBG/vYATgBK/vYATgBS/vYATgBU/vYATwA3/mQATwA5/qMATwA6/qMATwA8/kQATwA//gsATwBD/UgATwBX/mQATwBZ/qMATwBa/qMATwBc/kQAUgAk/1UAUgA5/1UAUgA6/1UAUgA7/xYAUgA8/xYAUgA//xsAUgBA/3QAUgBD/1UAUgBE/1UAUgBZ/1UAUgBa/1UAUgBb/xYAUgBc/xYAUwAk/vwAUwAt/p0AUwA5/3oAUwA6/3oAUwA7/zsAUwA8/1oAUwA//2AAUwBA/7kAUwBC/p0AUwBD/5kAUwBE/vwAUwBN/p0AUwBZ/3oAUwBa/3oAUwBb/zsAUwBc/1oAVAAk/5QAVAA5/1UAVAA6/1UAVAA7/5QAVAA8/xYAVAA//xsAVABA/5QAVABD/1UAVABE/5QAVABZ/1UAVABa/1UAVABb/5QAVABc/xYAVQA5/3oAVQA6/3oAVQA8/1oAVQA//2AAVQBD/5kAVQBZ/3oAVQBa/3oAVQBc/1oAVgAk/3oAVgBE/3oAVwAk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') format('opentype'); font-weight: normal; font-style: normal; }`
-].join(' ');
-document.head.appendChild(customFontStyle);
+// Inject Google Fonts
+const fontLink = document.createElement("link");
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap";
+fontLink.rel = "stylesheet";
+document.head.appendChild(fontLink);
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = "https://wnchrhglwsrzrcrhhukg.supabase.co";
@@ -60,7 +53,7 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MN    = "'DM Sans', sans-serif";
-const TITLE = "'Folklore', serif";
+const TITLE = "'Playfair Display', serif";
 
 const TERMINALS_NORTE = [
   { id: "contecon", name: "CONTECON", fullName: "Contecon Manzanillo S.A." },
@@ -369,14 +362,14 @@ function VoteCountBadge({ accesoId, status, myId }) {
   }, [key]);
   if (count === 0) return null;
   return (
-    <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"15px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
+    <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
   );
 }
 
 function SectionLabel({ text, rightBtn }) {
   return (
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px", padding:"8px 12px", background:"rgba(255,255,255,0.07)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px" }}>
-      <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.9)", fontFamily:TITLE, fontWeight:"700", letterSpacing:"0.5px" }}>{text}</span>
+      <span style={{ fontSize:"12px", color:"rgba(255,255,255,0.9)", fontFamily:TITLE, fontWeight:"700", letterSpacing:"0.5px" }}>{text}</span>
       {rightBtn}
     </div>
   );
@@ -543,7 +536,6 @@ function NavBar({ active, set }) {
   );
 }
 
-// ─── TAB: TRÁFICO ─────────────────────────────────────────────────────────────
 function TraficoTab({ myId, incidents, setIncidents }) {
   const [accesos,     setAccesos]     = useState(mkAccesos);
   const [vialidades,  setVialidades]  = useState(mkVialidades);
@@ -1096,7 +1088,945 @@ function MapaTrafico({ incidents, accesos, vialidades }) {
   );
 }
 
-// ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
+
+
+function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
+  const [categoria, setCategoria] = useState("incidente");
+  const [subcat,    setSubcat]    = useState("");
+  const [acceso,    setAcceso]    = useState("");
+  const [location,  setLocation]  = useState("");
+  const [showUbic,  setShowUbic]  = useState(false);
+  const [grupoOpen, setGrupoOpen] = useState(null);
+  const [toast,     setToast]     = useState(null);
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
+
+  const subcats = INCIDENT_SUBCATEGORIAS[categoria] || [];
+  const catObj  = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
+  const subcatObj = subcats.find(s => s.id === subcat);
+
+  const submit = async () => {
+    if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
+    if (!location.trim()) return notify("Ingresa la ubicación", "#ef4444");
+    const rl = rateLimiter.check(`report_${myId}`, 120000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316");
+    const labelFull = `${subcatObj?.icon || ""} ${subcatObj?.label || subcat}`;
+    const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
+    const safeDesc  = sanitize(labelFull);
+    if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
+    await sb.from("incidents").insert({ type: categoria, location: safeLoc, description: safeDesc, votes: {}, resolve_votes: {}, visible: false, resolved: false, ts: Date.now() });
+    setSubcat(""); setLocation(""); setAcceso("");
+    notify("📍 Reporte enviado — se verificará con la comunidad", "#22c55e");
+    setTimeout(() => setActiveTab("trafico"), 1200);
+  };
+
+  const incType = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
+  const pendingMine = incidents.filter(i => !i.visible && !i.resolved);
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px" }}>
+      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
+        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
+        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
+        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Tu reporte será verificado por la comunidad antes de aparecer en el mapa.</div>
+      </div>
+
+      {/* Paso 1: Categoría */}
+      <div style={{ marginBottom:"16px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 1 · CATEGORÍA</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+          {INCIDENT_CATEGORIAS.map(cat => (
+            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }} style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:MN, fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
+              <span style={{ fontSize:"26px" }}>{cat.icon}</span>{cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Paso 2: Subcategoría */}
+      <div style={{ marginBottom:"16px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 2 · TIPO ESPECÍFICO</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+          {subcats.map(s => (
+            <button key={s.id} onClick={() => setSubcat(s.id)} style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:MN, fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
+              <span style={{ fontSize:"18px", flexShrink:0 }}>{s.icon}</span>{s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Paso 3: Zona */}
+      <div style={{ marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 3 · ZONA / ACCESO (opcional)</div>
+        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+          {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
+            <button key={a} onClick={() => setAcceso(a)} style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>{a === "" ? "Sin zona" : a}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Paso 4: Ubicación */}
+      <div style={{ marginBottom:"18px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
+
+        {/* Botón desplegable de ubicaciones */}
+        <button onClick={() => setShowUbic(p => !p)} style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`, borderRadius: showUbic ? "10px 10px 0 0" : "10px", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"12px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0", boxSizing:"border-box" }}>
+          <span>📍 Seleccionar ubicación predefinida</span>
+          <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
+        </button>
+
+        {showUbic && (
+          <div style={{ background:"#060e1a", border:"1px solid #38bdf855", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:"320px", overflowY:"auto", marginBottom:"8px" }}>
+            {UBICACIONES_REPORTE.map(grupo => (
+              <div key={grupo.grupo}>
+                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)} style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:MN, fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
+                  <span>{grupo.icon}</span>
+                  <span style={{ flex:1 }}>{grupo.grupo}</span>
+                  <span style={{ fontSize:"9px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
+                </button>
+                {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
+                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }} style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:MN, fontSize:"11px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
+                    {location===op && <span style={{ color:"#38bdf8", fontSize:"10px" }}>✓</span>}
+                    {op}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Campo de texto para detalles adicionales */}
+        <input
+          value={location}
+          onChange={e => setLocation(e.target.value)}
+          placeholder="O escribe la ubicación / añade detalle (km, carril, referencia...)"
+          style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", marginTop:"8px" }}
+        />
+      </div>
+
+      {/* Vista previa */}
+      {subcat && location && (
+        <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${catObj.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
+          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>VISTA PREVIA</div>
+          <div style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
+            <span style={{ fontSize:"20px" }}>{subcatObj?.icon}</span>
+            <div>
+              <div style={{ color:catObj.color, fontFamily:MN, fontSize:"11px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button onClick={submit} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:MN, fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>ENVIAR REPORTE →</button>
+
+      {pendingMine.length > 0 && (
+        <>
+          <SectionLabel text="REPORTES PENDIENTES DE VERIFICACIÓN" />
+          {pendingMine.map(inc => {
+            const t      = incType(inc.type);
+            const myVote = inc.votes[myId];
+            const conf   = Object.values(inc.votes).filter(v=>v===1).length;
+            const falsos = Object.values(inc.votes).filter(v=>v===-1).length;
+            const borderC = falsos > conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : "#f97316";
+            return (
+              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+                  <div style={{ display:"flex", gap:"8px", flex:1 }}>
+                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
+                    <div>
+                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"12px", fontWeight:"700" }}>{inc.location}</div>
+                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
+                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(inc.ts)}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
+                    <Badge color={borderC} small>PENDIENTE</Badge>
+                    <div style={{ fontSize:"9px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
+                  </div>
+                </div>
+                <VoteBar count={conf} needed={15} />
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+                  <button onClick={async () => {
+                    const votes = { ...inc.votes, [myId]: 1 };
+                    const visible = Object.values(votes).filter(v=>v===1).length >= 15;
+                    await sb.from("incidents").update({ votes, visible }).eq("id", inc.id);
+                    notify(visible ? "✅ Reporte verificado" : `✓ Confirmado (${Object.values(votes).filter(v=>v===1).length}/15)`, "#22c55e");
+                  }} style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>✅</span>
+                    <span>CONFIRMO</span>
+                  </button>
+                  <button onClick={async () => {
+                    const votes = { ...inc.votes, [myId]: -1 };
+                    await sb.from("incidents").update({ votes }).eq("id", inc.id);
+                    notify("✗ Marcado como falso", "#ef4444");
+                  }} style={{ padding:"9px 4px", background: myVote===-1?"#ef444433":"#ef444415", border:`1px solid ${myVote===-1?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>❌</span>
+                    <span>FALSO</span>
+                  </button>
+                  <button onClick={async () => {
+                    const rv = { ...inc.resolveVotes, [myId]: 1 };
+                    const resolved = Object.keys(rv).length >= 15;
+                    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", inc.id);
+                    notify(resolved ? "✓ Marcado como resuelto" : `Voto (${Object.keys(rv).length}/15)`, "#6b7280");
+                  }} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    <span style={{ fontSize:"16px" }}>🏁</span>
+                    <span>RESUELTO</span>
+                  </button>
+                </div>
+                {myVote !== undefined && (
+                  <div style={{ fontSize:"9px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:MN, marginTop:"6px", textAlign:"center" }}>
+                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+      <ToastBox toast={toast} />
+    </div>
+  );
+}
+
+// ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
+function TerminalesTab({ myId }) {
+  const [zona,   setZona]   = useState("norte");
+  const [stN,    setStN]    = useState(mkTerminals(TERMINALS_NORTE));
+  const [stS,    setStS]    = useState(mkTerminals(TERMINALS_SUR));
+  const [toast,  setToast]  = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
+
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
+  const stMap     = zona === "norte" ? stN : stS;
+  const setSt     = zona === "norte" ? setStN : setStS;
+
+  useEffect(() => {
+    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+    sb.from("terminals").select("*").then(async ({ data }) => {
+      if (!data || data.length === 0) {
+        await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        return;
+      }
+      const mapN = {}; const mapS = {};
+      data.forEach(r => {
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
+        else mapS[r.id] = entry;
+      });
+      if (Object.keys(mapN).length) setStN(prev => ({ ...prev, ...mapN }));
+      if (Object.keys(mapS).length) setStS(prev => ({ ...prev, ...mapS }));
+    });
+    const chan = sb.channel("terminals-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
+        if (!r) return;
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => ({ ...prev, [r.id]: entry }));
+        else setStS(prev => ({ ...prev, [r.id]: entry }));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const vote = async (termId, newStatus, forceChange = false) => {
+    const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
+    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
+    if (yaVoto && yaVoto.length > 0 && !forceChange) {
+      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "terminal", id: termId, newStatus, label });
+      return;
+    }
+    if (yaVoto && yaVoto.length > 0 && forceChange) {
+      await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
+    }
+    const key = `terminal_${termId}_${newStatus}`;
+    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
+    // Guardar voto del usuario en localStorage para sobrevivir la limpieza de 15 min
+    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
+    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
+    const conteo = {};
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
+    const [statusGanador, votosGanador] = ganadora;
+    await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
+    await publicarNoticia({ tipo: "terminal", icono: "⚓", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+  };
+
+  const resetAll = async () => {
+    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
+    notify("✓ Todas las terminales marcadas como Libres", "#22c55e");
+  };
+
+  const resetOne = async (id) => {
+    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
+    notify("✓ Terminal marcada como Libre", "#22c55e");
+  };
+
+  const getOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o=>o.id===id) || TERMINAL_STATUS_OPTIONS[0];
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(255,255,255,0.15)" }}>
+        {["norte","sur"].map(z => (
+          <button key={z} onClick={() => setZona(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:MN, fontSize:"12px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {TERMINAL_STATUS_OPTIONS.map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:MN }}>{o.label}</span>
+          </div>
+        ))}
+      </div>
+      <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
+      {terminals.map(terminal => {
+        const st  = stMap[terminal.id];
+        const opt = getOpt(st.status);
+        return (
+          <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+              <div>
+                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{terminal.name}</div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{terminal.fullName}</div>
+                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
+                {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
+              </div>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS: <span style={{ color:"#475569", fontSize:"9px", letterSpacing:"0px", fontWeight:"normal" }}>(doble click para cambiar)</span></div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+              {TERMINAL_STATUS_OPTIONS.map(o => {
+                const isAct = st.status === o.id;
+                return (
+                  <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                    {o.icon} {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <ToastBox toast={toast} />
+      {changeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
+            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
+            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"12px", marginBottom:"20px" }}>
+              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
+function SegundoAccesoTab() {
+  const [carriles, setCarriles] = useState(mkSegundoIngreso);
+  const [toast,    setToast]    = useState(null);
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+
+  const TABLA = "carriles";
+  const ROW_ID = "segundo_acceso";
+
+  const saveToSupa = async (newState) => {
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
+  };
+
+  useEffect(() => {
+    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
+      if (data?.data) setCarriles(data.data);
+    });
+    const chan = sb.channel("segundo-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
+        if (r?.id === ROW_ID && r?.data) setCarriles(r.data);
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const updateIngreso = async (id, field, value) => {
+    const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setCarriles(next);
+    await saveToSupa(next);
+    notify("✓ Carril actualizado", "#22c55e");
+    const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
+    await publicarNoticia({ tipo: "segundo", icono: "🛣️", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
+  };
+
+  const updateSalida = async (field, value) => {
+    const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setCarriles(next);
+    await saveToSupa(next);
+    notify("✓ Carril de salida actualizado", "#22c55e");
+  };
+
+  const resetAll = async () => {
+    const next = mkSegundoIngreso();
+    setCarriles(next);
+    await saveToSupa(next);
+    notify("✓ Todos los carriles restablecidos", "#22c55e");
+  };
+
+  const resetOne = async (id) => {
+    const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    setCarriles(next);
+    await saveToSupa(next);
+    notify("✓ Carril restablecido", "#22c55e");
+  };
+
+  const getTermName = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
+  const getTermZona = (id) => TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
+  const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
+  const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"16px" }}>
+        <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>SEGUNDO ACCESO — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>C1–C3 ingreso con terminal asignada · C4 salida.</div>
+      </div>
+      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
+        <div style={{ display:"flex", gap:"6px" }}>
+          {SEGUNDO_CARRILES_INGRESO.map(c => {
+            const st = carriles[c.id];
+            const bc = st.saturado ? "#ef4444" : "#22c55e";
+            const tz = getTermZona(st.terminal);
+            const tc = tz === "Norte" ? "#38bdf8" : "#a78bfa";
+            return (
+              <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
+                <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>{c.label}</div>
+                <div style={{ fontSize:"9px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, color:tc, borderRadius:"4px", padding:"2px 3px", fontFamily:MN }}>{getTermName(st.terminal)}</div>
+                {st.retornos && <div style={{ marginTop:"3px", fontSize:"11px" }}>↩</div>}
+                <div style={{ marginTop:"3px", fontSize:"9px", color:bc, fontFamily:MN, fontWeight:"700" }}>{st.saturado ? "SAT" : "OK"}</div>
+              </div>
+            );
+          })}
+          <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
+            <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>C4</div>
+            <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, marginTop:"3px" }}>SALIDA</div>
+            <div style={{ marginTop:"3px", fontSize:"9px", color: carriles.c4.saturado?"#ef4444":"#22c55e", fontFamily:MN, fontWeight:"700" }}>{carriles.c4.saturado ? "SAT" : "OK"}</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
+          {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+            <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
+              <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
+              <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
+      {SEGUNDO_CARRILES_INGRESO.map(carril => {
+        const st        = carriles[carril.id];
+        const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
+        const zonaColor = termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+        const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+        const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
+        const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+        return (
+          <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
+              <div>
+                <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                  <div style={{ background:"#38bdf822", border:"1px solid #38bdf844", borderRadius:"6px", padding:"3px 10px", color:"#38bdf8", fontFamily:MN, fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
+                  <Badge color="#22c55e" small>INGRESO</Badge>
+                </div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+                  <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
+                  {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
+                  {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.icon}</Badge>}
+                  {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.icon}</Badge>}
+                  {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.icon}</Badge>}
+                </div>
+                {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
+              </div>
+            </div>
+            <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
+                <div style={{ color:zonaColor, fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div>
+              </div>
+              <span style={{ fontSize:"22px" }}>🚛</span>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
+            <div style={{ marginBottom:"8px" }}>
+              <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
+              <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                {termsNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+              </div>
+            </div>
+            <div style={{ marginBottom:"10px" }}>
+              <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
+              <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                {termsSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+              </div>
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+              <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
+              <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+              <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
+              <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+              <div>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+                <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
+                <select value={st.expo_contenedor || ""} onChange={e => updateIngreso(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                  {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+                <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      <SectionLabel text="CARRIL DE SALIDA (C4)" />
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${carriles.c4.saturado?"#ef444466":"#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+              <div style={{ background:"#f9731622", border:"1px solid #f9731644", borderRadius:"6px", padding:"3px 10px", color:"#f97316", fontFamily:MN, fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
+              <Badge color="#f97316" small>SALIDA</Badge>
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
+          </div>
+          <Badge color={carriles.c4.saturado?"#ef4444":"#22c55e"} small>{carriles.c4.saturado?"SATURADO":"FLUIDO"}</Badge>
+        </div>
+        <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
+          <span style={{ fontSize:"22px" }}>🚚</span>
+          <div>
+            <div style={{ color:"#f97316", fontFamily:MN, fontWeight:"700", fontSize:"13px" }}>Salida General del Puerto</div>
+            <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+          <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
+          <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+          <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
+          <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+        </div>
+        {(() => {
+          const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
+          const c4ExpoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === carriles.c4.expo_contenedor);
+          const c4ImpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.impo || "libre"));
+          return (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+              <div>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+                <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+                <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
+                <select value={carriles.c4.expo_contenedor || ""} onChange={e => updateSalida("expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoContOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                  {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+                <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+      <ToastBox toast={toast} />
+    </div>
+  );
+}
+
+// ─── TAB: CARRILES ────────────────────────────────────────────────────────────
+function CarrilesTab() {
+  const [estado,  setEstado]  = useState(mkCarrilesState);
+  const [accView, setAccView] = useState("pezvela");
+  const [toast,   setToast]   = useState(null);
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2500); };
+
+  const TABLA  = "carriles";
+  const ROW_ID = "expo_impo";
+
+  const saveToSupa = async (newState) => {
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
+  };
+
+  useEffect(() => {
+    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
+      if (data?.data) setEstado(data.data);
+    });
+    const chan = sb.channel("carriles-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
+        if (r?.id === ROW_ID && r?.data) setEstado(r.data);
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const toggle = async (cid, value) => {
+    const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setEstado(next);
+    await saveToSupa(next);
+    notify(value ? "✓ Carril abierto" : "⛔ Carril cerrado", value ? "#22c55e" : "#6b7280");
+    await publicarNoticia({ tipo: "carril", icono: "🚦", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
+  };
+
+  const resetAcceso = async (acc) => {
+    const next = { ...estado };
+    acc.carriles.forEach(c => { next[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
+    setEstado(next);
+    await saveToSupa(next);
+    notify("✓ Acceso restablecido", "#22c55e");
+  };
+
+  const resetAll = async () => {
+    const next = mkCarrilesState();
+    setEstado(next);
+    await saveToSupa(next);
+    notify("✓ Todo restablecido", "#22c55e");
+  };
+
+  const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
+  const expoCarriles = currentAcc?.carriles.filter(c => c.tipo === "expo") || [];
+  const impoCarriles = currentAcc?.carriles.filter(c => c.tipo === "impo") || [];
+  const EXPO_COLOR = "#f59e0b";
+  const IMPO_COLOR = "#60a5fa";
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>CARRILES — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estado de carriles de exportación e importación por acceso.</div>
+      </div>
+      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN GENERAL</div>
+        {ACCESOS_CARRILES.map(acc => {
+          const total    = acc.carriles.length;
+          const abiertos = acc.carriles.filter(c => estado[c.id]?.abierto !== false).length;
+          const pct      = Math.round((abiertos / total) * 100);
+          return (
+            <div key={acc.id} style={{ marginBottom:"8px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
+                <span style={{ fontSize:"11px", color:acc.color, fontFamily:MN, fontWeight:"700" }}>{acc.label}</span>
+                <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{abiertos}/{total} abiertos</span>
+              </div>
+              <div style={{ background:"#1e3a5f", borderRadius:"3px", height:"5px", overflow:"hidden" }}>
+                <div style={{ width:`${pct}%`, height:"100%", background: pct===100?"#22c55e": pct>50? acc.color:"#ef4444", transition:"width 0.4s", borderRadius:"3px" }} />
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
+          {[["#f59e0b","EXPORTACIÓN"],["#60a5fa","IMPORTACIÓN"],["#22c55e","ABIERTO"],["#ef4444","CERRADO"]].map(([c,l]) => (
+            <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
+              <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
+              <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:"6px", marginBottom:"16px" }}>
+        {ACCESOS_CARRILES.map(acc => (
+          <button key={acc.id} onClick={() => setAccView(acc.id)} style={{ flex:1, padding:"9px 4px", background: accView===acc.id ? acc.color+"22" : "#0a1628", border:`1px solid ${accView===acc.id ? acc.color : "#1e3a5f"}`, borderRadius:"8px", color: accView===acc.id ? acc.color : "#475569", fontFamily:MN, fontSize:"9px", fontWeight: accView===acc.id?"700":"400", cursor:"pointer", transition:"all 0.15s", textAlign:"center" }}>
+            <div style={{ fontSize:"14px", marginBottom:"2px" }}>{acc.zona==="Norte"?"🔵":"🟣"}</div>
+            {acc.label}
+          </button>
+        ))}
+      </div>
+      {currentAcc && (
+        <>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+              <div style={{ width:"10px", height:"10px", background:currentAcc.color, borderRadius:"50%", boxShadow:`0 0 8px ${currentAcc.color}` }} />
+              <span style={{ color:currentAcc.color, fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{currentAcc.label}</span>
+              <Badge color={currentAcc.zona==="Norte"?"#38bdf8":"#a78bfa"} small>ZONA {currentAcc.zona.toUpperCase()}</Badge>
+            </div>
+            <NormalBtn onClick={() => resetAcceso(currentAcc)} label="TODO ABIERTO" />
+          </div>
+          {expoCarriles.length > 0 && (
+            <>
+              <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:MN, letterSpacing:"2px", marginBottom:"10px" }}>📤 EXPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: expoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"16px" }}>
+                {expoCarriles.map(carril => {
+                  const st = estado[carril.id] || {};
+                  return (
+                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?EXPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
+                      <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.7)", fontFamily:MN, marginBottom:"3px" }}>{carril.label}</div>
+                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📤</div>
+                      <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:MN, fontWeight:"700", marginBottom:"12px" }}>EXPORTACIÓN</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
+                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
+                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
+                      </div>
+                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"10px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:MN, fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
+                      <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:MN, marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {impoCarriles.length > 0 && (
+            <>
+              <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:MN, letterSpacing:"2px", marginBottom:"10px" }}>📥 IMPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: impoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
+                {impoCarriles.map(carril => {
+                  const st = estado[carril.id] || {};
+                  return (
+                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?IMPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
+                      <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.7)", fontFamily:MN, marginBottom:"3px" }}>{carril.label}</div>
+                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📥</div>
+                      <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:MN, fontWeight:"700", marginBottom:"12px" }}>IMPORTACIÓN</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
+                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
+                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
+                      </div>
+                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"10px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:MN, fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
+                      <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:MN, marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </>
+      )}
+      <ToastBox toast={toast} />
+    </div>
+  );
+}
+
+// ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
+function NoticiasTab() {
+  const [noticias, setNoticias] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [filtro,   setFiltro]   = useState("todos");
+
+  useEffect(() => {
+    sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(100)
+      .then(({ data }) => { if (data) setNoticias(data); setLoading(false); });
+    const chan = sb.channel("noticias-rt")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => [r, ...prev].slice(0, 100));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const FILTROS = [
+    { id: "todos",     label: "Todos",      icon: "📰" },
+    { id: "acceso",    label: "Accesos",    icon: "📍" },
+    { id: "terminal",  label: "Terminales", icon: "⚓" },
+    { id: "incidente", label: "Incidentes", icon: "🚨" },
+    { id: "segundo",   label: "2do Acceso", icon: "🛣️" },
+    { id: "carril",    label: "Carriles",   icon: "🚦" },
+  ];
+
+  const filtered = filtro === "todos" ? noticias : noticias.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
+
+  const timeAgoNoticia = (ts) => {
+    const d = Date.now() - new Date(ts).getTime();
+    if (d < 60000)    return "hace un momento";
+    if (d < 3600000)  return `hace ${Math.floor(d/60000)}min`;
+    if (d < 86400000) return `hace ${Math.floor(d/3600000)}h`;
+    return `hace ${Math.floor(d/86400000)}d`;
+  };
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
+        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📰</div>
+        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>NOTICIAS DEL PUERTO</div>
+        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:MN }}>Actualizaciones en tiempo real de toda la operación</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", marginTop:"8px" }}>
+          <div style={{ width:"6px", height:"6px", background:"#22c55e", borderRadius:"50%" }} />
+          <span style={{ fontSize:"10px", color:"#22c55e", fontFamily:MN }}>{noticias.length} actualizaciones registradas</span>
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
+        {FILTROS.map(f => (
+          <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
+            <span>{f.icon}</span> {f.label}
+          </button>
+        ))}
+      </div>
+      {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>Cargando noticias...</div>}
+      {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>📭 Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
+      {filtered.map((n, i) => (
+        <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
+            <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>{n.icono || "📰"}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"12px", marginBottom:"3px" }}>{n.titulo}</div>
+              {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"5px" }}>{n.detalle}</div>}
+              <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:MN }}>{timeAgoNoticia(n.created_at)}</span>
+                <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
+                <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:MN, fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+      {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px" }}>— Mostrando {filtered.length} actualizaciones —</div>}
+    </div>
+  );
+}
+
+// ─── TAB: DONATIVOS ───────────────────────────────────────────────────────────
+function DonativosTab() {
+  const [copied, setCopied] = useState(false);
+  const [copiedAlbo, setCopiedAlbo] = useState(false);
+  const CLABE = "042180010045965913";
+  const CLABE_ALBO = "721180100036945704";
+  const copyClabe = () => {
+    navigator.clipboard.writeText(CLABE).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+  const copyClabeAlbo = () => {
+    navigator.clipboard.writeText(CLABE_ALBO).then(() => {
+      setCopiedAlbo(true);
+      setTimeout(() => setCopiedAlbo(false), 2500);
+    });
+  };
+  return (
+    <div style={{ padding:"20px 16px", maxWidth:"480px" }}>
+      <div style={{ textAlign:"center", marginBottom:"28px" }}>
+        <div style={{ fontSize:"48px", marginBottom:"12px" }}>⚓</div>
+        <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"8px" }}>JUNTOS SOMOS MÁS FUERTES</div>
+        <div style={{ width:"48px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"0 auto 16px" }} />
+      </div>
+      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a1628)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"16px", padding:"20px", marginBottom:"20px" }}>
+        <div style={{ fontSize:"22px", textAlign:"center", marginBottom:"14px" }}>💙🚛💙</div>
+        <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Puerto Tráfico nació de la comunidad y <span style={{ color:"#38bdf8", fontWeight:"700" }}>para la comunidad</span>. Cada operador, transportista y trabajador portuario que comparte información en tiempo real hace que este sistema funcione.</p>
+        <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Mantener esta plataforma activa tiene costos reales: servidores, desarrollo y mejoras constantes. Si Puerto Tráfico te ha ahorrado tiempo, considera apoyar con lo que puedas.</p>
+        <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9" }}>No importa el monto — cada aportación es un <span style={{ color:"#a78bfa", fontWeight:"700" }}>voto de confianza</span> en que podemos construir algo mejor, juntos. 🙏</p>
+      </div>
+      <div style={{ textAlign:"center", fontSize:"13px", color:"#1e3a5f", marginBottom:"20px", letterSpacing:"6px" }}>♥ ♥ ♥</div>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #38bdf855", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
+          <div style={{ width:"8px", height:"8px", background:"#38bdf8", borderRadius:"50%", boxShadow:"0 0 8px #38bdf8" }} />
+          <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#38bdf8" }}>DATOS PARA DONATIVO</span>
+        </div>
+        <div style={{ marginBottom:"14px" }}>
+          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
+          <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>MIFEL</div>
+        </div>
+        <div style={{ marginBottom:"18px" }}>
+          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
+          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:"#38bdf8", letterSpacing:"2px" }}>{CLABE}</span>
+            <button onClick={copyClabe} style={{ padding:"6px 12px", background: copied ? "#22c55e22" : "#38bdf822", border:`1px solid ${copied ? "#22c55e" : "#38bdf855"}`, borderRadius:"7px", color: copied ? "#22c55e" : "#38bdf8", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copied ? "✓ COPIADO" : "📋 COPIAR"}</button>
+          </div>
+        </div>
+        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
+          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
+          <div style={{ fontFamily:MN, fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
+        </div>
+      </div>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #a78bfa55", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
+          <div style={{ width:"8px", height:"8px", background:"#a78bfa", borderRadius:"50%", boxShadow:"0 0 8px #a78bfa" }} />
+          <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#a78bfa" }}>DATOS PARA DONATIVO</span>
+        </div>
+        <div style={{ marginBottom:"14px" }}>
+          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
+          <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>ALBO</div>
+        </div>
+        <div style={{ marginBottom:"18px" }}>
+          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
+          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:"#a78bfa", letterSpacing:"2px" }}>{CLABE_ALBO}</span>
+            <button onClick={copyClabeAlbo} style={{ padding:"6px 12px", background: copiedAlbo ? "#22c55e22" : "#a78bfa22", border:`1px solid ${copiedAlbo ? "#22c55e" : "#a78bfa55"}`, borderRadius:"7px", color: copiedAlbo ? "#22c55e" : "#a78bfa", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copiedAlbo ? "✓ COPIADO" : "📋 COPIAR"}</button>
+          </div>
+        </div>
+        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
+          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
+          <div style={{ fontFamily:MN, fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
+        </div>
+      </div>
+      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"12px" }}>
+        <div style={{ background:"linear-gradient(135deg,#00b1ea22,#009ee322)", border:"2px solid #00b1ea88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ fontSize:"28px" }}>💳</div>
+            <div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONAR CON MERCADO PAGO</div>
+              <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Tú eliges cuánto aportar</div>
+            </div>
+          </div>
+          <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
+        </div>
+      </a>
+      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
+        <div style={{ background:"linear-gradient(135deg,#00b1ea11,#009ee311)", border:"1px solid #00b1ea44", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ fontSize:"28px" }}>⚡</div>
+            <div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONACIÓN RÁPIDA</div>
+              <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Mercado Pago · Rápido y seguro</div>
+            </div>
+          </div>
+          <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
+        </div>
+      </a>
+      <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
+        <div style={{ background:"linear-gradient(135deg,#ff5e5b22,#ff914d22)", border:"2px solid #ff5e5b88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", transition:"all 0.2s" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ fontSize:"28px" }}>☕</div>
+            <div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"#ff5e5b", letterSpacing:"1px", marginBottom:"3px" }}>DONAR EN KO-FI</div>
+              <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Anónimo · Internacional · Fácil</div>
+            </div>
+          </div>
+          <div style={{ fontFamily:MN, fontSize:"11px", color:"#ff5e5b", fontWeight:"700", letterSpacing:"1px" }}>→</div>
+        </div>
+      </a>
+      <div style={{ textAlign:"center", padding:"12px" }}>
+        <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px" }}>Hecho con ❤️ por y para los que mueven el puerto</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
 function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
@@ -1167,14 +2097,14 @@ function PatioReguladorTab({ myId }) {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
-        <div style={{ fontSize:"15px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
-        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"15px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
+        <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
       </div>
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
         {PATIO_STATUS_OPTIONS.map(o => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"14px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"15px", fontFamily:MN }}>{o.label}</span>
+            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:MN }}>{o.label}</span>
           </div>
         ))}
       </div>
@@ -1189,21 +2119,21 @@ function PatioReguladorTab({ myId }) {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
               <div>
                 <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{patio.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"2px" }}>{patio.fullName}</div>
-                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"15px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{patio.fullName}</div>
+                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"14px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
-                {totalVotes > 0 && <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN }}>{totalVotes} voto(s)</span>}
-                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
+                {totalVotes > 0 && <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:MN }}>{totalVotes} voto(s)</span>}
+                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
               </div>
             </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
               {PATIO_STATUS_OPTIONS.map(o => {
                 const isAct = st.status === o.id;
                 return (
-                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
                     {o.icon} {o.label}
                   </button>
                 );
@@ -1218,12 +2148,12 @@ function PatioReguladorTab({ myId }) {
           <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
             <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"15px", marginBottom:"20px" }}>
+            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"12px", marginBottom:"20px" }}>
               ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#fb923c", fontWeight:"700" }}>{changeModal.label}</span>?
             </div>
             <div style={{ display:"flex", gap:"10px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
-              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#fb923c22", border:"1px solid #fb923c", borderRadius:"8px", color:"#fb923c", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#fb923c22", border:"1px solid #fb923c", borderRadius:"8px", color:"#fb923c", fontFamily:MN, fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
             </div>
           </div>
         </div>
@@ -1292,7 +2222,7 @@ function TutorialTab({ setActive }) {
       <div style={{ textAlign:"center", marginBottom:"24px" }}>
         <div style={{ fontSize:"36px", marginBottom:"10px" }}>📖</div>
         <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"6px" }}>GUÍA DE USO</div>
-        <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px" }}>PUERTO TRÁFICO · MANZANILLO</div>
+        <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px" }}>PUERTO TRÁFICO · MANZANILLO</div>
         <div style={{ width:"40px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"12px auto 0" }} />
       </div>
       {sections.map(sec => (
@@ -1300,8 +2230,8 @@ function TutorialTab({ setActive }) {
           <button onClick={() => toggle(sec.id)} style={{ width:"100%", background: open===sec.id ? sec.color+"22" : "#0d1b2e", border:`1px solid ${open===sec.id ? sec.color+"88" : "#1e3a5f"}`, borderRadius: open===sec.id ? "12px 12px 0 0" : "12px", padding:"14px 16px", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", transition:"all 0.2s", textAlign:"left" }}>
             <span style={{ fontSize:"20px" }}>{sec.icon}</span>
             <div style={{ flex:1 }}>
-              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", color: open===sec.id ? sec.color : "#e2e8f0", letterSpacing:"1px" }}>{sec.title}</div>
-              <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.4)", marginTop:"2px" }}>{sec.subtitle}</div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", color: open===sec.id ? sec.color : "#e2e8f0", letterSpacing:"1px" }}>{sec.title}</div>
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", marginTop:"2px" }}>{sec.subtitle}</div>
             </div>
             <span style={{ color: open===sec.id ? sec.color : "#334155", fontSize:"14px", transition:"transform 0.2s", transform: open===sec.id ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
           </button>
@@ -1311,19 +2241,19 @@ function TutorialTab({ setActive }) {
                 <div key={i} style={{ marginBottom: i < sec.items.length-1 ? "14px" : "0", paddingBottom: i < sec.items.length-1 ? "14px" : "0", borderBottom: i < sec.items.length-1 ? "1px solid #0d1b2e" : "none" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"5px" }}>
                     <div style={{ width:"5px", height:"5px", background:sec.color, borderRadius:"50%", flexShrink:0 }} />
-                    <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:sec.color }}>{item.label}</span>
+                    <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"11px", color:sec.color }}>{item.label}</span>
                   </div>
-                  <p style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.5)", lineHeight:"1.8", paddingLeft:"11px" }}>{item.desc}</p>
+                  <p style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.5)", lineHeight:"1.8", paddingLeft:"11px" }}>{item.desc}</p>
                 </div>
               ))}
-              <button onClick={() => setActive(sec.id)} style={{ width:"100%", marginTop:"14px", padding:"10px", background:`${sec.color}22`, border:`1px solid ${sec.color}55`, borderRadius:"8px", color:sec.color, fontFamily:MN, fontSize:"15px", fontWeight:"700", cursor:"pointer", letterSpacing:"1px" }}>IR A {sec.title} →</button>
+              <button onClick={() => setActive(sec.id)} style={{ width:"100%", marginTop:"14px", padding:"10px", background:`${sec.color}22`, border:`1px solid ${sec.color}55`, borderRadius:"8px", color:sec.color, fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"1px" }}>IR A {sec.title} →</button>
             </div>
           )}
         </div>
       ))}
       <div style={{ textAlign:"center", marginTop:"24px", padding:"14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)" }}>
         <div style={{ fontSize:"20px", marginBottom:"6px" }}>⚓</div>
-        <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.3)", lineHeight:"1.8" }}>Puerto Tráfico es una herramienta colaborativa.<br/><span style={{ color:"#38bdf8" }}>Tu información hace la diferencia.</span></div>
+        <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.3)", lineHeight:"1.8" }}>Puerto Tráfico es una herramienta colaborativa.<br/><span style={{ color:"#38bdf8" }}>Tu información hace la diferencia.</span></div>
       </div>
     </div>
   );
@@ -1390,11 +2320,11 @@ function InicioTab() {
           <div style={{ width:"46px", height:"46px", background:"linear-gradient(135deg,rgba(56,189,248,0.2),rgba(167,139,250,0.2))", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"12px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", flexShrink:0 }}>⚓</div>
           <div>
             <div style={{ fontFamily:TITLE, fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
-            <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
+            <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
           </div>
         </div>
 
-        <p style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.78)", lineHeight:"1.8", margin:"0 0 16px 0" }}>
+        <p style={{ fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.78)", lineHeight:"1.8", margin:"0 0 16px 0" }}>
           Esta aplicación nació para que <span style={{ color:"#38bdf8", fontWeight:"700" }}>operadores, transportistas y cualquier persona en el puerto</span> puedan compartir en tiempo real el estado de las operaciones. La información que ves la genera <span style={{ color:"#a78bfa", fontWeight:"700" }}>la propia comunidad</span> — no un sistema centralizado.
         </p>
 
@@ -1406,21 +2336,21 @@ function InicioTab() {
           ].map((item, i) => (
             <div key={i} style={{ display:"flex", gap:"10px", alignItems:"flex-start", background:"rgba(255,255,255,0.04)", border:`1px solid ${item.color}22`, borderRadius:"10px", padding:"10px 12px" }}>
               <span style={{ fontSize:"16px", flexShrink:0, marginTop:"1px" }}>{item.icon}</span>
-              <span style={{ fontFamily:MN, fontSize:"14px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
+              <span style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
             </div>
           ))}
         </div>
 
         <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", paddingTop:"14px", display:"flex", alignItems:"center", gap:"10px" }}>
           <div style={{ width:"3px", height:"38px", background:"linear-gradient(to bottom, #38bdf8, #a78bfa)", borderRadius:"2px", flexShrink:0 }} />
-          <p style={{ fontFamily:MN, fontSize:"14px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7", margin:0, fontStyle:"italic" }}>
+          <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7", margin:0, fontStyle:"italic" }}>
             "La operación del puerto nos afecta a todos. Compartir lo que sabes es ayudar a quien viene detrás. <span style={{ color:"rgba(56,189,248,0.85)", fontStyle:"normal", fontWeight:"600" }}>Juntos hacemos la diferencia.</span>"
           </p>
         </div>
       </div>
 
       {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
-      <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
+      <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
       {/* ── WhatsApp Channel ─────────────────────────────────── */}
       <div style={{ marginBottom: "14px", background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "16px", overflow: "hidden" }}>
@@ -1805,18 +2735,18 @@ function App() {
           <img src="/logo.png" alt="Conect Manzanillo" style={{ width:"48px", height:"48px", objectFit:"contain", flexShrink:0 }} />
           <div>
             <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:"#ffffff" }}>Conect Manzanillo</div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>COMUNIDAD EN VIVO · PUERTO</div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>COMUNIDAD EN VIVO · PUERTO</div>
           </div>
           <div style={{ marginLeft:"auto", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px", flexShrink:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
               <div style={{ width:"7px", height:"7px", background:"#4ade80", borderRadius:"50%", boxShadow:"0 0 8px #4ade80", animation:"pulse 2s infinite" }} />
-              <span style={{ fontSize:"15px", color:"#4ade80", fontFamily:"'DM Sans',sans-serif", fontWeight:"600" }}>EN VIVO</span>
+              <span style={{ fontSize:"10px", color:"#4ade80", fontFamily:"'DM Sans',sans-serif", fontWeight:"600" }}>EN VIVO</span>
             </div>
             {visitas !== null && (
               <div style={{ display:"flex", alignItems:"center", gap:"4px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"6px", padding:"2px 7px" }}>
-                <span style={{ fontSize:"15px" }}>👁</span>
-                <span style={{ fontSize:"15px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>{visitas.toLocaleString()}</span>
-                <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans',sans-serif" }}>visitas</span>
+                <span style={{ fontSize:"10px" }}>👁</span>
+                <span style={{ fontSize:"10px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>{visitas.toLocaleString()}</span>
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans',sans-serif" }}>visitas</span>
               </div>
             )}
           </div>
