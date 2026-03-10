@@ -307,29 +307,65 @@ const mkCarrilesState = () => {
 
 // ─── ADMIN MODE ───────────────────────────────────────────────────────────────
 function useAdminMode() {
-  const [isAdmin,    setIsAdmin]    = useState(() => {
-    try { return sessionStorage.getItem(ADMIN_KEY) === "1"; } catch { return false; }
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try { return sessionStorage.getItem(ADMIN_KEY) === "1"; }
+    catch { return false; }
   });
-  const [showModal,  setShowModal]  = useState(false);
-  const [tapCount,   setTapCount]   = useState(0);
-  const [pass,       setPass]       = useState("");
-  const [err,        setErr]        = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState(false);
   const tapTimer = useRef(null);
 
   const handleLogoTap = () => {
     const next = tapCount + 1;
     setTapCount(next);
-    clearTimeout(tapTimer.current);
-    if (next >= 5) { setTapCount(0); setShowModal(true); setPass(""); setErr(false); return; }
-    tapTimer.current = setTimeout(() => setTapCount(0), 1500);
   };
 
   const tryLogin = () => {
-    if (pass === ADMIN_PASS) {
-      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
-      setIsAdmin(true); setShowModal(false); setPass(""); setErr(false);
-    } else { setErr(true); }
+  if (pass === ADMIN_PASS) {
+    setIsAdmin(true);
+    setShowModal(false);
+  } else {
+    setErr(true);
+  }
+};
+
+return {
+  isAdmin,
+  showModal,
+  setShowModal,
+  pass,
+  setPass,
+  err,
+  handleLogoTap,
+  tryLogin
+};
+}
+
+return {
+  isAdmin,
+  showModal,
+  setShowModal,
+  pass,
+  setPass,
+  err,
+  handleLogoTap,
+  tryLogin
+};
+
+  return {
+    isAdmin,
+    showModal,
+    setShowModal,
+    pass,
+    setPass,
+    err,
+    handleLogoTap,
+    tryLogin
   };
+};
 
   const logout = () => {
     try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
