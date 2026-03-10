@@ -324,16 +324,14 @@ function useAdminMode() {
   };
 
   const tryLogin = () => {
-  if (pass === ADMIN_PASS) {
-    setIsAdmin(true);
-    setShowModal(false);
-  } else {
-    setErr(true);
-  }
-};
+    if (pass === ADMIN_PASS) {
+      setIsAdmin(true);
+      setShowModal(false);
+    } else {
+      setErr(true);
+    }
+  };
 
-function useAdminMode() {
-  ...
   return {
     isAdmin,
     showModal,
