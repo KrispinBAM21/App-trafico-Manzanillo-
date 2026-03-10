@@ -773,52 +773,6 @@ function TraficoTab({ myId, incidents, setIncidents }) {
         </>
       )}
 
-      {/* ─── SPEECH COMUNIDAD ──────────────────────────────────────────────────── */}
-      <div style={{
-        marginTop: "24px",
-        background: "linear-gradient(135deg, rgba(56,189,248,0.06) 0%, rgba(167,139,250,0.06) 100%)",
-        border: "1px solid rgba(56,189,248,0.2)",
-        borderRadius: "16px",
-        padding: "20px 18px",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        <div style={{ position:"absolute", top:"-30px", right:"-30px", width:"100px", height:"100px", background:"radial-gradient(circle, rgba(56,189,248,0.12) 0%, transparent 70%)", pointerEvents:"none" }} />
-        <div style={{ position:"absolute", bottom:"-20px", left:"-20px", width:"80px", height:"80px", background:"radial-gradient(circle, rgba(167,139,250,0.10) 0%, transparent 70%)", pointerEvents:"none" }} />
-
-        <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px" }}>
-          <div style={{ width:"38px", height:"38px", background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", flexShrink:0 }}>🤝</div>
-          <div>
-            <div style={{ fontFamily:TITLE, fontWeight:"700", fontSize:"14px", color:"#e2e8f0", letterSpacing:"0.3px" }}>¿Cómo funciona esta sección?</div>
-            <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1px", marginTop:"2px" }}>INTELIGENCIA COLECTIVA · PUERTO MANZANILLO</div>
-          </div>
-        </div>
-
-        <p style={{ fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.75)", lineHeight:"1.75", margin:"0 0 14px 0" }}>
-          Esta sección existe para que <span style={{ color:"#38bdf8", fontWeight:"700" }}>cualquier operador, transportista o persona en el puerto</span> pueda compartir en tiempo real el estado de los accesos, vialidades e incidentes. La información que ves aquí <span style={{ color:"#a78bfa", fontWeight:"700" }}>la genera la propia comunidad</span> — no un sistema centralizado.
-        </p>
-
-        <div style={{ display:"flex", flexDirection:"column", gap:"9px", marginBottom:"16px" }}>
-          {[
-            { icon:"📡", color:"#38bdf8", text:"Reporta lo que ves en ruta: un acceso saturado, un retorno activo, un camión varado. Tu reporte llega al instante a todos los usuarios." },
-            { icon:"🗳️", color:"#a78bfa", text:"Cualquier usuario puede votar. Con 15 confirmaciones, un reporte se valida y se vuelve visible como incidente activo en el mapa." },
-            { icon:"🏁", color:"#22c55e", text:"Cuando la situación se resuelve, la comunidad lo cierra. Así el mapa siempre refleja la realidad del momento." },
-          ].map((item, i) => (
-            <div key={i} style={{ display:"flex", gap:"10px", alignItems:"flex-start", background:"rgba(255,255,255,0.04)", border:`1px solid ${item.color}22`, borderRadius:"10px", padding:"10px 12px" }}>
-              <span style={{ fontSize:"16px", flexShrink:0, marginTop:"1px" }}>{item.icon}</span>
-              <span style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", paddingTop:"12px", display:"flex", alignItems:"center", gap:"8px" }}>
-          <div style={{ width:"3px", height:"36px", background:"linear-gradient(to bottom, #38bdf8, #a78bfa)", borderRadius:"2px", flexShrink:0 }} />
-          <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.65", margin:0, fontStyle:"italic" }}>
-            "La operación del puerto nos afecta a todos. Compartir lo que sabes es ayudar a quien viene detrás. <span style={{ color:"rgba(56,189,248,0.8)", fontStyle:"normal", fontWeight:"600" }}>Juntos hacemos la diferencia.</span>"
-          </p>
-        </div>
-      </div>
-
       <ToastBox toast={toast} />
       {changeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
