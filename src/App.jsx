@@ -1327,8 +1327,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         </>
       )}
       <ToastBox toast={toast} />
-    <}
-/div>
+    </div>
   );
 }
 
