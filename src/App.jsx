@@ -385,6 +385,105 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
   );
 }
 
+// ─── DONATE BANNER ────────────────────────────────────────────────────────────
+function DonateBanner({ active }) {
+  const [visible, setVisible] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const shownRef = useRef(null);
+
+  const hide = () => {
+    setExiting(true);
+    setTimeout(() => { setVisible(false); setExiting(false); }, 400);
+  };
+
+  useEffect(() => {
+    // No mostrar en la sección de donativos
+    if (active === "donativos") return;
+    // Cada vez que cambia de sección, esperar 8s y mostrar
+    if (shownRef.current === active) return;
+    shownRef.current = active;
+    setVisible(false);
+    setExiting(false);
+    const showTimer = setTimeout(() => setVisible(true), 8000);
+    // Auto-ocultar después de 6s de mostrarse
+    const hideTimer = setTimeout(() => hide(), 14000);
+    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, [active]);
+
+  if (!visible) return null;
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: "80px",
+      left: "50%",
+      transform: `translateX(-50%) translateY(${exiting ? "20px" : "0px"})`,
+      opacity: exiting ? 0 : 1,
+      transition: "opacity 0.4s ease, transform 0.4s ease",
+      width: "calc(100% - 32px)",
+      maxWidth: "420px",
+      zIndex: 500,
+      pointerEvents: "auto",
+    }}>
+      <div style={{
+        background: "rgba(6, 14, 26, 0.92)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: "1px solid rgba(56,189,248,0.3)",
+        borderLeft: "3px solid #38bdf8",
+        borderRadius: "14px",
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.1)",
+      }}>
+        <div style={{ fontSize: "22px", flexShrink: 0 }}>⚓</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "11px", color: "#e2e8f0", marginBottom: "2px" }}>
+            ¿Te está siendo útil esta app?
+          </div>
+          <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.4" }}>
+            Cada donativo ayuda a mantenerla viva 🙏
+          </div>
+        </div>
+        <a
+          href="https://ko-fi.com/conectmanzanillo"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none", flexShrink: 0 }}
+          onClick={hide}
+        >
+          <div style={{
+            background: "linear-gradient(135deg,#38bdf8,#818cf8)",
+            borderRadius: "8px",
+            padding: "7px 13px",
+            fontFamily: MN,
+            fontSize: "10px",
+            fontWeight: "700",
+            color: "#0a0f1e",
+            letterSpacing: "0.5px",
+            whiteSpace: "nowrap",
+          }}>💙 DONAR</div>
+        </a>
+        <button
+          onClick={hide}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "rgba(255,255,255,0.25)",
+            cursor: "pointer",
+            fontSize: "16px",
+            padding: "0 2px",
+            flexShrink: 0,
+            lineHeight: 1,
+          }}
+        >✕</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
 function NavBar({ active, set }) {
   const row1 = [
@@ -2683,6 +2782,8 @@ function App() {
         {consent === null && (
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
+
+        <DonateBanner active={active} />
       </div>
     </div>
   );
