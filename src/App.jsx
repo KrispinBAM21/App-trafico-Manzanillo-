@@ -2401,7 +2401,7 @@ function TutorialTab({ setActive }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function InicioTab() {
+function InicioTab({ isAdmin, logout }) {
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
 
@@ -2903,7 +2903,7 @@ function App() {
 
         <NavBar active={active} set={setActive} />
 
-        {active === "inicio"      && <InicioTab />}
+        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
