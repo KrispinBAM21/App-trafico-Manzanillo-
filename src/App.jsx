@@ -502,7 +502,6 @@ function NavBar({ active, set }) {
     { id: "patio",       label: "Patios",      icon: "🏭"  },
   ];
   const row2 = [
-    { id: "vialidades", label: "Vialidades", icon: "🛣️" },
     { id: "segundo",    label: "2do Acceso", icon: "🚪"  },
     { id: "carriles",   label: "Carriles",   icon: "🚦"  },
     { id: "noticias",   label: "Noticias",   icon: "📰"  },
@@ -547,1840 +546,266 @@ function NavBar({ active, set }) {
 
 // ─── TAB: TRÁFICO ─────────────────────────────────────────────────────────────
 function TraficoTab({ myId, incidents, setIncidents }) {
-  const [accesos, setAccesos] = useState(mkAccesos);
-  const [toast,   setToast]   = useState(null);
-  const [changeModal, setChangeModal] = useState(null); // { type, id, newStatus, label }
-
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
-
-  const voteConfirm = async (id, forceChange = false) => {
-    const rl = rateLimiter.check(`incident_vote_${myId}`, 15000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const inc = incidents.find(i => i.id === id);
-    if (!inc) return;
-    if (inc.votes[myId] !== undefined && !forceChange) {
-      setChangeModal({ type: "incident_confirm", id, newStatus: 1, label: "CONFIRMO" });
-      return;
-    }
-    const votes   = { ...inc.votes, [myId]: 1 };
-    const conf    = Object.values(votes).filter(v => v === 1).length;
-    const visible = conf >= 15;
-    await sb.from("incidents").update({ votes, visible }).eq("id", id);
-    if (visible && !inc.visible) {
-      notify("✅ Reporte verificado — ya aparece en el mapa", "#22c55e");
-      await publicarNoticia({ tipo: "incidente", icono: "🚨", color: "#ef4444", titulo: `Incidente verificado — ${inc.location}`, detalle: inc.desc || "Reportado y verificado por la comunidad" });
-    } else notify(`✓ Confirmado (${conf}/15)`, "#22c55e");
-  };
-
-  const voteFalse = async (id, forceChange = false) => {
-    const inc = incidents.find(i => i.id === id);
-    if (!inc) return;
-    if (inc.votes[myId] !== undefined && !forceChange) {
-      setChangeModal({ type: "incident_false", id, newStatus: -1, label: "FALSO" });
-      return;
-    }
-    const votes = { ...inc.votes, [myId]: -1 };
-    const falsos = Object.values(votes).filter(v => v === -1).length;
-    await sb.from("incidents").update({ votes }).eq("id", id);
-    notify(`✗ Marcado como falso (${falsos} voto${falsos>1?"s":""})`, "#ef4444");
-  };
-
-  const voteResolve = async (id) => {
-    const inc = incidents.find(i => i.id === id);
-    if (!inc) return;
-    if (inc.resolveVotes[myId]) return notify("Ya reportaste esto como resuelto", "#f97316");
-    const rv       = { ...inc.resolveVotes, [myId]: 1 };
-    const resolved = Object.keys(rv).length >= 15;
-    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
-    if (resolved) {
-      notify("✓ Incidente marcado como resuelto", "#22c55e");
-      const incObj = incidents.find(i => i.id === id);
-      await publicarNoticia({ tipo: "resuelto", icono: "✅", color: "#22c55e", titulo: `Incidente resuelto — ${incObj?.location || ""}`, detalle: "Marcado como resuelto por la comunidad" });
-    } else notify(`Voto registrado (${Object.keys(rv).length}/3 para resolver)`, "#38bdf8");
-  };
-
-  const clearIncidents = async () => {
-    await sb.from("incidents").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    notify("✓ Incidentes limpiados", "#22c55e");
-  };
-
-  useEffect(() => {
-    sb.from("accesos").select("*").then(async ({ data }) => {
-      if (!data || data.length === 0) {
-        await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({
-          id: a.id, status: "libre", retornos: "none", pending_voters: {}, last_update: Date.now(), updated_by: "Sistema"
-        })));
-        return;
-      }
-      const map = {};
-      data.forEach(r => {
-        map[r.id] = { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-      });
-      setAccesos(prev => ({ ...prev, ...map }));
-    });
-
-    const chan = sb.channel("accesos-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, ({ new: r }) => {
-        if (!r) return;
-        setAccesos(prev => ({ ...prev, [r.id]: { status: r.status, retornos: r.retornos, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
-      }).subscribe();
-
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const voteAcceso = async (accesoId, newStatus, forceChange = false) => {
-    const rl = rateLimiter.check(`acceso_vote_${myId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const key = `acceso_${accesoId}_${newStatus}`;
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("acceso_id", accesoId).eq("tipo", "acceso");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "acceso", id: accesoId, newStatus, label });
-      return;
-    }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("acceso_id", accesoId).eq("tipo", "acceso");
-    }
-    await sb.from("votos").insert({ key, user_id: myId, acceso_id: accesoId, status: newStatus, tipo: "acceso" });
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("acceso_id", accesoId).eq("tipo", "acceso");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
-    const [statusGanador, votosGanador] = ganadora;
-    await sb.from("accesos").upsert({ id: accesoId, status: statusGanador, retornos: accesos[accesoId]?.retornos || "none", pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    await publicarNoticia({ tipo: "acceso", icono: "📍", color: "#a78bfa", titulo: `Acceso ${accesoId === "pezvela" ? "Pez Vela" : "Zona Norte"} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
-  };
-
-  const setRetornos = async (accesoId, value) => {
-    await sb.from("accesos").upsert({ id: accesoId, status: accesos[accesoId].status, retornos: value, last_update: Date.now(), updated_by: "Tú" });
-    notify("✓ Retornos actualizados", "#22c55e");
-    const retOpt = RETORNO_OPTIONS.find(r => r.id === value);
-    await publicarNoticia({ tipo: "retorno", icono: "↩", color: "#f97316", titulo: `Retorno ${accesoId === "pezvela" ? "Pez Vela" : "Zona Norte"} — ${retOpt?.label}`, detalle: "Estado de retorno actualizado por usuario" });
-  };
-
-  const resetAcceso = async (accesoId) => {
-    await sb.from("accesos").upsert({ id: accesoId, status: "libre", retornos: "none", pending_voters: {}, last_update: Date.now(), updated_by: "Reset" });
-    notify("✓ Acceso restablecido", "#22c55e");
-  };
-
-  const resetAll = async () => {
-    await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", pending_voters: {}, last_update: Date.now(), updated_by: "Reset" })));
-    await sb.from("incidents").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    notify("✓ Todo normal", "#22c55e");
-  };
-
-  const incType  = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
-  const getAcOpt = (id) => ACCESO_STATUS_OPTIONS.find(o => o.id === id) || ACCESO_STATUS_OPTIONS[0];
-  const getRetOpt= (id) => RETORNO_OPTIONS.find(r => r.id === id) || RETORNO_OPTIONS[0];
-
-  const active   = incidents.filter(i =>  i.visible && !i.resolved);
-  const pending  = incidents.filter(i => !i.visible && !i.resolved);
-  const resolved = incidents.filter(i =>  i.resolved);
-
-  // Color del borde según votos
-  const incidentBorderColor = (inc) => {
-    const conf   = Object.values(inc.votes).filter(v => v === 1).length;
-    const falsos = Object.values(inc.votes).filter(v => v === -1).length;
-    if (falsos > conf && falsos >= 2) return "#ef4444";
-    if (conf >= 2) return "#22c55e";
-    return "#f97316";
-  };
-
-  return (
-    <div style={{ padding: "16px", paddingBottom: "80px" }}>
-      {/* Mapa Google Maps real con accesos */}
-      <div style={{ border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", height: "240px", marginBottom: "16px", position: "relative", overflow: "hidden" }}>
-        <iframe
-          title="Mapa Accesos Puerto Manzanillo"
-          width="100%"
-          height="100%"
-          style={{ border: 0, display: "block" }}
-          loading="lazy"
-          allowFullScreen
-          src="https://www.google.com/maps/d/embed?mid=1cCBCrR6eT0Sfa2jWAdVeKFaHyWy8YNY&ehbc=2E312F&noprof=1"
-        />
-        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(10,15,30,0.9))", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-            {[
-              { color:"#a78bfa", label:"Pez Vela" },
-              { color:"#38bdf8", label:"Zona Norte" },
-              { color:"#f97316", label:"Puerta 15" },
-              { color:"#22c55e", label:"Patio Regulador" },
-            ].map(p => (
-              <div key={p.label} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-                <div style={{ width:"8px", height:"8px", background:p.color, borderRadius:"50%", boxShadow:`0 0 6px ${p.color}` }} />
-                <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.8)", fontFamily:MN, fontWeight:"600" }}>{p.label}</span>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => window.open("https://www.google.com/maps/search/Puerto+de+Manzanillo/@19.0863,-104.2971,14z", "_blank")}
-            style={{ background:"#38bdf8", color:"#0a0f1e", padding:"5px 10px", borderRadius:"6px", fontSize:"15px", fontFamily:MN, fontWeight:"700", border:"none", cursor:"pointer" }}
-          >VER EN MAPS ↗</button>
-        </div>
-      </div>
-
-      <SectionLabel text="ACCESOS PRINCIPALES" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
-      {ACCESOS_PRINCIPALES.map(acc => {
-        const st     = accesos[acc.id];
-        const opt    = getAcOpt(st.status);
-        const retOpt = getRetOpt(st.retornos);
-        const isChanged = st.status !== "libre" || st.retornos !== "none";
-        return (
-          <div key={acc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${acc.color}44`, borderRadius:"14px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 24px ${acc.color}0a` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
-              <div>
-                <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
-                  <div style={{ width:"10px", height:"10px", background:acc.color, borderRadius:"50%", boxShadow:`0 0 8px ${acc.color}` }} />
-                  <span style={{ color:acc.color, fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{acc.label}</span>
-                </div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", fontFamily:MN, marginTop:"3px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"14px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
-                {st.retornos !== "none" && <Badge color={retOpt.color} small>{retOpt.icon} {retOpt.label}</Badge>}
-                {isChanged && <button onClick={() => resetAcceso(acc.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
-              </div>
-            </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>ESTATUS DEL ACCESO:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"12px" }}>
-              {ACCESO_STATUS_OPTIONS.map(o => {
-                const isAct = st.status === o.id;
-                return (
-                  <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    {o.icon} {o.label}
-                    <VoteCountBadge accesoId={acc.id} status={o.id} myId={myId} />
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>TIPO DE RETORNO:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px" }}>
-              {RETORNO_OPTIONS.map(r => {
-                const isAct = st.retornos === r.id;
-                return (
-                  <button key={r.id} onClick={() => setRetornos(acc.id, r.id)} style={{ padding:"10px 4px", background: isAct ? r.color+"33" : "#0a1628", border:`1px solid ${isAct ? r.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? r.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: isAct ? "700" : "400", transition:"all 0.15s", textAlign:"center" }}>
-                    <div style={{ fontSize:"16px" }}>{r.icon}</div>
-                    <div style={{ marginTop:"3px", fontSize:"15px", lineHeight:"1.3" }}>{r.label}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-
-      <div style={{ borderTop:"1px solid rgba(255,255,255,0.15)", margin:"4px 0 16px" }} />
-
-      {/* PENDIENTES */}
-      {pending.length > 0 && (
-        <>
-          <SectionLabel text="PENDIENTES DE VERIFICACIÓN" />
-          {pending.map(inc => {
-            const t      = incType(inc.type);
-            const myVote = inc.votes[myId];
-            const conf   = Object.values(inc.votes).filter(v => v === 1).length;
-            const falsos = Object.values(inc.votes).filter(v => v === -1).length;
-            const borderC = incidentBorderColor(inc);
-            return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-                  <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
-                    <div>
-                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{inc.location}</div>
-                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"14px", marginTop:"2px" }}>{inc.desc}</div>}
-                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"3px", fontFamily:MN }}>{timeAgo(inc.ts)}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
-                    <Badge color={borderC} small>PENDIENTE</Badge>
-                    <div style={{ fontSize:"15px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
-                  </div>
-                </div>
-                <VoteBar count={conf} needed={15} />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
-                  <button onClick={() => voteConfirm(inc.id)} style={{ padding:"9px 4px", background: myVote===1 ? "#22c55e33" : "#16a34a15", border:`1px solid ${myVote===1 ? "#22c55e" : "#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>✅</span>
-                    <span>CONFIRMO</span>
-                  </button>
-                  <button onClick={() => voteFalse(inc.id)} style={{ padding:"9px 4px", background: myVote===-1 ? "#ef444433" : "#ef444415", border:`1px solid ${myVote===-1 ? "#ef4444" : "#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>❌</span>
-                    <span>FALSO</span>
-                  </button>
-                  <button onClick={() => voteResolve(inc.id)} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>🏁</span>
-                    <span>RESUELTO</span>
-                  </button>
-                </div>
-                {myVote !== undefined && (
-                  <div style={{ fontSize:"15px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:MN, marginTop:"6px", textAlign:"center" }}>
-                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"} · toca de nuevo para cambiar
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* ACTIVOS */}
-      <SectionLabel text="INCIDENTES ACTIVOS" rightBtn={active.length > 0 ? <NormalBtn onClick={clearIncidents} label="LIMPIAR TODO" /> : null} />
-      {active.length === 0 && (
-        <div style={{ textAlign:"center", color:"rgba(255,255,255,0.3)", padding:"26px", fontFamily:MN, fontSize:"15px", border:"1px dashed #1e3a5f", borderRadius:"10px", marginBottom:"12px" }}>Sin incidentes activos ✓</div>
-      )}
-      {active.map(inc => {
-        const t       = incType(inc.type);
-        const rvCount = Object.keys(inc.resolveVotes).length;
-        const myRv    = inc.resolveVotes[myId];
-        return (
-          <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${t.color}88`, borderRadius:"12px", padding:"12px", marginBottom:"10px", boxShadow:`0 0 16px ${t.color}18` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-              <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                <span style={{ fontSize:"20px" }}>{t.icon}</span>
-                <div>
-                  <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{inc.location}</div>
-                  {inc.desc && <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"14px", marginTop:"2px" }}>{inc.desc}</div>}
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"3px", fontFamily:MN }}>{timeAgo(inc.ts)} · {Object.values(inc.votes).filter(v=>v===1).length} confirmaciones</div>
-                </div>
-              </div>
-              <Badge color={t.color} small>ACTIVO</Badge>
-            </div>
-            <div style={{ borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"10px" }}>
-              {rvCount > 0 && <div style={{ marginBottom:"8px" }}><VoteBar count={rvCount} needed={15} color="#22c55e" /></div>}
-              <button onClick={() => voteResolve(inc.id)} style={{ width:"100%", padding:"10px", background: myRv ? "#22c55e22" : "#22c55e15", border:`1px solid ${myRv ? "#22c55e" : "#22c55e44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-                <span>🏁</span> {myRv ? `YA VOTÉ COMO RESUELTO (${rvCount}/15)` : `YA SE RESOLVIÓ (${rvCount}/15)`}
-              </button>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* RESUELTOS */}
-      {resolved.length > 0 && (
-        <>
-          <SectionLabel text="RESUELTOS RECIENTES" />
-          {resolved.map(inc => {
-            const t = incType(inc.type);
-            return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid #1e3a5f33", borderRadius:"10px", padding:"10px", marginBottom:"8px", opacity:0.55 }}>
-                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-                  <span style={{ fontSize:"14px" }}>{t.icon}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"14px" }}>{inc.location}</div>
-                    <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", fontFamily:MN }}>{timeAgo(inc.ts)}</div>
-                  </div>
-                  <Badge color="#22c55e" small>RESUELTO</Badge>
-                </div>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      <ToastBox toast={toast} />
-      {changeModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
-            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"15px", marginBottom:"20px" }}>
-              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
-            </div>
-            <div style={{ display:"flex", gap:"10px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
-              <button onClick={async () => {
-                const m = changeModal;
-                setChangeModal(null);
-                if (m.type === "acceso") await voteAcceso(m.id, m.newStatus, true);
-                else if (m.type === "incident_confirm") await voteConfirm(m.id, true);
-                else if (m.type === "incident_false") await voteFalse(m.id, true);
-              }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-const UBICACIONES_REPORTE = [
-  { grupo: "Carreteras", icon: "🛣️", opciones: [
-    "Carretera Manzanillo–Colima",
-    "Carretera Colima–Manzanillo",
-    "Carretera Manzanillo–Cihuatlán",
-    "Carretera Manzanillo–Minatitlán",
-    "Carretera Federal 200",
-    "Carretera Federal 98",
-  ]},
-  { grupo: "Bulevares y Avenidas", icon: "🏙️", opciones: [
-    "Boulevard Costero Miguel de la Madrid",
-    "Avenida Elías Zamora Verduzco",
-    "Avenida Lázaro Cárdenas",
-    "Avenida Manzanillo",
-    "Avenida Tapeixtles",
-    "Avenida San Pedrito",
-  ]},
-  { grupo: "Accesos y Zonas Portuarias", icon: "⚓", opciones: [
-    "Segundo Acceso",
-    "Confinada",
-    "Calle Norte 1",
-    "Calle Poniente",
-    "Calle Antonio Suárez",
-    "Calle Algodones",
-  ]},
-  { grupo: "Calles — Fauna Marina", icon: "🐟", opciones: [
-    "Calle Nutria",
-    "Calle Anguila",
-    "Calle Ballena",
-    "Calle Orca",
-    "Calle Delfín",
-    "Calle Marlín",
-    "Calle Tiburón",
-    "Calle Pez Vela",
-    "Calle Camarón",
-    "Calle Jaiba",
-    "Calle Pulpo",
-    "Calle Medusa",
-    "Calle Erizo",
-    "Calle Langosta",
-    "Calle Caracol",
-    "Calle Ostión",
-    "Calle Mero",
-    "Calle Bagre",
-    "Calle Atún",
-    "Calle Sardina",
-  ]},
-  { grupo: "Calles — Minerales", icon: "⚙️", opciones: [
-    "Calle Aluminio",
-    "Calle Cobre",
-    "Calle Zinc",
-    "Calle Hierro",
-    "Calle Acero",
-  ]},
-  { grupo: "Calles — Otras", icon: "🏘️", opciones: [
-    "Calle José Mesina",
-    "Calle Hidalgo",
-    "Calle Niños",
-  ]},
-  { grupo: "Sitios de Referencia", icon: "📌", opciones: [
-    "Caseta de Cobro Manzanillo",
-    "Glorieta Pez Vela",
-    "Glorieta Zona Norte",
-    "Puerta 15",
-    "ASIPONA",
-    "Plaza Manzanillo",
-    "Hospital General Manzanillo",
-    "Aeropuerto Playa de Oro",
-    "Central de Autobuses",
-    "Pemex Tapeixtles",
-    "Pemex Salagua",
-  ]},
-];
-
-// ─── MAPA: datos geográficos del KML (coordenadas reales) ────────────────────
-const GEO_LINES = [
-  {
-    id: "confinada",
-    name: "Vialidad Confinada",
-    matchKeys: ["confinada", "vialidad confinada"],
-    color: "#a78bfa",
-    weight: 5,
-    coords: [
-      [-104.2877084,19.0785651],[-104.288041,19.0790468],[-104.289205,19.0804967],
-      [-104.2899722,19.0815005],[-104.2909378,19.0827223],[-104.2912703,19.0829808],
-      [-104.2921179,19.0840455],[-104.2929494,19.0850543],[-104.2935824,19.085835],
-      [-104.2939794,19.0862811],[-104.2944193,19.0866208],[-104.2950523,19.0869402],
-      [-104.2953205,19.0870213],
-    ],
-  },
-  {
-    id: "segundo",
-    name: "Segundo Acceso",
-    matchKeys: ["segundo acceso", "segundo", "puerta 15"],
-    color: "#38bdf8",
-    weight: 6,
-    coords: [
-      [-104.2957224,19.0861153],[-104.2934479,19.0834082],[-104.292654,19.0825058],
-      [-104.2923106,19.0823942],[-104.2920102,19.0824044],[-104.2911519,19.0827288],
-      [-104.2904653,19.0829823],[-104.2900361,19.0832764],[-104.2896177,19.0837022],
-      [-104.2894031,19.0841078],[-104.2885126,19.0848479],[-104.2873432,19.0859125],
-      [-104.2858519,19.0872103],[-104.2851009,19.087991],[-104.2851223,19.0886906],
-      [-104.2851974,19.0898059],[-104.2849185,19.0907488],[-104.2846717,19.0917525],
-      [-104.2835666,19.0937701],[-104.282998,19.0947231],[-104.2829444,19.0950881],
-      [-104.2832018,19.0963352],[-104.2833413,19.0967914],[-104.2834701,19.0970448],
-      [-104.2834808,19.0973591],[-104.2831697,19.0984439],
-    ],
-  },
-];
-
-const GEO_POINTS = [
-  { id:"pezvela",    name:"Acceso Pez Vela",    matchKeys:["acceso pez vela","pez vela"],                          color:"#a78bfa", coords:[19.0764056,-104.2872312] },
-  { id:"puerta15",   name:"Acceso Puerta 15",   matchKeys:["puerta 15","acceso puerta"],                           color:"#f97316", coords:[19.0778657,-104.288465]  },
-  { id:"zonanorte",  name:"Acceso Zona Norte",  matchKeys:["acceso zona norte","zona norte"],                      color:"#38bdf8", coords:[19.0867863,-104.2971921] },
-  { id:"patio_acc",  name:"Acceso Patios",      matchKeys:["patio regulador","patio","cima","isl","alman","sia","almacont"], color:"#22c55e", coords:[19.103568,-104.2703336] },
-  { id:"ssa",        name:"Terminal SSA",        matchKeys:["terminal ssa"," ssa"],                                 color:"#60a5fa", coords:[19.0715354,-104.2898778] },
-  { id:"contecon",   name:"CONTECON",            matchKeys:["contecon"],                                            color:"#60a5fa", coords:[19.0798514,-104.300012]  },
-  { id:"lajunta",    name:"La Junta (TAP)",      matchKeys:["la junta","tap"],                                      color:"#60a5fa", coords:[19.0631117,-104.2913354] },
-  { id:"timsa",      name:"TIMSA",               matchKeys:["timsa"],                                               color:"#60a5fa", coords:[19.061327,-104.2910225]  },
-  { id:"friman",     name:"FRIMAN",              matchKeys:["friman"],                                              color:"#60a5fa", coords:[19.057065,-104.2954986]  },
-  { id:"multimodal", name:"Multimodal",          matchKeys:["multimodal"],                                          color:"#60a5fa", coords:[19.0572374,-104.2943184] },
-  { id:"ocupa",      name:"OCUPA",               matchKeys:["ocupa","multipropósito","multiproposito"],             color:"#60a5fa", coords:[19.0565276,-104.3008416] },
-  { id:"cemex",      name:"CEMEX",               matchKeys:["cemex"],                                               color:"#60a5fa", coords:[19.0577258,-104.2996151] },
-  { id:"hazesa",     name:"HAZESA",              matchKeys:["hazesa"],                                              color:"#60a5fa", coords:[19.0834164,-104.2946041] },
-  { id:"asipona",    name:"ASIPONA",             matchKeys:["asipona"],                                             color:"#fbbf24", coords:[19.0560156,-104.3035361] },
-];
-
-function matchGeoElements(locationStr, accesoStr) {
-  const text = (locationStr + " " + accesoStr).toLowerCase();
-  const hitLines  = GEO_LINES.filter(l  => l.matchKeys.some(k => text.includes(k)));
-  const hitPoints = GEO_POINTS.filter(p => p.matchKeys.some(k => text.includes(k)));
-  return { hitLines, hitPoints };
-}
-
-// ─── COMPONENTE: Mapa Leaflet real ───────────────────────────────────────────
-function MapaIncidentes({ incidents, highlightLocation, highlightAcceso }) {
-  const mapRef    = useRef(null);
-  const leafletRef = useRef(null);   // instancia L.map
-  const layersRef  = useRef({});     // id -> layer
-  const markersRef = useRef({});     // id -> marker
-
-  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
-  const { hitLines, hitPoints } = matchGeoElements(highlightLocation || "", highlightAcceso || "");
-  const hlLineIds  = new Set(hitLines.map(l => l.id));
-  const hlPointIds = new Set(hitPoints.map(p => p.id));
-
-  // Incidentes activos por geoId
-  const incidentGeoMap = {};
-  activeIncidents.forEach(inc => {
-    const text  = (inc.location || "").toLowerCase();
-    const color = inc.type === "accidente" ? "#ef4444" : inc.type === "bloqueo" ? "#eab308" : "#f97316";
-    [...GEO_LINES, ...GEO_POINTS].forEach(geo => {
-      if (geo.matchKeys.some(k => text.includes(k))) {
-        if (!incidentGeoMap[geo.id]) incidentGeoMap[geo.id] = { color, count: 0, type: inc.type };
-        incidentGeoMap[geo.id].count++;
-      }
-    });
-  });
-
-  // Inicializar mapa una sola vez
-  useEffect(() => {
-    if (leafletRef.current) return;
-
-    const L = window.L;
-    if (!L) return;
-
-    const map = L.map(mapRef.current, {
-      center: [19.075, -104.295],
-      zoom: 14,
-      zoomControl: true,
-      attributionControl: false,
-      scrollWheelZoom: true,
-    });
-
-    // Tiles oscuros de CartoDB — perfectos para interfaz dark
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-    }).addTo(map);
-
-    leafletRef.current = map;
-
-    // Agregar líneas base (siempre visibles, tenues)
-    GEO_LINES.forEach(line => {
-      const latlngs = line.coords.map(([lon, lat]) => [lat, lon]);
-      const poly = L.polyline(latlngs, {
-        color: line.color,
-        weight: line.weight || 4,
-        opacity: 0.35,
-        lineCap: "round",
-        lineJoin: "round",
-      }).addTo(map);
-      poly.bindTooltip(line.name, { sticky: true, className: "cm-tooltip" });
-      layersRef.current[line.id] = poly;
-    });
-
-    // Agregar puntos base
-    GEO_POINTS.forEach(pt => {
-      const marker = L.circleMarker(pt.coords, {
-        radius: 6,
-        color: pt.color,
-        fillColor: pt.color,
-        fillOpacity: 0.5,
-        weight: 1.5,
-        opacity: 0.5,
-      }).addTo(map);
-      marker.bindTooltip(pt.name, { sticky: true, className: "cm-tooltip" });
-      markersRef.current[pt.id] = marker;
-    });
-
-    // Inyectar CSS para tooltips
-    const tooltipStyle = document.createElement("style");
-    tooltipStyle.textContent = `
-      .cm-tooltip {
-        background: rgba(4,12,24,0.92) !important;
-        border: 1px solid rgba(56,189,248,0.4) !important;
-        border-radius: 6px !important;
-        color: rgba(255,255,255,0.9) !important;
-        font-family: 'SoftSans', sans-serif !important;
-        font-size: 11px !important;
-        font-weight: 600 !important;
-        padding: 4px 8px !important;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important;
-        white-space: nowrap !important;
-      }
-      .cm-tooltip::before { display: none !important; }
-      .leaflet-tooltip-left.cm-tooltip::before { display: none !important; }
-      .leaflet-control-zoom a {
-        background: rgba(4,12,24,0.9) !important;
-        color: rgba(255,255,255,0.7) !important;
-        border-color: rgba(255,255,255,0.1) !important;
-      }
-      .leaflet-control-zoom a:hover {
-        background: rgba(56,189,248,0.2) !important;
-        color: #fff !important;
-      }
-    `;
-    document.head.appendChild(tooltipStyle);
-
-    return () => {
-      map.remove();
-      leafletRef.current = null;
-    };
-  }, []);
-
-  // Actualizar estilos de líneas y puntos cuando cambia el estado
-  useEffect(() => {
-    const L = window.L;
-    if (!L || !leafletRef.current) return;
-
-    // Actualizar líneas
-    GEO_LINES.forEach(line => {
-      const poly = layersRef.current[line.id];
-      if (!poly) return;
-      const hasInc = incidentGeoMap[line.id];
-      const isHL   = hlLineIds.has(line.id);
-      const color  = hasInc ? hasInc.color : line.color;
-      const weight = hasInc ? (line.weight || 4) + 2 : isHL ? (line.weight || 4) + 1 : (line.weight || 4);
-      const opacity = hasInc || isHL ? 0.95 : 0.35;
-      const dashArray = hasInc ? "10, 6" : null;
-      poly.setStyle({ color, weight, opacity, dashArray });
-
-      // Popup con info de incidente
-      if (hasInc) {
-        poly.bindPopup(
-          `<div style="font-family:'SoftSans',sans-serif;padding:4px">
-            <b style="color:${hasInc.color}">${line.name}</b><br/>
-            <span style="color:rgba(255,255,255,0.7);font-size:11px">⚠ ${hasInc.count} incidente${hasInc.count>1?"s":""} activo${hasInc.count>1?"s":""}</span>
-          </div>`,
-          { className: "cm-tooltip" }
-        );
-      }
-    });
-
-    // Actualizar puntos
-    GEO_POINTS.forEach(pt => {
-      const marker = markersRef.current[pt.id];
-      if (!marker) return;
-      const hasInc = incidentGeoMap[pt.id];
-      const isHL   = hlPointIds.has(pt.id);
-      const color  = hasInc ? hasInc.color : pt.color;
-      const radius = hasInc ? 10 : isHL ? 9 : 6;
-      const fillOpacity = hasInc || isHL ? 0.9 : 0.45;
-      const opacity = hasInc || isHL ? 1 : 0.5;
-      marker.setStyle({ color, fillColor: color, radius, fillOpacity, opacity, weight: hasInc ? 2.5 : 1.5 });
-
-      if (hasInc) {
-        marker.bindPopup(
-          `<div style="font-family:'SoftSans',sans-serif;padding:4px">
-            <b style="color:${hasInc.color}">${pt.name}</b><br/>
-            <span style="color:rgba(255,255,255,0.7);font-size:11px">⚠ ${hasInc.count} incidente${hasInc.count>1?"s":""} activo${hasInc.count>1?"s":""}</span>
-          </div>`,
-          { className: "cm-tooltip" }
-        );
-      }
-    });
-
-    // Si hay selección activa, hacer zoom suave al elemento
-    if (hitLines.length > 0 && leafletRef.current) {
-      const allCoords = hitLines.flatMap(l => l.coords.map(([lon, lat]) => [lat, lon]));
-      const bounds = window.L.latLngBounds(allCoords);
-      leafletRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
-    } else if (hitPoints.length > 0 && leafletRef.current) {
-      leafletRef.current.flyTo(hitPoints[0].coords, 15, { animate: true, duration: 0.8 });
-    }
-
-  }, [JSON.stringify(incidentGeoMap), JSON.stringify([...hlLineIds]), JSON.stringify([...hlPointIds])]);
-
-  // Cargar Leaflet CSS + JS si no están ya
-  useEffect(() => {
-    if (window.L) return;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
-
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload = () => {
-      // Re-render al cargar
-      if (mapRef.current && !leafletRef.current) {
-        const L = window.L;
-        const map = L.map(mapRef.current, {
-          center: [19.075, -104.295],
-          zoom: 14,
-          zoomControl: true,
-          attributionControl: false,
-          scrollWheelZoom: true,
-        });
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
-        leafletRef.current = map;
-
-        GEO_LINES.forEach(line => {
-          const latlngs = line.coords.map(([lon, lat]) => [lat, lon]);
-          const poly = L.polyline(latlngs, { color: line.color, weight: line.weight || 4, opacity: 0.35, lineCap: "round" }).addTo(map);
-          poly.bindTooltip(line.name, { sticky: true, className: "cm-tooltip" });
-          layersRef.current[line.id] = poly;
-        });
-        GEO_POINTS.forEach(pt => {
-          const marker = L.circleMarker(pt.coords, { radius: 6, color: pt.color, fillColor: pt.color, fillOpacity: 0.5, weight: 1.5, opacity: 0.5 }).addTo(map);
-          marker.bindTooltip(pt.name, { sticky: true, className: "cm-tooltip" });
-          markersRef.current[pt.id] = marker;
-        });
-      }
-    };
-    document.head.appendChild(script);
-  }, []);
-
-  return (
-    <div style={{
-      borderRadius: "14px",
-      overflow: "hidden",
-      border: "1px solid rgba(255,255,255,0.1)",
-      marginBottom: "16px",
-      boxShadow: "0 4px 32px rgba(0,0,0,0.6)",
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: "10px 14px",
-        background: "rgba(4,12,24,0.95)",
-        borderBottom: "1px solid rgba(255,255,255,0.07)",
-        display: "flex", alignItems: "center", gap: "8px",
-      }}>
-        <span style={{ fontSize: "13px" }}>🗺️</span>
-        <span style={{ fontFamily: TITLE, fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>
-          Puerto de Manzanillo
-        </span>
-        <span style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
-          · toca para ver detalles
-        </span>
-        {activeIncidents.length > 0 && (
-          <span style={{
-            marginLeft: "auto",
-            background: "#ef444418", border: "1px solid #ef444455",
-            borderRadius: "20px", padding: "2px 9px",
-            fontSize: "10px", color: "#ef4444", fontFamily: MN, fontWeight: "700",
-          }}>
-            {activeIncidents.length} activo{activeIncidents.length > 1 ? "s" : ""}
-          </span>
-        )}
-      </div>
-
-      {/* Mapa */}
-      <div ref={mapRef} style={{ width: "100%", height: "280px", background: "#040c18" }} />
-
-      {/* Leyenda inferior */}
-      <div style={{
-        padding: "8px 14px",
-        background: "rgba(4,12,24,0.95)",
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        display: "flex", gap: "14px", flexWrap: "wrap",
-      }}>
-        {[
-          { color: "#ef4444", label: "Accidente" },
-          { color: "#f97316", label: "Incidente" },
-          { color: "#eab308", label: "Bloqueo" },
-          { color: "rgba(255,255,255,0.3)", label: "Ruta normal" },
-        ].map(({ color, label }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, flexShrink: 0 }} />
-            <span style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.45)" }}>{label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: REPORTAR ────────────────────────────────────────────────────────────
-function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
-  const [categoria, setCategoria] = useState("incidente");
-  const [subcat,    setSubcat]    = useState("");
-  const [acceso,    setAcceso]    = useState("");
-  const [location,  setLocation]  = useState("");
-  const [showUbic,  setShowUbic]  = useState(false);
-  const [grupoOpen, setGrupoOpen] = useState(null);
-  const [toast,     setToast]     = useState(null);
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
-
-  const subcats = INCIDENT_SUBCATEGORIAS[categoria] || [];
-  const catObj  = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
-  const subcatObj = subcats.find(s => s.id === subcat);
-
-  const submit = async () => {
-    if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
-    if (!location.trim()) return notify("Ingresa la ubicación", "#ef4444");
-    const rl = rateLimiter.check(`report_${myId}`, 120000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316");
-    const labelFull = `${subcatObj?.icon || ""} ${subcatObj?.label || subcat}`;
-    const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
-    const safeDesc  = sanitize(labelFull);
-    if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
-    await sb.from("incidents").insert({ type: categoria, location: safeLoc, description: safeDesc, votes: {}, resolve_votes: {}, visible: false, resolved: false, ts: Date.now() });
-    setSubcat(""); setLocation(""); setAcceso("");
-    notify("📍 Reporte enviado — se verificará con la comunidad", "#22c55e");
-    setTimeout(() => setActiveTab("trafico"), 1200);
-  };
-
-  const incType = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
-  const pendingMine = incidents.filter(i => !i.visible && !i.resolved);
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px" }}>
-
-      {/* 🗺️ MAPA — siempre visible, se ilumina en tiempo real */}
-      <MapaIncidentes
-        incidents={incidents}
-        highlightLocation={location}
-        highlightAcceso={acceso}
-      />
-
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
-        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"14px", marginTop:"4px" }}>Tu reporte será verificado por la comunidad antes de aparecer en el mapa.</div>
-      </div>
-
-      {/* Paso 1: Categoría */}
-      <div style={{ marginBottom:"16px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 1 · CATEGORÍA</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-          {INCIDENT_CATEGORIAS.map(cat => (
-            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }} style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
-              <span style={{ fontSize:"26px" }}>{cat.icon}</span>{cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 2: Subcategoría */}
-      <div style={{ marginBottom:"16px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 2 · TIPO ESPECÍFICO</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-          {subcats.map(s => (
-            <button key={s.id} onClick={() => setSubcat(s.id)} style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
-              <span style={{ fontSize:"18px", flexShrink:0 }}>{s.icon}</span>{s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 3: Zona */}
-      <div style={{ marginBottom:"14px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>PASO 3 · ZONA / ACCESO (opcional)</div>
-        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-          {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
-            <button key={a} onClick={() => setAcceso(a)} style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s" }}>{a === "" ? "Sin zona" : a}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 4: Ubicación */}
-      <div style={{ marginBottom:"18px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
-
-        {/* Botón desplegable de ubicaciones */}
-        <button onClick={() => setShowUbic(p => !p)} style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`, borderRadius: showUbic ? "10px 10px 0 0" : "10px", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"15px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0", boxSizing:"border-box" }}>
-          <span>📍 Seleccionar ubicación predefinida</span>
-          <span style={{ fontSize:"15px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
-        </button>
-
-        {showUbic && (
-          <div style={{ background:"#060e1a", border:"1px solid #38bdf855", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:"320px", overflowY:"auto", marginBottom:"8px" }}>
-            {UBICACIONES_REPORTE.map(grupo => (
-              <div key={grupo.grupo}>
-                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)} style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:MN, fontSize:"14px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
-                  <span>{grupo.icon}</span>
-                  <span style={{ flex:1 }}>{grupo.grupo}</span>
-                  <span style={{ fontSize:"15px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
-                </button>
-                {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
-                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }} style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:MN, fontSize:"14px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
-                    {location===op && <span style={{ color:"#38bdf8", fontSize:"15px" }}>✓</span>}
-                    {op}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Campo de texto para detalles adicionales */}
-        <input
-          value={location}
-          onChange={e => setLocation(e.target.value)}
-          placeholder="O escribe la ubicación / añade detalle (km, carril, referencia...)"
-          style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"15px", boxSizing:"border-box", outline:"none", marginTop:"8px" }}
-        />
-      </div>
-
-      {/* Vista previa */}
-      {subcat && location && (
-        <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${catObj.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
-          <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>VISTA PREVIA</div>
-          <div style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
-            <span style={{ fontSize:"20px" }}>{subcatObj?.icon}</span>
-            <div>
-              <div style={{ color:catObj.color, fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
-              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"15px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <button onClick={submit} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:MN, fontWeight:"700", fontSize:"15px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>ENVIAR REPORTE →</button>
-
-      {pendingMine.length > 0 && (
-        <>
-          <SectionLabel text="REPORTES PENDIENTES DE VERIFICACIÓN" />
-          {pendingMine.map(inc => {
-            const t      = incType(inc.type);
-            const myVote = inc.votes[myId];
-            const conf   = Object.values(inc.votes).filter(v=>v===1).length;
-            const falsos = Object.values(inc.votes).filter(v=>v===-1).length;
-            const borderC = falsos > conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : "#f97316";
-            return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-                  <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
-                    <div>
-                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontSize:"15px", fontWeight:"700" }}>{inc.location}</div>
-                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"14px", marginTop:"2px" }}>{inc.desc}</div>}
-                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(inc.ts)}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
-                    <Badge color={borderC} small>PENDIENTE</Badge>
-                    <div style={{ fontSize:"15px", fontFamily:MN, color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
-                  </div>
-                </div>
-                <VoteBar count={conf} needed={15} />
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
-                  <button onClick={async () => {
-                    const votes = { ...inc.votes, [myId]: 1 };
-                    const visible = Object.values(votes).filter(v=>v===1).length >= 15;
-                    await sb.from("incidents").update({ votes, visible }).eq("id", inc.id);
-                    notify(visible ? "✅ Reporte verificado" : `✓ Confirmado (${Object.values(votes).filter(v=>v===1).length}/15)`, "#22c55e");
-                  }} style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>✅</span>
-                    <span>CONFIRMO</span>
-                  </button>
-                  <button onClick={async () => {
-                    const votes = { ...inc.votes, [myId]: -1 };
-                    await sb.from("incidents").update({ votes }).eq("id", inc.id);
-                    notify("✗ Marcado como falso", "#ef4444");
-                  }} style={{ padding:"9px 4px", background: myVote===-1?"#ef444433":"#ef444415", border:`1px solid ${myVote===-1?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>❌</span>
-                    <span>FALSO</span>
-                  </button>
-                  <button onClick={async () => {
-                    const rv = { ...inc.resolveVotes, [myId]: 1 };
-                    const resolved = Object.keys(rv).length >= 15;
-                    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", inc.id);
-                    notify(resolved ? "✓ Marcado como resuelto" : `Voto (${Object.keys(rv).length}/15)`, "#6b7280");
-                  }} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>🏁</span>
-                    <span>RESUELTO</span>
-                  </button>
-                </div>
-                {myVote !== undefined && (
-                  <div style={{ fontSize:"15px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:MN, marginTop:"6px", textAlign:"center" }}>
-                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </>
-      )}
-      <ToastBox toast={toast} />
-    </div>
-  );
-}
-
-// ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
-function TerminalesTab({ myId }) {
-  const [zona,   setZona]   = useState("norte");
-  const [stN,    setStN]    = useState(mkTerminals(TERMINALS_NORTE));
-  const [stS,    setStS]    = useState(mkTerminals(TERMINALS_SUR));
-  const [toast,  setToast]  = useState(null);
-  const [changeModal, setChangeModal] = useState(null);
-
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-  const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
-  const stMap     = zona === "norte" ? stN : stS;
-  const setSt     = zona === "norte" ? setStN : setStS;
-
-  useEffect(() => {
-    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    sb.from("terminals").select("*").then(async ({ data }) => {
-      if (!data || data.length === 0) {
-        await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
-        return;
-      }
-      const mapN = {}; const mapS = {};
-      data.forEach(r => {
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
-        else mapS[r.id] = entry;
-      });
-      if (Object.keys(mapN).length) setStN(prev => ({ ...prev, ...mapN }));
-      if (Object.keys(mapS).length) setStS(prev => ({ ...prev, ...mapS }));
-    });
-    const chan = sb.channel("terminals-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
-        if (!r) return;
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => ({ ...prev, [r.id]: entry }));
-        else setStS(prev => ({ ...prev, [r.id]: entry }));
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const vote = async (termId, newStatus, forceChange = false) => {
-    const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "terminal", id: termId, newStatus, label });
-      return;
-    }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    }
-    const key = `terminal_${termId}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
-    // Guardar voto del usuario en localStorage para sobrevivir la limpieza de 15 min
-    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
-    const [statusGanador, votosGanador] = ganadora;
-    await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
-    await publicarNoticia({ tipo: "terminal", icono: "⚓", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
-  };
-
-  const resetAll = async () => {
-    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
-    notify("✓ Todas las terminales marcadas como Libres", "#22c55e");
-  };
-
-  const resetOne = async (id) => {
-    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
-    notify("✓ Terminal marcada como Libre", "#22c55e");
-  };
-
-  const getOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o=>o.id===id) || TERMINAL_STATUS_OPTIONS[0];
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <div style={{ display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(255,255,255,0.15)" }}>
-        {["norte","sur"].map(z => (
-          <button key={z} onClick={() => setZona(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:MN, fontSize:"15px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
-        ))}
-      </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
-        {TERMINAL_STATUS_OPTIONS.map(o => (
-          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"14px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"15px", fontFamily:MN }}>{o.label}</span>
-          </div>
-        ))}
-      </div>
-      <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
-      {terminals.map(terminal => {
-        const st  = stMap[terminal.id];
-        const opt = getOpt(st.status);
-        return (
-          <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-              <div>
-                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{terminal.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"2px" }}>{terminal.fullName}</div>
-                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"15px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"14px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
-                {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
-              </div>
-            </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS: <span style={{ color:"#475569", fontSize:"15px", letterSpacing:"0px", fontWeight:"normal" }}>(doble click para cambiar)</span></div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-              {TERMINAL_STATUS_OPTIONS.map(o => {
-                const isAct = st.status === o.id;
-                return (
-                  <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    {o.icon} {o.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      <ToastBox toast={toast} />
-      {changeModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
-            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"15px", marginBottom:"20px" }}>
-              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
-            </div>
-            <div style={{ display:"flex", gap:"10px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
-              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
-function SegundoAccesoTab() {
-  const [carriles, setCarriles] = useState(mkSegundoIngreso);
-  const [toast,    setToast]    = useState(null);
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-
-  const TABLA = "carriles";
-  const ROW_ID = "segundo_acceso";
-
-  const saveToSupa = async (newState) => {
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
-  };
-
-  useEffect(() => {
-    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
-      if (data?.data) setCarriles(data.data);
-    });
-    const chan = sb.channel("segundo-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
-        if (r?.id === ROW_ID && r?.data) setCarriles(r.data);
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const updateIngreso = async (id, field, value) => {
-    const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next);
-    await saveToSupa(next);
-    notify("✓ Carril actualizado", "#22c55e");
-    const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
-    await publicarNoticia({ tipo: "segundo", icono: "🛣️", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
-  };
-
-  const updateSalida = async (field, value) => {
-    const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next);
-    await saveToSupa(next);
-    notify("✓ Carril de salida actualizado", "#22c55e");
-  };
-
-  const resetAll = async () => {
-    const next = mkSegundoIngreso();
-    setCarriles(next);
-    await saveToSupa(next);
-    notify("✓ Todos los carriles restablecidos", "#22c55e");
-  };
-
-  const resetOne = async (id) => {
-    const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
-    setCarriles(next);
-    await saveToSupa(next);
-    notify("✓ Carril restablecido", "#22c55e");
-  };
-
-  const getTermName = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
-  const getTermZona = (id) => TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
-  const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
-  const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"16px" }}>
-        <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>SEGUNDO ACCESO — PUERTO MANZANILLO</div>
-        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"15px" }}>C1–C3 ingreso con terminal asignada · C4 salida.</div>
-      </div>
-      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
-        <div style={{ display:"flex", gap:"6px" }}>
-          {SEGUNDO_CARRILES_INGRESO.map(c => {
-            const st = carriles[c.id];
-            const bc = st.saturado ? "#ef4444" : "#22c55e";
-            const tz = getTermZona(st.terminal);
-            const tc = tz === "Norte" ? "#38bdf8" : "#a78bfa";
-            return (
-              <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
-                <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"15px", fontWeight:"700" }}>{c.label}</div>
-                <div style={{ fontSize:"15px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, color:tc, borderRadius:"4px", padding:"2px 3px", fontFamily:MN }}>{getTermName(st.terminal)}</div>
-                {st.retornos && <div style={{ marginTop:"3px", fontSize:"14px" }}>↩</div>}
-                <div style={{ marginTop:"3px", fontSize:"15px", color:bc, fontFamily:MN, fontWeight:"700" }}>{st.saturado ? "SAT" : "OK"}</div>
-              </div>
-            );
-          })}
-          <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
-            <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"15px", fontWeight:"700" }}>C4</div>
-            <div style={{ fontSize:"15px", color:"#f97316", fontFamily:MN, marginTop:"3px" }}>SALIDA</div>
-            <div style={{ marginTop:"3px", fontSize:"15px", color: carriles.c4.saturado?"#ef4444":"#22c55e", fontFamily:MN, fontWeight:"700" }}>{carriles.c4.saturado ? "SAT" : "OK"}</div>
-          </div>
-        </div>
-        <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-          {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
-            <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-              <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
-              <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
-      {SEGUNDO_CARRILES_INGRESO.map(carril => {
-        const st        = carriles[carril.id];
-        const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-        const zonaColor = termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
-        const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-        const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
-        const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-        const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
-        return (
-          <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
-              <div>
-                <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                  <div style={{ background:"#38bdf822", border:"1px solid #38bdf844", borderRadius:"6px", padding:"3px 10px", color:"#38bdf8", fontFamily:MN, fontSize:"15px", fontWeight:"700" }}>{carril.label}</div>
-                  <Badge color="#22c55e" small>INGRESO</Badge>
-                </div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                  <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
-                  {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
-                  {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.icon}</Badge>}
-                  {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.icon}</Badge>}
-                  {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.icon}</Badge>}
-                </div>
-                {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
-              </div>
-            </div>
-            <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div>
-                <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                <div style={{ color:zonaColor, fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"1px" }}>Zona {termObj?.zona}</div>
-              </div>
-              <span style={{ fontSize:"22px" }}>🚛</span>
-            </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
-            <div style={{ marginBottom:"8px" }}>
-              <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
-              <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                {termsNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-              </div>
-            </div>
-            <div style={{ marginBottom:"10px" }}>
-              <div style={{ fontSize:"15px", color:"#a78bfa", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
-              <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                {termsSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-              </div>
-            </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-              <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
-              <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-              <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
-              <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-              <div>
-                <div style={{ fontSize:"15px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-                <div style={{ fontSize:"15px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
-                <select value={st.expo_contenedor || ""} onChange={e => updateIngreso(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                  {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      <SectionLabel text="CARRIL DE SALIDA (C4)" />
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${carriles.c4.saturado?"#ef444466":"#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-              <div style={{ background:"#f9731622", border:"1px solid #f9731644", borderRadius:"6px", padding:"3px 10px", color:"#f97316", fontFamily:MN, fontSize:"15px", fontWeight:"700" }}>Carril 4</div>
-              <Badge color="#f97316" small>SALIDA</Badge>
-            </div>
-            <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
-          </div>
-          <Badge color={carriles.c4.saturado?"#ef4444":"#22c55e"} small>{carriles.c4.saturado?"SATURADO":"FLUIDO"}</Badge>
-        </div>
-        <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
-          <span style={{ fontSize:"22px" }}>🚚</span>
-          <div>
-            <div style={{ color:"#f97316", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>Salida General del Puerto</div>
-            <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"1px" }}>Todos los vehículos en salida</div>
-          </div>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-          <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
-          <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-          <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
-          <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
-        </div>
-        {(() => {
-          const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
-          const c4ExpoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === carriles.c4.expo_contenedor);
-          const c4ImpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.impo || "libre"));
-          return (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-              <div>
-                <div style={{ fontSize:"15px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-                <div style={{ fontSize:"15px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
-                <select value={carriles.c4.expo_contenedor || ""} onChange={e => updateSalida("expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoContOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                  {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:MN, fontSize:"14px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                  {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
-                </select>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-      <ToastBox toast={toast} />
-    </div>
-  );
-}
-
-// ─── TAB: CARRILES ────────────────────────────────────────────────────────────
-function CarrilesTab() {
-  const [estado,  setEstado]  = useState(mkCarrilesState);
-  const [accView, setAccView] = useState("pezvela");
-  const [toast,   setToast]   = useState(null);
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2500); };
-
-  const TABLA  = "carriles";
-  const ROW_ID = "expo_impo";
-
-  const saveToSupa = async (newState) => {
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
-  };
-
-  useEffect(() => {
-    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
-      if (data?.data) setEstado(data.data);
-    });
-    const chan = sb.channel("carriles-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
-        if (r?.id === ROW_ID && r?.data) setEstado(r.data);
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const toggle = async (cid, value) => {
-    const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setEstado(next);
-    await saveToSupa(next);
-    notify(value ? "✓ Carril abierto" : "⛔ Carril cerrado", value ? "#22c55e" : "#6b7280");
-    await publicarNoticia({ tipo: "carril", icono: "🚦", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
-  };
-
-  const resetAcceso = async (acc) => {
-    const next = { ...estado };
-    acc.carriles.forEach(c => { next[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
-    setEstado(next);
-    await saveToSupa(next);
-    notify("✓ Acceso restablecido", "#22c55e");
-  };
-
-  const resetAll = async () => {
-    const next = mkCarrilesState();
-    setEstado(next);
-    await saveToSupa(next);
-    notify("✓ Todo restablecido", "#22c55e");
-  };
-
-  const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
-  const expoCarriles = currentAcc?.carriles.filter(c => c.tipo === "expo") || [];
-  const impoCarriles = currentAcc?.carriles.filter(c => c.tipo === "impo") || [];
-  const EXPO_COLOR = "#f59e0b";
-  const IMPO_COLOR = "#60a5fa";
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
-        <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>CARRILES — PUERTO MANZANILLO</div>
-        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"15px" }}>Estado de carriles de exportación e importación por acceso.</div>
-      </div>
-      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
-        <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN GENERAL</div>
-        {ACCESOS_CARRILES.map(acc => {
-          const total    = acc.carriles.length;
-          const abiertos = acc.carriles.filter(c => estado[c.id]?.abierto !== false).length;
-          const pct      = Math.round((abiertos / total) * 100);
-          return (
-            <div key={acc.id} style={{ marginBottom:"8px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
-                <span style={{ fontSize:"14px", color:acc.color, fontFamily:MN, fontWeight:"700" }}>{acc.label}</span>
-                <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{abiertos}/{total} abiertos</span>
-              </div>
-              <div style={{ background:"#1e3a5f", borderRadius:"3px", height:"5px", overflow:"hidden" }}>
-                <div style={{ width:`${pct}%`, height:"100%", background: pct===100?"#22c55e": pct>50? acc.color:"#ef4444", transition:"width 0.4s", borderRadius:"3px" }} />
-              </div>
-            </div>
-          );
-        })}
-        <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-          {[["#f59e0b","EXPORTACIÓN"],["#60a5fa","IMPORTACIÓN"],["#22c55e","ABIERTO"],["#ef4444","CERRADO"]].map(([c,l]) => (
-            <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-              <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
-              <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ display:"flex", gap:"6px", marginBottom:"16px" }}>
-        {ACCESOS_CARRILES.map(acc => (
-          <button key={acc.id} onClick={() => setAccView(acc.id)} style={{ flex:1, padding:"9px 4px", background: accView===acc.id ? acc.color+"22" : "#0a1628", border:`1px solid ${accView===acc.id ? acc.color : "#1e3a5f"}`, borderRadius:"8px", color: accView===acc.id ? acc.color : "#475569", fontFamily:MN, fontSize:"15px", fontWeight: accView===acc.id?"700":"400", cursor:"pointer", transition:"all 0.15s", textAlign:"center" }}>
-            <div style={{ fontSize:"14px", marginBottom:"2px" }}>{acc.zona==="Norte"?"🔵":"🟣"}</div>
-            {acc.label}
-          </button>
-        ))}
-      </div>
-      {currentAcc && (
-        <>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-              <div style={{ width:"10px", height:"10px", background:currentAcc.color, borderRadius:"50%", boxShadow:`0 0 8px ${currentAcc.color}` }} />
-              <span style={{ color:currentAcc.color, fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{currentAcc.label}</span>
-              <Badge color={currentAcc.zona==="Norte"?"#38bdf8":"#a78bfa"} small>ZONA {currentAcc.zona.toUpperCase()}</Badge>
-            </div>
-            <NormalBtn onClick={() => resetAcceso(currentAcc)} label="TODO ABIERTO" />
-          </div>
-          {expoCarriles.length > 0 && (
-            <>
-              <div style={{ fontSize:"15px", color:EXPO_COLOR, fontFamily:MN, letterSpacing:"2px", marginBottom:"10px" }}>📤 EXPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: expoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"16px" }}>
-                {expoCarriles.map(carril => {
-                  const st = estado[carril.id] || {};
-                  return (
-                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?EXPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
-                      <div style={{ fontSize:"14px", color:"rgba(255,255,255,0.7)", fontFamily:MN, marginBottom:"3px" }}>{carril.label}</div>
-                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📤</div>
-                      <div style={{ fontSize:"15px", color:EXPO_COLOR, fontFamily:MN, fontWeight:"700", marginBottom:"12px" }}>EXPORTACIÓN</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
-                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
-                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
-                      </div>
-                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"15px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:MN, fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
-                      <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.3)", fontFamily:MN, marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          {impoCarriles.length > 0 && (
-            <>
-              <div style={{ fontSize:"15px", color:IMPO_COLOR, fontFamily:MN, letterSpacing:"2px", marginBottom:"10px" }}>📥 IMPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: impoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
-                {impoCarriles.map(carril => {
-                  const st = estado[carril.id] || {};
-                  return (
-                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?IMPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
-                      <div style={{ fontSize:"14px", color:"rgba(255,255,255,0.7)", fontFamily:MN, marginBottom:"3px" }}>{carril.label}</div>
-                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📥</div>
-                      <div style={{ fontSize:"15px", color:IMPO_COLOR, fontFamily:MN, fontWeight:"700", marginBottom:"12px" }}>IMPORTACIÓN</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
-                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
-                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
-                      </div>
-                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"15px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:MN, fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
-                      <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.3)", fontFamily:MN, marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </>
-      )}
-      <ToastBox toast={toast} />
-    </div>
-  );
-}
-
-// ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
-function NoticiasTab() {
-  const [noticias, setNoticias] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [filtro,   setFiltro]   = useState("todos");
-
-  useEffect(() => {
-    sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(100)
-      .then(({ data }) => { if (data) setNoticias(data); setLoading(false); });
-    const chan = sb.channel("noticias-rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => [r, ...prev].slice(0, 100));
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const FILTROS = [
-    { id: "todos",     label: "Todos",      icon: "📰" },
-    { id: "acceso",    label: "Accesos",    icon: "📍" },
-    { id: "terminal",  label: "Terminales", icon: "⚓" },
-    { id: "incidente", label: "Incidentes", icon: "🚨" },
-    { id: "segundo",   label: "2do Acceso", icon: "🛣️" },
-    { id: "carril",    label: "Carriles",   icon: "🚦" },
-  ];
-
-  const filtered = filtro === "todos" ? noticias : noticias.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
-
-  const timeAgoNoticia = (ts) => {
-    const d = Date.now() - new Date(ts).getTime();
-    if (d < 60000)    return "hace un momento";
-    if (d < 3600000)  return `hace ${Math.floor(d/60000)}min`;
-    if (d < 86400000) return `hace ${Math.floor(d/3600000)}h`;
-    return `hace ${Math.floor(d/86400000)}d`;
-  };
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
-        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📰</div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>NOTICIAS DEL PUERTO</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"14px", marginTop:"4px", fontFamily:MN }}>Actualizaciones en tiempo real de toda la operación</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", marginTop:"8px" }}>
-          <div style={{ width:"6px", height:"6px", background:"#22c55e", borderRadius:"50%" }} />
-          <span style={{ fontSize:"15px", color:"#22c55e", fontFamily:MN }}>{noticias.length} actualizaciones registradas</span>
-        </div>
-      </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
-        {FILTROS.map(f => (
-          <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
-            <span>{f.icon}</span> {f.label}
-          </button>
-        ))}
-      </div>
-      {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"15px" }}>Cargando noticias...</div>}
-      {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"15px" }}>📭 Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
-      {filtered.map((n, i) => (
-        <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-            <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>{n.icono || "📰"}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"15px", marginBottom:"3px" }}>{n.titulo}</div>
-              {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"14px", marginBottom:"5px" }}>{n.detalle}</div>}
-              <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.3)", fontFamily:MN }}>{timeAgoNoticia(n.created_at)}</span>
-                <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
-                <span style={{ fontSize:"15px", color:(n.color||"#38bdf8"), fontFamily:MN, fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-      {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"15px" }}>— Mostrando {filtered.length} actualizaciones —</div>}
-    </div>
-  );
-}
-
-// ─── TAB: DONATIVOS ───────────────────────────────────────────────────────────
-function DonativosTab() {
-  const [copied, setCopied] = useState(false);
-  const [copiedAlbo, setCopiedAlbo] = useState(false);
-  const CLABE = "042180010045965913";
-  const CLABE_ALBO = "721180100036945704";
-  const copyClabe = () => {
-    navigator.clipboard.writeText(CLABE).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    });
-  };
-  const copyClabeAlbo = () => {
-    navigator.clipboard.writeText(CLABE_ALBO).then(() => {
-      setCopiedAlbo(true);
-      setTimeout(() => setCopiedAlbo(false), 2500);
-    });
-  };
-  return (
-    <div style={{ padding:"20px 16px", maxWidth:"480px" }}>
-      <div style={{ textAlign:"center", marginBottom:"28px" }}>
-        <div style={{ fontSize:"48px", marginBottom:"12px" }}>⚓</div>
-        <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"8px" }}>JUNTOS SOMOS MÁS FUERTES</div>
-        <div style={{ width:"48px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"0 auto 16px" }} />
-      </div>
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a1628)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"16px", padding:"20px", marginBottom:"20px" }}>
-        <div style={{ fontSize:"22px", textAlign:"center", marginBottom:"14px" }}>💙🚛💙</div>
-        <p style={{ fontFamily:MN, fontSize:"14px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Puerto Tráfico nació de la comunidad y <span style={{ color:"#38bdf8", fontWeight:"700" }}>para la comunidad</span>. Cada operador, transportista y trabajador portuario que comparte información en tiempo real hace que este sistema funcione.</p>
-        <p style={{ fontFamily:MN, fontSize:"14px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Mantener esta plataforma activa tiene costos reales: servidores, desarrollo y mejoras constantes. Si Puerto Tráfico te ha ahorrado tiempo, considera apoyar con lo que puedas.</p>
-        <p style={{ fontFamily:MN, fontSize:"14px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9" }}>No importa el monto — cada aportación es un <span style={{ color:"#a78bfa", fontWeight:"700" }}>voto de confianza</span> en que podemos construir algo mejor, juntos. 🙏</p>
-      </div>
-      <div style={{ textAlign:"center", fontSize:"15px", color:"#1e3a5f", marginBottom:"20px", letterSpacing:"6px" }}>♥ ♥ ♥</div>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #38bdf855", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
-          <div style={{ width:"8px", height:"8px", background:"#38bdf8", borderRadius:"50%", boxShadow:"0 0 8px #38bdf8" }} />
-          <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", letterSpacing:"2px", color:"#38bdf8" }}>DATOS PARA DONATIVO</span>
-        </div>
-        <div style={{ marginBottom:"14px" }}>
-          <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
-          <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>MIFEL</div>
-        </div>
-        <div style={{ marginBottom:"18px" }}>
-          <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
-          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:"#38bdf8", letterSpacing:"2px" }}>{CLABE}</span>
-            <button onClick={copyClabe} style={{ padding:"6px 12px", background: copied ? "#22c55e22" : "#38bdf822", border:`1px solid ${copied ? "#22c55e" : "#38bdf855"}`, borderRadius:"7px", color: copied ? "#22c55e" : "#38bdf8", fontFamily:MN, fontSize:"15px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copied ? "✓ COPIADO" : "📋 COPIAR"}</button>
-          </div>
-        </div>
-        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
-          <div style={{ fontFamily:MN, fontSize:"15px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
-        </div>
-      </div>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #a78bfa55", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
-          <div style={{ width:"8px", height:"8px", background:"#a78bfa", borderRadius:"50%", boxShadow:"0 0 8px #a78bfa" }} />
-          <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", letterSpacing:"2px", color:"#a78bfa" }}>DATOS PARA DONATIVO</span>
-        </div>
-        <div style={{ marginBottom:"14px" }}>
-          <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
-          <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>ALBO</div>
-        </div>
-        <div style={{ marginBottom:"18px" }}>
-          <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
-          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:"#a78bfa", letterSpacing:"2px" }}>{CLABE_ALBO}</span>
-            <button onClick={copyClabeAlbo} style={{ padding:"6px 12px", background: copiedAlbo ? "#22c55e22" : "#a78bfa22", border:`1px solid ${copiedAlbo ? "#22c55e" : "#a78bfa55"}`, borderRadius:"7px", color: copiedAlbo ? "#22c55e" : "#a78bfa", fontFamily:MN, fontSize:"15px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copiedAlbo ? "✓ COPIADO" : "📋 COPIAR"}</button>
-          </div>
-        </div>
-        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
-          <div style={{ fontFamily:MN, fontSize:"15px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
-        </div>
-      </div>
-      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"12px" }}>
-        <div style={{ background:"linear-gradient(135deg,#00b1ea22,#009ee322)", border:"2px solid #00b1ea88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>💳</div>
-            <div>
-              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONAR CON MERCADO PAGO</div>
-              <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Tú eliges cuánto aportar</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:MN, fontSize:"14px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
-        <div style={{ background:"linear-gradient(135deg,#00b1ea11,#009ee311)", border:"1px solid #00b1ea44", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>⚡</div>
-            <div>
-              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONACIÓN RÁPIDA</div>
-              <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Mercado Pago · Rápido y seguro</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:MN, fontSize:"14px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
-        <div style={{ background:"linear-gradient(135deg,#ff5e5b22,#ff914d22)", border:"2px solid #ff5e5b88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", transition:"all 0.2s" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>☕</div>
-            <div>
-              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"15px", color:"#ff5e5b", letterSpacing:"1px", marginBottom:"3px" }}>DONAR EN KO-FI</div>
-              <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Anónimo · Internacional · Fácil</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:MN, fontSize:"14px", color:"#ff5e5b", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      <div style={{ textAlign:"center", padding:"12px" }}>
-        <div style={{ fontFamily:MN, fontSize:"15px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px" }}>Hecho con ❤️ por y para los que mueven el puerto</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: VIALIDADES ──────────────────────────────────────────────────────────
-function VialidadesTab({ myId }) {
+  const [accesos,     setAccesos]     = useState(mkAccesos);
   const [vialidades,  setVialidades]  = useState(mkVialidades);
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
+  const [activeSection, setActiveSection] = useState("mapa"); // "mapa" | "accesos" | "vialidades" | "incidentes"
 
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-  const getOpt = (id) => VIALIDAD_STATUS_OPTIONS.find(o => o.id === id) || VIALIDAD_STATUS_OPTIONS[0];
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
+  // ── Accesos ──
+  useEffect(() => {
+    sb.from("accesos").select("*").then(async ({ data }) => {
+      if (!data || data.length === 0) {
+        await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Sistema" })));
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+      setAccesos(prev => ({ ...prev, ...map }));
+    });
+    const chan = sb.channel("accesos-rt2")
+      .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
+        sb.from("accesos").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+          setAccesos(prev => ({ ...prev, ...map }));
+        });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  // ── Vialidades ──
   useEffect(() => {
     sb.from("vialidades").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
-        await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema", pending_voters: {} })));
+        await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
       setVialidades(prev => ({ ...prev, ...map }));
     });
-    const chan = sb.channel("vialidades-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, ({ new: r }) => {
-        if (!r) return;
-        setVialidades(prev => ({ ...prev, [r.id]: { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
+    const chan = sb.channel("vialidades-rt2")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
+        sb.from("vialidades").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+          setVialidades(prev => ({ ...prev, ...map }));
+        });
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
 
-  const vote = async (vialId, newStatus, forceChange = false) => {
-    const rl = rateLimiter.check(`vial_vote_${myId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("vialidad_id", vialId).eq("tipo", "vialidad");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "vialidad", id: vialId, newStatus, label });
+  const voteAcceso = async (id, newStatus) => {
+    const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const acc = accesos[id];
+    if (!acc) return;
+    if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    if (acc.pendingVoters?.[myId]) {
+      setChangeModal({ type: "acceso", id, newStatus, label: ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label });
       return;
     }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("vialidad_id", vialId).eq("tipo", "vialidad");
+    const voters = { ...(acc.pendingVoters || {}), [myId]: newStatus };
+    const counts = {};
+    Object.values(voters).forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const finalStatus = winner[1] >= 3 ? winner[0] : acc.status;
+    await sb.from("accesos").upsert({ id, status: finalStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: finalStatus !== acc.status ? {} : voters });
+    if (finalStatus !== acc.status) {
+      notify(`✓ Acceso actualizado: ${ACCESO_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}`, "#22c55e");
+      await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}` });
+    } else {
+      notify(`Voto registrado (${winner[1]}/3)`, "#38bdf8");
     }
-    const key = `vialidad_${vialId}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, vialidad_id: vialId, status: newStatus, tipo: "vialidad" });
-    try { localStorage.setItem(`last_vote_vialidad_${vialId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("vialidad_id", vialId).eq("tipo", "vialidad");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
-    const [statusGanador, votosGanador] = ganadora;
-    await sb.from("vialidades").upsert({ id: vialId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    const vialNombre = VIALIDADES.find(v => v.id === vialId)?.name || vialId;
-    await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `${vialNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+    setAccesos(prev => ({ ...prev, [id]: { ...prev[id], pendingVoters: voters } }));
   };
 
-  const resetAll = async () => {
-    await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
-    notify("✓ Todas las vialidades marcadas como Libres", "#22c55e");
+  const voteVialidad = async (id, newStatus) => {
+    const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const v = vialidades[id];
+    if (!v) return;
+    const voters = { ...(v.pendingVoters || {}), [myId]: newStatus };
+    const counts = {};
+    Object.values(voters).forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const finalStatus = winner[1] >= 3 ? winner[0] : v.status;
+    await sb.from("vialidades").upsert({ id, status: finalStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: finalStatus !== v.status ? {} : voters });
+    if (finalStatus !== v.status) {
+      notify(`✓ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}`, "#22c55e");
+    } else {
+      notify(`Voto (${winner[1]}/3)`, "#38bdf8");
+    }
+    setVialidades(prev => ({ ...prev, [id]: { ...prev[id], pendingVoters: voters } }));
   };
 
-  const resetOne = async (id) => {
-    await sb.from("vialidades").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
-    notify("✓ Vialidad restablecida", "#22c55e");
+  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+
+  const voteConfirm = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const votes = { ...inc.votes, [myId]: 1 };
+    const conf = Object.values(votes).filter(v => v === 1).length;
+    const visible = conf >= 15;
+    await sb.from("incidents").update({ votes, visible }).eq("id", id);
+    notify(visible ? "✅ Verificado" : `✓ ${conf}/15`, "#22c55e");
   };
+  const voteResolve = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const rv = { ...inc.resolveVotes, [myId]: 1 };
+    const resolved = Object.keys(rv).length >= 3;
+    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
+    notify(resolved ? "✓ Resuelto" : `Voto ${Object.keys(rv).length}/3`, "#38bdf8");
+  };
+
+  const sections = [
+    { id: "mapa",        label: "Mapa",        icon: "🗺️" },
+    { id: "accesos",     label: "Accesos",     icon: "⚓" },
+    { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
+    { id: "incidentes",  label: "Incidentes",  icon: "⚠️" },
+  ];
 
   return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
-        <div style={{ fontSize:"15px", color:"#38bdf8", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>VIALIDADES — MANZANILLO</div>
-        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"15px" }}>Estado del tráfico en las principales vialidades del puerto.</div>
-      </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
-        {VIALIDAD_STATUS_OPTIONS.map(o => (
-          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"14px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"15px", fontFamily:MN }}>{o.label}</span>
-          </div>
+    <div style={{ paddingBottom: "80px" }}>
+
+      {/* ── Sub-tabs ── */}
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
+        {sections.map(s => (
+          <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+            flex: 1, padding: "10px 4px", background: "transparent", border: "none",
+            borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
+            color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
+            fontSize: "12px", fontFamily: MN, fontWeight: activeSection === s.id ? "700" : "400",
+            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
+          }}>
+            <span style={{ fontSize: "16px" }}>{s.icon}</span>
+            {s.label.toUpperCase()}
+          </button>
         ))}
       </div>
-      <SectionLabel text="VIALIDADES PRINCIPALES" rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
-      {VIALIDADES.map(vial => {
-        const st  = vialidades[vial.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
-        const opt = getOpt(st.status);
-        const totalVotes = Object.values(st.pendingVoters || {}).reduce((a,b)=>a+b,0);
-        return (
-          <div key={vial.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-              <div>
-                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{vial.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"15px", marginTop:"2px" }}>{vial.fullName}</div>
-                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"15px", fontFamily:MN, marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: MAPA
+      ══════════════════════════════════════ */}
+      {activeSection === "mapa" && (
+        <div style={{ padding: "16px" }}>
+          <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCESOS
+      ══════════════════════════════════════ */}
+      {activeSection === "accesos" && (
+        <div style={{ padding: "16px" }}>
+          {ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return (
+              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div>
+                    <div style={{ color: acc.color, fontFamily: TITLE, fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: MN, fontSize: "13px", fontWeight: "700" }}>{curOpt.icon} {curOpt.label}</div>
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: MN, letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                  {ACCESO_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "9px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>{o.icon}</span>{o.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:MN, fontSize:"14px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
-                {totalVotes > 0 && <span style={{ fontSize:"15px", color:"rgba(255,255,255,0.4)", fontFamily:MN }}>{totalVotes} voto(s)</span>}
-                {st.status !== "libre" && <button onClick={() => resetOne(vial.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: VIALIDADES
+      ══════════════════════════════════════ */}
+      {activeSection === "vialidades" && (
+        <div style={{ padding: "16px" }}>
+          {VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return (
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700" }}>{curOpt.icon} {curOpt.label}</div>
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {VIALIDAD_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "6px 10px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "6px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400" }}>{o.icon} {o.label}</button>
+                  ))}
+                </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "incidentes" && (
+        <div style={{ padding: "16px" }}>
+          {activeIncidents.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.25)", fontFamily: MN, fontSize: "14px" }}>
+              <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+              Sin incidentes activos en este momento
             </div>
-            <div style={{ fontSize:"15px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-              {VIALIDAD_STATUS_OPTIONS.map(o => {
-                const isAct = st.status === o.id;
-                return (
-                  <button key={o.id} onClick={() => vote(vial.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:MN, fontSize:"15px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    {o.icon} {o.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+          ) : activeIncidents.map(inc => {
+            const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
+            const conf = Object.values(inc.votes).filter(v => v === 1).length;
+            return (
+              <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
+                  <span style={{ fontSize: "22px" }}>{t.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: t.color, fontFamily: MN, fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
+                    {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
+                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: MN, marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
+                  </div>
+                  <Badge color={t.color} small>ACTIVO</Badge>
+                </div>
+                <VoteBar count={conf} needed={15} color={t.color} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+                  <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
+                  <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <ToastBox toast={toast} />
       {changeModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
-            <div style={{ color:"#e2e8f0", fontFamily:MN, fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-            <div style={{ color:"#94a3b8", fontFamily:MN, fontSize:"15px", marginBottom:"20px" }}>
-              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
-            </div>
-            <div style={{ display:"flex", gap:"10px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
-              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#38bdf822", border:"1px solid #38bdf8", borderRadius:"8px", color:"#38bdf8", fontFamily:MN, fontSize:"15px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 900, padding: "20px" }}>
+          <div style={{ background: "#0d1b2e", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "16px", padding: "20px", width: "100%", maxWidth: "320px" }}>
+            <div style={{ fontFamily: TITLE, fontSize: "16px", color: "#fff", marginBottom: "8px" }}>¿Cambiar estado?</div>
+            <div style={{ fontFamily: MN, fontSize: "13px", color: "rgba(255,255,255,0.6)", marginBottom: "18px" }}>Ya votaste antes. ¿Confirmas el cambio a <b style={{ color: "#38bdf8" }}>{changeModal.label}</b>?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ padding: "10px", background: "#1e3a5f", border: "none", borderRadius: "8px", color: "rgba(255,255,255,0.7)", fontFamily: MN, fontSize: "13px", cursor: "pointer" }}>Cancelar</button>
+              <button onClick={async () => {
+                if (changeModal.type === "acceso") await voteAcceso(changeModal.id, changeModal.newStatus, true);
+                setChangeModal(null);
+              }} style={{ padding: "10px", background: "#38bdf8", border: "none", borderRadius: "8px", color: "#0a0f1e", fontFamily: MN, fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Confirmar</button>
             </div>
           </div>
         </div>
@@ -2389,6 +814,290 @@ function VialidadesTab({ myId }) {
   );
 }
 
+// ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
+function MapaTrafico({ incidents, accesos, vialidades }) {
+  const mapRef    = useRef(null);
+  const leafRef   = useRef(null);
+  const layersRef = useRef({});
+
+  // Datos exactos del KML
+  const KML_POINTS = [
+    { id:"contecon",   name:"Terminal Contecon",           color:"#f57c00", coords:[19.08418178396766,-104.3020765405659],  category:"terminal" },
+    { id:"hazesa",     name:"Terminal Hazesa",             color:"#424242", coords:[19.08389836997078,-104.295058165122],   category:"terminal" },
+    { id:"ssa",        name:"Terminal SSA",                color:"#388e3c", coords:[19.07463139813982,-104.2891322457856],  category:"terminal" },
+    { id:"zonanorte",  name:"Acceso Zona Norte",           color:"#ffee58", coords:[19.08656881040979,-104.2970097872907],  category:"acceso"   },
+    { id:"granelera",  name:"Granelera",                   color:"#00796b", coords:[19.06434906950253,-104.2907952693104],  category:"terminal" },
+    { id:"lajunta",    name:"La Junta (TAP)",              color:"#5d4037", coords:[19.06322612268734,-104.2910153355142],  category:"terminal" },
+    { id:"timsa",      name:"Terminal TIMSA",              color:"#5c6bc0", coords:[19.06126633877015,-104.2909711781655],  category:"terminal" },
+    { id:"multimodal", name:"Terminal MULTIMODAL",         color:"#7b1fa2", coords:[19.05724964895184,-104.2942608658049],  category:"terminal" },
+    { id:"friman",     name:"Terminal FRIMAN",             color:"#ef5350", coords:[19.05698919310202,-104.2954019724908],  category:"terminal" },
+    { id:"ocupa",      name:"Terminal Multipropósito (OCUPA)", color:"#424242", coords:[19.05651848457071,-104.3003288440099], category:"terminal" },
+    { id:"cemex",      name:"Terminal CEMEX",              color:"#4def05", coords:[19.05780874594614,-104.2997456907227],  category:"terminal" },
+    { id:"asipona",    name:"Recinto ASIPONA",             color:"#e8ef05", coords:[19.05604853655314,-104.3034885062604],  category:"terminal" },
+    { id:"pezvela",    name:"Acceso Pez Vela",             color:"#e806eb", coords:[19.07634709752751,-104.2873039903065],  category:"acceso"   },
+    { id:"puerta15",   name:"Acceso Puerta 15",            color:"#eb0671", coords:[19.07789046237833,-104.2884816132865],  category:"acceso"   },
+    { id:"patio",      name:"Acceso Patio Regulador",      color:"#06eb7a", coords:[19.10354265164766,-104.2702980795862],  category:"acceso"   },
+  ];
+
+  const KML_LINES = [
+    {
+      id: "segundo",
+      name: "Segundo Acceso",
+      color: "#fbc02d",  // amarillo del KML
+      weight: 5,
+      matchKeys: ["segundo acceso", "segundo", "puerta 15"],
+      coords: [
+        [19.08614814082691,-104.2956970369951],[19.08347774542781,-104.2934796156525],
+        [19.0827236676422,-104.292904994139],[19.08246238688557,-104.2926228241943],
+        [19.08235657868086,-104.2923587616436],[19.08237352346617,-104.2920468878797],
+        [19.08242817883529,-104.2918396029668],[19.08269275556355,-104.2912062646124],
+        [19.08297532216781,-104.2904515084542],[19.08345109879119,-104.289834498883],
+        [19.08374348189437,-104.2895795704975],[19.08409374690542,-104.2893961664746],
+        [19.08487014101002,-104.2885005257946],[19.08697882971024,-104.2861354547527],
+        [19.08787477395832,-104.2851896223626],[19.08821823506365,-104.2850888158402],
+        [19.08902256461223,-104.2851460213662],[19.08981703564006,-104.2851898570331],
+        [19.09075902765731,-104.2849357221294],[19.09169675684177,-104.2846646108177],
+        [19.09285712762023,-104.2840763960163],[19.09368944740285,-104.2835617541249],
+        [19.09464271497917,-104.2830566261549],[19.09509738004797,-104.2829384920713],
+        [19.09609296303484,-104.2831395313914],[19.09669921625866,-104.2833060257997],
+        [19.09709887669316,-104.283482936537],[19.09763416146846,-104.2833785764898],
+        [19.09844232379128,-104.2831814293819],
+      ],
+    },
+    {
+      id: "confinada",
+      name: "Vialidad Confinada",
+      color: "#1976d2",  // azul del KML
+      weight: 5,
+      matchKeys: ["confinada", "vialidad confinada"],
+      coords: [
+        [19.07845002778019,-104.2876418385643],[19.07873613722384,-104.2877910830109],
+        [19.07948864058397,-104.2883817565716],[19.0803524036938,-104.2890657811886],
+        [19.08120625312455,-104.2897407569772],[19.08269169809075,-104.2909162970023],
+        [19.08295126479155,-104.2911718022012],[19.08315504829622,-104.2914131575336],
+        [19.08390372645957,-104.2920218544218],[19.08503074467514,-104.2929068820028],
+        [19.08559811613144,-104.2933935512683],[19.08597232474433,-104.2936647806544],
+        [19.08642308590617,-104.2941350507671],[19.08679862961899,-104.2947303397634],
+        [19.08704263945231,-104.2952775551105],
+      ],
+    },
+  ];
+
+  // Incidentes activos: qué elementos iluminar
+  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+  const incGeoMap = {};
+  activeIncidents.forEach(inc => {
+    const text  = (inc.location || "").toLowerCase();
+    const color = inc.type === "accidente" ? "#ef4444" : inc.type === "bloqueo" ? "#eab308" : "#f97316";
+    [...KML_LINES, ...KML_POINTS].forEach(geo => {
+      if ((geo.matchKeys || [geo.name.toLowerCase()]).some(k => text.includes(k))) {
+        if (!incGeoMap[geo.id]) incGeoMap[geo.id] = { color, count: 0 };
+        incGeoMap[geo.id].count++;
+      }
+    });
+  });
+
+  // Inicializar mapa
+  useEffect(() => {
+    const init = () => {
+      if (leafRef.current || !mapRef.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, {
+        center: [19.075, -104.290],
+        zoom: 14,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
+      leafRef.current = map;
+
+      // Líneas KML
+      KML_LINES.forEach(line => {
+        const poly = L.polyline(line.coords, {
+          color: line.color, weight: line.weight, opacity: 0.85,
+          lineCap: "round", lineJoin: "round",
+        }).addTo(map);
+        poly.bindTooltip(`<b>${line.name}</b>`, { sticky: true, className: "cm-tooltip" });
+        layersRef.current[line.id] = poly;
+      });
+
+      // Puntos KML con colores exactos del KML
+      KML_POINTS.forEach(pt => {
+        const icon = L.divIcon({
+          html: `<div style="
+            width:14px; height:14px;
+            background:${pt.color};
+            border:2.5px solid rgba(255,255,255,0.85);
+            border-radius:50%;
+            box-shadow:0 0 6px ${pt.color}88;
+          "></div>`,
+          className: "",
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+        const marker = L.marker(pt.coords, { icon }).addTo(map);
+        marker.bindTooltip(`<b>${pt.name}</b>`, { sticky: true, className: "cm-tooltip" });
+        layersRef.current[pt.id] = { marker, pt };
+      });
+
+      // CSS tooltips
+      if (!document.getElementById("cm-map-style")) {
+        const s = document.createElement("style");
+        s.id = "cm-map-style";
+        s.textContent = `
+          .cm-tooltip { background:rgba(4,12,24,0.95)!important; border:1px solid rgba(56,189,248,0.35)!important; border-radius:6px!important; color:rgba(255,255,255,0.9)!important; font-family:'DM Sans',sans-serif!important; font-size:12px!important; font-weight:600!important; padding:4px 9px!important; box-shadow:0 2px 12px rgba(0,0,0,0.5)!important; white-space:nowrap!important; }
+          .cm-tooltip::before { display:none!important; }
+          .leaflet-control-zoom a { background:rgba(4,12,24,0.9)!important; color:rgba(255,255,255,0.7)!important; border-color:rgba(255,255,255,0.1)!important; }
+          .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
+          .cm-inc-pulse { animation: cmPulse 1.4s ease-in-out infinite; }
+          @keyframes cmPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:0.6} }
+        `;
+        document.head.appendChild(s);
+      }
+    };
+
+    if (window.L) { init(); return; }
+    // Cargar Leaflet
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="leaflet"]')) {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = init;
+      document.head.appendChild(script);
+    } else {
+      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    }
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
+  }, []);
+
+  // Actualizar estilos cuando cambian incidentes
+  useEffect(() => {
+    if (!leafRef.current || !window.L) return;
+    const L = window.L;
+
+    KML_LINES.forEach(line => {
+      const layer = layersRef.current[line.id];
+      if (!layer) return;
+      const hasInc = incGeoMap[line.id];
+      layer.setStyle({
+        color: hasInc ? hasInc.color : line.color,
+        weight: hasInc ? line.weight + 3 : line.weight,
+        opacity: hasInc ? 1 : 0.85,
+        dashArray: hasInc ? "10,5" : null,
+      });
+    });
+
+    KML_POINTS.forEach(pt => {
+      const entry = layersRef.current[pt.id];
+      if (!entry) return;
+      const hasInc = incGeoMap[pt.id];
+      const size   = hasInc ? 20 : 14;
+      const color  = hasInc ? incGeoMap[pt.id].color : pt.color;
+      const pulse  = hasInc ? 'cm-inc-pulse' : '';
+      const icon = L.divIcon({
+        html: `<div class="${pulse}" style="
+          width:${size}px; height:${size}px;
+          background:${color};
+          border:2.5px solid rgba(255,255,255,0.9);
+          border-radius:50%;
+          box-shadow:0 0 ${hasInc?12:6}px ${color}aa;
+        "></div>`,
+        className: "",
+        iconSize: [size, size],
+        iconAnchor: [size/2, size/2],
+      });
+      entry.marker.setIcon(icon);
+    });
+  }, [JSON.stringify(incGeoMap)]);
+
+  // ── Índice / leyenda ──────────────────────────────────────────────────────
+  const LEGEND_ITEMS = [
+    // Rutas
+    { type: "line", color: "#fbc02d", label: "Segundo Acceso" },
+    { type: "line", color: "#1976d2", label: "Vialidad Confinada" },
+    // Accesos
+    { type: "dot",  color: "#ffee58", label: "Acceso Zona Norte" },
+    { type: "dot",  color: "#e806eb", label: "Acceso Pez Vela" },
+    { type: "dot",  color: "#eb0671", label: "Acceso Puerta 15" },
+    { type: "dot",  color: "#06eb7a", label: "Acceso Patios" },
+    // Terminales
+    { type: "dot",  color: "#f57c00", label: "Terminal Contecon" },
+    { type: "dot",  color: "#424242", label: "Terminal Hazesa / OCUPA" },
+    { type: "dot",  color: "#388e3c", label: "Terminal SSA" },
+    { type: "dot",  color: "#5d4037", label: "La Junta (TAP)" },
+    { type: "dot",  color: "#5c6bc0", label: "Terminal TIMSA" },
+    { type: "dot",  color: "#7b1fa2", label: "Terminal MULTIMODAL" },
+    { type: "dot",  color: "#ef5350", label: "Terminal FRIMAN" },
+    { type: "dot",  color: "#4def05", label: "Terminal CEMEX" },
+    { type: "dot",  color: "#e8ef05", label: "Recinto ASIPONA" },
+    { type: "dot",  color: "#00796b", label: "Granelera" },
+  ];
+
+  return (
+    <div>
+      {/* Mapa */}
+      <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 32px rgba(0,0,0,0.5)", marginBottom: "14px" }}>
+        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "13px" }}>🗺️</span>
+          <span style={{ fontFamily: TITLE, fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>Mapa del Puerto</span>
+          <span style={{ fontFamily: MN, fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· tráfico en tiempo real</span>
+          {activeIncidents.length > 0 && (
+            <span style={{ marginLeft: "auto", background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "2px 9px", fontSize: "11px", color: "#ef4444", fontFamily: MN, fontWeight: "700" }}>
+              {activeIncidents.length} incidente{activeIncidents.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <div ref={mapRef} style={{ width: "100%", height: "320px", background: "#040c18" }} />
+      </div>
+
+      {/* Índice */}
+      <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px", padding: "14px" }}>
+        <div style={{ fontFamily: TITLE, fontSize: "13px", color: "rgba(255,255,255,0.7)", letterSpacing: "1px", marginBottom: "12px" }}>ÍNDICE DEL MAPA</div>
+
+        {/* Rutas */}
+        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: MN, letterSpacing: "1px", marginBottom: "7px" }}>RUTAS</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "12px" }}>
+          {LEGEND_ITEMS.filter(i => i.type === "line").map(item => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "7px 10px" }}>
+              <div style={{ width: "22px", height: "4px", background: item.color, borderRadius: "2px", flexShrink: 0 }} />
+              <span style={{ fontFamily: MN, fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Accesos */}
+        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: MN, letterSpacing: "1px", marginBottom: "7px" }}>ACCESOS</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "12px" }}>
+          {LEGEND_ITEMS.filter(i => i.type === "dot" && ["Acceso Zona Norte","Acceso Pez Vela","Acceso Puerta 15","Acceso Patios"].includes(i.label)).map(item => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "7px 10px" }}>
+              <div style={{ width: "12px", height: "12px", background: item.color, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }} />
+              <span style={{ fontFamily: MN, fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Terminales */}
+        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: MN, letterSpacing: "1px", marginBottom: "7px" }}>TERMINALES</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+          {LEGEND_ITEMS.filter(i => i.type === "dot" && !["Acceso Zona Norte","Acceso Pez Vela","Acceso Puerta 15","Acceso Patios"].includes(i.label)).map(item => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "7px 10px" }}>
+              <div style={{ width: "12px", height: "12px", background: item.color, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }} />
+              <span style={{ fontFamily: MN, fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
 // ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
 function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
@@ -3121,7 +1830,6 @@ function App() {
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
-        {active === "vialidades" && <VialidadesTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab />}
