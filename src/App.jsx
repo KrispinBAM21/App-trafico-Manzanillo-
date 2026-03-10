@@ -1114,7 +1114,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
         {/* Terminales */}
         <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: MN, letterSpacing: "1px", marginBottom: "7px" }}>TERMINALES</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-          {LEGEND_ITEMS.filter(i => i.type === "dot" && !["Acceso Zona Norte","Acceso Pez Vela","Acceso Puerta 15","Acceso Patios"].includes(i.label)).map(item => (
+          {LEGEND_ITEMS.filter(i => { const accesoNames = ["Acceso Zona Norte","Acceso Pez Vela","Acceso Puerta 15","Acceso Patios"]; return i.type === "dot" && !accesoNames.includes(i.label); }).map(item => (
             <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "7px 10px" }}>
               <div style={{ width: "12px", height: "12px", background: item.color, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }} />
               <span style={{ fontFamily: MN, fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{item.label}</span>
