@@ -1110,7 +1110,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
