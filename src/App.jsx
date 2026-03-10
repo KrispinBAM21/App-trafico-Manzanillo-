@@ -332,18 +332,6 @@ function useAdminMode() {
     }
   };
 
- return {
-  isAdmin,
-  showModal,
-  setShowModal,
-  pass,
-  setPass,
-  err,
-  handleLogoTap,
-  tryLogin
-};
-}
-
   const logout = () => {
     try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
     setIsAdmin(false);
