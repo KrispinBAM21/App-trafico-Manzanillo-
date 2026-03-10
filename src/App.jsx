@@ -2906,8 +2906,7 @@ function App() {
         {consent === null && (
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
-        {AdminModal}
-
+        
         <DonateBanner active={active} />
       </div>
     </div>
