@@ -807,16 +807,23 @@ function TraficoTab({ myId, incidents, setIncidents }) {
 
 // ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
 const MAP_TILES = [
-  { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",        attr: "CartoDB" },
-  { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr: "Esri" },
-  { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",       attr: "CartoDB" },
+  { id: "dark",      label: "Noche",    icon: "🌙",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    labels: null },
+  { id: "satellite", label: "Satélite", icon: "🛰️",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+  { id: "light",     label: "Claro",    icon: "☀️",
+    url: "https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png",
+    labels: null },
 ];
 
 function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
   const mapRef    = useRef(null);
   const leafRef   = useRef(null);
   const layersRef = useRef({});
-  const tileRef   = useRef(null);
+  const tileRef      = useRef(null);
+  const labelLayerRef = useRef(null);
   const [tileMode, setTileMode] = useState("dark");
 
   // Datos exactos del KML
@@ -903,7 +910,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
       const L = window.L;
       const map = L.map(mapRef.current, {
         center: [19.075, -104.290],
-        zoom: 14,
+        zoom: 15,
         zoomControl: true,
         attributionControl: false,
         scrollWheelZoom: true,
@@ -988,7 +995,16 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
     const L = window.L;
     const t = MAP_TILES.find(t => t.id === tileMode);
     if (!t) return;
+    // Swap base tile
     tileRef.current.setUrl(t.url);
+    // Handle label overlay for satellite
+    if (labelLayerRef.current) {
+      leafRef.current.removeLayer(labelLayerRef.current);
+      labelLayerRef.current = null;
+    }
+    if (t.labels) {
+      labelLayerRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
+    }
   }, [tileMode]);
 
   // Actualizar estilos cuando cambian incidentes
