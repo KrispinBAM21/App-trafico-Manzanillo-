@@ -917,7 +917,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
           color: line.color, weight: line.weight, opacity: 0.85,
           lineCap: "round", lineJoin: "round",
         }).addTo(map);
-        poly.bindTooltip(`<b>${line.name}</b>`, { sticky: true, className: "cm-tooltip" });
+        poly.bindTooltip(`<b>${line.name}</b>`, { sticky: true, className: "cm-tooltip", direction: "center" });
         layersRef.current[line.id] = poly;
       });
 
@@ -936,7 +936,12 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
           iconAnchor: [7, 7],
         });
         const marker = L.marker(pt.coords, { icon }).addTo(map);
-        marker.bindTooltip(`<b>${pt.name}</b>`, { sticky: true, className: "cm-tooltip" });
+        marker.bindTooltip(`<b>${pt.name}</b>`, {
+          permanent: true,
+          direction: "top",
+          offset: [0, -10],
+          className: "cm-tooltip-permanent",
+        }).openTooltip();
         layersRef.current[pt.id] = { marker, pt };
       });
 
@@ -946,6 +951,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
         s.id = "cm-map-style";
         s.textContent = `
           .cm-tooltip { background:rgba(4,12,24,0.95)!important; border:1px solid rgba(56,189,248,0.35)!important; border-radius:6px!important; color:rgba(255,255,255,0.9)!important; font-family:'DM Sans',sans-serif!important; font-size:12px!important; font-weight:600!important; padding:4px 9px!important; box-shadow:0 2px 12px rgba(0,0,0,0.5)!important; white-space:nowrap!important; }
+          .cm-tooltip-permanent { background:rgba(4,12,24,0.88)!important; border:1px solid rgba(56,189,248,0.4)!important; border-radius:5px!important; color:rgba(255,255,255,0.92)!important; font-family:'DM Sans',sans-serif!important; font-size:10px!important; font-weight:700!important; padding:2px 7px!important; box-shadow:0 2px 8px rgba(0,0,0,0.6)!important; white-space:nowrap!important; pointer-events:none!important; }
+          .cm-tooltip-permanent::before { display:none!important; }
           .cm-tooltip::before { display:none!important; }
           .leaflet-control-zoom a { background:rgba(4,12,24,0.9)!important; color:rgba(255,255,255,0.7)!important; border-color:rgba(255,255,255,0.1)!important; }
           .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
@@ -1021,6 +1028,10 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
         iconAnchor: [size/2, size/2],
       });
       entry.marker.setIcon(icon);
+      // Re-bind permanent tooltip after icon change
+      entry.marker.bindTooltip(`<b>${entry.pt.name}</b>`, {
+        permanent: true, direction: "top", offset: [0, -10], className: "cm-tooltip-permanent",
+      }).openTooltip();
     });
   }, [JSON.stringify(incGeoMap)]);
 
