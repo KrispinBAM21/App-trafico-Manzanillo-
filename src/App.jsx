@@ -332,16 +332,16 @@ function useAdminMode() {
     }
   };
 
-  return {
-    isAdmin,
-    showModal,
-    setShowModal,
-    pass,
-    setPass,
-    err,
-    handleLogoTap,
-    tryLogin
-  };
+ return {
+  isAdmin,
+  showModal,
+  setShowModal,
+  pass,
+  setPass,
+  err,
+  handleLogoTap,
+  tryLogin
+};
 }
 
   const logout = () => {
