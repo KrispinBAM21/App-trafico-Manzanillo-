@@ -871,6 +871,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
+      setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
@@ -880,6 +881,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
     const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+    // Optimistic update — refleja el cambio al instante
+    setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
@@ -890,6 +893,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
+      setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
@@ -898,6 +902,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     const vName = VIALIDADES.find(x => x.id === id)?.name;
     const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    // Optimistic update
+    setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
@@ -1769,6 +1775,9 @@ function TerminalesTab({ myId }) {
     (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
     const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
     const [statusGanador, votosGanador] = ganadora;
+    // Optimistic update
+    const setSt2 = zona === "norte" ? setStN : setStS;
+    setSt2(prev => ({ ...prev, [termId]: { ...prev[termId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` } }));
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
@@ -2576,6 +2585,8 @@ function PatioReguladorTab({ myId }) {
     (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
     const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
     const [statusGanador, votosGanador] = ganadora;
+    // Optimistic update
+    setPatios(prev => ({ ...prev, [patioId]: { ...prev[patioId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo } }));
     await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
