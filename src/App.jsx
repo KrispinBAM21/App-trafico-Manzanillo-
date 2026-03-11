@@ -129,7 +129,6 @@ const VIALIDAD_STATUS_OPTIONS = [
 
 const ACCESOS_PRINCIPALES = [
   { id: "pezvela",   label: "Acceso Pez Vela",  color: "#a78bfa", zona: "Zona Sur"   },
-  { id: "puerta15",  label: "Acceso Puerta 15",  color: "#34d399", zona: "Zona Sur"   },
   { id: "zonanorte", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Zona Norte" },
 ];
 const ACCESO_STATUS_OPTIONS = [
@@ -613,7 +612,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [changeModal, setChangeModal] = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
     try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
-  }); // "mapa" | "accesos" | "vialidades" | "incidentes"
+  });
   const setActiveSectionPersist = (s) => {
     try { sessionStorage.setItem("trafico_section", s); } catch {}
     setActiveSection(s);
@@ -784,6 +783,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
+          <TypewriterTicker items={ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre" };
+            const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
           {ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
@@ -815,6 +819,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
+          <TypewriterTicker items={VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre" };
+            const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
           {VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
@@ -903,7 +912,7 @@ const MAP_TILES = [
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
   { id: "light",     label: "Claro",    icon: "☀️",
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    url: "https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png",
     labels: null },
 ];
 
@@ -1437,8 +1446,92 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
 }
 
 // ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
+// ─── TICKER MÁQUINA DE ESCRIBIR ───────────────────────────────────────────────
+function TypewriterTicker({ items }) {
+  const [idx,     setIdx]     = useState(0);
+  const [display, setDisplay] = useState("");
+  const [phase,   setPhase]   = useState("typing"); // typing | pause | erasing
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+    const full = items[idx % items.length];
+
+    const tick = () => {
+      if (phase === "typing") {
+        setDisplay(prev => {
+          const next = full.slice(0, prev.length + 1);
+          if (next === full) {
+            clearInterval(timerRef.current);
+            timerRef.current = setTimeout(() => setPhase("erasing"), 1800);
+          }
+          return next;
+        });
+      } else if (phase === "erasing") {
+        setDisplay(prev => {
+          const next = prev.slice(0, -1);
+          if (next === "") {
+            clearInterval(timerRef.current);
+            timerRef.current = setTimeout(() => {
+              setIdx(i => (i + 1) % items.length);
+              setPhase("typing");
+            }, 400);
+          }
+          return next;
+        });
+      }
+    };
+
+    if (phase === "typing" || phase === "erasing") {
+      timerRef.current = setInterval(tick, phase === "typing" ? 55 : 30);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [phase, idx, items]);
+
+  if (!items || items.length === 0) return null;
+  const item = items[idx % items.length];
+
+  return (
+    <div style={{
+      background: "rgba(4,12,24,0.85)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      border: "1px solid rgba(56,189,248,0.2)",
+      borderLeft: `3px solid ${item.color || "#38bdf8"}`,
+      borderRadius: "10px",
+      padding: "10px 14px",
+      marginBottom: "14px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      minHeight: "42px",
+    }}>
+      <span style={{ fontSize: "14px", flexShrink: 0 }}>📡</span>
+      <span style={{
+        fontFamily: "'DM Sans', monospace",
+        fontSize: "13px",
+        fontWeight: "700",
+        color: item.color || "#38bdf8",
+        letterSpacing: "0.5px",
+        minWidth: "0",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+      }}>
+        {display}<span style={{ opacity: 0.7, animation: "blink 1s step-end infinite" }}>|</span>
+      </span>
+      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
+    </div>
+  );
+}
+
 function TerminalesTab({ myId }) {
-  const [zona,   setZona]   = useState("norte");
+  const [zona,   setZona]   = useState(() => {
+    try { return sessionStorage.getItem("term_zona") || "norte"; } catch { return "norte"; }
+  });
+  const setZonaPersist = (z) => {
+    try { sessionStorage.setItem("term_zona", z); } catch {}
+    setZona(z);
+  };
   const [stN,    setStN]    = useState(mkTerminals(TERMINALS_NORTE));
   const [stS,    setStS]    = useState(mkTerminals(TERMINALS_SUR));
   const [toast,  setToast]  = useState(null);
@@ -1448,6 +1541,13 @@ function TerminalesTab({ myId }) {
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
   const stMap     = zona === "norte" ? stN : stS;
   const setSt     = zona === "norte" ? setStN : setStS;
+
+  // Ticker items — todas las terminales con su estado
+  const tickerItems = [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
+    const st = (TERMINALS_NORTE.find(x => x.id === t.id) ? stN : stS)[t.id];
+    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st?.status) || TERMINAL_STATUS_OPTIONS[0];
+    return { text: `${t.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+  });
 
   useEffect(() => {
     const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
@@ -1518,9 +1618,10 @@ function TerminalesTab({ myId }) {
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <TypewriterTicker items={tickerItems} />
       <div style={{ display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(255,255,255,0.15)" }}>
         {["norte","sur"].map(z => (
-          <button key={z} onClick={() => setZona(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:MN, fontSize:"12px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
+          <button key={z} onClick={() => setZonaPersist(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:MN, fontSize:"12px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
@@ -1827,7 +1928,13 @@ function SegundoAccesoTab() {
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
 function CarrilesTab() {
   const [estado,  setEstado]  = useState(mkCarrilesState);
-  const [accView, setAccView] = useState("pezvela");
+  const [accView, setAccView] = useState(() => {
+    try { return sessionStorage.getItem("carriles_acc") || "pezvela"; } catch { return "pezvela"; }
+  });
+  const setAccViewPersist = (v) => {
+    try { sessionStorage.setItem("carriles_acc", v); } catch {}
+    setAccView(v);
+  };
   const [toast,   setToast]   = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2500); };
 
@@ -1913,7 +2020,7 @@ function CarrilesTab() {
       </div>
       <div style={{ display:"flex", gap:"6px", marginBottom:"16px" }}>
         {ACCESOS_CARRILES.map(acc => (
-          <button key={acc.id} onClick={() => setAccView(acc.id)} style={{ flex:1, padding:"9px 4px", background: accView===acc.id ? acc.color+"22" : "#0a1628", border:`1px solid ${accView===acc.id ? acc.color : "#1e3a5f"}`, borderRadius:"8px", color: accView===acc.id ? acc.color : "#475569", fontFamily:MN, fontSize:"9px", fontWeight: accView===acc.id?"700":"400", cursor:"pointer", transition:"all 0.15s", textAlign:"center" }}>
+          <button key={acc.id} onClick={() => setAccViewPersist(acc.id)} style={{ flex:1, padding:"9px 4px", background: accView===acc.id ? acc.color+"22" : "#0a1628", border:`1px solid ${accView===acc.id ? acc.color : "#1e3a5f"}`, borderRadius:"8px", color: accView===acc.id ? acc.color : "#475569", fontFamily:MN, fontSize:"9px", fontWeight: accView===acc.id?"700":"400", cursor:"pointer", transition:"all 0.15s", textAlign:"center" }}>
             <div style={{ fontSize:"14px", marginBottom:"2px" }}>{acc.zona==="Norte"?"🔵":"🟣"}</div>
             {acc.label}
           </button>
