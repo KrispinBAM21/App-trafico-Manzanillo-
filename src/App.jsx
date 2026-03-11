@@ -1885,16 +1885,17 @@ function TerminalesTab({ myId }) {
 // ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
 // ─── SLOT TEXT ───────────────────────────────────────────────────────────────
 function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700", delay = 0 }) {
-  const [displayed, setDisplayed] = useState("···");
-  const [rolling,   setRolling]   = useState(true);
-  const prevRef = useRef(null);
+  const mountedRef = useRef(false);
+  const [displayed, setDisplayed] = useState(value); // Inicia con el valor real
+  const [rolling,   setRolling]   = useState(false);
+  const prevRef = useRef(value);
   const ivRef   = useRef(null);
 
   const runRoll = (target) => {
     setRolling(true);
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@!%";
     let frame = 0;
-    const total = 14;
+    const total = 12;
     clearInterval(ivRef.current);
     ivRef.current = setInterval(() => {
       frame++;
@@ -1905,16 +1906,22 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
         setRolling(false);
         clearInterval(ivRef.current);
       }
-    }, 35);
+    }, 38);
   };
 
+  // Solo anima al montar (una sola vez, con delay escalonado)
   useEffect(() => {
-    const t = setTimeout(() => { prevRef.current = value; runRoll(value); }, delay);
+    const t = setTimeout(() => {
+      mountedRef.current = true;
+      prevRef.current = value;
+      runRoll(value);
+    }, delay);
     return () => { clearTimeout(t); clearInterval(ivRef.current); };
   }, []);
 
+  // Anima cuando el valor cambia DESPUÉS del montado
   useEffect(() => {
-    if (prevRef.current === null) return;
+    if (!mountedRef.current) return;
     if (prevRef.current === value) return;
     prevRef.current = value;
     runRoll(value);
@@ -1922,11 +1929,11 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
 
   return (
     <span style={{
-      color: rolling ? "rgba(255,255,255,0.55)" : color,
+      color: rolling ? "rgba(255,255,255,0.6)" : color,
       fontSize, fontWeight,
       fontFamily: "monospace",
       display: "inline-block",
-      transition: rolling ? "none" : "color 0.4s",
+      transition: rolling ? "none" : "color 0.3s",
     }}>{displayed}</span>
   );
 }
