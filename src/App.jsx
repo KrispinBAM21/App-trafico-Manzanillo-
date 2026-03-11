@@ -779,16 +779,15 @@ function ConvoyScene({ accentColor }) {
         </svg>
       </div>
 
-      {/* Pez Vela de Manzanillo — paths exactas de la escultura */}
+      {/* Pez Vela de Manzanillo — réplica exacta */}
       <div className="cs_pez" style={{ bottom:"2px" }}>
-        <svg width="64" height="52" viewBox="0 0 500 400" fill="none">
-          <g fill="#2185D5" stroke="#1A6AB1" strokeWidth="1.5">
-            {/* Aleta Dorsal (Vela) */}
-            <path d="M180,250 L80,260 Q50,200 70,140 Q100,70 180,40 L220,130 Z"/>
-            <path d="M180,40 Q220,20 260,30 L260,130 Z"/>
-            {/* Cuerpo Circular y Pico */}
-            <path d="M420,100 Q450,110 320,130 A100,100 0 1,0 320,330 L380,380 L450,380 L380,340 A140,140 0 1,1 320,90 L420,100 Z"/>
-            <path d="M420,100 L470,115 L415,130 Z"/>
+        <svg width="64" height="52" viewBox="0 0 1000 800" fill="none">
+          <g fill="#2C8FEA" stroke="#2575C2" strokeWidth="2">
+            <path d="M400,320 C350,280 200,240 180,240 L220,100 C240,110 380,180 400,320 Z"/>
+            <path d="M400,320 C410,180 520,110 540,100 L580,240 C560,240 450,280 400,320 Z"/>
+            <path d="M780,260 C820,280 620,320 620,320 A150,150 0 1,0 620,620 L700,700 L800,700 L720,650 A210,210 0 1,1 620,280 C620,280 820,320 780,260 Z"/>
+            <path d="M780,260 L850,285 L770,310 Z"/>
+            <path d="M700,700 L840,700 L760,650 Z"/>
           </g>
         </svg>
       </div>
