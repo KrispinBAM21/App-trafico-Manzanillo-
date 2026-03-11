@@ -2802,53 +2802,6 @@ function InicioTab({ isAdmin, logout }) {
         </div>
       </div>
 
-      {/* ─── MAPA MANZANILLO ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom:"28px", borderRadius:"16px", overflow:"hidden", border:"1px solid rgba(56,189,248,0.2)", boxShadow:"0 0 24px rgba(56,189,248,0.08)" }}>
-        {/* Header */}
-        <div style={{ background:"rgba(56,189,248,0.08)", borderBottom:"1px solid rgba(56,189,248,0.15)", padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <span style={{ fontSize:"14px" }}>📍</span>
-            <span style={{ fontFamily:MN, fontSize:"10px", fontWeight:"700", color:"#38bdf8", letterSpacing:"1.5px" }}>MANZANILLO, COLIMA · PUERTO INDUSTRIAL</span>
-          </div>
-          <span style={{ fontFamily:MN, fontSize:"9px", color:"rgba(56,189,248,0.5)", letterSpacing:"1px" }}>TAP PARA ABRIR</span>
-        </div>
-        {/* Mapa estático — toca para abrir en Google Maps */}
-        <a href="https://maps.google.com/?q=Manzanillo,Colima,Mexico" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", position:"relative" }}>
-          {/* Fondo oscuro con tiles OSM sin API key */}
-          <div style={{ width:"100%", height:"140px", background:"#0d1f3c", position:"relative", overflow:"hidden" }}>
-            {/* Tiles OSM — lat 19.1041, lon -104.3188, zoom 12 */}
-            {/* tile formula: x=757,758 y=1726,1727 z=12 */}
-            <div style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr" }}>
-              <img src="https://tile.openstreetmap.org/12/757/1726.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.5) brightness(0.55)" }} alt="" onError={e=>e.target.style.opacity=0}/>
-              <img src="https://tile.openstreetmap.org/12/758/1726.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.5) brightness(0.55)" }} alt="" onError={e=>e.target.style.opacity=0}/>
-              <img src="https://tile.openstreetmap.org/12/757/1727.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.5) brightness(0.55)" }} alt="" onError={e=>e.target.style.opacity=0}/>
-              <img src="https://tile.openstreetmap.org/12/758/1727.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.5) brightness(0.55)" }} alt="" onError={e=>e.target.style.opacity=0}/>
-            </div>
-            {/* Overlay + pin */}
-            <div style={{ position:"absolute", inset:0, background:"linear-gradient(135deg, rgba(6,14,26,0.35) 0%, rgba(13,31,60,0.2) 100%)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"4px" }}>
-              <div style={{ background:"rgba(56,189,248,0.92)", borderRadius:"50%", width:"14px", height:"14px", boxShadow:"0 0 0 5px rgba(56,189,248,0.25), 0 0 20px rgba(56,189,248,0.7)" }}/>
-              <div style={{ width:"2px", height:"10px", background:"rgba(56,189,248,0.8)" }}/>
-              <div style={{ background:"rgba(6,14,26,0.8)", border:"1px solid rgba(56,189,248,0.45)", borderRadius:"6px", padding:"3px 10px", fontFamily:MN, fontSize:"10px", fontWeight:"700", color:"#38bdf8", letterSpacing:"1px" }}>MANZANILLO</div>
-            </div>
-            {/* Botón ver más */}
-            <div style={{ position:"absolute", bottom:"8px", right:"10px", background:"rgba(6,14,26,0.75)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"6px", padding:"4px 8px", fontFamily:MN, fontSize:"9px", color:"rgba(56,189,248,0.8)", display:"flex", alignItems:"center", gap:"4px" }}>
-              🗺️ Ver mapa completo
-            </div>
-          </div>
-        </a>
-        {/* Imagen letras Manzanillo */}
-        <div style={{ position:"relative", overflow:"hidden" }}>
-          <img
-            src="https://www.eternal-expat.com/wp-content/uploads/2020/09/IMG_1988.jpg"
-            alt="Letras Manzanillo"
-            style={{ width:"100%", height:"120px", objectFit:"cover", objectPosition:"center 60%", display:"block" }}
-            onError={e => { e.target.style.display='none'; }}
-          />
-          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(6,14,26,0.7) 0%, transparent 50%)" }}/>
-          <div style={{ position:"absolute", bottom:"10px", left:"14px", fontFamily:MN, fontSize:"11px", fontWeight:"700", color:"rgba(255,255,255,0.85)", letterSpacing:"2px" }}>MANZANILLO, COL.</div>
-        </div>
-      </div>
-
       {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
       <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
