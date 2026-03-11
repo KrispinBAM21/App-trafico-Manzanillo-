@@ -691,65 +691,91 @@ function ConvoyScene({ accentColor }) {
         <rect x="780" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
       </svg>
 
-      {/* Trailer 1 — color acento */}
+      {/* Trailer 1 — cabina izquierda (frente), contenedor derecha (atrás) */}
       <div className="cs_t1">
         <svg width="118" height="38" viewBox="0 0 118 38" fill="none">
-          <rect x="1" y="8" width="72" height="20" rx="2" fill={c} fillOpacity="0.82"/>
-          <line x1="25" y1="8" x2="25" y2="28" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8"/>
-          <line x1="49" y1="8" x2="49" y2="28" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8"/>
-          <rect x="68" y="10" width="4" height="16" rx="1" fill="rgba(255,255,255,0.07)"/>
-          <rect x="0" y="27" width="74" height="4" rx="1" fill="#111827"/>
-          <circle cx="12" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="12" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="28" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="28" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="56" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="56" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="65" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="65" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="74" y="12" width="28" height="17" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.55" strokeWidth="0.8"/>
-          <rect x="77" y="14" width="11" height="8" rx="1.5" fill={c} fillOpacity="0.3"/>
-          <rect x="90" y="14" width="8" height="8" rx="1" fill={c} fillOpacity="0.15"/>
-          <rect x="97" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
-          <circle cx="82" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="82" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="97" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="97" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="102" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+          {/* Cabina — al frente, lado izquierdo */}
+          <rect x="1" y="11" width="26" height="17" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="0.8"/>
+          {/* Parabrisas */}
+          <rect x="4"  y="13" width="10" height="8" rx="1.5" fill={c} fillOpacity="0.35"/>
+          <rect x="16" y="13" width="7"  height="8" rx="1"   fill={c} fillOpacity="0.18"/>
+          {/* Faro delantero izquierdo */}
+          <rect x="1" y="15" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
+          {/* Luz lateral cabina */}
+          <rect x="1" y="21" width="4" height="3" rx="1" fill="#f97316" fillOpacity="0.5"/>
+          {/* Parachoque delantero */}
+          <rect x="0" y="25" width="4" height="3" rx="1" fill="#334155"/>
+          {/* Chasis cabina */}
+          <rect x="0" y="27" width="28" height="3" rx="1" fill="#111827"/>
+          {/* Ruedas cabina */}
+          <circle cx="8"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="8"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="22" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="22" cy="33" r="1.6" fill="#1e293b"/>
+          {/* Enganche */}
+          <rect x="26" y="28" width="6" height="2" rx="1" fill="#475569"/>
+          {/* Contenedor — detrás, lado derecho */}
+          <rect x="32" y="8" width="84" height="20" rx="2" fill={c} fillOpacity="0.82"/>
+          <line x1="60"  y1="8" x2="60"  y2="28" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8"/>
+          <line x1="88"  y1="8" x2="88"  y2="28" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8"/>
+          <rect x="112" y="10" width="4" height="16" rx="1" fill="rgba(255,255,255,0.07)"/>
+          {/* Chasis contenedor */}
+          <rect x="30" y="27" width="88" height="3" rx="1" fill="#111827"/>
+          {/* Ruedas contenedor */}
+          <circle cx="50"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="50"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="62"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="62"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="96"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="96"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="108" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="108" cy="33" r="1.6" fill="#1e293b"/>
         </svg>
       </div>
 
-      {/* Trailer 2 — azul acero */}
+      {/* Trailer 2 — cabina izquierda, contenedor azul acero */}
       <div className="cs_t2">
         <svg width="105" height="38" viewBox="0 0 105 38" fill="none">
-          <rect x="1" y="10" width="60" height="18" rx="2" fill="#2d4a6f" fillOpacity="0.92"/>
-          <line x1="21" y1="10" x2="21" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
-          <line x1="41" y1="10" x2="41" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
-          <rect x="0" y="27" width="62" height="4" rx="1" fill="#111827"/>
-          <circle cx="10" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="10" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="24" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="24" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="48" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="48" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="57" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="57" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="62" y="13" width="26" height="16" rx="3" fill="#1e3a5f" stroke="#38bdf8" strokeOpacity="0.4" strokeWidth="0.8"/>
-          <rect x="65" y="15" width="10" height="7" rx="1.5" fill="#38bdf8" fillOpacity="0.22"/>
-          <rect x="82" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
-          <circle cx="70" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="70" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="83" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="83" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="88" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+          {/* Cabina */}
+          <rect x="1" y="12" width="24" height="16" rx="3" fill="#1e3a5f" stroke="#38bdf8" strokeOpacity="0.5" strokeWidth="0.8"/>
+          <rect x="4"  y="14" width="9"  height="7" rx="1.5" fill="#38bdf8" fillOpacity="0.3"/>
+          <rect x="15" y="14" width="6"  height="7" rx="1"   fill="#38bdf8" fillOpacity="0.15"/>
+          <rect x="1" y="16" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
+          <rect x="1" y="21" width="3" height="2.5" rx="1" fill="#f97316" fillOpacity="0.5"/>
+          <rect x="0" y="27" width="26" height="3" rx="1" fill="#111827"/>
+          <circle cx="7"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="7"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="20" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="20" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="24" y="28" width="5" height="2" rx="1" fill="#475569"/>
+          {/* Contenedor */}
+          <rect x="29" y="10" width="74" height="18" rx="2" fill="#2d4a6f" fillOpacity="0.92"/>
+          <line x1="53" y1="10" x2="53" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
+          <line x1="77" y1="10" x2="77" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
+          <rect x="99" y="12" width="4" height="14" rx="1" fill="rgba(255,255,255,0.06)"/>
+          <rect x="27" y="27" width="78" height="3" rx="1" fill="#111827"/>
+          <circle cx="44" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="44" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="56" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="56" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="84" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="84" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="96" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="96" cy="33" r="1.6" fill="#1e293b"/>
         </svg>
       </div>
 
-      {/* Trailer 3 — rojo oxido */}
+      {/* Trailer 3 — cabina izquierda, contenedor rojo oxido */}
       <div className="cs_t3">
         <svg width="96" height="38" viewBox="0 0 96 38" fill="none">
-          <rect x="1" y="10" width="54" height="18" rx="2" fill="#7f1d1d" fillOpacity="0.9"/>
-          <line x1="19" y1="10" x2="19" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
-          <line x1="37" y1="10" x2="37" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
-          <rect x="0" y="27" width="56" height="4" rx="1" fill="#111827"/>
-          <circle cx="9"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="9"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="22" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="22" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="42" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="42" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="51" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="51" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="56" y="13" width="24" height="16" rx="3" fill="#1e3a5f" stroke="#f97316" strokeOpacity="0.45" strokeWidth="0.8"/>
-          <rect x="59" y="15" width="9" height="7" rx="1.5" fill="#f97316" fillOpacity="0.2"/>
-          <rect x="74" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
-          <circle cx="63" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="63" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="75" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="75" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="80" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+          {/* Cabina */}
+          <rect x="1" y="12" width="22" height="16" rx="3" fill="#1e3a5f" stroke="#f97316" strokeOpacity="0.45" strokeWidth="0.8"/>
+          <rect x="3"  y="14" width="8"  height="7" rx="1.5" fill="#f97316" fillOpacity="0.22"/>
+          <rect x="13" y="14" width="6"  height="7" rx="1"   fill="#f97316" fillOpacity="0.1"/>
+          <rect x="1" y="15" width="2.5" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
+          <rect x="1" y="21" width="3" height="2.5" rx="1" fill="#f97316" fillOpacity="0.5"/>
+          <rect x="0" y="27" width="24" height="3" rx="1" fill="#111827"/>
+          <circle cx="6"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="6"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="18" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="18" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="22" y="28" width="5" height="2" rx="1" fill="#475569"/>
+          {/* Contenedor */}
+          <rect x="27" y="10" width="67" height="18" rx="2" fill="#7f1d1d" fillOpacity="0.9"/>
+          <line x1="49" y1="10" x2="49" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
+          <line x1="71" y1="10" x2="71" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
+          <rect x="90" y="12" width="4" height="14" rx="1" fill="rgba(255,255,255,0.06)"/>
+          <rect x="25" y="27" width="71" height="3" rx="1" fill="#111827"/>
+          <circle cx="40" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="40" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="52" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="52" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="76" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="76" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="88" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="88" cy="33" r="1.6" fill="#1e293b"/>
         </svg>
       </div>
 
