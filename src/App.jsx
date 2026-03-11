@@ -1858,38 +1858,49 @@ function TerminalesTab({ myId }) {
 
 // ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
 // ─── SLOT TEXT ───────────────────────────────────────────────────────────────
-function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700" }) {
-  const [displayed, setDisplayed] = useState(value);
-  const [rolling,   setRolling]   = useState(false);
-  const prevRef = useRef(value);
+function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700", delay = 0 }) {
+  const [displayed, setDisplayed] = useState("···");
+  const [rolling,   setRolling]   = useState(true);
+  const prevRef = useRef(null);
+  const ivRef   = useRef(null);
 
-  useEffect(() => {
-    if (prevRef.current === value) return;
-    prevRef.current = value;
+  const runRoll = (target) => {
     setRolling(true);
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@!%";
     let frame = 0;
-    const total = 10;
-    const iv = setInterval(() => {
+    const total = 14;
+    clearInterval(ivRef.current);
+    ivRef.current = setInterval(() => {
       frame++;
       if (frame < total) {
-        setDisplayed(value.split("").map(() => chars[Math.floor(Math.random()*chars.length)]).join(""));
+        setDisplayed(target.split("").map(() => chars[Math.floor(Math.random()*chars.length)]).join(""));
       } else {
-        setDisplayed(value);
+        setDisplayed(target);
         setRolling(false);
-        clearInterval(iv);
+        clearInterval(ivRef.current);
       }
-    }, 40);
-    return () => clearInterval(iv);
+    }, 35);
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => { prevRef.current = value; runRoll(value); }, delay);
+    return () => { clearTimeout(t); clearInterval(ivRef.current); };
+  }, []);
+
+  useEffect(() => {
+    if (prevRef.current === null) return;
+    if (prevRef.current === value) return;
+    prevRef.current = value;
+    runRoll(value);
   }, [value]);
 
   return (
     <span style={{
-      color, fontSize, fontWeight,
+      color: rolling ? "rgba(255,255,255,0.55)" : color,
+      fontSize, fontWeight,
       fontFamily: "monospace",
       display: "inline-block",
-      transition: rolling ? "none" : "color 0.3s",
-      letterSpacing: rolling ? "0px" : undefined,
+      transition: rolling ? "none" : "color 0.4s",
     }}>{displayed}</span>
   );
 }
@@ -1963,7 +1974,7 @@ function SegundoAccesoTab() {
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
         <div style={{ display:"flex", gap:"6px" }}>
-          {SEGUNDO_CARRILES_INGRESO.map(c => {
+          {SEGUNDO_CARRILES_INGRESO.map((c, i) => {
             const st = carriles[c.id];
             const bc = st.saturado ? "#ef4444" : "#22c55e";
             const tz = getTermZona(st.terminal);
@@ -1972,11 +1983,11 @@ function SegundoAccesoTab() {
               <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
                 <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>{c.label}</div>
                 <div style={{ fontSize:"9px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, borderRadius:"4px", padding:"2px 3px" }}>
-                  <SlotText value={getTermName(st.terminal)} color={tc} fontSize="9px" />
+                  <SlotText value={getTermName(st.terminal)} color={tc} fontSize="9px" delay={i * 180} />
                 </div>
                 {st.retornos && <div style={{ marginTop:"3px", fontSize:"11px" }}>↩</div>}
                 <div style={{ marginTop:"3px" }}>
-                  <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="9px" />
+                  <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="9px" delay={i * 180 + 90} />
                 </div>
               </div>
             );
@@ -1985,7 +1996,7 @@ function SegundoAccesoTab() {
             <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>C4</div>
             <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, marginTop:"3px" }}>SALIDA</div>
             <div style={{ marginTop:"3px" }}>
-              <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="9px" />
+              <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="9px" delay={540} />
             </div>
           </div>
         </div>
