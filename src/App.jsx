@@ -767,28 +767,56 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
+          <style>{`
+            @keyframes trailerRide {
+              0%   { transform: translateX(108%); }
+              100% { transform: translateX(-108%); }
+            }
+            @keyframes trailerRideAlt {
+              0%   { transform: translateX(108%) scaleX(-1); }
+              100% { transform: translateX(-108%) scaleX(-1); }
+            }
+            .trailer-track { overflow: hidden; position: relative; height: 28px; pointer-events: none; }
+            .trailer-inner { position: absolute; white-space: nowrap; animation: trailerRide 9s linear infinite; font-size: 22px; top: 2px; }
+            .trailer-inner-alt { position: absolute; white-space: nowrap; animation: trailerRideAlt 11s linear infinite; font-size: 22px; top: 2px; }
+            @media (min-width: 640px) {
+              .acceso-btn-grid  { grid-template-columns: repeat(4, 1fr) !important; }
+            }
+          `}</style>
           <TypewriterTicker items={ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {ACCESOS_PRINCIPALES.map(acc => {
+          {ACCESOS_PRINCIPALES.map((acc, idx) => {
             const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            const trailerEmoji = idx % 2 === 0 ? "🚛" : "🚚";
+            const trailerClass = idx % 2 === 0 ? "trailer-inner" : "trailer-inner-alt";
             return (
-              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px" }}>
+              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
+                {/* Trailer animation */}
+                <div className="trailer-track" style={{ marginBottom: "10px", borderRadius: "6px", background: `linear-gradient(90deg, transparent 0%, ${acc.color}08 50%, transparent 100%)` }}>
+                  <div className={trailerClass}>
+                    {trailerEmoji}&nbsp;
+                    <span style={{ fontSize: "11px", fontFamily: MN, color: acc.color, fontWeight: "700", verticalAlign: "middle", letterSpacing: "1px" }}>
+                      {acc.label.toUpperCase()} — {curOpt.label.toUpperCase()}
+                    </span>
+                    &nbsp;&nbsp;&nbsp;{trailerEmoji}
+                  </div>
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div>
                     <div style={{ color: acc.color, fontFamily: TITLE, fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
                     <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: MN, fontSize: "13px", fontWeight: "700" }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: MN, fontSize: "13px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
                 </div>
                 <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: MN, letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                <div className="acceso-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   {ACCESO_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "9px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>{o.icon}</span>{o.label}
+                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
+                      <span style={{ fontSize: "15px" }}>{o.icon}</span>{o.label}
                     </button>
                   ))}
                 </div>
@@ -803,26 +831,56 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
+          <style>{`
+            @keyframes truckScroll {
+              0%   { transform: translateX(108%); }
+              100% { transform: translateX(-108%); }
+            }
+            @keyframes truckScrollAlt {
+              0%   { transform: translateX(-108%) scaleX(-1); }
+              100% { transform: translateX(108%) scaleX(-1); }
+            }
+            .vial-truck-track { overflow: hidden; position: relative; height: 26px; pointer-events: none; }
+            .vial-truck-fwd   { position: absolute; white-space: nowrap; animation: truckScroll 10s linear infinite; font-size: 18px; top: 3px; }
+            .vial-truck-bwd   { position: absolute; white-space: nowrap; animation: truckScrollAlt 13s linear infinite; font-size: 18px; top: 3px; }
+            @media (min-width: 640px) {
+              .vial-btn-grid { grid-template-columns: repeat(4, 1fr) !important; }
+            }
+          `}</style>
           <TypewriterTicker items={VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre" };
             const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {VIALIDADES.map(v => {
+          {VIALIDADES.map((v, idx) => {
             const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            const truckClass = idx % 2 === 0 ? "vial-truck-fwd" : "vial-truck-bwd";
+            const truckEmoji = idx % 3 === 0 ? "🚛" : idx % 3 === 1 ? "🚚" : "🚜";
             return (
-              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                {/* Truck animation lane */}
+                <div className="vial-truck-track" style={{ marginBottom: "8px", borderRadius: "4px", background: `linear-gradient(90deg, transparent 0%, ${curOpt.color}0a 50%, transparent 100%)` }}>
+                  <div className={truckClass}>
+                    {truckEmoji}&nbsp;
+                    <span style={{ fontSize: "10px", fontFamily: MN, color: curOpt.color, fontWeight: "700", verticalAlign: "middle", letterSpacing: "1px" }}>
+                      {v.name.toUpperCase()} — {curOpt.label.toUpperCase()}
+                    </span>
+                    &nbsp;&nbsp;&nbsp;{truckEmoji}
+                  </div>
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <div>
                     <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
                     <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700" }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
                 </div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
                   {VIALIDAD_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "6px 10px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "6px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400" }}>{o.icon} {o.label}</button>
+                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
+                      <span style={{ fontSize: "14px" }}>{o.icon}</span>{o.label}
+                    </button>
                   ))}
                 </div>
               </div>
