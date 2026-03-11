@@ -773,8 +773,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
               100% { transform: translateX(-108%); }
             }
             @keyframes trailerRideAlt {
-              0%   { transform: translateX(108%) scaleX(-1); }
-              100% { transform: translateX(-108%) scaleX(-1); }
+              0%   { transform: translateX(-108%); }
+              100% { transform: translateX(108%); }
             }
             .trailer-track { overflow: hidden; position: relative; height: 28px; pointer-events: none; }
             .trailer-inner { position: absolute; white-space: nowrap; animation: trailerRide 9s linear infinite; font-size: 22px; top: 2px; }
@@ -837,8 +837,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
               100% { transform: translateX(-108%); }
             }
             @keyframes truckScrollAlt {
-              0%   { transform: translateX(-108%) scaleX(-1); }
-              100% { transform: translateX(108%) scaleX(-1); }
+              0%   { transform: translateX(-108%); }
+              100% { transform: translateX(108%); }
             }
             .vial-truck-track { overflow: hidden; position: relative; height: 26px; pointer-events: none; }
             .vial-truck-fwd   { position: absolute; white-space: nowrap; animation: truckScroll 10s linear infinite; font-size: 18px; top: 3px; }
