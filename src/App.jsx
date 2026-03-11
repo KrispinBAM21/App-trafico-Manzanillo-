@@ -606,6 +606,211 @@ function NavBar({ active, set }) {
   );
 }
 
+// ─── CONVOY SCENE ────────────────────────────────────────────────────────────
+function ConvoyScene({ accentColor }) {
+  const c = accentColor || "#38bdf8";
+  return (
+    <div style={{ position:"relative", width:"100%", height:"72px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none" }}>
+      <style>{`
+        @keyframes cs_t1  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
+        @keyframes cs_t2  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
+        @keyframes cs_t3  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
+        @keyframes cs_pez { 0%{transform:translateX(110%)} 100%{transform:translateX(-110%)} }
+        .cs_t1  { position:absolute; bottom:14px; animation:cs_t1  11s linear infinite 0s;   }
+        .cs_t2  { position:absolute; bottom:14px; animation:cs_t2  14s linear infinite 4.5s; }
+        .cs_t3  { position:absolute; bottom:14px; animation:cs_t3  9s  linear infinite 8s;   }
+        .cs_pez { position:absolute; animation:cs_pez 18s linear infinite 2s; }
+      `}</style>
+      <svg width="100%" height="72" viewBox="0 0 800 72" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",top:0,left:0}}>
+        <defs>
+          <linearGradient id="cssky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#060e1a"/>
+            <stop offset="100%" stopColor="#0d1f3c"/>
+          </linearGradient>
+          <linearGradient id="cssea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0c2340"/>
+            <stop offset="100%" stopColor="#071526"/>
+          </linearGradient>
+        </defs>
+        <rect width="800" height="72" fill="url(#cssky)"/>
+        <polygon points="0,48 60,22 120,40 180,18 260,38 330,16 400,34 460,20 520,36 580,14 650,32 720,18 800,30 800,72 0,72" fill="#0a1a30" opacity="0.7"/>
+        <rect x="20"  y="30" width="18" height="26" fill="#0f2540"/><rect x="20"  y="28" width="18" height="4" fill="#142d4c"/>
+        <rect x="44"  y="24" width="14" height="32" fill="#0e2238"/><rect x="44"  y="22" width="14" height="4" fill="#142d4c"/>
+        <rect x="90"  y="20" width="10" height="36" fill="#0e2238"/><rect x="90"  y="18" width="10" height="4" fill="#1a3a5c"/>
+        <rect x="128" y="22" width="12" height="34" fill="#0d1f3a"/><rect x="128" y="20" width="12" height="4" fill="#142d4c"/>
+        <rect x="174" y="18" width="8"  height="38" fill="#0e2036"/><rect x="174" y="16" width="8"  height="4" fill="#1a3a5c"/>
+        <rect x="212" y="14" width="14" height="42" fill="#0d1e38"/><rect x="212" y="12" width="14" height="4" fill="#142d4c"/>
+        <rect x="276" y="16" width="10" height="40" fill="#0e2238"/><rect x="276" y="14" width="10" height="4" fill="#1a3a5c"/>
+        <rect x="316" y="20" width="14" height="36" fill="#0d1f3a"/><rect x="316" y="18" width="14" height="4" fill="#142d4c"/>
+        <rect x="364" y="12" width="10" height="44" fill="#0e2036"/><rect x="364" y="10" width="10" height="4" fill="#1a3a5c"/>
+        <rect x="402" y="22" width="20" height="34" fill="#101e36"/>
+        <rect x="428" y="18" width="12" height="38" fill="#0d1f3a"/><rect x="428" y="16" width="12" height="4" fill="#142d4c"/>
+        <rect x="470" y="14" width="8"  height="42" fill="#0e2238"/><rect x="470" y="12" width="8"  height="4" fill="#1a3a5c"/>
+        <rect x="510" y="20" width="14" height="36" fill="#0f2440"/><rect x="510" y="18" width="14" height="4" fill="#142d4c"/>
+        <rect x="552" y="16" width="10" height="40" fill="#0e2238"/><rect x="552" y="14" width="10" height="4" fill="#1a3a5c"/>
+        <rect x="614" y="12" width="8"  height="44" fill="#0d1e38"/><rect x="614" y="10" width="8"  height="4" fill="#142d4c"/>
+        <rect x="652" y="22" width="14" height="34" fill="#0e2238"/><rect x="652" y="20" width="14" height="4" fill="#1a3a5c"/>
+        <rect x="672" y="16" width="20" height="40" fill="#101e36"/><rect x="672" y="14" width="20" height="4" fill="#142d4c"/>
+        <rect x="714" y="18" width="16" height="38" fill="#0f2540"/><rect x="714" y="16" width="16" height="4" fill="#1a3a5c"/>
+        <rect x="754" y="14" width="10" height="42" fill="#0e2036"/><rect x="754" y="12" width="10" height="4" fill="#142d4c"/>
+        <rect x="22"  y="32" width="3" height="2" fill={c} fillOpacity="0.18"/>
+        <rect x="92"  y="22" width="3" height="2" fill={c} fillOpacity="0.20"/>
+        <rect x="130" y="24" width="3" height="2" fill={c} fillOpacity="0.14"/>
+        <rect x="176" y="20" width="3" height="2" fill={c} fillOpacity="0.18"/>
+        <rect x="278" y="18" width="3" height="2" fill={c} fillOpacity="0.16"/>
+        <rect x="366" y="14" width="3" height="2" fill={c} fillOpacity="0.20"/>
+        <rect x="512" y="22" width="3" height="2" fill={c} fillOpacity="0.18"/>
+        <rect x="654" y="24" width="3" height="2" fill={c} fillOpacity="0.16"/>
+        <line x1="580" y1="56" x2="580" y2="10" stroke="#1e3a5c" strokeWidth="2.5"/>
+        <line x1="580" y1="10" x2="620" y2="10" stroke="#1e3a5c" strokeWidth="2"/>
+        <line x1="620" y1="10" x2="620" y2="40" stroke="#1e3a5c" strokeWidth="1.5"/>
+        <line x1="580" y1="10" x2="558" y2="28" stroke="#1e3a5c" strokeWidth="1.5"/>
+        <line x1="600" y1="10" x2="600" y2="36" stroke="#1a3355" strokeWidth="1" strokeDasharray="2,3" opacity="0.5"/>
+        <line x1="700" y1="56" x2="700" y2="14" stroke="#1e3a5c" strokeWidth="2.5"/>
+        <line x1="700" y1="14" x2="736" y2="14" stroke="#1e3a5c" strokeWidth="2"/>
+        <line x1="736" y1="14" x2="736" y2="42" stroke="#1e3a5c" strokeWidth="1.5"/>
+        <line x1="700" y1="14" x2="680" y2="30" stroke="#1e3a5c" strokeWidth="1.5"/>
+        <line x1="718" y1="14" x2="718" y2="38" stroke="#1a3355" strokeWidth="1" strokeDasharray="2,3" opacity="0.5"/>
+        <rect x="0" y="56" width="800" height="16" fill="url(#cssea)"/>
+        <line x1="0" y1="56" x2="800" y2="56" stroke={c} strokeOpacity="0.18" strokeWidth="1"/>
+        <path d="M0,59 Q40,57 80,59 Q120,61 160,59 Q200,57 240,59 Q280,61 320,59 Q360,57 400,59 Q440,61 480,59 Q520,57 560,59 Q600,61 640,59 Q680,57 720,59 Q760,61 800,59" stroke={c} strokeOpacity="0.09" strokeWidth="0.8" fill="none"/>
+        <rect x="0" y="52" width="800" height="6" fill="#111827"/>
+        <rect x="0"   y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="60"  y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="120" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="180" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="240" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="300" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="360" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="420" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="480" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="540" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="600" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="660" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="720" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+        <rect x="780" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
+      </svg>
+
+      {/* Trailer 1 — color acento */}
+      <div className="cs_t1">
+        <svg width="118" height="38" viewBox="0 0 118 38" fill="none">
+          <rect x="1" y="8" width="72" height="20" rx="2" fill={c} fillOpacity="0.82"/>
+          <line x1="25" y1="8" x2="25" y2="28" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8"/>
+          <line x1="49" y1="8" x2="49" y2="28" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8"/>
+          <rect x="68" y="10" width="4" height="16" rx="1" fill="rgba(255,255,255,0.07)"/>
+          <rect x="0" y="27" width="74" height="4" rx="1" fill="#111827"/>
+          <circle cx="12" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="12" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="28" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="28" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="56" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="56" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="65" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="65" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="74" y="12" width="28" height="17" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.55" strokeWidth="0.8"/>
+          <rect x="77" y="14" width="11" height="8" rx="1.5" fill={c} fillOpacity="0.3"/>
+          <rect x="90" y="14" width="8" height="8" rx="1" fill={c} fillOpacity="0.15"/>
+          <rect x="97" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
+          <circle cx="82" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="82" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="97" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="97" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="102" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+        </svg>
+      </div>
+
+      {/* Trailer 2 — azul acero */}
+      <div className="cs_t2">
+        <svg width="105" height="38" viewBox="0 0 105 38" fill="none">
+          <rect x="1" y="10" width="60" height="18" rx="2" fill="#2d4a6f" fillOpacity="0.92"/>
+          <line x1="21" y1="10" x2="21" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
+          <line x1="41" y1="10" x2="41" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
+          <rect x="0" y="27" width="62" height="4" rx="1" fill="#111827"/>
+          <circle cx="10" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="10" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="24" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="24" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="48" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="48" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="57" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="57" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="62" y="13" width="26" height="16" rx="3" fill="#1e3a5f" stroke="#38bdf8" strokeOpacity="0.4" strokeWidth="0.8"/>
+          <rect x="65" y="15" width="10" height="7" rx="1.5" fill="#38bdf8" fillOpacity="0.22"/>
+          <rect x="82" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
+          <circle cx="70" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="70" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="83" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="83" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="88" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+        </svg>
+      </div>
+
+      {/* Trailer 3 — rojo oxido */}
+      <div className="cs_t3">
+        <svg width="96" height="38" viewBox="0 0 96 38" fill="none">
+          <rect x="1" y="10" width="54" height="18" rx="2" fill="#7f1d1d" fillOpacity="0.9"/>
+          <line x1="19" y1="10" x2="19" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
+          <line x1="37" y1="10" x2="37" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
+          <rect x="0" y="27" width="56" height="4" rx="1" fill="#111827"/>
+          <circle cx="9"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="9"  cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="22" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="22" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="42" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="42" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="51" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="51" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="56" y="13" width="24" height="16" rx="3" fill="#1e3a5f" stroke="#f97316" strokeOpacity="0.45" strokeWidth="0.8"/>
+          <rect x="59" y="15" width="9" height="7" rx="1.5" fill="#f97316" fillOpacity="0.2"/>
+          <rect x="74" y="21" width="5" height="4" rx="1" fill="#f97316" fillOpacity="0.85"/>
+          <circle cx="63" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="63" cy="33" r="1.6" fill="#1e293b"/>
+          <circle cx="75" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="75" cy="33" r="1.6" fill="#1e293b"/>
+          <rect x="80" y="16" width="4" height="3" rx="0.8" fill="#fef08a" fillOpacity="0.9"/>
+        </svg>
+      </div>
+
+      {/* Pez Vela de Manzanillo — fiel a la escultura */}
+      <div className="cs_pez" style={{ bottom:"4px" }}>
+        <svg width="72" height="64" viewBox="0 0 72 64" fill="none">
+          {/* === ALETA DORSAL EN ABANICO === */}
+          {/* Rayos de la aleta — como los "dedos" de la escultura */}
+          <path d="M22,42 L14,8"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L20,4"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L27,3"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L34,5"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L40,10" stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L44,17" stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
+          <path d="M22,42 L44,26" stroke="#1565c0" strokeWidth="3" strokeLinecap="round"/>
+          {/* Membrana entre rayos — relleno translucido */}
+          <path d="M22,42 L14,8 Q17,5 20,4 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          <path d="M22,42 L20,4 Q24,2 27,3 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          <path d="M22,42 L27,3 Q31,3 34,5 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          <path d="M22,42 L34,5 Q37,6 40,10 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          <path d="M22,42 L40,10 Q43,14 44,17 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          <path d="M22,42 L44,17 Q45,22 44,26 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
+          {/* Borde curvo superior de la aleta */}
+          <path d="M14,8 Q17,4 20,4 Q24,2 27,3 Q31,3 34,5 Q38,7 40,10 Q43,14 44,17 Q45,22 44,26" stroke="#42a5f5" strokeWidth="1.2" fill="none" strokeOpacity="0.6"/>
+
+          {/* === CUERPO — forma de C / media luna como la escultura === */}
+          {/* Cuerpo principal ovalado */}
+          <ellipse cx="22" cy="48" rx="17" ry="10" fill="#1565c0"/>
+          {/* Curva interior que crea el hueco de la "C" */}
+          <ellipse cx="24" cy="48" rx="10" ry="6" fill="#0d1f3a"/>
+          {/* Borde inferior del cuerpo */}
+          <path d="M8,48 Q10,56 18,58 Q26,60 34,56 Q38,53 38,48" fill="#1976d2" fillOpacity="0.6"/>
+
+          {/* === PICO LARGO Y AFILADO === */}
+          <path d="M34,44 L71,38 L34,47 Z" fill="#0d47a1"/>
+          <path d="M34,44 L71,38" stroke="#1976d2" strokeWidth="0.8" opacity="0.5"/>
+
+          {/* === COLA BIFURCADA === */}
+          <path d="M5,45 C0,39 0,34 3,37 L9,45 L3,53 C0,56 0,51 5,45 Z" fill="#1565c0"/>
+
+          {/* === ALETA PECTORAL === */}
+          <path d="M18,46 C12,39 7,41 9,47 C12,45 16,45 18,46 Z" fill="#1976d2"/>
+
+          {/* === OJO === */}
+          <circle cx="30" cy="44" r="3" fill="#0a2a6e"/>
+          <circle cx="30" cy="44" r="1.5" fill="#ffffff" fillOpacity="0.95"/>
+          <circle cx="30.6" cy="43.4" r="0.55" fill="#0a2a6e"/>
+
+          {/* === BRILLOS Y REFLEJOS (como la escultura metalica) === */}
+          {/* Reflejo en la aleta dorsal */}
+          <path d="M20,12 Q22,8 25,6" stroke="#90caf9" strokeWidth="1.5" strokeOpacity="0.55" fill="none" strokeLinecap="round"/>
+          <path d="M28,8 Q30,5 32,4" stroke="#90caf9" strokeWidth="1.2" strokeOpacity="0.4" fill="none" strokeLinecap="round"/>
+          <path d="M36,9 Q38,7 40,8" stroke="#90caf9" strokeWidth="1" strokeOpacity="0.35" fill="none" strokeLinecap="round"/>
+          {/* Reflejo en el cuerpo */}
+          <path d="M12,44 Q18,40 26,42" stroke="#42a5f5" strokeWidth="1" strokeOpacity="0.35" fill="none"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [accesos,     setAccesos]     = useState(mkAccesos);
   const [vialidades,  setVialidades]  = useState(mkVialidades);
@@ -670,14 +875,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const acc = accesos[id];
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    // ── Admin: cambio directo ──
     if (isAdmin) {
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
     }
-    // ── Cambio inmediato: 1 voto cambia el estado ──
     const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
@@ -691,13 +894,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const v = vialidades[id];
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    // ── Admin: cambio directo ──
     if (isAdmin) {
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
     }
-    // ── Cambio inmediato: 1 voto cambia el estado ──
     const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     const vName = VIALIDADES.find(x => x.id === id)?.name;
@@ -767,118 +968,18 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
-          <style>{`
-            @keyframes convoy1 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            @keyframes convoy2 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            @keyframes convoy3 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            .convoy-lane { overflow: hidden; position: relative; height: 38px; pointer-events: none; border-radius: 6px; }
-            .convoy-road { position: absolute; bottom: 8px; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.06); }
-            .convoy-t1 { position: absolute; bottom: 8px; animation: convoy1 10s linear infinite; }
-            .convoy-t2 { position: absolute; bottom: 8px; animation: convoy2 15s linear infinite 4s; }
-            .convoy-t3 { position: absolute; bottom: 8px; animation: convoy3 12s linear infinite 7s; }
-            @media (min-width: 640px) {
-              .acceso-btn-grid { grid-template-columns: repeat(4, 1fr) !important; }
-            }
-          `}</style>
+          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
           <TypewriterTicker items={ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {ACCESOS_PRINCIPALES.map((acc, idx) => {
+          {ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-            const c = acc.color;
-            const containerColors = [c, curOpt.color, "#334155"];
             return (
               <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
-                {/* SVG Trailer convoy */}
-                <div className="convoy-lane" style={{ marginBottom: "10px", background: `linear-gradient(90deg, rgba(0,0,0,0.3) 0%, ${acc.color}08 50%, rgba(0,0,0,0.3) 100%)` }}>
-                  <div className="convoy-road" />
-                  {/* Truck 1 — full trailer con contenedor */}
-                  <div className="convoy-t1">
-                    <svg width="120" height="28" viewBox="0 0 120 28" fill="none">
-                      {/* Contenedor */}
-                      <rect x="2" y="4" width="72" height="18" rx="2" fill={containerColors[0]} fillOpacity="0.85" />
-                      <rect x="2" y="4" width="72" height="18" rx="2" stroke={containerColors[0]} strokeOpacity="0.5" strokeWidth="0.5" />
-                      <line x1="26" y1="4" x2="26" y2="22" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-                      <line x1="50" y1="4" x2="50" y2="22" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-                      <rect x="68" y="6" width="4" height="14" rx="1" fill="rgba(255,255,255,0.08)" />
-                      {/* Chasis */}
-                      <rect x="0" y="21" width="74" height="3" rx="1" fill="#1e293b" />
-                      {/* Ruedas contenedor */}
-                      <circle cx="12" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="12" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="28" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="28" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="56" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="56" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="64" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="64" cy="25" r="1.2" fill="#334155" />
-                      {/* Cabina */}
-                      <rect x="74" y="8" width="26" height="14" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="0.8" />
-                      <rect x="78" y="10" width="10" height="7" rx="1" fill={c} fillOpacity="0.35" />
-                      <rect x="90" y="10" width="7" height="7" rx="1" fill={c} fillOpacity="0.2" />
-                      <rect x="96" y="14" width="4" height="4" rx="1" fill="#f97316" fillOpacity="0.8" />
-                      {/* Ruedas cabina */}
-                      <circle cx="82" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="82" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="96" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="96" cy="25" r="1.2" fill="#334155" />
-                      {/* Faro */}
-                      <rect x="100" y="12" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                  {/* Truck 2 — contenedor diferente */}
-                  <div className="convoy-t2">
-                    <svg width="110" height="28" viewBox="0 0 110 28" fill="none">
-                      <rect x="2" y="5" width="60" height="16" rx="2" fill={containerColors[1]} fillOpacity="0.8" />
-                      <line x1="22" y1="5" x2="22" y2="21" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-                      <line x1="42" y1="5" x2="42" y2="21" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-                      <rect x="58" y="7" width="3" height="11" rx="1" fill="rgba(255,255,255,0.07)" />
-                      <rect x="0" y="21" width="63" height="3" rx="1" fill="#1e293b" />
-                      <circle cx="10" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="10" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="24" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="24" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="48" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="48" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="56" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="56" cy="25" r="1.2" fill="#334155" />
-                      <rect x="63" y="9" width="24" height="13" rx="3" fill="#1e3a5f" stroke={curOpt.color} strokeOpacity="0.5" strokeWidth="0.8" />
-                      <rect x="66" y="11" width="8" height="6" rx="1" fill={curOpt.color} fillOpacity="0.3" />
-                      <rect x="84" y="13" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
-                      <circle cx="70" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="70" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="84" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="84" cy="25" r="1.2" fill="#334155" />
-                      <rect x="87" y="12" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                  {/* Truck 3 — más pequeño */}
-                  <div className="convoy-t3">
-                    <svg width="90" height="28" viewBox="0 0 90 28" fill="none">
-                      <rect x="2" y="6" width="50" height="15" rx="2" fill={containerColors[2]} fillOpacity="0.9" />
-                      <line x1="19" y1="6" x2="19" y2="21" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
-                      <line x1="36" y1="6" x2="36" y2="21" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
-                      <rect x="0" y="21" width="53" height="3" rx="1" fill="#1e293b" />
-                      <circle cx="9" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="9" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="40" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="40" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="48" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="48" cy="25" r="1.2" fill="#334155" />
-                      <rect x="53" y="10" width="22" height="12" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.4" strokeWidth="0.8" />
-                      <rect x="56" y="12" width="7" height="5" rx="1" fill={c} fillOpacity="0.25" />
-                      <rect x="70" y="13" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
-                      <circle cx="60" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="60" cy="25" r="1.2" fill="#334155" />
-                      <circle cx="72" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="72" cy="25" r="1.2" fill="#334155" />
-                      <rect x="75" y="13" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                </div>
+                <ConvoyScene accentColor={acc.color} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div>
                     <div style={{ color: acc.color, fontFamily: TITLE, fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
@@ -887,7 +988,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
                   <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: MN, fontSize: "13px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
                 </div>
                 <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: MN, letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
-                <div className="acceso-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   {ACCESO_STATUS_OPTIONS.map(o => (
                     <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: MN, fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
                       <span style={{ fontSize: "15px" }}>{o.icon}</span>{o.label}
@@ -905,110 +1006,24 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
-          <style>{`
-            @keyframes vconv1 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            @keyframes vconv2 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            @keyframes vconv3 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
-            .vconv-lane { overflow: hidden; position: relative; height: 34px; pointer-events: none; border-radius: 6px; }
-            .vconv-road { position: absolute; bottom: 7px; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.06); }
-            .vconv-t1 { position: absolute; bottom: 7px; animation: vconv1 11s linear infinite; }
-            .vconv-t2 { position: absolute; bottom: 7px; animation: vconv2 16s linear infinite 5s; }
-            .vconv-t3 { position: absolute; bottom: 7px; animation: vconv3 13s linear infinite 8.5s; }
-            @media (min-width: 640px) {
-              .vial-btn-grid { grid-template-columns: repeat(4, 1fr) !important; }
-            }
-          `}</style>
+          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
           <TypewriterTicker items={VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre" };
             const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {VIALIDADES.map((v, idx) => {
+          {VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-            const c = curOpt.color;
-            const altColor = ["#38bdf8","#a78bfa","#34d399","#f97316","#64748b"][idx % 5];
             return (
-              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${c}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
-                {/* SVG convoy lane */}
-                <div className="vconv-lane" style={{ marginBottom: "8px", background: `linear-gradient(90deg, rgba(0,0,0,0.25) 0%, ${c}0a 50%, rgba(0,0,0,0.25) 100%)` }}>
-                  <div className="vconv-road" />
-                  <div className="vconv-t1">
-                    <svg width="115" height="26" viewBox="0 0 115 26" fill="none">
-                      <rect x="2" y="4" width="68" height="16" rx="2" fill={c} fillOpacity="0.8" />
-                      <line x1="24" y1="4" x2="24" y2="20" stroke="rgba(255,255,255,0.14)" strokeWidth="0.8" />
-                      <line x1="46" y1="4" x2="46" y2="20" stroke="rgba(255,255,255,0.14)" strokeWidth="0.8" />
-                      <rect x="64" y="6" width="5" height="12" rx="1" fill="rgba(255,255,255,0.07)" />
-                      <rect x="0" y="19" width="70" height="3" rx="1" fill="#1e293b" />
-                      <circle cx="11" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="11" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="26" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="26" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="52" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="52" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="61" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="61" cy="23" r="1.2" fill="#334155" />
-                      <rect x="70" y="7" width="25" height="13" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.55" strokeWidth="0.8" />
-                      <rect x="73" y="9" width="9" height="6" rx="1" fill={c} fillOpacity="0.3" />
-                      <rect x="90" y="12" width="4" height="4" rx="1" fill="#f97316" fillOpacity="0.85" />
-                      <circle cx="78" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="78" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="91" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="91" cy="23" r="1.2" fill="#334155" />
-                      <rect x="95" y="10" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                  <div className="vconv-t2">
-                    <svg width="100" height="26" viewBox="0 0 100 26" fill="none">
-                      <rect x="2" y="5" width="56" height="14" rx="2" fill={altColor} fillOpacity="0.75" />
-                      <line x1="21" y1="5" x2="21" y2="19" stroke="rgba(255,255,255,0.13)" strokeWidth="0.8" />
-                      <line x1="40" y1="5" x2="40" y2="19" stroke="rgba(255,255,255,0.13)" strokeWidth="0.8" />
-                      <rect x="0" y="19" width="58" height="3" rx="1" fill="#1e293b" />
-                      <circle cx="9" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="9" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="44" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="44" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="52" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="52" cy="23" r="1.2" fill="#334155" />
-                      <rect x="58" y="8" width="22" height="12" rx="3" fill="#1e3a5f" stroke={altColor} strokeOpacity="0.5" strokeWidth="0.8" />
-                      <rect x="61" y="10" width="7" height="5" rx="1" fill={altColor} fillOpacity="0.28" />
-                      <rect x="75" y="12" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
-                      <circle cx="65" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="65" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="77" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="77" cy="23" r="1.2" fill="#334155" />
-                      <rect x="80" y="11" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                  <div className="vconv-t3">
-                    <svg width="88" height="26" viewBox="0 0 88 26" fill="none">
-                      <rect x="2" y="6" width="48" height="13" rx="2" fill="#334155" fillOpacity="0.95" />
-                      <line x1="18" y1="6" x2="18" y2="19" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" />
-                      <line x1="34" y1="6" x2="34" y2="19" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" />
-                      <rect x="0" y="19" width="50" height="3" rx="1" fill="#1e293b" />
-                      <circle cx="8" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="8" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="37" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="37" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="45" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="45" cy="23" r="1.2" fill="#334155" />
-                      <rect x="50" y="9" width="21" height="11" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.4" strokeWidth="0.8" />
-                      <rect x="53" y="11" width="7" height="4" rx="1" fill={c} fillOpacity="0.22" />
-                      <rect x="66" y="12" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
-                      <circle cx="57" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="57" cy="23" r="1.2" fill="#334155" />
-                      <circle cx="68" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
-                      <circle cx="68" cy="23" r="1.2" fill="#334155" />
-                      <rect x="71" y="12" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
-                    </svg>
-                  </div>
-                </div>
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                <ConvoyScene accentColor={curOpt.color} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <div>
                     <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
                     <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: c + "22", border: `1px solid ${c}66`, color: c, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
                 </div>
                 <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
                   {VIALIDAD_STATUS_OPTIONS.map(o => (
@@ -1060,6 +1075,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       )}
 
       <ToastBox toast={toast} />
+
     </div>
   );
 }
@@ -1697,7 +1713,6 @@ function TerminalesTab({ myId }) {
   const [stN,    setStN]    = useState(mkTerminals(TERMINALS_NORTE));
   const [stS,    setStS]    = useState(mkTerminals(TERMINALS_SUR));
   const [toast,  setToast]  = useState(null);
-  const [changeModal, setChangeModal] = useState(null);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
@@ -2448,7 +2463,6 @@ function DonativosTab() {
 function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
   const [toast,       setToast]       = useState(null);
-  const [changeModal, setChangeModal] = useState(null);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
@@ -2513,11 +2527,6 @@ function PatioReguladorTab({ myId }) {
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <TypewriterTicker items={PATIOS_REGULADORES.map(p => {
-        const st  = patios[p.id] || { status: "libre" };
-        const opt = PATIO_STATUS_OPTIONS.find(o => o.id === st.status) || PATIO_STATUS_OPTIONS[0];
-        return { text: `${p.name} — ${opt.label.toUpperCase()}`, color: opt.color };
-      })} />
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
         <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
@@ -2560,6 +2569,16 @@ function PatioReguladorTab({ myId }) {
                   </button>
                 );
               })}
+            </div>
+            <div style={{ marginTop:"10px" }}>
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>NOTAS / COMENTARIOS:</div>
+              <textarea
+                value={notas[patio.id] || ""}
+                onChange={e => updateNota(patio.id, e.target.value)}
+                placeholder="Añade observaciones, condiciones especiales, restricciones..."
+                rows={2}
+                style={{ width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"8px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", resize:"vertical", lineHeight:"1.5" }}
+              />
             </div>
           </div>
         );
