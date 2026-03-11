@@ -1973,30 +1973,34 @@ function SegundoAccesoTab() {
       </div>
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
-        <div style={{ display:"flex", gap:"6px" }}>
+        <div style={{ display:"flex", gap:"8px" }}>
           {SEGUNDO_CARRILES_INGRESO.map((c, i) => {
             const st = carriles[c.id];
             const bc = st.saturado ? "#ef4444" : "#22c55e";
             const tz = getTermZona(st.terminal);
             const tc = tz === "Norte" ? "#38bdf8" : "#a78bfa";
             return (
-              <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
-                <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>{c.label}</div>
-                <div style={{ fontSize:"9px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, borderRadius:"4px", padding:"2px 3px" }}>
-                  <SlotText value={getTermName(st.terminal)} color={tc} fontSize="9px" delay={i * 180} />
+              <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
+                {/* Carril */}
+                <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:MN, fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
+                {/* Terminal */}
+                <div style={{ background:tc+"22", border:`1px solid ${tc}55`, borderRadius:"6px", padding:"4px 4px" }}>
+                  <SlotText value={getTermName(st.terminal)} color={tc} fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
                 </div>
-                {st.retornos && <div style={{ marginTop:"3px", fontSize:"11px" }}>↩</div>}
-                <div style={{ marginTop:"3px" }}>
-                  <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="9px" delay={i * 180 + 90} />
+                {/* Retornos */}
+                {st.retornos && <div style={{ fontSize:"14px" }}>↩</div>}
+                {/* Estado */}
+                <div>
+                  <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="clamp(12px,2vw,16px)" delay={i * 180 + 90} />
                 </div>
               </div>
             );
           })}
-          <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
-            <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>C4</div>
-            <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, marginTop:"3px" }}>SALIDA</div>
-            <div style={{ marginTop:"3px" }}>
-              <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="9px" delay={540} />
+          <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
+            <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:MN, fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>C4</div>
+            <div style={{ fontSize:"clamp(10px,1.8vw,14px)", color:"#f97316", fontFamily:MN, fontWeight:"700" }}>SALIDA</div>
+            <div>
+              <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="clamp(12px,2vw,16px)" delay={540} />
             </div>
           </div>
         </div>
