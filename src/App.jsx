@@ -1885,56 +1885,46 @@ function TerminalesTab({ myId }) {
 // ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
 // ─── SLOT TEXT ───────────────────────────────────────────────────────────────
 function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700", delay = 0 }) {
-  const mountedRef = useRef(false);
-  const [displayed, setDisplayed] = useState(value); // Inicia con el valor real
-  const [rolling,   setRolling]   = useState(false);
-  const prevRef = useRef(value);
-  const ivRef   = useRef(null);
+  const [displayed, setDisplayed] = useState("");
+  const prevRef  = useRef(null);
+  const ivRef    = useRef(null);
+  const doneRef  = useRef(false);
 
-  const runRoll = (target) => {
-    setRolling(true);
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@!%";
-    let frame = 0;
-    const total = 12;
+  const reveal = (target) => {
     clearInterval(ivRef.current);
+    setDisplayed("");
+    let i = 0;
     ivRef.current = setInterval(() => {
-      frame++;
-      if (frame < total) {
-        setDisplayed(target.split("").map(() => chars[Math.floor(Math.random()*chars.length)]).join(""));
-      } else {
-        setDisplayed(target);
-        setRolling(false);
+      i++;
+      setDisplayed(target.slice(0, i));
+      if (i >= target.length) {
         clearInterval(ivRef.current);
+        doneRef.current = true;
       }
-    }, 38);
+    }, 40);
   };
 
-  // Solo anima al montar (una sola vez, con delay escalonado)
+  // Animación inicial con delay escalonado
   useEffect(() => {
     const t = setTimeout(() => {
-      mountedRef.current = true;
       prevRef.current = value;
-      runRoll(value);
+      reveal(value);
     }, delay);
     return () => { clearTimeout(t); clearInterval(ivRef.current); };
   }, []);
 
-  // Anima cuando el valor cambia DESPUÉS del montado
+  // Animación cuando cambia el valor real
   useEffect(() => {
-    if (!mountedRef.current) return;
+    if (prevRef.current === null) return;
     if (prevRef.current === value) return;
     prevRef.current = value;
-    runRoll(value);
+    reveal(value);
   }, [value]);
 
   return (
-    <span style={{
-      color: rolling ? "rgba(255,255,255,0.6)" : color,
-      fontSize, fontWeight,
-      fontFamily: "monospace",
-      display: "inline-block",
-      transition: rolling ? "none" : "color 0.3s",
-    }}>{displayed}</span>
+    <span style={{ color, fontSize, fontWeight, fontFamily:"monospace", display:"inline-block" }}>
+      {displayed || <span style={{ opacity:0 }}>{value}</span>}
+    </span>
   );
 }
 
