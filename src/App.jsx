@@ -807,8 +807,8 @@ function ConvoyScene({ accentColor }) {
 }
 
 function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
-  const [accesos,     setAccesos]     = useState(mkAccesos);
-  const [vialidades,  setVialidades]  = useState(mkVialidades);
+  const [accesos,     setAccesos]     = useState(null);   // null = loading
+  const [vialidades,  setVialidades]  = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
     try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
@@ -825,11 +825,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     sb.from("accesos").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
         await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Sistema" })));
+        setAccesos(mkAccesos());
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setAccesos(prev => ({ ...prev, ...map }));
+      setAccesos({ ...mkAccesos(), ...map });
     });
     const chan = sb.channel("accesos-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
@@ -848,11 +849,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     sb.from("vialidades").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
         await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setVialidades(mkVialidades());
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setVialidades(prev => ({ ...prev, ...map }));
+      setVialidades({ ...mkVialidades(), ...map });
     });
     const chan = sb.channel("vialidades-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
@@ -909,6 +911,15 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
+
+  const SkeletonCard = ({ n = 3 }) => (
+    <div style={{ padding:"16px" }}>
+      {Array.from({length:n}).map((_,i) => (
+        <div key={i} style={{ height:"80px", background:"rgba(255,255,255,0.05)", borderRadius:"12px", marginBottom:"12px", animation:"pulse 1.5s ease-in-out infinite" }}/>
+      ))}
+      <style>{`@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}`}</style>
+    </div>
+  );
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
 
   const voteConfirm = async (id) => {
@@ -970,12 +981,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
-          <TypewriterTicker items={ACCESOS_PRINCIPALES.map(acc => {
+          <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {ACCESOS_PRINCIPALES.map(acc => {
+          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return (
@@ -1008,12 +1019,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
-          <TypewriterTicker items={VIALIDADES.map(v => {
+          <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre" };
             const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {VIALIDADES.map(v => {
+          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return (
@@ -1711,8 +1722,8 @@ function TerminalesTab({ myId }) {
     try { sessionStorage.setItem("term_zona", z); } catch {}
     setZona(z);
   };
-  const [stN,         setStN]         = useState(mkTerminals(TERMINALS_NORTE));
-  const [stS,         setStS]         = useState(mkTerminals(TERMINALS_SUR));
+  const [stN,         setStN]         = useState(null);  // null = loading
+  const [stS,         setStS]         = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
 
@@ -1733,6 +1744,8 @@ function TerminalesTab({ myId }) {
     sb.from("terminals").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
         await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setStN(mkTerminals(TERMINALS_NORTE));
+        setStS(mkTerminals(TERMINALS_SUR));
         return;
       }
       const mapN = {}; const mapS = {};
@@ -1741,8 +1754,8 @@ function TerminalesTab({ myId }) {
         if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
         else mapS[r.id] = entry;
       });
-      if (Object.keys(mapN).length) setStN(prev => ({ ...prev, ...mapN }));
-      if (Object.keys(mapS).length) setStS(prev => ({ ...prev, ...mapS }));
+      setStN({ ...mkTerminals(TERMINALS_NORTE), ...mapN });
+      setStS({ ...mkTerminals(TERMINALS_SUR),   ...mapS });
     });
     const chan = sb.channel("terminals-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
@@ -1815,7 +1828,7 @@ function TerminalesTab({ myId }) {
         ))}
       </div>
       <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
-      {terminals.map(terminal => {
+      {(!stN || !stS) ? <SkeletonCard n={4}/> : terminals.map(terminal => {
         const st  = stMap[terminal.id];
         const opt = getOpt(st.status);
         return (
@@ -2528,7 +2541,7 @@ function DonativosTab() {
 
 // ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
 function PatioReguladorTab({ myId }) {
-  const [patios,      setPatios]      = useState(mkPatios);
+  const [patios,      setPatios]      = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
   const [notas,       setNotas]       = useState(() => {
@@ -2548,13 +2561,14 @@ function PatioReguladorTab({ myId }) {
     sb.from("patios").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
         await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Sistema", pending_voters: {} })));
+        setPatios(mkPatios());
         return;
       }
       const map = {};
       data.forEach(r => {
         map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
       });
-      setPatios(prev => ({ ...prev, ...map }));
+      setPatios({ ...(mkPatios()), ...map });
     });
     const chan = sb.channel("patios-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "patios" }, ({ new: r }) => {
@@ -2626,7 +2640,7 @@ function PatioReguladorTab({ myId }) {
         ))}
       </div>
       <SectionLabel text="PATIOS REGULADORES" rightBtn={<NormalBtn onClick={resetAll} label="TODOS LIBRES" />} />
-      {PATIOS_REGULADORES.map(patio => {
+      {(!patios) ? <SkeletonCard n={4}/> : PATIOS_REGULADORES.map(patio => {
         const st  = patios[patio.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
         const opt = getOpt(st.status);
         const votes = st.pendingVoters || {};
