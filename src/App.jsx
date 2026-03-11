@@ -806,6 +806,19 @@ function ConvoyScene({ accentColor }) {
   );
 }
 
+// ─── SKELETON CARD ────────────────────────────────────────────────────────────
+function SkeletonCard({ n = 3 }) {
+  return (
+    <div style={{ padding:"16px" }}>
+      <style>{`@keyframes sk_pulse{0%,100%{opacity:.35}50%{opacity:.8}}`}</style>
+      {Array.from({length:n}).map((_,i) => (
+        <div key={i} style={{ height:"76px", background:"rgba(255,255,255,0.06)", borderRadius:"12px", marginBottom:"12px", animation:"sk_pulse 1.5s ease-in-out infinite", animationDelay: i*0.15+"s" }}/>
+      ))}
+    </div>
+  );
+}
+
+
 function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [accesos,     setAccesos]     = useState(null);   // null = loading
   const [vialidades,  setVialidades]  = useState(null);  // null = loading
@@ -911,15 +924,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
-
-  const SkeletonCard = ({ n = 3 }) => (
-    <div style={{ padding:"16px" }}>
-      {Array.from({length:n}).map((_,i) => (
-        <div key={i} style={{ height:"80px", background:"rgba(255,255,255,0.05)", borderRadius:"12px", marginBottom:"12px", animation:"pulse 1.5s ease-in-out infinite" }}/>
-      ))}
-      <style>{`@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}`}</style>
-    </div>
-  );
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
 
   const voteConfirm = async (id) => {
