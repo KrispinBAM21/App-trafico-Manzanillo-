@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -1857,6 +1857,43 @@ function TerminalesTab({ myId }) {
 }
 
 // ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
+// ─── SLOT TEXT ───────────────────────────────────────────────────────────────
+function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700" }) {
+  const [displayed, setDisplayed] = useState(value);
+  const [rolling,   setRolling]   = useState(false);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (prevRef.current === value) return;
+    prevRef.current = value;
+    setRolling(true);
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@!%";
+    let frame = 0;
+    const total = 10;
+    const iv = setInterval(() => {
+      frame++;
+      if (frame < total) {
+        setDisplayed(value.split("").map(() => chars[Math.floor(Math.random()*chars.length)]).join(""));
+      } else {
+        setDisplayed(value);
+        setRolling(false);
+        clearInterval(iv);
+      }
+    }, 40);
+    return () => clearInterval(iv);
+  }, [value]);
+
+  return (
+    <span style={{
+      color, fontSize, fontWeight,
+      fontFamily: "monospace",
+      display: "inline-block",
+      transition: rolling ? "none" : "color 0.3s",
+      letterSpacing: rolling ? "0px" : undefined,
+    }}>{displayed}</span>
+  );
+}
+
 function SegundoAccesoTab() {
   const [carriles, setCarriles] = useState(mkSegundoIngreso);
   const [toast,    setToast]    = useState(null);
@@ -1934,16 +1971,22 @@ function SegundoAccesoTab() {
             return (
               <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
                 <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>{c.label}</div>
-                <div style={{ fontSize:"9px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, color:tc, borderRadius:"4px", padding:"2px 3px", fontFamily:MN }}>{getTermName(st.terminal)}</div>
+                <div style={{ fontSize:"9px", fontWeight:"700", marginTop:"3px", background:tc+"22", border:`1px solid ${tc}44`, borderRadius:"4px", padding:"2px 3px" }}>
+                  <SlotText value={getTermName(st.terminal)} color={tc} fontSize="9px" />
+                </div>
                 {st.retornos && <div style={{ marginTop:"3px", fontSize:"11px" }}>↩</div>}
-                <div style={{ marginTop:"3px", fontSize:"9px", color:bc, fontFamily:MN, fontWeight:"700" }}>{st.saturado ? "SAT" : "OK"}</div>
+                <div style={{ marginTop:"3px" }}>
+                  <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="9px" />
+                </div>
               </div>
             );
           })}
           <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"8px", padding:"8px 4px", textAlign:"center" }}>
             <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"9px", fontWeight:"700" }}>C4</div>
             <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, marginTop:"3px" }}>SALIDA</div>
-            <div style={{ marginTop:"3px", fontSize:"9px", color: carriles.c4.saturado?"#ef4444":"#22c55e", fontFamily:MN, fontWeight:"700" }}>{carriles.c4.saturado ? "SAT" : "OK"}</div>
+            <div style={{ marginTop:"3px" }}>
+              <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="9px" />
+            </div>
           </div>
         </div>
         <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
@@ -2531,8 +2574,15 @@ function PatioReguladorTab({ myId }) {
     notify("✓ Patio marcado como Libre", "#22c55e");
   };
 
+  const patioTickerItems = PATIOS_REGULADORES.map(p => {
+    const st  = patios[p.id] || { status:"libre" };
+    const opt = PATIO_STATUS_OPTIONS.find(o => o.id === st.status) || PATIO_STATUS_OPTIONS[0];
+    return { text: `${p.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+  });
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <TypewriterTicker items={patioTickerItems} />
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
         <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
