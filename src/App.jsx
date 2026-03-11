@@ -2289,15 +2289,6 @@ function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
-  const [notas,       setNotas]       = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem("patio_notas") || "{}"); } catch { return {}; }
-  });
-
-  const updateNota = (id, val) => {
-    const next = { ...notas, [id]: val };
-    setNotas(next);
-    try { sessionStorage.setItem("patio_notas", JSON.stringify(next)); } catch {}
-  };
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
@@ -2362,6 +2353,11 @@ function PatioReguladorTab({ myId }) {
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <TypewriterTicker items={PATIOS_REGULADORES.map(p => {
+        const st  = patios[p.id] || { status: "libre" };
+        const opt = PATIO_STATUS_OPTIONS.find(o => o.id === st.status) || PATIO_STATUS_OPTIONS[0];
+        return { text: `${p.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+      })} />
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:MN, letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
         <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
@@ -2404,16 +2400,6 @@ function PatioReguladorTab({ myId }) {
                   </button>
                 );
               })}
-            </div>
-            <div style={{ marginTop:"10px" }}>
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>NOTAS / COMENTARIOS:</div>
-              <textarea
-                value={notas[patio.id] || ""}
-                onChange={e => updateNota(patio.id, e.target.value)}
-                placeholder="Añade observaciones, condiciones especiales, restricciones..."
-                rows={2}
-                style={{ width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"8px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", resize:"vertical", lineHeight:"1.5" }}
-              />
             </div>
           </div>
         );
