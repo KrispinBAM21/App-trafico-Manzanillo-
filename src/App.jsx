@@ -2415,8 +2415,8 @@ function DonativosTab() {
     });
   };
   return (
-    <div style={{ padding:"20px 16px", maxWidth:"480px" }}>
-      <div style={{ textAlign:"center", marginBottom:"28px" }}>
+    <div style={{ padding:"20px 24px", paddingBottom:"80px", maxWidth:"960px", margin:"0 auto" }}>
+      <div style={{ textAlign:"center", marginBottom:"32px" }}>
         <div style={{ fontSize:"48px", marginBottom:"12px" }}>⚓</div>
         <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"16px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"8px" }}>JUNTOS SOMOS MÁS FUERTES</div>
         <div style={{ width:"48px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"0 auto 16px" }} />
@@ -2428,7 +2428,8 @@ function DonativosTab() {
         <p style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9" }}>No importa el monto — cada aportación es un <span style={{ color:"#a78bfa", fontWeight:"700" }}>voto de confianza</span> en que podemos construir algo mejor, juntos. 🙏</p>
       </div>
       <div style={{ textAlign:"center", fontSize:"13px", color:"#1e3a5f", marginBottom:"20px", letterSpacing:"6px" }}>♥ ♥ ♥</div>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #38bdf855", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px", marginBottom:"16px" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #38bdf855", borderRadius:"16px", padding:"20px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
           <div style={{ width:"8px", height:"8px", background:"#38bdf8", borderRadius:"50%", boxShadow:"0 0 8px #38bdf8" }} />
           <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#38bdf8" }}>DATOS PARA DONATIVO</span>
@@ -2449,7 +2450,7 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
         </div>
       </div>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #a78bfa55", borderRadius:"16px", padding:"20px", marginBottom:"16px" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #a78bfa55", borderRadius:"16px", padding:"20px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
           <div style={{ width:"8px", height:"8px", background:"#a78bfa", borderRadius:"50%", boxShadow:"0 0 8px #a78bfa" }} />
           <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#a78bfa" }}>DATOS PARA DONATIVO</span>
@@ -2470,7 +2471,9 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
         </div>
       </div>
-      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"12px" }}>
+      </div>{/* end grid */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:"12px", marginBottom:"16px" }}>
+      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
         <div style={{ background:"linear-gradient(135deg,#00b1ea22,#009ee322)", border:"2px solid #00b1ea88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             <div style={{ fontSize:"28px" }}>💳</div>
@@ -2482,7 +2485,7 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
         </div>
       </a>
-      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
+      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
         <div style={{ background:"linear-gradient(135deg,#00b1ea11,#009ee311)", border:"1px solid #00b1ea44", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             <div style={{ fontSize:"28px" }}>⚡</div>
@@ -2494,7 +2497,7 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
         </div>
       </a>
-      <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none", marginBottom:"16px" }}>
+      <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
         <div style={{ background:"linear-gradient(135deg,#ff5e5b22,#ff914d22)", border:"2px solid #ff5e5b88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", transition:"all 0.2s" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             <div style={{ fontSize:"28px" }}>☕</div>
@@ -2506,6 +2509,7 @@ function DonativosTab() {
           <div style={{ fontFamily:MN, fontSize:"11px", color:"#ff5e5b", fontWeight:"700", letterSpacing:"1px" }}>→</div>
         </div>
       </a>
+      </div>{/* end payment grid */}
       <div style={{ textAlign:"center", padding:"12px" }}>
         <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px" }}>Hecho con ❤️ por y para los que mueven el puerto</div>
       </div>
