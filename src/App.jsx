@@ -779,58 +779,17 @@ function ConvoyScene({ accentColor }) {
         </svg>
       </div>
 
-      {/* Pez Vela de Manzanillo — fiel a la escultura */}
-      <div className="cs_pez" style={{ bottom:"4px" }}>
-        <svg width="72" height="64" viewBox="0 0 72 64" fill="none">
-          {/* === ALETA DORSAL EN ABANICO === */}
-          {/* Rayos de la aleta — como los "dedos" de la escultura */}
-          <path d="M22,42 L14,8"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L20,4"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L27,3"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L34,5"  stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L40,10" stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L44,17" stroke="#1565c0" strokeWidth="3.5" strokeLinecap="round"/>
-          <path d="M22,42 L44,26" stroke="#1565c0" strokeWidth="3" strokeLinecap="round"/>
-          {/* Membrana entre rayos — relleno translucido */}
-          <path d="M22,42 L14,8 Q17,5 20,4 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          <path d="M22,42 L20,4 Q24,2 27,3 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          <path d="M22,42 L27,3 Q31,3 34,5 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          <path d="M22,42 L34,5 Q37,6 40,10 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          <path d="M22,42 L40,10 Q43,14 44,17 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          <path d="M22,42 L44,17 Q45,22 44,26 L22,42 Z" fill="#1976d2" fillOpacity="0.75"/>
-          {/* Borde curvo superior de la aleta */}
-          <path d="M14,8 Q17,4 20,4 Q24,2 27,3 Q31,3 34,5 Q38,7 40,10 Q43,14 44,17 Q45,22 44,26" stroke="#42a5f5" strokeWidth="1.2" fill="none" strokeOpacity="0.6"/>
-
-          {/* === CUERPO — forma de C / media luna como la escultura === */}
-          {/* Cuerpo principal ovalado */}
-          <ellipse cx="22" cy="48" rx="17" ry="10" fill="#1565c0"/>
-          {/* Curva interior que crea el hueco de la "C" */}
-          <ellipse cx="24" cy="48" rx="10" ry="6" fill="#0d1f3a"/>
-          {/* Borde inferior del cuerpo */}
-          <path d="M8,48 Q10,56 18,58 Q26,60 34,56 Q38,53 38,48" fill="#1976d2" fillOpacity="0.6"/>
-
-          {/* === PICO LARGO Y AFILADO === */}
-          <path d="M34,44 L71,38 L34,47 Z" fill="#0d47a1"/>
-          <path d="M34,44 L71,38" stroke="#1976d2" strokeWidth="0.8" opacity="0.5"/>
-
-          {/* === COLA BIFURCADA === */}
-          <path d="M5,45 C0,39 0,34 3,37 L9,45 L3,53 C0,56 0,51 5,45 Z" fill="#1565c0"/>
-
-          {/* === ALETA PECTORAL === */}
-          <path d="M18,46 C12,39 7,41 9,47 C12,45 16,45 18,46 Z" fill="#1976d2"/>
-
-          {/* === OJO === */}
-          <circle cx="30" cy="44" r="3" fill="#0a2a6e"/>
-          <circle cx="30" cy="44" r="1.5" fill="#ffffff" fillOpacity="0.95"/>
-          <circle cx="30.6" cy="43.4" r="0.55" fill="#0a2a6e"/>
-
-          {/* === BRILLOS Y REFLEJOS (como la escultura metalica) === */}
-          {/* Reflejo en la aleta dorsal */}
-          <path d="M20,12 Q22,8 25,6" stroke="#90caf9" strokeWidth="1.5" strokeOpacity="0.55" fill="none" strokeLinecap="round"/>
-          <path d="M28,8 Q30,5 32,4" stroke="#90caf9" strokeWidth="1.2" strokeOpacity="0.4" fill="none" strokeLinecap="round"/>
-          <path d="M36,9 Q38,7 40,8" stroke="#90caf9" strokeWidth="1" strokeOpacity="0.35" fill="none" strokeLinecap="round"/>
-          {/* Reflejo en el cuerpo */}
-          <path d="M12,44 Q18,40 26,42" stroke="#42a5f5" strokeWidth="1" strokeOpacity="0.35" fill="none"/>
+      {/* Pez Vela de Manzanillo — paths exactas de la escultura */}
+      <div className="cs_pez" style={{ bottom:"2px" }}>
+        <svg width="64" height="52" viewBox="0 0 500 400" fill="none">
+          <g fill="#2185D5" stroke="#1A6AB1" strokeWidth="1.5">
+            {/* Aleta Dorsal (Vela) */}
+            <path d="M180,250 L80,260 Q50,200 70,140 Q100,70 180,40 L220,130 Z"/>
+            <path d="M180,40 Q220,20 260,30 L260,130 Z"/>
+            {/* Cuerpo Circular y Pico */}
+            <path d="M420,100 Q450,110 320,130 A100,100 0 1,0 320,330 L380,380 L450,380 L380,340 A140,140 0 1,1 320,90 L420,100 Z"/>
+            <path d="M420,100 L470,115 L415,130 Z"/>
+          </g>
         </svg>
       </div>
     </div>
