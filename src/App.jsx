@@ -768,19 +768,16 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
           <style>{`
-            @keyframes trailerRide {
-              0%   { transform: translateX(108%); }
-              100% { transform: translateX(-108%); }
-            }
-            @keyframes trailerRideAlt {
-              0%   { transform: translateX(-108%); }
-              100% { transform: translateX(108%); }
-            }
-            .trailer-track { overflow: hidden; position: relative; height: 28px; pointer-events: none; }
-            .trailer-inner { position: absolute; white-space: nowrap; animation: trailerRide 9s linear infinite; font-size: 22px; top: 2px; }
-            .trailer-inner-alt { position: absolute; white-space: nowrap; animation: trailerRideAlt 11s linear infinite; font-size: 22px; top: 2px; }
+            @keyframes convoy1 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            @keyframes convoy2 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            @keyframes convoy3 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            .convoy-lane { overflow: hidden; position: relative; height: 38px; pointer-events: none; border-radius: 6px; }
+            .convoy-road { position: absolute; bottom: 8px; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.06); }
+            .convoy-t1 { position: absolute; bottom: 8px; animation: convoy1 10s linear infinite; }
+            .convoy-t2 { position: absolute; bottom: 8px; animation: convoy2 15s linear infinite 4s; }
+            .convoy-t3 { position: absolute; bottom: 8px; animation: convoy3 12s linear infinite 7s; }
             @media (min-width: 640px) {
-              .acceso-btn-grid  { grid-template-columns: repeat(4, 1fr) !important; }
+              .acceso-btn-grid { grid-template-columns: repeat(4, 1fr) !important; }
             }
           `}</style>
           <TypewriterTicker items={ACCESOS_PRINCIPALES.map(acc => {
@@ -791,18 +788,95 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           {ACCESOS_PRINCIPALES.map((acc, idx) => {
             const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-            const trailerEmoji = idx % 2 === 0 ? "🚛" : "🚚";
-            const trailerClass = idx % 2 === 0 ? "trailer-inner" : "trailer-inner-alt";
+            const c = acc.color;
+            const containerColors = [c, curOpt.color, "#334155"];
             return (
               <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
-                {/* Trailer animation */}
-                <div className="trailer-track" style={{ marginBottom: "10px", borderRadius: "6px", background: `linear-gradient(90deg, transparent 0%, ${acc.color}08 50%, transparent 100%)` }}>
-                  <div className={trailerClass}>
-                    {trailerEmoji}&nbsp;
-                    <span style={{ fontSize: "11px", fontFamily: MN, color: acc.color, fontWeight: "700", verticalAlign: "middle", letterSpacing: "1px" }}>
-                      {acc.label.toUpperCase()} — {curOpt.label.toUpperCase()}
-                    </span>
-                    &nbsp;&nbsp;&nbsp;{trailerEmoji}
+                {/* SVG Trailer convoy */}
+                <div className="convoy-lane" style={{ marginBottom: "10px", background: `linear-gradient(90deg, rgba(0,0,0,0.3) 0%, ${acc.color}08 50%, rgba(0,0,0,0.3) 100%)` }}>
+                  <div className="convoy-road" />
+                  {/* Truck 1 — full trailer con contenedor */}
+                  <div className="convoy-t1">
+                    <svg width="120" height="28" viewBox="0 0 120 28" fill="none">
+                      {/* Contenedor */}
+                      <rect x="2" y="4" width="72" height="18" rx="2" fill={containerColors[0]} fillOpacity="0.85" />
+                      <rect x="2" y="4" width="72" height="18" rx="2" stroke={containerColors[0]} strokeOpacity="0.5" strokeWidth="0.5" />
+                      <line x1="26" y1="4" x2="26" y2="22" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
+                      <line x1="50" y1="4" x2="50" y2="22" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
+                      <rect x="68" y="6" width="4" height="14" rx="1" fill="rgba(255,255,255,0.08)" />
+                      {/* Chasis */}
+                      <rect x="0" y="21" width="74" height="3" rx="1" fill="#1e293b" />
+                      {/* Ruedas contenedor */}
+                      <circle cx="12" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="12" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="28" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="28" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="56" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="56" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="64" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="64" cy="25" r="1.2" fill="#334155" />
+                      {/* Cabina */}
+                      <rect x="74" y="8" width="26" height="14" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="0.8" />
+                      <rect x="78" y="10" width="10" height="7" rx="1" fill={c} fillOpacity="0.35" />
+                      <rect x="90" y="10" width="7" height="7" rx="1" fill={c} fillOpacity="0.2" />
+                      <rect x="96" y="14" width="4" height="4" rx="1" fill="#f97316" fillOpacity="0.8" />
+                      {/* Ruedas cabina */}
+                      <circle cx="82" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="82" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="96" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="96" cy="25" r="1.2" fill="#334155" />
+                      {/* Faro */}
+                      <rect x="100" y="12" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
+                  </div>
+                  {/* Truck 2 — contenedor diferente */}
+                  <div className="convoy-t2">
+                    <svg width="110" height="28" viewBox="0 0 110 28" fill="none">
+                      <rect x="2" y="5" width="60" height="16" rx="2" fill={containerColors[1]} fillOpacity="0.8" />
+                      <line x1="22" y1="5" x2="22" y2="21" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
+                      <line x1="42" y1="5" x2="42" y2="21" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
+                      <rect x="58" y="7" width="3" height="11" rx="1" fill="rgba(255,255,255,0.07)" />
+                      <rect x="0" y="21" width="63" height="3" rx="1" fill="#1e293b" />
+                      <circle cx="10" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="10" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="24" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="24" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="48" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="48" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="56" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="56" cy="25" r="1.2" fill="#334155" />
+                      <rect x="63" y="9" width="24" height="13" rx="3" fill="#1e3a5f" stroke={curOpt.color} strokeOpacity="0.5" strokeWidth="0.8" />
+                      <rect x="66" y="11" width="8" height="6" rx="1" fill={curOpt.color} fillOpacity="0.3" />
+                      <rect x="84" y="13" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
+                      <circle cx="70" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="70" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="84" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="84" cy="25" r="1.2" fill="#334155" />
+                      <rect x="87" y="12" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
+                  </div>
+                  {/* Truck 3 — más pequeño */}
+                  <div className="convoy-t3">
+                    <svg width="90" height="28" viewBox="0 0 90 28" fill="none">
+                      <rect x="2" y="6" width="50" height="15" rx="2" fill={containerColors[2]} fillOpacity="0.9" />
+                      <line x1="19" y1="6" x2="19" y2="21" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+                      <line x1="36" y1="6" x2="36" y2="21" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+                      <rect x="0" y="21" width="53" height="3" rx="1" fill="#1e293b" />
+                      <circle cx="9" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="9" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="40" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="40" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="48" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="48" cy="25" r="1.2" fill="#334155" />
+                      <rect x="53" y="10" width="22" height="12" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.4" strokeWidth="0.8" />
+                      <rect x="56" y="12" width="7" height="5" rx="1" fill={c} fillOpacity="0.25" />
+                      <rect x="70" y="13" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
+                      <circle cx="60" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="60" cy="25" r="1.2" fill="#334155" />
+                      <circle cx="72" cy="25" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="72" cy="25" r="1.2" fill="#334155" />
+                      <rect x="75" y="13" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -832,17 +906,14 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
           <style>{`
-            @keyframes truckScroll {
-              0%   { transform: translateX(108%); }
-              100% { transform: translateX(-108%); }
-            }
-            @keyframes truckScrollAlt {
-              0%   { transform: translateX(-108%); }
-              100% { transform: translateX(108%); }
-            }
-            .vial-truck-track { overflow: hidden; position: relative; height: 26px; pointer-events: none; }
-            .vial-truck-fwd   { position: absolute; white-space: nowrap; animation: truckScroll 10s linear infinite; font-size: 18px; top: 3px; }
-            .vial-truck-bwd   { position: absolute; white-space: nowrap; animation: truckScrollAlt 13s linear infinite; font-size: 18px; top: 3px; }
+            @keyframes vconv1 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            @keyframes vconv2 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            @keyframes vconv3 { 0% { transform: translateX(110%); } 100% { transform: translateX(-110%); } }
+            .vconv-lane { overflow: hidden; position: relative; height: 34px; pointer-events: none; border-radius: 6px; }
+            .vconv-road { position: absolute; bottom: 7px; left: 0; right: 0; height: 2px; background: rgba(255,255,255,0.06); }
+            .vconv-t1 { position: absolute; bottom: 7px; animation: vconv1 11s linear infinite; }
+            .vconv-t2 { position: absolute; bottom: 7px; animation: vconv2 16s linear infinite 5s; }
+            .vconv-t3 { position: absolute; bottom: 7px; animation: vconv3 13s linear infinite 8.5s; }
             @media (min-width: 640px) {
               .vial-btn-grid { grid-template-columns: repeat(4, 1fr) !important; }
             }
@@ -855,18 +926,81 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           {VIALIDADES.map((v, idx) => {
             const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-            const truckClass = idx % 2 === 0 ? "vial-truck-fwd" : "vial-truck-bwd";
-            const truckEmoji = idx % 3 === 0 ? "🚛" : idx % 3 === 1 ? "🚚" : "🚜";
+            const c = curOpt.color;
+            const altColor = ["#38bdf8","#a78bfa","#34d399","#f97316","#64748b"][idx % 5];
             return (
-              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
-                {/* Truck animation lane */}
-                <div className="vial-truck-track" style={{ marginBottom: "8px", borderRadius: "4px", background: `linear-gradient(90deg, transparent 0%, ${curOpt.color}0a 50%, transparent 100%)` }}>
-                  <div className={truckClass}>
-                    {truckEmoji}&nbsp;
-                    <span style={{ fontSize: "10px", fontFamily: MN, color: curOpt.color, fontWeight: "700", verticalAlign: "middle", letterSpacing: "1px" }}>
-                      {v.name.toUpperCase()} — {curOpt.label.toUpperCase()}
-                    </span>
-                    &nbsp;&nbsp;&nbsp;{truckEmoji}
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${c}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                {/* SVG convoy lane */}
+                <div className="vconv-lane" style={{ marginBottom: "8px", background: `linear-gradient(90deg, rgba(0,0,0,0.25) 0%, ${c}0a 50%, rgba(0,0,0,0.25) 100%)` }}>
+                  <div className="vconv-road" />
+                  <div className="vconv-t1">
+                    <svg width="115" height="26" viewBox="0 0 115 26" fill="none">
+                      <rect x="2" y="4" width="68" height="16" rx="2" fill={c} fillOpacity="0.8" />
+                      <line x1="24" y1="4" x2="24" y2="20" stroke="rgba(255,255,255,0.14)" strokeWidth="0.8" />
+                      <line x1="46" y1="4" x2="46" y2="20" stroke="rgba(255,255,255,0.14)" strokeWidth="0.8" />
+                      <rect x="64" y="6" width="5" height="12" rx="1" fill="rgba(255,255,255,0.07)" />
+                      <rect x="0" y="19" width="70" height="3" rx="1" fill="#1e293b" />
+                      <circle cx="11" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="11" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="26" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="26" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="52" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="52" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="61" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="61" cy="23" r="1.2" fill="#334155" />
+                      <rect x="70" y="7" width="25" height="13" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.55" strokeWidth="0.8" />
+                      <rect x="73" y="9" width="9" height="6" rx="1" fill={c} fillOpacity="0.3" />
+                      <rect x="90" y="12" width="4" height="4" rx="1" fill="#f97316" fillOpacity="0.85" />
+                      <circle cx="78" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="78" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="91" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="91" cy="23" r="1.2" fill="#334155" />
+                      <rect x="95" y="10" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
+                  </div>
+                  <div className="vconv-t2">
+                    <svg width="100" height="26" viewBox="0 0 100 26" fill="none">
+                      <rect x="2" y="5" width="56" height="14" rx="2" fill={altColor} fillOpacity="0.75" />
+                      <line x1="21" y1="5" x2="21" y2="19" stroke="rgba(255,255,255,0.13)" strokeWidth="0.8" />
+                      <line x1="40" y1="5" x2="40" y2="19" stroke="rgba(255,255,255,0.13)" strokeWidth="0.8" />
+                      <rect x="0" y="19" width="58" height="3" rx="1" fill="#1e293b" />
+                      <circle cx="9" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="9" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="44" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="44" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="52" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="52" cy="23" r="1.2" fill="#334155" />
+                      <rect x="58" y="8" width="22" height="12" rx="3" fill="#1e3a5f" stroke={altColor} strokeOpacity="0.5" strokeWidth="0.8" />
+                      <rect x="61" y="10" width="7" height="5" rx="1" fill={altColor} fillOpacity="0.28" />
+                      <rect x="75" y="12" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
+                      <circle cx="65" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="65" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="77" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="77" cy="23" r="1.2" fill="#334155" />
+                      <rect x="80" y="11" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
+                  </div>
+                  <div className="vconv-t3">
+                    <svg width="88" height="26" viewBox="0 0 88 26" fill="none">
+                      <rect x="2" y="6" width="48" height="13" rx="2" fill="#334155" fillOpacity="0.95" />
+                      <line x1="18" y1="6" x2="18" y2="19" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" />
+                      <line x1="34" y1="6" x2="34" y2="19" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" />
+                      <rect x="0" y="19" width="50" height="3" rx="1" fill="#1e293b" />
+                      <circle cx="8" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="8" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="37" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="37" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="45" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="45" cy="23" r="1.2" fill="#334155" />
+                      <rect x="50" y="9" width="21" height="11" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.4" strokeWidth="0.8" />
+                      <rect x="53" y="11" width="7" height="4" rx="1" fill={c} fillOpacity="0.22" />
+                      <rect x="66" y="12" width="3" height="3" rx="1" fill="#f97316" fillOpacity="0.8" />
+                      <circle cx="57" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="57" cy="23" r="1.2" fill="#334155" />
+                      <circle cx="68" cy="23" r="3" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+                      <circle cx="68" cy="23" r="1.2" fill="#334155" />
+                      <rect x="71" y="12" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.9" />
+                    </svg>
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
@@ -874,7 +1008,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
                     <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
                     <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: MN, marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: c + "22", border: `1px solid ${c}66`, color: c, padding: "4px 10px", borderRadius: "6px", fontFamily: MN, fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
                 </div>
                 <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
                   {VIALIDAD_STATUS_OPTIONS.map(o => (
