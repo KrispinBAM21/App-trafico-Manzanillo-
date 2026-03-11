@@ -869,7 +869,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   }, []);
 
   const voteAcceso = async (id, newStatus) => {
-    const acc = accesos[id];
+    const acc = accesos?.[id];
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
@@ -891,7 +891,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   };
 
   const voteVialidad = async (id, newStatus) => {
-    const v = vialidades[id];
+    const v = vialidades?.[id];
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
@@ -1729,11 +1729,11 @@ function TerminalesTab({ myId }) {
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
-  const stMap     = zona === "norte" ? stN : stS;
+  const stMap     = zona === "norte" ? (stN || {}) : (stS || {});
   const setSt     = zona === "norte" ? setStN : setStS;
 
   // Ticker items — todas las terminales con su estado
-  const tickerItems = [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
+  const tickerItems = (!stN || !stS) ? [] : [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
     const st = (TERMINALS_NORTE.find(x => x.id === t.id) ? stN : stS)[t.id];
     const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st?.status) || TERMINAL_STATUS_OPTIONS[0];
     return { text: `${t.name} — ${opt.label.toUpperCase()}`, color: opt.color };
@@ -1790,7 +1790,7 @@ function TerminalesTab({ myId }) {
     const [statusGanador, votosGanador] = ganadora;
     // Optimistic update
     const setSt2 = zona === "norte" ? setStN : setStS;
-    setSt2(prev => ({ ...prev, [termId]: { ...prev[termId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` } }));
+    setSt2(prev => ({ ...(prev || {}), [termId]: { ...(prev?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` } }));
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
@@ -1829,7 +1829,7 @@ function TerminalesTab({ myId }) {
       </div>
       <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
       {(!stN || !stS) ? <SkeletonCard n={4}/> : terminals.map(terminal => {
-        const st  = stMap[terminal.id];
+        const st  = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"..." };
         const opt = getOpt(st.status);
         return (
           <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
@@ -2618,7 +2618,7 @@ function PatioReguladorTab({ myId }) {
     notify("✓ Patio marcado como Libre", "#22c55e");
   };
 
-  const patioTickerItems = PATIOS_REGULADORES.map(p => {
+  const patioTickerItems = !patios ? [] : PATIOS_REGULADORES.map(p => {
     const st  = patios[p.id] || { status:"libre" };
     const opt = PATIO_STATUS_OPTIONS.find(o => o.id === st.status) || PATIO_STATUS_OPTIONS[0];
     return { text: `${p.name} — ${opt.label.toUpperCase()}`, color: opt.color };
