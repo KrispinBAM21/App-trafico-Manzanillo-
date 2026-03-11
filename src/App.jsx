@@ -1455,7 +1455,8 @@ function TypewriterTicker({ items }) {
 
   useEffect(() => {
     if (!items || items.length === 0) return;
-    const full = items[idx % items.length];
+    const item = items[idx % items.length];
+    const full = item.text || "";
 
     const tick = () => {
       if (phase === "typing") {
