@@ -1885,10 +1885,13 @@ function TerminalesTab({ myId }) {
 // ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
 // ─── SLOT TEXT ───────────────────────────────────────────────────────────────
 function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700", delay = 0 }) {
-  const [displayed, setDisplayed] = useState("");
-  const prevRef  = useRef(null);
+  const [displayed, setDisplayed] = useState(value);
+  const valueRef = useRef(value);   // siempre tiene el valor más reciente
   const ivRef    = useRef(null);
-  const doneRef  = useRef(false);
+  const tRef     = useRef(null);
+  const animatedOnce = useRef(false);
+
+  valueRef.current = value;
 
   const reveal = (target) => {
     clearInterval(ivRef.current);
@@ -1896,40 +1899,40 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
     let i = 0;
     ivRef.current = setInterval(() => {
       i++;
-      setDisplayed(target.slice(0, i));
-      if (i >= target.length) {
+      // Usar siempre valueRef.current por si cambia durante la animación
+      const current = valueRef.current;
+      setDisplayed(current.slice(0, i));
+      if (i >= current.length) {
         clearInterval(ivRef.current);
-        doneRef.current = true;
+        setDisplayed(current); // garantía final
       }
-    }, 40);
+    }, 45);
   };
 
-  // Animación inicial con delay escalonado
+  // Animación al montar — usa valueRef para tomar el valor más actualizado
   useEffect(() => {
-    const t = setTimeout(() => {
-      prevRef.current = value;
-      reveal(value);
+    tRef.current = setTimeout(() => {
+      animatedOnce.current = true;
+      reveal(valueRef.current);
     }, delay);
-    return () => { clearTimeout(t); clearInterval(ivRef.current); };
+    return () => { clearTimeout(tRef.current); clearInterval(ivRef.current); };
   }, []);
 
-  // Animación cuando cambia el valor real
+  // Animación cuando cambia el valor después del montado
   useEffect(() => {
-    if (prevRef.current === null) return;
-    if (prevRef.current === value) return;
-    prevRef.current = value;
+    if (!animatedOnce.current) return;
     reveal(value);
   }, [value]);
 
   return (
-    <span style={{ color, fontSize, fontWeight, fontFamily:"monospace", display:"inline-block" }}>
-      {displayed || <span style={{ opacity:0 }}>{value}</span>}
+    <span style={{ color, fontSize, fontWeight, fontFamily:"monospace", display:"inline-block", minWidth:"2ch" }}>
+      {displayed}
     </span>
   );
 }
 
 function SegundoAccesoTab() {
-  const [carriles, setCarriles] = useState(mkSegundoIngreso);
+  const [carriles, setCarriles] = useState(null); // null = esperando Supabase
   const [toast,    setToast]    = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
 
@@ -1952,6 +1955,7 @@ function SegundoAccesoTab() {
   }, []);
 
   const updateIngreso = async (id, field, value) => {
+    if (!carriles) return;
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next);
     await saveToSupa(next);
@@ -1997,7 +2001,7 @@ function SegundoAccesoTab() {
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
         <div style={{ display:"flex", gap:"8px" }}>
-          {SEGUNDO_CARRILES_INGRESO.map((c, i) => {
+          {!carriles ? <SkeletonCard n={1}/> : SEGUNDO_CARRILES_INGRESO.map((c, i) => {
             const st = carriles[c.id];
             const bc = st.saturado ? "#ef4444" : "#22c55e";
             const tz = getTermZona(st.terminal);
@@ -2019,13 +2023,13 @@ function SegundoAccesoTab() {
               </div>
             );
           })}
-          <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
+          {carriles && <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
             <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:MN, fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>C4</div>
             <div style={{ fontSize:"clamp(10px,1.8vw,14px)", color:"#f97316", fontFamily:MN, fontWeight:"700" }}>SALIDA</div>
             <div>
               <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="clamp(12px,2vw,16px)" delay={540} />
             </div>
-          </div>
+          </div>}
         </div>
         <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
           {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
