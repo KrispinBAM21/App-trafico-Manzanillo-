@@ -2802,6 +2802,40 @@ function InicioTab({ isAdmin, logout }) {
         </div>
       </div>
 
+      {/* ─── MAPA MANZANILLO ─────────────────────────────────────────────────── */}
+      <div style={{ marginBottom:"28px", borderRadius:"16px", overflow:"hidden", border:"1px solid rgba(56,189,248,0.2)", boxShadow:"0 0 24px rgba(56,189,248,0.08)" }}>
+        {/* Header */}
+        <div style={{ background:"rgba(56,189,248,0.08)", borderBottom:"1px solid rgba(56,189,248,0.15)", padding:"10px 14px", display:"flex", alignItems:"center", gap:"8px" }}>
+          <span style={{ fontSize:"14px" }}>📍</span>
+          <span style={{ fontFamily:MN, fontSize:"10px", fontWeight:"700", color:"#38bdf8", letterSpacing:"1.5px" }}>MANZANILLO, COLIMA · PUERTO INDUSTRIAL</span>
+        </div>
+        {/* Mapa embebido — OpenStreetMap centrado en Manzanillo */}
+        <div style={{ position:"relative", width:"100%", paddingBottom:"56%", background:"#0d1f3c" }}>
+          <iframe
+            title="Mapa Manzanillo"
+            src="https://www.openstreetmap.org/export/embed.html?bbox=-104.3800%2C19.0200%2C-104.2600%2C19.1400&layer=mapnik&marker=19.0800%2C-104.3200"
+            style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", border:"none", filter:"hue-rotate(200deg) saturate(0.7) brightness(0.75)" }}
+            allowFullScreen
+          />
+          {/* Pin overlay */}
+          <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", pointerEvents:"none", zIndex:10, display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
+            <div style={{ background:"rgba(56,189,248,0.92)", borderRadius:"50%", width:"14px", height:"14px", boxShadow:"0 0 0 4px rgba(56,189,248,0.3), 0 0 16px rgba(56,189,248,0.6)" }}/>
+            <div style={{ width:"2px", height:"10px", background:"rgba(56,189,248,0.7)" }}/>
+          </div>
+        </div>
+        {/* Imagen letras Manzanillo */}
+        <div style={{ position:"relative", overflow:"hidden" }}>
+          <img
+            src="https://www.eternal-expat.com/wp-content/uploads/2020/09/IMG_1988.jpg"
+            alt="Letras Manzanillo"
+            style={{ width:"100%", height:"140px", objectFit:"cover", objectPosition:"center 60%", display:"block" }}
+            onError={e => { e.target.style.display='none'; }}
+          />
+          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(6,14,26,0.7) 0%, transparent 50%)" }}/>
+          <div style={{ position:"absolute", bottom:"10px", left:"14px", fontFamily:MN, fontSize:"11px", fontWeight:"700", color:"rgba(255,255,255,0.85)", letterSpacing:"2px" }}>MANZANILLO, COL.</div>
+        </div>
+      </div>
+
       {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
       <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
