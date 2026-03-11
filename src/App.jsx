@@ -609,86 +609,125 @@ function NavBar({ active, set }) {
 // ─── CONVOY SCENE ────────────────────────────────────────────────────────────
 function ConvoyScene({ accentColor }) {
   const c = accentColor || "#38bdf8";
-  return (
-    <div style={{ position:"relative", width:"100%", height:"90px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none" }}>
-      <style>{`
-        @keyframes cs_truck1 { 0%{left:-240px} 100%{left:110%} }
-        @keyframes cs_truck2 { 0%{left:-240px} 100%{left:110%} }
-        @keyframes cs_truck3 { 0%{left:-240px} 100%{left:110%} }
-        @keyframes cs_cable  { 0%,25%{height:12px} 45%,60%{height:52px} 78%,100%{height:12px} }
-        .cs_tr1 { position:absolute; bottom:17px; animation:cs_truck1 9s  linear infinite 0s; }
-        .cs_tr2 { position:absolute; bottom:17px; animation:cs_truck2 9s  linear infinite 3s; }
-        .cs_tr3 { position:absolute; bottom:17px; animation:cs_truck3 9s  linear infinite 6s; }
-        .cs_kb  { position:absolute; top:22px; left:calc(50% - 2px); width:4px; background:#2d2d2d; border-radius:0 0 2px 2px; animation:cs_cable 9s ease-in-out infinite 0s; }
-      `}</style>
 
-      {/* Fondo: cielo nocturno + piso portuario */}
+  // Usamos un id unico por instancia para no colisionar keyframes entre tarjetas
+  const uid = accentColor ? accentColor.replace('#','') : 'def';
+
+  const sceneRef     = useRef(null);
+  const truckRef     = useRef(null);
+  const cableRef     = useRef(null);
+  const boxRef       = useRef(null);
+  const xRef         = useRef(-220);
+  const stateRef     = useRef('driving'); // driving | stopping | lifting | exit
+  const rafRef       = useRef(null);
+
+  useEffect(() => {
+    let paused = false;
+
+    function step() {
+      if (paused) return;
+      const scene  = sceneRef.current;
+      const truck  = truckRef.current;
+      const cable  = cableRef.current;
+      const box    = boxRef.current;
+      if (!scene || !truck || !cable || !box) {
+        rafRef.current = requestAnimationFrame(step);
+        return;
+      }
+
+      const W      = scene.offsetWidth || 360;
+      const GRUA_X = W * 0.5 - 105; // punto donde el trailer queda bajo la grua
+
+      if (stateRef.current === 'driving') {
+        xRef.current += 2;
+        truck.style.left = xRef.current + 'px';
+        if (xRef.current >= GRUA_X) {
+          stateRef.current = 'stopping';
+          // Bajar cable
+          cable.style.transition = 'height 1.2s ease-in-out';
+          cable.style.height = '50px';
+          setTimeout(() => {
+            // Quitar contenedor del trailer
+            box.style.transition = 'opacity 0.3s';
+            box.style.opacity    = '0';
+            cable.style.transition = 'height 1.1s ease-in-out';
+            cable.style.height   = '12px';
+            setTimeout(() => {
+              stateRef.current = 'exit';
+            }, 1200);
+          }, 1300);
+        }
+      } else if (stateRef.current === 'exit') {
+        xRef.current += 2;
+        truck.style.left = xRef.current + 'px';
+        if (xRef.current > W + 20) {
+          // Reset
+          xRef.current = -220;
+          truck.style.left = '-220px';
+          cable.style.transition = 'none';
+          cable.style.height = '12px';
+          box.style.transition   = 'none';
+          box.style.opacity      = '1';
+          stateRef.current = 'driving';
+        }
+      }
+      rafRef.current = requestAnimationFrame(step);
+    }
+
+    rafRef.current = requestAnimationFrame(step);
+    return () => {
+      paused = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <div ref={sceneRef} style={{ position:"relative", width:"100%", height:"90px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none" }}>
+
+      {/* Fondo ciudad portuaria */}
       <svg width="100%" height="90" viewBox="0 0 800 90" preserveAspectRatio="xMidYMid slice"
            style={{position:"absolute",top:0,left:0}}>
         <defs>
-          <linearGradient id={`csbg_${c.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#060e1a"/>
-            <stop offset="68%"  stopColor="#0d1f3c"/>
-            <stop offset="68%"  stopColor="#37474f"/>
+          <linearGradient id={`csbg${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stopColor="#060e1a"/>
+            <stop offset="67%" stopColor="#0d1f3c"/>
+            <stop offset="67%" stopColor="#37474f"/>
             <stop offset="100%" stopColor="#263238"/>
           </linearGradient>
         </defs>
-        <rect width="800" height="90" fill={`url(#csbg_${c.replace('#','')})`}/>
+        <rect width="800" height="90" fill={`url(#csbg${uid})`}/>
         {/* Montañas */}
-        <polygon points="0,52 70,26 150,46 230,20 320,42 410,16 500,38 590,14 680,34 760,18 800,28 800,62 0,62" fill="#0a1828" opacity="0.85"/>
-        {/* Edificios fondo */}
-        <rect x="10"  y="34" width="12" height="28" fill="#0e2238"/><rect x="10"  y="32" width="12" height="4" fill="#142d4c"/>
-        <rect x="28"  y="26" width="9"  height="36" fill="#0f2540"/><rect x="28"  y="24" width="9"  height="4" fill="#1a3a5c"/>
-        <rect x="44"  y="38" width="14" height="24" fill="#0d1f3a"/>
-        <rect x="64"  y="22" width="7"  height="40" fill="#0e2238"/><rect x="64"  y="20" width="7"  height="4" fill="#1a3a5c"/>
-        <rect x="78"  y="30" width="11" height="32" fill="#0f2540"/>
-        <rect x="96"  y="18" width="8"  height="44" fill="#0d1e38"/><rect x="96"  y="16" width="8"  height="4" fill="#142d4c"/>
-        <rect x="160" y="22" width="10" height="40" fill="#0e2238"/><rect x="160" y="20" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="178" y="14" width="7"  height="48" fill="#0d1e38"/><rect x="178" y="12" width="7"  height="4" fill="#142d4c"/>
-        <rect x="650" y="20" width="10" height="42" fill="#0e2238"/><rect x="650" y="18" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="668" y="14" width="14" height="48" fill="#0d1e38"/><rect x="668" y="12" width="14" height="4" fill="#142d4c"/>
-        <rect x="690" y="26" width="9"  height="36" fill="#0f2540"/><rect x="690" y="24" width="9"  height="4" fill="#142d4c"/>
-        <rect x="706" y="18" width="12" height="44" fill="#0e2238"/><rect x="706" y="16" width="12" height="4" fill="#1a3a5c"/>
-        <rect x="726" y="30" width="8"  height="32" fill="#0d1f3a"/>
-        <rect x="742" y="22" width="11" height="40" fill="#0f2540"/><rect x="742" y="20" width="11" height="4" fill="#142d4c"/>
-        <rect x="762" y="16" width="9"  height="46" fill="#0e2036"/><rect x="762" y="14" width="9"  height="4" fill="#1a3a5c"/>
-        <rect x="778" y="28" width="14" height="34" fill="#101e36"/>
-        {/* Ventanas con brillo del color acento */}
+        <polygon points="0,52 80,26 160,46 240,20 330,42 420,16 510,38 600,14 690,34 770,18 800,28 800,62 0,62" fill="#0a1828" opacity="0.85"/>
+        {/* Edificios izquierda */}
+        <rect x="10" y="34" width="12" height="28" fill="#0e2238"/><rect x="10" y="32" width="12" height="4" fill="#142d4c"/>
+        <rect x="28" y="26" width="9"  height="36" fill="#0f2540"/><rect x="28" y="24" width="9"  height="4" fill="#1a3a5c"/>
+        <rect x="44" y="38" width="14" height="24" fill="#0d1f3a"/>
+        <rect x="64" y="22" width="7"  height="40" fill="#0e2238"/><rect x="64" y="20" width="7"  height="4" fill="#1a3a5c"/>
+        <rect x="78" y="30" width="11" height="32" fill="#0f2540"/>
+        {/* Edificios derecha */}
+        <rect x="660" y="24" width="10" height="38" fill="#0e2238"/><rect x="660" y="22" width="10" height="4" fill="#1a3a5c"/>
+        <rect x="678" y="16" width="14" height="46" fill="#0d1e38"/><rect x="678" y="14" width="14" height="4" fill="#142d4c"/>
+        <rect x="700" y="28" width="9"  height="34" fill="#0f2540"/><rect x="700" y="26" width="9"  height="4" fill="#142d4c"/>
+        <rect x="716" y="20" width="12" height="42" fill="#0e2238"/><rect x="716" y="18" width="12" height="4" fill="#1a3a5c"/>
+        <rect x="736" y="32" width="8"  height="30" fill="#0d1f3a"/>
+        <rect x="752" y="22" width="11" height="40" fill="#0f2540"/><rect x="752" y="20" width="11" height="4" fill="#142d4c"/>
+        <rect x="770" y="18" width="9"  height="44" fill="#0e2036"/><rect x="770" y="16" width="9"  height="4" fill="#1a3a5c"/>
+        {/* Ventanas */}
         <rect x="12"  y="36" width="3" height="2" fill={c} fillOpacity="0.2"/>
         <rect x="66"  y="24" width="3" height="2" fill={c} fillOpacity="0.16"/>
-        <rect x="98"  y="20" width="3" height="2" fill={c} fillOpacity="0.22"/>
-        <rect x="162" y="24" width="3" height="2" fill={c} fillOpacity="0.18"/>
-        <rect x="652" y="22" width="3" height="2" fill={c} fillOpacity="0.18"/>
-        <rect x="670" y="16" width="3" height="2" fill={c} fillOpacity="0.14"/>
-        <rect x="708" y="20" width="3" height="2" fill={c} fillOpacity="0.20"/>
-        <rect x="744" y="24" width="3" height="2" fill={c} fillOpacity="0.16"/>
-        {/* Grúa portuaria izquierda */}
-        <line x1="120" y1="62" x2="120" y2="14" stroke="#1e3a5c" strokeWidth="3"/>
-        <line x1="120" y1="14" x2="155" y2="14" stroke="#1e3a5c" strokeWidth="2.5"/>
-        <line x1="155" y1="14" x2="155" y2="40" stroke="#1e3a5c" strokeWidth="2"/>
-        <line x1="120" y1="14" x2="100" y2="28" stroke="#1e3a5c" strokeWidth="2"/>
+        <rect x="662" y="26" width="3" height="2" fill={c} fillOpacity="0.18"/>
+        <rect x="680" y="18" width="3" height="2" fill={c} fillOpacity="0.14"/>
+        <rect x="718" y="22" width="3" height="2" fill={c} fillOpacity="0.20"/>
+        <rect x="754" y="24" width="3" height="2" fill={c} fillOpacity="0.16"/>
         {/* Mar */}
         <rect x="0" y="62" width="800" height="28" fill="#071526"/>
-        <line x1="0" y1="62" x2="800" y2="62" stroke={c} strokeOpacity="0.15" strokeWidth="1"/>
-        <path d="M0,65 Q50,63 100,65 Q150,67 200,65 Q250,63 300,65 Q350,67 400,65 Q450,63 500,65 Q550,67 600,65 Q650,63 700,65 Q750,67 800,65" stroke={c} strokeOpacity="0.08" strokeWidth="0.8" fill="none"/>
+        <line x1="0" y1="62" x2="800" y2="62" stroke={c} strokeOpacity="0.14" strokeWidth="1"/>
+        <path d="M0,65 Q100,63 200,65 Q300,67 400,65 Q500,63 600,65 Q700,67 800,65" stroke={c} strokeOpacity="0.07" strokeWidth="0.8" fill="none"/>
         {/* Asfalto */}
         <rect x="0" y="58" width="800" height="6" fill="#111827"/>
-        <rect x="0"   y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="50"  y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="100" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="150" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="200" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="250" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="300" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="350" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="400" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="450" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="500" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="550" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="600" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="650" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="700" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="750" y="60" width="30" height="1" fill="rgba(255,255,255,0.07)"/>
+        {[0,50,100,150,200,250,300,350,400,450,500,550,600,650,700,750].map((x,i) => (
+          <rect key={i} x={x} y="60" width="28" height="1" fill="rgba(255,255,255,0.07)"/>
+        ))}
       </svg>
 
       {/* Monumento Pez Vela — fijo izquierda */}
@@ -704,87 +743,64 @@ function ConvoyScene({ accentColor }) {
         </svg>
       </div>
 
-      {/* Grúa portuaria — fija centro */}
-      <div style={{ position:"absolute", bottom:"17px", left:"50%", transform:"translateX(-50%)", zIndex:10, width:"70px" }}>
-        <svg viewBox="0 0 100 80" width="70" height="56" style={{display:"block"}}>
-          <rect x="42" y="0"  width="12" height="80" fill="#fbc02d"/>
-          <rect x="5"  y="0"  width="80" height="9"  fill="#fbc02d"/>
-          <line x1="48" y1="0"  x2="14" y2="9"  stroke="#f9a825" strokeWidth="2.5"/>
-          <line x1="48" y1="0"  x2="82" y2="9"  stroke="#f9a825" strokeWidth="2.5"/>
-          <rect x="5"  y="1"  width="14" height="12" fill="#e65100"/>
-          <circle cx="36" cy="80" r="4" fill="#1e293b"/>
-          <circle cx="60" cy="80" r="4" fill="#1e293b"/>
+      {/* Grúa portuaria — fija al 50% */}
+      <div style={{ position:"absolute", bottom:"17px", left:"50%", transform:"translateX(-50%)", zIndex:10, width:"72px" }}>
+        <svg viewBox="0 0 100 76" width="72" height="55" style={{display:"block"}}>
+          {/* Torre */}
+          <rect x="42" y="0"  width="12" height="76" fill="#fbc02d"/>
+          {/* Pluma */}
+          <rect x="4"  y="0"  width="82" height="9"  fill="#fbc02d"/>
+          {/* Tirantes */}
+          <line x1="48" y1="0" x2="12" y2="9" stroke="#f9a825" strokeWidth="2.5"/>
+          <line x1="48" y1="0" x2="84" y2="9" stroke="#f9a825" strokeWidth="2.5"/>
+          {/* Contrapeso */}
+          <rect x="4"  y="1"  width="14" height="12" fill="#e65100"/>
+          {/* Ruedas */}
+          <circle cx="36" cy="76" r="4" fill="#1e293b"/>
+          <circle cx="60" cy="76" r="4" fill="#1e293b"/>
         </svg>
-        {/* Cable animado */}
-        <div className="cs_kb">
-          <div style={{ position:"absolute", bottom:0, left:"-12px", width:"28px", height:"5px", background:"#1e293b", borderRadius:"1px" }}/>
+        {/* Cable animado con ref */}
+        <div ref={cableRef} style={{
+          position:"absolute", top:"9px", left:"34px",
+          width:"4px", height:"12px",
+          background:"#2d2d2d", borderRadius:"0 0 2px 2px"
+        }}>
+          {/* Spreader */}
+          <div style={{ position:"absolute", bottom:0, left:"-13px", width:"30px", height:"5px", background:"#1e293b", borderRadius:"1px" }}/>
         </div>
       </div>
 
-      {/* Tráiler 1 — contenedor color acento */}
-      <div className="cs_tr1">
-        <svg viewBox="0 0 210 52" width="210" height="52">
-          <rect x="0" y="8" width="138" height="36" rx="2" fill={c} fillOpacity="0.85"/>
-          <line x1="46"  y1="8" x2="46"  y2="44" stroke="rgba(255,255,255,0.18)" strokeWidth="0.9"/>
-          <line x1="92"  y1="8" x2="92"  y2="44" stroke="rgba(255,255,255,0.18)" strokeWidth="0.9"/>
-          <rect x="132" y="10" width="5"  height="32" rx="1" fill="rgba(255,255,255,0.08)"/>
-          <rect x="0" y="42" width="210" height="5" rx="1" fill="#1e293b"/>
-          <path d="M138,12 h38 a16,16 0 0 1 16,16 v18 h-54 z" fill="#1e3a5f" stroke={c} strokeOpacity="0.5" strokeWidth="0.8"/>
-          <rect x="142" y="15" width="18" height="11" rx="2" fill={c} fillOpacity="0.28"/>
-          <rect x="162" y="15" width="10" height="11" rx="1" fill={c} fillOpacity="0.14"/>
-          <rect x="190" y="18" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
-          <rect x="0"   y="34" width="4" height="6" rx="1" fill="#ef4444" fillOpacity="0.8"/>
-          <circle cx="20"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="20"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="38"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="38"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="90"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="90"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="108" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="108" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="155" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="155" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="188" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="188" cy="49" r="2.4" fill="#1e293b"/>
+      {/* Tráiler animado */}
+      <div ref={truckRef} style={{ position:"absolute", bottom:"17px", left:"-220px", zIndex:5 }}>
+        <svg viewBox="0 0 210 48" width="210" height="48" style={{display:"block", overflow:"visible"}}>
+          {/* Chasis */}
+          <rect x="0" y="38" width="210" height="5" rx="1" fill="#1e293b"/>
+          {/* Cabina — derecha = frente de marcha (va izq→der... espera, va der→izq, cabina a la izquierda) */}
+          <path d="M138,10 h38 a16,16 0 0 1 16,16 v18 h-54 z" fill="#1e3a5f" stroke={c} strokeOpacity="0.5" strokeWidth="0.8"/>
+          <rect x="142" y="13" width="18" height="11" rx="2" fill={c} fillOpacity="0.28"/>
+          <rect x="162" y="13" width="10" height="11" rx="1" fill={c} fillOpacity="0.14"/>
+          <rect x="190" y="16" width="4" height="5"  rx="1" fill="#fef08a" fillOpacity="0.95"/>
+          <rect x="0"   y="30" width="4" height="6"  rx="1" fill="#ef4444" fillOpacity="0.8"/>
+          {/* Ruedas */}
+          <circle cx="20"  cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="20"  cy="45" r="2.4" fill="#1e293b"/>
+          <circle cx="38"  cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="38"  cy="45" r="2.4" fill="#1e293b"/>
+          <circle cx="90"  cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="90"  cy="45" r="2.4" fill="#1e293b"/>
+          <circle cx="108" cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="108" cy="45" r="2.4" fill="#1e293b"/>
+          <circle cx="155" cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="155" cy="45" r="2.4" fill="#1e293b"/>
+          <circle cx="188" cy="45" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="188" cy="45" r="2.4" fill="#1e293b"/>
         </svg>
-      </div>
-
-      {/* Tráiler 2 — contenedor azul acero */}
-      <div className="cs_tr2">
-        <svg viewBox="0 0 210 52" width="210" height="52">
-          <rect x="0" y="8" width="138" height="36" rx="2" fill="#2d4a6f" fillOpacity="0.92"/>
-          <line x1="46"  y1="8" x2="46"  y2="44" stroke="rgba(255,255,255,0.14)" strokeWidth="0.9"/>
-          <line x1="92"  y1="8" x2="92"  y2="44" stroke="rgba(255,255,255,0.14)" strokeWidth="0.9"/>
-          <rect x="132" y="10" width="5"  height="32" rx="1" fill="rgba(255,255,255,0.06)"/>
-          <rect x="0" y="42" width="210" height="5" rx="1" fill="#1e293b"/>
-          <path d="M138,12 h38 a16,16 0 0 1 16,16 v18 h-54 z" fill="#1e3a5f" stroke="#38bdf8" strokeOpacity="0.4" strokeWidth="0.8"/>
-          <rect x="142" y="15" width="18" height="11" rx="2" fill="#38bdf8" fillOpacity="0.22"/>
-          <rect x="162" y="15" width="10" height="11" rx="1" fill="#38bdf8" fillOpacity="0.1"/>
-          <rect x="190" y="18" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
-          <rect x="0"   y="34" width="4" height="6" rx="1" fill="#ef4444" fillOpacity="0.8"/>
-          <circle cx="20"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="20"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="38"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="38"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="90"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="90"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="108" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="108" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="155" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="155" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="188" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="188" cy="49" r="2.4" fill="#1e293b"/>
-        </svg>
-      </div>
-
-      {/* Tráiler 3 — contenedor rojo */}
-      <div className="cs_tr3">
-        <svg viewBox="0 0 210 52" width="210" height="52">
-          <rect x="0" y="8" width="138" height="36" rx="2" fill="#7f1d1d" fillOpacity="0.9"/>
-          <line x1="46"  y1="8" x2="46"  y2="44" stroke="rgba(255,255,255,0.12)" strokeWidth="0.9"/>
-          <line x1="92"  y1="8" x2="92"  y2="44" stroke="rgba(255,255,255,0.12)" strokeWidth="0.9"/>
-          <rect x="132" y="10" width="5"  height="32" rx="1" fill="rgba(255,255,255,0.06)"/>
-          <rect x="0" y="42" width="210" height="5" rx="1" fill="#1e293b"/>
-          <path d="M138,12 h38 a16,16 0 0 1 16,16 v18 h-54 z" fill="#1e3a5f" stroke="#f97316" strokeOpacity="0.45" strokeWidth="0.8"/>
-          <rect x="142" y="15" width="18" height="11" rx="2" fill="#f97316" fillOpacity="0.18"/>
-          <rect x="162" y="15" width="10" height="11" rx="1" fill="#f97316" fillOpacity="0.1"/>
-          <rect x="190" y="18" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
-          <rect x="0"   y="34" width="4" height="6" rx="1" fill="#ef4444" fillOpacity="0.8"/>
-          <circle cx="20"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="20"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="38"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="38"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="90"  cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="90"  cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="108" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="108" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="155" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="155" cy="49" r="2.4" fill="#1e293b"/>
-          <circle cx="188" cy="49" r="6" fill="#0f172a" stroke="#64748b" strokeWidth="1.2"/><circle cx="188" cy="49" r="2.4" fill="#1e293b"/>
-        </svg>
+        {/* Contenedor — separado del SVG para poder animarlo con ref */}
+        <div ref={boxRef} style={{
+          position:"absolute", bottom:"13px", left:"0px",
+          width:"136px", height:"28px",
+          background: c, opacity:1,
+          borderRadius:"2px",
+          border:"1px solid rgba(255,255,255,0.15)"
+        }}>
+          <div style={{position:"absolute",left:"45px", top:0,bottom:0,width:"1px",background:"rgba(255,255,255,0.18)"}}/>
+          <div style={{position:"absolute",left:"90px", top:0,bottom:0,width:"1px",background:"rgba(255,255,255,0.18)"}}/>
+          <div style={{position:"absolute",right:0,    top:0,bottom:0,width:"6px",background:"rgba(0,0,0,0.2)",borderRadius:"0 2px 2px 0"}}/>
+        </div>
       </div>
     </div>
   );
@@ -1794,8 +1810,7 @@ function TerminalesTab({ myId }) {
         const st  = stMap[terminal.id];
         const opt = getOpt(st.status);
         return (
-          <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08`, overflow:"hidden" }}>
-            <ConvoyScene accentColor={opt.color} />
+          <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
               <div>
                 <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{terminal.name}</div>
@@ -2537,8 +2552,7 @@ function PatioReguladorTab({ myId }) {
         const votes = st.pendingVoters || {};
         const totalVotes = Object.values(votes).reduce((a,b)=>a+b,0);
         return (
-          <div key={patio.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08`, overflow:"hidden" }}>
-            <ConvoyScene accentColor={opt.color} />
+          <div key={patio.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
               <div>
                 <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px" }}>{patio.name}</div>
