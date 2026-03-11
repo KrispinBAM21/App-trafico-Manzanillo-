@@ -610,178 +610,20 @@ function NavBar({ active, set }) {
 function ConvoyScene({ accentColor }) {
   const c = accentColor || "#38bdf8";
   return (
-    <div style={{ position:"relative", width:"100%", height:"72px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none" }}>
+    <div style={{ position:"relative", width:"100%", height:"90px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none", background:"#b2dfdb" }}>
       <style>{`
-        @keyframes cs_t1  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
-        @keyframes cs_t2  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
-        @keyframes cs_t3  { 0%{transform:translateX(105%)} 100%{transform:translateX(-105%)} }
-        @keyframes cs_pez { 0%{transform:translateX(110%)} 100%{transform:translateX(-110%)} }
-        .cs_t1  { position:absolute; bottom:14px; animation:cs_t1  11s linear infinite 0s;   }
-        .cs_t2  { position:absolute; bottom:14px; animation:cs_t2  14s linear infinite 4.5s; }
-        .cs_t3  { position:absolute; bottom:14px; animation:cs_t3  9s  linear infinite 8s;   }
-        .cs_pez { position:absolute; animation:cs_pez 18s linear infinite 2s; }
+        @keyframes cs_camion { 0%{left:-220px} 100%{left:110%} }
+        @keyframes cs_gancho { 0%,40%{height:30px} 55%,70%{height:60px} 85%,100%{height:30px} }
+        .cs_camion { position:absolute; bottom:8px; width:200px; animation:cs_camion 9s linear infinite; }
+        .cs_gancho { position:absolute; left:50%; transform:translateX(-8px); top:20px; width:5px; background:#333; animation:cs_gancho 9s ease-in-out infinite; border-radius:0 0 3px 3px; }
       `}</style>
-      <svg width="100%" height="72" viewBox="0 0 800 72" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",top:0,left:0}}>
-        <defs>
-          <linearGradient id="cssky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#060e1a"/>
-            <stop offset="100%" stopColor="#0d1f3c"/>
-          </linearGradient>
-          <linearGradient id="cssea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0c2340"/>
-            <stop offset="100%" stopColor="#071526"/>
-          </linearGradient>
-        </defs>
-        <rect width="800" height="72" fill="url(#cssky)"/>
-        <polygon points="0,48 60,22 120,40 180,18 260,38 330,16 400,34 460,20 520,36 580,14 650,32 720,18 800,30 800,72 0,72" fill="#0a1a30" opacity="0.7"/>
-        <rect x="20"  y="30" width="18" height="26" fill="#0f2540"/><rect x="20"  y="28" width="18" height="4" fill="#142d4c"/>
-        <rect x="44"  y="24" width="14" height="32" fill="#0e2238"/><rect x="44"  y="22" width="14" height="4" fill="#142d4c"/>
-        <rect x="90"  y="20" width="10" height="36" fill="#0e2238"/><rect x="90"  y="18" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="128" y="22" width="12" height="34" fill="#0d1f3a"/><rect x="128" y="20" width="12" height="4" fill="#142d4c"/>
-        <rect x="174" y="18" width="8"  height="38" fill="#0e2036"/><rect x="174" y="16" width="8"  height="4" fill="#1a3a5c"/>
-        <rect x="212" y="14" width="14" height="42" fill="#0d1e38"/><rect x="212" y="12" width="14" height="4" fill="#142d4c"/>
-        <rect x="276" y="16" width="10" height="40" fill="#0e2238"/><rect x="276" y="14" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="316" y="20" width="14" height="36" fill="#0d1f3a"/><rect x="316" y="18" width="14" height="4" fill="#142d4c"/>
-        <rect x="364" y="12" width="10" height="44" fill="#0e2036"/><rect x="364" y="10" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="402" y="22" width="20" height="34" fill="#101e36"/>
-        <rect x="428" y="18" width="12" height="38" fill="#0d1f3a"/><rect x="428" y="16" width="12" height="4" fill="#142d4c"/>
-        <rect x="470" y="14" width="8"  height="42" fill="#0e2238"/><rect x="470" y="12" width="8"  height="4" fill="#1a3a5c"/>
-        <rect x="510" y="20" width="14" height="36" fill="#0f2440"/><rect x="510" y="18" width="14" height="4" fill="#142d4c"/>
-        <rect x="552" y="16" width="10" height="40" fill="#0e2238"/><rect x="552" y="14" width="10" height="4" fill="#1a3a5c"/>
-        <rect x="614" y="12" width="8"  height="44" fill="#0d1e38"/><rect x="614" y="10" width="8"  height="4" fill="#142d4c"/>
-        <rect x="652" y="22" width="14" height="34" fill="#0e2238"/><rect x="652" y="20" width="14" height="4" fill="#1a3a5c"/>
-        <rect x="672" y="16" width="20" height="40" fill="#101e36"/><rect x="672" y="14" width="20" height="4" fill="#142d4c"/>
-        <rect x="714" y="18" width="16" height="38" fill="#0f2540"/><rect x="714" y="16" width="16" height="4" fill="#1a3a5c"/>
-        <rect x="754" y="14" width="10" height="42" fill="#0e2036"/><rect x="754" y="12" width="10" height="4" fill="#142d4c"/>
-        <rect x="22"  y="32" width="3" height="2" fill={c} fillOpacity="0.18"/>
-        <rect x="92"  y="22" width="3" height="2" fill={c} fillOpacity="0.20"/>
-        <rect x="130" y="24" width="3" height="2" fill={c} fillOpacity="0.14"/>
-        <rect x="176" y="20" width="3" height="2" fill={c} fillOpacity="0.18"/>
-        <rect x="278" y="18" width="3" height="2" fill={c} fillOpacity="0.16"/>
-        <rect x="366" y="14" width="3" height="2" fill={c} fillOpacity="0.20"/>
-        <rect x="512" y="22" width="3" height="2" fill={c} fillOpacity="0.18"/>
-        <rect x="654" y="24" width="3" height="2" fill={c} fillOpacity="0.16"/>
-        <line x1="580" y1="56" x2="580" y2="10" stroke="#1e3a5c" strokeWidth="2.5"/>
-        <line x1="580" y1="10" x2="620" y2="10" stroke="#1e3a5c" strokeWidth="2"/>
-        <line x1="620" y1="10" x2="620" y2="40" stroke="#1e3a5c" strokeWidth="1.5"/>
-        <line x1="580" y1="10" x2="558" y2="28" stroke="#1e3a5c" strokeWidth="1.5"/>
-        <line x1="600" y1="10" x2="600" y2="36" stroke="#1a3355" strokeWidth="1" strokeDasharray="2,3" opacity="0.5"/>
-        <line x1="700" y1="56" x2="700" y2="14" stroke="#1e3a5c" strokeWidth="2.5"/>
-        <line x1="700" y1="14" x2="736" y2="14" stroke="#1e3a5c" strokeWidth="2"/>
-        <line x1="736" y1="14" x2="736" y2="42" stroke="#1e3a5c" strokeWidth="1.5"/>
-        <line x1="700" y1="14" x2="680" y2="30" stroke="#1e3a5c" strokeWidth="1.5"/>
-        <line x1="718" y1="14" x2="718" y2="38" stroke="#1a3355" strokeWidth="1" strokeDasharray="2,3" opacity="0.5"/>
-        <rect x="0" y="56" width="800" height="16" fill="url(#cssea)"/>
-        <line x1="0" y1="56" x2="800" y2="56" stroke={c} strokeOpacity="0.18" strokeWidth="1"/>
-        <path d="M0,59 Q40,57 80,59 Q120,61 160,59 Q200,57 240,59 Q280,61 320,59 Q360,57 400,59 Q440,61 480,59 Q520,57 560,59 Q600,61 640,59 Q680,57 720,59 Q760,61 800,59" stroke={c} strokeOpacity="0.09" strokeWidth="0.8" fill="none"/>
-        <rect x="0" y="52" width="800" height="6" fill="#111827"/>
-        <rect x="0"   y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="60"  y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="120" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="180" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="240" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="300" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="360" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="420" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="480" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="540" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="600" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="660" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="720" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-        <rect x="780" y="54" width="36" height="1" fill="rgba(255,255,255,0.07)"/>
-      </svg>
 
-      {/* Trailer 1 — cabina izquierda (frente), contenedor derecha (atrás) */}
-      <div className="cs_t1">
-        <svg width="118" height="38" viewBox="0 0 118 38" fill="none">
-          {/* Cabina — al frente, lado izquierdo */}
-          <rect x="1" y="11" width="26" height="17" rx="3" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="0.8"/>
-          {/* Parabrisas */}
-          <rect x="4"  y="13" width="10" height="8" rx="1.5" fill={c} fillOpacity="0.35"/>
-          <rect x="16" y="13" width="7"  height="8" rx="1"   fill={c} fillOpacity="0.18"/>
-          {/* Faro delantero izquierdo */}
-          <rect x="1" y="15" width="3" height="3" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
-          {/* Luz lateral cabina */}
-          <rect x="1" y="21" width="4" height="3" rx="1" fill="#f97316" fillOpacity="0.5"/>
-          {/* Parachoque delantero */}
-          <rect x="0" y="25" width="4" height="3" rx="1" fill="#334155"/>
-          {/* Chasis cabina */}
-          <rect x="0" y="27" width="28" height="3" rx="1" fill="#111827"/>
-          {/* Ruedas cabina */}
-          <circle cx="8"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="8"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="22" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="22" cy="33" r="1.6" fill="#1e293b"/>
-          {/* Enganche */}
-          <rect x="26" y="28" width="6" height="2" rx="1" fill="#475569"/>
-          {/* Contenedor — detrás, lado derecho */}
-          <rect x="32" y="8" width="84" height="20" rx="2" fill={c} fillOpacity="0.82"/>
-          <line x1="60"  y1="8" x2="60"  y2="28" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8"/>
-          <line x1="88"  y1="8" x2="88"  y2="28" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8"/>
-          <rect x="112" y="10" width="4" height="16" rx="1" fill="rgba(255,255,255,0.07)"/>
-          {/* Chasis contenedor */}
-          <rect x="30" y="27" width="88" height="3" rx="1" fill="#111827"/>
-          {/* Ruedas contenedor */}
-          <circle cx="50"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="50"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="62"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="62"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="96"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="96"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="108" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="108" cy="33" r="1.6" fill="#1e293b"/>
-        </svg>
-      </div>
+      {/* Cielo y suelo */}
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,#b2dfdb 0%,#e0f2f1 70%,#546e7a 70%,#546e7a 100%)" }} />
 
-      {/* Trailer 2 — cabina izquierda, contenedor azul acero */}
-      <div className="cs_t2">
-        <svg width="105" height="38" viewBox="0 0 105 38" fill="none">
-          {/* Cabina */}
-          <rect x="1" y="12" width="24" height="16" rx="3" fill="#1e3a5f" stroke="#38bdf8" strokeOpacity="0.5" strokeWidth="0.8"/>
-          <rect x="4"  y="14" width="9"  height="7" rx="1.5" fill="#38bdf8" fillOpacity="0.3"/>
-          <rect x="15" y="14" width="6"  height="7" rx="1"   fill="#38bdf8" fillOpacity="0.15"/>
-          <rect x="1" y="16" width="3" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
-          <rect x="1" y="21" width="3" height="2.5" rx="1" fill="#f97316" fillOpacity="0.5"/>
-          <rect x="0" y="27" width="26" height="3" rx="1" fill="#111827"/>
-          <circle cx="7"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="7"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="20" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="20" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="24" y="28" width="5" height="2" rx="1" fill="#475569"/>
-          {/* Contenedor */}
-          <rect x="29" y="10" width="74" height="18" rx="2" fill="#2d4a6f" fillOpacity="0.92"/>
-          <line x1="53" y1="10" x2="53" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
-          <line x1="77" y1="10" x2="77" y2="28" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8"/>
-          <rect x="99" y="12" width="4" height="14" rx="1" fill="rgba(255,255,255,0.06)"/>
-          <rect x="27" y="27" width="78" height="3" rx="1" fill="#111827"/>
-          <circle cx="44" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="44" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="56" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="56" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="84" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="84" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="96" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="96" cy="33" r="1.6" fill="#1e293b"/>
-        </svg>
-      </div>
-
-      {/* Trailer 3 — cabina izquierda, contenedor rojo oxido */}
-      <div className="cs_t3">
-        <svg width="96" height="38" viewBox="0 0 96 38" fill="none">
-          {/* Cabina */}
-          <rect x="1" y="12" width="22" height="16" rx="3" fill="#1e3a5f" stroke="#f97316" strokeOpacity="0.45" strokeWidth="0.8"/>
-          <rect x="3"  y="14" width="8"  height="7" rx="1.5" fill="#f97316" fillOpacity="0.22"/>
-          <rect x="13" y="14" width="6"  height="7" rx="1"   fill="#f97316" fillOpacity="0.1"/>
-          <rect x="1" y="15" width="2.5" height="2.5" rx="0.5" fill="#fef08a" fillOpacity="0.95"/>
-          <rect x="1" y="21" width="3" height="2.5" rx="1" fill="#f97316" fillOpacity="0.5"/>
-          <rect x="0" y="27" width="24" height="3" rx="1" fill="#111827"/>
-          <circle cx="6"  cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="6"  cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="18" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="18" cy="33" r="1.6" fill="#1e293b"/>
-          <rect x="22" y="28" width="5" height="2" rx="1" fill="#475569"/>
-          {/* Contenedor */}
-          <rect x="27" y="10" width="67" height="18" rx="2" fill="#7f1d1d" fillOpacity="0.9"/>
-          <line x1="49" y1="10" x2="49" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
-          <line x1="71" y1="10" x2="71" y2="28" stroke="rgba(255,255,255,0.11)" strokeWidth="0.8"/>
-          <rect x="90" y="12" width="4" height="14" rx="1" fill="rgba(255,255,255,0.06)"/>
-          <rect x="25" y="27" width="71" height="3" rx="1" fill="#111827"/>
-          <circle cx="40" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="40" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="52" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="52" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="76" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="76" cy="33" r="1.6" fill="#1e293b"/>
-          <circle cx="88" cy="33" r="4" fill="#0a0f1e" stroke="#475569" strokeWidth="1.2"/><circle cx="88" cy="33" r="1.6" fill="#1e293b"/>
-        </svg>
-      </div>
-
-      {/* Pez Vela de Manzanillo — réplica exacta */}
-      <div className="cs_pez" style={{ bottom:"2px" }}>
-        <svg width="64" height="52" viewBox="0 0 1000 800" fill="none">
+      {/* Monumento Pez Vela — fijo a la izquierda */}
+      <div style={{ position:"absolute", bottom:"8px", left:"12px", width:"52px", zIndex:3 }}>
+        <svg viewBox="0 0 1000 800" width="52" height="42">
           <g fill="#2C8FEA" stroke="#2575C2" strokeWidth="2">
             <path d="M400,320 C350,280 200,240 180,240 L220,100 C240,110 380,180 400,320 Z"/>
             <path d="M400,320 C410,180 520,110 540,100 L580,240 C560,240 450,280 400,320 Z"/>
@@ -789,6 +631,54 @@ function ConvoyScene({ accentColor }) {
             <path d="M780,260 L850,285 L770,310 Z"/>
             <path d="M700,700 L840,700 L760,650 Z"/>
           </g>
+        </svg>
+      </div>
+
+      {/* Grúa portuaria — fija al centro */}
+      <div style={{ position:"absolute", bottom:"8px", left:"50%", transform:"translateX(-50%)", width:"80px", zIndex:4 }}>
+        <svg viewBox="0 0 200 160" width="80" height="64">
+          {/* Torre vertical */}
+          <rect x="88" y="20" width="16" height="140" fill="#fbc02d"/>
+          {/* Pluma horizontal */}
+          <rect x="10" y="20" width="160" height="12" fill="#fbc02d"/>
+          {/* Tirantes */}
+          <line x1="96" y1="20" x2="30"  y2="32" stroke="#f9a825" strokeWidth="3"/>
+          <line x1="96" y1="20" x2="160" y2="32" stroke="#f9a825" strokeWidth="3"/>
+          {/* Contrapeso */}
+          <rect x="10" y="22" width="22" height="22" fill="#e65100"/>
+          {/* Gancho animado */}
+          <rect x="93" y="32" width="6" height="30" fill="#424242" className="cs_gancho" style={{position:"static",animation:"none"}}/>
+          <polygon points="90,62 96,62 93,72" fill="#333"/>
+        </svg>
+        <div className="cs_gancho" />
+      </div>
+
+      {/* Tráiler animado — avanza de derecha a izquierda */}
+      <div className="cs_camion">
+        <svg viewBox="0 0 220 70" width="220" height="70">
+          {/* Contenedor */}
+          <rect x="0" y="10" width="145" height="42" fill={c} fillOpacity="0.88" rx="2"/>
+          <line x1="48"  y1="10" x2="48"  y2="52" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
+          <line x1="96"  y1="10" x2="96"  y2="52" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
+          <rect x="139" y="13" width="5" height="36" rx="1" fill="rgba(255,255,255,0.1)"/>
+          {/* Chasis */}
+          <rect x="0" y="50" width="220" height="6" fill="#1e293b" rx="1"/>
+          {/* Cabina — izquierda = frente de marcha */}
+          <rect x="145" y="16" width="52" height="36" rx="4" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="1"/>
+          <rect x="149" y="19" width="20" height="14" rx="2" fill={c} fillOpacity="0.32"/>
+          <rect x="172" y="19" width="12" height="14" rx="1" fill={c} fillOpacity="0.18"/>
+          {/* Faro delantero */}
+          <rect x="193" y="22" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
+          {/* Luz trasera contenedor */}
+          <rect x="0" y="40" width="4" height="8" rx="1" fill="#ef4444" fillOpacity="0.85"/>
+          {/* Ruedas contenedor */}
+          <circle cx="22"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="22"  cy="59" r="2.8" fill="#1e293b"/>
+          <circle cx="42"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="42"  cy="59" r="2.8" fill="#1e293b"/>
+          <circle cx="95"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="95"  cy="59" r="2.8" fill="#1e293b"/>
+          <circle cx="113" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="113" cy="59" r="2.8" fill="#1e293b"/>
+          {/* Ruedas cabina */}
+          <circle cx="163" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="163" cy="59" r="2.8" fill="#1e293b"/>
+          <circle cx="196" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="196" cy="59" r="2.8" fill="#1e293b"/>
         </svg>
       </div>
     </div>
