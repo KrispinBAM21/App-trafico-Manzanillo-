@@ -2802,6 +2802,45 @@ function InicioTab({ isAdmin, logout }) {
         </div>
       </div>
 
+      {/* ─── MAPA MANZANILLO ─────────────────────────────────────────────────── */}
+      <a
+        href="https://maps.google.com/?q=Manzanillo,Colima,Mexico"
+        target="_blank" rel="noopener noreferrer"
+        style={{ display:"block", textDecoration:"none", marginBottom:"28px", maxWidth:"360px" }}
+      >
+        <div style={{ borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", background:"#1a2332", boxShadow:"0 2px 12px rgba(0,0,0,0.4)" }}>
+          {/* Mapa — 2x2 tiles OSM zoom 11 centrados en Manzanillo, con pin SVG overlay */}
+          <div style={{ position:"relative", width:"100%", height:"190px", overflow:"hidden", background:"#0d1f3c" }}>
+            <div style={{ position:"absolute", inset:0, display:"grid", gridTemplateColumns:"1fr 1fr", gridTemplateRows:"1fr 1fr", gap:0 }}>
+              <img src="https://tile.openstreetmap.org/11/378/862.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.45) brightness(0.6)" }} alt="" onError={e=>{e.target.style.opacity=0}}/>
+              <img src="https://tile.openstreetmap.org/11/379/862.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.45) brightness(0.6)" }} alt="" onError={e=>{e.target.style.opacity=0}}/>
+              <img src="https://tile.openstreetmap.org/11/378/863.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.45) brightness(0.6)" }} alt="" onError={e=>{e.target.style.opacity=0}}/>
+              <img src="https://tile.openstreetmap.org/11/379/863.png" style={{ width:"100%", height:"100%", objectFit:"cover", filter:"hue-rotate(195deg) saturate(0.45) brightness(0.6)" }} alt="" onError={e=>{e.target.style.opacity=0}}/>
+            </div>
+            {/* Pin Manzanillo — posicionado en ~55% x, 62% y del tile 379/863 */}
+            <div style={{ position:"absolute", left:"52%", top:"55%", transform:"translate(-50%,-100%)", display:"flex", flexDirection:"column", alignItems:"center", pointerEvents:"none" }}>
+              <div style={{ background:"#38bdf8", borderRadius:"50% 50% 50% 0", width:"18px", height:"18px", transform:"rotate(-45deg)", boxShadow:"0 0 0 3px rgba(56,189,248,0.3), 0 2px 8px rgba(0,0,0,0.5)" }}/>
+              <div style={{ width:"2px", height:"0px" }}/>
+            </div>
+            {/* Label */}
+            <div style={{ position:"absolute", left:"52%", top:"calc(55% + 4px)", transform:"translateX(-50%)", background:"rgba(6,14,26,0.85)", border:"1px solid rgba(56,189,248,0.4)", borderRadius:"5px", padding:"2px 8px", fontFamily:"sans-serif", fontSize:"11px", fontWeight:"700", color:"#e2e8f0", whiteSpace:"nowrap", pointerEvents:"none" }}>Manzanillo</div>
+            {/* Crédito OSM */}
+            <div style={{ position:"absolute", bottom:"4px", right:"6px", fontFamily:"sans-serif", fontSize:"8px", color:"rgba(255,255,255,0.25)" }}>© OpenStreetMap</div>
+          </div>
+          {/* Footer estilo Google Maps */}
+          <div style={{ padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <div style={{ fontFamily:"sans-serif", fontWeight:"700", fontSize:"15px", color:"#e2e8f0" }}>Manzanillo</div>
+              <div style={{ fontFamily:"sans-serif", fontSize:"12px", color:"rgba(255,255,255,0.45)", marginTop:"1px" }}>Colima</div>
+            </div>
+            <div style={{ background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"20px", padding:"5px 12px", fontFamily:MN, fontSize:"9px", fontWeight:"700", color:"#38bdf8", letterSpacing:"0.5px", display:"flex", alignItems:"center", gap:"5px" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z" fill="#38bdf8"/></svg>
+              Compartir
+            </div>
+          </div>
+        </div>
+      </a>
+
       {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
       <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
