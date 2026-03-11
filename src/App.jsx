@@ -609,21 +609,74 @@ function NavBar({ active, set }) {
 // ─── CONVOY SCENE ────────────────────────────────────────────────────────────
 function ConvoyScene({ accentColor }) {
   const c = accentColor || "#38bdf8";
+  const camionRef    = useRef(null);
+  const cableRef     = useRef(null);
+  const contenedorRef = useRef(null);
+  const estadoRef    = useRef("transitando");
+  const xRef         = useRef(-250);
+  const rafRef       = useRef(null);
+
+  useEffect(() => {
+    const GRUA_X = 0.5; // fracción del ancho donde está la grúa
+
+    function ejecutarCarga() {
+      const cable     = cableRef.current;
+      const contenedor = contenedorRef.current;
+      if (!cable || !contenedor) return;
+      // 1. Bajar gancho
+      cable.style.height = "58px";
+      setTimeout(() => {
+        // 2. Subir con contenedor
+        contenedor.style.opacity = "0";
+        cable.style.height = "14px";
+        setTimeout(() => {
+          estadoRef.current = "saliendo";
+        }, 1500);
+      }, 1600);
+    }
+
+    function loop() {
+      const camion = camionRef.current;
+      if (!camion) return;
+      const W = camion.parentElement?.offsetWidth || 400;
+
+      if (estadoRef.current === "transitando") {
+        xRef.current += 2.5;
+        camion.style.left = xRef.current + "px";
+        if (xRef.current > W * GRUA_X - 110) {
+          estadoRef.current = "cargando";
+          ejecutarCarga();
+        }
+      } else if (estadoRef.current === "saliendo") {
+        xRef.current += 2.5;
+        camion.style.left = xRef.current + "px";
+        if (xRef.current > W) {
+          // reset
+          xRef.current = -250;
+          estadoRef.current = "transitando";
+          if (cableRef.current)     cableRef.current.style.height = "14px";
+          if (contenedorRef.current) { contenedorRef.current.style.opacity = "1"; }
+        }
+      }
+      rafRef.current = requestAnimationFrame(loop);
+    }
+
+    rafRef.current = requestAnimationFrame(loop);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
+
   return (
-    <div style={{ position:"relative", width:"100%", height:"90px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none", background:"#b2dfdb" }}>
-      <style>{`
-        @keyframes cs_camion { 0%{left:-220px} 100%{left:110%} }
-        @keyframes cs_gancho { 0%,40%{height:30px} 55%,70%{height:60px} 85%,100%{height:30px} }
-        .cs_camion { position:absolute; bottom:8px; width:200px; animation:cs_camion 9s linear infinite; }
-        .cs_gancho { position:absolute; left:50%; transform:translateX(-8px); top:20px; width:5px; background:#333; animation:cs_gancho 9s ease-in-out infinite; border-radius:0 0 3px 3px; }
-      `}</style>
+    <div style={{ position:"relative", width:"100%", height:"100px", overflow:"hidden", borderRadius:"8px", marginBottom:"10px", pointerEvents:"none", fontFamily:"sans-serif" }}>
 
-      {/* Cielo y suelo */}
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,#b2dfdb 0%,#e0f2f1 70%,#546e7a 70%,#546e7a 100%)" }} />
+      {/* Fondo: cielo degradado + piso portuario */}
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, #0d2137 0%, #1a3a5c 55%, #455a64 55%, #455a64 100%)" }} />
 
-      {/* Monumento Pez Vela — fijo a la izquierda */}
-      <div style={{ position:"absolute", bottom:"8px", left:"12px", width:"52px", zIndex:3 }}>
-        <svg viewBox="0 0 1000 800" width="52" height="42">
+      {/* Suelo — línea brillante */}
+      <div style={{ position:"absolute", bottom:"20px", left:0, right:0, height:"1px", background:"rgba(255,255,255,0.08)" }} />
+
+      {/* Monumento Pez Vela — fijo izquierda */}
+      <div style={{ position:"absolute", bottom:"20px", left:"14px", width:"48px", zIndex:3, opacity:0.9 }}>
+        <svg viewBox="0 0 1000 800" width="48" height="38">
           <g fill="#2C8FEA" stroke="#2575C2" strokeWidth="2">
             <path d="M400,320 C350,280 200,240 180,240 L220,100 C240,110 380,180 400,320 Z"/>
             <path d="M400,320 C410,180 520,110 540,100 L580,240 C560,240 450,280 400,320 Z"/>
@@ -634,51 +687,58 @@ function ConvoyScene({ accentColor }) {
         </svg>
       </div>
 
-      {/* Grúa portuaria — fija al centro */}
-      <div style={{ position:"absolute", bottom:"8px", left:"50%", transform:"translateX(-50%)", width:"80px", zIndex:4 }}>
-        <svg viewBox="0 0 200 160" width="80" height="64">
-          {/* Torre vertical */}
-          <rect x="88" y="20" width="16" height="140" fill="#fbc02d"/>
-          {/* Pluma horizontal */}
-          <rect x="10" y="20" width="160" height="12" fill="#fbc02d"/>
+      {/* Grúa portuaria — fija centro */}
+      <div style={{ position:"absolute", bottom:"20px", left:"50%", transform:"translateX(-50%)", width:"76px", height:"80px", zIndex:10 }}>
+        {/* Estructura SVG */}
+        <svg viewBox="0 0 100 100" width="76" height="76" style={{ position:"absolute", top:0, left:0 }}>
+          {/* Torre */}
+          <rect x="42" y="18" width="12" height="82" fill="#fbc02d"/>
+          {/* Pluma */}
+          <rect x="2"  y="18" width="92" height="8"  fill="#fbc02d"/>
           {/* Tirantes */}
-          <line x1="96" y1="20" x2="30"  y2="32" stroke="#f9a825" strokeWidth="3"/>
-          <line x1="96" y1="20" x2="160" y2="32" stroke="#f9a825" strokeWidth="3"/>
+          <line x1="48" y1="18" x2="10"  y2="26" stroke="#f9a825" strokeWidth="2.5"/>
+          <line x1="48" y1="18" x2="86"  y2="26" stroke="#f9a825" strokeWidth="2.5"/>
           {/* Contrapeso */}
-          <rect x="10" y="22" width="22" height="22" fill="#e65100"/>
-          {/* Gancho animado */}
-          <rect x="93" y="32" width="6" height="30" fill="#424242" className="cs_gancho" style={{position:"static",animation:"none"}}/>
-          <polygon points="90,62 96,62 93,72" fill="#333"/>
+          <rect x="2"  y="20" width="16" height="14" fill="#e65100"/>
+          {/* Ruedas base */}
+          <circle cx="38" cy="100" r="4" fill="#333"/>
+          <circle cx="58" cy="100" r="4" fill="#333"/>
         </svg>
-        <div className="cs_gancho" />
+        {/* Cable + spreader animado */}
+        <div ref={cableRef} style={{ position:"absolute", left:"34px", top:"26px", width:"4px", height:"14px", background:"#333", transition:"height 1.5s ease-in-out", borderRadius:"0 0 2px 2px" }}>
+          <div style={{ position:"absolute", bottom:0, left:"-14px", width:"32px", height:"6px", background:"#222", borderRadius:"1px" }} />
+        </div>
       </div>
 
-      {/* Tráiler animado — avanza de derecha a izquierda */}
-      <div className="cs_camion">
-        <svg viewBox="0 0 220 70" width="220" height="70">
-          {/* Contenedor */}
-          <rect x="0" y="10" width="145" height="42" fill={c} fillOpacity="0.88" rx="2"/>
-          <line x1="48"  y1="10" x2="48"  y2="52" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
-          <line x1="96"  y1="10" x2="96"  y2="52" stroke="rgba(255,255,255,0.2)" strokeWidth="1"/>
-          <rect x="139" y="13" width="5" height="36" rx="1" fill="rgba(255,255,255,0.1)"/>
+      {/* Camión animado */}
+      <div ref={camionRef} style={{ position:"absolute", bottom:"20px", left:"-250px", width:"220px", zIndex:5 }}>
+        {/* Contenedor (rojo, encima del chasis) */}
+        <div ref={contenedorRef} style={{ position:"absolute", bottom:"22px", left:"4px", width:"130px", height:"36px", background:"#c62828", border:"2px solid #b71c1c", borderRadius:"2px", transition:"opacity 0.4s", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {/* Paneles del contenedor */}
+          <div style={{ position:"absolute", left:"32px",  top:0, bottom:0, width:"1px", background:"rgba(255,255,255,0.18)" }}/>
+          <div style={{ position:"absolute", left:"64px",  top:0, bottom:0, width:"1px", background:"rgba(255,255,255,0.18)" }}/>
+          <div style={{ position:"absolute", left:"96px",  top:0, bottom:0, width:"1px", background:"rgba(255,255,255,0.18)" }}/>
+          <div style={{ position:"absolute", right:0, top:0, bottom:0, width:"6px", background:"rgba(0,0,0,0.25)", borderRadius:"0 2px 2px 0" }}/>
+        </div>
+        {/* Chasis + cabina */}
+        <svg viewBox="0 0 220 55" width="220" height="55">
           {/* Chasis */}
-          <rect x="0" y="50" width="220" height="6" fill="#1e293b" rx="1"/>
-          {/* Cabina — izquierda = frente de marcha */}
-          <rect x="145" y="16" width="52" height="36" rx="4" fill="#1e3a5f" stroke={c} strokeOpacity="0.6" strokeWidth="1"/>
-          <rect x="149" y="19" width="20" height="14" rx="2" fill={c} fillOpacity="0.32"/>
-          <rect x="172" y="19" width="12" height="14" rx="1" fill={c} fillOpacity="0.18"/>
-          {/* Faro delantero */}
-          <rect x="193" y="22" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
-          {/* Luz trasera contenedor */}
-          <rect x="0" y="40" width="4" height="8" rx="1" fill="#ef4444" fillOpacity="0.85"/>
-          {/* Ruedas contenedor */}
-          <circle cx="22"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="22"  cy="59" r="2.8" fill="#1e293b"/>
-          <circle cx="42"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="42"  cy="59" r="2.8" fill="#1e293b"/>
-          <circle cx="95"  cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="95"  cy="59" r="2.8" fill="#1e293b"/>
-          <circle cx="113" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="113" cy="59" r="2.8" fill="#1e293b"/>
-          {/* Ruedas cabina */}
-          <circle cx="163" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="163" cy="59" r="2.8" fill="#1e293b"/>
-          <circle cx="196" cy="59" r="7" fill="#0f172a" stroke="#64748b" strokeWidth="1.5"/><circle cx="196" cy="59" r="2.8" fill="#1e293b"/>
+          <rect x="0"   y="20" width="145" height="8" fill="#1e293b"/>
+          {/* Cabina — lado derecho = frente de marcha (va de der→izq, cabina adelante) */}
+          <path d="M145,6 h40 a18,18 0 0 1 18,18 v18 h-58 z" fill="#388e3c" stroke="#2e7d32" strokeWidth="1"/>
+          {/* Parabrisas */}
+          <path d="M155,8 h22 a12,12 0 0 1 12,12 v8 h-34 z" fill="rgba(144,202,249,0.35)"/>
+          {/* Faro */}
+          <rect x="199" y="16" width="4" height="5" rx="1" fill="#fef08a" fillOpacity="0.95"/>
+          {/* Luz trasera */}
+          <rect x="0" y="20" width="4" height="6" rx="1" fill="#ef4444" fillOpacity="0.85"/>
+          {/* Ruedas */}
+          <circle cx="22"  cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="22"  cy="36" r="3.5" fill="#1e293b"/>
+          <circle cx="52"  cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="52"  cy="36" r="3.5" fill="#1e293b"/>
+          <circle cx="102" cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="102" cy="36" r="3.5" fill="#1e293b"/>
+          <circle cx="122" cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="122" cy="36" r="3.5" fill="#1e293b"/>
+          <circle cx="163" cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="163" cy="36" r="3.5" fill="#1e293b"/>
+          <circle cx="193" cy="36" r="9" fill="#111" stroke="#64748b" strokeWidth="1.5"/><circle cx="193" cy="36" r="3.5" fill="#1e293b"/>
         </svg>
       </div>
     </div>
