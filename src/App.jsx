@@ -1644,9 +1644,10 @@ function TerminalesTab({ myId }) {
     try { sessionStorage.setItem("term_zona", z); } catch {}
     setZona(z);
   };
-  const [stN,    setStN]    = useState(mkTerminals(TERMINALS_NORTE));
-  const [stS,    setStS]    = useState(mkTerminals(TERMINALS_SUR));
-  const [toast,  setToast]  = useState(null);
+  const [stN,         setStN]         = useState(mkTerminals(TERMINALS_NORTE));
+  const [stS,         setStS]         = useState(mkTerminals(TERMINALS_SUR));
+  const [toast,       setToast]       = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
@@ -2397,6 +2398,16 @@ function DonativosTab() {
 function PatioReguladorTab({ myId }) {
   const [patios,      setPatios]      = useState(mkPatios);
   const [toast,       setToast]       = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
+  const [notas,       setNotas]       = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem("patio_notas") || "{}"); } catch { return {}; }
+  });
+
+  const updateNota = (id, val) => {
+    const next = { ...notas, [id]: val };
+    setNotas(next);
+    try { sessionStorage.setItem("patio_notas", JSON.stringify(next)); } catch {}
+  };
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
