@@ -610,7 +610,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [accesos,     setAccesos]     = useState(mkAccesos);
   const [vialidades,  setVialidades]  = useState(mkVialidades);
   const [toast,       setToast]       = useState(null);
-  const [changeModal, setChangeModal] = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
     try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
   });
@@ -671,57 +670,41 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const acc = accesos[id];
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    // ── Admin: cambio directo sin votos ──
+    // ── Admin: cambio directo ──
     if (isAdmin) {
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
     }
+    // ── Cambio inmediato: 1 voto cambia el estado ──
     const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
-    if (acc.pendingVoters?.[myId]) {
-      setChangeModal({ type: "acceso", id, newStatus, label: ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label });
-      return;
-    }
-    const voters = { ...(acc.pendingVoters || {}), [myId]: newStatus };
-    const counts = {};
-    Object.values(voters).forEach(v => { counts[v] = (counts[v] || 0) + 1; });
-    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-    const finalStatus = winner[1] >= 3 ? winner[0] : acc.status;
-    await sb.from("accesos").upsert({ id, status: finalStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: finalStatus !== acc.status ? {} : voters });
-    if (finalStatus !== acc.status) {
-      notify(`✓ Acceso actualizado: ${ACCESO_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}`, "#22c55e");
-      await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}` });
-    } else {
-      notify(`Voto registrado (${winner[1]}/3)`, "#38bdf8");
-    }
-    setAccesos(prev => ({ ...prev, [id]: { ...prev[id], pendingVoters: voters } }));
+    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
   };
 
   const voteVialidad = async (id, newStatus) => {
     const v = vialidades[id];
     if (!v) return;
-    // ── Admin: cambio directo sin votos ──
+    if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    // ── Admin: cambio directo ──
     if (isAdmin) {
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
     }
+    // ── Cambio inmediato: 1 voto cambia el estado ──
     const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
-    const voters = { ...(v.pendingVoters || {}), [myId]: newStatus };
-    const counts = {};
-    Object.values(voters).forEach(s => { counts[s] = (counts[s] || 0) + 1; });
-    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-    const finalStatus = winner[1] >= 3 ? winner[0] : v.status;
-    await sb.from("vialidades").upsert({ id, status: finalStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: finalStatus !== v.status ? {} : voters });
-    if (finalStatus !== v.status) {
-      notify(`✓ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === finalStatus)?.label}`, "#22c55e");
-    } else {
-      notify(`Voto (${winner[1]}/3)`, "#38bdf8");
-    }
-    setVialidades(prev => ({ ...prev, [id]: { ...prev[id], pendingVoters: voters } }));
+    const vName = VIALIDADES.find(x => x.id === id)?.name;
+    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    notify(`✓ ${vName}: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
@@ -885,21 +868,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       )}
 
       <ToastBox toast={toast} />
-      {changeModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 900, padding: "20px" }}>
-          <div style={{ background: "#0d1b2e", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "16px", padding: "20px", width: "100%", maxWidth: "320px" }}>
-            <div style={{ fontFamily: TITLE, fontSize: "16px", color: "#fff", marginBottom: "8px" }}>¿Cambiar estado?</div>
-            <div style={{ fontFamily: MN, fontSize: "13px", color: "rgba(255,255,255,0.6)", marginBottom: "18px" }}>Ya votaste antes. ¿Confirmas el cambio a <b style={{ color: "#38bdf8" }}>{changeModal.label}</b>?</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ padding: "10px", background: "#1e3a5f", border: "none", borderRadius: "8px", color: "rgba(255,255,255,0.7)", fontFamily: MN, fontSize: "13px", cursor: "pointer" }}>Cancelar</button>
-              <button onClick={async () => {
-                if (changeModal.type === "acceso") await voteAcceso(changeModal.id, changeModal.newStatus, true);
-                setChangeModal(null);
-              }} style={{ padding: "10px", background: "#38bdf8", border: "none", borderRadius: "8px", color: "#0a0f1e", fontFamily: MN, fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
