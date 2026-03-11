@@ -1932,7 +1932,7 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
 }
 
 function SegundoAccesoTab() {
-  const [carriles, setCarriles] = useState(null); // null = esperando Supabase
+  const [carriles, setCarriles] = useState(mkSegundoIngreso);
   const [toast,    setToast]    = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
 
@@ -1945,7 +1945,7 @@ function SegundoAccesoTab() {
 
   useEffect(() => {
     sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
-      if (data?.data) setCarriles(data.data);
+      if (data?.data) setCarriles({ ...mkSegundoIngreso(), ...data.data });
     });
     const chan = sb.channel("segundo-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
@@ -2001,7 +2001,7 @@ function SegundoAccesoTab() {
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
         <div style={{ display:"flex", gap:"8px" }}>
-          {!carriles ? <SkeletonCard n={1}/> : SEGUNDO_CARRILES_INGRESO.map((c, i) => {
+          {SEGUNDO_CARRILES_INGRESO.map((c, i) => {
             const st = carriles[c.id];
             const bc = st.saturado ? "#ef4444" : "#22c55e";
             const tz = getTermZona(st.terminal);
