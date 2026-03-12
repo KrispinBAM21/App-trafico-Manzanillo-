@@ -290,21 +290,21 @@ function AuthModal({ onClose, onLogin }) {
         Sistema de autenticación seguro
       </p>
       <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
-        <button onClick={()=>setView('login')} style={{
+        <button onClick={() => setView('login')} style={{
           background:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',border:'none',borderRadius:'12px',
           padding:'16px',color:'#fff',fontSize:'16px',fontWeight:'600',cursor:'pointer',
           fontFamily:"'DM Sans',sans-serif",transition:'transform 0.2s ease,box-shadow 0.2s ease',
           boxShadow:'0 4px 15px rgba(102,126,234,0.4)'
-        }} onMouseEnter={e=>{e.target.style.transform='translateY(-2px)';e.target.style.boxShadow='0 6px 20px rgba(102,126,234,0.5)';}}
-           onMouseLeave={e=>{e.target.style.transform='translateY(0)';e.target.style.boxShadow='0 4px 15px rgba(102,126,234,0.4)';}}>
+        }} onMouseEnter={e => {e.target.style.transform='translateY(-2px)';e.target.style.boxShadow='0 6px 20px rgba(102,126,234,0.5)';}}
+           onMouseLeave={e => {e.target.style.transform='translateY(0)';e.target.style.boxShadow='0 4px 15px rgba(102,126,234,0.4)';}}>
           🔑 Iniciar Sesión
         </button>
-        <button onClick={()=>{setView('register');setStep(1);}} style={{
+        <button onClick={() => {setView('register');setStep(1);}} style={{
           background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:'12px',
           padding:'16px',color:'#fff',fontSize:'16px',fontWeight:'600',cursor:'pointer',
           fontFamily:"'DM Sans',sans-serif",transition:'all 0.2s ease'
-        }} onMouseEnter={e=>{e.target.style.background='rgba(255,255,255,0.15)';}}
-           onMouseLeave={e=>{e.target.style.background='rgba(255,255,255,0.1)';}}>
+        }} onMouseEnter={e => {e.target.style.background='rgba(255,255,255,0.15)';}}
+           onMouseLeave={e => {e.target.style.background='rgba(255,255,255,0.1)';}}>
           ✨ Crear Cuenta Nueva
         </button>
       </div>
@@ -322,18 +322,18 @@ function AuthModal({ onClose, onLogin }) {
       <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
         <div>
           <label style={{display:'block',marginBottom:'8px',color:'rgba(255,255,255,0.8)',fontSize:'14px',fontWeight:'500'}}>Usuario</label>
-          <input type="text" value={formData.loginUsername} onChange={e=>handleInputChange('loginUsername',e.target.value)} placeholder="Nombre de usuario"
+          <input type="text" value={formData.loginUsername} onChange={e => handleInputChange('loginUsername',e.target.value)} placeholder="Nombre de usuario"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'12px',color:'#fff',fontSize:'14px',outline:'none',transition:'border-color 0.2s ease'}}
-            onFocus={e=>e.target.style.borderColor='rgba(102,126,234,0.5)'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'} />
+            onFocus={e => e.target.style.borderColor='rgba(102,126,234,0.5)'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} />
         </div>
         <div>
           <label style={{display:'block',marginBottom:'8px',color:'rgba(255,255,255,0.8)',fontSize:'14px',fontWeight:'500'}}>Contraseña</label>
-          <input type="password" value={formData.loginPassword} onChange={e=>handleInputChange('loginPassword',e.target.value)} placeholder="Tu contraseña"
+          <input type="password" value={formData.loginPassword} onChange={e => handleInputChange('loginPassword',e.target.value)} placeholder="Tu contraseña"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'12px',color:'#fff',fontSize:'14px',outline:'none',transition:'border-color 0.2s ease'}}
-            onFocus={e=>e.target.style.borderColor='rgba(102,126,234,0.5)'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}
-            onKeyPress={e=>e.key==='Enter'&&handleLogin()} />
+            onFocus={e => e.target.style.borderColor='rgba(102,126,234,0.5)'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'}
+            onKeyPress={e => e.key==='Enter' && handleLogin()} />
         </div>
-        <button onClick={()=>setView('forgot')} style={{background:'none',border:'none',color:'#a78bfa',fontSize:'13px',cursor:'pointer',textAlign:'right',padding:0}}>
+        <button onClick={() => setView('forgot')} style={{background:'none',border:'none',color:'#a78bfa',fontSize:'13px',cursor:'pointer',textAlign:'right',padding:0}}>
           ¿Olvidaste tu contraseña?
         </button>
         <button onClick={handleLogin} disabled={loading} style={{
@@ -343,7 +343,7 @@ function AuthModal({ onClose, onLogin }) {
         }}>
           {loading ? '⏳ Ingresando...' : '🚀 Ingresar'}
         </button>
-        <button onClick={()=>setView('menu')} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'12px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>
+        <button onClick={() => setView('menu')} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'12px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>
           ← Volver
         </button>
       </div>
@@ -360,27 +360,27 @@ function AuthModal({ onClose, onLogin }) {
       {error && <div style={{background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#fca5a5',fontSize:'14px',textAlign:'center'}}>{error}</div>}
       <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Nombre(s) *</label>
-          <input type="text" value={formData.nombre} onChange={e=>handleInputChange('nombre',e.target.value)} placeholder="Tu nombre"
+          <input type="text" value={formData.nombre} onChange={e => handleInputChange('nombre',e.target.value)} placeholder="Tu nombre"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Apellidos *</label>
-          <input type="text" value={formData.apellidos} onChange={e=>handleInputChange('apellidos',e.target.value)} placeholder="Tus apellidos"
+          <input type="text" value={formData.apellidos} onChange={e => handleInputChange('apellidos',e.target.value)} placeholder="Tus apellidos"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Usuario *</label>
-          <input type="text" value={formData.username} onChange={e=>handleInputChange('username',e.target.value)} placeholder="Nombre de usuario (mín. 4 caracteres)"
+          <input type="text" value={formData.username} onChange={e => handleInputChange('username',e.target.value)} placeholder="Nombre de usuario (mín. 4 caracteres)"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Fecha de Nacimiento *</label>
-          <input type="date" value={formData.fechaNacimiento} onChange={e=>handleInputChange('fechaNacimiento',e.target.value)}
+          <input type="date" value={formData.fechaNacimiento} onChange={e => handleInputChange('fechaNacimiento',e.target.value)}
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>País *</label>
-          <select value={formData.pais} onChange={e=>handleInputChange('pais',e.target.value)}
+          <select value={formData.pais} onChange={e => handleInputChange('pais',e.target.value)}
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}}>
             <option value="México">México</option><option value="USA">Estados Unidos</option><option value="Otro">Otro</option>
           </select></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Ciudad *</label>
-          <input type="text" value={formData.ciudad} onChange={e=>handleInputChange('ciudad',e.target.value)} placeholder="Tu ciudad"
+          <input type="text" value={formData.ciudad} onChange={e => handleInputChange('ciudad',e.target.value)} placeholder="Tu ciudad"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-          <button onClick={()=>{setView('menu');setStep(1);}} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Cancelar</button>
+          <button onClick={() => {setView('menu');setStep(1);}} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Cancelar</button>
           <button onClick={handleRegisterStep1} style={{flex:2,background:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:'pointer'}}>Siguiente →</button>
         </div>
       </div>
@@ -398,18 +398,18 @@ function AuthModal({ onClose, onLogin }) {
       {success && <div style={{background:'rgba(16,185,129,0.2)',border:'1px solid rgba(16,185,129,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#6ee7b7',fontSize:'14px',textAlign:'center'}}>{success}</div>}
       <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Número de Teléfono *</label>
-          <input type="tel" value={formData.telefono} onChange={e=>handleInputChange('telefono',e.target.value)} placeholder="+52 123 456 7890"
+          <input type="tel" value={formData.telefono} onChange={e => handleInputChange('telefono',e.target.value)} placeholder="+52 123 456 7890"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} />
           <button onClick={handleSendSMS} style={{marginTop:'10px',width:'100%',background:'rgba(16,185,129,0.2)',border:'1px solid rgba(16,185,129,0.4)',borderRadius:'8px',padding:'10px',color:'#6ee7b7',fontSize:'14px',cursor:'pointer'}}>📤 Enviar Código SMS</button>
         </div>
         {formData.generatedCode && (
           <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Código de Verificación *</label>
-            <input type="text" value={formData.codigoSMS} onChange={e=>handleInputChange('codigoSMS',e.target.value)} placeholder="Ingresa el código de 6 dígitos"
+            <input type="text" value={formData.codigoSMS} onChange={e => handleInputChange('codigoSMS',e.target.value)} placeholder="Ingresa el código de 6 dígitos"
               style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} />
           </div>
         )}
         <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-          <button onClick={()=>setStep(1)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
+          <button onClick={() => setStep(1)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
           <button onClick={handleVerifySMS} disabled={!formData.generatedCode} style={{flex:2,background:formData.generatedCode?'linear-gradient(135deg,#667eea 0%,#764ba2 100%)':'rgba(102,126,234,0.3)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:formData.generatedCode?'pointer':'not-allowed'}}>Verificar →</button>
         </div>
       </div>
@@ -426,16 +426,16 @@ function AuthModal({ onClose, onLogin }) {
       {error && <div style={{background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#fca5a5',fontSize:'14px',textAlign:'center'}}>{error}</div>}
       <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Correo Electrónico *</label>
-          <input type="email" value={formData.email} onChange={e=>handleInputChange('email',e.target.value)} placeholder="tu@email.com"
+          <input type="email" value={formData.email} onChange={e => handleInputChange('email',e.target.value)} placeholder="tu@email.com"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Confirmar Correo *</label>
-          <input type="email" value={formData.confirmarEmail} onChange={e=>handleInputChange('confirmarEmail',e.target.value)} placeholder="Confirma tu email"
+          <input type="email" value={formData.confirmarEmail} onChange={e => handleInputChange('confirmarEmail',e.target.value)} placeholder="Confirma tu email"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div style={{background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:'8px',padding:'12px',fontSize:'12px',color:'rgba(147,197,253,0.9)'}}>
           ℹ️ No se permiten correos temporales
         </div>
         <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-          <button onClick={()=>setStep(2)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
+          <button onClick={() => setStep(2)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
           <button onClick={handleRegisterStep3} style={{flex:2,background:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:'pointer'}}>Siguiente →</button>
         </div>
       </div>
@@ -456,25 +456,25 @@ function AuthModal({ onClose, onLogin }) {
         {error && <div style={{background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#fca5a5',fontSize:'14px',textAlign:'center'}}>{error}</div>}
         <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
           <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Contraseña *</label>
-            <input type="password" value={formData.password} onChange={e=>handleInputChange('password',e.target.value)} placeholder="Mínimo 10 caracteres"
+            <input type="password" value={formData.password} onChange={e => handleInputChange('password',e.target.value)} placeholder="Mínimo 10 caracteres"
               style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} />
             {formData.password && (
               <div style={{marginTop:'8px'}}>
                 <div style={{display:'flex',gap:'4px',marginBottom:'6px'}}>
-                  {[0,1,2,3,4].map(i=><div key={i} style={{flex:1,height:'4px',borderRadius:'2px',background:i<strength?strengthColors[strength-1]:'rgba(255,255,255,0.1)'}}/>)}
+                  {[0,1,2,3,4].map(i => <div key={i} style={{flex:1,height:'4px',borderRadius:'2px',background:i<strength?strengthColors[strength-1]:'rgba(255,255,255,0.1)'}}/>)}
                 </div>
                 <p style={{fontSize:'12px',color:strengthColors[strength-1],margin:0}}>Seguridad: {strengthLabels[strength-1]}</p>
               </div>
             )}
           </div>
           <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Confirmar Contraseña *</label>
-            <input type="password" value={formData.confirmarPassword} onChange={e=>handleInputChange('confirmarPassword',e.target.value)} placeholder="Confirma tu contraseña"
+            <input type="password" value={formData.confirmarPassword} onChange={e => handleInputChange('confirmarPassword',e.target.value)} placeholder="Confirma tu contraseña"
               style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
           <div style={{background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:'8px',padding:'10px',fontSize:'11px',color:'rgba(147,197,253,0.8)'}}>
             ✓ Mín. 10 caracteres<br/>✓ 1 mayúscula<br/>✓ 1 número<br/>✓ 1 símbolo (!@#$...)
           </div>
           <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-            <button onClick={()=>setStep(3)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
+            <button onClick={() => setStep(3)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
             <button onClick={handleRegisterStep4} style={{flex:2,background:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:'pointer'}}>Siguiente →</button>
           </div>
         </div>
@@ -492,13 +492,13 @@ function AuthModal({ onClose, onLogin }) {
       {error && <div style={{background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#fca5a5',fontSize:'14px',textAlign:'center'}}>{error}</div>}
       <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Dirección Completa *</label>
-          <textarea value={formData.direccion} onChange={e=>handleInputChange('direccion',e.target.value)} placeholder="Calle, número, colonia..."
+          <textarea value={formData.direccion} onChange={e => handleInputChange('direccion',e.target.value)} placeholder="Calle, número, colonia..."
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none',minHeight:'80px',resize:'vertical',fontFamily:'inherit'}} /></div>
         <div><label style={{display:'block',marginBottom:'6px',color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Código Postal *</label>
-          <input type="text" value={formData.codigoPostal} onChange={e=>handleInputChange('codigoPostal',e.target.value)} placeholder="28200"
+          <input type="text" value={formData.codigoPostal} onChange={e => handleInputChange('codigoPostal',e.target.value)} placeholder="28200"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-          <button onClick={()=>setStep(4)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
+          <button onClick={() => setStep(4)} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>← Atrás</button>
           <button onClick={handleRegisterStep5} style={{flex:2,background:'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:'pointer'}}>Siguiente →</button>
         </div>
       </div>
@@ -520,22 +520,22 @@ function AuthModal({ onClose, onLogin }) {
             <label style={{display:'block',marginBottom:'10px',color:'rgba(147,197,253,0.9)',fontSize:'14px',fontWeight:'500'}}>
               Pregunta de seguridad: ¿Cuánto es {formData.captchaQuestion.num1} + {formData.captchaQuestion.num2}?
             </label>
-            <input type="number" value={formData.captchaAnswer} onChange={e=>handleInputChange('captchaAnswer',e.target.value)} placeholder="Tu respuesta"
+            <input type="number" value={formData.captchaAnswer} onChange={e => handleInputChange('captchaAnswer',e.target.value)} placeholder="Tu respuesta"
               style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:'8px',padding:'10px',color:'#fff',fontSize:'14px',outline:'none'}} />
           </div>
         )}
         <label style={{display:'flex',alignItems:'center',gap:'10px',cursor:'pointer',padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:'8px',border:'1px solid rgba(255,255,255,0.1)'}}>
-          <input type="checkbox" checked={formData.aceptaTerminos} onChange={e=>handleInputChange('aceptaTerminos',e.target.checked)}
+          <input type="checkbox" checked={formData.aceptaTerminos} onChange={e => handleInputChange('aceptaTerminos',e.target.checked)}
             style={{width:'18px',height:'18px',cursor:'pointer'}} />
           <span style={{color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Acepto los términos y condiciones</span>
         </label>
         <label style={{display:'flex',alignItems:'center',gap:'10px',cursor:'pointer',padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:'8px',border:'1px solid rgba(255,255,255,0.1)'}}>
-          <input type="checkbox" checked={formData.aceptaPrivacidad} onChange={e=>handleInputChange('aceptaPrivacidad',e.target.checked)}
+          <input type="checkbox" checked={formData.aceptaPrivacidad} onChange={e => handleInputChange('aceptaPrivacidad',e.target.checked)}
             style={{width:'18px',height:'18px',cursor:'pointer'}} />
           <span style={{color:'rgba(255,255,255,0.8)',fontSize:'13px'}}>Acepto la política de privacidad</span>
         </label>
         <div style={{display:'flex',gap:'10px',marginTop:'15px'}}>
-          <button onClick={()=>setStep(5)} disabled={loading} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:loading?'not-allowed':'pointer'}}>← Atrás</button>
+          <button onClick={() => setStep(5)} disabled={loading} style={{flex:1,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'10px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:loading?'not-allowed':'pointer'}}>← Atrás</button>
           <button onClick={handleRegisterComplete} disabled={loading} style={{flex:2,background:loading?'rgba(16,185,129,0.5)':'linear-gradient(135deg,#10b981 0%,#059669 100%)',border:'none',borderRadius:'10px',padding:'12px',color:'#fff',fontSize:'15px',fontWeight:'600',cursor:loading?'not-allowed':'pointer'}}>
             {loading ? '⏳ Creando cuenta...' : '🎉 Crear Cuenta'}
           </button>
@@ -557,7 +557,7 @@ function AuthModal({ onClose, onLogin }) {
       {success && <div style={{background:'rgba(16,185,129,0.2)',border:'1px solid rgba(16,185,129,0.4)',borderRadius:'8px',padding:'12px',marginBottom:'20px',color:'#6ee7b7',fontSize:'14px',textAlign:'center'}}>{success}</div>}
       <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
         <div><label style={{display:'block',marginBottom:'8px',color:'rgba(255,255,255,0.8)',fontSize:'14px'}}>Correo Electrónico</label>
-          <input type="email" value={formData.forgotEmail} onChange={e=>handleInputChange('forgotEmail',e.target.value)} placeholder="tu@email.com"
+          <input type="email" value={formData.forgotEmail} onChange={e => handleInputChange('forgotEmail',e.target.value)} placeholder="tu@email.com"
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',padding:'12px',color:'#fff',fontSize:'14px',outline:'none'}} /></div>
         <button onClick={handleForgotPassword} disabled={loading} style={{
           background:loading?'rgba(102,126,234,0.5)':'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
@@ -566,7 +566,7 @@ function AuthModal({ onClose, onLogin }) {
         }}>
           {loading ? '⏳ Enviando...' : '📧 Enviar Enlace'}
         </button>
-        <button onClick={()=>setView('login')} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'12px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>
+        <button onClick={() => setView('login')} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'12px',padding:'12px',color:'rgba(255,255,255,0.7)',fontSize:'14px',cursor:'pointer'}}>
           ← Volver al Login
         </button>
       </div>
@@ -579,7 +579,7 @@ function AuthModal({ onClose, onLogin }) {
       backdropFilter:'blur(10px)',display:'flex',alignItems:'center',justifyContent:'center',
       zIndex:10000,padding:'20px'
     }}>
-      <div onClick={(e)=>e.stopPropagation()} style={{
+      <div onClick={e => e.stopPropagation()} style={{
         background:'linear-gradient(145deg,rgba(30,30,30,0.98) 0%,rgba(20,20,20,0.98) 100%)',
         borderRadius:'20px',maxWidth:'500px',width:'100%',
         boxShadow:'0 20px 60px rgba(0,0,0,0.5)',
@@ -591,8 +591,8 @@ function AuthModal({ onClose, onLogin }) {
           border:'none',borderRadius:'50%',width:'36px',height:'36px',cursor:'pointer',
           color:'rgba(255,255,255,0.7)',fontSize:'20px',display:'flex',
           alignItems:'center',justifyContent:'center',transition:'all 0.2s ease',zIndex:1
-        }} onMouseEnter={e=>{e.target.style.background='rgba(239,68,68,0.3)';e.target.style.color='#fff';}}
-           onMouseLeave={e=>{e.target.style.background='rgba(255,255,255,0.1)';e.target.style.color='rgba(255,255,255,0.7)';}}>×</button>
+        }} onMouseEnter={e => {e.target.style.background='rgba(239,68,68,0.3)';e.target.style.color='#fff';}}
+           onMouseLeave={e => {e.target.style.background='rgba(255,255,255,0.1)';e.target.style.color='rgba(255,255,255,0.7)';}}>×</button>
         {view === 'menu' && renderMenu()}
         {view === 'login' && renderLogin()}
         {view === 'register' && step === 1 && renderRegisterStep1()}
@@ -644,8 +644,8 @@ function FloatingAuthButton({ onOpenAuth, isLoggedIn, user, onLogout }) {
         transform:visible?'scale(1)':'scale(0)',
         opacity:visible?1:0,
         transition:'all 0.3s cubic-bezier(0.68,-0.55,0.265,1.55)'
-      }} onMouseEnter={e=>e.target.style.transform='scale(1.1)'}
-         onMouseLeave={e=>e.target.style.transform=visible?'scale(1)':'scale(0)'}>
+      }} onMouseEnter={e => e.target.style.transform='scale(1.1)'}
+         onMouseLeave={e => e.target.style.transform=visible?'scale(1)':'scale(0)'}>
         🔐
       </button>
     );
@@ -656,7 +656,7 @@ function FloatingAuthButton({ onOpenAuth, isLoggedIn, user, onLogout }) {
       transform:visible?'translateY(0)':'translateY(-100px)',
       opacity:visible?1:0,
       transition:'all 0.3s ease'}}>
-      <div onClick={()=>setShowMenu(!showMenu)} style={{
+      <div onClick={() => setShowMenu(!showMenu)} style={{
         background:'linear-gradient(135deg,#10b981 0%,#059669 100%)',
         borderRadius:'12px',padding:'10px 16px',cursor:'pointer',
         boxShadow:'0 4px 20px rgba(16,185,129,0.3)',display:'flex',alignItems:'center',gap:'10px',
@@ -685,7 +685,7 @@ function FloatingAuthButton({ onOpenAuth, isLoggedIn, user, onLogout }) {
 }
 
 // ============================================================================
-// RESTO DE TU CÓDIGO ORIGINAL (NavBar, AccesoCard, etc.)
+// RESTO DE COMPONENTES DE LA APLICACIÓN
 // ============================================================================
 
 function NavBar({ active, setActive, isAdmin, onLogoTap }) {
@@ -1219,8 +1219,6 @@ function useAdminMode() {
 
   return { isAdmin, handleLogoTap, logout, Modal };
 }
-
-// ... (continúa con el resto de componentes: TerminalesStatus, LaneStatus, etc.)
 
 function TerminalesStatus() {
   const [terminals, setTerminals] = useState([]);
@@ -1905,7 +1903,7 @@ function DonateBanner({ active }) {
             }}>
               Ayúdanos a mantener la plataforma activa
             </p>
-            
+            <a
               href="https://www.paypal.com/donate/?hosted_button_id=YOUR_BUTTON_ID"
               target="_blank"
               rel="noopener noreferrer"
