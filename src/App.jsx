@@ -2389,8 +2389,7 @@ function VisorFullscreen({ item, onClose }) {
   );
 }
 
-// ─── PANEL ADMIN: SUBIR COMUNICADO ────────────────────────────────────────────
- Zona de archivo */}
+// — PANEL ADMIN: SUBIR COMUNICADO — Zona de archivo
       <div
         onClick={() => inputRef.current?.click()}
         style={{ border:"2px dashed #1e3a5f", borderRadius:"10px", padding:"16px", textAlign:"center", cursor:"pointer", marginBottom:"10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition:"all 0.2s" }}
