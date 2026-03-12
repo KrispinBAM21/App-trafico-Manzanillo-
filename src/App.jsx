@@ -55,6 +55,15 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MN    = "'DM Sans', sans-serif";
+
+// Parseo robusto de fechas: acepta ms numérico, string numérico o ISO string
+const toMs = (v) => {
+  if (!v) return 0;
+  if (typeof v === "number") return v;
+  const n = Number(v);
+  if (!isNaN(n) && n > 1e12) return n;   // string "1741826400000"
+  return new Date(v).getTime();           // ISO string "2026-03-12T..."
+};
 const TITLE = "'Playfair Display', serif";
 
 const TERMINALS_NORTE = [
@@ -2613,26 +2622,22 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [pendientes, setPendientes] = useState([]);
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
 
-  // Helpers de fecha — robusto para ms numérico o ISO string
-  const toMs = (v) => {
-    if (!v) return 0;
-    if (typeof v === "number") return v;
-    const n = Number(v);
-    if (!isNaN(n) && n > 1e12) return n;
-    return new Date(v).getTime();
-  };
   const formatDateTime = (timestamp) => {
     const d = new Date(toMs(timestamp));
     return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
-  // Filtrar comunicados vigentes
+  // Mostrar todos los aprobados (Supabase ya filtra aprobado=true en la query)
+  // El filtro de vigencia por fecha se delega a Supabase o se hace manualmente
   const ahora = Date.now();
   const vigentes = comunicados.filter(c => {
     if (!c.aprobado) return false;
-    const inicio = toMs(c.fecha_inicio);
-    const fin    = toMs(c.fecha_fin);
-    return inicio <= ahora && fin > ahora;
+    // Si no hay fecha_fin, mostrar siempre
+    if (!c.fecha_fin) return true;
+    const fin = toMs(c.fecha_fin);
+    // Si fin es 0 o NaN, mostrar (no podemos saber si venció)
+    if (!fin || isNaN(fin)) return true;
+    return fin > ahora;
   });
 
   const cargarPendientes = () => {
@@ -2923,31 +2928,6 @@ function NoticiasTab({ isAdmin }) {
     return () => sb.removeChannel(chan);
   }, []);
 
-  // Limpieza automática de comunicados vencidos cada minuto
-  useEffect(() => {
-    const limpiarVencidos = async () => {
-      const ahora = Date.now();
-      // Traer todos y filtrar vencidos en el cliente (evita problemas de tipo en Supabase)
-      const { data: todos } = await sb.from("comunicados").select("*");
-      if (!todos) return;
-      const vencidos = todos.filter(c => toMs(c.fecha_fin) <= ahora);
-      if (vencidos.length === 0) return;
-      for (const com of vencidos) {
-        if (com.archivo_url) {
-          try {
-            const path = com.archivo_url.split("/comunicados/")[1];
-            await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
-          } catch {}
-        }
-        await sb.from("comunicados").delete().eq("id", com.id);
-      }
-      cargarComunicados();
-    };
-
-    limpiarVencidos(); // Ejecutar al cargar
-    const interval = setInterval(limpiarVencidos, 60000); // Cada minuto
-    return () => clearInterval(interval);
-  }, []);
 
   const FILTROS = [
     { id: "todos",     label: "Todos",      icon: "📰" },
