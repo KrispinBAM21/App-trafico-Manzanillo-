@@ -2612,24 +2612,35 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
 
-  // Filtrar comunicados aprobados y vigentes
-  const ahora = Date.now();
-  const vigentes = comunicados.filter(c => c.aprobado && c.fecha_inicio <= ahora && c.fecha_fin > ahora);
+  // Filtrar comunicados aprobados y vigentes — ahora se recalcula en cada render
+  const vigentes = comunicados.filter(c => {
+    if (!c.aprobado) return false;
+    const ahora = Date.now();
+    // Soporta tanto timestamps numéricos (ms) como strings ISO
+    const inicio = typeof c.fecha_inicio === "number" ? c.fecha_inicio : new Date(c.fecha_inicio).getTime();
+    const fin    = typeof c.fecha_fin    === "number" ? c.fecha_fin    : new Date(c.fecha_fin).getTime();
+    return inicio <= ahora && fin > ahora;
+  });
 
-  // Cargar pendientes (solo admin)
-  useEffect(() => {
+  const cargarPendientes = () => {
     if (!isAdmin) return;
     sb.from("comunicados")
       .select("*")
       .eq("aprobado", false)
       .order("created_at", { ascending: false })
       .then(({ data }) => { if (data) setPendientes(data); });
+  };
+
+  // Cargar pendientes (solo admin)
+  useEffect(() => {
+    cargarPendientes();
   }, [isAdmin]);
 
   const aprobar = async (id) => {
     await sb.from("comunicados").update({ aprobado: true }).eq("id", id);
     setPendientes(prev => prev.filter(p => p.id !== id));
     onReload();
+    cargarPendientes();
   };
 
   const rechazar = async (id) => {
@@ -2655,6 +2666,12 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     }
     await sb.from("comunicados").delete().eq("id", id);
     onReload();
+  };
+
+  const handleSubidoExitoso = () => {
+    onReload();
+    cargarPendientes();
+    setSubTab("ver");
   };
 
   const formatDateTime = (timestamp) => {
@@ -2754,47 +2771,82 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
               </div>
               <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.5" }}>
                 {isAdmin
-                  ? "Como administrador, tus comunicados se publican de inmediato y aparecen en la sección de Ver Comunicados."
-                  : "Envía tu propuesta para revisión. Un administrador la aprobará antes de que sea visible para la comunidad."}
+                  ? "Tus comunicados se publican de inmediato y aparecen en la sección Ver Comunicados."
+                  : "Tu propuesta será revisada por un administrador antes de ser visible para la comunidad."}
               </div>
             </div>
           </div>
 
-          <SubirComunicadoPanel onSubido={() => { onReload(); setSubTab("ver"); }} isAdmin={isAdmin} />
+          <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
 
-          {/* Pendientes de aprobación (solo admin) */}
-          {isAdmin && pendientes.length > 0 && (
-            <div style={{ marginTop: "20px" }}>
-              <div style={{ fontFamily: MN, fontSize: "11px", color: "#f97316", letterSpacing: "1px", marginBottom: "10px", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ background: "#f97316", color: "#fff", borderRadius: "6px", padding: "2px 7px", fontSize: "10px" }}>{pendientes.length}</span>
-                PENDIENTES DE APROBACIÓN
+          {/* ── PENDIENTES DE APROBACIÓN (solo admin) ── */}
+          {isAdmin && (
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <div style={{ flex: 1, height: "1px", background: "#1e3a5f" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: MN, fontSize: "10px", color: "#f97316", fontWeight: "700", letterSpacing: "1px", whiteSpace: "nowrap" }}>
+                  ⏳ SOLICITUDES PENDIENTES
+                  {pendientes.length > 0 && (
+                    <span style={{ background: "#f97316", color: "#fff", borderRadius: "8px", padding: "1px 7px", fontSize: "10px" }}>{pendientes.length}</span>
+                  )}
+                </div>
+                <div style={{ flex: 1, height: "1px", background: "#1e3a5f" }} />
               </div>
-              {pendientes.map((p) => (
-                <div key={p.id} style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.3)", borderLeft: "3px solid #f97316", borderRadius: "10px", padding: "12px", marginBottom: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px" }}>{p.titulo}</div>
-                      {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px" }}>{p.detalle}</div>}
-                      <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontFamily: MN }}>
-                        📅 {formatDateTime(p.fecha_inicio)} → {formatDateTime(p.fecha_fin)}
+
+              {pendientes.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "24px", border: "1px dashed #1e3a5f", borderRadius: "12px", color: "rgba(255,255,255,0.25)", fontFamily: MN, fontSize: "11px" }}>
+                  Sin solicitudes pendientes
+                </div>
+              ) : (
+                pendientes.map((p) => (
+                  <div key={p.id} style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.25)", borderLeft: "3px solid #f97316", borderRadius: "12px", padding: "12px 14px", marginBottom: "10px" }}>
+                    {/* Info del comunicado */}
+                    <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+                      {/* Thumbnail */}
+                      <div style={{ flexShrink: 0, width: "64px", height: "64px", borderRadius: "8px", overflow: "hidden", background: "#060e1a", border: "1px solid #1e3a5f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {isPdf(p.archivo_url) ? (
+                          <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: "24px" }}>📄</div>
+                            <div style={{ fontFamily: MN, fontSize: "8px", color: "rgba(255,255,255,0.4)" }}>PDF</div>
+                          </div>
+                        ) : (
+                          <img src={p.archivo_url} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        )}
+                      </div>
+                      {/* Datos */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.titulo}</div>
+                        {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.detalle}</div>}
+                        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: MN, lineHeight: "1.6" }}>
+                          <div>📅 Inicio: {formatDateTime(p.fecha_inicio)}</div>
+                          <div>⏰ Fin: {formatDateTime(p.fecha_fin)}</div>
+                        </div>
                       </div>
                     </div>
-                    {isPdf(p.archivo_url) ? (
-                      <div style={{ width: "48px", height: "48px", background: "#f9731622", border: "1px solid #f9731644", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", marginLeft: "10px" }}>📄</div>
-                    ) : (
-                      <img src={p.archivo_url} alt="preview" style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "6px", marginLeft: "10px" }} />
-                    )}
+                    {/* Acciones: 3 botones */}
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={() => setVisorItem(p)}
+                        style={{ flex: 1, padding: "8px 4px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: "8px", color: "#38bdf8", fontFamily: MN, fontSize: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                      >
+                        👁 VER
+                      </button>
+                      <button
+                        onClick={() => aprobar(p.id)}
+                        style={{ flex: 1, padding: "8px 4px", background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.5)", borderRadius: "8px", color: "#22c55e", fontFamily: MN, fontSize: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                      >
+                        ✓ APROBAR
+                      </button>
+                      <button
+                        onClick={() => rechazar(p.id)}
+                        style={{ flex: 1, padding: "8px 4px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.5)", borderRadius: "8px", color: "#ef4444", fontFamily: MN, fontSize: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                      >
+                        ✕ RECHAZAR
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => aprobar(p.id)} style={{ flex: 1, padding: "8px", background: "#22c55e22", border: "1px solid #22c55e", borderRadius: "7px", color: "#22c55e", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
-                      ✓ APROBAR
-                    </button>
-                    <button onClick={() => rechazar(p.id)} style={{ flex: 1, padding: "8px", background: "#ef444422", border: "1px solid #ef4444", borderRadius: "7px", color: "#ef4444", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
-                      ✕ RECHAZAR
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
         </>
