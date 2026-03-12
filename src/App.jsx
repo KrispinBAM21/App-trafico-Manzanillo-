@@ -995,7 +995,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return (
               <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
-                <ConvoyScene accentColor={acc.color} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div>
                     <div style={{ color: acc.color, fontFamily: TITLE, fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
@@ -1033,7 +1032,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return (
               <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
-                <ConvoyScene accentColor={curOpt.color} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <div>
                     <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
@@ -2675,16 +2673,6 @@ function PatioReguladorTab({ myId }) {
                 );
               })}
             </div>
-            <div style={{ marginTop:"10px" }}>
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"6px" }}>NOTAS / COMENTARIOS:</div>
-              <textarea
-                value={notas[patio.id] || ""}
-                onChange={e => updateNota(patio.id, e.target.value)}
-                placeholder="Añade observaciones, condiciones especiales, restricciones..."
-                rows={2}
-                style={{ width:"100%", padding:"10px 12px", background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"8px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", resize:"vertical", lineHeight:"1.5" }}
-              />
-            </div>
           </div>
         );
       })}
@@ -2899,6 +2887,11 @@ function InicioTab({ isAdmin, logout }) {
             "La operación del puerto nos afecta a todos. Compartir lo que sabes es ayudar a quien viene detrás. <span style={{ color:"rgba(56,189,248,0.85)", fontStyle:"normal", fontWeight:"600" }}>Juntos hacemos la diferencia.</span>"
           </p>
         </div>
+      </div>
+
+      {/* ─── ANIMACIÓN CONVOY ─────────────────────────────────────────────────── */}
+      <div style={{ marginBottom: "28px" }}>
+        <ConvoyScene accentColor="#38bdf8" />
       </div>
 
       {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
