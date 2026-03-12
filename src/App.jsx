@@ -3040,6 +3040,9 @@ function TutorialTab({ setActive }) {
 function InicioTab({ isAdmin, logout }) {
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const clickTimeoutRef = useRef(null);
 
   // Auto-toggle QR: show for 5 seconds, hide for 3, repeat
   useEffect(() => {
@@ -3054,6 +3057,43 @@ function InicioTab({ isAdmin, logout }) {
     cycle();
     return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
   }, []);
+
+  // Admin trigger: tap logo 7 times
+  const handleLogoClick = () => {
+    if (isAdmin) return;
+    
+    setClickCount(prev => prev + 1);
+    
+    if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+    
+    clickTimeoutRef.current = setTimeout(() => {
+      setClickCount(0);
+    }, 2000);
+    
+    if (clickCount + 1 >= 7) {
+      setClickCount(0);
+      setShowPrompt(true);
+    }
+  };
+
+  const handleAdminLogin = () => {
+    const pass = prompt("Ingresa la contraseña de administrador:");
+    if (pass === ADMIN_PASS) {
+      try {
+        sessionStorage.setItem(ADMIN_KEY, "1");
+        window.location.reload();
+      } catch {}
+    } else if (pass !== null) {
+      alert("Contraseña incorrecta");
+    }
+    setShowPrompt(false);
+  };
+
+  useEffect(() => {
+    if (showPrompt) {
+      handleAdminLogin();
+    }
+  }, [showPrompt]);
 
   const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
@@ -3094,7 +3134,23 @@ function InicioTab({ isAdmin, logout }) {
 
         {/* Logo / título app */}
         <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"18px" }}>
-          <div style={{ width:"46px", height:"46px", background:"linear-gradient(135deg,rgba(56,189,248,0.2),rgba(167,139,250,0.2))", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"12px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", flexShrink:0 }}>⚓</div>
+          <div 
+            onClick={handleLogoClick}
+            style={{ 
+              width:"46px", 
+              height:"46px", 
+              background:"linear-gradient(135deg,rgba(56,189,248,0.2),rgba(167,139,250,0.2))", 
+              border:"1px solid rgba(56,189,248,0.35)", 
+              borderRadius:"12px", 
+              display:"flex", 
+              alignItems:"center", 
+              justifyContent:"center", 
+              fontSize:"24px", 
+              flexShrink:0,
+              cursor: isAdmin ? "default" : "pointer",
+              userSelect: "none"
+            }}
+          >⚓</div>
           <div>
             <div style={{ fontFamily:TITLE, fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
             <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
