@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "Oconer1912#";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -2390,78 +2390,7 @@ function VisorFullscreen({ item, onClose }) {
 }
 
 // ─── PANEL ADMIN: SUBIR COMUNICADO ────────────────────────────────────────────
-function SubirComunicadoPanel({ onSubido }) {
-  const [titulo,    setTitulo]    = useState("");
-  const [detalle,   setDetalle]   = useState("");
-  const [archivo,   setArchivo]   = useState(null);
-  const [preview,   setPreview]   = useState(null);
-  const [subiendo,  setSubiendo]  = useState(false);
-  const [error,     setError]     = useState("");
-  const [exito,     setExito]     = useState(false);
-  const inputRef = useRef();
-
-  const onFileChange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const allowed = ["image/jpeg","image/png","image/webp","application/pdf"];
-    if (!allowed.includes(f.type)) { setError("Solo se permiten JPG, PNG o PDF"); return; }
-    if (f.size > 10 * 1024 * 1024) { setError("El archivo no debe superar 10 MB"); return; }
-    setError("");
-    setArchivo(f);
-    if (f.type !== "application/pdf") {
-      const reader = new FileReader();
-      reader.onload = ev => setPreview(ev.target.result);
-      reader.readAsDataURL(f);
-    } else {
-      setPreview("pdf");
-    }
-  };
-
-  const handleSubir = async () => {
-    if (!titulo.trim()) { setError("Escribe un título para el comunicado"); return; }
-    if (!archivo)       { setError("Selecciona un archivo"); return; }
-    setSubiendo(true); setError("");
-    try {
-      const ext  = archivo.name.split(".").pop();
-      const path = `comunicados/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await sb.storage.from("comunicados").upload(path, archivo, { contentType: archivo.type, upsert: false });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
-      await sb.from("comunicados").insert({ titulo: titulo.trim(), detalle: detalle.trim(), archivo_url: publicUrl, archivo_tipo: archivo.type });
-      setExito(true);
-      setTitulo(""); setDetalle(""); setArchivo(null); setPreview(null);
-      if (inputRef.current) inputRef.current.value = "";
-      setTimeout(() => setExito(false), 3000);
-      if (onSubido) onSubido();
-    } catch (err) {
-      setError("Error al subir: " + (err.message || "Intenta de nuevo"));
-    }
-    setSubiendo(false);
-  };
-
-  return (
-    <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"14px", padding:"16px", marginBottom:"16px" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
-        <span style={{ fontSize:"18px" }}>📎</span>
-        <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"1px", color:"#fbbf24" }}>SUBIR COMUNICADO (Admin)</span>
-      </div>
-      <input
-        type="text"
-        placeholder="Título del comunicado *"
-        value={titulo}
-        onChange={e => setTitulo(e.target.value)}
-        maxLength={120}
-        style={{ width:"100%", background:"#060e1a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", marginBottom:"8px", boxSizing:"border-box", outline:"none" }}
-      />
-      <input
-        type="text"
-        placeholder="Descripción breve (opcional)"
-        value={detalle}
-        onChange={e => setDetalle(e.target.value)}
-        maxLength={200}
-        style={{ width:"100%", background:"#060e1a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", marginBottom:"10px", boxSizing:"border-box", outline:"none" }}
-      />
-      {/* Zona de archivo */}
+ Zona de archivo */}
       <div
         onClick={() => inputRef.current?.click()}
         style={{ border:"2px dashed #1e3a5f", borderRadius:"10px", padding:"16px", textAlign:"center", cursor:"pointer", marginBottom:"10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition:"all 0.2s" }}
@@ -2487,6 +2416,398 @@ function SubirComunicadoPanel({ onSubido }) {
         {subiendo ? "⏳ Subiendo..." : "📤 PUBLICAR COMUNICADO"}
       </button>
     </div>
+  );
+}
+
+// ─── SUBIR COMUNICADO (con fechas y aprobación) ──────────────────────────────
+function SubirComunicadoPanel({ onSubido, isAdmin }) {
+  const [titulo, setTitulo] = useState("");
+  const [detalle, setDetalle] = useState("");
+  const [archivo, setArchivo] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [horaInicio, setHoraInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
+  const [horaFin, setHoraFin] = useState("");
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+  const [exito, setExito] = useState(false);
+  const inputRef = useRef();
+
+  const onFileChange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(f.type)) {
+      setError("Solo se permiten JPG, PNG o PDF");
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      setError("El archivo no debe superar 10 MB");
+      return;
+    }
+    setError("");
+    setArchivo(f);
+    if (f.type !== "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = (ev) => setPreview(ev.target.result);
+      reader.readAsDataURL(f);
+    } else {
+      setPreview("pdf");
+    }
+  };
+
+  const handleSubir = async () => {
+    if (!titulo.trim()) {
+      setError("Escribe un título para el comunicado");
+      return;
+    }
+    if (!archivo) {
+      setError("Selecciona un archivo");
+      return;
+    }
+    if (!fechaInicio || !horaInicio) {
+      setError("Especifica la fecha y hora de inicio");
+      return;
+    }
+    if (!fechaFin || !horaFin) {
+      setError("Especifica la fecha y hora de término");
+      return;
+    }
+
+    const inicio = new Date(`${fechaInicio}T${horaInicio}`).getTime();
+    const fin = new Date(`${fechaFin}T${horaFin}`).getTime();
+
+    if (fin <= inicio) {
+      setError("La fecha de término debe ser posterior a la fecha de inicio");
+      return;
+    }
+
+    setSubiendo(true);
+    setError("");
+    try {
+      const ext = archivo.name.split(".").pop();
+      const path = `comunicados/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await sb.storage
+        .from("comunicados")
+        .upload(path, archivo, { contentType: archivo.type, upsert: false });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
+      
+      await sb.from("comunicados").insert({
+        titulo: titulo.trim(),
+        detalle: detalle.trim(),
+        archivo_url: publicUrl,
+        archivo_tipo: archivo.type,
+        fecha_inicio: inicio,
+        fecha_fin: fin,
+        aprobado: isAdmin, // Si es admin, se aprueba automáticamente
+        created_at: new Date().toISOString()
+      });
+      
+      setExito(true);
+      setTitulo("");
+      setDetalle("");
+      setArchivo(null);
+      setPreview(null);
+      setFechaInicio("");
+      setHoraInicio("");
+      setFechaFin("");
+      setHoraFin("");
+      if (inputRef.current) inputRef.current.value = "";
+      setTimeout(() => setExito(false), 3000);
+      if (onSubido) onSubido();
+    } catch (err) {
+      setError("Error al subir: " + (err.message || "Intenta de nuevo"));
+    }
+    setSubiendo(false);
+  };
+
+  return (
+    <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "14px", padding: "16px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+        <span style={{ fontSize: "18px" }}>📎</span>
+        <span style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", letterSpacing: "1px", color: "#fbbf24" }}>
+          {isAdmin ? "SUBIR COMUNICADO (Admin)" : "PROPONER COMUNICADO"}
+        </span>
+      </div>
+      
+      <input
+        type="text"
+        placeholder="Título del comunicado *"
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        maxLength={120}
+        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "12px", marginBottom: "8px", boxSizing: "border-box", outline: "none" }}
+      />
+      
+      <input
+        type="text"
+        placeholder="Descripción breve (opcional)"
+        value={detalle}
+        onChange={(e) => setDetalle(e.target.value)}
+        maxLength={200}
+        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none" }}
+      />
+
+      {/* Fechas de vigencia */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+        <div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: MN, marginBottom: "4px", letterSpacing: "1px" }}>FECHA INICIO *</div>
+          <input
+            type="date"
+            value={fechaInicio}
+            onChange={(e) => setFechaInicio(e.target.value)}
+            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: MN, marginBottom: "4px", letterSpacing: "1px" }}>HORA INICIO *</div>
+          <input
+            type="time"
+            value={horaInicio}
+            onChange={(e) => setHoraInicio(e.target.value)}
+            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+        <div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: MN, marginBottom: "4px", letterSpacing: "1px" }}>FECHA TÉRMINO *</div>
+          <input
+            type="date"
+            value={fechaFin}
+            onChange={(e) => setFechaFin(e.target.value)}
+            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: MN, marginBottom: "4px", letterSpacing: "1px" }}>HORA TÉRMINO *</div>
+          <input
+            type="time"
+            value={horaFin}
+            onChange={(e) => setHoraFin(e.target.value)}
+            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: MN, fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+          />
+        </div>
+      </div>
+
+      {/* Zona de archivo */}
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{ border: "2px dashed #1e3a5f", borderRadius: "10px", padding: "16px", textAlign: "center", cursor: "pointer", marginBottom: "10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition: "all 0.2s" }}
+      >
+        {preview && preview !== "pdf" && (
+          <img src={preview} alt="preview" style={{ maxWidth: "100%", maxHeight: "160px", objectFit: "contain", borderRadius: "6px", marginBottom: "8px", display: "block", margin: "0 auto 8px" }} />
+        )}
+        {preview === "pdf" && <div style={{ fontSize: "40px", marginBottom: "6px" }}>📄</div>}
+        <div style={{ fontFamily: MN, fontSize: "11px", color: archivo ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
+          {archivo ? `✓ ${archivo.name}` : "Toca aquí para seleccionar JPG, PNG o PDF (máx. 10 MB)"}
+        </div>
+        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display: "none" }} />
+      </div>
+      
+      {!isAdmin && (
+        <div style={{ background: "#fbbf2411", border: "1px solid #fbbf2433", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px", fontSize: "10px", color: "#fbbf24", fontFamily: MN, lineHeight: "1.6" }}>
+          ℹ️ Tu comunicado será enviado a revisión y aparecerá después de ser aprobado por un administrador.
+        </div>
+      )}
+      
+      {error && (
+        <div style={{ fontFamily: MN, fontSize: "11px", color: "#f87171", marginBottom: "8px", padding: "8px 12px", background: "#ef444411", borderRadius: "7px" }}>
+          ⚠️ {error}
+        </div>
+      )}
+      {exito && (
+        <div style={{ fontFamily: MN, fontSize: "11px", color: "#22c55e", marginBottom: "8px", padding: "8px 12px", background: "#22c55e11", borderRadius: "7px" }}>
+          ✅ {isAdmin ? "Comunicado publicado correctamente" : "Comunicado enviado a revisión"}
+        </div>
+      )}
+      
+      <button
+        onClick={handleSubir}
+        disabled={subiendo}
+        style={{ width: "100%", padding: "11px", background: subiendo ? "#0a1628" : "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: "9px", color: subiendo ? "rgba(255,255,255,0.4)" : "#0a1628", fontFamily: MN, fontWeight: "700", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.5px" }}
+      >
+        {subiendo ? "⏳ Subiendo..." : isAdmin ? "📤 PUBLICAR COMUNICADO" : "📤 ENVIAR A REVISIÓN"}
+      </button>
+    </div>
+  );
+}
+
+// ─── SECCIÓN COMUNICADOS (con aprobación y auto-eliminación) ─────────────────
+function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, timeAgo, isPdf }) {
+  const [pendientes, setPendientes] = useState([]);
+  
+  // Filtrar comunicados aprobados y vigentes
+  const ahora = Date.now();
+  const vigentes = comunicados.filter(c => c.aprobado && c.fecha_inicio <= ahora && c.fecha_fin > ahora);
+  
+  // Cargar pendientes (solo admin)
+  useEffect(() => {
+    if (!isAdmin) return;
+    sb.from("comunicados")
+      .select("*")
+      .eq("aprobado", false)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setPendientes(data);
+      });
+  }, [isAdmin]);
+
+  const aprobar = async (id) => {
+    await sb.from("comunicados").update({ aprobado: true }).eq("id", id);
+    setPendientes(prev => prev.filter(p => p.id !== id));
+    onReload();
+  };
+
+  const rechazar = async (id) => {
+    // Eliminar archivo del storage
+    const com = pendientes.find(p => p.id === id);
+    if (com?.archivo_url) {
+      try {
+        const path = com.archivo_url.split("/comunicados/")[1];
+        await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+      } catch {}
+    }
+    await sb.from("comunicados").delete().eq("id", id);
+    setPendientes(prev => prev.filter(p => p.id !== id));
+  };
+
+  const eliminar = async (id) => {
+    if (!confirm("¿Eliminar este comunicado permanentemente?")) return;
+    const com = vigentes.find(v => v.id === id);
+    if (com?.archivo_url) {
+      try {
+        const path = com.archivo_url.split("/comunicados/")[1];
+        await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+      } catch {}
+    }
+    await sb.from("comunicados").delete().eq("id", id);
+    onReload();
+  };
+
+  const formatDateTime = (timestamp) => {
+    const d = new Date(timestamp);
+    return d.toLocaleString("es-MX", { 
+      year: "numeric", 
+      month: "short", 
+      day: "numeric", 
+      hour: "2-digit", 
+      minute: "2-digit" 
+    });
+  };
+
+  return (
+    <>
+      <SubirComunicadoPanel onSubido={onReload} isAdmin={isAdmin} />
+
+      {/* Pendientes de aprobación (solo admin) */}
+      {isAdmin && pendientes.length > 0 && (
+        <div style={{ marginBottom: "20px" }}>
+          <div style={{ fontFamily: MN, fontSize: "11px", color: "#f97316", letterSpacing: "1px", marginBottom: "10px", fontWeight: "700" }}>
+            ⏳ PENDIENTES DE APROBACIÓN ({pendientes.length})
+          </div>
+          {pendientes.map((p) => (
+            <div key={p.id} style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.3)", borderLeft: "3px solid #f97316", borderRadius: "10px", padding: "12px", marginBottom: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px" }}>{p.titulo}</div>
+                  {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px" }}>{p.detalle}</div>}
+                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontFamily: MN }}>
+                    📅 {formatDateTime(p.fecha_inicio)} → {formatDateTime(p.fecha_fin)}
+                  </div>
+                </div>
+                {isPdf(p.archivo_url) ? (
+                  <div style={{ width: "48px", height: "48px", background: "#f9731622", border: "1px solid #f9731644", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", marginLeft: "10px" }}>📄</div>
+                ) : (
+                  <img src={p.archivo_url} alt="preview" style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "6px", marginLeft: "10px" }} />
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={() => aprobar(p.id)} style={{ flex: 1, padding: "8px", background: "#22c55e22", border: "1px solid #22c55e", borderRadius: "7px", color: "#22c55e", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
+                  ✓ APROBAR
+                </button>
+                <button onClick={() => rechazar(p.id)} style={{ flex: 1, padding: "8px", background: "#ef444422", border: "1px solid #ef4444", borderRadius: "7px", color: "#ef4444", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
+                  ✕ RECHAZAR
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Comunicados vigentes */}
+      {vigentes.length === 0 && (
+        <div style={{ textAlign: "center", padding: "40px", border: "1px dashed #1e3a5f", borderRadius: "12px", color: "rgba(255,255,255,0.3)", fontFamily: MN, fontSize: "12px" }}>
+          📭 Sin comunicados vigentes
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
+        {vigentes.map((c) => (
+          <div
+            key={c.id}
+            onClick={() => setVisorItem(c)}
+            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", overflow: "hidden", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s", position: "relative" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.02)";
+              e.currentTarget.style.borderColor = "rgba(251,191,36,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+            }}
+          >
+            {/* Thumbnail */}
+            <div style={{ width: "100%", aspectRatio: "4/3", background: "#060e1a", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}>
+              {isPdf(c.archivo_url) ? (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "32px" }}>📄</div>
+                  <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>PDF</div>
+                </div>
+              ) : (
+                <img src={c.archivo_url} alt={c.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+              )}
+            </div>
+            {/* Info */}
+            <div style={{ padding: "8px 10px" }}>
+              <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {c.titulo}
+              </div>
+              {c.detalle && (
+                <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>
+                  {c.detalle}
+                </div>
+              )}
+              <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.25)", marginBottom: "4px" }}>
+                🕐 Vence: {formatDateTime(c.fecha_fin)}
+              </div>
+            </div>
+            {/* Botón eliminar (solo admin) */}
+            {isAdmin && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  eliminar(c.id);
+                }}
+                style={{ position: "absolute", top: "6px", right: "6px", width: "24px", height: "24px", background: "rgba(239,68,68,0.9)", border: "none", borderRadius: "50%", color: "#fff", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Eliminar comunicado"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {vigentes.length > 0 && (
+        <div style={{ textAlign: "center", padding: "16px", color: "rgba(255,255,255,0.3)", fontFamily: MN, fontSize: "10px" }}>
+          Toca cualquier comunicado para verlo a pantalla completa
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2516,6 +2837,35 @@ function NoticiasTab({ isAdmin }) {
         if (r) setComunicados(prev => [r, ...prev].slice(0, 50));
       }).subscribe();
     return () => sb.removeChannel(chan);
+  }, []);
+
+  // Limpieza automática de comunicados vencidos cada minuto
+  useEffect(() => {
+    const limpiarVencidos = async () => {
+      const ahora = Date.now();
+      const { data: vencidos } = await sb.from("comunicados")
+        .select("*")
+        .lt("fecha_fin", ahora);
+      
+      if (vencidos && vencidos.length > 0) {
+        // Eliminar archivos del storage
+        for (const com of vencidos) {
+          if (com.archivo_url) {
+            try {
+              const path = com.archivo_url.split("/comunicados/")[1];
+              await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+            } catch {}
+          }
+        }
+        // Eliminar de la base de datos
+        await sb.from("comunicados").delete().lt("fecha_fin", ahora);
+        cargarComunicados();
+      }
+    };
+
+    limpiarVencidos(); // Ejecutar al cargar
+    const interval = setInterval(limpiarVencidos, 60000); // Cada minuto
+    return () => clearInterval(interval);
   }, []);
 
   const FILTROS = [
@@ -2605,60 +2955,14 @@ function NoticiasTab({ isAdmin }) {
 
       {/* ── SECCIÓN COMUNICADOS ── */}
       {seccion === "comunicados" && (
-        <>
-          {isAdmin && <SubirComunicadoPanel onSubido={cargarComunicados} />}
-
-          {comunicados.length === 0 && (
-            <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>
-              📭 Sin comunicados publicados aún
-            </div>
-          )}
-
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:"10px" }}>
-            {comunicados.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => setVisorItem(c)}
-                style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", overflow:"hidden", cursor:"pointer", transition:"transform 0.15s, border-color 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.transform="scale(1.02)"; e.currentTarget.style.borderColor="rgba(251,191,36,0.4)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.borderColor="rgba(255,255,255,0.1)"; }}
-              >
-                {/* Thumbnail */}
-                <div style={{ width:"100%", aspectRatio:"4/3", background:"#060e1a", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", position:"relative" }}>
-                  {isPdf(c.archivo_url) ? (
-                    <div style={{ textAlign:"center" }}>
-                      <div style={{ fontSize:"32px" }}>📄</div>
-                      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", marginTop:"4px" }}>PDF</div>
-                    </div>
-                  ) : (
-                    <img src={c.archivo_url} alt={c.titulo} style={{ width:"100%", height:"100%", objectFit:"cover" }} loading="lazy" />
-                  )}
-                  {/* Overlay hint */}
-                  <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.2s" }}
-                    onMouseEnter={e => e.currentTarget.style.background="rgba(0,0,0,0.4)"}
-                    onMouseLeave={e => e.currentTarget.style.background="rgba(0,0,0,0)"}
-                  >
-                    <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"14px", opacity:0, transition:"opacity 0.2s" }}
-                      onMouseEnter={e => { e.currentTarget.style.opacity="1"; }}
-                    >🔍</div>
-                  </div>
-                </div>
-                {/* Info */}
-                <div style={{ padding:"8px 10px" }}>
-                  <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"11px", color:"rgba(255,255,255,0.9)", marginBottom:"3px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.titulo}</div>
-                  {c.detalle && <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:"4px" }}>{c.detalle}</div>}
-                  <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.25)" }}>{timeAgo(c.created_at)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {comunicados.length > 0 && (
-            <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px" }}>
-              Toca cualquier comunicado para verlo a pantalla completa
-            </div>
-          )}
-        </>
+        <ComunicadosSection 
+          isAdmin={isAdmin}
+          comunicados={comunicados}
+          onReload={cargarComunicados}
+          setVisorItem={setVisorItem}
+          timeAgo={timeAgo}
+          isPdf={isPdf}
+        />
       )}
     </div>
   );
