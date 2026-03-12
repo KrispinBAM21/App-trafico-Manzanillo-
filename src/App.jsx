@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuración Supabase
@@ -54,16 +51,7 @@ async function limpiarVotosExpirados() {
   }
 }
 
-// Componente para centrar el mapa
-function MapCenter({ center }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.setView(center, map.getZoom());
-    }
-  }, [center, map]);
-  return null;
-}
+
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('inicio');
@@ -79,67 +67,6 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [logoTaps, setLogoTaps] = useState(0);
   const [lastTap, setLastTap] = useState(0);
-  const [mapCenter, setMapCenter] = useState([19.0543, -104.3262]);
-  const [selectedTileLayer, setSelectedTileLayer] = useState('dark');
-
-  // KML data for terminals and routes
-  const kmlData = {
-    terminals: [
-      { id: 'tpo', name: 'TPO', lat: 19.0543, lng: -104.3262, color: '#4169E1' },
-      { id: 'timsa', name: 'TIMSA', lat: 19.0521, lng: -104.3301, color: '#32CD32' },
-      { id: 'ocupa', name: 'OCUPA', lat: 19.0498, lng: -104.3288, color: '#FFD700' },
-      { id: 'maersk', name: 'MAERSK', lat: 19.0471, lng: -104.3341, color: '#00CED1' },
-      { id: 'ssp', name: 'SSP', lat: 19.0445, lng: -104.3378, color: '#FF6347' }
-    ],
-    routes: {
-      segundoAcceso: [
-        [19.0612, -104.3156],
-        [19.0589, -104.3198],
-        [19.0567, -104.3234],
-        [19.0543, -104.3262],
-        [19.0521, -104.3301],
-        [19.0498, -104.3288],
-        [19.0471, -104.3341],
-        [19.0445, -104.3378]
-      ],
-      vialidadConfinada: [
-        [19.0623, -104.3145],
-        [19.0601, -104.3187],
-        [19.0578, -104.3223],
-        [19.0554, -104.3251],
-        [19.0532, -104.3290],
-        [19.0509, -104.3277],
-        [19.0482, -104.3330],
-        [19.0456, -104.3367]
-      ]
-    }
-  };
-
-  // Create custom icons for terminals
-  const createTerminalIcon = (color) => {
-    return L.divIcon({
-      className: 'custom-div-icon',
-      html: `
-        <div style="
-          background-color: ${color};
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        "></div>
-      `,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    });
-  };
-
-  // Tile layer configurations
-  const tileLayers = {
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-  };
 
   useEffect(() => {
     const consent = localStorage.getItem('cookieConsent');
@@ -909,7 +836,7 @@ export default function App() {
                 Estado del Tráfico
               </h2>
 
-              {/* Mapa de Leaflet */}
+              {/* Mapa de Google Maps */}
               <div style={{
                 background: 'rgba(255, 255, 255, 0.03)',
                 backdropFilter: 'blur(10px)',
@@ -919,70 +846,14 @@ export default function App() {
                 boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
                 marginBottom: '2rem'
               }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '1rem',
-                  flexWrap: 'wrap',
-                  gap: '1rem'
+                <h3 style={{
+                  fontFamily: '"Playfair Display", serif',
+                  fontSize: '1.5rem',
+                  color: '#ffffff',
+                  marginBottom: '1rem'
                 }}>
-                  <h3 style={{
-                    fontFamily: '"Playfair Display", serif',
-                    fontSize: '1.5rem',
-                    color: '#ffffff',
-                    margin: 0
-                  }}>
-                    Mapa Interactivo
-                  </h3>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => setSelectedTileLayer('dark')}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        border: selectedTileLayer === 'dark' ? '2px solid #667eea' : '1px solid rgba(255, 255, 255, 0.2)',
-                        background: selectedTileLayer === 'dark' ? 'rgba(102, 126, 234, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '0.85rem'
-                      }}
-                    >
-                      🌙 Oscuro
-                    </button>
-                    <button
-                      onClick={() => setSelectedTileLayer('satellite')}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        border: selectedTileLayer === 'satellite' ? '2px solid #667eea' : '1px solid rgba(255, 255, 255, 0.2)',
-                        background: selectedTileLayer === 'satellite' ? 'rgba(102, 126, 234, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '0.85rem'
-                      }}
-                    >
-                      🛰️ Satélite
-                    </button>
-                    <button
-                      onClick={() => setSelectedTileLayer('light')}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        border: selectedTileLayer === 'light' ? '2px solid #667eea' : '1px solid rgba(255, 255, 255, 0.2)',
-                        background: selectedTileLayer === 'light' ? 'rgba(102, 126, 234, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        fontSize: '0.85rem'
-                      }}
-                    >
-                      ☀️ Claro
-                    </button>
-                  </div>
-                </div>
+                  Mapa del Puerto
+                </h3>
 
                 <div style={{
                   height: '500px',
@@ -990,96 +861,15 @@ export default function App() {
                   overflow: 'hidden',
                   border: '2px solid rgba(255, 255, 255, 0.1)'
                 }}>
-                  <MapContainer
-                    center={mapCenter}
-                    zoom={14}
-                    style={{ height: '100%', width: '100%' }}
-                  >
-                    <MapCenter center={mapCenter} />
-                    <TileLayer
-                      url={tileLayers[selectedTileLayer]}
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    />
-                    
-                    {/* Polyline para Segundo Acceso */}
-                    <Polyline
-                      positions={kmlData.routes.segundoAcceso}
-                      color="#FFD700"
-                      weight={4}
-                      opacity={0.8}
-                    />
-                    
-                    {/* Polyline para Vialidad Confinada */}
-                    <Polyline
-                      positions={kmlData.routes.vialidadConfinada}
-                      color="#00BFFF"
-                      weight={4}
-                      opacity={0.8}
-                    />
-                    
-                    {/* Markers para terminales */}
-                    {kmlData.terminals.map((terminal) => (
-                      <Marker
-                        key={terminal.id}
-                        position={[terminal.lat, terminal.lng]}
-                        icon={createTerminalIcon(terminal.color)}
-                        eventHandlers={{
-                          click: () => {
-                            setMapCenter([terminal.lat, terminal.lng]);
-                          }
-                        }}
-                      >
-                        <Popup>
-                          <div style={{ fontFamily: '"DM Sans", sans-serif' }}>
-                            <strong>{terminal.name}</strong>
-                            <br />
-                            Estado: {terminales[terminal.name.toLowerCase()] || 'fluido'}
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                  </MapContainer>
-                </div>
-
-                {/* Leyenda */}
-                <div style={{
-                  marginTop: '1rem',
-                  padding: '1rem',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '1rem',
-                  justifyContent: 'center'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{
-                      width: '30px',
-                      height: '4px',
-                      background: '#FFD700'
-                    }} />
-                    <span style={{ color: 'white', fontSize: '0.9rem' }}>Segundo Acceso</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{
-                      width: '30px',
-                      height: '4px',
-                      background: '#00BFFF'
-                    }} />
-                    <span style={{ color: 'white', fontSize: '0.9rem' }}>Vialidad Confinada</span>
-                  </div>
-                  {kmlData.terminals.map((terminal) => (
-                    <div key={terminal.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: terminal.color,
-                        border: '2px solid white'
-                      }} />
-                      <span style={{ color: 'white', fontSize: '0.9rem' }}>{terminal.name}</span>
-                    </div>
-                  ))}
+                  <iframe
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14922.856789!2d-104.33!3d19.054!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTnCsDAzJzE1LjUiTiAxMDTCsDE5JzU3LjUiVw!5e0!3m2!1ses!2smx!4v1234567890"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
               </div>
 
@@ -1577,21 +1367,6 @@ export default function App() {
             opacity: 1;
             transform: translateY(0);
           }
-        }
-
-        /* Estilos para el mapa de Leaflet */
-        .leaflet-container {
-          font-family: 'DM Sans', sans-serif;
-        }
-
-        .leaflet-popup-content-wrapper {
-          background: rgba(15, 23, 42, 0.95);
-          color: white;
-          border-radius: 8px;
-        }
-
-        .leaflet-popup-tip {
-          background: rgba(15, 23, 42, 0.95);
         }
       `}</style>
     </div>
