@@ -2446,8 +2446,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       return;
     }
 
-    const inicio = new Date(`${fechaInicio}T${horaInicio}`).getTime();
-    const fin = new Date(`${fechaFin}T${horaFin}`).getTime();
+    const inicio = new Date(`${fechaInicio}T${horaInicio}`).toISOString();
+    const fin = new Date(`${fechaFin}T${horaFin}`).toISOString();
 
     if (fin <= inicio) {
       setError("La fecha de término debe ser posterior a la fecha de inicio");
@@ -2611,14 +2611,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, timeAgo, isPdf }) {
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
+  const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
 
-  // Filtrar comunicados aprobados y vigentes — ahora se recalcula en cada render
+  // Filtrar comunicados aprobados y vigentes — recalcula en cada render
   const vigentes = comunicados.filter(c => {
     if (!c.aprobado) return false;
-    const ahora = Date.now();
-    // Soporta tanto timestamps numéricos (ms) como strings ISO
-    const inicio = typeof c.fecha_inicio === "number" ? c.fecha_inicio : new Date(c.fecha_inicio).getTime();
-    const fin    = typeof c.fecha_fin    === "number" ? c.fecha_fin    : new Date(c.fecha_fin).getTime();
+    const ahora = new Date().toISOString();
+    const inicio = typeof c.fecha_inicio === "number"
+      ? new Date(c.fecha_inicio).toISOString()
+      : (c.fecha_inicio || "");
+    const fin = typeof c.fecha_fin === "number"
+      ? new Date(c.fecha_fin).toISOString()
+      : (c.fecha_fin || "");
     return inicio <= ahora && fin > ahora;
   });
 
@@ -2655,8 +2659,10 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     setPendientes(prev => prev.filter(p => p.id !== id));
   };
 
+  const pedirEliminar = (id) => setConfirmId(id);
+
   const eliminar = async (id) => {
-    if (!confirm("¿Eliminar este comunicado permanentemente?")) return;
+    setConfirmId(null);
     const com = vigentes.find(v => v.id === id);
     if (com?.archivo_url) {
       try {
@@ -2707,6 +2713,30 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </button>
       </div>
 
+      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── */}
+      {confirmId && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+          onClick={() => setConfirmId(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: "40px", marginBottom: "12px" }}>🗑️</div>
+            <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>¿Eliminar comunicado?</div>
+            <div style={{ fontFamily: MN, fontSize: "11px", color: "rgba(255,255,255,0.45)", marginBottom: "22px", lineHeight: "1.5" }}>
+              Esta acción es permanente.<br/>Se eliminará el archivo y no podrá recuperarse.
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setConfirmId(null)}
+                style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid #1e3a5f", borderRadius: "10px", color: "rgba(255,255,255,0.6)", fontFamily: MN, fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+              >Cancelar</button>
+              <button
+                onClick={() => eliminar(confirmId)}
+                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg,#ef4444,#dc2626)", border: "none", borderRadius: "10px", color: "#fff", fontFamily: MN, fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+              >Sí, eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── SUB-TAB: VER COMUNICADOS ── */}
       {subTab === "ver" && (
         <>
@@ -2743,10 +2773,10 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
                     </div>
                     {isAdmin && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); eliminar(c.id); }}
-                        style={{ position: "absolute", top: "6px", right: "6px", width: "24px", height: "24px", background: "rgba(239,68,68,0.9)", border: "none", borderRadius: "50%", color: "#fff", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        onClick={(e) => { e.stopPropagation(); pedirEliminar(c.id); }}
+                        style={{ position: "absolute", top: "6px", right: "6px", width: "28px", height: "28px", background: "rgba(239,68,68,0.85)", border: "1px solid rgba(239,68,68,0.6)", borderRadius: "50%", color: "#fff", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
                         title="Eliminar comunicado"
-                      >✕</button>
+                      >🗑</button>
                     )}
                   </div>
                 ))}
@@ -2886,13 +2916,12 @@ function NoticiasTab({ isAdmin }) {
   // Limpieza automática de comunicados vencidos cada minuto
   useEffect(() => {
     const limpiarVencidos = async () => {
-      const ahora = Date.now();
+      const ahora = new Date().toISOString();
       const { data: vencidos } = await sb.from("comunicados")
         .select("*")
         .lt("fecha_fin", ahora);
       
       if (vencidos && vencidos.length > 0) {
-        // Eliminar archivos del storage
         for (const com of vencidos) {
           if (com.archivo_url) {
             try {
@@ -2901,7 +2930,6 @@ function NoticiasTab({ isAdmin }) {
             } catch {}
           }
         }
-        // Eliminar de la base de datos
         await sb.from("comunicados").delete().lt("fecha_fin", ahora);
         cargarComunicados();
       }
