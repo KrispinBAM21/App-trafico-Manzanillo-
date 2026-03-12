@@ -2613,16 +2613,25 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [pendientes, setPendientes] = useState([]);
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
 
-  // Filtrar comunicados aprobados y vigentes — recalcula en cada render
+  // Helpers de fecha — robusto para ms numérico o ISO string
+  const toMs = (v) => {
+    if (!v) return 0;
+    if (typeof v === "number") return v;
+    const n = Number(v);
+    if (!isNaN(n) && n > 1e12) return n;
+    return new Date(v).getTime();
+  };
+  const formatDateTime = (timestamp) => {
+    const d = new Date(toMs(timestamp));
+    return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Filtrar comunicados vigentes
+  const ahora = Date.now();
   const vigentes = comunicados.filter(c => {
     if (!c.aprobado) return false;
-    const ahora = new Date().toISOString();
-    const inicio = typeof c.fecha_inicio === "number"
-      ? new Date(c.fecha_inicio).toISOString()
-      : (c.fecha_inicio || "");
-    const fin = typeof c.fecha_fin === "number"
-      ? new Date(c.fecha_fin).toISOString()
-      : (c.fecha_fin || "");
+    const inicio = toMs(c.fecha_inicio);
+    const fin    = toMs(c.fecha_fin);
     return inicio <= ahora && fin > ahora;
   });
 
@@ -2680,10 +2689,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     setSubTab("ver");
   };
 
-  const formatDateTime = (timestamp) => {
-    const d = new Date(timestamp);
-    return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
+
 
   return (
     <>
@@ -2895,7 +2901,11 @@ function NoticiasTab({ isAdmin }) {
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
 
   const cargarComunicados = () => {
-    sb.from("comunicados").select("*").order("created_at", { ascending: false }).limit(50)
+    sb.from("comunicados")
+      .select("*")
+      .eq("aprobado", true)
+      .order("created_at", { ascending: false })
+      .limit(50)
       .then(({ data }) => { if (data) setComunicados(data); });
   };
 
@@ -2916,23 +2926,22 @@ function NoticiasTab({ isAdmin }) {
   // Limpieza automática de comunicados vencidos cada minuto
   useEffect(() => {
     const limpiarVencidos = async () => {
-      const ahora = new Date().toISOString();
-      const { data: vencidos } = await sb.from("comunicados")
-        .select("*")
-        .lt("fecha_fin", ahora);
-      
-      if (vencidos && vencidos.length > 0) {
-        for (const com of vencidos) {
-          if (com.archivo_url) {
-            try {
-              const path = com.archivo_url.split("/comunicados/")[1];
-              await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
-            } catch {}
-          }
+      const ahora = Date.now();
+      // Traer todos y filtrar vencidos en el cliente (evita problemas de tipo en Supabase)
+      const { data: todos } = await sb.from("comunicados").select("*");
+      if (!todos) return;
+      const vencidos = todos.filter(c => toMs(c.fecha_fin) <= ahora);
+      if (vencidos.length === 0) return;
+      for (const com of vencidos) {
+        if (com.archivo_url) {
+          try {
+            const path = com.archivo_url.split("/comunicados/")[1];
+            await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+          } catch {}
         }
-        await sb.from("comunicados").delete().lt("fecha_fin", ahora);
-        cargarComunicados();
+        await sb.from("comunicados").delete().eq("id", com.id);
       }
+      cargarComunicados();
     };
 
     limpiarVencidos(); // Ejecutar al cargar
