@@ -2607,14 +2607,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   );
 }
 
-// ─── SECCIÓN COMUNICADOS (con aprobación y auto-eliminación) ─────────────────
+// ─── SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ──────────────────────
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, timeAgo, isPdf }) {
+  const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
-  
+
   // Filtrar comunicados aprobados y vigentes
   const ahora = Date.now();
   const vigentes = comunicados.filter(c => c.aprobado && c.fecha_inicio <= ahora && c.fecha_fin > ahora);
-  
+
   // Cargar pendientes (solo admin)
   useEffect(() => {
     if (!isAdmin) return;
@@ -2622,9 +2623,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
       .select("*")
       .eq("aprobado", false)
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setPendientes(data);
-      });
+      .then(({ data }) => { if (data) setPendientes(data); });
   }, [isAdmin]);
 
   const aprobar = async (id) => {
@@ -2634,7 +2633,6 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   };
 
   const rechazar = async (id) => {
-    // Eliminar archivo del storage
     const com = pendientes.find(p => p.id === id);
     if (com?.archivo_url) {
       try {
@@ -2661,122 +2659,145 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
 
   const formatDateTime = (timestamp) => {
     const d = new Date(timestamp);
-    return d.toLocaleString("es-MX", { 
-      year: "numeric", 
-      month: "short", 
-      day: "numeric", 
-      hour: "2-digit", 
-      minute: "2-digit" 
-    });
+    return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
   return (
     <>
-      <SubirComunicadoPanel onSubido={onReload} isAdmin={isAdmin} />
-
-      {/* Pendientes de aprobación (solo admin) */}
-      {isAdmin && pendientes.length > 0 && (
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{ fontFamily: MN, fontSize: "11px", color: "#f97316", letterSpacing: "1px", marginBottom: "10px", fontWeight: "700" }}>
-            ⏳ PENDIENTES DE APROBACIÓN ({pendientes.length})
-          </div>
-          {pendientes.map((p) => (
-            <div key={p.id} style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.3)", borderLeft: "3px solid #f97316", borderRadius: "10px", padding: "12px", marginBottom: "10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px" }}>{p.titulo}</div>
-                  {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px" }}>{p.detalle}</div>}
-                  <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontFamily: MN }}>
-                    📅 {formatDateTime(p.fecha_inicio)} → {formatDateTime(p.fecha_fin)}
-                  </div>
-                </div>
-                {isPdf(p.archivo_url) ? (
-                  <div style={{ width: "48px", height: "48px", background: "#f9731622", border: "1px solid #f9731644", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", marginLeft: "10px" }}>📄</div>
-                ) : (
-                  <img src={p.archivo_url} alt="preview" style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "6px", marginLeft: "10px" }} />
-                )}
-              </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => aprobar(p.id)} style={{ flex: 1, padding: "8px", background: "#22c55e22", border: "1px solid #22c55e", borderRadius: "7px", color: "#22c55e", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
-                  ✓ APROBAR
-                </button>
-                <button onClick={() => rechazar(p.id)} style={{ flex: 1, padding: "8px", background: "#ef444422", border: "1px solid #ef4444", borderRadius: "7px", color: "#ef4444", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
-                  ✕ RECHAZAR
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Comunicados vigentes */}
-      {vigentes.length === 0 && (
-        <div style={{ textAlign: "center", padding: "40px", border: "1px dashed #1e3a5f", borderRadius: "12px", color: "rgba(255,255,255,0.3)", fontFamily: MN, fontSize: "12px" }}>
-          📭 Sin comunicados vigentes
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
-        {vigentes.map((c) => (
-          <div
-            key={c.id}
-            onClick={() => setVisorItem(c)}
-            style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", overflow: "hidden", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s", position: "relative" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.02)";
-              e.currentTarget.style.borderColor = "rgba(251,191,36,0.4)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-            }}
-          >
-            {/* Thumbnail */}
-            <div style={{ width: "100%", aspectRatio: "4/3", background: "#060e1a", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}>
-              {isPdf(c.archivo_url) ? (
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "32px" }}>📄</div>
-                  <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>PDF</div>
-                </div>
-              ) : (
-                <img src={c.archivo_url} alt={c.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
-              )}
-            </div>
-            {/* Info */}
-            <div style={{ padding: "8px 10px" }}>
-              <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {c.titulo}
-              </div>
-              {c.detalle && (
-                <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>
-                  {c.detalle}
-                </div>
-              )}
-              <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.25)", marginBottom: "4px" }}>
-                🕐 Vence: {formatDateTime(c.fecha_fin)}
-              </div>
-            </div>
-            {/* Botón eliminar (solo admin) */}
-            {isAdmin && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  eliminar(c.id);
-                }}
-                style={{ position: "absolute", top: "6px", right: "6px", width: "24px", height: "24px", background: "rgba(239,68,68,0.9)", border: "none", borderRadius: "50%", color: "#fff", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                title="Eliminar comunicado"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
+      {/* Sub-tabs: Ver / Proponer */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "16px", background: "#060e1a", borderRadius: "12px", padding: "4px", border: "1px solid #1e3a5f" }}>
+        <button
+          onClick={() => setSubTab("ver")}
+          style={{ flex: 1, padding: "10px 8px", borderRadius: "9px", border: "none", background: subTab === "ver" ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : "transparent", color: subTab === "ver" ? "#0a1628" : "#475569", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer", letterSpacing: "0.5px", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+        >
+          📋 VER COMUNICADOS
+          {vigentes.length > 0 && (
+            <span style={{ background: subTab === "ver" ? "rgba(10,22,40,0.3)" : "#fbbf24", color: subTab === "ver" ? "#0a1628" : "#0a1628", borderRadius: "10px", padding: "1px 6px", fontSize: "9px", fontWeight: "700" }}>
+              {vigentes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setSubTab("proponer")}
+          style={{ flex: 1, padding: "10px 8px", borderRadius: "9px", border: "none", background: subTab === "proponer" ? "linear-gradient(135deg,#38bdf8,#0ea5e9)" : "transparent", color: subTab === "proponer" ? "#0a1628" : "#475569", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer", letterSpacing: "0.5px", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+        >
+          {isAdmin ? "📤 PUBLICAR" : "✉️ PROPONER"}
+          {isAdmin && pendientes.length > 0 && (
+            <span style={{ background: "#f97316", color: "#fff", borderRadius: "10px", padding: "1px 6px", fontSize: "9px", fontWeight: "700" }}>
+              {pendientes.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {vigentes.length > 0 && (
-        <div style={{ textAlign: "center", padding: "16px", color: "rgba(255,255,255,0.3)", fontFamily: MN, fontSize: "10px" }}>
-          Toca cualquier comunicado para verlo a pantalla completa
-        </div>
+      {/* ── SUB-TAB: VER COMUNICADOS ── */}
+      {subTab === "ver" && (
+        <>
+          {vigentes.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "50px 20px", border: "1px dashed #1e3a5f", borderRadius: "14px", color: "rgba(255,255,255,0.25)", fontFamily: MN, fontSize: "12px" }}>
+              <div style={{ fontSize: "36px", marginBottom: "10px" }}>📭</div>
+              Sin comunicados vigentes en este momento
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
+                {vigentes.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => setVisorItem(c)}
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", overflow: "hidden", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s", position: "relative" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = "rgba(251,191,36,0.4)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+                  >
+                    <div style={{ width: "100%", aspectRatio: "4/3", background: "#060e1a", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      {isPdf(c.archivo_url) ? (
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: "32px" }}>📄</div>
+                          <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>PDF</div>
+                        </div>
+                      ) : (
+                        <img src={c.archivo_url} alt={c.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+                      )}
+                    </div>
+                    <div style={{ padding: "8px 10px" }}>
+                      <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.titulo}</div>
+                      {c.detalle && <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>{c.detalle}</div>}
+                      <div style={{ fontFamily: MN, fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>🕐 Vence: {formatDateTime(c.fecha_fin)}</div>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); eliminar(c.id); }}
+                        style={{ position: "absolute", top: "6px", right: "6px", width: "24px", height: "24px", background: "rgba(239,68,68,0.9)", border: "none", borderRadius: "50%", color: "#fff", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        title="Eliminar comunicado"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ textAlign: "center", padding: "16px", color: "rgba(255,255,255,0.3)", fontFamily: MN, fontSize: "10px" }}>
+                Toca cualquier comunicado para verlo a pantalla completa
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── SUB-TAB: PROPONER / PUBLICAR ── */}
+      {subTab === "proponer" && (
+        <>
+          {/* Descripción contextual */}
+          <div style={{ background: isAdmin ? "rgba(56,189,248,0.06)" : "rgba(251,191,36,0.06)", border: `1px solid ${isAdmin ? "rgba(56,189,248,0.2)" : "rgba(251,191,36,0.2)"}`, borderRadius: "12px", padding: "12px 14px", marginBottom: "16px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <span style={{ fontSize: "20px", flexShrink: 0 }}>{isAdmin ? "📤" : "✉️"}</span>
+            <div>
+              <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: isAdmin ? "#38bdf8" : "#fbbf24", marginBottom: "3px", letterSpacing: "0.5px" }}>
+                {isAdmin ? "PUBLICAR COMUNICADO OFICIAL" : "PROPONER COMUNICADO"}
+              </div>
+              <div style={{ fontFamily: MN, fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.5" }}>
+                {isAdmin
+                  ? "Como administrador, tus comunicados se publican de inmediato y aparecen en la sección de Ver Comunicados."
+                  : "Envía tu propuesta para revisión. Un administrador la aprobará antes de que sea visible para la comunidad."}
+              </div>
+            </div>
+          </div>
+
+          <SubirComunicadoPanel onSubido={() => { onReload(); setSubTab("ver"); }} isAdmin={isAdmin} />
+
+          {/* Pendientes de aprobación (solo admin) */}
+          {isAdmin && pendientes.length > 0 && (
+            <div style={{ marginTop: "20px" }}>
+              <div style={{ fontFamily: MN, fontSize: "11px", color: "#f97316", letterSpacing: "1px", marginBottom: "10px", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ background: "#f97316", color: "#fff", borderRadius: "6px", padding: "2px 7px", fontSize: "10px" }}>{pendientes.length}</span>
+                PENDIENTES DE APROBACIÓN
+              </div>
+              {pendientes.map((p) => (
+                <div key={p.id} style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.3)", borderLeft: "3px solid #f97316", borderRadius: "10px", padding: "12px", marginBottom: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px" }}>{p.titulo}</div>
+                      {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "4px" }}>{p.detalle}</div>}
+                      <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontFamily: MN }}>
+                        📅 {formatDateTime(p.fecha_inicio)} → {formatDateTime(p.fecha_fin)}
+                      </div>
+                    </div>
+                    {isPdf(p.archivo_url) ? (
+                      <div style={{ width: "48px", height: "48px", background: "#f9731622", border: "1px solid #f9731644", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", marginLeft: "10px" }}>📄</div>
+                    ) : (
+                      <img src={p.archivo_url} alt="preview" style={{ width: "80px", height: "60px", objectFit: "cover", borderRadius: "6px", marginLeft: "10px" }} />
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={() => aprobar(p.id)} style={{ flex: 1, padding: "8px", background: "#22c55e22", border: "1px solid #22c55e", borderRadius: "7px", color: "#22c55e", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
+                      ✓ APROBAR
+                    </button>
+                    <button onClick={() => rechazar(p.id)} style={{ flex: 1, padding: "8px", background: "#ef444422", border: "1px solid #ef4444", borderRadius: "7px", color: "#ef4444", fontFamily: MN, fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>
+                      ✕ RECHAZAR
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </>
   );
