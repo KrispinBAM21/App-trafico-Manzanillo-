@@ -2389,34 +2389,6 @@ function VisorFullscreen({ item, onClose }) {
   );
 }
 
-// — PANEL ADMIN: SUBIR COMUNICADO — Zona de archivo
-      <div
-        onClick={() => inputRef.current?.click()}
-        style={{ border:"2px dashed #1e3a5f", borderRadius:"10px", padding:"16px", textAlign:"center", cursor:"pointer", marginBottom:"10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition:"all 0.2s" }}
-      >
-        {preview && preview !== "pdf" && (
-          <img src={preview} alt="preview" style={{ maxWidth:"100%", maxHeight:"160px", objectFit:"contain", borderRadius:"6px", marginBottom:"8px", display:"block", margin:"0 auto 8px" }} />
-        )}
-        {preview === "pdf" && (
-          <div style={{ fontSize:"40px", marginBottom:"6px" }}>📄</div>
-        )}
-        <div style={{ fontFamily:MN, fontSize:"11px", color: archivo ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
-          {archivo ? `✓ ${archivo.name}` : "Toca aquí para seleccionar JPG, PNG o PDF (máx. 10 MB)"}
-        </div>
-        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display:"none" }} />
-      </div>
-      {error && <div style={{ fontFamily:MN, fontSize:"11px", color:"#f87171", marginBottom:"8px", padding:"8px 12px", background:"#ef444411", borderRadius:"7px" }}>⚠️ {error}</div>}
-      {exito && <div style={{ fontFamily:MN, fontSize:"11px", color:"#22c55e", marginBottom:"8px", padding:"8px 12px", background:"#22c55e11", borderRadius:"7px" }}>✅ Comunicado publicado correctamente</div>}
-      <button
-        onClick={handleSubir}
-        disabled={subiendo}
-        style={{ width:"100%", padding:"11px", background: subiendo ? "#0a1628" : "linear-gradient(135deg,#fbbf24,#f59e0b)", border:"none", borderRadius:"9px", color: subiendo ? "rgba(255,255,255,0.4)" : "#0a1628", fontFamily:MN, fontWeight:"700", fontSize:"12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing:"0.5px" }}
-      >
-        {subiendo ? "⏳ Subiendo..." : "📤 PUBLICAR COMUNICADO"}
-      </button>
-    </div>
-  );
-}
 
 // ─── SUBIR COMUNICADO (con fechas y aprobación) ──────────────────────────────
 function SubirComunicadoPanel({ onSubido, isAdmin }) {
