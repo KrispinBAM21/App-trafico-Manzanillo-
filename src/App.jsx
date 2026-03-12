@@ -49,8 +49,8 @@ fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
-const SUPA_URL = "https://wnchrhglwsrzrcrhhukg.supabase.co";
-const SUPA_KEY = "sb_publishable_9Uiui8fhiBXeds4OkKbGCQ_NvYEMO5O";
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co";
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
