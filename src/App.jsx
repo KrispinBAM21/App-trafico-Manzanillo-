@@ -33,13 +33,46 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
+const ADMIN_USER   = "conectmzo";
+const ADMIN_PASS   = "35841912";
 const ADMIN_KEY    = "cm_admin_session";
+const USER_KEY     = "cm_user_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
 };
 const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
+};
+
+// Validadores de seguridad
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidPhone = (phone) => /^\+?[\d\s()-]{10,}$/.test(phone);
+const isValidPassword = (pass) => {
+  return pass.length >= 10 &&
+         /[A-Z]/.test(pass) &&
+         /[0-9]/.test(pass) &&
+         /[!@#$%^&*(),.?":{}|<>]/.test(pass);
+};
+const isTemporaryEmail = (email) => {
+  const tempDomains = ['tempmail.com', 'guerrillamail.com', '10minutemail.com', 'throwaway.email', 'mailinator.com'];
+  return tempDomains.some(domain => email.toLowerCase().includes(domain));
+};
+const getPasswordStrength = (pass) => {
+  let strength = 0;
+  if (pass.length >= 10) strength++;
+  if (pass.length >= 14) strength++;
+  if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) strength++;
+  if (/[0-9]/.test(pass)) strength++;
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(pass)) strength++;
+  return strength;
+};
+
+// Base de datos simulada de usuarios
+const USERS_DB = {
+  users: [],
+  phones: new Set(),
+  ips: {},
+  devices: new Set()
 };
 
 // Inject Google Fonts
