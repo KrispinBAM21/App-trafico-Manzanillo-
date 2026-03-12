@@ -2474,17 +2474,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       if (upErr) throw upErr;
       const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
       
-      await sb.from("comunicados").insert({
+      const { error: insErr } = await sb.from("comunicados").insert({
         titulo: titulo.trim(),
-        detalle: detalle.trim(),
+        detalle: detalle.trim() || null,
         archivo_url: publicUrl,
         archivo_tipo: archivo.type,
         fecha_inicio: inicio,
         fecha_fin: fin,
-        aprobado: isAdmin, // Si es admin, se aprueba automáticamente
+        aprobado: isAdmin === true,
         created_at: new Date().toISOString()
       });
-      
+      if (insErr) throw insErr;
+
       setExito(true);
       setTitulo("");
       setDetalle("");
@@ -2627,15 +2628,16 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
-  // Mostrar todos los aprobados (Supabase ya filtra aprobado=true en la query)
-  // El filtro de vigencia por fecha se delega a Supabase o se hace manualmente
+  // Filtrar comunicados para mostrar
   const ahora = Date.now();
   const vigentes = comunicados.filter(c => {
-    if (!c.aprobado) return false;
+    // Verificar aprobado — acepta boolean true o string "true"
+    const aprobado = c.aprobado === true || c.aprobado === "true" || c.aprobado === 1;
+    if (!aprobado) return false;
     // Si no hay fecha_fin, mostrar siempre
     if (!c.fecha_fin) return true;
     const fin = toMs(c.fecha_fin);
-    // Si fin es 0 o NaN, mostrar (no podemos saber si venció)
+    // Si no se puede parsear la fecha, mostrar de todas formas
     if (!fin || isNaN(fin)) return true;
     return fin > ahora;
   });
@@ -2906,12 +2908,16 @@ function NoticiasTab({ isAdmin }) {
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
 
   const cargarComunicados = () => {
+    // Trae todos los comunicados — el filtro por aprobado se hace en el cliente
+    // para evitar problemas con tipos booleanos en Supabase
     sb.from("comunicados")
       .select("*")
-      .eq("aprobado", true)
       .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => { if (data) setComunicados(data); });
+      .limit(100)
+      .then(({ data, error }) => {
+        if (error) console.error("Error cargando comunicados:", error);
+        if (data) setComunicados(data);
+      });
   };
 
   useEffect(() => {
@@ -2967,7 +2973,7 @@ function NoticiasTab({ isAdmin }) {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
             <div style={{ width:"6px", height:"6px", background:"#fbbf24", borderRadius:"50%" }} />
-            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN }}>{comunicados.length} comunicados</span>
+            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN }}>{comunicados.filter(c => c.aprobado === true || c.aprobado === "true").length} comunicados</span>
           </div>
         </div>
       </div>
