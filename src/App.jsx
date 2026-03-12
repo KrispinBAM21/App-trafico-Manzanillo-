@@ -2346,17 +2346,174 @@ function CarrilesTab() {
 }
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
-function NoticiasTab() {
-  const [noticias, setNoticias] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [filtro,   setFiltro]   = useState("todos");
+// ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
+function VisorFullscreen({ item, onClose }) {
+  const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+  if (!item) return null;
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.95)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:"700px", maxHeight:"90vh", display:"flex", flexDirection:"column", gap:"10px" }}>
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"13px", color:"rgba(255,255,255,0.95)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.titulo}</div>
+            {item.detalle && <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"2px" }}>{item.detalle}</div>}
+          </div>
+          <button onClick={onClose} style={{ flexShrink:0, marginLeft:"12px", width:"34px", height:"34px", borderRadius:"50%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.8)", fontSize:"16px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+        </div>
+        {/* Contenido */}
+        <div style={{ flex:1, minHeight:0, borderRadius:"12px", overflow:"hidden", background:"#0a1628", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {isPdf ? (
+            <iframe src={item.archivo_url} title={item.titulo} style={{ width:"100%", height:"80vh", border:"none" }} />
+          ) : (
+            <img src={item.archivo_url} alt={item.titulo} style={{ maxWidth:"100%", maxHeight:"80vh", objectFit:"contain", display:"block" }} />
+          )}
+        </div>
+        {/* Acciones */}
+        <div style={{ display:"flex", gap:"8px", justifyContent:"center", flexShrink:0 }}>
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"8px", color:"#38bdf8", fontFamily:MN, fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
+            🔗 Abrir en nueva pestaña
+          </a>
+          <a href={item.archivo_url} download style={{ padding:"8px 16px", background:"#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color:"#22c55e", fontFamily:MN, fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
+            ⬇️ Descargar
+          </a>
+        </div>
+      </div>
+      <div style={{ marginTop:"12px", fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.25)" }}>Toca fuera o presiona ESC para cerrar</div>
+    </div>
+  );
+}
+
+// ─── PANEL ADMIN: SUBIR COMUNICADO ────────────────────────────────────────────
+function SubirComunicadoPanel({ onSubido }) {
+  const [titulo,    setTitulo]    = useState("");
+  const [detalle,   setDetalle]   = useState("");
+  const [archivo,   setArchivo]   = useState(null);
+  const [preview,   setPreview]   = useState(null);
+  const [subiendo,  setSubiendo]  = useState(false);
+  const [error,     setError]     = useState("");
+  const [exito,     setExito]     = useState(false);
+  const inputRef = useRef();
+
+  const onFileChange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const allowed = ["image/jpeg","image/png","image/webp","application/pdf"];
+    if (!allowed.includes(f.type)) { setError("Solo se permiten JPG, PNG o PDF"); return; }
+    if (f.size > 10 * 1024 * 1024) { setError("El archivo no debe superar 10 MB"); return; }
+    setError("");
+    setArchivo(f);
+    if (f.type !== "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = ev => setPreview(ev.target.result);
+      reader.readAsDataURL(f);
+    } else {
+      setPreview("pdf");
+    }
+  };
+
+  const handleSubir = async () => {
+    if (!titulo.trim()) { setError("Escribe un título para el comunicado"); return; }
+    if (!archivo)       { setError("Selecciona un archivo"); return; }
+    setSubiendo(true); setError("");
+    try {
+      const ext  = archivo.name.split(".").pop();
+      const path = `comunicados/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await sb.storage.from("comunicados").upload(path, archivo, { contentType: archivo.type, upsert: false });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
+      await sb.from("comunicados").insert({ titulo: titulo.trim(), detalle: detalle.trim(), archivo_url: publicUrl, archivo_tipo: archivo.type });
+      setExito(true);
+      setTitulo(""); setDetalle(""); setArchivo(null); setPreview(null);
+      if (inputRef.current) inputRef.current.value = "";
+      setTimeout(() => setExito(false), 3000);
+      if (onSubido) onSubido();
+    } catch (err) {
+      setError("Error al subir: " + (err.message || "Intenta de nuevo"));
+    }
+    setSubiendo(false);
+  };
+
+  return (
+    <div style={{ background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"14px", padding:"16px", marginBottom:"16px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
+        <span style={{ fontSize:"18px" }}>📎</span>
+        <span style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", letterSpacing:"1px", color:"#fbbf24" }}>SUBIR COMUNICADO (Admin)</span>
+      </div>
+      <input
+        type="text"
+        placeholder="Título del comunicado *"
+        value={titulo}
+        onChange={e => setTitulo(e.target.value)}
+        maxLength={120}
+        style={{ width:"100%", background:"#060e1a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", marginBottom:"8px", boxSizing:"border-box", outline:"none" }}
+      />
+      <input
+        type="text"
+        placeholder="Descripción breve (opcional)"
+        value={detalle}
+        onChange={e => setDetalle(e.target.value)}
+        maxLength={200}
+        style={{ width:"100%", background:"#060e1a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", marginBottom:"10px", boxSizing:"border-box", outline:"none" }}
+      />
+      {/* Zona de archivo */}
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{ border:"2px dashed #1e3a5f", borderRadius:"10px", padding:"16px", textAlign:"center", cursor:"pointer", marginBottom:"10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition:"all 0.2s" }}
+      >
+        {preview && preview !== "pdf" && (
+          <img src={preview} alt="preview" style={{ maxWidth:"100%", maxHeight:"160px", objectFit:"contain", borderRadius:"6px", marginBottom:"8px", display:"block", margin:"0 auto 8px" }} />
+        )}
+        {preview === "pdf" && (
+          <div style={{ fontSize:"40px", marginBottom:"6px" }}>📄</div>
+        )}
+        <div style={{ fontFamily:MN, fontSize:"11px", color: archivo ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
+          {archivo ? `✓ ${archivo.name}` : "Toca aquí para seleccionar JPG, PNG o PDF (máx. 10 MB)"}
+        </div>
+        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display:"none" }} />
+      </div>
+      {error && <div style={{ fontFamily:MN, fontSize:"11px", color:"#f87171", marginBottom:"8px", padding:"8px 12px", background:"#ef444411", borderRadius:"7px" }}>⚠️ {error}</div>}
+      {exito && <div style={{ fontFamily:MN, fontSize:"11px", color:"#22c55e", marginBottom:"8px", padding:"8px 12px", background:"#22c55e11", borderRadius:"7px" }}>✅ Comunicado publicado correctamente</div>}
+      <button
+        onClick={handleSubir}
+        disabled={subiendo}
+        style={{ width:"100%", padding:"11px", background: subiendo ? "#0a1628" : "linear-gradient(135deg,#fbbf24,#f59e0b)", border:"none", borderRadius:"9px", color: subiendo ? "rgba(255,255,255,0.4)" : "#0a1628", fontFamily:MN, fontWeight:"700", fontSize:"12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing:"0.5px" }}
+      >
+        {subiendo ? "⏳ Subiendo..." : "📤 PUBLICAR COMUNICADO"}
+      </button>
+    </div>
+  );
+}
+
+// ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
+function NoticiasTab({ isAdmin }) {
+  const [noticias,      setNoticias]      = useState([]);
+  const [comunicados,   setComunicados]   = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [filtro,        setFiltro]        = useState("todos");
+  const [visorItem,     setVisorItem]     = useState(null);
+  const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
+
+  const cargarComunicados = () => {
+    sb.from("comunicados").select("*").order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => { if (data) setComunicados(data); });
+  };
 
   useEffect(() => {
     sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(100)
       .then(({ data }) => { if (data) setNoticias(data); setLoading(false); });
+    cargarComunicados();
     const chan = sb.channel("noticias-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
         if (r) setNoticias(prev => [r, ...prev].slice(0, 100));
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, ({ new: r }) => {
+        if (r) setComunicados(prev => [r, ...prev].slice(0, 50));
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
@@ -2372,7 +2529,7 @@ function NoticiasTab() {
 
   const filtered = filtro === "todos" ? noticias : noticias.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
 
-  const timeAgoNoticia = (ts) => {
+  const timeAgo = (ts) => {
     const d = Date.now() - new Date(ts).getTime();
     if (d < 60000)    return "hace un momento";
     if (d < 3600000)  return `hace ${Math.floor(d/60000)}min`;
@@ -2380,43 +2537,129 @@ function NoticiasTab() {
     return `hace ${Math.floor(d/86400000)}d`;
   };
 
+  const isPdf = (url) => url?.toLowerCase().endsWith(".pdf");
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      {/* Visor fullscreen */}
+      {visorItem && <VisorFullscreen item={visorItem} onClose={() => setVisorItem(null)} />}
+
+      {/* Header */}
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📰</div>
         <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>NOTICIAS DEL PUERTO</div>
         <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:MN }}>Actualizaciones en tiempo real de toda la operación</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", marginTop:"8px" }}>
-          <div style={{ width:"6px", height:"6px", background:"#22c55e", borderRadius:"50%" }} />
-          <span style={{ fontSize:"10px", color:"#22c55e", fontFamily:MN }}>{noticias.length} actualizaciones registradas</span>
-        </div>
-      </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
-        {FILTROS.map(f => (
-          <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
-            <span>{f.icon}</span> {f.label}
-          </button>
-        ))}
-      </div>
-      {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>Cargando noticias...</div>}
-      {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>📭 Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
-      {filtered.map((n, i) => (
-        <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-            <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>{n.icono || "📰"}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"12px", marginBottom:"3px" }}>{n.titulo}</div>
-              {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"5px" }}>{n.detalle}</div>}
-              <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:MN }}>{timeAgoNoticia(n.created_at)}</span>
-                <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
-                <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:MN, fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
-              </div>
-            </div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"16px", marginTop:"8px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+            <div style={{ width:"6px", height:"6px", background:"#22c55e", borderRadius:"50%" }} />
+            <span style={{ fontSize:"10px", color:"#22c55e", fontFamily:MN }}>{noticias.length} actualizaciones</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+            <div style={{ width:"6px", height:"6px", background:"#fbbf24", borderRadius:"50%" }} />
+            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN }}>{comunicados.length} comunicados</span>
           </div>
         </div>
-      ))}
-      {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px" }}>— Mostrando {filtered.length} actualizaciones —</div>}
+      </div>
+
+      {/* Selector de sección */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#475569", fontFamily:MN, fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+          📰 NOTICIAS
+        </button>
+        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#475569", fontFamily:MN, fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+          📎 COMUNICADOS
+        </button>
+      </div>
+
+      {/* ── SECCIÓN NOTICIAS ── */}
+      {seccion === "noticias" && (
+        <>
+          <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
+            {FILTROS.map(f => (
+              <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
+                <span>{f.icon}</span> {f.label}
+              </button>
+            ))}
+          </div>
+          {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>Cargando noticias...</div>}
+          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>📭 Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
+          {filtered.map((n) => (
+            <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
+                <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>{n.icono || "📰"}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:MN, fontWeight:"700", fontSize:"12px", marginBottom:"3px" }}>{n.titulo}</div>
+                  {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"5px" }}>{n.detalle}</div>}
+                  <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                    <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:MN }}>{timeAgo(n.created_at)}</span>
+                    <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
+                    <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:MN, fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px" }}>— Mostrando {filtered.length} actualizaciones —</div>}
+        </>
+      )}
+
+      {/* ── SECCIÓN COMUNICADOS ── */}
+      {seccion === "comunicados" && (
+        <>
+          {isAdmin && <SubirComunicadoPanel onSubido={cargarComunicados} />}
+
+          {comunicados.length === 0 && (
+            <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"12px" }}>
+              📭 Sin comunicados publicados aún
+            </div>
+          )}
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:"10px" }}>
+            {comunicados.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => setVisorItem(c)}
+                style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", overflow:"hidden", cursor:"pointer", transition:"transform 0.15s, border-color 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform="scale(1.02)"; e.currentTarget.style.borderColor="rgba(251,191,36,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform="scale(1)";    e.currentTarget.style.borderColor="rgba(255,255,255,0.1)"; }}
+              >
+                {/* Thumbnail */}
+                <div style={{ width:"100%", aspectRatio:"4/3", background:"#060e1a", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", position:"relative" }}>
+                  {isPdf(c.archivo_url) ? (
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:"32px" }}>📄</div>
+                      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", marginTop:"4px" }}>PDF</div>
+                    </div>
+                  ) : (
+                    <img src={c.archivo_url} alt={c.titulo} style={{ width:"100%", height:"100%", objectFit:"cover" }} loading="lazy" />
+                  )}
+                  {/* Overlay hint */}
+                  <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)", display:"flex", alignItems:"center", justifyContent:"center", transition:"background 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.background="rgba(0,0,0,0.4)"}
+                    onMouseLeave={e => e.currentTarget.style.background="rgba(0,0,0,0)"}
+                  >
+                    <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"14px", opacity:0, transition:"opacity 0.2s" }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity="1"; }}
+                    >🔍</div>
+                  </div>
+                </div>
+                {/* Info */}
+                <div style={{ padding:"8px 10px" }}>
+                  <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"11px", color:"rgba(255,255,255,0.9)", marginBottom:"3px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.titulo}</div>
+                  {c.detalle && <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:"4px" }}>{c.detalle}</div>}
+                  <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.25)" }}>{timeAgo(c.created_at)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {comunicados.length > 0 && (
+            <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px" }}>
+              Toca cualquier comunicado para verlo a pantalla completa
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -3308,7 +3551,7 @@ function App() {
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab />}
         {active === "carriles"   && <CarrilesTab />}
-        {active === "noticias"   && <NoticiasTab />}
+        {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <DonativosTab />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} />}
 
