@@ -4226,6 +4226,14 @@ function App() {
     setShowSessionMenu(false);
   };
   useEffect(() => {
+    if (!showSessionMenu) return;
+    const close = (e) => {
+      if (!e.target.closest("[data-session-menu]")) setShowSessionMenu(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showSessionMenu]);
+  useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       setAuthUser(data?.session?.user ?? null);
     });
@@ -4342,6 +4350,7 @@ function App() {
               {!isAdmin && authUser && (
                 <div style={{ position:"relative" }}>
                   <div
+                    data-session-menu
                     onClick={() => setShowSessionMenu(v => !v)}
                     style={{ display:"flex", alignItems:"center", gap:"3px", background: showSessionMenu ? "rgba(56,189,248,0.22)" : "rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px", cursor:"pointer", userSelect:"none", transition:"background 0.2s" }}
                   >
@@ -4350,20 +4359,17 @@ function App() {
                     <span style={{ fontSize:"8px", color:"#38bdf8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
                   </div>
                   {showSessionMenu && createPortal(
-                    <>
-                      <div onClick={() => setShowSessionMenu(false)} style={{ position:"fixed", inset:0, zIndex:9998 }} />
-                      <div style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:9999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}>
-                        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
-                          {authUser.email}
-                        </div>
-                        <button
-                          onClick={handleSignOut}
-                          style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
-                        >
-                          <span>🚪</span> CERRAR SESIÓN
-                        </button>
+                    <div data-session-menu style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:9999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}>
+                      <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
+                        {authUser.email}
                       </div>
-                    </>,
+                      <button
+                        onClick={handleSignOut}
+                        style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
+                      >
+                        <span>🚪</span> CERRAR SESIÓN
+                      </button>
+                    </div>,
                     document.body
                   )}
                 </div>
