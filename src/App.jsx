@@ -3368,40 +3368,104 @@ function TutorialTab({ setActive }) {
     </div>
   ) : null;
 
+  const [loading, setLoading] = useState(false);
+
   const passStrong = (p) => p.length >= 10 && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
 
-  const handleLogin = () => {
+  // ── LOGIN con correo/contraseña real ──
+  const handleLogin = async () => {
     if (!loginUser.trim() || !loginPass) { setLoginMsg({type:"err", text:"Completa usuario y contraseña"}); return; }
-    setLoginMsg({type:"ok", text:"Inicio de sesión próximamente disponible. La app funciona sin cuenta."});
+    setLoading(true); setLoginMsg(null);
+    const email = loginUser.includes("@") ? loginUser.trim() : null;
+    if (!email) { setLoginMsg({type:"err", text:"Ingresa tu correo electrónico para iniciar sesión"}); setLoading(false); return; }
+    const { error } = await sb.auth.signInWithPassword({ email, password: loginPass });
+    setLoading(false);
+    if (error) { setLoginMsg({type:"err", text: error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos" : error.message }); }
+    else { setLoginMsg({type:"ok", text:"¡Sesión iniciada correctamente! Bienvenido."}); }
   };
-  const handleEnviarOtp = () => {
-    if (!regTel.match(/^\+?[0-9]{10,15}$/)) { setRegMsg({type:"err", text:"Número de teléfono no válido"}); return; }
-    setOtpEnviado(true); setRegMsg({type:"ok", text:"Código enviado (funcionalidad próximamente activa)"});
+
+  // ── LOGIN con Google ──
+  const handleLoginGoogle = async () => {
+    setLoading(true); setLoginMsg(null);
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.href }
+    });
+    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
   };
-  const handleRegStep = () => {
+
+  // ── ENVIAR OTP por SMS ──
+  const handleEnviarOtp = async () => {
+    const tel = regTel.trim();
+    if (!tel.match(/^\+[0-9]{10,15}$/)) { setRegMsg({type:"err", text:"Número inválido. Usa formato internacional: +521XXXXXXXXXX"}); return; }
+    setLoading(true); setRegMsg(null);
+    const { error } = await sb.auth.signInWithOtp({ phone: tel });
+    setLoading(false);
+    if (error) { setRegMsg({type:"err", text:"Error al enviar SMS: " + error.message}); }
+    else { setOtpEnviado(true); setRegMsg({type:"ok", text:"✅ Código enviado por SMS. Revisa tu teléfono."}); }
+  };
+
+  // ── VERIFICAR OTP ──
+  const handleVerificarOtp = async () => {
+    if (regOtp.length < 6) { setRegMsg({type:"err", text:"El código debe tener 6 dígitos"}); return; }
+    setLoading(true); setRegMsg(null);
+    const { error } = await sb.auth.verifyOtp({ phone: regTel.trim(), token: regOtp, type: "sms" });
+    setLoading(false);
+    if (error) { setRegMsg({type:"err", text:"Código incorrecto o expirado. Inténtalo de nuevo."}); }
+    else { setRegMsg({type:"ok", text:"✅ Teléfono verificado correctamente."}); setRegStep(3); }
+  };
+
+  // ── REGISTRO completo con Supabase ──
+  const handleRegStep = async () => {
     setRegMsg(null);
     if (regStep === 1) {
       if (!regNombre.trim() || !regApellidos.trim() || !regUsername.trim() || !regFecha || !regPais.trim() || !regCiudad.trim()) { setRegMsg({type:"err", text:"Completa todos los campos obligatorios"}); return; }
       setRegStep(2);
     } else if (regStep === 2) {
-      if (!otpEnviado) { setRegMsg({type:"err", text:"Envía el código SMS primero"}); return; }
-      if (regOtp.length < 4) { setRegMsg({type:"err", text:"Ingresa el código de verificación"}); return; }
-      setRegStep(3);
+      // El paso 2 tiene sus propios botones (Enviar SMS / Verificar), solo avanza si ya verificó
+      setRegMsg({type:"err", text:"Verifica tu número de teléfono primero"});
     } else if (regStep === 3) {
       if (!regCorreo.trim() || !regCorreo2.trim()) { setRegMsg({type:"err", text:"Ingresa tu correo electrónico"}); return; }
       if (regCorreo !== regCorreo2) { setRegMsg({type:"err", text:"Los correos no coinciden"}); return; }
+      if (!regCorreo.includes("@")) { setRegMsg({type:"err", text:"Correo electrónico no válido"}); return; }
       setRegStep(4);
     } else if (regStep === 4) {
       if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 10 caracteres, 1 mayúscula, 1 número y 1 símbolo"}); return; }
       if (regPass !== regPass2) { setRegMsg({type:"err", text:"Las contraseñas no coinciden"}); return; }
       if (regAntibot.trim() !== "8") { setRegMsg({type:"err", text:"Respuesta incorrecta — ¿cuánto es 3 + 5?"}); return; }
       if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
-      setRegMsg({type:"ok", text:"Registro próximamente disponible. ¡Gracias por tu interés!"});
+      setLoading(true);
+      const { error } = await sb.auth.signUp({
+        email: regCorreo.trim(),
+        password: regPass,
+        options: {
+          data: {
+            nombre: regNombre.trim(),
+            apellidos: regApellidos.trim(),
+            username: regUsername.trim(),
+            fecha_nacimiento: regFecha,
+            pais: regPais.trim(),
+            ciudad: regCiudad.trim(),
+            telefono: regTel.trim(),
+          }
+        }
+      });
+      setLoading(false);
+      if (error) { setRegMsg({type:"err", text: error.message.includes("already registered") ? "Este correo ya está registrado" : error.message }); }
+      else { setRegMsg({type:"ok", text:"✅ ¡Cuenta creada! Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); }
     }
   };
-  const handleForgot = () => {
+
+  // ── RECUPERAR CONTRASEÑA real ──
+  const handleForgot = async () => {
     if (!forgotCorreo.includes("@")) { setForgotMsg({type:"err", text:"Ingresa un correo válido"}); return; }
-    setForgotMsg({type:"ok", text:"Si el correo existe, recibirás el enlace de recuperación pronto."});
+    setLoading(true); setForgotMsg(null);
+    const { error } = await sb.auth.resetPasswordForEmail(forgotCorreo.trim(), {
+      redirectTo: window.location.href
+    });
+    setLoading(false);
+    if (error) { setForgotMsg({type:"err", text:"Error: " + error.message}); }
+    else { setForgotMsg({type:"ok", text:"✅ Si el correo existe, recibirás el enlace de recuperación en minutos. Revisa también tu carpeta de spam."}); }
   };
 
   const stepLabels = ["Datos básicos","Teléfono","Correo","Contraseña"];
@@ -3513,10 +3577,20 @@ function TutorialTab({ setActive }) {
         {authMode === "login" && (
           <div>
             <MsgBox msg={loginMsg} />
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:MN, marginBottom:"4px", letterSpacing:"1px" }}>USUARIO O CORREO</div>
-            <input value={loginUser} onChange={e=>setLoginUser(e.target.value)} placeholder="Nombre de usuario o correo" style={inputStyle} />
+            {/* Botón Google */}
+            <button onClick={handleLoginGoogle} disabled={loading} style={{ width:"100%", padding:"12px", background:"#ffffff", border:"none", borderRadius:"10px", color:"#1f2937", fontFamily:MN, fontWeight:"700", fontSize:"12px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", marginBottom:"16px", opacity: loading?0.7:1 }}>
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+              Continuar con Google
+            </button>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
+              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }} />
+              <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.3)" }}>o con correo</span>
+              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }} />
+            </div>
+            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:MN, marginBottom:"4px", letterSpacing:"1px" }}>CORREO ELECTRÓNICO</div>
+            <input value={loginUser} onChange={e=>setLoginUser(e.target.value)} placeholder="tu@correo.com" style={inputStyle} />
             <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:MN, marginBottom:"4px", letterSpacing:"1px" }}>CONTRASEÑA</div>
-            <input type="password" value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Tu contraseña" style={inputStyle} />
+            <input type="password" value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Tu contraseña" style={inputStyle} onKeyDown={e => e.key==="Enter" && handleLogin()} />
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
               <label style={{ display:"flex", alignItems:"center", gap:"7px", cursor:"pointer" }}>
                 <div onClick={() => setLoginRemember(!loginRemember)} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${loginRemember?"#38bdf8":"rgba(255,255,255,0.2)"}`, background: loginRemember?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -3526,7 +3600,7 @@ function TutorialTab({ setActive }) {
               </label>
               <button onClick={() => { setAuthMode("forgot"); setForgotMsg(null); }} style={btnSecondary}>¿Olvidaste tu contraseña?</button>
             </div>
-            <button onClick={handleLogin} style={btnPrimary()}>INICIAR SESIÓN</button>
+            <button onClick={handleLogin} disabled={loading} style={{...btnPrimary(), opacity: loading?0.7:1}}>{loading ? "Iniciando..." : "INICIAR SESIÓN"}</button>
           </div>
         )}
 
@@ -3559,14 +3633,21 @@ function TutorialTab({ setActive }) {
             {/* Paso 2: Teléfono + OTP */}
             {regStep === 2 && (
               <>
-                <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"8px", lineHeight:"1.6" }}>📱 Verificación por SMS obligatoria para evitar cuentas falsas.</div>
+                <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"8px", lineHeight:"1.6" }}>📱 Verificación por SMS obligatoria para evitar cuentas falsas. Usa formato internacional: <span style={{color:"#38bdf8"}}>+521XXXXXXXXXX</span></div>
                 <div style={{ display:"flex", gap:"8px", marginBottom:"10px" }}>
-                  <input value={regTel} onChange={e=>setRegTel(e.target.value)} placeholder="Número de teléfono *" style={{...inputStyle, marginBottom:0, flex:1}} />
-                  <button onClick={handleEnviarOtp} style={{ padding:"0 14px", background:"rgba(56,189,248,0.15)", border:"1px solid #38bdf855", borderRadius:"10px", color:"#38bdf8", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", flexShrink:0 }}>
-                    {otpEnviado ? "Reenviar" : "Enviar SMS"}
+                  <input value={regTel} onChange={e=>setRegTel(e.target.value)} placeholder="+521XXXXXXXXXX *" style={{...inputStyle, marginBottom:0, flex:1}} />
+                  <button onClick={handleEnviarOtp} disabled={loading} style={{ padding:"0 14px", background:"rgba(56,189,248,0.15)", border:"1px solid #38bdf855", borderRadius:"10px", color:"#38bdf8", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", flexShrink:0, opacity: loading?0.6:1 }}>
+                    {loading ? "..." : otpEnviado ? "Reenviar" : "Enviar SMS"}
                   </button>
                 </div>
-                {otpEnviado && <input value={regOtp} onChange={e=>setRegOtp(e.target.value)} placeholder="Código de verificación *" style={inputStyle} />}
+                {otpEnviado && (
+                  <>
+                    <input value={regOtp} onChange={e=>setRegOtp(e.target.value)} placeholder="Código de 6 dígitos *" style={inputStyle} maxLength={6} />
+                    <button onClick={handleVerificarOtp} disabled={loading} style={{...btnPrimary("#22c55e"), marginBottom:"8px", opacity: loading?0.6:1}}>
+                      {loading ? "Verificando..." : "✓ VERIFICAR CÓDIGO"}
+                    </button>
+                  </>
+                )}
               </>
             )}
 
@@ -3608,12 +3689,14 @@ function TutorialTab({ setActive }) {
             )}
 
             <div style={{ display:"flex", gap:"8px" }}>
-              {regStep > 1 && (
+              {regStep > 1 && regStep !== 2 && (
                 <button onClick={() => { setRegStep(regStep-1); setRegMsg(null); }} style={{ flex:"0 0 44px", padding:"13px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, fontSize:"14px", cursor:"pointer" }}>←</button>
               )}
-              <button onClick={handleRegStep} style={{ ...btnPrimary(), marginTop:0, flex:1 }}>
-                {regStep < 4 ? "CONTINUAR →" : "CREAR CUENTA"}
-              </button>
+              {regStep !== 2 && (
+                <button onClick={handleRegStep} disabled={loading} style={{ ...btnPrimary(), marginTop:0, flex:1, opacity: loading?0.7:1 }}>
+                  {loading ? "Procesando..." : regStep < 4 ? "CONTINUAR →" : "CREAR CUENTA"}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -3624,7 +3707,7 @@ function TutorialTab({ setActive }) {
             <MsgBox msg={forgotMsg} />
             <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"8px", lineHeight:"1.6" }}>Ingresa el correo con el que te registraste y recibirás un enlace de recuperación.</div>
             <input type="email" value={forgotCorreo} onChange={e=>setForgotCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
-            <button onClick={handleForgot} style={btnPrimary("#f97316")}>ENVIAR ENLACE</button>
+            <button onClick={handleForgot} disabled={loading} style={{...btnPrimary("#f97316"), opacity: loading?0.7:1}}>{loading ? "Enviando..." : "ENVIAR ENLACE"}</button>
             <div style={{ textAlign:"center", marginTop:"12px" }}>
               <button onClick={() => { setAuthMode("login"); setForgotMsg(null); }} style={btnSecondary}>← Volver al inicio de sesión</button>
             </div>
