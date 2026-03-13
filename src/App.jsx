@@ -4225,18 +4225,7 @@ function App() {
     setAuthUser(null);
     setShowSessionMenu(false);
   };
-  const sessionMenuRef = useRef(null);
-  const sessionBadgeRef = useRef(null);
-  useEffect(() => {
-    if (!showSessionMenu) return;
-    const close = (e) => {
-      const inMenu  = sessionMenuRef.current  && sessionMenuRef.current.contains(e.target);
-      const inBadge = sessionBadgeRef.current && sessionBadgeRef.current.contains(e.target);
-      if (!inMenu && !inBadge) setShowSessionMenu(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [showSessionMenu]);
+
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       setAuthUser(data?.session?.user ?? null);
@@ -4352,9 +4341,12 @@ function App() {
                 </div>
               )}
               {!isAdmin && authUser && (
-                <div style={{ position:"relative" }}>
+                <div
+                  tabIndex={0}
+                  onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShowSessionMenu(false); }}
+                  style={{ position:"relative", outline:"none" }}
+                >
                   <div
-                    ref={sessionBadgeRef}
                     onClick={() => setShowSessionMenu(v => !v)}
                     style={{ display:"flex", alignItems:"center", gap:"3px", background: showSessionMenu ? "rgba(56,189,248,0.22)" : "rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px", cursor:"pointer", userSelect:"none", transition:"background 0.2s" }}
                   >
@@ -4362,19 +4354,21 @@ function App() {
                     <span style={{ fontSize:"9px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>SESIÓN</span>
                     <span style={{ fontSize:"8px", color:"#38bdf8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
                   </div>
-                  {showSessionMenu && createPortal(
-                    <div ref={sessionMenuRef} style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:9999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}>
+                  {showSessionMenu && (
+                    <div
+                      tabIndex={0}
+                      style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:9999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)", outline:"none" }}
+                    >
                       <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
                         {authUser.email}
                       </div>
                       <button
-                        onClick={handleSignOut}
+                        onMouseDown={(e) => { e.preventDefault(); handleSignOut(); }}
                         style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
                       >
                         <span>🚪</span> CERRAR SESIÓN
                       </button>
-                    </div>,
-                    document.body
+                    </div>
                   )}
                 </div>
               )}
