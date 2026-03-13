@@ -861,12 +861,26 @@ function AnunciosBanner({ isAdmin }) {
             </div>
           )}
         </div>
-        {/* Dots de navegación */}
+        {/* Navegación: flechas + dots */}
         {anuncios.length > 1 && (
-          <div style={{ display:"flex", justifyContent:"center", gap:"5px", paddingBottom:"10px" }}>
-            {anuncios.map((_,i) => (
-              <div key={i} onClick={() => { setCurrent(i); clearInterval(intervalRef.current); }} style={{ width: i===current?"18px":"6px", height:"6px", borderRadius:"3px", background: i===current?"#fbbf24":"rgba(255,255,255,0.2)", cursor:"pointer", transition:"all 0.3s" }} />
-            ))}
+          <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:"12px", paddingBottom:"12px" }}>
+            <button
+              onClick={() => { setCurrent(v => (v - 1 + anuncios.length) % anuncios.length); clearInterval(intervalRef.current); }}
+              style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:"28px", height:"28px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"rgba(255,255,255,0.7)", fontSize:"13px", flexShrink:0, transition:"background 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.2)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.08)"}
+            >◀</button>
+            <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
+              {anuncios.map((_,i) => (
+                <div key={i} onClick={() => { setCurrent(i); clearInterval(intervalRef.current); }} style={{ width: i===current?"18px":"6px", height:"6px", borderRadius:"3px", background: i===current?"#fbbf24":"rgba(255,255,255,0.2)", cursor:"pointer", transition:"all 0.3s" }} />
+              ))}
+            </div>
+            <button
+              onClick={() => { setCurrent(v => (v + 1) % anuncios.length); clearInterval(intervalRef.current); }}
+              style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"50%", width:"28px", height:"28px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"rgba(255,255,255,0.7)", fontSize:"13px", flexShrink:0, transition:"background 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.2)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.08)"}
+            >▶</button>
           </div>
         )}
       </div>
