@@ -628,8 +628,13 @@ function AnunciosBanner({ isAdmin }) {
   }, [anuncios.length]);
 
   const handleGuardar = async () => {
-    if (!form.titulo.trim() || !form.empresa.trim() || !form.texto.trim() || !form.inicio || !form.fin) {
-      setMsg({ type:"err", text:"Completa título, empresa, texto, fecha inicio y fecha fin." }); return;
+    const tieneImagen = !!form.imagen_url.trim();
+    const tieneTexto  = !!form.texto.trim();
+    if (!form.titulo.trim() || !form.empresa.trim() || !form.inicio || !form.fin) {
+      setMsg({ type:"err", text:"Completa título, empresa, fecha inicio y fecha fin." }); return;
+    }
+    if (!tieneImagen && !tieneTexto) {
+      setMsg({ type:"err", text:"Debes agregar al menos imagen o texto al anuncio." }); return;
     }
     if (new Date(form.fin) <= new Date(form.inicio)) {
       setMsg({ type:"err", text:"La fecha de fin debe ser posterior a la de inicio." }); return;
@@ -678,7 +683,7 @@ function AnunciosBanner({ isAdmin }) {
       {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:MN, background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
       <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
       <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
-      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio * (puedes incluir URLs en el campo de enlace)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
+      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
       <input style={inp} placeholder="Enlace (URL — opcional)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
       {/* ── Imagen: subir archivo O pegar URL ── */}
       <div style={{ marginBottom:"10px" }}>
@@ -789,7 +794,28 @@ function AnunciosBanner({ isAdmin }) {
             )}
           </div>
           <div style={{ fontFamily:MN, fontSize: isMobile ? "12px" : "14px", fontWeight:"700", color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
-          <div style={{ fontFamily:MN, fontSize: isMobile ? "10px" : "11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace ? "10px" : "0" }}>{a.texto}</div>
+          {a.texto && (
+            a.imagen_url ? (
+              <div style={{ fontFamily:MN, fontSize: isMobile?"10px":"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace?"10px":"0" }}>
+                {a.texto}
+              </div>
+            ) : (
+              <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom: a.enlace?"10px":"4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"8px 0", background:"rgba(251,191,36,0.04)" }}>
+                <span style={{
+                  display:"inline-block",
+                  fontFamily:MN,
+                  fontSize: isMobile?"12px":"14px",
+                  fontWeight:"600",
+                  color:"rgba(255,255,255,0.9)",
+                  animation:"marqueeScroll 20s linear infinite",
+                  paddingLeft:"100%",
+                  willChange:"transform",
+                }}>
+                  {a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}
+                </span>
+              </div>
+            )
+          )}
           {a.enlace && (
             <a href={a.enlace} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:"5px", fontFamily:MN, fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"6px 12px" }}>
               🔗 Ver más
@@ -806,7 +832,7 @@ function AnunciosBanner({ isAdmin }) {
         )}
       </div>
       {BtnAdmin}
-      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-33.33%)}}`}</style>
     </div>
   );
 }
