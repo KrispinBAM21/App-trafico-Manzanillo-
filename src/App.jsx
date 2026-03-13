@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "Oconer1912$";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -713,8 +713,7 @@ function AnunciosBanner({ isAdmin }) {
               ) : (
                 <>
                   <span style={{ fontSize:"28px" }}>🖼️</span>
-                  <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Toca para seleccionar imagen{"
-"}JPG, PNG, WEBP</span>
+                  <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Toca para seleccionar imagen<br/>JPG, PNG, WEBP</span>
                 </>
               )}
               {form._imgUploading && <span style={{ fontFamily:MN, fontSize:"10px", color:"#fbbf24" }}>Subiendo...</span>}
