@@ -3332,9 +3332,9 @@ function TutorialTab({ setActive }) {
   // ── Auth panel state ──
   const [authMode, setAuthMode] = useState("login"); // "login" | "registro" | "forgot"
   // Login
-  const [loginUser, setLoginUser]   = useState("");
-  const [loginPass, setLoginPass]   = useState("");
-  const [loginRemember, setLoginRemember] = useState(false);
+  const [loginUser, setLoginUser]   = useState(() => { try { return localStorage.getItem("cm_remember_email") || ""; } catch { return ""; } });
+  const [loginPass, setLoginPass]   = useState(() => { try { return localStorage.getItem("cm_remember_pass") || ""; } catch { return ""; } });
+  const [loginRemember, setLoginRemember] = useState(() => { try { return !!localStorage.getItem("cm_remember_email"); } catch { return false; } });
   const [loginMsg, setLoginMsg]     = useState(null); // {type:"ok"|"err", text}
   // Registro — paso 1: básico | paso 2: teléfono | paso 3: correo | paso 4: contraseña
   const [regStep, setRegStep]       = useState(1);
@@ -3381,7 +3381,16 @@ function TutorialTab({ setActive }) {
     const { error } = await sb.auth.signInWithPassword({ email, password: loginPass });
     setLoading(false);
     if (error) { setLoginMsg({type:"err", text: error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos" : error.message }); }
-    else { setLoginMsg({type:"ok", text:"¡Sesión iniciada correctamente! Bienvenido."}); }
+    else {
+      setLoginMsg({type:"ok", text:"¡Sesión iniciada correctamente! Bienvenido."});
+      if (loginRemember) {
+        try { localStorage.setItem("cm_remember_email", loginUser.trim()); localStorage.setItem("cm_remember_pass", loginPass); } catch {}
+      } else {
+        try { localStorage.removeItem("cm_remember_email"); localStorage.removeItem("cm_remember_pass"); } catch {}
+        setLoginUser("");
+        setLoginPass("");
+      }
+    }
   };
 
   // ── LOGIN con Google ──
