@@ -587,7 +587,7 @@ function AnunciosBanner({ isAdmin }) {
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ titulo:"", empresa:"", texto:"", enlace:"", imagen_url:"", inicio:"", fin:"", activo:true });
+  const [form, setForm] = useState({ titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const intervalRef = useRef(null);
@@ -652,6 +652,7 @@ function AnunciosBanner({ isAdmin }) {
         empresa: form.empresa.trim(),
         texto: form.texto.trim(),
         enlace: form.enlace.trim() || null,
+        whatsapp: form.whatsapp.trim() || null,
         imagen_url: form.imagen_url.trim() || null,
         fecha_inicio: fechaInicio.toISOString(),
         fecha_fin:    fechaFin.toISOString(),
@@ -660,7 +661,7 @@ function AnunciosBanner({ isAdmin }) {
       if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
       else {
         setMsg({ type:"ok", text:"Anuncio publicado correctamente." });
-        setForm({ titulo:"", empresa:"", texto:"", enlace:"", imagen_url:"", inicio:"", fin:"", activo:true });
+        setForm({ titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
         setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
         cargar();
       }
@@ -695,7 +696,17 @@ function AnunciosBanner({ isAdmin }) {
       <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
       <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
       <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
-      <input style={inp} placeholder="Enlace (URL — opcional)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
+      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>📱</span>
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
+        </div>
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>🌐</span>
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+        </div>
+      </div>
       {/* ── Imagen: subir archivo O pegar URL ── */}
       <div style={{ marginBottom:"10px" }}>
         <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>IMAGEN (OPCIONAL)</div>
@@ -827,10 +838,27 @@ function AnunciosBanner({ isAdmin }) {
               </div>
             )
           )}
-          {a.enlace && (
-            <a href={a.enlace} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:"5px", fontFamily:MN, fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"6px 12px" }}>
-              🔗 Ver más
-            </a>
+          {(a.enlace || a.whatsapp) && (
+            <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
+              {a.whatsapp && (
+                <a
+                  href={`https://wa.me/${a.whatsapp.replace(/\D/g,"")}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:MN, fontSize:"11px", color:"#22c55e", fontWeight:"700", textDecoration:"none", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:"8px", padding:"7px 14px" }}
+                >
+                  <span style={{ fontSize:"14px" }}>📱</span> WhatsApp
+                </a>
+              )}
+              {a.enlace && (
+                <a
+                  href={a.enlace.startsWith("http") ? a.enlace : `https://${a.enlace}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:MN, fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"7px 14px" }}
+                >
+                  <span style={{ fontSize:"14px" }}>🌐</span> Ver sitio
+                </a>
+              )}
+            </div>
           )}
         </div>
         {/* Dots de navegación */}
