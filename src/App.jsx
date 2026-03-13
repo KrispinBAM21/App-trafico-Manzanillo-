@@ -4354,10 +4354,9 @@ function App() {
                     <span style={{ fontSize:"9px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>SESIÓN</span>
                     <span style={{ fontSize:"8px", color:"#38bdf8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
                   </div>
-                  {showSessionMenu && (
+                  {showSessionMenu && createPortal(
                     <div
-                      tabIndex={0}
-                      style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:9999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)", outline:"none" }}
+                      style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:99999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}
                     >
                       <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
                         {authUser.email}
@@ -4368,7 +4367,8 @@ function App() {
                       >
                         <span>🚪</span> CERRAR SESIÓN
                       </button>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               )}
