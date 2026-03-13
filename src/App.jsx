@@ -640,23 +640,34 @@ function AnunciosBanner({ isAdmin }) {
       setMsg({ type:"err", text:"La fecha de fin debe ser posterior a la de inicio." }); return;
     }
     setSaving(true); setMsg(null);
-    const { error } = await sb.from("anuncios").insert({
-      titulo: form.titulo.trim(),
-      empresa: form.empresa.trim(),
-      texto: form.texto.trim(),
-      enlace: form.enlace.trim() || null,
-      imagen_url: form.imagen_url.trim() || null,
-      fecha_inicio: new Date(form.inicio).toISOString(),
-      fecha_fin: new Date(form.fin).toISOString(),
-      activo: form.activo,
-    });
-    setSaving(false);
-    if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
-    else {
-      setMsg({ type:"ok", text:"Anuncio publicado correctamente." });
-      setForm({ titulo:"", empresa:"", texto:"", enlace:"", imagen_url:"", inicio:"", fin:"", activo:true });
-      setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
-      cargar();
+    try {
+      const fechaInicio = new Date(form.inicio);
+      const fechaFin    = new Date(form.fin);
+      if (isNaN(fechaInicio.getTime()) || isNaN(fechaFin.getTime())) {
+        setMsg({ type:"err", text:"Las fechas ingresadas no son válidas." });
+        setSaving(false); return;
+      }
+      const { error } = await sb.from("anuncios").insert({
+        titulo: form.titulo.trim(),
+        empresa: form.empresa.trim(),
+        texto: form.texto.trim(),
+        enlace: form.enlace.trim() || null,
+        imagen_url: form.imagen_url.trim() || null,
+        fecha_inicio: fechaInicio.toISOString(),
+        fecha_fin:    fechaFin.toISOString(),
+        activo: form.activo,
+      });
+      if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
+      else {
+        setMsg({ type:"ok", text:"Anuncio publicado correctamente." });
+        setForm({ titulo:"", empresa:"", texto:"", enlace:"", imagen_url:"", inicio:"", fin:"", activo:true });
+        setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
+        cargar();
+      }
+    } catch (ex) {
+      setMsg({ type:"err", text:"Error inesperado: " + (ex?.message || ex) });
+    } finally {
+      setSaving(false);
     }
   };
 
