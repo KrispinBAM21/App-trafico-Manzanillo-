@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "Oconer1912$";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -569,7 +569,21 @@ function DonateBanner({ active }) {
 
 
 // ─── ANUNCIOS BANNER ──────────────────────────────────────────────────────────
+// ─── RESPONSIVE HOOK ─────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [w, setW] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return w;
+}
+
 function AnunciosBanner({ isAdmin }) {
+  const vw = useWindowWidth();
+  const isMobile = vw < 480;
+  const isTablet = vw >= 480 && vw < 768;
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
   const [showForm, setShowForm] = useState(false);
@@ -666,9 +680,53 @@ function AnunciosBanner({ isAdmin }) {
       <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
       <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio * (puedes incluir URLs en el campo de enlace)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
       <input style={inp} placeholder="Enlace (URL — opcional)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
-      <input style={inp} placeholder="URL de imagen (opcional — ver dimensiones recomendadas abajo)" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
-      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.35)", marginBottom:"10px", marginTop:"-6px" }}>📐 Dimensión recomendada: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1, horizontal)</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+      {/* ── Imagen: subir archivo O pegar URL ── */}
+      <div style={{ marginBottom:"10px" }}>
+        <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>IMAGEN (OPCIONAL)</div>
+        {/* Tabs: Subir / URL */}
+        <div style={{ display:"flex", gap:"6px", marginBottom:"8px" }}>
+          {["subir","url"].map(opt => (
+            <button key={opt} onClick={()=>setForm(f=>({...f,_imgTab:opt, imagen_url:"", _imgFile:null}))}
+              style={{ padding:"5px 14px", borderRadius:"7px", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", border:"none",
+                background: (form._imgTab||"subir")===opt ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)",
+                color: (form._imgTab||"subir")===opt ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
+              {opt==="subir" ? "📁 Subir archivo" : "🔗 Pegar URL"}
+            </button>
+          ))}
+        </div>
+        {(form._imgTab||"subir")==="subir" ? (
+          <div>
+            <label style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", border:"2px dashed rgba(251,191,36,0.3)", borderRadius:"10px", padding:"16px", cursor:"pointer", background:"rgba(251,191,36,0.04)", minHeight:"80px" }}>
+              <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
+                const file = e.target.files[0];
+                if (!file) return;
+                setForm(f=>({...f,_imgFile:file,_imgUploading:true,_imgPreview:URL.createObjectURL(file)}));
+                const ext = file.name.split(".").pop();
+                const nombre = `anuncio_${Date.now()}.${ext}`;
+                const { data, error } = await sb.storage.from("anuncios-imagenes").upload(nombre, file, { upsert:true });
+                if (error) { setMsg({type:"err",text:"Error al subir imagen: "+error.message}); setForm(f=>({...f,_imgUploading:false})); return; }
+                const { data: urlData } = sb.storage.from("anuncios-imagenes").getPublicUrl(data.path);
+                setForm(f=>({...f, imagen_url: urlData.publicUrl, _imgUploading:false}));
+              }} />
+              {form._imgPreview ? (
+                <img src={form._imgPreview} alt="preview" style={{ width:"100%", maxHeight:"120px", objectFit:"cover", borderRadius:"8px" }} />
+              ) : (
+                <>
+                  <span style={{ fontSize:"28px" }}>🖼️</span>
+                  <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Toca para seleccionar imagen{"
+"}JPG, PNG, WEBP</span>
+                </>
+              )}
+              {form._imgUploading && <span style={{ fontFamily:MN, fontSize:"10px", color:"#fbbf24" }}>Subiendo...</span>}
+              {form.imagen_url && !form._imgUploading && <span style={{ fontFamily:MN, fontSize:"9px", color:"#22c55e" }}>✅ Imagen subida</span>}
+            </label>
+          </div>
+        ) : (
+          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
+        )}
+        <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"5px" }}>📐 Recomendado: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1) · móvil se adapta automáticamente</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div>
           <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA INICIO *</div>
           <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:e.target.value}))} />
@@ -719,9 +777,9 @@ function AnunciosBanner({ isAdmin }) {
       {/* Slide animado */}
       <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
         {a.imagen_url && (
-          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"200px", objectFit:"cover", display:"block" }} onError={e=>e.target.style.display="none"} />
+          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height: isMobile ? "140px" : isTablet ? "180px" : "220px", objectFit:"cover", display:"block" }} onError={e=>e.target.style.display="none"} />
         )}
-        <div style={{ padding:"14px 16px 10px" }}>
+        <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
             <div>
               <span style={{ fontFamily:MN, fontSize:"9px", color:"#fbbf24", fontWeight:"700", letterSpacing:"1.5px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"4px", padding:"2px 7px", marginRight:"8px" }}>📢 ANUNCIO</span>
@@ -731,8 +789,8 @@ function AnunciosBanner({ isAdmin }) {
               <span style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)" }}>{current+1}/{anuncios.length}</span>
             )}
           </div>
-          <div style={{ fontFamily:MN, fontSize:"13px", fontWeight:"700", color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
-          <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace ? "10px" : "0" }}>{a.texto}</div>
+          <div style={{ fontFamily:MN, fontSize: isMobile ? "12px" : "14px", fontWeight:"700", color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
+          <div style={{ fontFamily:MN, fontSize: isMobile ? "10px" : "11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace ? "10px" : "0" }}>{a.texto}</div>
           {a.enlace && (
             <a href={a.enlace} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:"5px", fontFamily:MN, fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"6px 12px" }}>
               🔗 Ver más
