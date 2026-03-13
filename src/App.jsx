@@ -4341,13 +4341,19 @@ function App() {
                 </div>
               )}
               {!isAdmin && authUser && (
-                <div
-                  tabIndex={0}
-                  onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setShowSessionMenu(false); }}
-                  style={{ position:"relative", outline:"none" }}
-                >
+                <div style={{ position:"relative" }}>
                   <div
-                    onClick={() => setShowSessionMenu(v => !v)}
+                    onClick={() => {
+                      if (showSessionMenu) { setShowSessionMenu(false); return; }
+                      setShowSessionMenu(true);
+                      setTimeout(() => {
+                        const close = (e) => {
+                          setShowSessionMenu(false);
+                          document.removeEventListener("click", close);
+                        };
+                        document.addEventListener("click", close);
+                      }, 0);
+                    }}
                     style={{ display:"flex", alignItems:"center", gap:"3px", background: showSessionMenu ? "rgba(56,189,248,0.22)" : "rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px", cursor:"pointer", userSelect:"none", transition:"background 0.2s" }}
                   >
                     <span style={{ fontSize:"11px" }}>👤</span>
@@ -4356,13 +4362,14 @@ function App() {
                   </div>
                   {showSessionMenu && createPortal(
                     <div
+                      onClick={(e) => e.stopPropagation()}
                       style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:99999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}
                     >
                       <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
                         {authUser.email}
                       </div>
                       <button
-                        onMouseDown={(e) => { e.preventDefault(); handleSignOut(); }}
+                        onClick={handleSignOut}
                         style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
                       >
                         <span>🚪</span> CERRAR SESIÓN
