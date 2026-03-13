@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "Oconer1912$";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -4215,6 +4215,7 @@ function App() {
 
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
+  const [showSessionMenu, setShowSessionMenu] = useState(false);
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       setAuthUser(data?.session?.user ?? null);
@@ -4330,9 +4331,28 @@ function App() {
                 </div>
               )}
               {!isAdmin && authUser && (
-                <div title={`Sesión iniciada: ${authUser.email}`} style={{ display:"flex", alignItems:"center", gap:"3px", background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px" }}>
-                  <span style={{ fontSize:"11px" }}>👤</span>
-                  <span style={{ fontSize:"9px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>SESIÓN</span>
+                <div style={{ position:"relative" }}>
+                  <div
+                    onClick={() => setShowSessionMenu(v => !v)}
+                    style={{ display:"flex", alignItems:"center", gap:"3px", background: showSessionMenu ? "rgba(56,189,248,0.22)" : "rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px", cursor:"pointer", userSelect:"none", transition:"background 0.2s" }}
+                  >
+                    <span style={{ fontSize:"11px" }}>👤</span>
+                    <span style={{ fontSize:"9px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>SESIÓN</span>
+                    <span style={{ fontSize:"8px", color:"#38bdf8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
+                  </div>
+                  {showSessionMenu && (
+                    <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"10px", padding:"8px", minWidth:"170px", zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.5)" }}>
+                      <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"6px", wordBreak:"break-all" }}>
+                        {authUser.email}
+                      </div>
+                      <button
+                        onClick={async () => { await sb.auth.signOut(); setShowSessionMenu(false); }}
+                        style={{ width:"100%", background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"7px", padding:"8px 10px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
+                      >
+                        <span>🚪</span> CERRAR SESIÓN
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
