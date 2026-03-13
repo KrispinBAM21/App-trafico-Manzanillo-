@@ -781,7 +781,7 @@ function AnunciosBanner({ isAdmin }) {
       {/* Slide animado */}
       <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
         {a.imagen_url && (
-          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height: isMobile ? "140px" : isTablet ? "180px" : "220px", objectFit:"contain", display:"block", background:"rgba(10,22,50,0.3)" }} onError={e=>e.target.style.display="none"} />
+          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", maxWidth: isMobile ? "100%" : "720px", margin:"0 auto", height:"auto", maxHeight: isMobile ? "140px" : "200px", objectFit:"cover", display:"block", background:"transparent" }} onError={e=>e.target.style.display="none"} />
         )}
         <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
