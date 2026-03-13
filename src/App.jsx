@@ -33,7 +33,7 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
+const ADMIN_PASS   = "Oconer1912$";   // ← cambia esto por tu contraseña
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -4213,6 +4213,18 @@ function App() {
     }
   });
 
+  // ── Sesión de usuario Supabase Auth ──
+  const [authUser, setAuthUser] = useState(null);
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      setAuthUser(data?.session?.user ?? null);
+    });
+    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   // ✅ FIX: handlers correctamente definidos dentro del componente
   const handleAccept = () => {
     saveCookieConsent("accepted");
@@ -4311,6 +4323,18 @@ function App() {
             <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
               <div style={{ width:"7px", height:"7px", background:"#4ade80", borderRadius:"50%", boxShadow:"0 0 8px #4ade80", animation:"pulse 2s infinite" }} />
               <span style={{ fontSize:"10px", color:"#4ade80", fontFamily:"'DM Sans',sans-serif", fontWeight:"600" }}>EN VIVO</span>
+              {isAdmin && (
+                <div title="Sesión admin activa" style={{ display:"flex", alignItems:"center", gap:"3px", background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px" }}>
+                  <span style={{ fontSize:"11px" }}>🔑</span>
+                  <span style={{ fontSize:"9px", color:"#fbbf24", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>ADMIN</span>
+                </div>
+              )}
+              {!isAdmin && authUser && (
+                <div title={`Sesión iniciada: ${authUser.email}`} style={{ display:"flex", alignItems:"center", gap:"3px", background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"5px", padding:"1px 6px", marginLeft:"2px" }}>
+                  <span style={{ fontSize:"11px" }}>👤</span>
+                  <span style={{ fontSize:"9px", color:"#38bdf8", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>SESIÓN</span>
+                </div>
+              )}
             </div>
             {visitas !== null && (
               <div style={{ display:"flex", alignItems:"center", gap:"4px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"6px", padding:"2px 7px" }}>
