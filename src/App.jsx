@@ -618,12 +618,12 @@ function AnunciosBanner({ isAdmin }) {
     return () => { sb.removeChannel(chan); clearInterval(limpia); };
   }, []);
 
-  // Auto-slide cada 5 segundos
+  // Auto-slide cada 10 minutos
   useEffect(() => {
     if (anuncios.length <= 1) return;
     intervalRef.current = setInterval(() => {
       setCurrent(v => (v + 1) % anuncios.length);
-    }, 5000);
+    }, 600000);
     return () => clearInterval(intervalRef.current);
   }, [anuncios.length]);
 
