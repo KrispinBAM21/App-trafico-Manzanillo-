@@ -4216,6 +4216,15 @@ function App() {
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
   const [showSessionMenu, setShowSessionMenu] = useState(false);
+  const handleSignOut = async () => {
+    try {
+      await sb.auth.signOut();
+    } catch(e) {
+      console.error("signOut error:", e);
+    }
+    setAuthUser(null);
+    setShowSessionMenu(false);
+  };
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       setAuthUser(data?.session?.user ?? null);
@@ -4341,13 +4350,13 @@ function App() {
                     <span style={{ fontSize:"8px", color:"#38bdf8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
                   </div>
                   {showSessionMenu && (
-                    <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"10px", padding:"8px", minWidth:"170px", zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.5)" }}>
+                    <div style={{ position:"fixed", top:"60px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"10px", padding:"8px", minWidth:"180px", zIndex:9999, boxShadow:"0 8px 32px rgba(0,0,0,0.7)" }}>
                       <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"6px", wordBreak:"break-all" }}>
                         {authUser.email}
                       </div>
                       <button
-                        onClick={async () => { await sb.auth.signOut(); setShowSessionMenu(false); }}
-                        style={{ width:"100%", background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"7px", padding:"8px 10px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
+                        onClick={handleSignOut}
+                        style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"7px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
                       >
                         <span>🚪</span> CERRAR SESIÓN
                       </button>
