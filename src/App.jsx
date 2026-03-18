@@ -4826,6 +4826,9 @@ function App() {
         <DonateBanner active={active} />
       </div>
 
+      {/* Modal Admin — fuera de cualquier stacking context */}
+      {Modal}
+
       {/* Session menu — fuera de cualquier stacking context */}
       {!isAdmin && authUser && showSessionMenu && (
         <div
