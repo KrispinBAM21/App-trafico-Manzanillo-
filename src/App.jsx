@@ -4244,19 +4244,21 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal }) {
   // Admin trigger: tap logo 7 times → abre el modal seguro del hook useAdminMode
   const handleLogoClick = () => {
     if (isAdmin) return;
-    
-    setClickCount(prev => prev + 1);
-    
+
     if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
-    
+
+    setClickCount(prev => {
+      const next = prev + 1;
+      if (next >= 7) {
+        setTimeout(() => { if (onOpenAdminModal) onOpenAdminModal(); }, 0);
+        return 0;
+      }
+      return next;
+    });
+
     clickTimeoutRef.current = setTimeout(() => {
       setClickCount(0);
-    }, 2000);
-    
-    if (clickCount + 1 >= 7) {
-      setClickCount(0);
-      if (onOpenAdminModal) onOpenAdminModal();
-    }
+    }, 3000);
   };
 
   const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
