@@ -33,7 +33,15 @@ const rateLimiter = (() => {
 })();
 
 const COOKIE_KEY   = "cookie_consent";
-const ADMIN_PASS   = "manzanillo2025";   // ← cambia esto por tu contraseña
+// SHA-256 de "manzanillo2025" — nunca se guarda la contraseña en texto plano
+const ADMIN_HASH = "9e636b8a72a24549a73f14da8314253272794e90aa8c9b962fdba885116ac8ae";
+const verifyAdminPass = async (input) => {
+  const encoded = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  return hashHex === ADMIN_HASH;
+};
 const ADMIN_KEY    = "cm_admin_session";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -327,7 +335,25 @@ function useAdminMode() {
   const [pass, setPass] = useState("");
   const [err, setErr] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const tapTimer = useRef(null);
+
+  // Countdown timer for lockout display
+  useEffect(() => {
+    if (lockoutUntil <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockoutRemaining(0);
+        setLockoutUntil(0);
+      } else {
+        setLockoutRemaining(remaining);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
 
   const handleLogoTap = () => {
     const next = tapCount + 1;
@@ -339,16 +365,34 @@ function useAdminMode() {
   useEffect(() => {
     if (tapCount >= 5) {
       setTapCount(0);
+      setPass("");
+      setErr(false);
+      setShowAdminPass(false);
       setShowModal(true);
     }
   }, [tapCount]);
 
-  const tryLogin = () => {
-    if (pass === ADMIN_PASS) {
+  const tryLogin = async () => {
+    if (Date.now() < lockoutUntil) return;
+    const ok = await verifyAdminPass(pass);
+    if (ok) {
+      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
       setIsAdmin(true);
       setShowModal(false);
+      setFailedAttempts(0);
+      setPass("");
     } else {
+      const newFails = failedAttempts + 1;
+      setFailedAttempts(newFails);
       setErr(true);
+      if (newFails >= 5) {
+        const delays = [30000, 60000, 300000];
+        const delayIdx = Math.min(Math.floor((newFails - 5) / 3), delays.length - 1);
+        const lockMs = delays[delayIdx];
+        setLockoutUntil(Date.now() + lockMs);
+        setLockoutRemaining(Math.ceil(lockMs / 1000));
+        setFailedAttempts(0);
+      }
     }
   };
 
@@ -357,33 +401,76 @@ function useAdminMode() {
     setIsAdmin(false);
   };
 
+  const isLocked = Date.now() < lockoutUntil;
+
+  const EyeIcon = ({ crossed }) => crossed ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+
   const Modal = showModal ? (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:TITLE, fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
         <div style={{ fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa la contraseña para activar el modo administrador.</div>
-        <div style={{ position:"relative", marginBottom:"8px" }}>
-          <input
-            type={showAdminPass ? "text" : "password"}
-            value={pass}
-            onChange={e => { setPass(e.target.value); setErr(false); }}
-            onKeyDown={e => e.key === "Enter" && tryLogin()}
-            placeholder="Contraseña"
-            autoFocus
-            style={{ width:"100%", padding:"11px 40px 11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${err ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:MN, fontSize:"14px", boxSizing:"border-box", outline:"none" }}
-          />
-          <span onClick={() => setShowAdminPass(v => !v)} style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:"16px", userSelect:"none" }}>{showAdminPass ? "🙈" : "👁"}</span>
-        </div>
-        {err && <div style={{ color:"#ef4444", fontFamily:MN, fontSize:"12px", marginBottom:"8px" }}>Contraseña incorrecta</div>}
+        {isLocked ? (
+          <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
+            <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
+            <div style={{ fontFamily:MN, fontSize:"12px", color:"#ef4444", fontWeight:"700" }}>Demasiados intentos fallidos</div>
+            <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"4px" }}>
+              Bloqueado por <span style={{ color:"#f97316", fontWeight:"700" }}>{lockoutRemaining}s</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ position:"relative", marginBottom:"8px" }}>
+              <input
+                type={showAdminPass ? "text" : "password"}
+                value={pass}
+                onChange={e => { setPass(e.target.value); setErr(false); }}
+                onKeyDown={e => e.key === "Enter" && tryLogin()}
+                placeholder="Contraseña"
+                autoFocus
+                style={{ width:"100%", padding:"11px 44px 11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${err ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:MN, fontSize:"14px", boxSizing:"border-box", outline:"none" }}
+              />
+              <span
+                onClick={() => setShowAdminPass(v => !v)}
+                style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"rgba(255,255,255,0.45)", display:"flex", alignItems:"center" }}
+              >
+                <EyeIcon crossed={showAdminPass} />
+              </span>
+            </div>
+            {err && (
+              <div style={{ color:"#ef4444", fontFamily:MN, fontSize:"12px", marginBottom:"8px" }}>
+                Contraseña incorrecta{failedAttempts >= 3 ? ` (${failedAttempts}/5 intentos)` : ""}
+              </div>
+            )}
+          </>
+        )}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-          <button onClick={() => setShowModal(false)} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:MN, fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
-          <button onClick={tryLogin} style={{ padding:"11px", background:"#38bdf8", border:"none", borderRadius:"10px", color:"#0a0f1e", fontFamily:MN, fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>Entrar</button>
+          <button onClick={() => { setShowModal(false); setPass(""); setErr(false); }} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:MN, fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
+          <button onClick={tryLogin} disabled={isLocked} style={{ padding:"11px", background: isLocked ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: isLocked ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:MN, fontSize:"13px", fontWeight:"700", cursor: isLocked ? "not-allowed" : "pointer" }}>Entrar</button>
         </div>
       </div>
     </div>
   ) : null;
 
-  return { isAdmin, handleLogoTap, logout, Modal };
+  const openModal = () => {
+    setPass("");
+    setErr(false);
+    setShowAdminPass(false);
+    setShowModal(true);
+  };
+
+  return { isAdmin, handleLogoTap, openModal, logout, Modal };
 }
 
 // ─── HELPER: publicar noticia ────────────────────────────────────────────────
@@ -4134,11 +4221,10 @@ function TutorialTab({ setActive }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function InicioTab({ isAdmin, logout }) {
+function InicioTab({ isAdmin, logout, onOpenAdminModal }) {
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
-  const [showPrompt, setShowPrompt] = useState(false);
   const clickTimeoutRef = useRef(null);
 
   // Auto-toggle QR: show for 5 seconds, hide for 3, repeat
@@ -4155,7 +4241,7 @@ function InicioTab({ isAdmin, logout }) {
     return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
   }, []);
 
-  // Admin trigger: tap logo 7 times
+  // Admin trigger: tap logo 7 times → abre el modal seguro del hook useAdminMode
   const handleLogoClick = () => {
     if (isAdmin) return;
     
@@ -4169,28 +4255,9 @@ function InicioTab({ isAdmin, logout }) {
     
     if (clickCount + 1 >= 7) {
       setClickCount(0);
-      setShowPrompt(true);
+      if (onOpenAdminModal) onOpenAdminModal();
     }
   };
-
-  const handleAdminLogin = () => {
-    const pass = prompt("Ingresa la contraseña de administrador:");
-    if (pass === ADMIN_PASS) {
-      try {
-        sessionStorage.setItem(ADMIN_KEY, "1");
-        window.location.reload();
-      } catch {}
-    } else if (pass !== null) {
-      alert("Contraseña incorrecta");
-    }
-    setShowPrompt(false);
-  };
-
-  useEffect(() => {
-    if (showPrompt) {
-      handleAdminLogin();
-    }
-  }, [showPrompt]);
 
   const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
@@ -4537,7 +4604,7 @@ function CookieBanner({ onAccept, onReject }) {
 
 
 function App() {
-  const { isAdmin, handleLogoTap, logout, Modal } = useAdminMode();
+  const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
 
   const [active,    setActiveRaw]  = useState(() => {
     try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
@@ -4738,7 +4805,7 @@ function App() {
 
         <AnunciosBanner isAdmin={isAdmin} />
 
-        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} />}
+        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
