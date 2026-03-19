@@ -3764,7 +3764,7 @@ function PatioReguladorTab({ myId }) {
 }
 
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
-function TutorialTab({ setActive }) {
+function TutorialTab({ setActive, isAdmin }) {
   const [open, setOpen] = useState(null);
   const toggle = (id) => setOpen(prev => prev === id ? null : id);
 
@@ -4212,10 +4212,314 @@ function TutorialTab({ setActive }) {
           )}
         </div>
       ))}
+      {/* ══════════════════════════════════════════════════════
+          ENCUESTA DE SATISFACCIÓN
+      ══════════════════════════════════════════════════════ */}
+      <EncuestaSatisfaccion isAdmin={isAdmin} />
+
       <div style={{ textAlign:"center", marginTop:"24px", padding:"14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)" }}>
         <div style={{ fontSize:"20px", marginBottom:"6px" }}>⚓</div>
         <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.3)", lineHeight:"1.8" }}>Puerto Tráfico es una herramienta colaborativa.<br/><span style={{ color:"#38bdf8" }}>Tu información hace la diferencia.</span></div>
       </div>
+    </div>
+  );
+}
+
+// ─── ENCUESTA DE SATISFACCIÓN ─────────────────────────────────────────────────
+function EncuestaSatisfaccion({ isAdmin }) {
+  const [expanded, setExpanded] = useState(false);
+  const [step, setStep] = useState("form"); // "form" | "thanks"
+  const [loading, setLoading] = useState(false);
+  const [adminView, setAdminView] = useState(false);
+  const [respuestas, setRespuestas] = useState([]);
+  const [loadingAdmin, setLoadingAdmin] = useState(false);
+
+  // Campos de la encuesta
+  const [nombre, setNombre] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [dispositivo, setDispositivo] = useState("");
+  const [frecuencia, setFrecuencia] = useState("");
+  const [calificacion, setCalificacion] = useState("");
+  const [funciones, setFunciones] = useState([]);
+  const [agregarDesc, setAgregarDesc] = useState("");
+  const [quitarDesc, setQuitarDesc] = useState("");
+  const [comentario, setComentario] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const DISPOSITIVOS = ["Celular Android", "iPhone / iOS", "Tablet", "Computadora / Laptop", "Varios dispositivos"];
+  const FRECUENCIAS  = ["Varias veces al día", "Una vez al día", "Algunas veces por semana", "Ocasionalmente"];
+  const CALIFICACIONES = ["⭐ Muy mala","⭐⭐ Mala","⭐⭐⭐ Regular","⭐⭐⭐⭐ Buena","⭐⭐⭐⭐⭐ Excelente"];
+  const FUNCIONES_LIST = ["Tráfico / Mapa", "Terminales", "Patio Regulador", "Segundo Acceso", "Carriles Expo/Impo", "Vialidades", "Noticias", "Reportar incidentes"];
+
+  const toggleFuncion = (f) => setFunciones(prev => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
+
+  const handleEnviar = async () => {
+    if (!dispositivo || !calificacion || !frecuencia) {
+      setMsg({type:"err", text:"Por favor completa los campos obligatorios (dispositivo, frecuencia y calificación)."});
+      return;
+    }
+    const rl = rateLimiter.check("encuesta_" + (correo||"anon"), 86400000); // 1 vez por día
+    if (!rl.allowed) {
+      setMsg({type:"err", text:`Ya enviaste una encuesta recientemente. Puedes enviar otra en ${Math.ceil(rl.remaining/3600)}h.`});
+      return;
+    }
+    setLoading(true); setMsg(null);
+    const payload = {
+      nombre: sanitize(nombre) || null,
+      correo: sanitize(correo) || null,
+      dispositivo,
+      frecuencia,
+      calificacion,
+      funciones_usadas: funciones,
+      agregar: sanitize(agregarDesc) || null,
+      quitar: sanitize(quitarDesc) || null,
+      comentario: sanitize(comentario) || null,
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await sb.from("encuestas_satisfaccion").insert([payload]);
+    setLoading(false);
+    if (error) {
+      setMsg({type:"err", text:"Error al enviar. Intenta de nuevo."});
+    } else {
+      setStep("thanks");
+    }
+  };
+
+  const cargarRespuestas = async () => {
+    setLoadingAdmin(true);
+    const { data } = await sb.from("encuestas_satisfaccion").select("*").order("created_at", { ascending: false }).limit(200);
+    setRespuestas(data || []);
+    setLoadingAdmin(false);
+  };
+
+  const handleAdminView = () => {
+    setAdminView(true);
+    cargarRespuestas();
+  };
+
+  // Estadísticas
+  const calcStats = () => {
+    if (!respuestas.length) return null;
+    const total = respuestas.length;
+    const byDisp = {};
+    const byFreq = {};
+    const byCal = {};
+    const byFunc = {};
+    respuestas.forEach(r => {
+      if (r.dispositivo) byDisp[r.dispositivo] = (byDisp[r.dispositivo]||0)+1;
+      if (r.frecuencia)  byFreq[r.frecuencia]  = (byFreq[r.frecuencia]||0)+1;
+      if (r.calificacion) byCal[r.calificacion] = (byCal[r.calificacion]||0)+1;
+      (r.funciones_usadas||[]).forEach(f => { byFunc[f] = (byFunc[f]||0)+1; });
+    });
+    return { total, byDisp, byFreq, byCal, byFunc };
+  };
+
+  const stats = calcStats();
+
+  const StatBar = ({ label, count, total, color="#38bdf8" }) => (
+    <div style={{ marginBottom:"8px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
+        <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.7)" }}>{label}</span>
+        <span style={{ fontFamily:MN, fontSize:"10px", color:color, fontWeight:"700" }}>{count} <span style={{color:"rgba(255,255,255,0.3)"}}>({Math.round(count/total*100)}%)</span></span>
+      </div>
+      <div style={{ height:"5px", background:"rgba(255,255,255,0.06)", borderRadius:"3px", overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${Math.round(count/total*100)}%`, background:color, borderRadius:"3px", transition:"width 0.6s ease" }} />
+      </div>
+    </div>
+  );
+
+  const inputStyle = { width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.85)", fontFamily:MN, fontSize:"11px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+  const chipStyle = (sel) => ({ display:"inline-block", padding:"6px 12px", borderRadius:"20px", margin:"3px", cursor:"pointer", fontFamily:MN, fontSize:"10px", fontWeight:"600", letterSpacing:"0.3px", border:`1px solid ${sel?"#38bdf8":"rgba(255,255,255,0.15)"}`, background: sel?"rgba(56,189,248,0.18)":"rgba(255,255,255,0.04)", color: sel?"#38bdf8":"rgba(255,255,255,0.55)", transition:"all 0.15s", userSelect:"none" });
+
+  return (
+    <div style={{ marginTop:"24px", marginBottom:"16px" }}>
+      {/* ── Botón trigger ── */}
+      <button
+        onClick={() => { setExpanded(v=>!v); setAdminView(false); }}
+        style={{ width:"100%", background: expanded ? "linear-gradient(135deg,rgba(251,191,36,0.12),rgba(167,139,250,0.12))" : "linear-gradient(135deg,rgba(56,189,248,0.08),rgba(167,139,250,0.08))", border:`1px solid ${expanded?"rgba(251,191,36,0.4)":"rgba(56,189,248,0.25)"}`, borderRadius: expanded?"14px 14px 0 0":"14px", padding:"14px 18px", display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", textAlign:"left", transition:"all 0.2s" }}
+      >
+        <div style={{ fontSize:"24px" }}>📊</div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", color: expanded?"#fbbf24":"rgba(255,255,255,0.9)", letterSpacing:"1px" }}>ENCUESTA DE SATISFACCIÓN</div>
+          <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", marginTop:"2px" }}>Tu opinión mejora la plataforma · 2 minutos</div>
+        </div>
+        <span style={{ color: expanded?"#fbbf24":"rgba(255,255,255,0.3)", fontSize:"13px", transition:"transform 0.25s", transform: expanded?"rotate(180deg)":"rotate(0deg)" }}>▼</span>
+      </button>
+
+      {expanded && (
+        <div style={{ background:"#060e1a", border:"1px solid rgba(251,191,36,0.2)", borderTop:"none", borderRadius:"0 0 14px 14px", overflow:"hidden" }}>
+
+          {/* ── VISTA ADMIN ── */}
+          {isAdmin && !adminView && step !== "thanks" && (
+            <div style={{ padding:"12px 16px 0", borderBottom:"1px solid rgba(255,255,255,0.06)", marginBottom:"4px" }}>
+              <button onClick={handleAdminView} style={{ padding:"7px 14px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:"8px", color:"#fbbf24", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+                🔑 VER RESPUESTAS (SOLO ADMIN)
+              </button>
+            </div>
+          )}
+
+          {/* ── Panel de respuestas admin ── */}
+          {isAdmin && adminView && (
+            <div style={{ padding:"16px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
+                <div>
+                  <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"12px", color:"#fbbf24", letterSpacing:"1px" }}>🔑 PANEL ADMIN · ENCUESTAS</div>
+                  <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"2px" }}>Información privada — solo visible al administrador</div>
+                </div>
+                <button onClick={() => setAdminView(false)} style={{ padding:"5px 10px", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"7px", color:"rgba(255,255,255,0.5)", fontFamily:MN, fontSize:"10px", cursor:"pointer" }}>← Volver</button>
+              </div>
+
+              {loadingAdmin && <div style={{ textAlign:"center", padding:"20px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.3)" }}>Cargando respuestas...</div>}
+
+              {!loadingAdmin && stats && (
+                <>
+                  {/* Resumen numérico */}
+                  <div style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:"10px", padding:"12px 14px", marginBottom:"16px", display:"flex", gap:"20px", flexWrap:"wrap" }}>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontFamily:MN, fontWeight:"900", fontSize:"28px", color:"#fbbf24" }}>{stats.total}</div>
+                      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px" }}>RESPUESTAS</div>
+                    </div>
+                  </div>
+
+                  {/* Stats por sección */}
+                  {[
+                    { title:"📱 Dispositivo más usado", data: stats.byDisp, color:"#38bdf8" },
+                    { title:"🕐 Frecuencia de uso",     data: stats.byFreq, color:"#34d399" },
+                    { title:"⭐ Calificación general",  data: stats.byCal,  color:"#fbbf24" },
+                    { title:"🛠️ Funciones más usadas",  data: stats.byFunc, color:"#a78bfa" },
+                  ].map(({ title, data, color }) => (
+                    <div key={title} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"10px", padding:"12px 14px", marginBottom:"10px" }}>
+                      <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"10px", color:"rgba(255,255,255,0.6)", letterSpacing:"1px", marginBottom:"10px" }}>{title}</div>
+                      {Object.entries(data).sort((a,b)=>b[1]-a[1]).map(([k,v]) => (
+                        <StatBar key={k} label={k} count={v} total={stats.total} color={color} />
+                      ))}
+                    </div>
+                  ))}
+
+                  {/* Respuestas abiertas */}
+                  <div style={{ marginTop:"8px" }}>
+                    <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"1px", marginBottom:"10px" }}>💬 RESPUESTAS ABIERTAS ({respuestas.length})</div>
+                    {respuestas.map((r, i) => (
+                      <div key={i} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"10px", padding:"12px", marginBottom:"8px" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px", flexWrap:"wrap", gap:"4px" }}>
+                          <span style={{ fontFamily:MN, fontSize:"10px", color:"#38bdf8", fontWeight:"700" }}>{r.nombre || "Anónimo"}</span>
+                          <span style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)" }}>{r.correo || "—"} · {new Date(r.created_at).toLocaleDateString("es-MX")}</span>
+                        </div>
+                        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"6px" }}>
+                          {r.dispositivo && <span style={{ padding:"2px 8px", background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"12px", fontFamily:MN, fontSize:"9px", color:"#38bdf8" }}>{r.dispositivo}</span>}
+                          {r.calificacion && <span style={{ padding:"2px 8px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:"12px", fontFamily:MN, fontSize:"9px", color:"#fbbf24" }}>{r.calificacion}</span>}
+                          {r.frecuencia && <span style={{ padding:"2px 8px", background:"rgba(52,211,153,0.12)", border:"1px solid rgba(52,211,153,0.2)", borderRadius:"12px", fontFamily:MN, fontSize:"9px", color:"#34d399" }}>{r.frecuencia}</span>}
+                        </div>
+                        {(r.funciones_usadas||[]).length > 0 && <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(167,139,250,0.8)", marginBottom:"5px" }}>Usa: {(r.funciones_usadas||[]).join(", ")}</div>}
+                        {r.agregar    && <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.55)", marginBottom:"3px" }}><span style={{color:"#34d399",fontWeight:"700"}}>+ Agregar: </span>{r.agregar}</div>}
+                        {r.quitar     && <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.55)", marginBottom:"3px" }}><span style={{color:"#ef4444",fontWeight:"700"}}>− Quitar: </span>{r.quitar}</div>}
+                        {r.comentario && <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.55)" }}><span style={{color:"#fbbf24",fontWeight:"700"}}>💬 </span>{r.comentario}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {!loadingAdmin && !stats && (
+                <div style={{ textAlign:"center", padding:"24px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.25)" }}>Aún no hay respuestas registradas.</div>
+              )}
+            </div>
+          )}
+
+          {/* ── FORMULARIO PÚBLICO ── */}
+          {!adminView && step === "form" && (
+            <div style={{ padding:"16px" }}>
+              <div style={{ textAlign:"center", marginBottom:"18px" }}>
+                <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7" }}>
+                  Ayúdanos a mejorar Conect Manzanillo.<br/>
+                  <span style={{ color:"rgba(255,255,255,0.25)", fontSize:"10px" }}>🔒 Tus respuestas son anónimas. Solo el administrador puede verlas.</span>
+                </div>
+              </div>
+
+              {msg && (
+                <div style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"10px", fontFamily:MN, background: msg.type==="ok"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>
+                  {msg.text}
+                </div>
+              )}
+
+              {/* Datos opcionales */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>DATOS DE CONTACTO (OPCIONALES)</div>
+              <input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre (opcional)" style={inputStyle} maxLength={80} />
+              <input type="email" value={correo} onChange={e=>setCorreo(e.target.value)} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
+
+              {/* Dispositivo — múltiple choice */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px", marginTop:"4px" }}>📱 ¿EN QUÉ DISPOSITIVO USAS MÁS LA APP? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ marginBottom:"12px" }}>
+                {DISPOSITIVOS.map(d => (
+                  <span key={d} onClick={() => setDispositivo(d)} style={chipStyle(dispositivo===d)}>{d}</span>
+                ))}
+              </div>
+
+              {/* Frecuencia */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🕐 ¿CON QUÉ FRECUENCIA LA USAS? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ marginBottom:"12px" }}>
+                {FRECUENCIAS.map(f => (
+                  <span key={f} onClick={() => setFrecuencia(f)} style={chipStyle(frecuencia===f)}>{f}</span>
+                ))}
+              </div>
+
+              {/* Funciones más usadas */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🛠️ ¿QUÉ FUNCIONES UTILIZAS MÁS? <span style={{color:"rgba(255,255,255,0.2)"}}>(selecciona todas las que apliquen)</span></div>
+              <div style={{ marginBottom:"12px" }}>
+                {FUNCIONES_LIST.map(f => (
+                  <span key={f} onClick={() => toggleFuncion(f)} style={chipStyle(funciones.includes(f))}>{f}</span>
+                ))}
+              </div>
+
+              {/* Calificación */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>⭐ ¿CÓMO CALIFICARÍAS LA APP EN GENERAL? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ marginBottom:"14px" }}>
+                {CALIFICACIONES.map(c => (
+                  <span key={c} onClick={() => setCalificacion(c)} style={chipStyle(calificacion===c)}>{c}</span>
+                ))}
+              </div>
+
+              {/* Preguntas abiertas */}
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>✨ ¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
+              <textarea value={agregarDesc} onChange={e=>setAgregarDesc(e.target.value)} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🗑️ ¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
+              <textarea value={quitarDesc} onChange={e=>setQuitarDesc(e.target.value)} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+
+              <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>💬 COMENTARIO LIBRE</div>
+              <textarea value={comentario} onChange={e=>setComentario(e.target.value)} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
+
+              {/* Aviso privacidad + botón enviar */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:"4px", gap:"12px", flexWrap:"wrap" }}>
+                <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.2)", lineHeight:"1.6", flex:1 }}>
+                  🔒 Tus respuestas son anónimas y confidenciales.<br/>Solo el administrador de la plataforma puede verlas.
+                </div>
+                <button
+                  onClick={handleEnviar}
+                  disabled={loading}
+                  style={{ padding:"9px 18px", background: loading?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#38bdf8,#0ea5e9)", border:"none", borderRadius:"10px", color: loading?"#38bdf8":"#0a1628", fontFamily:MN, fontSize:"11px", fontWeight:"700", cursor: loading?"not-allowed":"pointer", letterSpacing:"0.5px", flexShrink:0, opacity: loading?0.7:1, transition:"all 0.2s" }}
+                >
+                  {loading ? "Enviando..." : "ENVIAR ✓"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── GRACIAS ── */}
+          {!adminView && step === "thanks" && (
+            <div style={{ padding:"28px 20px", textAlign:"center" }}>
+              <div style={{ fontSize:"40px", marginBottom:"12px" }}>🙏</div>
+              <div style={{ fontFamily:MN, fontWeight:"700", fontSize:"14px", color:"#34d399", marginBottom:"8px" }}>¡Gracias por tu respuesta!</div>
+              <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.4)", lineHeight:"1.8", maxWidth:"260px", margin:"0 auto 16px" }}>
+                Tu opinión es muy valiosa para seguir mejorando Conect Manzanillo. El equipo la tomará en cuenta.
+              </div>
+              <button onClick={() => { setStep("form"); setNombre(""); setCorreo(""); setDispositivo(""); setFrecuencia(""); setCalificacion(""); setFunciones([]); setAgregarDesc(""); setQuitarDesc(""); setComentario(""); setMsg(null); }} style={{ padding:"8px 18px", background:"rgba(52,211,153,0.12)", border:"1px solid rgba(52,211,153,0.3)", borderRadius:"10px", color:"#34d399", fontFamily:MN, fontSize:"10px", fontWeight:"700", cursor:"pointer" }}>
+                Enviar otra respuesta
+              </button>
+            </div>
+          )}
+
+        </div>
+      )}
     </div>
   );
 }
@@ -4816,7 +5120,7 @@ function App() {
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <DonativosTab />}
-        {active === "tutorial"   && <TutorialTab setActive={setActive} />}
+        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} />}
 
         {/* ✅ FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
