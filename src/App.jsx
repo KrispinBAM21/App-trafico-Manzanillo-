@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, createPortal } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -3202,8 +3202,8 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </button>
       </div>
 
-      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── portal a document.body para escapar stacking contexts */}
-      {confirmId && createPortal(
+      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── position:fixed cubre toda la pantalla sin necesitar portal */}
+      {confirmId && (
         <div
           onClick={() => !eliminando && setConfirmId(null)}
           style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.80)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
@@ -3256,8 +3256,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
               >{eliminando ? "Eliminando..." : "Sí, eliminar"}</button>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
 
       {/* ── SUB-TAB: VER COMUNICADOS ── */}
