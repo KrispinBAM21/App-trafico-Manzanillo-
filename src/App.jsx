@@ -3061,6 +3061,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
+  const [eliminando, setEliminando] = useState(false); // estado de eliminación en progreso
 
   const formatDateTime = (timestamp) => {
     const d = new Date(toMs(timestamp));
@@ -3128,18 +3129,40 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const pedirEliminar = (id) => setConfirmId(id);
 
   const eliminar = async (id) => {
+    // Evitar múltiples clicks
+    if (eliminando) return;
+    
+    setEliminando(true);
+    
     // Capturar el comunicado ANTES de cerrar el modal para evitar
     // problemas de closure cuando el re-render invalida `vigentes`
     const com = vigentes.find(v => v.id === id) || comunicados.find(c => c.id === id);
-    setConfirmId(null);
+    
+    // 1. Eliminar archivo de storage si existe
     if (com?.archivo_url) {
       try {
         const path = com.archivo_url.split("/comunicados/")[1];
         if (path) await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
-      } catch {}
+      } catch (err) {
+        console.error("Error al eliminar archivo:", err);
+      }
     }
+    
+    // 2. Eliminar registro de la base de datos
     const { error } = await sb.from("comunicados").delete().eq("id", id);
-    if (error) { console.error("Error al eliminar:", error); return; }
+    if (error) { 
+      console.error("Error al eliminar comunicado:", error);
+      alert("Error al eliminar el comunicado: " + error.message);
+      setEliminando(false);
+      setConfirmId(null);
+      return;
+    }
+    
+    // 3. Cerrar modal solo después de eliminación exitosa
+    setEliminando(false);
+    setConfirmId(null);
+    
+    // 4. Recargar datos
     onReload();
   };
 
@@ -3182,24 +3205,55 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
       {/* ── MODAL CONFIRMACIÓN ELIMINAR ── portal a document.body para escapar stacking contexts */}
       {confirmId && createPortal(
         <div
-          onClick={() => setConfirmId(null)}
+          onClick={() => !eliminando && setConfirmId(null)}
           style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.80)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
         >
           <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
-            <div style={{ fontSize: "40px", marginBottom: "12px" }}>🗑️</div>
-            <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>¿Eliminar comunicado?</div>
+            <div style={{ fontSize: "40px", marginBottom: "12px" }}>{eliminando ? "⏳" : "🗑️"}</div>
+            <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>
+              {eliminando ? "Eliminando comunicado..." : "¿Eliminar comunicado?"}
+            </div>
             <div style={{ fontFamily: MN, fontSize: "11px", color: "rgba(255,255,255,0.45)", marginBottom: "22px", lineHeight: "1.5" }}>
-              Esta acción es permanente.<br/>Se eliminará el archivo y no podrá recuperarse.
+              {eliminando 
+                ? "Por favor espera mientras se elimina el archivo y el registro."
+                : <>Esta acción es permanente.<br/>Se eliminará el archivo y no podrá recuperarse.</>
+              }
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={() => setConfirmId(null)}
-                style={{ flex: 1, padding: "12px", background: "transparent", border: "1px solid #1e3a5f", borderRadius: "10px", color: "rgba(255,255,255,0.6)", fontFamily: MN, fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                disabled={eliminando}
+                style={{ 
+                  flex: 1, 
+                  padding: "12px", 
+                  background: "transparent", 
+                  border: "1px solid #1e3a5f", 
+                  borderRadius: "10px", 
+                  color: eliminando ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.6)", 
+                  fontFamily: MN, 
+                  fontSize: "12px", 
+                  fontWeight: "700", 
+                  cursor: eliminando ? "not-allowed" : "pointer",
+                  opacity: eliminando ? 0.5 : 1
+                }}
               >Cancelar</button>
               <button
                 onClick={() => eliminar(confirmId)}
-                style={{ flex: 1, padding: "12px", background: "linear-gradient(135deg,#ef4444,#dc2626)", border: "none", borderRadius: "10px", color: "#fff", fontFamily: MN, fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
-              >Sí, eliminar</button>
+                disabled={eliminando}
+                style={{ 
+                  flex: 1, 
+                  padding: "12px", 
+                  background: eliminando ? "#0a1628" : "linear-gradient(135deg,#ef4444,#dc2626)", 
+                  border: "none", 
+                  borderRadius: "10px", 
+                  color: eliminando ? "rgba(255,255,255,0.4)" : "#fff", 
+                  fontFamily: MN, 
+                  fontSize: "12px", 
+                  fontWeight: "700", 
+                  cursor: eliminando ? "not-allowed" : "pointer",
+                  opacity: eliminando ? 0.7 : 1
+                }}
+              >{eliminando ? "Eliminando..." : "Sí, eliminar"}</button>
             </div>
           </div>
         </div>,
