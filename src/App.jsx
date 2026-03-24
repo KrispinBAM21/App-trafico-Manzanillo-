@@ -3129,15 +3129,11 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const pedirEliminar = (id) => setConfirmId(id);
 
   const eliminar = async (id) => {
-    // Evitar múltiples clicks
     if (eliminando) return;
-    
     setEliminando(true);
-    
-    // Capturar el comunicado ANTES de cerrar el modal para evitar
-    // problemas de closure cuando el re-render invalida `vigentes`
+
     const com = vigentes.find(v => v.id === id) || comunicados.find(c => c.id === id);
-    
+
     // 1. Eliminar archivo de storage si existe
     if (com?.archivo_url) {
       try {
@@ -3147,22 +3143,33 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         console.error("Error al eliminar archivo:", err);
       }
     }
-    
-    // 2. Eliminar registro de la base de datos
-    const { error } = await sb.from("comunicados").delete().eq("id", id);
-    if (error) { 
+
+    // 2. Delete con .select() para confirmar que Supabase realmente eliminó la fila
+    const { data: deleted, error } = await sb
+      .from("comunicados")
+      .delete()
+      .eq("id", id)
+      .select();
+
+    if (error) {
       console.error("Error al eliminar comunicado:", error);
       alert("Error al eliminar el comunicado: " + error.message);
       setEliminando(false);
       setConfirmId(null);
       return;
     }
-    
-    // 3. Cerrar modal solo después de eliminación exitosa
+
+    // 3. Si no se eliminó ninguna fila, probablemente hay un problema de RLS
+    if (!deleted || deleted.length === 0) {
+      alert("No se pudo eliminar el comunicado.\n\nVerifica que la política RLS de la tabla 'comunicados' en Supabase permita DELETE al rol anon o al usuario actual.");
+      setEliminando(false);
+      setConfirmId(null);
+      return;
+    }
+
+    // 4. Cerrar modal y recargar
     setEliminando(false);
     setConfirmId(null);
-    
-    // 4. Recargar datos
     onReload();
   };
 
