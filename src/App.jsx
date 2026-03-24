@@ -2719,24 +2719,30 @@ function SegundoAccesoTab() {
           <div style={{ display:"flex", gap:"8px" }}>
             {CONFINADA_CARRILES.map((c, i) => {
               const st = confinada[c.id];
-              const bc = st.saturado ? "#ef4444" : st.transferencia ? "#fbbf24" : "#22c55e";
+              const sinUso = st.terminal === "sin_uso";
+              const bc = sinUso ? "#6b7280" : st.saturado ? "#ef4444" : st.transferencia ? "#fbbf24" : "#22c55e";
               return (
                 <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
                   <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:MN, fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
-                  <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa55", borderRadius:"6px", padding:"4px 4px" }}>
-                    <SlotText value={getTermName(st.terminal)} color="#a78bfa" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
-                  </div>
-                  {st.transferencia && <div style={{ fontSize:"11px", color:"#fbbf24", fontFamily:MN, fontWeight:"700" }}>🔄 TRANS.</div>}
-                  {st.retornos && <div style={{ fontSize:"14px" }}>↩</div>}
+                  {sinUso
+                    ? <div style={{ background:"#6b728022", border:"1px solid #6b728055", borderRadius:"6px", padding:"4px 4px" }}>
+                        <SlotText value="SIN USO" color="#9ca3af" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
+                      </div>
+                    : <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa55", borderRadius:"6px", padding:"4px 4px" }}>
+                        <SlotText value={getTermName(st.terminal)} color="#a78bfa" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
+                      </div>
+                  }
+                  {!sinUso && st.transferencia && <div style={{ fontSize:"11px", color:"#fbbf24", fontFamily:MN, fontWeight:"700" }}>🔄 TRANS.</div>}
+                  {!sinUso && st.retornos && <div style={{ fontSize:"14px" }}>↩</div>}
                   <div>
-                    <SlotText value={st.saturado ? "SAT" : st.transferencia ? "TRANS" : "OK"} color={bc} fontSize="clamp(12px,2vw,16px)" delay={i * 180 + 90} />
+                    <SlotText value={sinUso ? "N/A" : st.saturado ? "SAT" : st.transferencia ? "TRANS" : "OK"} color={bc} fontSize="clamp(12px,2vw,16px)" delay={i * 180 + 90} />
                   </div>
                 </div>
               );
             })}
           </div>
           <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#fbbf24","TRANSFERENCIA"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#fbbf24","TRANSFERENCIA"],["#a78bfa","ZONA SUR"],["#6b7280","SIN USO"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN }}>{l}</span>
@@ -2753,8 +2759,8 @@ function SegundoAccesoTab() {
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
-          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+          const borderColor = st.terminal==="sin_uso" ? "#6b7280" : st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
+          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="sin_uso" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
             <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
               {/* Header carril */}
@@ -2762,8 +2768,11 @@ function SegundoAccesoTab() {
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
                     <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa44", borderRadius:"6px", padding:"3px 10px", color:"#a78bfa", fontFamily:MN, fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    <Badge color="#22c55e" small>INGRESO</Badge>
-                    {st.transferencia && <Badge color="#fbbf24" small>🔄 ADUANA</Badge>}
+                    {st.terminal === "sin_uso"
+                      ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
+                      : <Badge color="#22c55e" small>INGRESO</Badge>
+                    }
+                    {st.transferencia && st.terminal !== "sin_uso" && <Badge color="#fbbf24" small>🔄 ADUANA</Badge>}
                   </div>
                   <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:MN, marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
@@ -2780,30 +2789,23 @@ function SegundoAccesoTab() {
               </div>
 
               {/* Terminal asignada */}
-              <div style={{ background:"#a78bfa11", border:"1px solid #a78bfa33", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ background: st.terminal==="sin_uso" ? "#6b728011" : "#a78bfa11", border:`1px solid ${st.terminal==="sin_uso"?"#6b728033":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY · ZONA SUR</div>
-                  <div style={{ color:"#a78bfa", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div>
+                  {st.terminal === "sin_uso"
+                    ? <><div style={{ color:"#6b7280", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
+                    : <><div style={{ color:"#a78bfa", fontFamily:MN, fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
+                  }
                 </div>
-                <span style={{ fontSize:"22px" }}>🚛</span>
+                <span style={{ fontSize:"22px" }}>{st.terminal === "sin_uso" ? "🚫" : "🚛"}</span>
               </div>
 
-              {/* Cambiar terminal — solo Zona Sur */}
+              {/* Cambiar terminal — solo Zona Sur + Sin Uso */}
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL (ZONA SUR):</div>
               <div style={{ marginBottom:"10px" }}>
                 <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
                   {termsSur.map(t => <button key={t.id} onClick={() => updateConfinada(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                </div>
-              </div>
-
-              {/* Transferencia de Aduana */}
-              <div style={{ background: st.transferencia ? "#fbbf2415" : "rgba(255,255,255,0.03)", border:`1px solid ${st.transferencia?"#fbbf2466":"rgba(255,255,255,0.08)"}`, borderRadius:"10px", padding:"12px", marginBottom:"10px" }}>
-                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 TRANSFERENCIA DE ADUANA</div>
-                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:MN, marginBottom:"8px" }}>Indica si este carril es utilizado para transferencias aduanales.</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>✓ NORMAL</button>
-                  <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
+                  <button onClick={() => updateConfinada(carril.id,"terminal","sin_uso")} style={{ padding:"5px 10px", background: st.terminal==="sin_uso"?"#6b728022":"#0a1628", border:`1px solid ${st.terminal==="sin_uso"?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="sin_uso"?"#9ca3af":"#475569", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="sin_uso"?"700":"400" }}>🚫 Sin uso</button>
                 </div>
               </div>
 
@@ -2819,7 +2821,7 @@ function SegundoAccesoTab() {
               </div>
 
               {/* Tráfico expo/impo */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:MN, letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={st.expo || "libre"} onChange={e => updateConfinada(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
@@ -2836,6 +2838,16 @@ function SegundoAccesoTab() {
                   <select value={st.impo || "libre"} onChange={e => updateConfinada(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
                     {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
                   </select>
+                </div>
+              </div>
+
+              {/* Transferencia de Aduana — al final */}
+              <div style={{ background: st.transferencia ? "#fbbf2415" : "rgba(255,255,255,0.03)", border:`1px solid ${st.transferencia?"#fbbf2466":"rgba(255,255,255,0.08)"}`, borderRadius:"10px", padding:"12px" }}>
+                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN, letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 TRANSFERENCIA DE ADUANA</div>
+                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:MN, marginBottom:"8px" }}>Indica si este carril es utilizado para transferencias aduanales.</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>✓ NORMAL</button>
+                  <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:MN, fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
                 </div>
               </div>
             </div>
