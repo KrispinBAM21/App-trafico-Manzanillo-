@@ -3128,15 +3128,18 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const pedirEliminar = (id) => setConfirmId(id);
 
   const eliminar = async (id) => {
+    // Capturar el comunicado ANTES de cerrar el modal para evitar
+    // problemas de closure cuando el re-render invalida `vigentes`
+    const com = vigentes.find(v => v.id === id) || comunicados.find(c => c.id === id);
     setConfirmId(null);
-    const com = vigentes.find(v => v.id === id);
     if (com?.archivo_url) {
       try {
         const path = com.archivo_url.split("/comunicados/")[1];
-        await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+        if (path) await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
       } catch {}
     }
-    await sb.from("comunicados").delete().eq("id", id);
+    const { error } = await sb.from("comunicados").delete().eq("id", id);
+    if (error) { console.error("Error al eliminar:", error); return; }
     onReload();
   };
 
@@ -3446,7 +3449,14 @@ function NoticiasTab({ isAdmin }) {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
             <div style={{ width:"6px", height:"6px", background:"#fbbf24", borderRadius:"50%" }} />
-            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN }}>{comunicados.filter(c => c.aprobado === true || c.aprobado === "true").length} comunicados</span>
+            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:MN }}>{comunicados.filter(c => {
+              const aprobado = c.aprobado === true || c.aprobado === "true" || c.aprobado === 1;
+              if (!aprobado) return false;
+              if (!c.fecha_fin) return true;
+              const fin = toMs(c.fecha_fin);
+              if (!fin || isNaN(fin)) return true;
+              return fin > Date.now();
+            }).length} comunicados</span>
           </div>
         </div>
       </div>
