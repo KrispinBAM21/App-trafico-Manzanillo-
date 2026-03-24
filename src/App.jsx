@@ -1551,7 +1551,7 @@ const MAP_TILES = [
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
   { id: "light",     label: "Claro",    icon: "☀️",
-    url: "https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png",
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     labels: null },
 ];
 
@@ -3362,9 +3362,11 @@ function NoticiasTab({ isAdmin }) {
 
   const cargarComunicados = () => {
     // Trae todos los comunicados — el filtro por aprobado se hace en el cliente
+    // Cargar solo comunicados aprobados (vigentes)
     // para evitar problemas con tipos booleanos en Supabase
     sb.from("comunicados")
       .select("*")
+      .eq("aprobado", true)
       .order("created_at", { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
@@ -3382,8 +3384,26 @@ function NoticiasTab({ isAdmin }) {
         if (r) setNoticias(prev => [r, ...prev].slice(0, 100));
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, ({ new: r }) => {
-        if (r) setComunicados(prev => [r, ...prev].slice(0, 50));
-      }).subscribe();
+        // Solo agregar si está aprobado
+        const aprobado = r.aprobado === true || r.aprobado === "true" || r.aprobado === 1;
+        if (r && aprobado) setComunicados(prev => [r, ...prev].slice(0, 50));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, ({ new: r }) => {
+        // Si se aprobó, agregarlo a la lista (si no estaba)
+        const aprobado = r.aprobado === true || r.aprobado === "true" || r.aprobado === 1;
+        if (r && aprobado) {
+          setComunicados(prev => {
+            // Si ya existe, no duplicar
+            if (prev.some(c => c.id === r.id)) return prev;
+            return [r, ...prev].slice(0, 50);
+          });
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
+        // Remover de la lista cuando se elimina
+        if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
+      })
+      .subscribe();
     return () => sb.removeChannel(chan);
   }, []);
 
