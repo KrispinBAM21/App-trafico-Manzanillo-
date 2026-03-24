@@ -3179,10 +3179,12 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </button>
       </div>
 
-      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── */}
-      {confirmId && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
-          onClick={() => setConfirmId(null)}>
+      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── portal a document.body para escapar stacking contexts */}
+      {confirmId && createPortal(
+        <div
+          onClick={() => setConfirmId(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.80)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
           <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
             <div style={{ fontSize: "40px", marginBottom: "12px" }}>🗑️</div>
             <div style={{ fontFamily: MN, fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>¿Eliminar comunicado?</div>
@@ -3200,7 +3202,8 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
               >Sí, eliminar</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── SUB-TAB: VER COMUNICADOS ── */}
