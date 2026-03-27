@@ -707,7 +707,8 @@ function AnunciosBanner({ isAdmin }) {
       .eq("activo", true)
       .lte("fecha_inicio", ahora)
       .gte("fecha_fin", ahora)
-      .order("created_at", { ascending: true });
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false });
     if (data) setAnuncios(data);
   };
 
@@ -930,18 +931,18 @@ function AnunciosBanner({ isAdmin }) {
                 {a.texto}
               </div>
             ) : (
-              <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom: a.enlace?"10px":"4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"8px 0", background:"rgba(251,191,36,0.04)" }}>
+              <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom: a.enlace?"10px":"4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"12px 0", background:"rgba(251,191,36,0.04)" }}>
                 <span style={{
                   display:"inline-block",
                   fontFamily:MN,
-                  fontSize: isMobile?"12px":"14px",
-                  fontWeight:"600",
-                  color:"rgba(255,255,255,0.9)",
-                  animation:"marqueeScroll 20s linear infinite",
+                  fontSize: isMobile?"16px":"20px",
+                  fontWeight:"700",
+                  color:"rgba(255,255,255,0.95)",
+                  animation:"marqueeScroll 25s linear infinite",
                   paddingLeft:"100%",
                   willChange:"transform",
                 }}>
-                  {a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}
+                  {a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}
                 </span>
               </div>
             )
@@ -993,32 +994,240 @@ function AnunciosBanner({ isAdmin }) {
         )}
       </div>
       {BtnAdmin}
-      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-33.33%)}}`}</style>
+      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
     </div>
   );
 }
 
 function AdminAnunciosList({ onToggle, onDelete, onRefresh }) {
   const [lista, setLista] = useState([]);
+  const [isReordering, setIsReordering] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
   useEffect(() => {
-    sb.from("anuncios").select("*").order("created_at", { ascending:false }).then(({data}) => { if(data) setLista(data); });
+    sb.from("anuncios")
+      .select("*")
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setLista(data); });
   }, []);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const reordered = [...lista];
+    const [draggedItem] = reordered.splice(draggedIndex, 1);
+    reordered.splice(dropIndex, 0, draggedItem);
+
+    // Actualizar orden en base de datos (mayor número = mayor prioridad)
+    const updates = reordered.map((item, idx) => ({
+      id: item.id,
+      orden: reordered.length - idx
+    }));
+
+    for (const update of updates) {
+      await sb.from("anuncios").update({ orden: update.orden }).eq("id", update.id);
+    }
+
+    setLista(reordered);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    if (onRefresh) setTimeout(onRefresh, 300);
+  };
+
+  const handleSetPrincipal = async (id) => {
+    // Establecer el anuncio con el orden más alto
+    const maxOrden = Math.max(...lista.map(a => a.orden || 0), 0);
+    await sb.from("anuncios").update({ orden: maxOrden + 100 }).eq("id", id);
+    
+    // Recargar lista
+    const { data } = await sb.from("anuncios")
+      .select("*")
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (data) setLista(data);
+    if (onRefresh) setTimeout(onRefresh, 300);
+  };
+
   if (lista.length === 0) return null;
+
   return (
     <div style={{ marginTop:"16px", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"12px" }}>
-      <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px", marginBottom:"10px" }}>ANUNCIOS EXISTENTES</div>
-      {lista.map(a => (
-        <div key={a.id} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"8px", padding:"10px 12px", marginBottom:"8px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+        <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px" }}>
+          ANUNCIOS EXISTENTES ({lista.length})
+        </div>
+        <button
+          onClick={() => setIsReordering(!isReordering)}
+          style={{
+            background: isReordering ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.07)",
+            border: `1px solid ${isReordering ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.15)"}`,
+            borderRadius:"6px",
+            padding:"4px 10px",
+            color: isReordering ? "#fbbf24" : "rgba(255,255,255,0.6)",
+            fontFamily:MN,
+            fontSize:"9px",
+            cursor:"pointer",
+            fontWeight:"700",
+            letterSpacing:"0.5px"
+          }}
+        >
+          {isReordering ? "✓ GUARDAR ORDEN" : "↕ REORDENAR"}
+        </button>
+      </div>
+
+      {lista.map((a, idx) => (
+        <div
+          key={a.id}
+          draggable={isReordering}
+          onDragStart={(e) => handleDragStart(e, idx)}
+          onDragOver={(e) => handleDragOver(e, idx)}
+          onDrop={(e) => handleDrop(e, idx)}
+          style={{
+            background: dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.08)"}`,
+            borderRadius:"8px",
+            padding:"10px 12px",
+            marginBottom:"8px",
+            display:"flex",
+            justifyContent:"space-between",
+            alignItems:"center",
+            gap:"8px",
+            cursor: isReordering ? "move" : "default",
+            opacity: draggedIndex === idx ? 0.5 : 1,
+            transition:"all 0.2s"
+          }}
+        >
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:MN, fontSize:"11px", color:"#fff", fontWeight:"700", marginBottom:"2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.titulo}</div>
-            <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>{a.empresa} · fin: {new Date(a.fecha_fin).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"})}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"4px" }}>
+              {isReordering && (
+                <span style={{ fontSize:"14px", color:"rgba(255,255,255,0.3)", cursor:"move" }}>⋮⋮</span>
+              )}
+              <div style={{ fontFamily:MN, fontSize:"11px", color:"#fff", fontWeight:"700", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {a.titulo}
+              </div>
+              {idx === 0 && !isReordering && (
+                <span style={{
+                  background:"rgba(251,191,36,0.15)",
+                  border:"1px solid rgba(251,191,36,0.35)",
+                  borderRadius:"4px",
+                  padding:"1px 5px",
+                  fontSize:"8px",
+                  color:"#fbbf24",
+                  fontFamily:MN,
+                  fontWeight:"700",
+                  letterSpacing:"0.5px"
+                }}>
+                  ★ PRINCIPAL
+                </span>
+              )}
+            </div>
+            <div style={{ fontFamily:MN, fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>
+              {a.empresa} · fin: {new Date(a.fecha_fin).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"})}
+            </div>
           </div>
-          <div style={{ display:"flex", gap:"6px", flexShrink:0 }}>
-            <button onClick={() => { onToggle(a.id, a.activo); setTimeout(()=>{ sb.from("anuncios").select("*").order("created_at",{ascending:false}).then(({data})=>{ if(data) setLista(data); }); }, 300); }} style={{ background: a.activo?"rgba(34,197,94,0.15)":"rgba(255,255,255,0.07)", border:`1px solid ${a.activo?"#22c55e55":"rgba(255,255,255,0.15)"}`, borderRadius:"6px", padding:"5px 9px", color: a.activo?"#22c55e":"rgba(255,255,255,0.4)", fontFamily:MN, fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>{a.activo?"ON":"OFF"}</button>
-            <button onClick={() => { onDelete(a.id); setLista(l=>l.filter(x=>x.id!==a.id)); }} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:MN, fontSize:"10px", cursor:"pointer" }}>🗑</button>
-          </div>
+
+          {!isReordering && (
+            <div style={{ display:"flex", gap:"6px", flexShrink:0 }}>
+              {idx !== 0 && (
+                <button
+                  onClick={() => handleSetPrincipal(a.id)}
+                  title="Establecer como principal"
+                  style={{
+                    background:"rgba(251,191,36,0.12)",
+                    border:"1px solid rgba(251,191,36,0.3)",
+                    borderRadius:"6px",
+                    padding:"5px 9px",
+                    color:"#fbbf24",
+                    fontFamily:MN,
+                    fontSize:"10px",
+                    cursor:"pointer",
+                    fontWeight:"700"
+                  }}
+                >
+                  ★
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  onToggle(a.id, a.activo);
+                  setTimeout(() => {
+                    sb.from("anuncios")
+                      .select("*")
+                      .order("orden", { ascending: false })
+                      .order("created_at", { ascending: false })
+                      .then(({ data }) => { if (data) setLista(data); });
+                  }, 300);
+                }}
+                style={{
+                  background: a.activo ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
+                  border: `1px solid ${a.activo ? "#22c55e55" : "rgba(255,255,255,0.15)"}`,
+                  borderRadius:"6px",
+                  padding:"5px 9px",
+                  color: a.activo ? "#22c55e" : "rgba(255,255,255,0.4)",
+                  fontFamily:MN,
+                  fontSize:"10px",
+                  cursor:"pointer",
+                  fontWeight:"700"
+                }}
+              >
+                {a.activo ? "ON" : "OFF"}
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(a.id);
+                  setLista(l => l.filter(x => x.id !== a.id));
+                }}
+                style={{
+                  background:"rgba(239,68,68,0.1)",
+                  border:"1px solid rgba(239,68,68,0.25)",
+                  borderRadius:"6px",
+                  padding:"5px 9px",
+                  color:"#ef4444",
+                  fontFamily:MN,
+                  fontSize:"10px",
+                  cursor:"pointer"
+                }}
+              >
+                🗑
+              </button>
+            </div>
+          )}
         </div>
       ))}
+
+      {isReordering && (
+        <div style={{
+          marginTop:"8px",
+          padding:"8px 12px",
+          background:"rgba(251,191,36,0.08)",
+          border:"1px solid rgba(251,191,36,0.2)",
+          borderRadius:"8px",
+          fontFamily:MN,
+          fontSize:"9px",
+          color:"rgba(255,255,255,0.5)",
+          textAlign:"center"
+        }}>
+          💡 Arrastra los anuncios para cambiar su orden. El primero será el principal.
+        </div>
+      )}
     </div>
   );
 }
