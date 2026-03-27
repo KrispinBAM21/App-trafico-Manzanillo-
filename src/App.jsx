@@ -695,7 +695,7 @@ function AnunciosBanner({ isAdmin }) {
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
+  const [form, setForm] = useState({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const intervalRef = useRef(null);
@@ -756,7 +756,8 @@ function AnunciosBanner({ isAdmin }) {
         setMsg({ type:"err", text:"Las fechas ingresadas no son válidas." });
         setSaving(false); return;
       }
-      const { error } = await sb.from("anuncios").insert({
+
+      const payload = {
         titulo: form.titulo.trim(),
         empresa: form.empresa.trim(),
         texto: form.texto.trim(),
@@ -766,11 +767,23 @@ function AnunciosBanner({ isAdmin }) {
         fecha_inicio: fechaInicio.toISOString(),
         fecha_fin:    fechaFin.toISOString(),
         activo: form.activo,
-      });
+      };
+
+      let error;
+      if (form.id) {
+        // Modo edición: actualizar anuncio existente
+        const result = await sb.from("anuncios").update(payload).eq("id", form.id);
+        error = result.error;
+      } else {
+        // Modo creación: insertar nuevo anuncio
+        const result = await sb.from("anuncios").insert(payload);
+        error = result.error;
+      }
+
       if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
       else {
-        setMsg({ type:"ok", text:"Anuncio publicado correctamente." });
-        setForm({ titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
+        setMsg({ type:"ok", text: form.id ? "Anuncio actualizado correctamente." : "Anuncio publicado correctamente." });
+        setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
         setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
         cargar();
       }
@@ -792,14 +805,49 @@ function AnunciosBanner({ isAdmin }) {
     cargar();
   };
 
+  const handleEditar = async (id) => {
+    const { data } = await sb.from("anuncios").select("*").eq("id", id).single();
+    if (data) {
+      // Convertir las fechas ISO a formato datetime-local
+      const fechaInicio = new Date(data.fecha_inicio);
+      const fechaFin = new Date(data.fecha_fin);
+      
+      const formatoLocal = (fecha) => {
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        const hours = String(fecha.getHours()).padStart(2, '0');
+        const minutes = String(fecha.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
+      setForm({
+        id: data.id,
+        titulo: data.titulo || "",
+        empresa: data.empresa || "",
+        texto: data.texto || "",
+        enlace: data.enlace || "",
+        whatsapp: data.whatsapp || "",
+        imagen_url: data.imagen_url || "",
+        inicio: formatoLocal(fechaInicio),
+        fin: formatoLocal(fechaFin),
+        activo: data.activo ?? true,
+        _imgPreview: data.imagen_url || null,
+      });
+      setShowForm(true);
+    }
+  };
+
   const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:MN, fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
 
   // Panel admin de gestión
   if (isAdmin && showForm) return (
     <div style={{ margin:"0 0 0 0", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"0", padding:"16px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
-        <span style={{ fontFamily:MN, fontSize:"11px", fontWeight:"700", color:"#fbbf24", letterSpacing:"1px" }}>📢 NUEVO ANUNCIO</span>
-        <button onClick={() => setShowForm(false)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
+        <span style={{ fontFamily:MN, fontSize:"11px", fontWeight:"700", color:"#fbbf24", letterSpacing:"1px" }}>
+          {form.id ? "✏️ EDITAR ANUNCIO" : "📢 NUEVO ANUNCIO"}
+        </span>
+        <button onClick={() => { setShowForm(false); setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true }); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
       </div>
       {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:MN, background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
       <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
@@ -878,11 +926,11 @@ function AnunciosBanner({ isAdmin }) {
         <span style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.6)" }}>Publicar inmediatamente (activo)</span>
       </div>
       <button onClick={handleGuardar} disabled={saving} style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#fbbf24,#f59e0b)", border:"none", borderRadius:"10px", color:"#0a0f1e", fontFamily:MN, fontWeight:"700", fontSize:"12px", cursor:"pointer", letterSpacing:"0.5px", opacity:saving?0.7:1 }}>
-        {saving ? "Publicando..." : "📢 PUBLICAR ANUNCIO"}
+        {saving ? (form.id ? "Actualizando..." : "Publicando...") : (form.id ? "💾 GUARDAR CAMBIOS" : "📢 PUBLICAR ANUNCIO")}
       </button>
 
       {/* Lista de anuncios existentes para admin */}
-      <AdminAnunciosList onToggle={handleToggle} onDelete={handleEliminar} onRefresh={cargar} />
+      <AdminAnunciosList onToggle={handleToggle} onDelete={handleEliminar} onEdit={handleEditar} onRefresh={cargar} />
     </div>
   );
 
@@ -938,7 +986,7 @@ function AnunciosBanner({ isAdmin }) {
                   fontSize: isMobile?"16px":"20px",
                   fontWeight:"700",
                   color:"rgba(255,255,255,0.95)",
-                  animation:"marqueeScroll 25s linear infinite",
+                  animation:"marqueeScroll 45s linear infinite",
                   paddingLeft:"100%",
                   willChange:"transform",
                 }}>
@@ -999,7 +1047,7 @@ function AnunciosBanner({ isAdmin }) {
   );
 }
 
-function AdminAnunciosList({ onToggle, onDelete, onRefresh }) {
+function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
   const [lista, setLista] = useState([]);
   const [isReordering, setIsReordering] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -1165,6 +1213,23 @@ function AdminAnunciosList({ onToggle, onDelete, onRefresh }) {
                   ★
                 </button>
               )}
+              <button
+                onClick={() => onEdit(a.id)}
+                title="Editar anuncio"
+                style={{
+                  background:"rgba(56,189,248,0.12)",
+                  border:"1px solid rgba(56,189,248,0.3)",
+                  borderRadius:"6px",
+                  padding:"5px 9px",
+                  color:"#38bdf8",
+                  fontFamily:MN,
+                  fontSize:"10px",
+                  cursor:"pointer",
+                  fontWeight:"700"
+                }}
+              >
+                ✏️
+              </button>
               <button
                 onClick={() => {
                   onToggle(a.id, a.activo);
