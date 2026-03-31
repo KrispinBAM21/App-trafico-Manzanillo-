@@ -6213,26 +6213,27 @@ function App() {
   const getBackgroundStyle = () => {
     switch (theme.backgroundType) {
       case "color":
-        return { background: theme.backgroundColor };
+        return { 
+          background: theme.backgroundColor 
+        };
       case "image":
         return { 
           backgroundImage: `url(${theme.backgroundImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed"
         };
       case "gradient":
       default:
-        return { background: theme.backgroundGradient };
+        return { 
+          background: theme.backgroundGradient 
+        };
     }
   };
 
   return (
     <div style={{ minHeight:"100vh", color:"rgba(255,255,255,0.95)", width:"100vw", maxWidth:"100vw", overflowX:"hidden", position:"relative", ...getBackgroundStyle() }}>
-      {/* Fondo */}
-      <div style={{ position:"fixed", inset:0, zIndex:0, background:"#060e1a", backgroundImage:"radial-gradient(ellipse at 20% 50%, #0a1628 0%, #060e1a 60%, #030810 100%)", backgroundSize:"cover", backgroundPosition:"center top", filter:"brightness(0.28) saturate(1.1)" }} />
-      <div style={{ position:"fixed", inset:0, zIndex:1, background:"linear-gradient(180deg,rgba(5,15,40,0.6) 0%,rgba(3,10,25,0.5) 100%)" }} />
-
       <div style={{ position:"relative", zIndex:2 }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
