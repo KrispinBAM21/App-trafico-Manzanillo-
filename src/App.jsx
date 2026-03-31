@@ -50,9 +50,9 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
-// Inject Google Fonts
+// Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -73,6 +73,58 @@ const toMs = (v) => {
   return new Date(v).getTime();           // ISO string "2026-03-12T..."
 };
 const TITLE = "'Playfair Display', serif";
+
+const TABS = [
+  { key: "inicio",      label: "Inicio",      icon: "🏠" },
+  { key: "trafico",     label: "Tráfico",     icon: "🚗" },
+  { key: "reporte",     label: "Reportar",    icon: "📢" },
+  { key: "terminales",  label: "Terminales",  icon: "🏭" },
+  { key: "patio",       label: "Patios",      icon: "📦" },
+  { key: "segundo",     label: "2° Acceso",   icon: "🛣️" },
+  { key: "carriles",    label: "Carriles",    icon: "🚦" },
+  { key: "noticias",    label: "Noticias",    icon: "📰" },
+  { key: "donativos",   label: "Donativos",   icon: "💝" },
+  { key: "tutorial",    label: "Tutorial",    icon: "🎓" }
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN DE TEMA POR DEFECTO
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_THEME = {
+  // Fondo
+  backgroundType: "gradient", // "color" | "gradient" | "image"
+  backgroundColor: "#0a1628",
+  backgroundGradient: "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)",
+  backgroundImage: "",
+  
+  // Tipografía
+  primaryFont: "'Playfair Display', serif",
+  secondaryFont: "'DM Sans', sans-serif",
+  baseFontSize: 14,
+  titleFontSize: 17,
+  
+  // Iconos de tabs
+  tabIcons: {
+    inicio: { type: "emoji", value: "🏠", size: 20 },
+    trafico: { type: "emoji", value: "🚗", size: 20 },
+    reporte: { type: "emoji", value: "📢", size: 20 },
+    terminales: { type: "emoji", value: "🏭", size: 20 },
+    patio: { type: "emoji", value: "📦", size: 20 },
+    segundo: { type: "emoji", value: "🛣️", size: 20 },
+    carriles: { type: "emoji", value: "🚦", size: 20 },
+    noticias: { type: "emoji", value: "📰", size: 20 },
+    donativos: { type: "emoji", value: "💝", size: 20 },
+    tutorial: { type: "emoji", value: "🎓", size: 20 }
+  },
+  
+  // Otros iconos
+  otherIcons: {
+    live: { type: "emoji", value: "👁", size: 14 },
+    admin: { type: "emoji", value: "🔑", size: 11 },
+    session: { type: "emoji", value: "👤", size: 11 },
+    logout: { type: "emoji", value: "🚪", size: 14 }
+  }
+};
 
 const TERMINALS_NORTE = [
   { id: "contecon", name: "CONTECON", fullName: "Contecon Manzanillo S.A." },
@@ -1298,6 +1350,487 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 }
 
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// PANEL DE CONFIGURACIÓN DE TEMA
+// ─────────────────────────────────────────────────────────────────────────────
+function ThemeConfigPanel({ theme, onSave, onClose }) {
+  const [config, setConfig] = useState(theme);
+  const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState("background");
+  
+  const fileInputRefs = useRef({});
+  
+  const handleBackgroundImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setConfig(prev => ({
+        ...prev,
+        backgroundImage: event.target.result,
+        backgroundType: "image"
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  const handleIconImageUpload = async (iconKey, category, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setConfig(prev => {
+        if (category === "tabs") {
+          return {
+            ...prev,
+            tabIcons: {
+              ...prev.tabIcons,
+              [iconKey]: { type: "image", value: event.target.result, size: prev.tabIcons[iconKey].size }
+            }
+          };
+        } else {
+          return {
+            ...prev,
+            otherIcons: {
+              ...prev.otherIcons,
+              [iconKey]: { type: "image", value: event.target.result, size: prev.otherIcons[iconKey].size }
+            }
+          };
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(config);
+    setSaving(false);
+  };
+  
+  const handleReset = () => {
+    if (confirm("¿Restaurar tema por defecto? Se perderán todos los cambios.")) {
+      setConfig(DEFAULT_THEME);
+    }
+  };
+  
+  const sections = [
+    { key: "background", label: "Fondo", icon: "🎨" },
+    { key: "typography", label: "Tipografía", icon: "📝" },
+    { key: "tabIcons", label: "Iconos Tabs", icon: "🏷️" },
+    { key: "otherIcons", label: "Otros Iconos", icon: "✨" }
+  ];
+  
+  return (
+    <div style={{ position:"fixed", top:0, left:0, width:"100%", height:"100%", background:"rgba(0,0,0,0.92)", zIndex:999999, overflow:"auto", padding:"20px" }}>
+      <div style={{ maxWidth:"900px", margin:"0 auto", background:"#0d1f3c", borderRadius:"16px", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.9)" }}>
+        {/* Header */}
+        <div style={{ padding:"20px 24px", background:"linear-gradient(135deg, #1e3a5f 0%, #0d1f3c 100%)", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div>
+              <h2 style={{ margin:0, fontFamily:TITLE, fontSize:"24px", color:"#fff", fontWeight:"700" }}>
+                🎨 Configuración de Tema
+              </h2>
+              <p style={{ margin:"4px 0 0", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.5)" }}>
+                Personaliza la apariencia de la aplicación
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ width:"36px", height:"36px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:"20px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        
+        {/* Tabs */}
+        <div style={{ display:"flex", gap:"8px", padding:"16px 24px", background:"rgba(0,0,0,0.2)", borderBottom:"1px solid rgba(255,255,255,0.08)", overflowX:"auto" }}>
+          {sections.map(sec => (
+            <button
+              key={sec.key}
+              onClick={() => setActiveSection(sec.key)}
+              style={{
+                padding:"10px 16px",
+                borderRadius:"8px",
+                border: activeSection === sec.key ? "1px solid rgba(56,189,248,0.5)" : "1px solid rgba(255,255,255,0.1)",
+                background: activeSection === sec.key ? "rgba(56,189,248,0.15)" : "rgba(255,255,255,0.03)",
+                color: activeSection === sec.key ? "#38bdf8" : "rgba(255,255,255,0.6)",
+                fontFamily:MN,
+                fontSize:"13px",
+                fontWeight:"600",
+                cursor:"pointer",
+                whiteSpace:"nowrap",
+                display:"flex",
+                alignItems:"center",
+                gap:"6px",
+                transition:"all 0.2s"
+              }}
+            >
+              <span>{sec.icon}</span>
+              {sec.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* Content */}
+        <div style={{ padding:"24px", minHeight:"400px" }}>
+          {/* BACKGROUND SECTION */}
+          {activeSection === "background" && (
+            <div>
+              <h3 style={{ margin:"0 0 16px", fontFamily:TITLE, fontSize:"18px", color:"#fff", fontWeight:"600" }}>
+                Configuración de Fondo
+              </h3>
+              
+              <div style={{ display:"flex", gap:"12px", marginBottom:"20px" }}>
+                {["color", "gradient", "image"].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setConfig(prev => ({ ...prev, backgroundType: type }))}
+                    style={{
+                      flex:1,
+                      padding:"12px",
+                      borderRadius:"8px",
+                      border: config.backgroundType === type ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.1)",
+                      background: config.backgroundType === type ? "rgba(56,189,248,0.15)" : "rgba(255,255,255,0.03)",
+                      color: config.backgroundType === type ? "#38bdf8" : "rgba(255,255,255,0.6)",
+                      fontFamily:MN,
+                      fontSize:"13px",
+                      fontWeight:"600",
+                      cursor:"pointer",
+                      textTransform:"capitalize"
+                    }}
+                  >
+                    {type === "color" ? "🎨 Color Sólido" : type === "gradient" ? "🌈 Degradado" : "🖼️ Imagen"}
+                  </button>
+                ))}
+              </div>
+              
+              {config.backgroundType === "color" && (
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Color de Fondo
+                  </label>
+                  <input
+                    type="color"
+                    value={config.backgroundColor}
+                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                    style={{ width:"100%", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                  />
+                </div>
+              )}
+              
+              {config.backgroundType === "gradient" && (
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Código CSS del Degradado
+                  </label>
+                  <input
+                    type="text"
+                    value={config.backgroundGradient}
+                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundGradient: e.target.value }))}
+                    placeholder="linear-gradient(135deg, #0a1628 0%, #1a2942 100%)"
+                    style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"monospace", fontSize:"12px" }}
+                  />
+                  <div style={{ marginTop:"12px", padding:"12px", borderRadius:"8px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.3)" }}>
+                    <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.6)", marginBottom:"6px" }}>Vista previa:</div>
+                    <div style={{ width:"100%", height:"60px", borderRadius:"6px", background: config.backgroundGradient }} />
+                  </div>
+                </div>
+              )}
+              
+              {config.backgroundType === "image" && (
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Imagen de Fondo
+                  </label>
+                  <input
+                    ref={el => fileInputRefs.current["background"] = el}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBackgroundImageUpload}
+                    style={{ display:"none" }}
+                  />
+                  <button
+                    onClick={() => fileInputRefs.current["background"]?.click()}
+                    style={{ width:"100%", padding:"16px", borderRadius:"8px", border:"2px dashed rgba(255,255,255,0.3)", background:"rgba(255,255,255,0.03)", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
+                  >
+                    📁 Seleccionar Imagen
+                  </button>
+                  {config.backgroundImage && (
+                    <div style={{ marginTop:"12px", padding:"12px", borderRadius:"8px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.3)" }}>
+                      <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.6)", marginBottom:"6px" }}>Vista previa:</div>
+                      <div style={{ width:"100%", height:"120px", borderRadius:"6px", backgroundImage: `url(${config.backgroundImage})`, backgroundSize:"cover", backgroundPosition:"center" }} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* TYPOGRAPHY SECTION */}
+          {activeSection === "typography" && (
+            <div>
+              <h3 style={{ margin:"0 0 16px", fontFamily:TITLE, fontSize:"18px", color:"#fff", fontWeight:"600" }}>
+                Configuración de Tipografía
+              </h3>
+              
+              <div style={{ display:"grid", gap:"20px" }}>
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Fuente Principal (Títulos)
+                  </label>
+                  <select
+                    value={config.primaryFont}
+                    onChange={(e) => setConfig(prev => ({ ...prev, primaryFont: e.target.value }))}
+                    style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
+                  >
+                    <option value="'Playfair Display', serif">Playfair Display</option>
+                    <option value="'Montserrat', sans-serif">Montserrat</option>
+                    <option value="'Roboto', sans-serif">Roboto</option>
+                    <option value="'Poppins', sans-serif">Poppins</option>
+                    <option value="'Lato', sans-serif">Lato</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Fuente Secundaria (Texto)
+                  </label>
+                  <select
+                    value={config.secondaryFont}
+                    onChange={(e) => setConfig(prev => ({ ...prev, secondaryFont: e.target.value }))}
+                    style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
+                  >
+                    <option value="'DM Sans', sans-serif">DM Sans</option>
+                    <option value="'Open Sans', sans-serif">Open Sans</option>
+                    <option value="'Roboto', sans-serif">Roboto</option>
+                    <option value="'Poppins', sans-serif">Poppins</option>
+                    <option value="'Lato', sans-serif">Lato</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Tamaño Base de Fuente: {config.baseFontSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="12"
+                    max="18"
+                    value={config.baseFontSize}
+                    onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(e.target.value) }))}
+                    style={{ width:"100%" }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Tamaño de Título: {config.titleFontSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="15"
+                    max="24"
+                    value={config.titleFontSize}
+                    onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(e.target.value) }))}
+                    style={{ width:"100%" }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* TAB ICONS SECTION */}
+          {activeSection === "tabIcons" && (
+            <div>
+              <h3 style={{ margin:"0 0 16px", fontFamily:TITLE, fontSize:"18px", color:"#fff", fontWeight:"600" }}>
+                Iconos de Pestañas
+              </h3>
+              
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:"16px" }}>
+                {TABS.map(tab => {
+                  const icon = config.tabIcons[tab.key];
+                  return (
+                    <div key={tab.key} style={{ padding:"16px", borderRadius:"8px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                        {icon.type === "emoji" ? (
+                          <span style={{ fontSize:`${icon.size}px` }}>{icon.value}</span>
+                        ) : (
+                          <img src={icon.value} alt={tab.label} style={{ width:`${icon.size}px`, height:`${icon.size}px`, objectFit:"contain" }} />
+                        )}
+                        <span style={{ fontFamily:MN, fontSize:"13px", color:"#fff", fontWeight:"600" }}>{tab.label}</span>
+                      </div>
+                      
+                      <div style={{ marginBottom:"8px" }}>
+                        <input
+                          type="text"
+                          value={icon.type === "emoji" ? icon.value : ""}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            tabIcons: {
+                              ...prev.tabIcons,
+                              [tab.key]: { ...prev.tabIcons[tab.key], type: "emoji", value: e.target.value }
+                            }
+                          }))}
+                          placeholder="Emoji"
+                          style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"12px" }}
+                        />
+                      </div>
+                      
+                      <input
+                        ref={el => fileInputRefs.current[`tab_${tab.key}`] = el}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleIconImageUpload(tab.key, "tabs", e)}
+                        style={{ display:"none" }}
+                      />
+                      <button
+                        onClick={() => fileInputRefs.current[`tab_${tab.key}`]?.click()}
+                        style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"11px", fontWeight:"600", cursor:"pointer" }}
+                      >
+                        📁 Subir Imagen
+                      </button>
+                      
+                      <div style={{ marginTop:"8px" }}>
+                        <label style={{ display:"block", marginBottom:"4px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>
+                          Tamaño: {icon.size}px
+                        </label>
+                        <input
+                          type="range"
+                          min="16"
+                          max="32"
+                          value={icon.size}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            tabIcons: {
+                              ...prev.tabIcons,
+                              [tab.key]: { ...prev.tabIcons[tab.key], size: parseInt(e.target.value) }
+                            }
+                          }))}
+                          style={{ width:"100%" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          {/* OTHER ICONS SECTION */}
+          {activeSection === "otherIcons" && (
+            <div>
+              <h3 style={{ margin:"0 0 16px", fontFamily:TITLE, fontSize:"18px", color:"#fff", fontWeight:"600" }}>
+                Otros Iconos de la Interfaz
+              </h3>
+              
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:"16px" }}>
+                {Object.entries(config.otherIcons).map(([key, icon]) => {
+                  const labels = {
+                    live: "👁 Visitas",
+                    admin: "🔑 Admin",
+                    session: "👤 Sesión",
+                    logout: "🚪 Cerrar Sesión"
+                  };
+                  
+                  return (
+                    <div key={key} style={{ padding:"16px", borderRadius:"8px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                        {icon.type === "emoji" ? (
+                          <span style={{ fontSize:`${icon.size}px` }}>{icon.value}</span>
+                        ) : (
+                          <img src={icon.value} alt={key} style={{ width:`${icon.size}px`, height:`${icon.size}px`, objectFit:"contain" }} />
+                        )}
+                        <span style={{ fontFamily:MN, fontSize:"13px", color:"#fff", fontWeight:"600" }}>{labels[key]}</span>
+                      </div>
+                      
+                      <div style={{ marginBottom:"8px" }}>
+                        <input
+                          type="text"
+                          value={icon.type === "emoji" ? icon.value : ""}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            otherIcons: {
+                              ...prev.otherIcons,
+                              [key]: { ...prev.otherIcons[key], type: "emoji", value: e.target.value }
+                            }
+                          }))}
+                          placeholder="Emoji"
+                          style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"12px" }}
+                        />
+                      </div>
+                      
+                      <input
+                        ref={el => fileInputRefs.current[`other_${key}`] = el}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleIconImageUpload(key, "other", e)}
+                        style={{ display:"none" }}
+                      />
+                      <button
+                        onClick={() => fileInputRefs.current[`other_${key}`]?.click()}
+                        style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"11px", fontWeight:"600", cursor:"pointer" }}
+                      >
+                        📁 Subir Imagen
+                      </button>
+                      
+                      <div style={{ marginTop:"8px" }}>
+                        <label style={{ display:"block", marginBottom:"4px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>
+                          Tamaño: {icon.size}px
+                        </label>
+                        <input
+                          type="range"
+                          min="10"
+                          max="24"
+                          value={icon.size}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            otherIcons: {
+                              ...prev.otherIcons,
+                              [key]: { ...prev.otherIcons[key], size: parseInt(e.target.value) }
+                            }
+                          }))}
+                          style={{ width:"100%" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div style={{ padding:"16px 24px", background:"rgba(0,0,0,0.3)", borderTop:"1px solid rgba(255,255,255,0.08)", display:"flex", gap:"12px", justifyContent:"flex-end" }}>
+          <button
+            onClick={handleReset}
+            style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(239,68,68,0.4)", background:"rgba(239,68,68,0.15)", color:"#ef4444", fontFamily:MN, fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
+          >
+            🔄 Restaurar por Defecto
+          </button>
+          <button
+            onClick={onClose}
+            style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(56,189,248,0.4)", background:"rgba(56,189,248,0.2)", color:"#38bdf8", fontFamily:MN, fontSize:"13px", fontWeight:"700", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? "⏳ Guardando..." : "💾 Guardar Cambios"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NavBar({ active, set }) {
   const row1 = [
     { id: "inicio",      label: "Inicio",      icon: "🏠"  },
@@ -5123,7 +5656,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function InicioTab({ isAdmin, logout, onOpenAdminModal }) {
+function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
@@ -5223,8 +5756,12 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal }) {
             <div style={{ fontFamily:TITLE, fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
             <div style={{ fontFamily:MN, fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
           {isAdmin && (
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginLeft:"8px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginTop:"8px" }}>
               <span style={{ background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"20px", padding:"2px 10px", fontFamily:MN, fontSize:"10px", color:"#38bdf8", fontWeight:"700" }}>⚡ ADMIN</span>
+              <button 
+                onClick={onOpenThemeConfig}
+                style={{ background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.4)", borderRadius:"20px", padding:"2px 10px", fontFamily:MN, fontSize:"10px", color:"#a78bfa", fontWeight:"700", cursor:"pointer" }}
+              >🎨 TEMA</button>
               <button onClick={logout} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", fontFamily:MN, fontSize:"10px", cursor:"pointer", padding:"2px 4px" }}>✕</button>
             </div>
           )}
@@ -5521,6 +6058,29 @@ function App() {
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
   const [visitas,   setVisitas]   = useState(null);
+  
+  // ✅ TEMA: Cargar desde localStorage o usar DEFAULT_THEME
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cm_theme");
+      return saved ? JSON.parse(saved) : DEFAULT_THEME;
+    } catch {
+      return DEFAULT_THEME;
+    }
+  });
+  
+  const [showThemeConfig, setShowThemeConfig] = useState(false);
+  
+  const handleSaveTheme = async (newTheme) => {
+    try {
+      localStorage.setItem("cm_theme", JSON.stringify(newTheme));
+      setTheme(newTheme);
+      setShowThemeConfig(false);
+    } catch (err) {
+      console.error("Error saving theme:", err);
+      alert("Error al guardar el tema");
+    }
+  };
 
   // Contador de visitas unicas (una por dispositivo)
   useEffect(() => {
@@ -5648,9 +6208,27 @@ function App() {
 
     return () => sb.removeChannel(chan);
   }, []);
+  
+  // ✅ Aplicar fondo según configuración
+  const getBackgroundStyle = () => {
+    switch (theme.backgroundType) {
+      case "color":
+        return { background: theme.backgroundColor };
+      case "image":
+        return { 
+          backgroundImage: `url(${theme.backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed"
+        };
+      case "gradient":
+      default:
+        return { background: theme.backgroundGradient };
+    }
+  };
 
   return (
-    <div style={{ minHeight:"100vh", color:"rgba(255,255,255,0.95)", width:"100vw", maxWidth:"100vw", overflowX:"hidden", position:"relative", background:"#060e1a" }}>
+    <div style={{ minHeight:"100vh", color:"rgba(255,255,255,0.95)", width:"100vw", maxWidth:"100vw", overflowX:"hidden", position:"relative", ...getBackgroundStyle() }}>
       {/* Fondo */}
       <div style={{ position:"fixed", inset:0, zIndex:0, background:"#060e1a", backgroundImage:"radial-gradient(ellipse at 20% 50%, #0a1628 0%, #060e1a 60%, #030810 100%)", backgroundSize:"cover", backgroundPosition:"center top", filter:"brightness(0.28) saturate(1.1)" }} />
       <div style={{ position:"fixed", inset:0, zIndex:1, background:"linear-gradient(180deg,rgba(5,15,40,0.6) 0%,rgba(3,10,25,0.5) 100%)" }} />
@@ -5709,7 +6287,7 @@ function App() {
 
         <AnunciosBanner isAdmin={isAdmin} />
 
-        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} />}
+        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
@@ -5730,6 +6308,15 @@ function App() {
 
       {/* Modal Admin — fuera de cualquier stacking context */}
       {Modal}
+      
+      {/* Panel de Configuración de Tema */}
+      {showThemeConfig && (
+        <ThemeConfigPanel
+          theme={theme}
+          onSave={handleSaveTheme}
+          onClose={() => setShowThemeConfig(false)}
+        />
+      )}
 
       {/* Session menu — fuera de cualquier stacking context */}
       {!isAdmin && authUser && showSessionMenu && (
