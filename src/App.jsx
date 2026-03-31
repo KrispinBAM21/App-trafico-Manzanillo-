@@ -103,6 +103,28 @@ const DEFAULT_THEME = {
   baseFontSize: 14,
   titleFontSize: 17,
   
+  // ✨ NUEVO: Configuración de ventanas de contenido
+  contentBox: {
+    enabled: true,
+    background: "rgba(255, 255, 255, 0.05)",
+    backdropBlur: 12,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    gradientOverlay: {
+      enabled: true,
+      gradient: "linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)"
+    },
+    shadow: {
+      enabled: true,
+      color: "rgba(0, 0, 0, 0.3)",
+      blur: 20,
+      offsetX: 0,
+      offsetY: 4
+    }
+  },
+  
   // Iconos de tabs
   tabIcons: {
     inicio: { type: "emoji", value: "🏠", size: 20 },
@@ -297,6 +319,51 @@ const timeAgo = (ts) => {
   return `hace ${Math.floor(d / 3600000)}h`;
 };
 const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
+
+// ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
+const getContentBoxStyle = (theme) => {
+  if (!theme.contentBox || !theme.contentBox.enabled) {
+    return {
+      background: "rgba(255, 255, 255, 0.03)",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
+      borderRadius: "12px",
+      padding: "16px"
+    };
+  }
+  
+  const box = theme.contentBox;
+  let background = box.background;
+  
+  if (box.gradientOverlay && box.gradientOverlay.enabled) {
+    background = `${box.gradientOverlay.gradient}, ${box.background}`;
+  }
+  
+  let boxShadow = "none";
+  if (box.shadow && box.shadow.enabled) {
+    boxShadow = `${box.shadow.offsetX}px ${box.shadow.offsetY}px ${box.shadow.blur}px ${box.shadow.color}`;
+  }
+  
+  return {
+    background,
+    backdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
+    WebkitBackdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
+    border: `${box.borderWidth}px solid ${box.borderColor}`,
+    borderRadius: `${box.borderRadius}px`,
+    padding: `${box.padding}px`,
+    boxShadow
+  };
+};
+
+// ✨ Helper para obtener fuentes dinámicas del theme
+const getFont = (theme, type) => {
+  if (type === "title") return theme.primaryFont || "'Playfair Display', serif";
+  return theme.secondaryFont || "'DM Sans', sans-serif";
+};
+
+const getFontSize = (theme, type) => {
+  if (type === "title") return `${theme.titleFontSize || 17}px`;
+  return `${theme.baseFontSize || 14}px`;
+};
 
 const mkTerminals = (list) =>
   Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
@@ -1419,6 +1486,7 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
   const sections = [
     { key: "background", label: "Fondo", icon: "🎨" },
     { key: "typography", label: "Tipografía", icon: "📝" },
+    { key: "contentBox", label: "Ventanas", icon: "🪟" },
     { key: "tabIcons", label: "Iconos Tabs", icon: "🏷️" },
     { key: "otherIcons", label: "Otros Iconos", icon: "✨" }
   ];
@@ -1767,6 +1835,274 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     }
                   `}</style>
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {/* CONTENT BOX SECTION */}
+          {activeSection === "contentBox" && (
+            <div>
+              <h3 style={{ margin:"0 0 16px", fontFamily:TITLE, fontSize:"18px", color:"#fff", fontWeight:"600" }}>
+                Ventanas de Contenido
+              </h3>
+              
+              <div style={{ display:"flex", flexDirection:"column", gap:"20px" }}>
+                {/* Habilitar/Deshabilitar */}
+                <div>
+                  <label style={{ display:"flex", alignItems:"center", gap:"10px", cursor:"pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={config.contentBox?.enabled ?? true}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        contentBox: { ...prev.contentBox, enabled: e.target.checked }
+                      }))}
+                      style={{ width:"18px", height:"18px", cursor:"pointer" }}
+                    />
+                    <span style={{ fontFamily:MN, fontSize:"13px", color:"#fff", fontWeight:"600" }}>
+                      Habilitar ventanas con efecto glassmorphism
+                    </span>
+                  </label>
+                  <p style={{ margin:"8px 0 0 28px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>
+                    Si está deshabilitado, usará el estilo simple sin efectos
+                  </p>
+                </div>
+                
+                {config.contentBox?.enabled && (
+                  <>
+                    {/* Background Color */}
+                    <div>
+                      <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                        Color de Fondo Base
+                      </label>
+                      <input
+                        type="text"
+                        value={config.contentBox?.background || "rgba(255, 255, 255, 0.05)"}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          contentBox: { ...prev.contentBox, background: e.target.value }
+                        }))}
+                        placeholder="rgba(255, 255, 255, 0.05)"
+                        style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
+                      />
+                    </div>
+                    
+                    {/* Backdrop Blur */}
+                    <div>
+                      <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                        Desenfoque (Blur): {config.contentBox?.backdropBlur || 12}px
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="30"
+                        step="1"
+                        value={config.contentBox?.backdropBlur || 12}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          contentBox: { ...prev.contentBox, backdropBlur: parseInt(e.target.value) }
+                        }))}
+                        style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                      />
+                    </div>
+                    
+                    {/* Border */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Color de Borde
+                        </label>
+                        <input
+                          type="text"
+                          value={config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)"}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, borderColor: e.target.value }
+                          }))}
+                          style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Grosor: {config.contentBox?.borderWidth || 1}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="5"
+                          step="1"
+                          value={config.contentBox?.borderWidth || 1}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, borderWidth: parseInt(e.target.value) }
+                          }))}
+                          style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Border Radius & Padding */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Redondeo: {config.contentBox?.borderRadius || 12}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="30"
+                          step="1"
+                          value={config.contentBox?.borderRadius || 12}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, borderRadius: parseInt(e.target.value) }
+                          }))}
+                          style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Padding: {config.contentBox?.padding || 16}px
+                        </label>
+                        <input
+                          type="range"
+                          min="8"
+                          max="32"
+                          step="2"
+                          value={config.contentBox?.padding || 16}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, padding: parseInt(e.target.value) }
+                          }))}
+                          style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Gradient Overlay */}
+                    <div>
+                      <label style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px", cursor:"pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={config.contentBox?.gradientOverlay?.enabled ?? true}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: {
+                              ...prev.contentBox,
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, enabled: e.target.checked }
+                            }
+                          }))}
+                          style={{ width:"18px", height:"18px", cursor:"pointer" }}
+                        />
+                        <span style={{ fontFamily:MN, fontSize:"13px", color:"#fff", fontWeight:"600" }}>
+                          Degradado Superpuesto
+                        </span>
+                      </label>
+                      
+                      {config.contentBox?.gradientOverlay?.enabled && (
+                        <input
+                          type="text"
+                          value={config.contentBox?.gradientOverlay?.gradient || ""}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: {
+                              ...prev.contentBox,
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, gradient: e.target.value }
+                            }
+                          }))}
+                          placeholder="linear-gradient(...)"
+                          style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"12px" }}
+                        />
+                      )}
+                    </div>
+                    
+                    {/* Shadow */}
+                    <div>
+                      <label style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px", cursor:"pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={config.contentBox?.shadow?.enabled ?? true}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: {
+                              ...prev.contentBox,
+                              shadow: { ...prev.contentBox?.shadow, enabled: e.target.checked }
+                            }
+                          }))}
+                          style={{ width:"18px", height:"18px", cursor:"pointer" }}
+                        />
+                        <span style={{ fontFamily:MN, fontSize:"13px", color:"#fff", fontWeight:"600" }}>
+                          Sombra
+                        </span>
+                      </label>
+                      
+                      {config.contentBox?.shadow?.enabled && (
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                          <div>
+                            <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>
+                              Color
+                            </label>
+                            <input
+                              type="text"
+                              value={config.contentBox?.shadow?.color || "rgba(0, 0, 0, 0.3)"}
+                              onChange={(e) => setConfig(prev => ({
+                                ...prev,
+                                contentBox: {
+                                  ...prev.contentBox,
+                                  shadow: { ...prev.contentBox?.shadow, color: e.target.value }
+                                }
+                              }))}
+                              style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"12px" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>
+                              Blur: {config.contentBox?.shadow?.blur || 20}px
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="50"
+                              step="2"
+                              value={config.contentBox?.shadow?.blur || 20}
+                              onChange={(e) => setConfig(prev => ({
+                                ...prev,
+                                contentBox: {
+                                  ...prev.contentBox,
+                                  shadow: { ...prev.contentBox?.shadow, blur: parseInt(e.target.value) }
+                                }
+                              }))}
+                              style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Preview */}
+                    <div>
+                      <label style={{ display:"block", marginBottom:"12px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                        Vista Previa
+                      </label>
+                      <div style={{
+                        ...getContentBoxStyle(config),
+                        minHeight:"100px",
+                        display:"flex",
+                        alignItems:"center",
+                        justifyContent:"center"
+                      }}>
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontFamily:config.primaryFont, fontSize:"18px", color:"#fff", marginBottom:"8px" }}>
+                            Título de Ejemplo
+                          </div>
+                          <div style={{ fontFamily:config.secondaryFont, fontSize:`${config.baseFontSize}px`, color:"rgba(255,255,255,0.7)" }}>
+                            Este es un texto de ejemplo dentro de una ventana de contenido. Así se verán las cajas de información en la app.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
