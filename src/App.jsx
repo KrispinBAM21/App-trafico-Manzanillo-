@@ -1592,7 +1592,39 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     <option value="'Roboto', sans-serif">Roboto</option>
                     <option value="'Poppins', sans-serif">Poppins</option>
                     <option value="'Lato', sans-serif">Lato</option>
+                    {config.customPrimaryFont && <option value={config.customPrimaryFont}>Fuente Personalizada</option>}
                   </select>
+                  
+                  <div style={{ marginTop:"12px" }}>
+                    <input
+                      ref={el => fileInputRefs.current["primaryFont"] = el}
+                      type="file"
+                      accept=".ttf,.otf,.woff,.woff2"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const fontName = file.name.split('.')[0];
+                          const fontData = event.target.result;
+                          setConfig(prev => ({
+                            ...prev,
+                            customPrimaryFont: `'${fontName}', serif`,
+                            customPrimaryFontData: fontData,
+                            primaryFont: `'${fontName}', serif`
+                          }));
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      style={{ display:"none" }}
+                    />
+                    <button
+                      onClick={() => fileInputRefs.current["primaryFont"]?.click()}
+                      style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(139,92,246,0.3)", background:"rgba(139,92,246,0.1)", color:"#a78bfa", fontFamily:MN, fontSize:"11px", fontWeight:"600", cursor:"pointer" }}
+                    >
+                      📁 Subir Fuente Personalizada (.ttf, .otf, .woff)
+                    </button>
+                  </div>
                 </div>
                 
                 <div>
@@ -1609,7 +1641,39 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     <option value="'Roboto', sans-serif">Roboto</option>
                     <option value="'Poppins', sans-serif">Poppins</option>
                     <option value="'Lato', sans-serif">Lato</option>
+                    {config.customSecondaryFont && <option value={config.customSecondaryFont}>Fuente Personalizada</option>}
                   </select>
+                  
+                  <div style={{ marginTop:"12px" }}>
+                    <input
+                      ref={el => fileInputRefs.current["secondaryFont"] = el}
+                      type="file"
+                      accept=".ttf,.otf,.woff,.woff2"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const fontName = file.name.split('.')[0];
+                          const fontData = event.target.result;
+                          setConfig(prev => ({
+                            ...prev,
+                            customSecondaryFont: `'${fontName}', sans-serif`,
+                            customSecondaryFontData: fontData,
+                            secondaryFont: `'${fontName}', sans-serif`
+                          }));
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      style={{ display:"none" }}
+                    />
+                    <button
+                      onClick={() => fileInputRefs.current["secondaryFont"]?.click()}
+                      style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(139,92,246,0.3)", background:"rgba(139,92,246,0.1)", color:"#a78bfa", fontFamily:MN, fontSize:"11px", fontWeight:"600", cursor:"pointer" }}
+                    >
+                      📁 Subir Fuente Personalizada (.ttf, .otf, .woff)
+                    </button>
+                  </div>
                 </div>
                 
                 <div>
@@ -1620,10 +1684,42 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     type="range"
                     min="12"
                     max="18"
+                    step="1"
                     value={config.baseFontSize}
                     onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(e.target.value) }))}
-                    style={{ width:"100%" }}
+                    style={{ 
+                      width:"100%", 
+                      height:"6px",
+                      borderRadius:"3px",
+                      background:"linear-gradient(to right, #38bdf8 0%, #38bdf8 " + ((config.baseFontSize - 12) / 6 * 100) + "%, rgba(255,255,255,0.1) " + ((config.baseFontSize - 12) / 6 * 100) + "%, rgba(255,255,255,0.1) 100%)",
+                      outline:"none",
+                      cursor:"pointer",
+                      WebkitAppearance:"none",
+                      appearance:"none"
+                    }}
                   />
+                  <style>{`
+                    input[type="range"]::-webkit-slider-thumb {
+                      -webkit-appearance: none;
+                      appearance: none;
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #38bdf8;
+                      cursor: pointer;
+                      border: 2px solid #0a1628;
+                      box-shadow: 0 2px 8px rgba(56,189,248,0.5);
+                    }
+                    input[type="range"]::-moz-range-thumb {
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #38bdf8;
+                      cursor: pointer;
+                      border: 2px solid #0a1628;
+                      box-shadow: 0 2px 8px rgba(56,189,248,0.5);
+                    }
+                  `}</style>
                 </div>
                 
                 <div>
@@ -1634,10 +1730,42 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     type="range"
                     min="15"
                     max="24"
+                    step="1"
                     value={config.titleFontSize}
                     onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(e.target.value) }))}
-                    style={{ width:"100%" }}
+                    style={{ 
+                      width:"100%", 
+                      height:"6px",
+                      borderRadius:"3px",
+                      background:"linear-gradient(to right, #a78bfa 0%, #a78bfa " + ((config.titleFontSize - 15) / 9 * 100) + "%, rgba(255,255,255,0.1) " + ((config.titleFontSize - 15) / 9 * 100) + "%, rgba(255,255,255,0.1) 100%)",
+                      outline:"none",
+                      cursor:"pointer",
+                      WebkitAppearance:"none",
+                      appearance:"none"
+                    }}
                   />
+                  <style>{`
+                    input[type="range"]::-webkit-slider-thumb {
+                      -webkit-appearance: none;
+                      appearance: none;
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #a78bfa;
+                      cursor: pointer;
+                      border: 2px solid #0a1628;
+                      box-shadow: 0 2px 8px rgba(167,139,250,0.5);
+                    }
+                    input[type="range"]::-moz-range-thumb {
+                      width: 18px;
+                      height: 18px;
+                      border-radius: 50%;
+                      background: #a78bfa;
+                      cursor: pointer;
+                      border: 2px solid #0a1628;
+                      box-shadow: 0 2px 8px rgba(167,139,250,0.5);
+                    }
+                  `}</style>
                 </div>
               </div>
             </div>
@@ -6081,6 +6209,37 @@ function App() {
       alert("Error al guardar el tema");
     }
   };
+  
+  // Cargar fuentes personalizadas
+  useEffect(() => {
+    if (theme.customPrimaryFontData) {
+      const fontName = theme.primaryFont.replace(/['"]/g, '').split(',')[0];
+      const style = document.createElement('style');
+      style.textContent = `
+        @font-face {
+          font-family: '${fontName}';
+          src: url(${theme.customPrimaryFontData}) format('truetype');
+        }
+      `;
+      document.head.appendChild(style);
+      return () => document.head.removeChild(style);
+    }
+  }, [theme.customPrimaryFontData, theme.primaryFont]);
+  
+  useEffect(() => {
+    if (theme.customSecondaryFontData) {
+      const fontName = theme.secondaryFont.replace(/['"]/g, '').split(',')[0];
+      const style = document.createElement('style');
+      style.textContent = `
+        @font-face {
+          font-family: '${fontName}';
+          src: url(${theme.customSecondaryFontData}) format('truetype');
+        }
+      `;
+      document.head.appendChild(style);
+      return () => document.head.removeChild(style);
+    }
+  }, [theme.customSecondaryFontData, theme.secondaryFont]);
 
   // Contador de visitas unicas (una por dispositivo)
   useEffect(() => {
