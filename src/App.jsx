@@ -7110,8 +7110,25 @@ function App() {
     }
   };
 
+  // ✅ CORRECCIÓN: Estilos completos del contenedor principal (fondo + tipografía + color)
+  const getMainContainerStyle = () => {
+    return {
+      minHeight: "100vh",
+      width: "100vw",
+      maxWidth: "100vw",
+      overflowX: "hidden",
+      position: "relative",
+      // ✅ Aplicar tipografía del tema
+      fontFamily: theme.secondaryFont || "'DM Sans', sans-serif",
+      fontSize: `${theme.baseFontSize || 14}px`,
+      color: theme.textColors?.primary || "#ffffff",
+      // ✅ Aplicar fondo del tema
+      ...getBackgroundStyle()
+    };
+  };
+
   return (
-    <div style={{ minHeight:"100vh", color:"rgba(255,255,255,0.95)", width:"100vw", maxWidth:"100vw", overflowX:"hidden", position:"relative", ...getBackgroundStyle() }}>
+    <div style={getMainContainerStyle()}>
       {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
