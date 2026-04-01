@@ -1427,10 +1427,24 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
   const [activeSection, setActiveSection] = useState("background");
   
   const fileInputRefs = useRef({});
+  const initialRender = useRef(true);
   
-  // ✅ FIX: Aplicar cambios en tiempo real mientras se configura
+  // ✅ FIX: Aplicar cambios en tiempo real mientras se configura (sin cerrar el panel)
   useEffect(() => {
-    onSave(config);
+    // Evitar que se ejecute en el render inicial
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    
+    // Guardar en localStorage directamente sin cerrar el panel
+    try {
+      localStorage.setItem("cm_theme", JSON.stringify(config));
+      // Disparar un evento personalizado para que el componente padre actualice
+      window.dispatchEvent(new CustomEvent('themeUpdate', { detail: config }));
+    } catch (err) {
+      console.error("Error saving theme:", err);
+    }
   }, [config]);
   
   const handleBackgroundImageUpload = async (e) => {
@@ -6591,6 +6605,16 @@ function App() {
   });
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
+  
+  // ✅ FIX: Escuchar actualizaciones de tema en tiempo real
+  useEffect(() => {
+    const handleThemeUpdate = (e) => {
+      setTheme(e.detail);
+    };
+    
+    window.addEventListener('themeUpdate', handleThemeUpdate);
+    return () => window.removeEventListener('themeUpdate', handleThemeUpdate);
+  }, []);
   
   const handleSaveTheme = async (newTheme) => {
     try {
