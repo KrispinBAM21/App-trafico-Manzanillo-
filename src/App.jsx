@@ -1425,6 +1425,93 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔧 HOOK: CARGAR Y SUSCRIBIRSE AL TEMA GLOBAL EN SUPABASE (TIEMPO REAL)
+// Permite que TODOS los usuarios vean los cambios de tema instantáneamente
+// ─────────────────────────────────────────────────────────────────────────────
+function useGlobalTheme() {
+  const [supabaseTheme, setSupabaseTheme] = React.useState(null);
+  const [loadingTheme, setLoadingTheme] = React.useState(true);
+
+  // Cargar tema desde Supabase al montar
+  React.useEffect(() => {
+    async function loadTheme() {
+      try {
+        const { data, error } = await sb
+          .from("global_theme")
+          .select("*")
+          .eq("id", 1)
+          .single();
+
+        if (data && !error) {
+          setSupabaseTheme({ ...DEFAULT_THEME, ...data.config });
+        }
+      } catch (err) {
+        console.warn("Supabase theme not available, using local theme:", err?.message);
+      } finally {
+        setLoadingTheme(false);
+      }
+    }
+    loadTheme();
+  }, []);
+
+  // 🔴 SUSCRIPCIÓN EN TIEMPO REAL — Detecta cambios y actualiza para TODOS
+  React.useEffect(() => {
+    const channel = sb
+      .channel("global-theme-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "global_theme",
+          filter: "id=eq.1"
+        },
+        (payload) => {
+          console.log("🎨 Tema global actualizado en tiempo real:", payload.new);
+          setSupabaseTheme({ ...DEFAULT_THEME, ...payload.new.config });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, []);
+
+  return { supabaseTheme, loadingTheme };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔧 FUNCIÓN: GUARDAR TEMA EN SUPABASE (SOLO ADMIN)
+// Sincroniza el tema para todos los usuarios en tiempo real
+// ─────────────────────────────────────────────────────────────────────────────
+async function saveThemeToDatabase(newTheme) {
+  try {
+    const { data, error } = await sb
+      .from("global_theme")
+      .upsert({
+        id: 1,
+        config: newTheme,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error guardando tema en Supabase:", error);
+      return { success: false, error };
+    }
+
+    console.log("✅ Tema guardado en Supabase exitosamente:", data);
+    return { success: true, data };
+  } catch (err) {
+    console.error("Error guardando tema:", err);
+    return { success: false, error: err };
+  }
+}
+
+
 // ─── NAVBAR ───────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // PANEL DE CONFIGURACIÓN DE TEMA
@@ -1501,6 +1588,14 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
   
   const handleSave = async () => {
     setSaving(true);
+    // Primero intentar guardar en Supabase (sincroniza para TODOS)
+    const result = await saveThemeToDatabase(config);
+    if (result.success) {
+      console.log("🎨 Tema guardado en Supabase — todos los usuarios verán los cambios");
+    } else {
+      console.warn("⚠️ Supabase no disponible, guardando solo localmente");
+    }
+    // Siempre llamar onSave (guarda también localmente)
     await onSave(config);
     setSaving(false);
     onClose();
@@ -6789,8 +6884,11 @@ function App() {
   const [dbReady,   setDbReady]   = useState(false);
   const [visitas,   setVisitas]   = useState(null);
   
-  // ✅ TEMA: Cargar desde localStorage o usar DEFAULT_THEME
-  const [theme, setTheme] = useState(() => {
+  // ✅ TEMA GLOBAL: Hook Supabase (tiempo real para todos) + fallback localStorage
+  const { supabaseTheme, loadingTheme } = useGlobalTheme();
+  
+  // Tema local como fallback mientras carga Supabase
+  const [localTheme, setLocalTheme] = useState(() => {
     try {
       const saved = localStorage.getItem("cm_theme");
       return saved ? JSON.parse(saved) : DEFAULT_THEME;
@@ -6799,27 +6897,36 @@ function App() {
     }
   });
   
+  // El tema activo: si Supabase tiene uno, usarlo; si no, el local
+  const theme = supabaseTheme || localTheme;
+  
   const [showThemeConfig, setShowThemeConfig] = useState(false);
   
-  // ✅ FIX: Escuchar actualizaciones de tema en tiempo real
+  // ✅ Escuchar actualizaciones de tema locales (del ThemeConfigPanel)
   useEffect(() => {
     const handleThemeUpdate = (e) => {
-      setTheme(e.detail);
+      setLocalTheme(e.detail);
     };
-    
     window.addEventListener('themeUpdate', handleThemeUpdate);
     return () => window.removeEventListener('themeUpdate', handleThemeUpdate);
   }, []);
   
   const handleSaveTheme = async (newTheme) => {
+    // Guardar localmente siempre
     try {
       localStorage.setItem("cm_theme", JSON.stringify(newTheme));
-      setTheme(newTheme);
-      setShowThemeConfig(false);
+      setLocalTheme(newTheme);
     } catch (err) {
-      console.error("Error saving theme:", err);
-      alert("Error al guardar el tema");
+      console.warn("localStorage not available:", err);
     }
+    // Intentar guardar en Supabase (sincroniza para todos los usuarios)
+    const result = await saveThemeToDatabase(newTheme);
+    if (result.success) {
+      console.log("✅ Tema sincronizado en Supabase para todos los usuarios");
+    } else {
+      console.warn("⚠️ Supabase no disponible, tema guardado solo localmente");
+    }
+    setShowThemeConfig(false);
   };
   
   // Cargar fuentes personalizadas
