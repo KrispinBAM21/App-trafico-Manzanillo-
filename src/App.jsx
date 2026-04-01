@@ -96,6 +96,7 @@ const DEFAULT_THEME = {
   backgroundColor: "#0a1628",
   backgroundGradient: "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)",
   backgroundImage: "",
+  backgroundImageOverlayOpacity: 0.65, // ✨ NUEVO: Opacidad de la capa oscura sobre imagen de fondo (0-1)
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
@@ -1427,6 +1428,11 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
   
   const fileInputRefs = useRef({});
   
+  // ✅ FIX: Aplicar cambios en tiempo real mientras se configura
+  useEffect(() => {
+    onSave(config);
+  }, [config]);
+  
   const handleBackgroundImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1475,6 +1481,7 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
     setSaving(true);
     await onSave(config);
     setSaving(false);
+    onClose();
   };
   
   const handleReset = () => {
@@ -1630,7 +1637,64 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                   {config.backgroundImage && (
                     <div style={{ marginTop:"12px", padding:"12px", borderRadius:"8px", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.3)" }}>
                       <div style={{ fontFamily:MN, fontSize:"11px", color:"rgba(255,255,255,0.6)", marginBottom:"6px" }}>Vista previa:</div>
-                      <div style={{ width:"100%", height:"120px", borderRadius:"6px", backgroundImage: `url(${config.backgroundImage})`, backgroundSize:"cover", backgroundPosition:"center" }} />
+                      <div style={{ 
+                        width:"100%", 
+                        height:"120px", 
+                        borderRadius:"6px", 
+                        backgroundImage: `url(${config.backgroundImage})`, 
+                        backgroundSize:"cover", 
+                        backgroundPosition:"center",
+                        position:"relative"
+                      }}>
+                        {/* Preview del overlay */}
+                        <div style={{
+                          position:"absolute",
+                          top:0,
+                          left:0,
+                          width:"100%",
+                          height:"100%",
+                          background:`rgba(0, 0, 0, ${config.backgroundImageOverlayOpacity || 0.65})`,
+                          borderRadius:"6px",
+                          display:"flex",
+                          alignItems:"center",
+                          justifyContent:"center"
+                        }}>
+                          <span style={{ color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"11px" }}>
+                            Overlay {Math.round((config.backgroundImageOverlayOpacity || 0.65) * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* ✨ Control de opacidad del overlay */}
+                  {config.backgroundImage && (
+                    <div style={{ marginTop:"16px" }}>
+                      <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                        Opacidad de Capa Oscura: {Math.round((config.backgroundImageOverlayOpacity || 0.65) * 100)}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={config.backgroundImageOverlayOpacity || 0.65}
+                        onChange={(e) => setConfig(prev => ({ ...prev, backgroundImageOverlayOpacity: parseFloat(e.target.value) }))}
+                        style={{ 
+                          width:"100%", 
+                          height:"6px",
+                          borderRadius:"3px",
+                          background:"linear-gradient(to right, #38bdf8 0%, #38bdf8 " + ((config.backgroundImageOverlayOpacity || 0.65) * 100) + "%, rgba(255,255,255,0.1) " + ((config.backgroundImageOverlayOpacity || 0.65) * 100) + "%, rgba(255,255,255,0.1) 100%)",
+                          outline:"none",
+                          cursor:"pointer",
+                          WebkitAppearance:"none",
+                          appearance:"none"
+                        }}
+                      />
+                      <div style={{ display:"flex", justifyContent:"space-between", marginTop:"4px" }}>
+                        <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)" }}>Más claro</span>
+                        <span style={{ fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)" }}>Más oscuro</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2280,14 +2344,7 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
             onClick={onClose}
             style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.7)", fontFamily:MN, fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(56,189,248,0.4)", background:"rgba(56,189,248,0.2)", color:"#38bdf8", fontFamily:MN, fontSize:"13px", fontWeight:"700", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
-          >
-            {saving ? "⏳ Guardando..." : "💾 Guardar Cambios"}
+            Cerrar
           </button>
         </div>
       </div>
@@ -6729,6 +6786,19 @@ function App() {
 
   return (
     <div style={{ minHeight:"100vh", color:"rgba(255,255,255,0.95)", width:"100vw", maxWidth:"100vw", overflowX:"hidden", position:"relative", ...getBackgroundStyle() }}>
+      {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
+      {theme.backgroundType === "image" && theme.backgroundImage && (
+        <div style={{ 
+          position: "fixed", 
+          top: 0, 
+          left: 0, 
+          width: "100%", 
+          height: "100%", 
+          background: `rgba(0, 0, 0, ${theme.backgroundImageOverlayOpacity || 0.65})`, 
+          zIndex: 1,
+          pointerEvents: "none"
+        }} />
+      )}
       <div style={{ position:"relative", zIndex:2 }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
