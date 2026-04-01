@@ -104,6 +104,14 @@ const DEFAULT_THEME = {
   baseFontSize: 14,
   titleFontSize: 17,
   
+  // ✨ Colores de texto
+  textColors: {
+    primary: "#ffffff",        // Color principal del texto
+    secondary: "#e2e8f0",      // Color de texto secundario
+    muted: "#94a3b8",          // Color de texto atenuado/hints
+    accent: "#38bdf8"          // Color de acentos/links
+  },
+  
   // ✨ NUEVO: Configuración de ventanas de contenido
   contentBox: {
     enabled: true,
@@ -1602,12 +1610,21 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                   <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                     Color de Fondo
                   </label>
-                  <input
-                    type="color"
-                    value={config.backgroundColor}
-                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
-                    style={{ width:"100%", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
-                  />
+                  <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                    <input
+                      type="color"
+                      value={config.backgroundColor}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      style={{ width:"60px", height:"60px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                    />
+                    <input
+                      type="text"
+                      value={config.backgroundColor}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      placeholder="#0a1628"
+                      style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"13px" }}
+                    />
+                  </div>
                 </div>
               )}
               
@@ -1913,6 +1930,127 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                     }
                   `}</style>
                 </div>
+                
+                {/* ✨ NUEVO: Controles de Color de Texto */}
+                <div style={{ borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"20px", marginTop:"8px" }}>
+                  <h4 style={{ margin:"0 0 16px", fontFamily:MN, fontSize:"15px", color:"#fff", fontWeight:"600" }}>
+                    🎨 Colores de Texto
+                  </h4>
+                  
+                  <div style={{ display:"grid", gap:"16px" }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Texto Principal
+                        </label>
+                        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                          <input
+                            type="color"
+                            value={config.textColors?.primary || "#ffffff"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, primary: e.target.value }
+                            }))}
+                            style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                          />
+                          <input
+                            type="text"
+                            value={config.textColors?.primary || "#ffffff"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, primary: e.target.value }
+                            }))}
+                            placeholder="#ffffff"
+                            style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Texto Secundario
+                        </label>
+                        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                          <input
+                            type="color"
+                            value={config.textColors?.secondary || "#e2e8f0"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, secondary: e.target.value }
+                            }))}
+                            style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                          />
+                          <input
+                            type="text"
+                            value={config.textColors?.secondary || "#e2e8f0"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, secondary: e.target.value }
+                            }))}
+                            placeholder="#e2e8f0"
+                            style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Texto Atenuado
+                        </label>
+                        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                          <input
+                            type="color"
+                            value={config.textColors?.muted || "#94a3b8"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, muted: e.target.value }
+                            }))}
+                            style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                          />
+                          <input
+                            type="text"
+                            value={config.textColors?.muted || "#94a3b8"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, muted: e.target.value }
+                            }))}
+                            placeholder="#94a3b8"
+                            style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"12px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Acentos/Links
+                        </label>
+                        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                          <input
+                            type="color"
+                            value={config.textColors?.accent || "#38bdf8"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, accent: e.target.value }
+                            }))}
+                            style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
+                          />
+                          <input
+                            type="text"
+                            value={config.textColors?.accent || "#38bdf8"}
+                            onChange={(e) => setConfig(prev => ({ 
+                              ...prev, 
+                              textColors: { ...prev.textColors, accent: e.target.value }
+                            }))}
+                            placeholder="#38bdf8"
+                            style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1953,16 +2091,45 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                       <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                         Color de Fondo Base
                       </label>
-                      <input
-                        type="text"
-                        value={config.contentBox?.background || "rgba(255, 255, 255, 0.05)"}
-                        onChange={(e) => setConfig(prev => ({
-                          ...prev,
-                          contentBox: { ...prev.contentBox, background: e.target.value }
-                        }))}
-                        placeholder="rgba(255, 255, 255, 0.05)"
-                        style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
-                      />
+                      <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                        <div 
+                          style={{ 
+                            width:"48px", 
+                            height:"48px", 
+                            borderRadius:"8px", 
+                            border:"1px solid rgba(255,255,255,0.2)", 
+                            background: config.contentBox?.background || "rgba(255, 255, 255, 0.05)",
+                            cursor:"pointer",
+                            position:"relative",
+                            overflow:"hidden"
+                          }}
+                          title="Vista previa del color"
+                        >
+                          <div style={{ 
+                            position:"absolute", 
+                            top:0, 
+                            left:0, 
+                            width:"100%", 
+                            height:"100%", 
+                            background:"url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><rect width=\"4\" height=\"4\" fill=\"%23333\"/><rect x=\"4\" y=\"4\" width=\"4\" height=\"4\" fill=\"%23333\"/></svg>')",
+                            backgroundSize:"8px 8px",
+                            zIndex:-1
+                          }} />
+                        </div>
+                        <input
+                          type="text"
+                          value={config.contentBox?.background || "rgba(255, 255, 255, 0.05)"}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, background: e.target.value }
+                          }))}
+                          placeholder="rgba(255, 255, 255, 0.05)"
+                          style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
+                        />
+                      </div>
+                      <p style={{ margin:"6px 0 0", fontFamily:MN, fontSize:"10px", color:"rgba(255,255,255,0.4)" }}>
+                        Soporta: hex (#rrggbb), rgb(r,g,b), rgba(r,g,b,a)
+                      </p>
                     </div>
                     
                     {/* Backdrop Blur */}
@@ -1990,15 +2157,43 @@ function ThemeConfigPanel({ theme, onSave, onClose }) {
                         <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                           Color de Borde
                         </label>
-                        <input
-                          type="text"
-                          value={config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)"}
-                          onChange={(e) => setConfig(prev => ({
-                            ...prev,
-                            contentBox: { ...prev.contentBox, borderColor: e.target.value }
-                          }))}
-                          style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:MN, fontSize:"13px" }}
-                        />
+                        <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                          <div 
+                            style={{ 
+                              width:"36px", 
+                              height:"36px", 
+                              borderRadius:"6px", 
+                              border:"1px solid rgba(255,255,255,0.2)", 
+                              background: config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)",
+                              cursor:"pointer",
+                              position:"relative",
+                              overflow:"hidden",
+                              flexShrink:0
+                            }}
+                            title="Vista previa del borde"
+                          >
+                            <div style={{ 
+                              position:"absolute", 
+                              top:0, 
+                              left:0, 
+                              width:"100%", 
+                              height:"100%", 
+                              background:"url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><rect width=\"4\" height=\"4\" fill=\"%23333\"/><rect x=\"4\" y=\"4\" width=\"4\" height=\"4\" fill=\"%23333\"/></svg>')",
+                              backgroundSize:"8px 8px",
+                              zIndex:-1
+                            }} />
+                          </div>
+                          <input
+                            type="text"
+                            value={config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)"}
+                            onChange={(e) => setConfig(prev => ({
+                              ...prev,
+                              contentBox: { ...prev.contentBox, borderColor: e.target.value }
+                            }))}
+                            placeholder="rgba(255,255,255,0.1)"
+                            style={{ flex:1, padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"11px" }}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label style={{ display:"block", marginBottom:"8px", fontFamily:MN, fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
