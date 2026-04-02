@@ -6920,30 +6920,14 @@ function App() {
       console.warn("localStorage not available:", err);
     }
     // Intentar guardar en Supabase (sincroniza para todos los usuarios)
-    async function saveThemeToDatabase(newTheme) {
-  try {
-    const { data, error } = await sb
-      .from("global_theme")
-      .upsert({
-        id: 1,
-        config: newTheme
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("❌ Error guardando tema en Supabase:", error);
-      return { success: false, error };
+    const result = await saveThemeToDatabase(newTheme);
+    if (result.success) {
+      console.log("✅ Tema sincronizado en Supabase para todos los usuarios");
+    } else {
+      console.warn("⚠️ Supabase no disponible, tema guardado solo localmente");
     }
-
-    console.log("✅ Tema guardado en Supabase:", data);
-    return { success: true, data };
-
-  } catch (err) {
-    console.error("❌ Error inesperado:", err);
-    return { success: false, error: err };
-  }
-};
+    setShowThemeConfig(false);
+  };
   
   // Cargar fuentes personalizadas
   useEffect(() => {
