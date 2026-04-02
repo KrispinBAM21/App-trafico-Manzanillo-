@@ -50,9 +50,9 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
-// Inject Google Fonts - ahora incluye Raleway como tipografía secundaria
+// Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Raleway:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -62,8 +62,7 @@ const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIs
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MN    = "'Raleway', sans-serif";  // Tipografía secundaria cambiada a Raleway
-const TITLE = "'Playfair Display', serif";  // Títulos principales
+const MN    = "'DM Sans', sans-serif";
 
 // Parseo robusto de fechas: acepta ms numérico, string numérico o ISO string
 const toMs = (v) => {
@@ -101,9 +100,9 @@ const DEFAULT_THEME = {
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
-  secondaryFont: "'Raleway', sans-serif",
-  baseFontSize: 17,
-  titleFontSize: 25,
+  secondaryFont: "'DM Sans', sans-serif",
+  baseFontSize: 14,
+  titleFontSize: 17,
   
   // ✨ Colores de texto
   textColors: {
@@ -6921,14 +6920,30 @@ function App() {
       console.warn("localStorage not available:", err);
     }
     // Intentar guardar en Supabase (sincroniza para todos los usuarios)
-    const result = await saveThemeToDatabase(newTheme);
-    if (result.success) {
-      console.log("✅ Tema sincronizado en Supabase para todos los usuarios");
-    } else {
-      console.warn("⚠️ Supabase no disponible, tema guardado solo localmente");
+    async function saveThemeToDatabase(newTheme) {
+  try {
+    const { data, error } = await sb
+      .from("global_theme")
+      .upsert({
+        id: 1,
+        config: newTheme
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("❌ Error guardando tema en Supabase:", error);
+      return { success: false, error };
     }
-    setShowThemeConfig(false);
-  };
+
+    console.log("✅ Tema guardado en Supabase:", data);
+    return { success: true, data };
+
+  } catch (err) {
+    console.error("❌ Error inesperado:", err);
+    return { success: false, error: err };
+  }
+};
   
   // Cargar fuentes personalizadas
   useEffect(() => {
