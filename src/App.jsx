@@ -52,7 +52,7 @@ const saveCookieConsent = (val) => {
 
 // Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Raleway:wght@300;400;700&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -100,9 +100,9 @@ const DEFAULT_THEME = {
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
-secondaryFont: "'Raleway', sans-serif",
-  baseFontSize: 17,
-  titleFontSize: 24,
+  secondaryFont: "'DM Sans', sans-serif",
+  baseFontSize: 14,
+  titleFontSize: 17,
   
   // ✨ Colores de texto
   textColors: {
