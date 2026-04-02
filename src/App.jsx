@@ -50,9 +50,9 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
-// Inject Google Fonts - ahora incluye más opciones para personalización
+// Inject Google Fonts - ahora incluye Raleway como tipografía secundaria
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Raleway:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -62,7 +62,8 @@ const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIs
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const MN    = "'DM Sans', sans-serif";
+const MN    = "'Raleway', sans-serif";  // Tipografía secundaria cambiada a Raleway
+const TITLE = "'Playfair Display', serif";  // Títulos principales
 
 // Parseo robusto de fechas: acepta ms numérico, string numérico o ISO string
 const toMs = (v) => {
@@ -100,9 +101,9 @@ const DEFAULT_THEME = {
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
-  secondaryFont: "'DM Sans', sans-serif",
-  baseFontSize: 14,
-  titleFontSize: 17,
+  secondaryFont: "'Raleway', sans-serif",
+  baseFontSize: 17,
+  titleFontSize: 25,
   
   // ✨ Colores de texto
   textColors: {
