@@ -100,7 +100,7 @@ const DEFAULT_THEME = {
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
-  secondaryFont: "'Raleway', sans-serif",
+secondaryFont: "'Raleway', sans-serif",
   baseFontSize: 17,
   titleFontSize: 24,
   
