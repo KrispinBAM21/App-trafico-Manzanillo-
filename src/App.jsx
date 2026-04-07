@@ -1524,7 +1524,6 @@ async function saveThemeToDatabase(newTheme) {
 // PANEL DE CONFIGURACIÓN DE TEMA
 // ─────────────────────────────────────────────────────────────────────────────
 function ThemeConfigPanel({ theme, onSave, onClose }) {
-  const theme = React.useContext(ThemeContext);
   const [config, setConfig] = useState(theme);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("background");
