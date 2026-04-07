@@ -98,7 +98,7 @@ const DEFAULT_THEME = {
   backgroundColor: "#0a1628",
   backgroundGradient: "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)",
   backgroundImage: "",
-  backgroundImageOverlayOpacity: 0.65, // ✨ NUEVO: Opacidad de la capa oscura sobre imagen de fondo (0-1)
+  backgroundImageOverlayOpacity: 0.2, // ✨ NUEVO: Opacidad de la capa oscura sobre imagen de fondo (0-1) - REDUCIDO de 0.65 a 0.2
   
   // Tipografía
   primaryFont: "'Playfair Display', serif",
