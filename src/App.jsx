@@ -1524,6 +1524,7 @@ async function saveThemeToDatabase(newTheme) {
 // PANEL DE CONFIGURACIÓN DE TEMA
 // ─────────────────────────────────────────────────────────────────────────────
 function ThemeConfigPanel({ theme, onSave, onClose }) {
+  const theme = React.useContext(ThemeContext);
   const [config, setConfig] = useState(theme);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("background");
@@ -6929,6 +6930,7 @@ function App() {
     };
     window.addEventListener('themeUpdate', handleThemeUpdate);
     return () => window.removeEventListener('themeUpdate', handleThemeUpdate);
+    <ThemeContext.Provider value={theme}>
   }, []);
   
   const handleSaveTheme = async (newTheme) => {
@@ -7148,7 +7150,6 @@ function App() {
   };
 
   return (
-    <ThemeContext.Provider value={theme}>
     <div style={getMainContainerStyle()}>
       {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
@@ -7265,7 +7266,6 @@ function App() {
         </div>
       )}
     </div>
-    </ThemeContext.Provider>
   );
 }
 
