@@ -160,6 +160,7 @@ const DEFAULT_THEME = {
 };
 
 // ✨✨✨ CONTEXTO DE TEMA PARA COMPARTIR GLOBALMENTE ✨✨✨
+// ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
 const ThemeContext = React.createContext(DEFAULT_THEME);
 
 
@@ -337,7 +338,8 @@ const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
 
 // ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
 const getContentBoxStyle = (theme) => {
-  if (!theme.contentBox || !theme.contentBox.enabled) {
+  // ✅ FIX: Validación robusta - si no hay theme o contentBox, usar valores por defecto
+  if (!theme || !theme.contentBox || !theme.contentBox.enabled) {
     return {
       background: "rgba(255, 255, 255, 0.03)",
       border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -347,7 +349,7 @@ const getContentBoxStyle = (theme) => {
   }
   
   const box = theme.contentBox;
-  let background = box.background;
+  let background = box.background || "rgba(255, 255, 255, 0.03)";
   
   if (box.gradientOverlay && box.gradientOverlay.enabled) {
     background = `${box.gradientOverlay.gradient}, ${box.background}`;
@@ -355,27 +357,31 @@ const getContentBoxStyle = (theme) => {
   
   let boxShadow = "none";
   if (box.shadow && box.shadow.enabled) {
-    boxShadow = `${box.shadow.offsetX}px ${box.shadow.offsetY}px ${box.shadow.blur}px ${box.shadow.color}`;
+    boxShadow = `${box.shadow.offsetX || 0}px ${box.shadow.offsetY || 0}px ${box.shadow.blur || 0}px ${box.shadow.color || "rgba(0,0,0,0.3)"}`;
   }
   
   return {
     background,
     backdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
     WebkitBackdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
-    border: `${box.borderWidth}px solid ${box.borderColor}`,
-    borderRadius: `${box.borderRadius}px`,
-    padding: `${box.padding}px`,
+    border: `${box.borderWidth || 1}px solid ${box.borderColor || "rgba(255, 255, 255, 0.1)"}`,
+    borderRadius: `${box.borderRadius || 12}px`,
+    padding: `${box.padding || 16}px`,
     boxShadow
   };
 };
 
 // ✨ Helper para obtener fuentes dinámicas del theme
+// ✅ FIX: Validación robusta con fallbacks seguros
 const getFont = (theme, type) => {
+  if (!theme) return "'DM Sans', sans-serif"; // fallback si theme es undefined/null
   if (type === "title") return theme.primaryFont || "'Playfair Display', serif";
   return theme.secondaryFont || "'DM Sans', sans-serif";
 };
 
+// ✅ FIX: Validación robusta con fallbacks seguros
 const getFontSize = (theme, type) => {
+  if (!theme) return "14px"; // fallback si theme es undefined/null
   if (type === "title") return `${theme.titleFontSize || 17}px`;
   return `${theme.baseFontSize || 14}px`;
 };
@@ -1444,7 +1450,8 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 // Permite que TODOS los usuarios vean los cambios de tema instantáneamente
 // ─────────────────────────────────────────────────────────────────────────────
 function useGlobalTheme(isAdmin) {
-  const [supabaseTheme, setSupabaseTheme] = React.useState(null);
+  // ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de null
+  const [supabaseTheme, setSupabaseTheme] = React.useState(DEFAULT_THEME);
   const [loadingTheme, setLoadingTheme] = React.useState(true);
   const [previewMode, setPreviewMode] = React.useState(false);
 
@@ -7091,7 +7098,8 @@ function App() {
     cancelPreview
   } = useGlobalTheme(isAdmin);
   
-  // El tema activo: usa supabaseTheme (puede ser preview si isAdmin)
+  // ✅ El tema activo: usa supabaseTheme (que ahora se inicializa con DEFAULT_THEME)
+  // El fallback || DEFAULT_THEME es redundante pero mantiene seguridad adicional
   const theme = supabaseTheme || DEFAULT_THEME;
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
