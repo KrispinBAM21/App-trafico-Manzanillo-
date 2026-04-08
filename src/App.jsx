@@ -1453,6 +1453,31 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 // 🔧 HOOK: CARGAR Y SUSCRIBIRSE AL TEMA GLOBAL EN SUPABASE (TIEMPO REAL)
 // Permite que TODOS los usuarios vean los cambios de tema instantáneamente
 // ─────────────────────────────────────────────────────────────────────────────
+// ✨ HELPER: Deep merge para combinar temas sin perder propiedades anidadas
+const deepMerge = (target, source) => {
+  const output = { ...target };
+  
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+  
+  return output;
+};
+
+const isObject = (item) => {
+  return item && typeof item === 'object' && !Array.isArray(item);
+};
+
 function useGlobalTheme(isAdmin) {
   const [supabaseTheme, setSupabaseTheme] = React.useState(null);
   const [loadingTheme, setLoadingTheme] = React.useState(true);
@@ -1468,7 +1493,7 @@ function useGlobalTheme(isAdmin) {
           if (localPreview) {
             try {
               const parsed = JSON.parse(localPreview);
-              setSupabaseTheme({ ...DEFAULT_THEME, ...parsed });
+              setSupabaseTheme(deepMerge(DEFAULT_THEME, parsed));
               setPreviewMode(true);
               setLoadingTheme(false);
               console.log("🎨 Admin: Tema preview cargado desde localStorage");
@@ -1487,7 +1512,7 @@ function useGlobalTheme(isAdmin) {
           .single();
 
         if (data && !error) {
-          setSupabaseTheme({ ...DEFAULT_THEME, ...data.config });
+          setSupabaseTheme(deepMerge(DEFAULT_THEME, data.config));
         }
       } catch (err) {
         console.warn("Supabase theme not available, using local theme:", err?.message);
@@ -1515,7 +1540,7 @@ function useGlobalTheme(isAdmin) {
         },
         (payload) => {
           console.log("🎨 Tema global actualizado en tiempo real:", payload.new);
-          setSupabaseTheme({ ...DEFAULT_THEME, ...payload.new.config });
+          setSupabaseTheme(deepMerge(DEFAULT_THEME, payload.new.config));
           
           // Si el admin estaba en preview, salir del modo preview
           if (isAdmin && previewMode) {
@@ -1537,7 +1562,7 @@ function useGlobalTheme(isAdmin) {
     
     try {
       localStorage.setItem("admin_theme_preview", JSON.stringify(newTheme));
-      setSupabaseTheme({ ...DEFAULT_THEME, ...newTheme });
+      setSupabaseTheme(deepMerge(DEFAULT_THEME, newTheme));
       setPreviewMode(true);
       console.log("✅ Preview guardado localmente para admin");
       return true;
@@ -1595,7 +1620,7 @@ function useGlobalTheme(isAdmin) {
         .single();
       
       if (data && !error) {
-        setSupabaseTheme({ ...DEFAULT_THEME, ...data.config });
+        setSupabaseTheme(deepMerge(DEFAULT_THEME, data.config));
       } else {
         setSupabaseTheme(DEFAULT_THEME);
       }
