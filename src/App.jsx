@@ -1443,33 +1443,14 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 // 🔧 HOOK: CARGAR Y SUSCRIBIRSE AL TEMA GLOBAL EN SUPABASE (TIEMPO REAL)
 // Permite que TODOS los usuarios vean los cambios de tema instantáneamente
 // ─────────────────────────────────────────────────────────────────────────────
-function useGlobalTheme(isAdmin) {
+function useGlobalTheme() {
   const [supabaseTheme, setSupabaseTheme] = React.useState(null);
   const [loadingTheme, setLoadingTheme] = React.useState(true);
-  const [previewMode, setPreviewMode] = React.useState(false);
 
   // Cargar tema desde Supabase al montar
   React.useEffect(() => {
     async function loadTheme() {
       try {
-        // Si es admin, verificar si hay preview local
-        if (isAdmin) {
-          const localPreview = localStorage.getItem("admin_theme_preview");
-          if (localPreview) {
-            try {
-              const parsed = JSON.parse(localPreview);
-              setSupabaseTheme({ ...DEFAULT_THEME, ...parsed });
-              setPreviewMode(true);
-              setLoadingTheme(false);
-              console.log("🎨 Admin: Tema preview cargado desde localStorage");
-              return;
-            } catch (e) {
-              console.error("Error parseando preview local:", e);
-            }
-          }
-        }
-
-        // Cargar tema global desde Supabase
         const { data, error } = await sb
           .from("global_theme")
           .select("*")
@@ -1486,13 +1467,10 @@ function useGlobalTheme(isAdmin) {
       }
     }
     loadTheme();
-  }, [isAdmin]);
+  }, []);
 
   // 🔴 SUSCRIPCIÓN EN TIEMPO REAL — Detecta cambios y actualiza para TODOS
-  // (Admin en preview NO escucha cambios globales)
   React.useEffect(() => {
-    if (previewMode && isAdmin) return; // Admin en preview no escucha cambios
-
     const channel = sb
       .channel("global-theme-changes")
       .on(
@@ -1506,12 +1484,6 @@ function useGlobalTheme(isAdmin) {
         (payload) => {
           console.log("🎨 Tema global actualizado en tiempo real:", payload.new);
           setSupabaseTheme({ ...DEFAULT_THEME, ...payload.new.config });
-          
-          // Si el admin estaba en preview, salir del modo preview
-          if (isAdmin && previewMode) {
-            localStorage.removeItem("admin_theme_preview");
-            setPreviewMode(false);
-          }
         }
       )
       .subscribe();
@@ -1519,91 +1491,9 @@ function useGlobalTheme(isAdmin) {
     return () => {
       sb.removeChannel(channel);
     };
-  }, [previewMode, isAdmin]);
+  }, []);
 
-  // 🎨 GUARDAR PREVIEW LOCAL (solo admin)
-  const savePreview = (newTheme) => {
-    if (!isAdmin) return false;
-    
-    try {
-      localStorage.setItem("admin_theme_preview", JSON.stringify(newTheme));
-      setSupabaseTheme({ ...DEFAULT_THEME, ...newTheme });
-      setPreviewMode(true);
-      console.log("✅ Preview guardado localmente para admin");
-      return true;
-    } catch (err) {
-      console.error("Error guardando preview:", err);
-      return false;
-    }
-  };
-
-  // 🌍 APLICAR A TODOS (guardar en Supabase)
-  const applyToAll = async (newTheme) => {
-    if (!isAdmin) return { success: false };
-
-    try {
-      const { data, error } = await sb
-        .from("global_theme")
-        .upsert({
-          id: 1,
-          config: newTheme,
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error aplicando tema global:", error);
-        return { success: false, error };
-      }
-
-      // Limpiar preview local
-      localStorage.removeItem("admin_theme_preview");
-      setPreviewMode(false);
-      
-      console.log("✅ Tema aplicado GLOBALMENTE a todos los usuarios");
-      return { success: true, data };
-    } catch (err) {
-      console.error("Excepción aplicando tema:", err);
-      return { success: false, error: err };
-    }
-  };
-
-  // ❌ CANCELAR PREVIEW y volver al tema global
-  const cancelPreview = async () => {
-    if (!isAdmin) return;
-    
-    localStorage.removeItem("admin_theme_preview");
-    setPreviewMode(false);
-
-    // Recargar tema global
-    try {
-      const { data, error } = await sb
-        .from("global_theme")
-        .select("*")
-        .eq("id", 1)
-        .single();
-      
-      if (data && !error) {
-        setSupabaseTheme({ ...DEFAULT_THEME, ...data.config });
-      } else {
-        setSupabaseTheme(DEFAULT_THEME);
-      }
-      console.log("✅ Preview cancelado, tema global restaurado");
-    } catch (err) {
-      console.error("Error cancelando preview:", err);
-      setSupabaseTheme(DEFAULT_THEME);
-    }
-  };
-
-  return { 
-    supabaseTheme, 
-    loadingTheme,
-    previewMode,      // Indica si admin está en modo preview
-    savePreview,      // Guardar preview local (solo admin)
-    applyToAll,       // Aplicar a todos los usuarios (solo admin)
-    cancelPreview     // Cancelar preview (solo admin)
-  };
+  return { supabaseTheme, loadingTheme };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1640,7 +1530,7 @@ async function saveThemeToDatabase(newTheme) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PANEL DE CONFIGURACIÓN DE TEMA
 // ─────────────────────────────────────────────────────────────────────────────
-function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCancel, onClose }) {
+function ThemeConfigPanel({ theme, onSave, onClose }) {
   const [config, setConfig] = useState(theme);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("background");
@@ -1648,18 +1538,23 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
   const fileInputRefs = useRef({});
   const initialRender = useRef(true);
   
-  // ✅ PREVIEW EN TIEMPO REAL — Aplicar cambios localmente mientras se configura
+  // ✅ FIX: Aplicar cambios en tiempo real mientras se configura (sin cerrar el panel)
   useEffect(() => {
+    // Evitar que se ejecute en el render inicial
     if (initialRender.current) {
       initialRender.current = false;
       return;
     }
     
-    // Guardar preview local automáticamente
-    if (onPreview) {
-      onPreview(config);
+    // Guardar en localStorage directamente sin cerrar el panel
+    try {
+      localStorage.setItem("cm_theme", JSON.stringify(config));
+      // Disparar un evento personalizado para que el componente padre actualice
+      window.dispatchEvent(new CustomEvent('themeUpdate', { detail: config }));
+    } catch (err) {
+      console.error("Error saving theme:", err);
     }
-  }, [config, onPreview]);
+  }, [config]);
   
   const handleBackgroundImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -1705,31 +1600,19 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
     reader.readAsDataURL(file);
   };
   
-  // 🌍 APLICAR A TODOS — Guardar en Supabase para todos los usuarios
-  const handleApplyToAll = async () => {
-    if (!confirm("¿Aplicar este tema a TODOS los usuarios?\n\nTodos verán estos cambios en tiempo real.")) {
-      return;
-    }
-    
+  const handleSave = async () => {
     setSaving(true);
-    const success = await onApplyToAll(config);
+    // Primero intentar guardar en Supabase (sincroniza para TODOS)
+    const result = await saveThemeToDatabase(config);
+    if (result.success) {
+      console.log("🎨 Tema guardado en Supabase — todos los usuarios verán los cambios");
+    } else {
+      console.warn("⚠️ Supabase no disponible, guardando solo localmente");
+    }
+    // Siempre llamar onSave (guarda también localmente)
+    await onSave(config);
     setSaving(false);
-    
-    if (success) {
-      alert("✅ Tema aplicado exitosamente a todos los usuarios");
-      onClose();
-    } else {
-      alert("❌ Error al aplicar el tema. Revisa la consola.");
-    }
-  };
-  
-  const handleCancel = () => {
-    if (previewMode && confirm("¿Cancelar los cambios y volver al tema global?")) {
-      onCancel();
-      onClose();
-    } else {
-      onClose();
-    }
+    onClose();
   };
   
   const handleReset = () => {
@@ -1757,11 +1640,11 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 🎨 Configuración de Tema
               </h2>
               <p style={{ margin:"4px 0 0", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.5)" }}>
-                {previewMode ? "⚡ Modo Preview — Solo tú ves estos cambios" : "Personaliza la apariencia de la aplicación"}
+                Personaliza la apariencia de la aplicación
               </p>
             </div>
             <button
-              onClick={handleCancel}
+              onClick={onClose}
               style={{ width:"36px", height:"36px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:"20px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
             >
               ✕
@@ -1796,7 +1679,6 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               {sec.label}
             </button>
           ))}
-        </div>
         </div>
         
         {/* Content */}
@@ -2769,44 +2651,19 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
         </div>
         
         {/* Footer */}
-        <div style={{ padding:"16px 24px", background:"rgba(0,0,0,0.3)", borderTop:"1px solid rgba(255,255,255,0.08)", display:"flex", gap:"12px", justifyContent:"space-between" }}>
+        <div style={{ padding:"16px 24px", background:"rgba(0,0,0,0.3)", borderTop:"1px solid rgba(255,255,255,0.08)", display:"flex", gap:"12px", justifyContent:"flex-end" }}>
           <button
             onClick={handleReset}
             style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(239,68,68,0.4)", background:"rgba(239,68,68,0.15)", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
           >
-            🔄 Restaurar
+            🔄 Restaurar por Defecto
           </button>
-          
-          <div style={{ display:"flex", gap:"12px" }}>
-            {previewMode && (
-              <button
-                onClick={handleCancel}
-                style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(251,191,36,0.4)", background:"rgba(251,191,36,0.15)", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
-              >
-                ❌ Cancelar Preview
-              </button>
-            )}
-            <button
-              onClick={handleApplyToAll}
-              disabled={saving}
-              style={{ 
-                padding:"12px 24px", 
-                borderRadius:"8px", 
-                border:"1px solid rgba(34,197,94,0.5)", 
-                background: saving ? "rgba(100,100,100,0.2)" : "rgba(34,197,94,0.2)", 
-                color: saving ? "#999" : "#22c55e", 
-                fontFamily:getFont(theme, "secondary"), 
-                fontSize:"14px", 
-                fontWeight:"700", 
-                cursor: saving ? "not-allowed" : "pointer",
-                display:"flex",
-                alignItems:"center",
-                gap:"8px"
-              }}
-            >
-              {saving ? "⏳ Aplicando..." : "🌍 Aplicar a Todos"}
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
@@ -7054,41 +6911,49 @@ function App() {
   const [dbReady,   setDbReady]   = useState(false);
   const [visitas,   setVisitas]   = useState(null);
   
-  // ✅ TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
-  const { 
-    supabaseTheme, 
-    loadingTheme, 
-    previewMode,
-    savePreview,
-    applyToAll,
-    cancelPreview
-  } = useGlobalTheme(isAdmin);
+  // ✅ TEMA GLOBAL: Hook Supabase (tiempo real para todos) + fallback localStorage
+  const { supabaseTheme, loadingTheme } = useGlobalTheme();
   
-  // El tema activo: usa supabaseTheme (puede ser preview si isAdmin)
-  const theme = supabaseTheme || DEFAULT_THEME;
+  // Tema local como fallback mientras carga Supabase
+  const [localTheme, setLocalTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cm_theme");
+      return saved ? JSON.parse(saved) : DEFAULT_THEME;
+    } catch {
+      return DEFAULT_THEME;
+    }
+  });
+  
+  // El tema activo: si Supabase tiene uno, usarlo; si no, el local
+  const theme = supabaseTheme || localTheme;
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
   
-  // 🎨 Guardar preview local (solo admin ve cambios)
-  const handlePreviewTheme = (newTheme) => {
-    if (isAdmin) {
-      savePreview(newTheme);
-    }
-  };
+  // ✅ Escuchar actualizaciones de tema locales (del ThemeConfigPanel)
+  useEffect(() => {
+    const handleThemeUpdate = (e) => {
+      setLocalTheme(e.detail);
+    };
+    window.addEventListener('themeUpdate', handleThemeUpdate);
+    return () => window.removeEventListener('themeUpdate', handleThemeUpdate);
+  }, []);
   
-  // 🌍 Aplicar tema a TODOS los usuarios
-  const handleApplyToAll = async (newTheme) => {
-    if (!isAdmin) return false;
-    
-    const result = await applyToAll(newTheme);
-    return result.success;
-  };
-  
-  // ❌ Cancelar preview
-  const handleCancelPreview = () => {
-    if (isAdmin) {
-      cancelPreview();
+  const handleSaveTheme = async (newTheme) => {
+    // Guardar localmente siempre
+    try {
+      localStorage.setItem("cm_theme", JSON.stringify(newTheme));
+      setLocalTheme(newTheme);
+    } catch (err) {
+      console.warn("localStorage not available:", err);
     }
+    // Intentar guardar en Supabase (sincroniza para todos los usuarios)
+    const result = await saveThemeToDatabase(newTheme);
+    if (result.success) {
+      console.log("✅ Tema sincronizado en Supabase para todos los usuarios");
+    } else {
+      console.warn("⚠️ Supabase no disponible, tema guardado solo localmente");
+    }
+    setShowThemeConfig(false);
   };
   
   // Cargar fuentes personalizadas
@@ -7385,10 +7250,7 @@ function App() {
       {showThemeConfig && (
         <ThemeConfigPanel
           theme={theme}
-          previewMode={previewMode}
-          onPreview={handlePreviewTheme}
-          onApplyToAll={handleApplyToAll}
-          onCancel={handleCancelPreview}
+          onSave={handleSaveTheme}
           onClose={() => setShowThemeConfig(false)}
         />
       )}
