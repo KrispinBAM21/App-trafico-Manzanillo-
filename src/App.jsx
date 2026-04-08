@@ -7318,6 +7318,40 @@ function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
+    <>
+      {/* Global styles to prevent gray highlight on tap/click */}
+      <style>{`
+        * {
+          -webkit-tap-highlight-color: transparent !important;
+          -webkit-touch-callout: none;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          user-select: none;
+        }
+        
+        button, a, div[onclick], [role="button"] {
+          -webkit-tap-highlight-color: transparent !important;
+          outline: none !important;
+          user-select: none !important;
+        }
+        
+        button:focus, button:active, button:hover {
+          outline: none !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        
+        button::-moz-focus-inner {
+          border: 0 !important;
+        }
+        
+        input, textarea {
+          -webkit-user-select: text;
+          -moz-user-select: text;
+          -ms-user-select: text;
+          user-select: text;
+        }
+      `}</style>
     <div style={getMainContainerStyle()}>
       {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
@@ -7437,6 +7471,7 @@ function App() {
         </div>
       )}
     </div>
+    </>
     </ThemeContext.Provider>
   );
 }
