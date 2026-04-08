@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, createContext, useContext } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -160,7 +160,17 @@ const DEFAULT_THEME = {
 };
 
 // ✨✨✨ CONTEXTO DE TEMA PARA COMPARTIR GLOBALMENTE ✨✨✨
-const ThemeContext = React.createContext(DEFAULT_THEME);
+export const ThemeContext = createContext(DEFAULT_THEME);
+
+// ✨ Hook personalizado para usar el tema fácilmente
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    console.warn('useTheme: context is null, using DEFAULT_THEME');
+    return { theme: DEFAULT_THEME, setTheme: () => {}, getFont, getFontSize };
+  }
+  return context;
+};
 
 
 const TERMINALS_NORTE = [
@@ -479,8 +489,8 @@ const mkCarrilesState = () => {
 };
 
 // ─── ADMIN MODE ───────────────────────────────────────────────────────────────
-function useAdminMode() {
-  const theme = React.useContext(ThemeContext);
+function useAdminMode(theme = DEFAULT_THEME) {
+  // Ya no necesitamos el contexto aquí, se pasa como parámetro
   const [isAdmin, setIsAdmin] = useState(() => {
     try { return sessionStorage.getItem(ADMIN_KEY) === "1"; }
     catch { return false; }
@@ -7039,8 +7049,6 @@ function CookieBanner({ onAccept, onReject }) {
 
 
 function App() {
-  const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
-
   const [active,    setActiveRaw]  = useState(() => {
     try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
   });
@@ -7053,6 +7061,12 @@ function App() {
   const [dbReady,   setDbReady]   = useState(false);
   const [visitas,   setVisitas]   = useState(null);
   
+  // ✅ Primero obtenemos isAdmin de manera simple para poder cargar el tema
+  const [isAdminSimple, setIsAdminSimple] = useState(() => {
+    try { return sessionStorage.getItem(ADMIN_KEY) === "1"; }
+    catch { return false; }
+  });
+  
   // ✅ TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
     supabaseTheme, 
@@ -7061,10 +7075,20 @@ function App() {
     savePreview,
     applyToAll,
     cancelPreview
-  } = useGlobalTheme(isAdmin);
+  } = useGlobalTheme(isAdminSimple);
   
   // El tema activo: usa supabaseTheme (puede ser preview si isAdmin)
   const theme = supabaseTheme || DEFAULT_THEME;
+  
+  // ✅ Ahora sí llamamos useAdminMode con el tema ya definido
+  const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode(theme);
+  
+  // Sincronizar isAdminSimple con isAdmin del hook
+  useEffect(() => {
+    if (isAdmin !== isAdminSimple) {
+      setIsAdminSimple(isAdmin);
+    }
+  }, [isAdmin]);
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
   
@@ -7289,7 +7313,7 @@ function App() {
   };
 
   return (
-    <ThemeContext.Provider value={theme}>
+    <ThemeContext.Provider value={theme || DEFAULT_THEME}>
     <div style={getMainContainerStyle()}>
       {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
