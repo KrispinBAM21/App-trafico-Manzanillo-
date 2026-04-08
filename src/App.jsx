@@ -2830,17 +2830,45 @@ function NavBar({ active, set }) {
   ];
 
   const TabBtn = (t) => (
-    <button key={t.id} onClick={() => set(t.id)} style={{
-      flex: 1, padding: "9px 4px",
-      background: active === t.id ? "rgba(255,255,255,0.15)" : "transparent",
-      border: "none",
-      borderBottom: active === t.id ? "2px solid rgba(255,255,255,0.9)" : "2px solid transparent",
-      color: active === t.id ? "#ffffff" : "rgba(255,255,255,0.4)",
-      fontSize: "9px", fontFamily: getFont(theme, "secondary"), fontWeight: active === t.id ? "600" : "400",
-      cursor: "pointer", display: "flex", flexDirection: "column",
-      alignItems: "center", gap: "3px", transition: "all 0.2s",
-      letterSpacing: "0.5px", whiteSpace: "nowrap", minWidth: "0",
-    }}>
+    <button 
+      key={t.id} 
+      onClick={() => set(t.id)} 
+      onMouseDown={(e) => e.preventDefault()}
+      style={{
+        flex: 1, 
+        padding: "9px 4px",
+        background: active === t.id ? "rgba(255,255,255,0.15)" : "transparent",
+        border: "none",
+        borderBottom: active === t.id ? "2px solid rgba(255,255,255,0.9)" : "2px solid transparent",
+        color: active === t.id ? "#ffffff" : "rgba(255,255,255,0.4)",
+        fontSize: "9px", 
+        fontFamily: getFont(theme, "secondary"), 
+        fontWeight: active === t.id ? "600" : "400",
+        cursor: "pointer", 
+        display: "flex", 
+        flexDirection: "column",
+        alignItems: "center", 
+        gap: "3px", 
+        transition: "all 0.2s",
+        letterSpacing: "0.5px", 
+        whiteSpace: "nowrap", 
+        minWidth: "0",
+        WebkitTapHighlightColor: "transparent",
+        outline: "none"
+      }}
+      onMouseEnter={(e) => {
+        if (active !== t.id) {
+          e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+          e.currentTarget.style.color = "rgba(255,255,255,0.6)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (active !== t.id) {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.color = "rgba(255,255,255,0.4)";
+        }
+      }}
+    >
       <span style={{ fontSize: "14px" }}>{t.icon}</span>
       {t.label.toUpperCase()}
     </button>
