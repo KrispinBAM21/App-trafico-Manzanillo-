@@ -4318,8 +4318,8 @@ function SegundoAccesoTab() {
 
   const getTermName = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
   const getTermZona = (id) => TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
-  const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
-  const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
+  const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte" || t.zona === "Todas");
+  const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur" || t.zona === "Todas");
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
