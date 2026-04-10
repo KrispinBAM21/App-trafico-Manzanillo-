@@ -7233,6 +7233,7 @@ function App() {
   
   // ── Widget de Soporte WhatsApp ──
   const [supportExpanded, setSupportExpanded] = useState(false);
+  const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo'
   const handleSignOut = async () => {
     try {
       await sb.auth.signOut();
@@ -7517,7 +7518,7 @@ function App() {
         </div>
       )}
 
-      {/* Widget de Soporte WhatsApp */}
+      {/* Widget de Contacto y Redes - FAB Expandible */}
       <div 
         style={{
           position: "fixed",
@@ -7526,42 +7527,288 @@ function App() {
           zIndex: 99998
         }}
       >
-        {/* Botón principal - siempre visible */}
+        {/* Burbujas expandibles */}
+        {supportExpanded && (
+          <div style={{
+            position: "absolute",
+            bottom: "70px",
+            right: "0",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            alignItems: "flex-end"
+          }}>
+            {/* Burbuja: Soporte WhatsApp */}
+            <div
+              onClick={() => setShowQRPanel(showQRPanel === 'whatsapp' ? null : 'whatsapp')}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                cursor: "pointer",
+                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+                animationDelay: "0.05s",
+                opacity: 0
+              }}
+            >
+              <div style={{
+                background: "rgba(13, 31, 60, 0.95)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                border: "1px solid rgba(37, 211, 102, 0.3)",
+                borderRadius: "20px",
+                padding: "8px 16px",
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "13px",
+                fontWeight: "600",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
+              }}>
+                Soporte WhatsApp
+              </div>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(37, 211, 102, 0.4)",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "24px",
+                transition: "transform 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                💬
+              </div>
+            </div>
+
+            {/* Burbuja: Página Facebook */}
+            <div
+              onClick={() => window.open('https://www.facebook.com/profile.php?id=61571287278949', '_blank')}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                cursor: "pointer",
+                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+                animationDelay: "0.1s",
+                opacity: 0
+              }}
+            >
+              <div style={{
+                background: "rgba(13, 31, 60, 0.95)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                border: "1px solid rgba(24, 119, 242, 0.3)",
+                borderRadius: "20px",
+                padding: "8px 16px",
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "13px",
+                fontWeight: "600",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
+              }}>
+                Página Facebook
+              </div>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                background: "linear-gradient(135deg, #1877F2 0%, #0D5DBE 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(24, 119, 242, 0.4)",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "24px",
+                transition: "transform 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                📘
+              </div>
+            </div>
+
+            {/* Burbuja: Canal WhatsApp */}
+            <div
+              onClick={() => setShowQRPanel(showQRPanel === 'canal' ? null : 'canal')}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                cursor: "pointer",
+                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+                animationDelay: "0.15s",
+                opacity: 0
+              }}
+            >
+              <div style={{
+                background: "rgba(13, 31, 60, 0.95)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                border: "1px solid rgba(37, 211, 102, 0.3)",
+                borderRadius: "20px",
+                padding: "8px 16px",
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "13px",
+                fontWeight: "600",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
+              }}>
+                Canal WhatsApp
+              </div>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                background: "linear-gradient(135deg, #128C7E 0%, #075E54 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(18, 140, 126, 0.4)",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "24px",
+                transition: "transform 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                📢
+              </div>
+            </div>
+
+            {/* Burbuja: Donativo Mifel */}
+            <div
+              onClick={() => setShowQRPanel(showQRPanel === 'donativo' ? null : 'donativo')}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                cursor: "pointer",
+                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
+                animationDelay: "0.2s",
+                opacity: 0
+              }}
+            >
+              <div style={{
+                background: "rgba(13, 31, 60, 0.95)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                border: "1px solid rgba(168, 85, 247, 0.3)",
+                borderRadius: "20px",
+                padding: "8px 16px",
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "13px",
+                fontWeight: "600",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
+              }}>
+                Donar (Mifel)
+              </div>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(168, 85, 247, 0.4)",
+                border: "2px solid rgba(255, 255, 255, 0.2)",
+                fontSize: "24px",
+                transition: "transform 0.2s"
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                💝
+              </div>
+            </div>
+          </div>
+        )}
+
+        <style>{`
+          @keyframes bubbleIn {
+            from {
+              opacity: 0;
+              transform: translateX(20px) scale(0.8);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0) scale(1);
+            }
+          }
+          @keyframes slideUp {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
+
+        {/* Botón principal FAB */}
         <div
-          onClick={() => setSupportExpanded(!supportExpanded)}
+          onClick={() => {
+            setSupportExpanded(!supportExpanded);
+            setShowQRPanel(null);
+          }}
           style={{
             width: "56px",
             height: "56px",
-            background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
+            background: supportExpanded 
+              ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
+              : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            boxShadow: "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
+            boxShadow: supportExpanded
+              ? "0 4px 20px rgba(239, 68, 68, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)"
+              : "0 4px 20px rgba(59, 130, 246, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border: "2px solid rgba(255, 255, 255, 0.2)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
-            transform: supportExpanded ? "scale(1.05)" : "scale(1)"
+            transform: supportExpanded ? "rotate(45deg)" : "rotate(0deg)"
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.1)";
+            if (!supportExpanded) e.currentTarget.style.transform = "scale(1.1)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = supportExpanded ? "scale(1.05)" : "scale(1)";
+            if (!supportExpanded) e.currentTarget.style.transform = "scale(1)";
           }}
         >
-          <span style={{ fontSize: "28px", lineHeight: 1 }}>💬</span>
+          <span style={{ 
+            fontSize: "28px", 
+            lineHeight: 1,
+            transform: supportExpanded ? "rotate(-45deg)" : "rotate(0deg)",
+            transition: "transform 0.3s"
+          }}>
+            {supportExpanded ? "✕" : "🔗"}
+          </span>
         </div>
 
-        {/* Panel expandido */}
-        {supportExpanded && (
+        {/* Panel QR WhatsApp Soporte */}
+        {showQRPanel === 'whatsapp' && (
           <div
             style={{
               position: "absolute",
               bottom: "70px",
-              right: "0",
+              right: "60px",
               background: "rgba(13, 31, 60, 0.98)",
               border: "1px solid rgba(37, 211, 102, 0.3)",
               borderRadius: "16px",
@@ -7570,23 +7817,11 @@ function App() {
               boxShadow: "0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)",
               backdropFilter: "blur(20px)",
               WebkitBackdropFilter: "blur(20px)",
-              animation: "slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+              animation: "slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              zIndex: 1
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <style>{`
-              @keyframes slideUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(10px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
-
             {/* Header */}
             <div style={{
               display: "flex",
@@ -7627,9 +7862,8 @@ function App() {
                   ¿Necesitas ayuda?
                 </div>
               </div>
-              {/* Botón cerrar */}
               <button
-                onClick={() => setSupportExpanded(false)}
+                onClick={() => setShowQRPanel(null)}
                 style={{
                   background: "rgba(255, 255, 255, 0.1)",
                   border: "none",
@@ -7669,7 +7903,7 @@ function App() {
             }}>
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://wa.me/5215612463102')}`}
-                alt="QR WhatsApp"
+                alt="QR WhatsApp Soporte"
                 style={{
                   width: "140px",
                   height: "140px",
@@ -7678,7 +7912,7 @@ function App() {
               />
             </div>
 
-            {/* Botón de WhatsApp */}
+            {/* Botón WhatsApp */}
             <a
               href="https://wa.me/5215612463102"
               target="_blank"
@@ -7716,7 +7950,6 @@ function App() {
               Abrir WhatsApp
             </a>
 
-            {/* Footer */}
             <div style={{
               marginTop: "12px",
               textAlign: "center",
@@ -7727,6 +7960,360 @@ function App() {
             }}>
               Escanea el código QR o<br/>
               haz clic para chatear
+            </div>
+          </div>
+        )}
+
+        {/* Panel QR Canal WhatsApp */}
+        {showQRPanel === 'canal' && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "70px",
+              right: "60px",
+              background: "rgba(13, 31, 60, 0.98)",
+              border: "1px solid rgba(18, 140, 126, 0.3)",
+              borderRadius: "16px",
+              padding: "20px",
+              minWidth: "280px",
+              boxShadow: "0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              animation: "slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              zIndex: 1
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "16px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid rgba(255, 255, 255, 0.1)"
+            }}>
+              <div style={{
+                width: "36px",
+                height: "36px",
+                background: "linear-gradient(135deg, #128C7E 0%, #075E54 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px"
+              }}>
+                📢
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  color: "#fff",
+                  fontFamily: getFont(theme, "title"),
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  lineHeight: 1.2
+                }}>
+                  Canal WhatsApp
+                </div>
+                <div style={{
+                  color: "rgba(255, 255, 255, 0.5)",
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "11px",
+                  marginTop: "2px"
+                }}>
+                  Únete a nuestro canal
+                </div>
+              </div>
+              <button
+                onClick={() => setShowQRPanel(null)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "rgba(255, 255, 255, 0.6)",
+                  fontSize: "16px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.6)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "12px",
+              marginBottom: "16px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center"
+            }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://whatsapp.com/channel/0029VbBYKQ90vKGA9hjx1G3C')}`}
+                alt="QR Canal WhatsApp"
+                style={{
+                  width: "140px",
+                  height: "140px",
+                  display: "block"
+                }}
+              />
+            </div>
+
+            <a
+              href="https://whatsapp.com/channel/0029VbBYKQ90vKGA9hjx1G3C"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px",
+                background: "linear-gradient(135deg, #128C7E 0%, #075E54 100%)",
+                border: "none",
+                borderRadius: "12px",
+                padding: "14px 20px",
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "14px",
+                fontWeight: "700",
+                cursor: "pointer",
+                textDecoration: "none",
+                transition: "all 0.2s",
+                boxShadow: "0 4px 12px rgba(18, 140, 126, 0.3)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 6px 20px rgba(18, 140, 126, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(18, 140, 126, 0.3)";
+              }}
+            >
+              📢 Unirse al Canal
+            </a>
+
+            <div style={{
+              marginTop: "12px",
+              textAlign: "center",
+              color: "rgba(255, 255, 255, 0.4)",
+              fontFamily: getFont(theme, "secondary"),
+              fontSize: "10px",
+              lineHeight: 1.4
+            }}>
+              Recibe actualizaciones y noticias<br/>
+              directamente en WhatsApp
+            </div>
+          </div>
+        )}
+
+        {/* Panel Donativo Mifel */}
+        {showQRPanel === 'donativo' && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "70px",
+              right: "60px",
+              background: "rgba(13, 31, 60, 0.98)",
+              border: "1px solid rgba(168, 85, 247, 0.3)",
+              borderRadius: "16px",
+              padding: "20px",
+              minWidth: "280px",
+              boxShadow: "0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              animation: "slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              zIndex: 1
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "16px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid rgba(255, 255, 255, 0.1)"
+            }}>
+              <div style={{
+                width: "36px",
+                height: "36px",
+                background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px"
+              }}>
+                💝
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  color: "#fff",
+                  fontFamily: getFont(theme, "title"),
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  lineHeight: 1.2
+                }}>
+                  Apoya el Proyecto
+                </div>
+                <div style={{
+                  color: "rgba(255, 255, 255, 0.5)",
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "11px",
+                  marginTop: "2px"
+                }}>
+                  Tu donativo nos ayuda
+                </div>
+              </div>
+              <button
+                onClick={() => setShowQRPanel(null)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "rgba(255, 255, 255, 0.6)",
+                  fontSize: "16px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.6)";
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Información de cuenta Mifel */}
+            <div style={{
+              background: "rgba(168, 85, 247, 0.1)",
+              border: "1px solid rgba(168, 85, 247, 0.3)",
+              borderRadius: "12px",
+              padding: "16px",
+              marginBottom: "16px"
+            }}>
+              <div style={{
+                color: "#fff",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "12px",
+                marginBottom: "12px",
+                fontWeight: "600",
+                textAlign: "center"
+              }}>
+                Datos para transferencia:
+              </div>
+              
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px"
+              }}>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                  <span style={{
+                    color: "rgba(255, 255, 255, 0.6)",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "11px"
+                  }}>
+                    Banco:
+                  </span>
+                  <span style={{
+                    color: "#fff",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "12px",
+                    fontWeight: "600"
+                  }}>
+                    Mifel
+                  </span>
+                </div>
+                
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                  <span style={{
+                    color: "rgba(255, 255, 255, 0.6)",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "11px"
+                  }}>
+                    Titular:
+                  </span>
+                  <span style={{
+                    color: "#fff",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "12px",
+                    fontWeight: "600"
+                  }}>
+                    Krispin Alexis
+                  </span>
+                </div>
+                
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  marginTop: "4px"
+                }}>
+                  <span style={{
+                    color: "rgba(255, 255, 255, 0.6)",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "11px"
+                  }}>
+                    CLABE:
+                  </span>
+                  <span style={{
+                    color: "#A855F7",
+                    fontFamily: "'Space Mono', monospace",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    letterSpacing: "0.5px"
+                  }}>
+                    014028090014825779
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              textAlign: "center",
+              color: "rgba(255, 255, 255, 0.4)",
+              fontFamily: getFont(theme, "secondary"),
+              fontSize: "10px",
+              lineHeight: 1.4
+            }}>
+              Cualquier monto es apreciado 💜<br/>
+              ¡Gracias por tu apoyo!
             </div>
           </div>
         )}
