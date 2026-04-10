@@ -4374,7 +4374,7 @@ function SegundoAccesoTab() {
               const st = carriles[c.id];
               const bc = st.saturado ? "#ef4444" : "#22c55e";
               const tz = getTermZona(st.terminal);
-              const tc = tz === "Norte" ? "#38bdf8" : "#a78bfa";
+              const tc = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
               return (
                 <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
                   <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:getFont(theme, "secondary"), fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
@@ -4397,7 +4397,7 @@ function SegundoAccesoTab() {
             </div>}
           </div>
           <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -4410,7 +4410,7 @@ function SegundoAccesoTab() {
         {SEGUNDO_CARRILES_INGRESO.map(carril => {
           const st        = carriles[carril.id];
           const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+          const zonaColor = termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
@@ -4440,11 +4440,19 @@ function SegundoAccesoTab() {
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
                   <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div>
+                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
+                    {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
+                  </div>
                 </div>
                 <span style={{ fontSize:"22px" }}>🚛</span>
               </div>
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
+              <div style={{ marginBottom:"8px" }}>
+                <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                  <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
+                </div>
+              </div>
               <div style={{ marginBottom:"8px" }}>
                 <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
                 <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
@@ -4551,12 +4559,14 @@ function SegundoAccesoTab() {
       {subTab === "confinada" && <>
         {/* Diagrama rápido */}
         <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA · ZONA SUR</div>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
           <div style={{ display:"flex", gap:"8px" }}>
             {CONFINADA_CARRILES.map((c, i) => {
               const st = confinada[c.id];
               const sinUso = st.terminal === "sin_uso";
+              const esGeneral = st.terminal === "general";
               const bc = sinUso ? "#6b7280" : st.saturado ? "#ef4444" : st.transferencia ? "#fbbf24" : "#22c55e";
+              const tc = esGeneral ? "#fbbf24" : "#a78bfa";
               return (
                 <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
                   <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:getFont(theme, "secondary"), fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
@@ -4564,8 +4574,8 @@ function SegundoAccesoTab() {
                     ? <div style={{ background:"#6b728022", border:"1px solid #6b728055", borderRadius:"6px", padding:"4px 4px" }}>
                         <SlotText value="SIN USO" color="#9ca3af" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
                       </div>
-                    : <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa55", borderRadius:"6px", padding:"4px 4px" }}>
-                        <SlotText value={getTermName(st.terminal)} color="#a78bfa" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
+                    : <div style={{ background:tc+"22", border:`1px solid ${tc}55`, borderRadius:"6px", padding:"4px 4px" }}>
+                        <SlotText value={getTermName(st.terminal)} color={tc} fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
                       </div>
                   }
                   {!sinUso && st.transferencia && <div style={{ fontSize:"11px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>🔄 TRANS.</div>}
@@ -4578,7 +4588,7 @@ function SegundoAccesoTab() {
             })}
           </div>
           <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#fbbf24","TRANSFERENCIA"],["#a78bfa","ZONA SUR"],["#6b7280","SIN USO"]].map(([c,l]) => (
+            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#fbbf24","GENERAL/TRANS."],["#a78bfa","ZONA SUR"],["#6b7280","SIN USO"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -4595,8 +4605,8 @@ function SegundoAccesoTab() {
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = st.terminal==="sin_uso" ? "#6b7280" : st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
-          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="sin_uso" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+          const borderColor = st.terminal==="sin_uso" ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
+          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="sin_uso" || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
             <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
               {/* Header carril */}
@@ -4625,22 +4635,36 @@ function SegundoAccesoTab() {
               </div>
 
               {/* Terminal asignada */}
-              <div style={{ background: st.terminal==="sin_uso" ? "#6b728011" : "#a78bfa11", border:`1px solid ${st.terminal==="sin_uso"?"#6b728033":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ background: st.terminal==="sin_uso" ? "#6b728011" : st.terminal==="general" ? "#fbbf2411" : "#a78bfa11", border:`1px solid ${st.terminal==="sin_uso"?"#6b728033":st.terminal==="general"?"#fbbf2433":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
-                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY · ZONA SUR</div>
+                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
                   {st.terminal === "sin_uso"
                     ? <><div style={{ color:"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
+                    : st.terminal === "general"
+                    ? <><div style={{ color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>GENERAL</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todas las terminales</div></>
                     : <><div style={{ color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
                   }
                 </div>
                 <span style={{ fontSize:"22px" }}>{st.terminal === "sin_uso" ? "🚫" : "🚛"}</span>
               </div>
 
-              {/* Cambiar terminal — solo Zona Sur + Sin Uso */}
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL (ZONA SUR):</div>
-              <div style={{ marginBottom:"10px" }}>
+              {/* Cambiar terminal — General + Zona Sur + Sin Uso */}
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
+              <div style={{ marginBottom:"8px" }}>
+                <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                  <button onClick={() => updateConfinada(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
+                </div>
+              </div>
+              <div style={{ marginBottom:"8px" }}>
+                <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
                 <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
                   {termsSur.map(t => <button key={t.id} onClick={() => updateConfinada(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                </div>
+              </div>
+              <div style={{ marginBottom:"10px" }}>
+                <div style={{ fontSize:"9px", color:"#6b7280", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— SIN USO —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
                   <button onClick={() => updateConfinada(carril.id,"terminal","sin_uso")} style={{ padding:"5px 10px", background: st.terminal==="sin_uso"?"#6b728022":"#0a1628", border:`1px solid ${st.terminal==="sin_uso"?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="sin_uso"?"#9ca3af":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="sin_uso"?"700":"400" }}>🚫 Sin uso</button>
                 </div>
               </div>
