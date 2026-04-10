@@ -7232,7 +7232,6 @@ function App() {
   const [showSessionMenu, setShowSessionMenu] = useState(false);
   
   // ── Widget de Soporte WhatsApp ──
-  const [supportVisible, setSupportVisible] = useState(true);
   const [supportExpanded, setSupportExpanded] = useState(false);
   const handleSignOut = async () => {
     try {
@@ -7252,14 +7251,6 @@ function App() {
       setAuthUser(session?.user ?? null);
     });
     return () => listener.subscription.unsubscribe();
-  }, []);
-
-  // Auto-ocultar el widget de soporte después de 8 segundos
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSupportVisible(false);
-    }, 8000);
-    return () => clearTimeout(timer);
   }, []);
 
   // ✅ FIX: handlers correctamente definidos dentro del componente
@@ -7532,57 +7523,36 @@ function App() {
           position: "fixed",
           bottom: "20px",
           right: "20px",
-          zIndex: 99998,
-          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          opacity: supportVisible ? 1 : 0,
-          transform: supportVisible ? "translateY(0)" : "translateY(20px)",
-          pointerEvents: supportVisible ? "auto" : "none"
-        }}
-        onMouseEnter={() => {
-          setSupportVisible(true);
-          setSupportExpanded(true);
-        }}
-        onMouseLeave={() => {
-          setSupportExpanded(false);
+          zIndex: 99998
         }}
       >
-        {/* Botón principal */}
+        {/* Botón principal - siempre visible */}
         <div
-          onClick={() => {
-            setSupportExpanded(!supportExpanded);
-            setSupportVisible(true);
-          }}
+          onClick={() => setSupportExpanded(!supportExpanded)}
           style={{
-            width: supportExpanded ? "auto" : "56px",
+            width: "56px",
             height: "56px",
             background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
-            borderRadius: "28px",
+            borderRadius: "50%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             boxShadow: "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
-            padding: supportExpanded ? "0 20px 0 16px" : "0",
-            gap: "10px",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border: "2px solid rgba(255, 255, 255, 0.2)",
             backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)"
+            WebkitBackdropFilter: "blur(10px)",
+            transform: supportExpanded ? "scale(1.05)" : "scale(1)"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = supportExpanded ? "scale(1.05)" : "scale(1)";
           }}
         >
           <span style={{ fontSize: "28px", lineHeight: 1 }}>💬</span>
-          {supportExpanded && (
-            <span style={{
-              color: "#fff",
-              fontFamily: getFont(theme, "secondary"),
-              fontSize: "14px",
-              fontWeight: "600",
-              whiteSpace: "nowrap",
-              letterSpacing: "0.3px"
-            }}>
-              Soporte
-            </span>
-          )}
         </div>
 
         {/* Panel expandido */}
@@ -7602,6 +7572,7 @@ function App() {
               WebkitBackdropFilter: "blur(20px)",
               animation: "slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             <style>{`
               @keyframes slideUp {
@@ -7637,7 +7608,7 @@ function App() {
               }}>
                 💬
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{
                   color: "#fff",
                   fontFamily: getFont(theme, "title"),
@@ -7656,6 +7627,34 @@ function App() {
                   ¿Necesitas ayuda?
                 </div>
               </div>
+              {/* Botón cerrar */}
+              <button
+                onClick={() => setSupportExpanded(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "rgba(255, 255, 255, 0.6)",
+                  fontSize: "16px",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.6)";
+                }}
+              >
+                ✕
+              </button>
             </div>
 
             {/* QR Code */}
