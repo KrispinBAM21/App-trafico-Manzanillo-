@@ -7589,7 +7589,7 @@ function App() {
 
             {/* Burbuja: Página Facebook */}
             <div
-              onClick={() => window.open('https://www.facebook.com/profile.php?id=61571287278949', '_blank')}
+              onClick={() => window.open('https://www.facebook.com/conectmanzanillooficial/', '_blank')}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -8062,7 +8062,7 @@ function App() {
               alignItems: "center"
             }}>
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://whatsapp.com/channel/0029VbBYKQ90vKGA9hjx1G3C')}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s')}`}
                 alt="QR Canal WhatsApp"
                 style={{
                   width: "140px",
@@ -8073,7 +8073,7 @@ function App() {
             </div>
 
             <a
-              href="https://whatsapp.com/channel/0029VbBYKQ90vKGA9hjx1G3C"
+              href="https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s"
               target="_blank"
               rel="noopener noreferrer"
               style={{
