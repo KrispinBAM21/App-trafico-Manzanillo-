@@ -7770,7 +7770,7 @@ function App() {
             height: "56px",
             background: supportExpanded 
               ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
-              : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+              : "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
@@ -7778,7 +7778,7 @@ function App() {
             cursor: "pointer",
             boxShadow: supportExpanded
               ? "0 4px 20px rgba(239, 68, 68, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)"
-              : "0 4px 20px rgba(59, 130, 246, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
+              : "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border: "2px solid rgba(255, 255, 255, 0.2)",
             backdropFilter: "blur(10px)",
@@ -7798,7 +7798,7 @@ function App() {
             transform: supportExpanded ? "rotate(-45deg)" : "rotate(0deg)",
             transition: "transform 0.3s"
           }}>
-            {supportExpanded ? "✕" : "🔗"}
+            {supportExpanded ? "✕" : "💬"}
           </span>
         </div>
 
