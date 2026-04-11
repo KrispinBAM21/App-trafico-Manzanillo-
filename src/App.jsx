@@ -8272,7 +8272,7 @@ function App() {
                     fontSize: "12px",
                     fontWeight: "600"
                   }}>
-                    Krispin Alexis
+                    Ramon Romero
                   </span>
                 </div>
                 
