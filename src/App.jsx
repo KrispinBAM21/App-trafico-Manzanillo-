@@ -100,11 +100,11 @@ const DEFAULT_THEME = {
   backgroundImage: "",
   backgroundImageOverlayOpacity: 0.65, // ✨ NUEVO: Opacidad de la capa oscura sobre imagen de fondo (0-1)
   
-  // Tipografía - VALORES BASE PARA MÓVIL (se escalan automáticamente en desktop)
+  // Tipografía
   primaryFont: "'Playfair Display', serif",
   secondaryFont: "'DM Sans', sans-serif",
-  baseFontSize: 14,      // Mobile: 14px, Desktop: ~18px (auto-escalado)
-  titleFontSize: 17,     // Mobile: 17px, Desktop: ~24px (auto-escalado)
+  baseFontSize: 14,
+  titleFontSize: 17,
   
   // ✨ Colores de texto
   textColors: {
@@ -205,1098 +205,1098 @@ const INCIDENT_SUBCATEGORIAS = {
     { id: "volcadura_contenedor", label: "Volcadura de contenedor",       icon: "📦" },
     { id: "herido",             label: "Herido",                          icon: "🏥" },
     { id: "caida_material",     label: "Caída de material",               icon: "⬇️" },
+    { id: "camion_volcado",     label: "Camión volcado",                  icon: "🔄" },
+    { id: "zona_asalto",        label: "Zona de asalto",                  icon: "🚔" },
+    { id: "zona_robo",          label: "Zona de robo",                    icon: "⚡" },
   ],
 };
 
-const UBICACIONES = [
-  { id: "pezvela",      label: "Acceso Pez Vela",          icon: "🐟", color: "#3b82f6" },
-  { id: "puerta15",     label: "Puerta 15",                icon: "🚪", color: "#8b5cf6" },
-  { id: "zonanorte",    label: "Zona Norte",               icon: "🧭", color: "#06b6d4" },
-  { id: "libramientovial", label: "Libramiento Vial",     icon: "🛣️", color: "#10b981" },
-  { id: "bulevardcostero", label: "Bulevar Costero",      icon: "🏖️", color: "#f59e0b" },
-  { id: "bulevardhazesa",  label: "Bulevar (HAZESA)",     icon: "🛤️", color: "#ec4899" },
-  { id: "ingresoasipona",  label: "Ingreso ASIPONA",      icon: "⚓", color: "#a855f7" },
-  { id: "otro",            label: "Otro",                 icon: "📍", color: "#6b7280" },
+const INCIDENT_TYPES = [
+  { id: "incidente", label: "Incidente",      icon: "⚠️", color: "#f97316" },
+  { id: "accidente", label: "Accidente",      icon: "🚨", color: "#ef4444" },
+  { id: "bloqueo",   label: "Bloqueo / Corte",icon: "🚧", color: "#eab308" },
+  { id: "obra",      label: "Obra / Desvío",  icon: "🏗️", color: "#3b82f6" },
 ];
 
-const ACCESS_POINTS = [
-  { 
-    id: "pezvela", 
-    label: "Acceso Pez Vela", 
-    icon: "🐟",
-    lanes: [
-      { id: "pezvela_1", label: "Carril 1" },
-      { id: "pezvela_2", label: "Carril 2" },
-      { id: "pezvela_3", label: "Carril 3" },
-      { id: "pezvela_4", label: "Carril 4" },
-    ]
-  },
-  { 
-    id: "puerta15", 
-    label: "Puerta 15", 
-    icon: "🚪",
-    lanes: [
-      { id: "puerta15_1", label: "Carril 1" },
-      { id: "puerta15_2", label: "Carril 2" },
-      { id: "puerta15_3", label: "Carril 3" },
-    ]
-  },
-  { 
-    id: "zonanorte", 
-    label: "Zona Norte", 
-    icon: "🧭",
-    lanes: [
-      { id: "zonanorte_1", label: "Carril 1" },
-      { id: "zonanorte_2", label: "Carril 2" },
-    ]
-  },
+const VIALIDADES = [
+  { id: "jalipa_puerto",    name: "Jalipa → Puerto",              fullName: "Vialidad Jalipa - Puerto" },
+  { id: "puerto_jalipa",    name: "Puerto → Jalipa",              fullName: "Vialidad Puerto - Jalipa" },
+  { id: "libramiento",      name: "Cihuatlán-Manzanillo",         fullName: "Libramiento Cihuatlán-Manzanillo" },
+  { id: "mzllo_colima",     name: "Manzanillo → Colima",          fullName: "Carretera Manzanillo-Colima" },
+  { id: "colima_mzllo",     name: "Colima → Manzanillo",          fullName: "Carretera Colima-Manzanillo" },
+  { id: "algodones",        name: "Calle Algodones",              fullName: "Calle Algodones" },
+];
+
+const VIALIDAD_STATUS_OPTIONS = [
+  { id: "libre",    label: "Libre",             color: "#22c55e", icon: "✓" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#eab308", icon: "⚠" },
+  { id: "saturado", label: "Saturado",           color: "#f97316", icon: "🔶" },
+  { id: "detenido", label: "Tráfico Detenido",   color: "#ef4444", icon: "✗" },
 ];
 
 const ACCESOS_PRINCIPALES = [
-  { id: "pezvela",   label: "Pez Vela",   icon: "🐟" },
-  { id: "puerta15",  label: "Puerta 15",  icon: "🚪" },
-  { id: "zonanorte", label: "Zona Norte", icon: "🧭" },
+  { id: "pezvela",   label: "Acceso Pez Vela",  color: "#a78bfa", zona: "Zona Sur"   },
+  { id: "puerta15",  label: "Acceso Puerta 15", color: "#34d399", zona: "Zona Sur"   },
+  { id: "zonanorte", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Zona Norte" },
+];
+const ACCESO_STATUS_OPTIONS = [
+  { id: "libre",    label: "Libre / Fluido", color: "#22c55e", icon: "✓" },
+  { id: "lento",    label: "Tráfico Lento",  color: "#eab308", icon: "⚠" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "✗" },
+  { id: "cerrado",  label: "Cerrado / Corte", color: "#6b7280", icon: "⛔" },
+];
+const RETORNO_OPTIONS = [
+  { id: "none",     label: "Sin Retornos",     color: "#22c55e", icon: "✓" },
+  { id: "terminal", label: "Retorno Terminal",  color: "#f97316", icon: "↩" },
+  { id: "asipona",  label: "Retorno ASIPONA",   color: "#a855f7", icon: "⚓" },
 ];
 
-const PATIOS_LIST = [
-  { id: "libramientovial", label: "Libramiento Vial",   icon: "🛣️", color: "#10b981" },
-  { id: "bulevardcostero", label: "Bulevar Costero",    icon: "🏖️", color: "#f59e0b" },
-  { id: "bulevardhazesa",  label: "Bulevar (HAZESA)",   icon: "🛤️", color: "#ec4899" },
-  { id: "ingresoasipona",  label: "Ingreso ASIPONA",    icon: "⚓", color: "#a855f7" },
+const TODAS_TERMINALES = [
+  { id: "general",    name: "GENERAL",    zona: "Todas" }, // ✨ NUEVO - Opción General
+  { id: "contecon",   name: "CONTECON",   zona: "Norte" },
+  { id: "hazesa",     name: "HAZESA",     zona: "Norte" },
+  { id: "timsa",      name: "TIMSA",      zona: "Sur"   },
+  { id: "ssa",        name: "SSA",        zona: "Sur"   },
+  { id: "ocupa",      name: "OCUPA",      zona: "Sur"   },
+  { id: "multimodal", name: "MULTIMODAL", zona: "Sur"   },
+  { id: "friman",     name: "FRIMAN",     zona: "Sur"   },
+  { id: "lajunta",    name: "LA JUNTA",   zona: "Sur"   },
+  { id: "cemex",      name: "CEMEX",      zona: "Sur"   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ✨ NUEVO: SISTEMA DE ESCALADO RESPONSIVE PARA TIPOGRAFÍA
-// ─────────────────────────────────────────────────────────────────────────────
-const useResponsiveFontScale = () => {
-  const [scale, setScale] = useState(1);
+const PATIOS_REGULADORES = [
+  { id: "cima1",     name: "CIMA 1",    fullName: "Patio Regulador CIMA 1"    },
+  { id: "cima2",     name: "CIMA 2",    fullName: "Patio Regulador CIMA 2"    },
+  { id: "isl",       name: "ISL",       fullName: "Patio Regulador ISL"       },
+  { id: "alman",     name: "ALMAN",     fullName: "Patio Regulador ALMAN"     },
+  { id: "sia",       name: "SIA",       fullName: "Patio Regulador SIA"       },
+  { id: "almacont",  name: "ALMACONT",  fullName: "Patio Regulador ALMACONT"  },
+  { id: "ssa_p",     name: "SSA",       fullName: "Patio Regulador SSA"       },
+];
 
-  useEffect(() => {
-    const updateScale = () => {
-      const width = window.innerWidth;
-      
-      // Breakpoints basados en análisis de copoma.com.mx
-      // Mobile: 1x (sin cambios)
-      // Tablet: 1.15x
-      // Desktop: 1.35x
-      // Large Desktop: 1.5x
-      
-      if (width < 640) {
-        setScale(1);           // Mobile: tamaños originales
-      } else if (width < 1024) {
-        setScale(1.15);        // Tablet: +15%
-      } else if (width < 1440) {
-        setScale(1.35);        // Desktop: +35%
+const PATIO_STATUS_OPTIONS = [
+  { id: "libre",    label: "Patio Libre",    color: "#22c55e", icon: "✓" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "✗" },
+  { id: "cerrado",  label: "Cerrado",         color: "#6b7280", icon: "⛔" },
+  { id: "lleno",    label: "Patio Lleno",     color: "#f97316", icon: "⚠" },
+];
+
+const ACCESOS_SEGUNDO = [
+  {
+    id: "pezvela", label: "Acceso Pez Vela", color: "#a78bfa", zona: "Sur",
+    carriles: [
+      { id: "pv_c1", label: "Carril 1", tipo: "ingreso", defaultTerminal: "general" }, // ✨ CAMBIADO A GENERAL
+      { id: "pv_c2", label: "Carril 2", tipo: "ingreso", defaultTerminal: "general" }, // ✨ CAMBIADO A GENERAL  
+      { id: "pv_c3", label: "Carril 3", tipo: "ingreso", defaultTerminal: "general" }, // ✨ CAMBIADO A GENERAL
+      { id: "pv_c4", label: "Carril 4", tipo: "ingreso", defaultTerminal: "general" }, // ✨ CAMBIADO A GENERAL
+      { id: "pv_c5", label: "Carril 5", tipo: "expo",  flujo: "Exportación" },
+      { id: "pv_c6", label: "Carril 6", tipo: "impo",  flujo: "Importación" },
+      { id: "pv_c7", label: "Carril 7", tipo: "impo",  flujo: "Importación" },
+      { id: "pv_c8", label: "Carril 8", tipo: "expo",  flujo: "Exportación" },
+    ],
+  },
+  {
+    id: "puerta15", label: "Puerta 15", color: "#34d399", zona: "Sur",
+    carriles: [
+      { id: "p15_c1", label: "Carril 1", tipo: "expo", flujo: "Exportación" },
+      { id: "p15_c2", label: "Carril 2", tipo: "impo", flujo: "Importación" },
+      { id: "p15_c3", label: "Carril 3", tipo: "impo", flujo: "Importación" },
+    ],
+  },
+  {
+    id: "zonanorte_acc", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Norte",
+    carriles: [
+      { id: "zn_c1", label: "Carril 1", tipo: "expo", flujo: "Exportación" },
+      { id: "zn_c2", label: "Carril 2", tipo: "expo", flujo: "Exportación" },
+      { id: "zn_c3", label: "Carril 3", tipo: "impo", flujo: "Importación" },
+    ],
+  },
+];
+
+const mkSegundoState = () => {
+  const state = {};
+  ACCESOS_SEGUNDO.forEach(acc => {
+    acc.carriles.forEach(c => {
+      if (c.tipo === "ingreso") {
+        state[c.id] = { abierto: true, terminal: c.defaultTerminal, saturado: false, retornos: false, lastUpdate: Date.now(), updatedBy: "Sistema" };
       } else {
-        setScale(1.5);         // Large Desktop: +50%
+        state[c.id] = { abierto: true, saturado: false, lastUpdate: Date.now(), updatedBy: "Sistema" };
       }
-    };
-
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, []);
-
-  return scale;
+    });
+  });
+  return state;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ✨ Función helper para obtener fuentes del tema
-const getFont = (theme, type) => {
-  if (type === "title" || type === "primary") {
-    return theme?.primaryFont || DEFAULT_THEME.primaryFont;
-  }
-  return theme?.secondaryFont || DEFAULT_THEME.secondaryFont;
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const timeAgo = (ts) => {
+  const d = Date.now() - ts;
+  if (d < 60000)   return "hace un momento";
+  if (d < 3600000) return `hace ${Math.floor(d / 60000)}min`;
+  return `hace ${Math.floor(d / 3600000)}h`;
 };
+const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
 
-// ✨ Función helper para obtener tamaños de fuente CON ESCALADO RESPONSIVE
-const getFontSize = (theme, type, scale = 1) => {
-  const baseSize = type === "title" 
-    ? (theme?.titleFontSize || DEFAULT_THEME.titleFontSize)
-    : (theme?.baseFontSize || DEFAULT_THEME.baseFontSize);
-  
-  return Math.round(baseSize * scale);
-};
-
-// ✨ Función helper para obtener color de texto del tema
-const getTextColor = (theme, type = "primary") => {
-  return theme?.textColors?.[type] || DEFAULT_THEME.textColors[type];
-};
-
-// ✨ Función helper para obtener estilos de content box
+// ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
 const getContentBoxStyle = (theme) => {
-  const box = theme?.contentBox || DEFAULT_THEME.contentBox;
-  if (!box.enabled) return {};
-  
-  const styles = {
-    background: box.background,
-    backdropFilter: `blur(${box.backdropBlur}px)`,
-    WebkitBackdropFilter: `blur(${box.backdropBlur}px)`,
-    border: `${box.borderWidth}px solid ${box.borderColor}`,
-    borderRadius: `${box.borderRadius}px`,
-    padding: `${box.padding}px`,
-  };
-  
-  if (box.shadow?.enabled) {
-    styles.boxShadow = `${box.shadow.offsetX}px ${box.shadow.offsetY}px ${box.shadow.blur}px ${box.shadow.color}`;
-  }
-  
-  return styles;
-};
-
-// ✨ Función helper para obtener icono (emoji o imagen)
-const getIcon = (theme, category, key) => {
-  const iconConfig = theme?.[category]?.[key] || DEFAULT_THEME[category]?.[key];
-  if (!iconConfig) return null;
-  
-  if (iconConfig.type === "emoji") {
-    return { 
-      type: "emoji", 
-      value: iconConfig.value,
-      size: iconConfig.size 
-    };
-  } else if (iconConfig.type === "image") {
-    return { 
-      type: "image", 
-      url: iconConfig.url,
-      size: iconConfig.size 
+  // ✅ FIX: Validación robusta - si no hay theme o contentBox, usar valores por defecto
+  if (!theme || !theme.contentBox || !theme.contentBox.enabled) {
+    return {
+      background: "rgba(255, 255, 255, 0.03)",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
+      borderRadius: "12px",
+      padding: "16px"
     };
   }
-  return null;
+  
+  const box = theme.contentBox;
+  let background = box.background || "rgba(255, 255, 255, 0.03)";
+  
+  if (box.gradientOverlay && box.gradientOverlay.enabled) {
+    background = `${box.gradientOverlay.gradient}, ${box.background}`;
+  }
+  
+  let boxShadow = "none";
+  if (box.shadow && box.shadow.enabled) {
+    boxShadow = `${box.shadow.offsetX || 0}px ${box.shadow.offsetY || 0}px ${box.shadow.blur || 0}px ${box.shadow.color || "rgba(0,0,0,0.3)"}`;
+  }
+  
+  return {
+    background,
+    backdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
+    WebkitBackdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
+    border: `${box.borderWidth || 1}px solid ${box.borderColor || "rgba(255, 255, 255, 0.1)"}`,
+    borderRadius: `${box.borderRadius || 12}px`,
+    padding: `${box.padding || 16}px`,
+    boxShadow
+  };
 };
 
-// ✨ NUEVO HOOK: Gestión global del tema (incluye carga desde Supabase)
-function useGlobalTheme() {
-  const [theme, setTheme] = useState(DEFAULT_THEME);
-  const [loading, setLoading] = useState(true);
+// ✨ Helper para obtener fuentes dinámicas del theme
+// ✅ FIX: Validación robusta con fallbacks seguros
+const getFont = (theme, type) => {
+  if (!theme) return "'DM Sans', sans-serif"; // fallback si theme es undefined/null
+  if (type === "title") return theme.primaryFont || "'Playfair Display', serif";
+  return theme.secondaryFont || "'DM Sans', sans-serif";
+};
 
-  useEffect(() => {
-    loadThemeFromDatabase();
-  }, []);
+// ✅ FIX: Validación robusta con fallbacks seguros
+const getFontSize = (theme, type) => {
+  if (!theme) return "14px"; // fallback si theme es undefined/null
+  if (type === "title") return `${theme.titleFontSize || 17}px`;
+  return `${theme.baseFontSize || 14}px`;
+};
 
-  const loadThemeFromDatabase = async () => {
-    try {
-      const { data, error } = await sb
-        .from("app_theme")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+const mkTerminals = (list) =>
+  Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
 
-      if (error) {
-        console.error("Error loading theme:", error);
-        setTheme(DEFAULT_THEME);
-      } else if (data?.theme_config) {
-        // Merge con DEFAULT_THEME para garantizar que todos los campos existen
-        setTheme({ ...DEFAULT_THEME, ...data.theme_config });
-      } else {
-        setTheme(DEFAULT_THEME);
-      }
-    } catch (err) {
-      console.error("Theme load exception:", err);
-      setTheme(DEFAULT_THEME);
-    } finally {
-      setLoading(false);
-    }
-  };
+const mkVialidades = () =>
+  Object.fromEntries(VIALIDADES.map(v => [v.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} }]));
 
-  const updateTheme = (newTheme) => {
-    setTheme({ ...DEFAULT_THEME, ...newTheme });
-  };
+const mkPatios = () =>
+  Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} }]));
 
-  return { theme, updateTheme, loading, reload: loadThemeFromDatabase };
-}
+const mkAccesos = () =>
+  Object.fromEntries(ACCESOS_PRINCIPALES.map(a => [a.id, {
+    status: "libre", retornos: "none",
+    lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {},
+  }]));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CUSTOM HOOKS
-// ─────────────────────────────────────────────────────────────────────────────
+const SEGUNDO_CARRILES_INGRESO = [
+  { id: "c1", label: "Carril 1", defaultTerminal: "ssa"   },
+  { id: "c2", label: "Carril 2", defaultTerminal: "timsa" },
+  { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
+];
+const SEGUNDO_TRAFICO_OPTS = [
+  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "✓" },
+  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "✗" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "🐢" },
+  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "🛑" },
+];
+const SEGUNDO_CONTENEDOR_OPTS = [
+  { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "📦" },
+  { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "🔓" },
+  { id: "ambos",            label: "Ambos (Abierto/Cerrado)", color: "#f97316", icon: "📦🔓" },
+  { id: "no_horario",       label: "No es Horario",           color: "#6b7280", icon: "🕐" },
+];
 
-// Hook: contador de votos en vivo desde RT subscription
-function useVoteCount(accesoId) {
-  const [count, setCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+const mkSegundoIngreso = () => ({
+  ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
+    terminal: c.defaultTerminal, saturado: false, retornos: false,
+    expo: "libre", expo_contenedor: null, impo: "libre",
+    lastUpdate: Date.now(), updatedBy: "Sistema",
+  }])),
+  c4: { saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
+});
 
-  useEffect(() => {
-    if (!accesoId) {
-      setLoading(false);
-      return;
-    }
+// ─── CONFINADA ────────────────────────────────────────────────────────────────
+const CONFINADA_CARRILES = [
+  { id: "cf_c1", label: "Carril 1", defaultTerminal: "general",    transferencia: false }, // ✨ CAMBIADO A GENERAL
+  { id: "cf_c2", label: "Carril 2", defaultTerminal: "general",    transferencia: false }, // ✨ CAMBIADO A GENERAL
+  { id: "cf_c3", label: "Carril 3", defaultTerminal: "general",    transferencia: false }, // ✨ CAMBIADO A GENERAL
+];
 
-    const fetchCount = async () => {
-      const { count: c, error } = await sb
-        .from("votos_acceso")
-        .select("*", { count: "exact", head: true })
-        .eq("acceso_id", accesoId)
-        .gte("voted_at", new Date(Date.now() - 3600000).toISOString());
-      if (!error) setCount(c || 0);
-      setLoading(false);
-    };
+const mkConfinadaState = () => ({
+  ...Object.fromEntries(CONFINADA_CARRILES.map(c => [c.id, {
+    terminal: c.defaultTerminal,
+    saturado: false,
+    retornos: false,
+    transferencia: false,
+    expo: "libre",
+    expo_contenedor: null,
+    impo: "libre",
+    lastUpdate: Date.now(),
+    updatedBy: "Sistema",
+  }])),
+});
 
-    fetchCount();
+const ACCESOS_CARRILES = [
+  {
+    id: "pezvela", label: "Acceso Pez Vela", color: "#a78bfa", zona: "Sur",
+    carriles: [
+      { id: "ac_pv_c5", label: "Carril 5", tipo: "expo" },
+      { id: "ac_pv_c6", label: "Carril 6", tipo: "impo" },
+      { id: "ac_pv_c7", label: "Carril 7", tipo: "impo" },
+      { id: "ac_pv_c8", label: "Carril 8", tipo: "expo" },
+    ],
+  },
+  {
+    id: "puerta15", label: "Puerta 15", color: "#34d399", zona: "Sur",
+    carriles: [
+      { id: "ac_p15_c1", label: "Carril 1", tipo: "expo" },
+      { id: "ac_p15_c2", label: "Carril 2", tipo: "impo" },
+      { id: "ac_p15_c3", label: "Carril 3", tipo: "impo" },
+    ],
+  },
+  {
+    id: "zonanorte", label: "Zona Norte", color: "#38bdf8", zona: "Norte",
+    carriles: [
+      { id: "ac_zn_c1", label: "Carril 1", tipo: "expo" },
+      { id: "ac_zn_c2", label: "Carril 2", tipo: "expo" },
+      { id: "ac_zn_c3", label: "Carril 3", tipo: "impo" },
+    ],
+  },
+];
+const mkCarrilesState = () => {
+  const s = {};
+  ACCESOS_CARRILES.forEach(acc => acc.carriles.forEach(c => {
+    s[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Sistema" };
+  }));
+  return s;
+};
 
-    const channel = sb
-      .channel(`votos:${accesoId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "votos_acceso",
-          filter: `acceso_id=eq.${accesoId}`,
-        },
-        () => fetchCount()
-      )
-      .subscribe();
-
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [accesoId]);
-
-  return { count, loading };
-}
-
-// Hook: determina qué acceso tiene mayor tráfico
-function useActiveAccesoStatus() {
-  const [activeAcceso, setActiveAcceso] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchActive = async () => {
-      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
-      const { data, error } = await sb
-        .from("votos_acceso")
-        .select("acceso_id")
-        .gte("voted_at", oneHourAgo);
-
-      if (!error && data) {
-        const counts = {};
-        data.forEach((v) => {
-          counts[v.acceso_id] = (counts[v.acceso_id] || 0) + 1;
-        });
-        const max = Math.max(...Object.values(counts), 0);
-        if (max > 0) {
-          const winner = Object.keys(counts).find((k) => counts[k] === max);
-          setActiveAcceso(winner);
-        } else {
-          setActiveAcceso(null);
-        }
-      }
-      setLoading(false);
-    };
-
-    fetchActive();
-
-    const channel = sb
-      .channel("votos_all")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "votos_acceso" },
-        () => fetchActive()
-      )
-      .subscribe();
-
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, []);
-
-  return { activeAcceso, loading };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTES AUXILIARES
-// ─────────────────────────────────────────────────────────────────────────────
-
-function CookieBanner({ onAccept, onReject }) {
+// ─── ADMIN MODE ───────────────────────────────────────────────────────────────
+function useAdminMode() {
   const theme = React.useContext(ThemeContext);
-  const fontScale = useResponsiveFontScale();
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try { return sessionStorage.getItem(ADMIN_KEY) === "1"; }
+    catch { return false; }
+  });
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: "rgba(13, 31, 60, 0.98)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        padding: "16px 20px",
-        borderTop: "1px solid rgba(168, 85, 247, 0.3)",
-        boxShadow: "0 -4px 20px rgba(0, 0, 0, 0.4)",
-        zIndex: 10000,
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-      }}
-    >
-      <div
-        style={{
-          fontFamily: getFont(theme, "secondary"),
-          fontSize: `${getFontSize(theme, "base", fontScale)}px`,
-          color: getTextColor(theme, "secondary"),
-          lineHeight: 1.5,
-        }}
-      >
-        Usamos cookies para mejorar tu experiencia. Al continuar, aceptas nuestra política de privacidad.
+  const [showModal, setShowModal] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState(false);
+  const [showAdminPass, setShowAdminPass] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const tapTimer = useRef(null);
+
+  // Countdown timer for lockout display
+  useEffect(() => {
+    if (lockoutUntil <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockoutRemaining(0);
+        setLockoutUntil(0);
+      } else {
+        setLockoutRemaining(remaining);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
+
+  const handleLogoTap = () => {
+    const next = tapCount + 1;
+    setTapCount(next);
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => setTapCount(0), 3000);
+  };
+
+  useEffect(() => {
+    if (tapCount >= 5) {
+      setTapCount(0);
+      setPass("");
+      setErr(false);
+      setShowAdminPass(false);
+      setShowModal(true);
+    }
+  }, [tapCount]);
+
+  const tryLogin = async () => {
+    if (Date.now() < lockoutUntil) return;
+    const ok = await verifyAdminPass(pass);
+    if (ok) {
+      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+      setIsAdmin(true);
+      setShowModal(false);
+      setFailedAttempts(0);
+      setPass("");
+    } else {
+      const newFails = failedAttempts + 1;
+      setFailedAttempts(newFails);
+      setErr(true);
+      if (newFails >= 5) {
+        const delays = [30000, 60000, 300000];
+        const delayIdx = Math.min(Math.floor((newFails - 5) / 3), delays.length - 1);
+        const lockMs = delays[delayIdx];
+        setLockoutUntil(Date.now() + lockMs);
+        setLockoutRemaining(Math.ceil(lockMs / 1000));
+        setFailedAttempts(0);
+      }
+    }
+  };
+
+  const logout = () => {
+    try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+    setIsAdmin(false);
+  };
+
+  const isLocked = Date.now() < lockoutUntil;
+
+  const EyeIcon = ({ crossed }) => crossed ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+
+  const Modal = showModal ? (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
+      <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
+        <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa la contraseña para activar el modo administrador.</div>
+        {isLocked ? (
+          <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
+            <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
+            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"#ef4444", fontWeight:"700" }}>Demasiados intentos fallidos</div>
+            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"4px" }}>
+              Bloqueado por <span style={{ color:"#f97316", fontWeight:"700" }}>{lockoutRemaining}s</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ position:"relative", marginBottom:"8px" }}>
+              <input
+                type={showAdminPass ? "text" : "password"}
+                value={pass}
+                onChange={e => { setPass(e.target.value); setErr(false); }}
+                onKeyDown={e => e.key === "Enter" && tryLogin()}
+                placeholder="Contraseña"
+                autoFocus
+                style={{ width:"100%", padding:"11px 44px 11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${err ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
+              />
+              <span
+                onClick={() => setShowAdminPass(v => !v)}
+                style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"rgba(255,255,255,0.45)", display:"flex", alignItems:"center" }}
+              >
+                <EyeIcon crossed={showAdminPass} />
+              </span>
+            </div>
+            {err && (
+              <div style={{ color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"12px", marginBottom:"8px" }}>
+                Contraseña incorrecta{failedAttempts >= 3 ? ` (${failedAttempts}/5 intentos)` : ""}
+              </div>
+            )}
+          </>
+        )}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+          <button onClick={() => { setShowModal(false); setPass(""); setErr(false); }} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
+          <button onClick={tryLogin} disabled={isLocked} style={{ padding:"11px", background: isLocked ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: isLocked ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700", cursor: isLocked ? "not-allowed" : "pointer" }}>Entrar</button>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-        <button
-          onClick={onReject}
-          style={{
-            fontFamily: getFont(theme, "secondary"),
-            fontSize: `${getFontSize(theme, "base", fontScale)}px`,
-            padding: "8px 16px",
-            background: "rgba(255, 255, 255, 0.1)",
-            color: getTextColor(theme, "secondary"),
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          Rechazar
-        </button>
-        <button
-          onClick={onAccept}
-          style={{
-            fontFamily: getFont(theme, "secondary"),
-            fontSize: `${getFontSize(theme, "base", fontScale)}px`,
-            padding: "8px 16px",
-            background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "600",
-            transition: "all 0.2s",
-          }}
-        >
-          Aceptar
-        </button>
+    </div>
+  ) : null;
+
+  const openModal = () => {
+    setPass("");
+    setErr(false);
+    setShowAdminPass(false);
+    setShowModal(true);
+  };
+
+  return { isAdmin, handleLogoTap, openModal, logout, Modal };
+}
+
+// ─── HELPER: publicar noticia ────────────────────────────────────────────────
+const publicarNoticia = async ({ tipo, titulo, detalle, icono, color }) => {
+  await sb.from("noticias").insert({ tipo, titulo, detalle, icono, color });
+};
+
+// ─── SHARED UI ────────────────────────────────────────────────────────────────
+function Badge({ color, children, small }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <span style={{
+      background: color + "22", border: `1px solid ${color}55`, color,
+      padding: small ? "2px 7px" : "3px 9px",
+      borderRadius: "4px", fontSize: small ? "10px" : "11px",
+      fontFamily: getFont(theme, "secondary"), fontWeight: "700", letterSpacing: "0.5px", whiteSpace: "nowrap",
+    }}>{children}</span>
+  );
+}
+
+function VoteBar({ count, needed, color = "#38bdf8" }) {
+  const theme = React.useContext(ThemeContext);
+  const pct = Math.min((count / needed) * 100, 100);
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+        <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary") }}>VERIFICACIÓN COMUNITARIA</span>
+        <span style={{ fontSize: "9px", color, fontFamily: getFont(theme, "secondary"), fontWeight: "700" }}>{count}/{needed}</span>
+      </div>
+      <div style={{ background: "#1e3a5f", borderRadius: "2px", height: "3px", overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "#22c55e" : color, transition: "width 0.4s", borderRadius: "2px" }} />
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ✨ NUEVO COMPONENTE: Panel de configuración de tema (solo admin)
-// ─────────────────────────────────────────────────────────────────────────────
-function ThemeConfigPanel({ onClose, currentTheme, onThemeUpdate }) {
-  const [formData, setFormData] = useState(currentTheme);
-  const [activeTab, setActiveTab] = useState("fondo");
+function ToastBox({ toast }) {
+  const theme = React.useContext(ThemeContext);
+  if (!toast) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
+      background: "rgba(255,255,255,0.15)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
+      border: `1px solid ${toast.color}66`, color: "#fff",
+      padding: "10px 22px", borderRadius: "24px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "600",
+      boxShadow: `0 4px 24px ${toast.color}44`, zIndex: 999, whiteSpace: "nowrap", pointerEvents: "none",
+      borderLeft: `3px solid ${toast.color}`,
+    }}>{toast.msg}</div>
+  );
+}
+
+function VoteCountBadge({ accesoId, status, myId }) {
+  const [count, setCount] = React.useState(0);
+  const key = `acceso_${accesoId}_${status}`;
+  useEffect(() => {
+    sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
+    const chan = sb.channel(`voto-${key}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "votos" }, () => {
+        sb.from("votos").select("id", { count: "exact" }).eq("key", key).then(({ count: c }) => setCount(c || 0));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, [key]);
+  if (count === 0) return null;
+  return (
+    <span style={{ background:"#38bdf8", color:"#0a0f1e", borderRadius:"3px", padding:"0 4px", fontSize:"9px", fontWeight:"700", marginLeft:"3px" }}>{count}</span>
+  );
+}
+
+function SectionLabel({ text, rightBtn }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px", padding:"8px 12px", background:"rgba(255,255,255,0.07)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px" }}>
+      <span style={{ fontSize:"12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "title"), fontWeight:"700", letterSpacing:"0.5px" }}>{text}</span>
+      {rightBtn}
+    </div>
+  );
+}
+
+function NormalBtn({ onClick, label = "TODO NORMAL" }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 10px", background: "#22c55e15", border: "1px solid #22c55e44",
+      borderRadius: "6px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "10px",
+      cursor: "pointer", fontWeight: "700", letterSpacing: "0.5px",
+    }}>✓ {label}</button>
+  );
+}
+
+// ─── DONATE BANNER ────────────────────────────────────────────────────────────
+function DonateBanner({ active }) {
+  const theme = React.useContext(ThemeContext);
+  const [visible, setVisible] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const shownRef = useRef(null);
+
+  const hide = () => {
+    setExiting(true);
+    setTimeout(() => { setVisible(false); setExiting(false); }, 400);
+  };
+
+  useEffect(() => {
+    // No mostrar en la sección de donativos
+    if (active === "donativos") return;
+    // Cada vez que cambia de sección, esperar 8s y mostrar
+    if (shownRef.current === active) return;
+    shownRef.current = active;
+    setVisible(false);
+    setExiting(false);
+    const showTimer = setTimeout(() => setVisible(true), 8000);
+    // Auto-ocultar después de 6s de mostrarse
+    const hideTimer = setTimeout(() => hide(), 14000);
+    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, [active]);
+
+  if (!visible) return null;
+
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: "80px",
+      left: "50%",
+      transform: `translateX(-50%) translateY(${exiting ? "20px" : "0px"})`,
+      opacity: exiting ? 0 : 1,
+      transition: "opacity 0.4s ease, transform 0.4s ease",
+      width: "calc(100% - 32px)",
+      maxWidth: "420px",
+      zIndex: 500,
+      pointerEvents: "auto",
+    }}>
+      <div style={{
+        background: "rgba(6, 14, 26, 0.92)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: "1px solid rgba(56,189,248,0.3)",
+        borderLeft: "3px solid #38bdf8",
+        borderRadius: "14px",
+        padding: "12px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.1)",
+      }}>
+        <div style={{ fontSize: "22px", flexShrink: 0 }}>⚓</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "#e2e8f0", marginBottom: "2px" }}>
+            ¿Te está siendo útil esta app?
+          </div>
+          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.4" }}>
+            Cada donativo ayuda a mantenerla viva 🙏
+          </div>
+        </div>
+        <a
+          href="https://ko-fi.com/conectmanzanillo"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none", flexShrink: 0 }}
+          onClick={hide}
+        >
+          <div style={{
+            background: "linear-gradient(135deg,#38bdf8,#818cf8)",
+            borderRadius: "8px",
+            padding: "7px 13px",
+            fontFamily: getFont(theme, "secondary"),
+            fontSize: "10px",
+            fontWeight: "700",
+            color: "#0a0f1e",
+            letterSpacing: "0.5px",
+            whiteSpace: "nowrap",
+          }}>💙 DONAR</div>
+        </a>
+        <button
+          onClick={hide}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "rgba(255,255,255,0.25)",
+            cursor: "pointer",
+            fontSize: "16px",
+            padding: "0 2px",
+            flexShrink: 0,
+            lineHeight: 1,
+          }}
+        >✕</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── ANUNCIOS BANNER ──────────────────────────────────────────────────────────
+// ─── RESPONSIVE HOOK ─────────────────────────────────────────────────────────
+function useWindowWidth() {
+  const [w, setW] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return w;
+}
+
+function AnunciosBanner({ isAdmin }) {
+  const theme = React.useContext(ThemeContext);
+  const vw = useWindowWidth();
+  const isMobile = vw < 480;
+  const isTablet = vw >= 480 && vw < 768;
+  const [anuncios, setAnuncios] = useState([]);
+  const [current, setCurrent] = useState(0);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
   const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const fontScale = useResponsiveFontScale();
+  const [msg, setMsg] = useState(null);
+  const intervalRef = useRef(null);
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveSuccess(false);
-    
+  const cargar = async () => {
+    const ahora = new Date().toISOString();
+    const { data } = await sb.from("anuncios")
+      .select("*")
+      .eq("activo", true)
+      .lte("fecha_inicio", ahora)
+      .gte("fecha_fin", ahora)
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (data) setAnuncios(data);
+  };
+
+  useEffect(() => {
+    cargar();
+    // Suscripción realtime
+    const chan = sb.channel("anuncios-rt")
+      .on("postgres_changes", { event:"*", schema:"public", table:"anuncios" }, cargar)
+      .subscribe();
+    // Limpieza automática de anuncios expirados cada minuto
+    const limpia = setInterval(async () => {
+      const ahora = new Date().toISOString();
+      await sb.from("anuncios").delete().lt("fecha_fin", ahora);
+      cargar();
+    }, 60000);
+    return () => { sb.removeChannel(chan); clearInterval(limpia); };
+  }, []);
+
+  // Auto-slide cada 10 minutos
+  useEffect(() => {
+    if (anuncios.length <= 1) return;
+    intervalRef.current = setInterval(() => {
+      setCurrent(v => (v + 1) % anuncios.length);
+    }, 600000);
+    return () => clearInterval(intervalRef.current);
+  }, [anuncios.length]);
+
+  const handleGuardar = async () => {
+    const tieneImagen = !!form.imagen_url.trim();
+    const tieneTexto  = !!form.texto.trim();
+    if (!form.titulo.trim() || !form.empresa.trim() || !form.inicio || !form.fin) {
+      setMsg({ type:"err", text:"Completa título, empresa, fecha inicio y fecha fin." }); return;
+    }
+    if (!tieneImagen && !tieneTexto) {
+      setMsg({ type:"err", text:"Debes agregar al menos imagen o texto al anuncio." }); return;
+    }
+    if (new Date(form.fin) <= new Date(form.inicio)) {
+      setMsg({ type:"err", text:"La fecha de fin debe ser posterior a la de inicio." }); return;
+    }
+    setSaving(true); setMsg(null);
     try {
-      const { data, error } = await sb
-        .from("app_theme")
-        .insert([
-          {
-            theme_config: formData,
-            created_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single();
+      const fechaInicio = new Date(form.inicio);
+      const fechaFin    = new Date(form.fin);
+      if (isNaN(fechaInicio.getTime()) || isNaN(fechaFin.getTime())) {
+        setMsg({ type:"err", text:"Las fechas ingresadas no son válidas." });
+        setSaving(false); return;
+      }
 
-      if (error) throw error;
+      const payload = {
+        titulo: form.titulo.trim(),
+        empresa: form.empresa.trim(),
+        texto: form.texto.trim(),
+        enlace: form.enlace.trim() || null,
+        whatsapp: form.whatsapp.trim() || null,
+        imagen_url: form.imagen_url.trim() || null,
+        fecha_inicio: fechaInicio.toISOString(),
+        fecha_fin:    fechaFin.toISOString(),
+        activo: form.activo,
+      };
 
-      onThemeUpdate(formData);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error("Error guardando tema:", err);
-      alert("Error al guardar el tema");
+      let error;
+      if (form.id) {
+        // Modo edición: actualizar anuncio existente
+        const result = await sb.from("anuncios").update(payload).eq("id", form.id);
+        error = result.error;
+      } else {
+        // Modo creación: insertar nuevo anuncio
+        const result = await sb.from("anuncios").insert(payload);
+        error = result.error;
+      }
+
+      if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
+      else {
+        setMsg({ type:"ok", text: form.id ? "Anuncio actualizado correctamente." : "Anuncio publicado correctamente." });
+        setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
+        setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
+        cargar();
+      }
+    } catch (ex) {
+      setMsg({ type:"err", text:"Error inesperado: " + (ex?.message || ex) });
     } finally {
       setSaving(false);
     }
   };
 
-  const updateField = (path, value) => {
-    setFormData(prev => {
-      const newData = { ...prev };
-      const keys = path.split('.');
-      let current = newData;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        current[keys[i]] = { ...current[keys[i]] };
-        current = current[keys[i]];
-      }
-      
-      current[keys[keys.length - 1]] = value;
-      return newData;
-    });
+  const handleToggle = async (id, activo) => {
+    await sb.from("anuncios").update({ activo: !activo }).eq("id", id);
+    cargar();
   };
 
-  const tabs = [
-    { id: "fondo", label: "Fondo", icon: "🎨" },
-    { id: "tipografia", label: "Tipografía", icon: "🔤" },
-    { id: "colores", label: "Colores", icon: "🌈" },
-    { id: "cajas", label: "Cajas", icon: "📦" }
-  ];
+  const handleEliminar = async (id) => {
+    if (!window.confirm("¿Eliminar este anuncio?")) return;
+    await sb.from("anuncios").delete().eq("id", id);
+    cargar();
+  };
 
-  return (
-    <div style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "rgba(0, 0, 0, 0.85)",
-      backdropFilter: "blur(8px)",
-      WebkitBackdropFilter: "blur(8px)",
-      zIndex: 10000,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "20px"
-    }}>
-      <div style={{
-        background: "linear-gradient(135deg, #0d1f3c 0%, #1a2942 100%)",
-        border: "1px solid rgba(168, 85, 247, 0.3)",
-        borderRadius: "16px",
-        maxWidth: "800px",
-        width: "100%",
-        maxHeight: "90vh",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)"
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: "20px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between"
-        }}>
-          <div style={{
-            fontFamily: getFont(formData, "title"),
-            fontSize: `${getFontSize(formData, "title", fontScale * 1.2)}px`,
-            fontWeight: "700",
-            color: "#fff"
-          }}>
-            ⚙️ Configuración de Tema
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255, 255, 255, 0.1)",
-              border: "none",
-              borderRadius: "8px",
-              width: "32px",
-              height: "32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#fff",
-              fontSize: `${getFontSize(formData, "title", fontScale)}px`,
-              transition: "all 0.2s"
-            }}
-          >
-            ✕
-          </button>
+  const handleEditar = async (id) => {
+    const { data } = await sb.from("anuncios").select("*").eq("id", id).single();
+    if (data) {
+      // Convertir las fechas ISO a formato datetime-local
+      const fechaInicio = new Date(data.fecha_inicio);
+      const fechaFin = new Date(data.fecha_fin);
+      
+      const formatoLocal = (fecha) => {
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        const hours = String(fecha.getHours()).padStart(2, '0');
+        const minutes = String(fecha.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
+      setForm({
+        id: data.id,
+        titulo: data.titulo || "",
+        empresa: data.empresa || "",
+        texto: data.texto || "",
+        enlace: data.enlace || "",
+        whatsapp: data.whatsapp || "",
+        imagen_url: data.imagen_url || "",
+        inicio: formatoLocal(fechaInicio),
+        fin: formatoLocal(fechaFin),
+        activo: data.activo ?? true,
+        _imgPreview: data.imagen_url || null,
+      });
+      setShowForm(true);
+    }
+  };
+
+  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+
+  // Panel admin de gestión
+  if (isAdmin && showForm) return (
+    <div style={{ margin:"0 0 0 0", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"0", padding:"16px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+        <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#fbbf24", letterSpacing:"1px" }}>
+          {form.id ? "✏️ EDITAR ANUNCIO" : "📢 NUEVO ANUNCIO"}
+        </span>
+        <button onClick={() => { setShowForm(false); setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true }); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
+      </div>
+      {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
+      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
+      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
+      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
+      <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
+      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>📱</span>
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
         </div>
-
-        {/* Tabs */}
-        <div style={{
-          display: "flex",
-          gap: "8px",
-          padding: "16px 20px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-          overflowX: "auto"
-        }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                fontFamily: getFont(formData, "secondary"),
-                fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                padding: "8px 16px",
-                background: activeTab === tab.id 
-                  ? "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)"
-                  : "rgba(255, 255, 255, 0.05)",
-                color: "#fff",
-                border: activeTab === tab.id 
-                  ? "1px solid rgba(168, 85, 247, 0.5)"
-                  : "1px solid rgba(255, 255, 255, 0.1)",
-                borderRadius: "8px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                transition: "all 0.2s"
-              }}
-            >
-              {tab.icon} {tab.label}
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>🌐</span>
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+        </div>
+      </div>
+      {/* ── Imagen: subir archivo O pegar URL ── */}
+      <div style={{ marginBottom:"10px" }}>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>IMAGEN (OPCIONAL)</div>
+        {/* Tabs: Subir / URL */}
+        <div style={{ display:"flex", gap:"6px", marginBottom:"8px" }}>
+          {["subir","url"].map(opt => (
+            <button key={opt} onClick={()=>setForm(f=>({...f,_imgTab:opt, imagen_url:"", _imgFile:null}))}
+              style={{ padding:"5px 14px", borderRadius:"7px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", border:"none",
+                background: (form._imgTab||"subir")===opt ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)",
+                color: (form._imgTab||"subir")===opt ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
+              {opt==="subir" ? "📁 Subir archivo" : "🔗 Pegar URL"}
             </button>
           ))}
         </div>
-
-        {/* Content */}
-        <div style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "20px"
-        }}>
-          {activeTab === "fondo" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "block",
-                  marginBottom: "8px"
-                }}>
-                  Tipo de fondo
-                </label>
-                <select
-                  value={formData.backgroundType}
-                  onChange={(e) => updateField("backgroundType", e.target.value)}
-                  style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    width: "100%",
-                    padding: "10px",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                    color: "#fff"
-                  }}
-                >
-                  <option value="color">Color sólido</option>
-                  <option value="gradient">Degradado</option>
-                  <option value="image">Imagen</option>
-                </select>
-              </div>
-
-              {formData.backgroundType === "color" && (
-                <div>
-                  <label style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    color: "rgba(255, 255, 255, 0.7)",
-                    display: "block",
-                    marginBottom: "8px"
-                  }}>
-                    Color de fondo
-                  </label>
-                  <input
-                    type="color"
-                    value={formData.backgroundColor}
-                    onChange={(e) => updateField("backgroundColor", e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "40px",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      borderRadius: "8px",
-                      cursor: "pointer"
-                    }}
-                  />
-                </div>
-              )}
-
-              {formData.backgroundType === "gradient" && (
-                <div>
-                  <label style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    color: "rgba(255, 255, 255, 0.7)",
-                    display: "block",
-                    marginBottom: "8px"
-                  }}>
-                    CSS Gradient
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.backgroundGradient}
-                    onChange={(e) => updateField("backgroundGradient", e.target.value)}
-                    placeholder="linear-gradient(135deg, #0a1628 0%, #1a2942 100%)"
-                    style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      width: "100%",
-                      padding: "10px",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      borderRadius: "8px",
-                      color: "#fff"
-                    }}
-                  />
-                </div>
-              )}
-
-              {formData.backgroundType === "image" && (
+        {(form._imgTab||"subir")==="subir" ? (
+          <div>
+            <label style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", border:"2px dashed rgba(251,191,36,0.3)", borderRadius:"10px", padding:"16px", cursor:"pointer", background:"rgba(251,191,36,0.04)", minHeight:"80px" }}>
+              <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
+                const file = e.target.files[0];
+                if (!file) return;
+                setForm(f=>({...f,_imgFile:file,_imgUploading:true,_imgPreview:URL.createObjectURL(file)}));
+                const ext = file.name.split(".").pop();
+                const nombre = `anuncio_${Date.now()}.${ext}`;
+                const { data, error } = await sb.storage.from("anuncios-imagenes").upload(nombre, file, { upsert:true });
+                if (error) { setMsg({type:"err",text:"Error al subir imagen: "+error.message}); setForm(f=>({...f,_imgUploading:false})); return; }
+                const { data: urlData } = sb.storage.from("anuncios-imagenes").getPublicUrl(data.path);
+                setForm(f=>({...f, imagen_url: urlData.publicUrl, _imgUploading:false}));
+              }} />
+              {form._imgPreview ? (
+                <img src={form._imgPreview} alt="preview" style={{ width:"100%", maxHeight:"120px", objectFit:"cover", borderRadius:"8px" }} />
+              ) : (
                 <>
-                  <div>
-                    <label style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      color: "rgba(255, 255, 255, 0.7)",
-                      display: "block",
-                      marginBottom: "8px"
-                    }}>
-                      URL de imagen
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.backgroundImage}
-                      onChange={(e) => updateField("backgroundImage", e.target.value)}
-                      placeholder="https://..."
-                      style={{
-                        fontFamily: getFont(formData, "secondary"),
-                        fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                        width: "100%",
-                        padding: "10px",
-                        background: "rgba(255, 255, 255, 0.05)",
-                        border: "1px solid rgba(255, 255, 255, 0.2)",
-                        borderRadius: "8px",
-                        color: "#fff"
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      color: "rgba(255, 255, 255, 0.7)",
-                      display: "block",
-                      marginBottom: "8px"
-                    }}>
-                      Opacidad de overlay: {formData.backgroundImageOverlayOpacity}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={formData.backgroundImageOverlayOpacity}
-                      onChange={(e) => updateField("backgroundImageOverlayOpacity", parseFloat(e.target.value))}
-                      style={{
-                        width: "100%"
-                      }}
-                    />
-                  </div>
+                  <span style={{ fontSize:"28px" }}>🖼️</span>
+                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Toca para seleccionar imagen<br/>JPG, PNG, WEBP</span>
                 </>
               )}
-            </div>
-          )}
-
-          {activeTab === "tipografia" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "block",
-                  marginBottom: "8px"
-                }}>
-                  Fuente principal (títulos)
-                </label>
-                <select
-                  value={formData.primaryFont}
-                  onChange={(e) => updateField("primaryFont", e.target.value)}
-                  style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    width: "100%",
-                    padding: "10px",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                    color: "#fff"
-                  }}
-                >
-                  <option value="'Playfair Display', serif">Playfair Display</option>
-                  <option value="'Montserrat', sans-serif">Montserrat</option>
-                  <option value="'Poppins', sans-serif">Poppins</option>
-                  <option value="'Roboto', sans-serif">Roboto</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "block",
-                  marginBottom: "8px"
-                }}>
-                  Fuente secundaria (textos)
-                </label>
-                <select
-                  value={formData.secondaryFont}
-                  onChange={(e) => updateField("secondaryFont", e.target.value)}
-                  style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    width: "100%",
-                    padding: "10px",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
-                    color: "#fff"
-                  }}
-                >
-                  <option value="'DM Sans', sans-serif">DM Sans</option>
-                  <option value="'Open Sans', sans-serif">Open Sans</option>
-                  <option value="'Lato', sans-serif">Lato</option>
-                  <option value="'Roboto', sans-serif">Roboto</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "block",
-                  marginBottom: "8px"
-                }}>
-                  Tamaño base (móvil): {formData.baseFontSize}px
-                </label>
-                <input
-                  type="range"
-                  min="12"
-                  max="20"
-                  value={formData.baseFontSize}
-                  onChange={(e) => updateField("baseFontSize", parseInt(e.target.value))}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div>
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)",
-                  display: "block",
-                  marginBottom: "8px"
-                }}>
-                  Tamaño títulos (móvil): {formData.titleFontSize}px
-                </label>
-                <input
-                  type="range"
-                  min="14"
-                  max="28"
-                  value={formData.titleFontSize}
-                  onChange={(e) => updateField("titleFontSize", parseInt(e.target.value))}
-                  style={{ width: "100%" }}
-                />
-              </div>
-
-              <div style={{
-                fontFamily: getFont(formData, "secondary"),
-                fontSize: `${getFontSize(formData, "base", fontScale * 0.9)}px`,
-                color: "rgba(255, 255, 255, 0.5)",
-                padding: "12px",
-                background: "rgba(56, 189, 248, 0.1)",
-                border: "1px solid rgba(56, 189, 248, 0.3)",
-                borderRadius: "8px",
-                lineHeight: 1.5
-              }}>
-                ℹ️ <strong>Nota:</strong> Los tamaños se escalan automáticamente en desktop (hasta +50% más grandes).
-              </div>
-            </div>
-          )}
-
-          {activeTab === "colores" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {Object.entries(formData.textColors).map(([key, value]) => (
-                <div key={key}>
-                  <label style={{
-                    fontFamily: getFont(formData, "secondary"),
-                    fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                    color: "rgba(255, 255, 255, 0.7)",
-                    display: "block",
-                    marginBottom: "8px",
-                    textTransform: "capitalize"
-                  }}>
-                    Color {key}
-                  </label>
-                  <input
-                    type="color"
-                    value={value}
-                    onChange={(e) => updateField(`textColors.${key}`, e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "40px",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      borderRadius: "8px",
-                      cursor: "pointer"
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === "cajas" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px"
-              }}>
-                <input
-                  type="checkbox"
-                  checked={formData.contentBox.enabled}
-                  onChange={(e) => updateField("contentBox.enabled", e.target.checked)}
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    cursor: "pointer"
-                  }}
-                />
-                <label style={{
-                  fontFamily: getFont(formData, "secondary"),
-                  fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                  color: "rgba(255, 255, 255, 0.7)"
-                }}>
-                  Habilitar cajas de contenido
-                </label>
-              </div>
-
-              {formData.contentBox.enabled && (
-                <>
-                  <div>
-                    <label style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      color: "rgba(255, 255, 255, 0.7)",
-                      display: "block",
-                      marginBottom: "8px"
-                    }}>
-                      Desenfoque: {formData.contentBox.backdropBlur}px
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="30"
-                      value={formData.contentBox.backdropBlur}
-                      onChange={(e) => updateField("contentBox.backdropBlur", parseInt(e.target.value))}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      color: "rgba(255, 255, 255, 0.7)",
-                      display: "block",
-                      marginBottom: "8px"
-                    }}>
-                      Radio de bordes: {formData.contentBox.borderRadius}px
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="30"
-                      value={formData.contentBox.borderRadius}
-                      onChange={(e) => updateField("contentBox.borderRadius", parseInt(e.target.value))}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{
-                      fontFamily: getFont(formData, "secondary"),
-                      fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-                      color: "rgba(255, 255, 255, 0.7)",
-                      display: "block",
-                      marginBottom: "8px"
-                    }}>
-                      Padding: {formData.contentBox.padding}px
-                    </label>
-                    <input
-                      type="range"
-                      min="8"
-                      max="40"
-                      value={formData.contentBox.padding}
-                      onChange={(e) => updateField("contentBox.padding", parseInt(e.target.value))}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+              {form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#fbbf24" }}>Subiendo...</span>}
+              {form.imagen_url && !form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#22c55e" }}>✅ Imagen subida</span>}
+            </label>
+          </div>
+        ) : (
+          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
+        )}
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"5px" }}>📐 Recomendado: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1) · móvil se adapta automáticamente</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA INICIO *</div>
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:e.target.value}))} />
         </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: "16px 20px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-          display: "flex",
-          gap: "10px",
-          justifyContent: "flex-end"
-        }}>
-          <button
-            onClick={onClose}
-            style={{
-              fontFamily: getFont(formData, "secondary"),
-              fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-              padding: "10px 20px",
-              background: "rgba(255, 255, 255, 0.1)",
-              color: "#fff",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              borderRadius: "8px",
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              fontFamily: getFont(formData, "secondary"),
-              fontSize: `${getFontSize(formData, "base", fontScale)}px`,
-              padding: "10px 20px",
-              background: saving 
-                ? "rgba(168, 85, 247, 0.5)"
-                : "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              cursor: saving ? "not-allowed" : "pointer",
-              fontWeight: "600",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px"
-            }}
-          >
-            {saving ? "Guardando..." : saveSuccess ? "✓ Guardado" : "Guardar Tema"}
-          </button>
+        <div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA FIN *</div>
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:e.target.value}))} />
         </div>
       </div>
+      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
+        <div onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${form.activo?"#22c55e":"rgba(255,255,255,0.2)"}`, background:form.activo?"#22c55e":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
+          {form.activo && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
+        </div>
+        <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)" }}>Publicar inmediatamente (activo)</span>
+      </div>
+      <button onClick={handleGuardar} disabled={saving} style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#fbbf24,#f59e0b)", border:"none", borderRadius:"10px", color:"#0a0f1e", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:"pointer", letterSpacing:"0.5px", opacity:saving?0.7:1 }}>
+        {saving ? (form.id ? "Actualizando..." : "Publicando...") : (form.id ? "💾 GUARDAR CAMBIOS" : "📢 PUBLICAR ANUNCIO")}
+      </button>
+
+      {/* Lista de anuncios existentes para admin */}
+      <AdminAnunciosList onToggle={handleToggle} onDelete={handleEliminar} onEdit={handleEditar} onRefresh={cargar} />
+    </div>
+  );
+
+  // Botón admin para abrir panel (siempre visible si admin)
+  const BtnAdmin = isAdmin ? (
+    <div style={{ display:"flex", justifyContent:"flex-end", padding:"6px 12px 0", background:"rgba(251,191,36,0.04)", borderTop:"1px solid rgba(251,191,36,0.15)" }}>
+      <button onClick={() => setShowForm(true)} style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:"8px", padding:"5px 12px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+        ＋ GESTIONAR ANUNCIOS
+      </button>
+    </div>
+  ) : null;
+
+  // Sin anuncios activos
+  if (anuncios.length === 0) {
+    if (!isAdmin) return null;
+    return (
+      <div style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+        {BtnAdmin}
+      </div>
+    );
+  }
+
+  const a = anuncios[current];
+
+  return (
+    <div style={{ borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(10,22,50,0.6)", position:"relative", overflow:"hidden" }}>
+      {/* Slide animado */}
+      <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
+        {a.imagen_url && (
+          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"auto", maxHeight: isMobile ? "120px" : "160px", objectFit:"contain", objectPosition:"center", display:"block", background:"#0a1628" }} onError={e=>e.target.style.display="none"} />
+        )}
+        <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
+            <div>
+              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#fbbf24", fontWeight:"700", letterSpacing:"1.5px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"4px", padding:"2px 7px", marginRight:"8px" }}>📢 ANUNCIO</span>
+              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>{a.empresa}</span>
+            </div>
+            {anuncios.length > 1 && (
+              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)" }}>{current+1}/{anuncios.length}</span>
+            )}
+          </div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize: isMobile ? "12px" : "14px", fontWeight:"700", color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
+          {a.texto && (
+            a.imagen_url ? (
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize: isMobile?"10px":"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace?"10px":"0" }}>
+                {a.texto}
+              </div>
+            ) : (
+              <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom: a.enlace?"10px":"4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"12px 0", background:"rgba(251,191,36,0.04)" }}>
+                <span style={{
+                  display:"inline-block",
+                  fontFamily:getFont(theme, "secondary"),
+                  fontSize: isMobile?"16px":"20px",
+                  fontWeight:"700",
+                  color:"rgba(255,255,255,0.95)",
+                  animation:"marqueeScroll 45s linear infinite",
+                  paddingLeft:"100%",
+                  willChange:"transform",
+                }}>
+                  {a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}
+                </span>
+              </div>
+            )
+          )}
+          {(a.enlace || a.whatsapp) && (
+            <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
+              {a.whatsapp && (
+                <a
+                  href={`https://wa.me/${a.whatsapp.replace(/\D/g,"")}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e", fontWeight:"700", textDecoration:"none", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:"8px", padding:"7px 14px" }}
+                >
+                  <span style={{ fontSize:"14px" }}>📱</span> WhatsApp
+                </a>
+              )}
+              {a.enlace && (
+                <a
+                  href={a.enlace.startsWith("http") ? a.enlace : `https://${a.enlace}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"7px 14px" }}
+                >
+                  <span style={{ fontSize:"14px" }}>🌐</span> Ver sitio
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Navegación: flechas + dots */}
+        {anuncios.length > 1 && (
+          <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:"12px", paddingBottom:"12px" }}>
+            <button
+              onClick={() => { setCurrent(v => (v - 1 + anuncios.length) % anuncios.length); clearInterval(intervalRef.current); }}
+              style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", fontSize:"16px", fontWeight:"700", flexShrink:0, transition:"background 0.2s", lineHeight:1 }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.3)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}
+            >‹</button>
+            <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
+              {anuncios.map((_,i) => (
+                <div key={i} onClick={() => { setCurrent(i); clearInterval(intervalRef.current); }} style={{ width: i===current?"18px":"6px", height:"6px", borderRadius:"3px", background: i===current?"#fbbf24":"rgba(255,255,255,0.2)", cursor:"pointer", transition:"all 0.3s" }} />
+              ))}
+            </div>
+            <button
+              onClick={() => { setCurrent(v => (v + 1) % anuncios.length); clearInterval(intervalRef.current); }}
+              style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", fontSize:"16px", fontWeight:"700", flexShrink:0, transition:"background 0.2s", lineHeight:1 }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.3)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}
+            >›</button>
+          </div>
+        )}
+      </div>
+      {BtnAdmin}
+      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ✨ Componente: Panel Flotante Admin
-// ─────────────────────────────────────────────────────────────────────────────
-function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
+function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
   const theme = React.useContext(ThemeContext);
-  const fontScale = useResponsiveFontScale();
-  const [expanded, setExpanded] = useState(false);
+  const [lista, setLista] = useState([]);
+  const [isReordering, setIsReordering] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  useEffect(() => {
+    sb.from("anuncios")
+      .select("*")
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setLista(data); });
+  }, []);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const reordered = [...lista];
+    const [draggedItem] = reordered.splice(draggedIndex, 1);
+    reordered.splice(dropIndex, 0, draggedItem);
+
+    // Actualizar orden en base de datos (mayor número = mayor prioridad)
+    const updates = reordered.map((item, idx) => ({
+      id: item.id,
+      orden: reordered.length - idx
+    }));
+
+    for (const update of updates) {
+      await sb.from("anuncios").update({ orden: update.orden }).eq("id", update.id);
+    }
+
+    setLista(reordered);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    if (onRefresh) setTimeout(onRefresh, 300);
+  };
+
+  const handleSetPrincipal = async (id) => {
+    // Establecer el anuncio con el orden más alto
+    const maxOrden = Math.max(...lista.map(a => a.orden || 0), 0);
+    await sb.from("anuncios").update({ orden: maxOrden + 100 }).eq("id", id);
+    
+    // Recargar lista
+    const { data } = await sb.from("anuncios")
+      .select("*")
+      .order("orden", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (data) setLista(data);
+    if (onRefresh) setTimeout(onRefresh, 300);
+  };
+
+  if (lista.length === 0) return null;
 
   return (
-    <div style={{
-      position: "fixed",
-      top: "10px",
-      right: "10px",
-      zIndex: 9999
-    }}>
-      {!expanded ? (
+    <div style={{ marginTop:"16px", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"12px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px" }}>
+          ANUNCIOS EXISTENTES ({lista.length})
+        </div>
         <button
-          onClick={() => setExpanded(true)}
+          onClick={() => setIsReordering(!isReordering)}
           style={{
-            background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
-            border: "1px solid rgba(168, 85, 247, 0.5)",
-            borderRadius: "50%",
-            width: "44px",
-            height: "44px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            fontSize: `${getFontSize(theme, "base", fontScale)}px`,
-            boxShadow: "0 4px 12px rgba(168, 85, 247, 0.4)",
-            transition: "all 0.2s"
+            background: isReordering ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.07)",
+            border: `1px solid ${isReordering ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.15)"}`,
+            borderRadius:"6px",
+            padding:"4px 10px",
+            color: isReordering ? "#fbbf24" : "rgba(255,255,255,0.6)",
+            fontFamily:getFont(theme, "secondary"),
+            fontSize:"9px",
+            cursor:"pointer",
+            fontWeight:"700",
+            letterSpacing:"0.5px"
           }}
         >
-          🔑
+          {isReordering ? "✓ GUARDAR ORDEN" : "↕ REORDENAR"}
         </button>
-      ) : (
-        <div style={{
-          background: "rgba(13, 31, 60, 0.98)",
-          border: "1px solid rgba(168, 85, 247, 0.3)",
-          borderRadius: "12px",
-          padding: "12px",
-          minWidth: "200px",
-          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)"
-        }}>
-          <div style={{
-            fontFamily: getFont(theme, "secondary"),
-            fontSize: `${getFontSize(theme, "base", fontScale * 0.9)}px`,
-            fontWeight: "600",
-            color: "#A855F7",
-            marginBottom: "12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between"
-          }}>
-            <span>🔑 Admin</span>
-            <button
-              onClick={() => setExpanded(false)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "rgba(255, 255, 255, 0.5)",
-                cursor: "pointer",
-                fontSize: `${getFontSize(theme, "base", fontScale)}px`,
-                padding: "0",
-                lineHeight: 1
-              }}
-            >
-              ✕
-            </button>
-          </div>
-          
-          <button
-            onClick={onOpenThemeConfig}
-            style={{
-              fontFamily: getFont(theme, "secondary"),
-              fontSize: `${getFontSize(theme, "base", fontScale * 0.9)}px`,
-              width: "100%",
-              padding: "8px 12px",
-              background: "rgba(56, 189, 248, 0.1)",
-              border: "1px solid rgba(56, 189, 248, 0.3)",
-              borderRadius: "8px",
-              color: "#38bdf8",
-              cursor: "pointer",
-              marginBottom: "8px",
-              textAlign: "left",
-              transition: "all 0.2s"
-            }}
-          >
-            ⚙️ Configurar Tema
-          </button>
+      </div>
 
-          <button
-            onClick={onLogout}
-            style={{
-              fontFamily: getFont(theme, "secondary"),
-              fontSize: `${getFontSize(theme, "base", fontScale * 0.9)}px`,
-              width: "100%",
-              padding: "8px 12px",
-              background: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              borderRadius: "8px",
-              color: "#ef4444",
-              cursor: "pointer",
-              textAlign: "left",
-              transition: "all 0.2s"
-            }}
+      {lista.map((a, idx) => (
+        <div
+          key={a.id}
+          draggable={isReordering}
+          onDragStart={(e) => handleDragStart(e, idx)}
+          onDragOver={(e) => handleDragOver(e, idx)}
+          onDrop={(e) => handleDrop(e, idx)}
           style={{
             background: dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.04)",
             border: `1px solid ${dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.08)"}`,
