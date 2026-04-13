@@ -6540,7 +6540,87 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
 // ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
 // ✅ FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
+function useAdminMode() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const clickTimeoutRef = useRef(null);
 
+  useEffect(() => {
+    try {
+      setIsAdmin(localStorage.getItem(ADMIN_KEY) === "true");
+    } catch {
+      setIsAdmin(false);
+    }
+
+    return () => {
+      if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+    };
+  }, []);
+
+  const handleLogoTap = () => {
+    if (isAdmin) return;
+
+    if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+
+    setClickCount((prev) => {
+      const next = prev + 1;
+
+      if (next >= 7) {
+        setTimeout(() => setOpenModal(true), 0);
+        return 0;
+      }
+
+      return next;
+    });
+
+    clickTimeoutRef.current = setTimeout(() => {
+      setClickCount(0);
+    }, 3000);
+  };
+
+  const logout = () => {
+    try {
+      localStorage.removeItem(ADMIN_KEY);
+    } catch {}
+    setIsAdmin(false);
+    setOpenModal(false);
+  };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
+  };
+
+  const handleSubmit = async (password) => {
+    const ok = await verifyAdminPass(password);
+    if (!ok) {
+      alert("Contraseña incorrecta");
+      return;
+    }
+
+    try {
+      localStorage.setItem(ADMIN_KEY, "true");
+    } catch {}
+
+    setIsAdmin(true);
+    setOpenModal(false);
+  };
+
+  const Modal = openModal ? (
+    <AdminLoginModal
+      onClose={handleCloseModal}
+      onSubmit={handleSubmit}
+    />
+  ) : null;
+
+  return {
+    isAdmin,
+    handleLogoTap,
+    openModal,
+    logout,
+    Modal,
+  };
+}
 function App() {
   // ✨ HOOK DE ESCALADO RESPONSIVE
   const { scale, isMobile } = useResponsiveFontScale();
