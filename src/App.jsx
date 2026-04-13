@@ -1200,12 +1200,14 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div style={{
-      position: "fixed",
-      top: "10px",
-      right: "10px",
-      zIndex: 9999
-    }}>
+    <div
+      style={{
+        position: "fixed",
+        top: "10px",
+        right: "10px",
+        zIndex: 9999
+      }}
+    >
       {!expanded ? (
         <button
           onClick={() => setExpanded(true)}
@@ -1227,26 +1229,30 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
           🔑
         </button>
       ) : (
-        <div style={{
-          background: "rgba(13, 31, 60, 0.98)",
-          border: "1px solid rgba(168, 85, 247, 0.3)",
-          borderRadius: "12px",
-          padding: "12px",
-          minWidth: "200px",
-          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)"
-        }}>
-          <div style={{
-            fontFamily: getFont(theme, "secondary"),
-            fontSize: `${getFontSize(theme, "base", fontScale * 0.9)}px`,
-            fontWeight: "600",
-            color: "#A855F7",
-            marginBottom: "12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between"
-          }}>
+        <div
+          style={{
+            background: "rgba(13, 31, 60, 0.98)",
+            border: "1px solid rgba(168, 85, 247, 0.3)",
+            borderRadius: "12px",
+            padding: "12px",
+            minWidth: "200px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)"
+          }}
+        >
+          <div
+            style={{
+              fontFamily: getFont(theme, "secondary"),
+              fontSize: `${getFontSize(theme, "base", fontScale * 0.9)}px`,
+              fontWeight: "600",
+              color: "#A855F7",
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}
+          >
             <span>🔑 Admin</span>
             <button
               onClick={() => setExpanded(false)}
@@ -1263,7 +1269,7 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
               ✕
             </button>
           </div>
-          
+
           <button
             onClick={onOpenThemeConfig}
             style={{
@@ -1303,9 +1309,10 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
             Cerrar Sesión
           </button>
         </div>
-      );
-    }
-    
+      )}
+    </div>
+  );
+}
     // Componente de lista de anuncios (admin)
     function AnunciosList({ lista, setLista, onEdit, onDelete, onToggle, isReordering }) {
       const theme = React.useContext(ThemeContext);
