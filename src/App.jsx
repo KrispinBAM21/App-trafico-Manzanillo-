@@ -7870,7 +7870,6 @@ function App() {
         )}
       </div>
     </div>
-    </>
     </ThemeContext.Provider>
   );
 }
