@@ -6906,8 +6906,7 @@ function App() {
   };
 
   return (
-    <ThemeContext.Provider value={theme}>
-    <>
+  <ThemeContext.Provider value={theme}>
       {/* Global styles to prevent gray highlight on tap/click */}
       <style>{`
         * {
