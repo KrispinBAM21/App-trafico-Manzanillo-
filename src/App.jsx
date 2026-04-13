@@ -4208,6 +4208,7 @@ function SegundoAccesoTab() {
   );
 }
 const mkCarrilesState = () => ({});
+const ACCESOS_CARRILES = ACCESS_POINTS;
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
 function CarrilesTab() {
   const theme = React.useContext(ThemeContext);
