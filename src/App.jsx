@@ -7865,13 +7865,11 @@ function App() {
             }}>
               Cualquier monto es apreciado 💜<br/>
               ¡Gracias por tu apoyo!
-            </div>
         </div>
-</div>
-</div>
-</div>
-</ThemeContext.Provider>
-);
+      </div>
+    </div>
+    </ThemeContext.Provider>
+  );
 }
 
 export default App;
