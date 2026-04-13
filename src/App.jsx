@@ -4286,8 +4286,9 @@ function CarrilesTab() {
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN GENERAL</div>
         {ACCESOS_CARRILES.map(acc => {
           const carriles = acc.carriles || [];
+          const total = carriles.length;
           const abiertos = carriles.filter(c => estado[c.id]?.abierto !== false).length;
-          const pct      = Math.round((abiertos / total) * 100);
+          const pct = total > 0 ? Math.round((abiertos / total) * 100) : 0;
           return (
             <div key={acc.id} style={{ marginBottom:"8px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
