@@ -7867,12 +7867,12 @@ function App() {
               ¡Gracias por tu apoyo!
             </div>
           </div>
-        )}
+                )
       </div>
     </div>
-    </>
-    </ThemeContext.Provider>
-  );
+  </div>
+</ThemeContext.Provider>
+);
 }
 
 export default App;
