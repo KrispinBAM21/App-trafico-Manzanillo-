@@ -4208,7 +4208,13 @@ function SegundoAccesoTab() {
   );
 }
 const mkCarrilesState = () => ({});
-const ACCESOS_CARRILES = ACCESS_POINTS;
+const ACCESOS_CARRILES = ACCESS_POINTS.map(acc => ({
+  ...acc,
+  carriles: (acc.lanes || []).map(lane => ({
+    ...lane,
+    tipo: lane.tipo || "expo"
+  }))
+}));
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
 function CarrilesTab() {
   const theme = React.useContext(ThemeContext);
@@ -4265,8 +4271,8 @@ function CarrilesTab() {
   };
 
   const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
-  const expoCarriles = currentAcc?.carriles.filter(c => c.tipo === "expo") || [];
-  const impoCarriles = currentAcc?.carriles.filter(c => c.tipo === "impo") || [];
+  const expoCarriles = (currentAcc?.carriles || []).filter(c => c.tipo === "expo");
+  const impoCarriles = (currentAcc?.carriles || []).filter(c => c.tipo === "impo");
   const EXPO_COLOR = "#f59e0b";
   const IMPO_COLOR = "#60a5fa";
 
@@ -4279,8 +4285,8 @@ function CarrilesTab() {
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN GENERAL</div>
         {ACCESOS_CARRILES.map(acc => {
-          const total    = acc.carriles.length;
-          const abiertos = acc.carriles.filter(c => estado[c.id]?.abierto !== false).length;
+          const carriles = acc.carriles || [];
+          const abiertos = carriles.filter(c => estado[c.id]?.abierto !== false).length;
           const pct      = Math.round((abiertos / total) * 100);
           return (
             <div key={acc.id} style={{ marginBottom:"8px" }}>
