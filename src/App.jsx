@@ -1314,18 +1314,26 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
   );
 }
     // Componente de lista de anuncios (admin)
-    function AnunciosList({ lista, setLista, onEdit, onDelete, onToggle, isReordering }) {
-      const theme = React.useContext(ThemeContext);
-      const [draggedIndex, setDraggedIndex] = React.useState(null);
-      const [dragOverIndex, setDragOverIndex] = React.useState(null);
-      
-      return lista.map((a, idx) => (
+   function AnunciosList({ lista, setLista, onEdit, onDelete, onToggle, isReordering }) {
+  const theme = React.useContext(ThemeContext);
+  const [draggedIndex, setDraggedIndex] = React.useState(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState(null);
+
+  return (
+    <div>
+      {lista.map((a, idx) => (
         <div
           key={a.id}
           draggable={isReordering}
           onDragStart={() => setDraggedIndex(idx)}
-          onDragEnd={() => { setDraggedIndex(null); setDragOverIndex(null); }}
-          onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
+          onDragEnd={() => {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOverIndex(idx);
+          }}
           onDrop={() => {
             if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
               const newLista = [...lista];
@@ -1333,94 +1341,132 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
               newLista.splice(dragOverIndex, 0, moved);
               setLista(newLista);
               newLista.forEach((item, i) => {
-                sb.from("anuncios").update({ orden: newLista.length - i }).eq("id", item.id).then();
+                sb.from("anuncios")
+                  .update({ orden: newLista.length - i })
+                  .eq("id", item.id)
+                  .then();
               });
             }
             setDraggedIndex(null);
             setDragOverIndex(null);
           }}
           style={{
-            background: dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.08)"}`,
-            borderRadius:"8px",
-            padding:"10px 12px",
-            marginBottom:"8px",
-            display:"flex",
-            justifyContent:"space-between",
-            alignItems:"center",
-            gap:"8px",
+            background: dragOverIndex === idx && isReordering
+              ? "rgba(251,191,36,0.1)"
+              : "rgba(255,255,255,0.04)",
+            border: `1px solid ${
+              dragOverIndex === idx && isReordering
+                ? "rgba(251,191,36,0.3)"
+                : "rgba(255,255,255,0.08)"
+            }`,
+            borderRadius: "8px",
+            padding: "10px 12px",
+            marginBottom: "8px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "8px",
             cursor: isReordering ? "move" : "default",
             opacity: draggedIndex === idx ? 0.5 : 1,
-            transition:"all 0.2s"
+            transition: "all 0.2s"
           }}
         >
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"4px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
               {isReordering && (
-                <span style={{ fontSize:"14px", color:"rgba(255,255,255,0.3)", cursor:"move" }}>⋮⋮</span>
+                <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.3)", cursor: "move" }}>
+                  ⋮⋮
+                </span>
               )}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#fff", fontWeight:"700", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+
+              <div
+                style={{
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "11px",
+                  color: "#fff",
+                  fontWeight: "700",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap"
+                }}
+              >
                 {a.titulo}
               </div>
+
               {idx === 0 && !isReordering && (
-                <span style={{
-                  background:"rgba(251,191,36,0.15)",
-                  border:"1px solid rgba(251,191,36,0.35)",
-                  borderRadius:"4px",
-                  padding:"1px 5px",
-                  fontSize:"8px",
-                  color:"#fbbf24",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontWeight:"700",
-                  letterSpacing:"0.5px"
-                }}>
+                <span
+                  style={{
+                    background: "rgba(251,191,36,0.15)",
+                    border: "1px solid rgba(251,191,36,0.35)",
+                    borderRadius: "4px",
+                    padding: "1px 5px",
+                    fontSize: "8px",
+                    color: "#fbbf24",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontWeight: "700",
+                    letterSpacing: "0.5px"
+                  }}
+                >
                   ★ PRINCIPAL
                 </span>
               )}
             </div>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>
-              {a.empresa} · fin: {new Date(a.fecha_fin).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"})}
+
+            <div
+              style={{
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "9px",
+                color: "rgba(255,255,255,0.35)"
+              }}
+            >
+              {a.empresa} · fin:{" "}
+              {new Date(a.fecha_fin).toLocaleString("es-MX", {
+                dateStyle: "short",
+                timeStyle: "short"
+              })}
             </div>
           </div>
 
           {!isReordering && (
-            <div style={{ display:"flex", gap:"6px", flexShrink:0 }}>
+            <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
               {idx !== 0 && (
                 <button
                   onClick={() => handleSetPrincipal(a.id)}
                   title="Establecer como principal"
                   style={{
-                    background:"rgba(251,191,36,0.12)",
-                    border:"1px solid rgba(251,191,36,0.3)",
-                    borderRadius:"6px",
-                    padding:"5px 9px",
-                    color:"#fbbf24",
-                    fontFamily:getFont(theme, "secondary"),
-                    fontSize:"10px",
-                    cursor:"pointer",
-                    fontWeight:"700"
+                    background: "rgba(251,191,36,0.12)",
+                    border: "1px solid rgba(251,191,36,0.3)",
+                    borderRadius: "6px",
+                    padding: "5px 9px",
+                    color: "#fbbf24",
+                    fontFamily: getFont(theme, "secondary"),
+                    fontSize: "10px",
+                    cursor: "pointer",
+                    fontWeight: "700"
                   }}
                 >
                   ★
                 </button>
               )}
+
               <button
                 onClick={() => onEdit(a.id)}
                 title="Editar anuncio"
                 style={{
-                  background:"rgba(56,189,248,0.12)",
-                  border:"1px solid rgba(56,189,248,0.3)",
-                  borderRadius:"6px",
-                  padding:"5px 9px",
-                  color:"#38bdf8",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
-                  cursor:"pointer",
-                  fontWeight:"700"
+                  background: "rgba(56,189,248,0.12)",
+                  border: "1px solid rgba(56,189,248,0.3)",
+                  borderRadius: "6px",
+                  padding: "5px 9px",
+                  color: "#38bdf8",
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "10px",
+                  cursor: "pointer",
+                  fontWeight: "700"
                 }}
               >
                 ✏️
               </button>
+
               <button
                 onClick={() => {
                   onToggle(a.id, a.activo);
@@ -1429,37 +1475,40 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
                       .select("*")
                       .order("orden", { ascending: false })
                       .order("created_at", { ascending: false })
-                      .then(({ data }) => { if (data) setLista(data); });
+                      .then(({ data }) => {
+                        if (data) setLista(data);
+                      });
                   }, 300);
                 }}
                 style={{
                   background: a.activo ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
                   border: `1px solid ${a.activo ? "#22c55e55" : "rgba(255,255,255,0.15)"}`,
-                  borderRadius:"6px",
-                  padding:"5px 9px",
+                  borderRadius: "6px",
+                  padding: "5px 9px",
                   color: a.activo ? "#22c55e" : "rgba(255,255,255,0.4)",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
-                  cursor:"pointer",
-                  fontWeight:"700"
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "10px",
+                  cursor: "pointer",
+                  fontWeight: "700"
                 }}
               >
                 {a.activo ? "ON" : "OFF"}
               </button>
+
               <button
                 onClick={() => {
                   onDelete(a.id);
-                  setLista(l => l.filter(x => x.id !== a.id));
+                  setLista((l) => l.filter((x) => x.id !== a.id));
                 }}
                 style={{
-                  background:"rgba(239,68,68,0.1)",
-                  border:"1px solid rgba(239,68,68,0.25)",
-                  borderRadius:"6px",
-                  padding:"5px 9px",
-                  color:"#ef4444",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
-                  cursor:"pointer"
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  borderRadius: "6px",
+                  padding: "5px 9px",
+                  color: "#ef4444",
+                  fontFamily: getFont(theme, "secondary"),
+                  fontSize: "10px",
+                  cursor: "pointer"
                 }}
               >
                 🗑
@@ -1470,17 +1519,19 @@ function FloatingAdminPanel({ onLogout, onOpenThemeConfig }) {
       ))}
 
       {isReordering && (
-        <div style={{
-          marginTop:"8px",
-          padding:"8px 12px",
-          background:"rgba(251,191,36,0.08)",
-          border:"1px solid rgba(251,191,36,0.2)",
-          borderRadius:"8px",
-          fontFamily:getFont(theme, "secondary"),
-          fontSize:"9px",
-          color:"rgba(255,255,255,0.5)",
-          textAlign:"center"
-        }}>
+        <div
+          style={{
+            marginTop: "8px",
+            padding: "8px 12px",
+            background: "rgba(251,191,36,0.08)",
+            border: "1px solid rgba(251,191,36,0.2)",
+            borderRadius: "8px",
+            fontFamily: getFont(theme, "secondary"),
+            fontSize: "9px",
+            color: "rgba(255,255,255,0.5)",
+            textAlign: "center"
+          }}
+        >
           💡 Arrastra los anuncios para cambiar su orden. El primero será el principal.
         </div>
       )}
