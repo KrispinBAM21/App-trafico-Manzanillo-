@@ -7009,7 +7009,7 @@ function App() {
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
         
-        <DonateBanner active={active} />
+       {/* <DonateBanner active={active} /> */}
       </div>
 
       {/* Modal Admin — fuera de cualquier stacking context */}
