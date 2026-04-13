@@ -6982,7 +6982,16 @@ function App() {
 
         <NavBar active={active} set={setActive} />
 
-        <AnunciosBanner isAdmin={isAdmin} />
+      {/* 
+<AnunciosList
+  lista={...}
+  setLista={...}
+  onEdit={...}
+  onDelete={...}
+  onToggle={...}
+  isReordering={...}
+/> 
+*/}
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
