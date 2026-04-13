@@ -6537,60 +6537,6 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
   );
 }
 
-// ─── COOKIE BANNER ────────────────────────────────────────────────────────────
-// ✅ FIX: Botones con estilos completos y handlers correctos
-function CookieBanner({ onAccept, onReject }) {
-  const theme = React.useContext(ThemeContext);
-  return (
-    <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
-      background: "rgba(10,15,30,0.97)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-      borderTop: "1px solid rgba(255,255,255,0.15)", padding: "16px 20px",
-    }}>
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
-          <span style={{ fontSize: "22px" }}>🍪</span>
-          <div>
-            <div style={{ fontFamily: getFont(theme, "title"), color: "#fff", fontSize: "14px", fontWeight: "700", marginBottom: "4px" }}>Cookies y privacidad</div>
-            <div style={{ fontFamily: getFont(theme, "secondary"), color: "rgba(255,255,255,0.6)", fontSize: "11px", lineHeight: "1.6" }}>
-              Conect Manzanillo usa <strong style={{ color: "rgba(255,255,255,0.85)" }}>cookies esenciales</strong> para recordar tu ID de dispositivo y preferencias de votación. No compartimos datos con terceros ni mostramos publicidad. Tu participación es anónima.
-            </div>
-          </div>
-        </div>
-        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: getFont(theme, "secondary"), marginBottom: "12px", paddingLeft: "34px" }}>
-          Al continuar aceptas nuestra política de privacidad · Datos procesados en servidores de Supabase (UE/EUA)
-        </div>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button
-            onClick={onReject}
-            style={{
-              padding: "10px 18px", background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.2)", borderRadius: "8px",
-              color: "rgba(255,255,255,0.7)", fontFamily: getFont(theme, "secondary"), fontSize: "12px",
-              fontWeight: "600", cursor: "pointer", transition: "all 0.2s",
-            }}
-          >
-            Solo esenciales
-          </button>
-          <button
-            onClick={onAccept}
-            style={{
-              padding: "10px 20px",
-              background: "linear-gradient(135deg, #0369a1, #0ea5e9)",
-              border: "none", borderRadius: "8px",
-              color: "#fff", fontFamily: getFont(theme, "secondary"), fontSize: "12px",
-              fontWeight: "700", cursor: "pointer", transition: "all 0.2s",
-              letterSpacing: "0.5px",
-            }}
-          >
-            ✓ Aceptar y continuar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
 // ✅ FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
