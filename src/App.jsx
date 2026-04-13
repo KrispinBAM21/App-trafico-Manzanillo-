@@ -3719,7 +3719,8 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
     </span>
   );
 }
-
+const mkSegundoIngreso = () => ({});
+const mkConfinadaState = () => ({});
 function SegundoAccesoTab() {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
