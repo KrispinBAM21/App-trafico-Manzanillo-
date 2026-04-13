@@ -1,4 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
+const Badge = ({ children, color = "#333", style = {} }) => (
+  <span
+    style={{
+      background: color,
+      color: "#fff",
+      padding: "2px 6px",
+      borderRadius: "6px",
+      fontSize: "10px",
+      fontWeight: "600",
+      display: "inline-block",
+      ...style
+    }}
+  >
+    {children}
+  </span>
+);
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -6629,7 +6645,7 @@ function useAdminMode() {
     logout,
     Modal,
   };
-}
+
 function App() {
   // ✨ HOOK DE ESCALADO RESPONSIVE
   const { scale, isMobile } = useResponsiveFontScale();
