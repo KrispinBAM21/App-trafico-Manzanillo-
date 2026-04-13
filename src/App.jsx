@@ -4207,7 +4207,7 @@ function SegundoAccesoTab() {
     </div>
   );
 }
-
+const mkCarrilesState = () => ({});
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
 function CarrilesTab() {
   const theme = React.useContext(ThemeContext);
