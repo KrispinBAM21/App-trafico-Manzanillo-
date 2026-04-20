@@ -6524,33 +6524,6 @@ function TutorialTab({ setActive, isAdmin }) {
         ]},
         
         // ═══════════════════════════════════════════════════════════════════
-        // ADMINISTRACIÓN
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "admin", icon: "🔑", color: "#a855f7", title: "PANEL DE ADMINISTRACIÓN", subtitle: "Gestión completa del sistema (solo admins)", items: [
-          { label: "Gestión de Terminales", desc: "Actualizar estado de las 9 terminales del puerto, forzar cambios sin votación, resetear todas a Libre, ver historial de cambios." },
-          { label: "Gestión de Patios", desc: "Modificar estado de todos los patios reguladores, establecer capacidad máxima, cerrar/abrir patios, gestionar zonas de espera." },
-          { label: "Gestión de Carriles", desc: "Abrir/cerrar carriles individuales, cambiar terminal asignada en carriles de ingreso, marcar saturación, activar/desactivar retornos, programar mantenimientos." },
-          { label: "Gestión de Vialidades", desc: "Actualizar estado de todas las vialidades principales, crear alertas de congestión, publicar desvíos temporales." },
-          { label: "Publicar Noticias", desc: "Crear/editar/eliminar noticias y comunicados oficiales, establecer nivel de importancia, configurar fecha de expiración, adjuntar enlaces externos." },
-          { label: "Gestionar Segundo Acceso", desc: "Actualizar información del proyecto del 2° Acceso, subir imágenes de progreso, modificar cronograma, publicar avances." },
-          { label: "Moderación de Reportes", desc: "Revisar reportes pendientes, aprobar/rechazar incidentes, eliminar spam, banear usuarios abusivos, ver historial completo." },
-          { label: "Gestión de Anuncios", desc: "Crear/editar banners publicitarios, configurar fechas de inicio/fin, establecer prioridad de visualización, subir imágenes promocionales." },
-          { label: "Editor de Temas", desc: "Personalizar apariencia completa de la interfaz: colores, fuentes, fondos, transparencias, efectos visuales, estilos de ventanas." },
-          { label: "Configuración de Fondos", desc: "Elegir tipo de fondo: color sólido, gradiente personalizado o imagen. Ajustar opacidad de overlays, efectos de blur." },
-          { label: "Tipografía", desc: "Seleccionar fuentes de Google Fonts para títulos y texto general: Playfair Display, DM Sans, Roboto, Montserrat, Open Sans, Lato, Poppins." },
-          { label: "Tamaños de Texto", desc: "Ajustar tamaño base del texto (12-18px) y tamaño de títulos (15-24px) para optimizar legibilidad." },
-          { label: "Colores de Texto", desc: "Personalizar colores: texto principal, secundario, atenuado/hints, acentos/links. Soporte para modo claro u oscuro." },
-          { label: "Estilos de Ventanas", desc: "Configurar contentBox: fondo, transparencia, blur, bordes, radio de esquinas, padding, sombras, gradientes superpuestos." },
-          { label: "Iconos Personalizados", desc: "Cambiar iconos de tabs entre emojis o imágenes URL, ajustar tamaños individuales, iconos especiales para admin/session/logout." },
-          { label: "Exportar/Importar Temas", desc: "Guardar configuración completa de tema en JSON, importar temas predefinidos, compartir configuraciones con otros admins." },
-          { label: "Resetear Configuración", desc: "Restaurar tema a valores por defecto originales en un solo clic." },
-          { label: "Previsualización en Tiempo Real", desc: "Todos los cambios de tema se reflejan instantáneamente en la interfaz sin necesidad de recargar." },
-          { label: "Autenticación Segura", desc: "Contraseña hasheada con SHA-256, nunca se almacena en texto plano, sesión persistente en localStorage con expiración." },
-          { label: "Rate Limiting", desc: "Prevención de abuso: límites de operaciones por minuto, protección contra spam de actualizaciones." },
-          { label: "Logs de Actividad", desc: "Registro completo de todas las acciones administrativas: quién hizo qué y cuándo." },
-        ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
         // CARACTERÍSTICAS TÉCNICAS
         // ═══════════════════════════════════════════════════════════════════
         { id: "tech", icon: "⚙️", color: "#64748b", title: "CARACTERÍSTICAS TÉCNICAS", subtitle: "Stack tecnológico y arquitectura", items: [
