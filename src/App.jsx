@@ -6522,34 +6522,6 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Botón Flotante", desc: "Acceso rápido desde cualquier sección mediante el botón flotante con ícono 💝 en la esquina inferior." },
           { label: "Agradecimiento", desc: "Mensaje de agradecimiento personalizado para todos los donantes que apoyan el proyecto comunitario." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // CARACTERÍSTICAS TÉCNICAS
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "tech", icon: "⚙️", color: "#64748b", title: "CARACTERÍSTICAS TÉCNICAS", subtitle: "Stack tecnológico y arquitectura", items: [
-          { label: "Frontend Framework", desc: "React 18 con Hooks modernos (useState, useEffect, useRef, useContext), componentes funcionales puros, Context API para estado global." },
-          { label: "Backend & Database", desc: "Supabase (PostgreSQL) como backend completo: autenticación, base de datos relacional, storage, realtime subscriptions, Row Level Security (RLS)." },
-          { label: "Real-time Updates", desc: "Supabase Realtime para sincronización instantánea: cambios en terminales, patios, carriles, incidentes se reflejan en todos los dispositivos conectados sin recargar." },
-          { label: "Persistencia Local", desc: "LocalStorage para sesiones admin, preferencias de usuario, votos persistentes, temas guardados. SessionStorage para notas temporales." },
-          { label: "Diseño Responsive", desc: "Mobile-first design, adaptable a pantallas de 320px hasta 4K, touch-optimized para tablets y smartphones." },
-          { label: "Tipografía", desc: "Google Fonts: Playfair Display (títulos), DM Sans (texto general), Roboto, Montserrat, Open Sans, Lato, Poppins como alternativas configurables." },
-          { label: "Animaciones CSS", desc: "Transiciones suaves, fadeIn/slideUp, efectos de hover, blur dinámico, gradientes animados, micro-interacciones." },
-          { label: "Seguridad XSS", desc: "Función sanitize() que escapa caracteres HTML peligrosos (&, <, >, \", ', /, `, =) en todos los inputs de usuario." },
-          { label: "Hashing de Contraseñas", desc: "SHA-256 para contraseñas admin, nunca se almacenan en texto plano, comparación segura de hashes." },
-          { label: "Rate Limiting", desc: "Sistema de límites por acción: 1 reporte cada 30s, 1 voto cada 30s, 1 encuesta cada 24h. Prevención de spam y abuso." },
-          { label: "Validación de Datos", desc: "Validación en cliente (React) y servidor (Supabase RLS policies). Verificación de tipos, longitudes, formatos." },
-          { label: "CORS y Seguridad", desc: "Configuración CORS adecuada, headers de seguridad, protección CSRF, tokens de sesión seguros." },
-          { label: "Optimización de Rendimiento", desc: "Lazy loading de componentes pesados, debouncing en búsquedas, throttling en scroll events, memoización de cálculos costosos." },
-          { label: "Caché Inteligente", desc: "Datos frecuentes en caché: configuración de tema, listas de terminales/patios, opciones de estados. TTL configurable." },
-          { label: "Compresión de Assets", desc: "Imágenes optimizadas en WebP, minificación de JS/CSS en producción, code splitting, tree shaking." },
-          { label: "Accesibilidad (a11y)", desc: "Navegación completa por teclado (Tab, Enter, Escape), etiquetas ARIA, roles semánticos, alt text en imágenes." },
-          { label: "Contraste de Colores", desc: "Cumplimiento WCAG 2.1 nivel AA: ratios de contraste 4.5:1 para texto normal, 3:1 para texto grande." },
-          { label: "Tamaños Ajustables", desc: "Fuentes escalables (em/rem), zoom del navegador soportado hasta 200%, layout fluido sin scroll horizontal." },
-          { label: "Iconografía", desc: "Emojis nativos para compatibilidad universal + soporte para iconos personalizados vía URL de imagen." },
-          { label: "PWA Ready", desc: "Instalable en dispositivos móviles, funciona parcialmente offline (caché de assets estáticos), manifest.json configurado." },
-          { label: "Notificaciones Push", desc: "Arquitectura preparada para notificaciones push futuras: nuevos incidentes críticos, alertas de congestión severa." },
-        ]},
-        
         // ═══════════════════════════════════════════════════════════════════
         // SISTEMA DE ACTUALIZACIONES
         // ═══════════════════════════════════════════════════════════════════
