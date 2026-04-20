@@ -6371,6 +6371,8 @@ function TutorialTab({ setActive, isAdmin }) {
 
       {/* ══════════════════════════════════════════════════════
           GUÍA DE USO
+      {/* ══════════════════════════════════════════════════════
+          GUÍA DE USO - SECCIÓN "MÁS INFO" ACTUALIZADA
       ══════════════════════════════════════════════════════ */}
       <div style={{ textAlign:"center", marginBottom:"24px" }}>
         <div style={{ fontSize:"36px", marginBottom:"10px" }}>📖</div>
@@ -6378,7 +6380,274 @@ function TutorialTab({ setActive, isAdmin }) {
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px" }}>PUERTO TRÁFICO · MANZANILLO</div>
         <div style={{ width:"40px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"12px auto 0" }} />
       </div>
-      {sections.map(sec => (
+      {[
+        // ═══════════════════════════════════════════════════════════════════
+        // INICIO
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel de control general", items: [
+          { label: "Resumen Visual", desc: "Vista rápida del estado actual del puerto: tráfico, terminales, patios y accesos principales." },
+          { label: "Incidentes Activos", desc: "Muestra alertas e incidentes verificados por la comunidad en tiempo real." },
+          { label: "Estado de Terminales", desc: "Resumen del status de las 9 terminales del puerto (libres/llenas/retorno)." },
+          { label: "Acceso Rápido", desc: "Botones directos para reportar incidentes y acceder a secciones clave." },
+          { label: "Alertas Importantes", desc: "Notificaciones y avisos relevantes del día publicados por administradores." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // TRÁFICO
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
+          { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
+          { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real con colores: Verde (libre/fluido), Amarillo (tráfico lento), Rojo (saturado), Gris (cerrado). Puedes votar el estado actual que observes." },
+          { label: "Tipo de Retorno", desc: "Indica si hay retornos activos: Sin Retornos (verde), Retorno Terminal (naranja) o Retorno ASIPONA (morado)." },
+          { label: "Filtros por Acceso", desc: "Filtra la información por Acceso Norte o Acceso Sur para ver datos específicos de cada zona." },
+          { label: "Tiempo de Espera", desc: "Estimación del tiempo de espera basado en reportes de la comunidad y estado actual del tráfico." },
+          { label: "Actualización Automática", desc: "Los datos se actualizan cada 5 minutos automáticamente para mantener información precisa." },
+          { label: "Incidentes Pendientes", desc: "Reportes que aún no tienen votos suficientes. Puedes confirmar o marcar como falso para validar la información." },
+          { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad con 3+ votos de confirmación. Puedes votar para marcarlos como resueltos cuando ya no existan." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // REPORTAR
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
+          { label: "Paso 1 · Categoría", desc: "Elige entre: Incidente ⚠️ (problemas mecánicos, camiones varados, obstrucciones), Accidente 🚨 (choques, heridos, volcaduras, personas sin vida), Bloqueo/Corte 🚧 (manifestaciones, cierres viales) u Obra/Desvío 🏗️ (construcciones, mantenimiento)." },
+          { label: "Paso 2 · Tipo específico", desc: "Selecciona el subtipo exacto: falla mecánica, camión atravesado, falta de diesel, contenedor ladeado, plataforma/carga/camión abandonado, atropellado, choque, volcadura, herido, caída de material, persona sin vida, zona de asalto/robo." },
+          { label: "Paso 3 · Zona (opcional)", desc: "Indica en qué acceso o zona ocurrió: Acceso Norte, Acceso Sur, Zona Industrial, Centro, etc., para mayor contexto geográfico." },
+          { label: "Paso 4 · Ubicación", desc: "Selecciona de la lista predefinida (Jalipa-Puerto, Puerto-Jalipa, Libramiento, Manzanillo-Colima, Colima-Manzanillo, Calle Algodones, etc.) o escribe manualmente el punto exacto con km, carril o referencia visual." },
+          { label: "Paso 5 · Descripción", desc: "Agrega detalles adicionales: número de carril afectado, vehículos involucrados, severidad, dirección del tráfico afectado. La descripción es sanitizada automáticamente para evitar contenido malicioso." },
+          { label: "Rate Limiting", desc: "El sistema permite 1 reporte cada 30 segundos por usuario para evitar spam y garantizar calidad de la información." },
+          { label: "Validación Comunitaria", desc: "Tu reporte aparece como PENDIENTE y necesita al menos 3 votos de confirmación de otros usuarios para mostrarse en el mapa como ACTIVO." },
+          { label: "Notificaciones", desc: "Recibirás confirmación visual (toast) de que tu reporte fue enviado exitosamente o si hubo algún error." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // TERMINALES
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
+          { label: "Zona Norte (2 terminales)", desc: "CONTECON (Contecon Manzanillo S.A.) y HAZESA (Hazesa Terminal Especializada). Operaciones de carga/descarga de contenedores de la zona norte del puerto." },
+          { label: "Zona Sur (7 terminales)", desc: "TIMSA (Terminal Internacional de Manzanillo), SSA (SSA México Terminal), OCUPA (Terminal Multipropósito), MULTIMODAL (Terminal Multimodal), FRIMAN (Frigoríficos de Manzanillo), LA JUNTA (Terminal TAP), CEMEX (Terminal Marítima)." },
+          { label: "Estados disponibles", desc: "✓ Terminal Libre (verde): aceptando camiones. ✗ Terminal Llena (rojo): capacidad máxima alcanzada. ↩ Retorno Terminal (naranja): regresando camiones a espera. ⚓ Retorno ASIPONA (morado): enviando camiones al patio regulador ASIPONA." },
+          { label: "Actualizar estatus", desc: "Toca el estado que observas. El sistema contabiliza los votos de toda la comunidad y muestra el estado con mayor consenso en tiempo real." },
+          { label: "Sistema de Votación", desc: "Cada terminal mantiene un conteo de votos. El estado con más votos se muestra como oficial. Tu voto cuenta y se actualiza instantáneamente vía realtime." },
+          { label: "Votos cada 15 minutos", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener el estatus actualizado. Tu selección se guarda en localStorage y se re-envía automáticamente — no necesitas volver a votar." },
+          { label: "Persistencia de Voto", desc: "Tu último voto se guarda en tu dispositivo y sobrevive la limpieza de 15 minutos, manteniéndose activo hasta que cambies de opinión." },
+          { label: "TODO NORMAL", desc: "Botón para restablecer todas las terminales a 'Libre' de una sola vez. Útil al inicio del turno o cuando todas normalizan operaciones." },
+          { label: "Última Actualización", desc: "Cada terminal muestra quién actualizó su estado y hace cuánto tiempo (ej: 'hace 2min', 'hace 1h')." },
+          { label: "Indicadores Visuales", desc: "Cada terminal tiene un color distintivo y un ícono que facilita identificar su estado de un vistazo." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // PATIOS
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los patios de contenedores", items: [
+          { label: "¿Qué es el Patio Regulador?", desc: "Áreas de espera y almacenaje externas al puerto donde los camiones aguardan antes de ingresar a terminales. Hay 6 patios principales más ASIPONA." },
+          { label: "Patios Disponibles", desc: "ASIPONA (Asociación de Prestadores de Servicios del Puerto de Manzanillo A.C.), BAYER, DEL SUR, LÓPEZ, CHECO (El Checo), VENUSTIANO (Venustiano Carranza)." },
+          { label: "Estados posibles", desc: "✓ Disponible (verde): hay espacio, camiones pueden ingresar. ⚠ Espacio Limitado (naranja): capacidad reducida, considerar alternativas. ✗ Lleno (rojo): sin espacio disponible, buscar otro patio." },
+          { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos de la comunidad y muestra el estatus con más consenso." },
+          { label: "Votación Comunitaria", desc: "Similar a Terminales: cada voto cuenta, el estado con más votos prevalece, actualización en tiempo real vía Supabase Realtime." },
+          { label: "Persistencia Local", desc: "Tu voto se guarda localmente y sobrevive las limpiezas periódicas de 15 minutos, re-enviándose automáticamente." },
+          { label: "Información Expandible", desc: "Cada patio puede expandirse para mostrar detalles adicionales: ubicación exacta, capacidad estimada, notas de operación." },
+          { label: "TODO LIBRE", desc: "Botón 'TODOS LIBRES' para restablecer todos los patios a 'Disponible' simultáneamente. Ideal al inicio de jornada laboral." },
+          { label: "Indicador de Capacidad", desc: "Algunos patios muestran el porcentaje aproximado de ocupación basado en votos acumulados." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // SEGUNDO ACCESO
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "segundo", icon: "🛣️", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
+          { label: "Accesos disponibles", desc: "Acceso Pez Vela (Zona Sur - morado) con 8 carriles, Puerta 15 (Zona Sur - verde) con 3 carriles, Acceso Zona Norte (azul) con 3 carriles. Total: 14 carriles monitoreados." },
+          { label: "Carriles de Ingreso", desc: "Cada carril tiene asignada una terminal de destino (GENERAL, CONTECON, HAZESA, TIMSA, SSA, etc.). Puedes cambiar la terminal, indicar saturación o activar retornos." },
+          { label: "Terminal Asignada", desc: "Los carriles 1-4 de Pez Vela permiten seleccionar qué terminal están atendiendo en ese momento. La opción GENERAL indica que aceptan cualquier terminal." },
+          { label: "Carriles de Exportación", desc: "Marcados con 📤. Exclusivos para camiones que llevan carga hacia los barcos. Se marcan como Abierto/Cerrado/Saturado." },
+          { label: "Carriles de Importación", desc: "Marcados con 📥. Para camiones que retiran mercancía del puerto. Misma lógica de estado que exportación." },
+          { label: "Estados del Carril", desc: "Abierto (verde): operando normalmente. Cerrado (rojo): fuera de servicio. Saturado (amarillo): congestionado pero funcionando. Retornos (morado): enviando camiones de regreso." },
+          { label: "Última Actualización", desc: "Cada carril muestra quién lo actualizó y cuándo, garantizando transparencia en la información." },
+          { label: "TODO ABIERTO", desc: "Botón por acceso para restablecer todos sus carriles a estado Abierto simultáneamente." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // CARRILES
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Carriles individuales por acceso", items: [
+          { label: "Acceso Norte", desc: "3 carriles monitoreados: Norte 1, Norte 2, Norte 3. Cada uno con estado independiente de operación." },
+          { label: "Acceso Sur", desc: "4 carriles principales: Sur 1, Sur 2, Sur 3, Sur 4. Mayor capacidad de ingreso debido al volumen de tráfico." },
+          { label: "Estados disponibles", desc: "✓ Libre (verde): flujo normal de tráfico. ⚠ Lento (amarillo): demoras moderadas, tráfico reducido. ✗ Cerrado (rojo): carril bloqueado o fuera de servicio. 🚫 Congestión (rojo oscuro): completamente saturado, evitar." },
+          { label: "Actualización cada 3 min", desc: "Los carriles se actualizan automáticamente cada 3 minutos para reflejar cambios rápidos en el flujo vehicular." },
+          { label: "Motivo de Cierre", desc: "Cuando un carril está cerrado, se puede especificar el motivo: mantenimiento, accidente, inspección, etc." },
+          { label: "Estimado de Reapertura", desc: "Para carriles cerrados, opcionalmente se puede indicar la hora estimada de reapertura." },
+          { label: "Indicador Visual", desc: "Cada carril tiene un color distintivo que facilita identificar rápidamente su estado desde el panel principal." },
+          { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado a estado Libre de una sola vez." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // VIALIDADES
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "vialidades", icon: "🛣️", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
+          { label: "¿Qué son las Vialidades?", desc: "Carreteras y calles principales de acceso: Jalipa → Puerto, Puerto → Jalipa (sentidos opuestos), Libramiento Cihuatlán-Manzanillo, Manzanillo → Colima, Colima → Manzanillo, Calle Algodones." },
+          { label: "Estados disponibles", desc: "Libre (verde): tráfico fluido, sin demoras. Tráfico Lento (amarillo): demoras moderadas, avance reducido. Saturado (naranja): alta congestión, considerar ruta alterna. Tráfico Detenido (rojo): sin avance, totalmente bloqueado." },
+          { label: "Cómo votar", desc: "Toca el estado que observas en la vialidad mientras circulas o estás detenido. Tu reporte ayuda a otros conductores a tomar decisiones informadas." },
+          { label: "Sistema de Consenso", desc: "El sistema muestra el estado con mayor número de votos entre todos los usuarios activos en esa vialidad." },
+          { label: "Renovación cada 15 min", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener la información actualizada. Tu voto se guarda y reenvía sin necesidad de votar nuevamente." },
+          { label: "Mapa Integrado", desc: "Las vialidades se muestran en el mapa con colores correspondientes a su estado actual para visualización rápida." },
+          { label: "Alertas de Congestión", desc: "Cuando una vialidad cambia a estado Saturado o Detenido, se genera una alerta automática visible en el inicio." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // NOTICIAS
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "noticias", icon: "📰", color: "#3b82f6", title: "NOTICIAS", subtitle: "Comunicados y avisos oficiales", items: [
+          { label: "Centro de Noticias", desc: "Publicaciones oficiales de administradores sobre cambios operativos, eventos, mantenimientos y avisos importantes del puerto." },
+          { label: "Comunicados Oficiales", desc: "Anuncios formales de las autoridades portuarias, terminales y entidades reguladoras." },
+          { label: "Avisos Importantes", desc: "Alertas sobre cambios en horarios, cierres temporales, nuevos procedimientos, requisitos de acceso." },
+          { label: "Eventos Especiales", desc: "Información sobre eventos que afectan operaciones: llegadas de buques importantes, operativos especiales, visitas oficiales." },
+          { label: "Mantenimientos Programados", desc: "Calendario de mantenimientos planificados en terminales, carriles, vialidades que afectarán el flujo normal." },
+          { label: "Alertas Meteorológicas", desc: "Avisos de condiciones climáticas adversas: huracanes, tormentas, vientos fuertes que afecten operaciones portuarias." },
+          { label: "Actualizaciones de Horarios", desc: "Cambios en horarios de operación de terminales, patios, carriles por temporada alta/baja." },
+          { label: "Categorización", desc: "Las noticias se clasifican por importancia: Crítico (rojo), Importante (naranja), Informativo (azul), General (gris)." },
+          { label: "Fecha y Hora", desc: "Cada noticia muestra claramente cuándo fue publicada y por quién (usuario admin que la creó)." },
+          { label: "Búsqueda y Filtros", desc: "Busca noticias por palabra clave o filtra por categoría, fecha, terminal afectada." },
+          { label: "Archivado Automático", desc: "Las noticias se archivan automáticamente después de su fecha de expiración para mantener el feed limpio." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // DONATIVOS
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
+          { label: "¿Para qué sirven?", desc: "Cubren costos de servidor Supabase, dominio, desarrollo continuo, nuevas funcionalidades, mantenimiento de base de datos y mejoras de rendimiento." },
+          { label: "Transferencia MIFEL", desc: "Banco: MIFEL. Titular: Ramon Romero. CLABE: 014028090014825779. Cualquier monto es apreciado y ayuda a mantener el servicio activo." },
+          { label: "Mercado Pago", desc: "Enlaces de donación rápida vía Mercado Pago: tú eliges el monto, proceso seguro, confirmación instantánea." },
+          { label: "Ko-fi Internacional", desc: "Para usuarios internacionales: Ko-fi permite donativos anónimos con tarjeta de crédito o PayPal." },
+          { label: "Transparencia", desc: "Los fondos se utilizan exclusivamente para infraestructura técnica: servidor, almacenamiento de base de datos, ancho de banda, actualizaciones." },
+          { label: "No es obligatorio", desc: "El sistema es 100% gratuito para todos los usuarios. Los donativos son voluntarios y opcionales." },
+          { label: "Botón Flotante", desc: "Acceso rápido desde cualquier sección mediante el botón flotante con ícono 💝 en la esquina inferior." },
+          { label: "Agradecimiento", desc: "Mensaje de agradecimiento personalizado para todos los donantes que apoyan el proyecto comunitario." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMINISTRACIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "admin", icon: "🔑", color: "#a855f7", title: "PANEL DE ADMINISTRACIÓN", subtitle: "Gestión completa del sistema (solo admins)", items: [
+          { label: "Gestión de Terminales", desc: "Actualizar estado de las 9 terminales del puerto, forzar cambios sin votación, resetear todas a Libre, ver historial de cambios." },
+          { label: "Gestión de Patios", desc: "Modificar estado de todos los patios reguladores, establecer capacidad máxima, cerrar/abrir patios, gestionar zonas de espera." },
+          { label: "Gestión de Carriles", desc: "Abrir/cerrar carriles individuales, cambiar terminal asignada en carriles de ingreso, marcar saturación, activar/desactivar retornos, programar mantenimientos." },
+          { label: "Gestión de Vialidades", desc: "Actualizar estado de todas las vialidades principales, crear alertas de congestión, publicar desvíos temporales." },
+          { label: "Publicar Noticias", desc: "Crear/editar/eliminar noticias y comunicados oficiales, establecer nivel de importancia, configurar fecha de expiración, adjuntar enlaces externos." },
+          { label: "Gestionar Segundo Acceso", desc: "Actualizar información del proyecto del 2° Acceso, subir imágenes de progreso, modificar cronograma, publicar avances." },
+          { label: "Moderación de Reportes", desc: "Revisar reportes pendientes, aprobar/rechazar incidentes, eliminar spam, banear usuarios abusivos, ver historial completo." },
+          { label: "Gestión de Anuncios", desc: "Crear/editar banners publicitarios, configurar fechas de inicio/fin, establecer prioridad de visualización, subir imágenes promocionales." },
+          { label: "Editor de Temas", desc: "Personalizar apariencia completa de la interfaz: colores, fuentes, fondos, transparencias, efectos visuales, estilos de ventanas." },
+          { label: "Configuración de Fondos", desc: "Elegir tipo de fondo: color sólido, gradiente personalizado o imagen. Ajustar opacidad de overlays, efectos de blur." },
+          { label: "Tipografía", desc: "Seleccionar fuentes de Google Fonts para títulos y texto general: Playfair Display, DM Sans, Roboto, Montserrat, Open Sans, Lato, Poppins." },
+          { label: "Tamaños de Texto", desc: "Ajustar tamaño base del texto (12-18px) y tamaño de títulos (15-24px) para optimizar legibilidad." },
+          { label: "Colores de Texto", desc: "Personalizar colores: texto principal, secundario, atenuado/hints, acentos/links. Soporte para modo claro u oscuro." },
+          { label: "Estilos de Ventanas", desc: "Configurar contentBox: fondo, transparencia, blur, bordes, radio de esquinas, padding, sombras, gradientes superpuestos." },
+          { label: "Iconos Personalizados", desc: "Cambiar iconos de tabs entre emojis o imágenes URL, ajustar tamaños individuales, iconos especiales para admin/session/logout." },
+          { label: "Exportar/Importar Temas", desc: "Guardar configuración completa de tema en JSON, importar temas predefinidos, compartir configuraciones con otros admins." },
+          { label: "Resetear Configuración", desc: "Restaurar tema a valores por defecto originales en un solo clic." },
+          { label: "Previsualización en Tiempo Real", desc: "Todos los cambios de tema se reflejan instantáneamente en la interfaz sin necesidad de recargar." },
+          { label: "Autenticación Segura", desc: "Contraseña hasheada con SHA-256, nunca se almacena en texto plano, sesión persistente en localStorage con expiración." },
+          { label: "Rate Limiting", desc: "Prevención de abuso: límites de operaciones por minuto, protección contra spam de actualizaciones." },
+          { label: "Logs de Actividad", desc: "Registro completo de todas las acciones administrativas: quién hizo qué y cuándo." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // CARACTERÍSTICAS TÉCNICAS
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "tech", icon: "⚙️", color: "#64748b", title: "CARACTERÍSTICAS TÉCNICAS", subtitle: "Stack tecnológico y arquitectura", items: [
+          { label: "Frontend Framework", desc: "React 18 con Hooks modernos (useState, useEffect, useRef, useContext), componentes funcionales puros, Context API para estado global." },
+          { label: "Backend & Database", desc: "Supabase (PostgreSQL) como backend completo: autenticación, base de datos relacional, storage, realtime subscriptions, Row Level Security (RLS)." },
+          { label: "Real-time Updates", desc: "Supabase Realtime para sincronización instantánea: cambios en terminales, patios, carriles, incidentes se reflejan en todos los dispositivos conectados sin recargar." },
+          { label: "Persistencia Local", desc: "LocalStorage para sesiones admin, preferencias de usuario, votos persistentes, temas guardados. SessionStorage para notas temporales." },
+          { label: "Diseño Responsive", desc: "Mobile-first design, adaptable a pantallas de 320px hasta 4K, touch-optimized para tablets y smartphones." },
+          { label: "Tipografía", desc: "Google Fonts: Playfair Display (títulos), DM Sans (texto general), Roboto, Montserrat, Open Sans, Lato, Poppins como alternativas configurables." },
+          { label: "Animaciones CSS", desc: "Transiciones suaves, fadeIn/slideUp, efectos de hover, blur dinámico, gradientes animados, micro-interacciones." },
+          { label: "Seguridad XSS", desc: "Función sanitize() que escapa caracteres HTML peligrosos (&, <, >, \", ', /, `, =) en todos los inputs de usuario." },
+          { label: "Hashing de Contraseñas", desc: "SHA-256 para contraseñas admin, nunca se almacenan en texto plano, comparación segura de hashes." },
+          { label: "Rate Limiting", desc: "Sistema de límites por acción: 1 reporte cada 30s, 1 voto cada 30s, 1 encuesta cada 24h. Prevención de spam y abuso." },
+          { label: "Validación de Datos", desc: "Validación en cliente (React) y servidor (Supabase RLS policies). Verificación de tipos, longitudes, formatos." },
+          { label: "CORS y Seguridad", desc: "Configuración CORS adecuada, headers de seguridad, protección CSRF, tokens de sesión seguros." },
+          { label: "Optimización de Rendimiento", desc: "Lazy loading de componentes pesados, debouncing en búsquedas, throttling en scroll events, memoización de cálculos costosos." },
+          { label: "Caché Inteligente", desc: "Datos frecuentes en caché: configuración de tema, listas de terminales/patios, opciones de estados. TTL configurable." },
+          { label: "Compresión de Assets", desc: "Imágenes optimizadas en WebP, minificación de JS/CSS en producción, code splitting, tree shaking." },
+          { label: "Accesibilidad (a11y)", desc: "Navegación completa por teclado (Tab, Enter, Escape), etiquetas ARIA, roles semánticos, alt text en imágenes." },
+          { label: "Contraste de Colores", desc: "Cumplimiento WCAG 2.1 nivel AA: ratios de contraste 4.5:1 para texto normal, 3:1 para texto grande." },
+          { label: "Tamaños Ajustables", desc: "Fuentes escalables (em/rem), zoom del navegador soportado hasta 200%, layout fluido sin scroll horizontal." },
+          { label: "Iconografía", desc: "Emojis nativos para compatibilidad universal + soporte para iconos personalizados vía URL de imagen." },
+          { label: "PWA Ready", desc: "Instalable en dispositivos móviles, funciona parcialmente offline (caché de assets estáticos), manifest.json configurado." },
+          { label: "Notificaciones Push", desc: "Arquitectura preparada para notificaciones push futuras: nuevos incidentes críticos, alertas de congestión severa." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // SISTEMA DE ACTUALIZACIONES
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "updates", icon: "🔄", color: "#06b6d4", title: "SISTEMA DE ACTUALIZACIONES", subtitle: "Frecuencias y sincronización en tiempo real", items: [
+          { label: "Tráfico General", desc: "Actualización automática cada 5 minutos: recarga estado de accesos, retornos, incidentes activos." },
+          { label: "Carriles Individuales", desc: "Refrescado cada 3 minutos para reflejar cambios rápidos en flujo vehicular y aperturas/cierres." },
+          { label: "Terminales", desc: "Polling cada 10 minutos + actualización realtime instantánea cuando hay cambios de estado o nuevos votos." },
+          { label: "Patios Reguladores", desc: "Sincronización cada 10 minutos + realtime. Votos acumulados, limpieza periódica cada 15 minutos." },
+          { label: "Vialidades", desc: "Actualización cada 5 minutos, limpieza de votos cada 15 minutos, persistencia de votos individuales." },
+          { label: "Incidentes en Tiempo Real", desc: "Supabase Realtime: nuevos reportes aparecen instantáneamente sin recargar. WebSocket mantiene conexión persistente." },
+          { label: "Noticias en Tiempo Real", desc: "Nuevas publicaciones admin se muestran al instante. Suscripción a tabla 'noticias' con postgres_changes." },
+          { label: "Reconexión Automática", desc: "Si se pierde conexión WebSocket, el sistema reintenta automáticamente cada 5 segundos hasta recuperar." },
+          { label: "Indicador de Conexión", desc: "Ícono 👁 en header muestra estado de conexión realtime: verde (activo), gris (desconectado), amarillo (reconectando)." },
+          { label: "Sincronización Cross-Device", desc: "Cambios en un dispositivo se reflejan instantáneamente en todos los demás dispositivos del mismo usuario." },
+          { label: "Limpieza de Votos", desc: "Sistema automático ejecuta limpieza cada 15 minutos: elimina votos antiguos de terminales/patios/vialidades para frescura de datos." },
+          { label: "Re-envío Automático", desc: "Votos guardados localmente se reenvían automáticamente después de cada limpieza para mantener tu opinión activa." },
+          { label: "Notificaciones Críticas", desc: "Incidentes con categoría 'accidente' o con más de 5 votos generan notificación destacada en el inicio." },
+          { label: "Alertas de Congestión", desc: "Cuando 3+ accesos están en estado Saturado simultáneamente, se crea alerta automática de congestión general." },
+          { label: "Avisos de Mantenimiento", desc: "Noticias marcadas como 'mantenimiento programado' aparecen destacadas 24h antes del evento." },
+          { label: "Archivado de Incidentes", desc: "Incidentes con más de 10 votos de 'resuelto' se marcan automáticamente como cerrados y se archivan." },
+          { label: "Persistencia de Sesión", desc: "Sesión admin persiste en localStorage con token seguro. Expiración configurable (default: 7 días)." },
+          { label: "Preferencias Guardadas", desc: "Última tab visitada, filtros aplicados, modo de vista (mapa/lista) se guardan y restauran al volver." },
+          { label: "Historial de Búsqueda", desc: "Últimas 10 búsquedas en noticias se guardan localmente para acceso rápido (respeta límite de 500 caracteres)." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // REGISTRO Y AUTENTICACIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
+          { label: "¿Es obligatorio registrarse?", desc: "No. Puedes usar toda la app sin crear una cuenta. El registro es opcional y te permite participar con identidad verificada en la comunidad." },
+          { label: "Información básica", desc: "Nombre, apellidos, nombre de usuario (único), fecha de nacimiento, país y ciudad. Esto permite identificar al usuario y detectar cuentas duplicadas o sospechosas." },
+          { label: "Verificación por teléfono (obligatoria)", desc: "Introduce tu número de teléfono en formato internacional (+521XXXXXXXXXX) y recibirás un código SMS (OTP de 6 dígitos). Solo si el código es correcto podrás continuar. Esto evita que bots creen cuentas falsas." },
+          { label: "Correo electrónico", desc: "Ingresa tu correo y confírmalo. Se enviará un correo de verificación antes de activar la cuenta. Usa un correo real — los correos temporales o desechables son bloqueados por Supabase." },
+          { label: "Contraseña segura", desc: "Mínimo 10 caracteres, al menos 1 mayúscula, 1 número y 1 símbolo especial. Ejemplo válido: Micuenta#2026. Las contraseñas débiles son rechazadas automáticamente. Barra de fortaleza visual." },
+          { label: "Protección anti-bots", desc: "Verificación humana simple: ¿Cuánto es 3 + 5? Respuesta incorrecta bloquea el registro." },
+          { label: "Confirmaciones obligatorias", desc: "Debes aceptar explícitamente los Términos y Condiciones y la Política de Privacidad (checkboxes requeridos)." },
+          { label: "Reglas contra perfiles falsos", desc: "Solo se permite 1 cuenta por número de teléfono. Se bloquean: teléfonos temporales/VoIP, correos desechables, registros masivos desde la misma IP, dispositivos con múltiples cuentas detectadas." },
+          { label: "Proceso de 4 Pasos", desc: "Paso 1: Datos básicos. Paso 2: Verificación de teléfono vía SMS. Paso 3: Correo electrónico y confirmación. Paso 4: Contraseña segura + anti-bot + términos." },
+          { label: "Indicador de Progreso", desc: "Barra visual muestra en qué paso del registro te encuentras (1/4, 2/4, 3/4, 4/4)." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // INICIO DE SESIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Accede a tu cuenta de forma segura", items: [
+          { label: "¿Cómo iniciar sesión?", desc: "Ingresa tu correo electrónico y contraseña. El sistema valida las credenciales vía Supabase Auth con encriptación segura." },
+          { label: "Login con Google", desc: "Botón 'Continuar con Google' para autenticación OAuth2. Redirige a Google, autoriza y regresa automáticamente con sesión activa." },
+          { label: "Recordar Sesión", desc: "Checkbox 'Recordarme' guarda tu correo en localStorage para autocompletar la próxima vez. La contraseña NO se guarda por seguridad." },
+          { label: "Mostrar/Ocultar Contraseña", desc: "Ícono de ojo 👁/🙈 permite alternar visibilidad de la contraseña para verificar que la escribiste correctamente." },
+          { label: "Sesión Persistente", desc: "Una vez iniciada sesión, el token se guarda en localStorage y la sesión persiste al cerrar/reabrir el navegador (hasta 7 días o logout manual)." },
+          { label: "Intentos Fallidos", desc: "Después de 5 intentos fallidos en 15 minutos, Supabase bloquea temporalmente la cuenta por seguridad (60 minutos de espera)." },
+          { label: "Recuperar Contraseña", desc: "Link '¿Olvidaste tu contraseña?' debajo del formulario. Redirige a flujo de recuperación por correo electrónico." },
+          { label: "Sin Cuenta", desc: "Botón 'Crear cuenta' para cambiar a modo de registro. Puedes también continuar usando la app sin autenticarte." },
+          { label: "Mensajes de Error", desc: "Errores claros: 'Correo o contraseña incorrectos', 'Completa usuario y contraseña', 'Error al conectar con Google', etc." },
+          { label: "Loading States", desc: "Botones se deshabilitan mientras procesa la autenticación, mostrando 'Iniciando sesión...' para evitar doble-submit." },
+        ]},
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // RECUPERACIÓN DE CONTRASEÑA
+        // ═══════════════════════════════════════════════════════════════════
+        { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recupera el acceso a tu cuenta", items: [
+          { label: "Paso 1 · Ingresa tu correo", desc: "En la pantalla de inicio de sesión, toca '¿Olvidaste tu contraseña?', introduce el correo electrónico registrado y envía." },
+          { label: "Paso 2 · Revisa tu bandeja", desc: "Recibirás un correo de Supabase con enlace de recuperación seguro (token de un solo uso con expiración de 1 hora). Revisa también carpeta de spam/promociones." },
+          { label: "Paso 3 · Crea nueva contraseña", desc: "El enlace te lleva a pantalla de reset. Introduce nueva contraseña (cumpliendo requisitos: 10+ chars, 1 mayúscula, 1 número, 1 símbolo) y confirma." },
+          { label: "Validación de Fortaleza", desc: "Barra visual de 4 segmentos verifica en tiempo real: longitud, mayúscula, número, símbolo. Debe cumplir los 4 para aceptar." },
+          { label: "Token de Seguridad", desc: "El enlace de recuperación es token criptográfico único, válido por 1 hora, de un solo uso. Usado o expirado requiere generar nuevo." },
+          { label: "Cuenta Bloqueada", desc: "Si tu cuenta fue bloqueada por múltiples intentos fallidos, el proceso de recuperación también la desbloquea automáticamente una vez verificada tu identidad." },
+          { label: "Sin Acceso al Correo", desc: "Si perdiste acceso al correo registrado, contacta al administrador del sistema con prueba de identidad para recuperación manual." },
+          { label: "Confirmación", desc: "Una vez cambiada la contraseña, recibirás correo de confirmación y podrás iniciar sesión inmediatamente con la nueva contraseña." },
+        ]},
+      ].map(sec => (
         <div key={sec.id} style={{ marginBottom:"10px" }}>
           <button onClick={() => toggle(sec.id)} style={{ width:"100%", background: open===sec.id ? sec.color+"22" : "#0d1b2e", border:`1px solid ${open===sec.id ? sec.color+"88" : "#1e3a5f"}`, borderRadius: open===sec.id ? "12px 12px 0 0" : "12px", padding:"14px 16px", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", transition:"all 0.2s", textAlign:"left" }}>
             <span style={{ fontSize:"20px" }}>{sec.icon}</span>
@@ -6396,10 +6665,10 @@ function TutorialTab({ setActive, isAdmin }) {
                     <div style={{ width:"5px", height:"5px", background:sec.color, borderRadius:"50%", flexShrink:0 }} />
                     <span style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"11px", color:sec.color }}>{item.label}</span>
                   </div>
-                  <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", lineHeight:"1.8", paddingLeft:"11px" }}>{item.desc}</p>
+                  <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", lineHeight:"1.8", paddingLeft:"11px", margin:0 }}>{item.desc}</p>
                 </div>
               ))}
-              {!["registro","login","password"].includes(sec.id) && (<button onClick={() => setActive(sec.id)} style={{ width:"100%", marginTop:"14px", padding:"10px", background:`${sec.color}22`, border:`1px solid ${sec.color}55`, borderRadius:"8px", color:sec.color, fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"1px" }}>IR A {sec.title} →</button>)}
+              {!["registro","login","password","tech","updates","admin"].includes(sec.id) && (<button onClick={() => setActive(sec.id)} style={{ width:"100%", marginTop:"14px", padding:"10px", background:`${sec.color}22`, border:`1px solid ${sec.color}55`, borderRadius:"8px", color:sec.color, fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"1px" }}>IR A {sec.title} →</button>)}
             </div>
           )}
         </div>
