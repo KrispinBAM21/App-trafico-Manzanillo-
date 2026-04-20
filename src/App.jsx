@@ -6523,31 +6523,6 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Agradecimiento", desc: "Mensaje de agradecimiento personalizado para todos los donantes que apoyan el proyecto comunitario." },
         ]},
         // ═══════════════════════════════════════════════════════════════════
-        // SISTEMA DE ACTUALIZACIONES
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "updates", icon: "🔄", color: "#06b6d4", title: "SISTEMA DE ACTUALIZACIONES", subtitle: "Frecuencias y sincronización en tiempo real", items: [
-          { label: "Tráfico General", desc: "Actualización automática cada 5 minutos: recarga estado de accesos, retornos, incidentes activos." },
-          { label: "Carriles Individuales", desc: "Refrescado cada 3 minutos para reflejar cambios rápidos en flujo vehicular y aperturas/cierres." },
-          { label: "Terminales", desc: "Polling cada 10 minutos + actualización realtime instantánea cuando hay cambios de estado o nuevos votos." },
-          { label: "Patios Reguladores", desc: "Sincronización cada 10 minutos + realtime. Votos acumulados, limpieza periódica cada 15 minutos." },
-          { label: "Vialidades", desc: "Actualización cada 5 minutos, limpieza de votos cada 15 minutos, persistencia de votos individuales." },
-          { label: "Incidentes en Tiempo Real", desc: "Supabase Realtime: nuevos reportes aparecen instantáneamente sin recargar. WebSocket mantiene conexión persistente." },
-          { label: "Noticias en Tiempo Real", desc: "Nuevas publicaciones admin se muestran al instante. Suscripción a tabla 'noticias' con postgres_changes." },
-          { label: "Reconexión Automática", desc: "Si se pierde conexión WebSocket, el sistema reintenta automáticamente cada 5 segundos hasta recuperar." },
-          { label: "Indicador de Conexión", desc: "Ícono 👁 en header muestra estado de conexión realtime: verde (activo), gris (desconectado), amarillo (reconectando)." },
-          { label: "Sincronización Cross-Device", desc: "Cambios en un dispositivo se reflejan instantáneamente en todos los demás dispositivos del mismo usuario." },
-          { label: "Limpieza de Votos", desc: "Sistema automático ejecuta limpieza cada 15 minutos: elimina votos antiguos de terminales/patios/vialidades para frescura de datos." },
-          { label: "Re-envío Automático", desc: "Votos guardados localmente se reenvían automáticamente después de cada limpieza para mantener tu opinión activa." },
-          { label: "Notificaciones Críticas", desc: "Incidentes con categoría 'accidente' o con más de 5 votos generan notificación destacada en el inicio." },
-          { label: "Alertas de Congestión", desc: "Cuando 3+ accesos están en estado Saturado simultáneamente, se crea alerta automática de congestión general." },
-          { label: "Avisos de Mantenimiento", desc: "Noticias marcadas como 'mantenimiento programado' aparecen destacadas 24h antes del evento." },
-          { label: "Archivado de Incidentes", desc: "Incidentes con más de 10 votos de 'resuelto' se marcan automáticamente como cerrados y se archivan." },
-          { label: "Persistencia de Sesión", desc: "Sesión admin persiste en localStorage con token seguro. Expiración configurable (default: 7 días)." },
-          { label: "Preferencias Guardadas", desc: "Última tab visitada, filtros aplicados, modo de vista (mapa/lista) se guardan y restauran al volver." },
-          { label: "Historial de Búsqueda", desc: "Últimas 10 búsquedas en noticias se guardan localmente para acceso rápido (respeta límite de 500 caracteres)." },
-        ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
         // REGISTRO Y AUTENTICACIÓN
         // ═══════════════════════════════════════════════════════════════════
         { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
