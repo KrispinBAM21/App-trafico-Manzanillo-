@@ -3323,6 +3323,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaVialidades vialidades={vialidades} />
           <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre" };
             const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
@@ -3391,6 +3392,219 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
       <ToastBox toast={toast} />
 
+    </div>
+  );
+}
+
+// ─── MAPA DE VIALIDADES (Leaflet — sección Tráfico > Vialidades) ─────────────
+function MapaVialidades({ vialidades }) {
+  const theme = React.useContext(ThemeContext);
+  const mapRef    = useRef(null);
+  const leafRef   = useRef(null);
+  const layersRef = useRef({});
+  const tileRef   = useRef(null);
+  const labelRef  = useRef(null);
+  const [tileMode, setTileMode] = useState("dark");
+
+  // Rutas extraídas del KML (solo las vialidades votables)
+  const VIAL_LINES = [
+    {
+      id: "jalipa_puerto",
+      name: "Jalipa → Puerto",
+      weight: 7,
+      coords: [
+        [19.0784475939701,-104.2870646514312],[19.07978906323311,-104.2859805863696],
+        [19.08200682268578,-104.2845777271611],[19.08310055029634,-104.2837587822707],
+        [19.08598466199735,-104.281676375662],[19.0884984010515,-104.2799251205925],
+        [19.09060087644081,-104.2784138436524],[19.09283447000849,-104.2766822449047],
+        [19.09623158161623,-104.2742192725376],[19.09825929348696,-104.2728701193078],
+        [19.1002813406189,-104.2714096449672],[19.10636260878762,-104.2671088606022],
+      ],
+    },
+    {
+      id: "puerto_jalipa",
+      name: "Puerto → Jalipa",
+      weight: 7,
+      coords: [
+        [19.10620158984666,-104.2669703199962],[19.10315310269971,-104.2692144154645],
+        [19.09796761098305,-104.272941096177],[19.09504274656729,-104.274944709486],
+        [19.09264140909514,-104.2766809402058],[19.08809625688808,-104.2799566541513],
+        [19.08483992945358,-104.2822163712893],[19.08085053345084,-104.2851332224212],
+        [19.0797046494737,-104.2859202174179],[19.07887745343695,-104.286142720049],
+        [19.0776861498863,-104.28650575281],
+      ],
+    },
+    {
+      id: "libramiento",
+      name: "Cihuatlán–Manzanillo",
+      weight: 7,
+      coords: [
+        [19.09426886580907,-104.275893188039],[19.09717476920536,-104.2782234757976],
+        [19.09787484730029,-104.2795237753191],[19.09855656321739,-104.2822022597094],
+        [19.09897027846576,-104.2840776241292],[19.09884619877892,-104.2855238490435],
+      ],
+    },
+    {
+      id: "mzllo_colima",
+      name: "Manzanillo → Colima",
+      weight: 7,
+      coords: [
+        [19.07513237214499,-104.2847467000724],[19.07387080844731,-104.282476735095],
+        [19.07270304793202,-104.2804010684781],[19.07200223558479,-104.2791014884412],
+        [19.07160549162992,-104.278454764291],[19.07099626326914,-104.2762233320208],
+      ],
+    },
+    {
+      id: "colima_mzllo",
+      name: "Colima → Manzanillo",
+      weight: 7,
+      coords: [
+        [19.07115254996702,-104.2762001284719],[19.07144897704953,-104.2774832253349],
+        [19.0716652443332,-104.2783467743601],[19.07263908079699,-104.2800186694388],
+        [19.0741621236607,-104.2828124229572],[19.0750515019934,-104.2843004152151],
+      ],
+    },
+    {
+      id: "algodones",
+      name: "Calle Algodones",
+      weight: 7,
+      coords: [
+        [19.09051167248701,-104.2787068361492],[19.09269669726169,-104.2819435088931],
+        [19.09374142813102,-104.2834496954496],[19.09660945127452,-104.2877128809602],
+      ],
+    },
+  ];
+
+  const TILE_OPTIONS = [
+    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", labels: null },
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", labels: null },
+  ];
+
+  const getVialColor = (id) => {
+    if (!vialidades || !vialidades[id]) return "#22c55e";
+    const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades[id].status);
+    return opt ? opt.color : "#22c55e";
+  };
+
+  // Inicializar mapa Leaflet
+  useEffect(() => {
+    const init = () => {
+      if (leafRef.current || !mapRef.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, {
+        center: [19.085, -104.284],
+        zoom: 14,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+      });
+      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19 }).addTo(map);
+      leafRef.current = map;
+
+      VIAL_LINES.forEach(line => {
+        const color = getVialColor(line.id);
+        const shadow = L.polyline(line.coords, { color: "#000", weight: line.weight + 5, opacity: 0.18, lineCap: "round", lineJoin: "round" }).addTo(map);
+        const poly = L.polyline(line.coords, {
+          color, weight: line.weight, opacity: 0.92,
+          lineCap: "round", lineJoin: "round",
+        }).addTo(map);
+        const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades?.[line.id]?.status) || VIALIDAD_STATUS_OPTIONS[0];
+        poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+        layersRef.current[line.id] = { poly, shadow };
+      });
+
+      // CSS tooltips (reusar si ya existe)
+      if (!document.getElementById("cm-map-style")) {
+        const s = document.createElement("style");
+        s.id = "cm-map-style";
+        s.textContent = `
+          .cm-tooltip { background:rgba(4,12,24,0.95)!important; border:1px solid rgba(56,189,248,0.35)!important; border-radius:6px!important; color:rgba(255,255,255,0.9)!important; font-family:'DM Sans',sans-serif!important; font-size:12px!important; font-weight:600!important; padding:4px 9px!important; box-shadow:0 2px 12px rgba(0,0,0,0.5)!important; white-space:nowrap!important; }
+          .cm-tooltip::before { display:none!important; }
+          .leaflet-control-zoom a { background:rgba(4,12,24,0.9)!important; color:rgba(255,255,255,0.7)!important; border-color:rgba(255,255,255,0.1)!important; }
+          .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
+        `;
+        document.head.appendChild(s);
+      }
+    };
+
+    if (window.L) { init(); return; }
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="leaflet"]')) {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = init;
+      document.head.appendChild(script);
+    } else {
+      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    }
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
+  }, []);
+
+  // Cambiar tile
+  useEffect(() => {
+    if (!leafRef.current || !tileRef.current || !window.L) return;
+    const L = window.L;
+    const t = TILE_OPTIONS.find(t => t.id === tileMode);
+    if (!t) return;
+    tileRef.current.setUrl(t.url);
+    if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
+    if (t.labels) {
+      labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
+    }
+  }, [tileMode]);
+
+  // Actualizar colores cuando cambia vialidades
+  useEffect(() => {
+    if (!leafRef.current || !window.L || !vialidades) return;
+    VIAL_LINES.forEach(line => {
+      const entry = layersRef.current[line.id];
+      if (!entry) return;
+      const color = getVialColor(line.id);
+      entry.poly.setStyle({ color, weight: line.weight, opacity: 0.92 });
+      const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades?.[line.id]?.status) || VIALIDAD_STATUS_OPTIONS[0];
+      entry.poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+    });
+  }, [JSON.stringify(vialidades)]);
+
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      {/* Header */}
+      <div style={{ borderRadius: "14px 14px 0 0", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", borderBottom: "none" }}>
+        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "13px" }}>🗺️</span>
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>Mapa de Vialidades</span>
+          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· estado en tiempo real</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
+            {TILE_OPTIONS.map(t => (
+              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
+                background: tileMode === t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
+                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
+                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
+              }}>{t.icon} {t.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Mapa */}
+      <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderTop: "none", borderRadius: "0 0 14px 14px", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,0,0,0.5)" }}>
+        <div ref={mapRef} style={{ width: "100%", height: "300px", background: "#040c18" }} />
+      </div>
+      {/* Leyenda compacta */}
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px", padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {VIALIDAD_STATUS_OPTIONS.map(o => (
+          <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
+            <span style={{ width: "22px", height: "4px", borderRadius: "3px", background: o.color, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
+            {o.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
