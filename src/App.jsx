@@ -4652,8 +4652,10 @@ function SegundoAccesoTab({ myId }) {
           </div>
 
           {/* Mapa interactivo de fases */}
-          <div style={{ borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", marginBottom:"14px" }}>
-            <TrafficMap />
+          <div style={{ borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", marginBottom:"14px", maxHeight:"600px" }}>
+            <div style={{ transform:"scale(1)", transformOrigin:"top left", width:"100%" }}>
+              <TrafficMap />
+            </div>
           </div>
 
           {/* Cards por fase */}
