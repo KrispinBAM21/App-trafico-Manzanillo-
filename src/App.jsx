@@ -4648,7 +4648,12 @@ function SegundoAccesoTab({ myId }) {
 
           {/* Header */}
           <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), letterSpacing:"2px", marginBottom:"10px" }}>
-            🚦 VIALIDAD EN FASES DEL SEGUNDO ACCESO 
+            🚦 VIALIDAD EN FASES DEL SEGUNDO ACCESO
+          </div>
+
+          {/* Mapa interactivo de fases */}
+          <div style={{ borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", marginBottom:"14px" }}>
+            <TrafficMap />
           </div>
 
           {/* Cards por fase */}
