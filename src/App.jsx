@@ -3496,9 +3496,10 @@ function MapaVialidades({ vialidades }) {
   ];
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", labels: null },
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
-    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", labels: null },
+    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                                       subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                                            subdomains: "",     labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
   ];
 
   const getVialColor = (id) => {
@@ -3519,7 +3520,7 @@ function MapaVialidades({ vialidades }) {
         attributionControl: false,
         scrollWheelZoom: true,
       });
-      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19 }).addTo(map);
+      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains || "abc" }).addTo(map);
       leafRef.current = map;
 
       VIAL_LINES.forEach(line => {
@@ -3573,6 +3574,7 @@ function MapaVialidades({ vialidades }) {
     const t = TILE_OPTIONS.find(t => t.id === tileMode);
     if (!t) return;
     tileRef.current.setUrl(t.url);
+    tileRef.current.options.subdomains = t.subdomains || "abc";
     if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
     if (t.labels) {
       labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
