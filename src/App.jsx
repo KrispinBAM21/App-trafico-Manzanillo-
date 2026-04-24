@@ -3440,9 +3440,10 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
     {
       id: "segundo",
       name: "Segundo Acceso",
-      color: "#fbc02d",  // amarillo del KML
+      color: "#fbc02d",
       weight: 5,
       matchKeys: ["segundo acceso", "segundo", "puerta 15"],
+      vialidadId: null, // no es vialidad votable, es la ruta del 2do acceso
       coords: [
         [19.08614814082691,-104.2956970369951],[19.08347774542781,-104.2934796156525],
         [19.0827236676422,-104.292904994139],[19.08246238688557,-104.2926228241943],
@@ -3464,9 +3465,10 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
     {
       id: "confinada",
       name: "Vialidad Confinada",
-      color: "#1976d2",  // azul del KML
+      color: "#1976d2",
       weight: 5,
       matchKeys: ["confinada", "vialidad confinada"],
+      vialidadId: null,
       coords: [
         [19.07845002778019,-104.2876418385643],[19.07873613722384,-104.2877910830109],
         [19.07948864058397,-104.2883817565716],[19.0803524036938,-104.2890657811886],
@@ -3476,6 +3478,114 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
         [19.08559811613144,-104.2933935512683],[19.08597232474433,-104.2936647806544],
         [19.08642308590617,-104.2941350507671],[19.08679862961899,-104.2947303397634],
         [19.08704263945231,-104.2952775551105],
+      ],
+    },
+    // ── Vialidades del KML (coloreadas por estado reportado) ──────────────────
+    {
+      id: "jalipa_puerto",
+      name: "Jalipa → Puerto",
+      color: "#22c55e", // default: libre
+      weight: 6,
+      matchKeys: ["jalipa", "jalipa puerto"],
+      vialidadId: "jalipa_puerto",
+      coords: [
+        [19.0784475939701,-104.2870646514312],[19.07978906323311,-104.2859805863696],
+        [19.08200682268578,-104.2845777271611],[19.08310055029634,-104.2837587822707],
+        [19.08598466199735,-104.281676375662],[19.0884984010515,-104.2799251205925],
+        [19.09060087644081,-104.2784138436524],[19.09283447000849,-104.2766822449047],
+        [19.09623158161623,-104.2742192725376],[19.09825929348696,-104.2728701193078],
+        [19.1002813406189,-104.2714096449672],[19.10636260878762,-104.2671088606022],
+      ],
+    },
+    {
+      id: "puerto_jalipa",
+      name: "Puerto → Jalipa",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["puerto jalipa"],
+      vialidadId: "puerto_jalipa",
+      coords: [
+        [19.10620158984666,-104.2669703199962],[19.10315310269971,-104.2692144154645],
+        [19.09796761098305,-104.272941096177],[19.09504274656729,-104.274944709486],
+        [19.09264140909514,-104.2766809402058],[19.08809625688808,-104.2799566541513],
+        [19.08483992945358,-104.2822163712893],[19.08085053345084,-104.2851332224212],
+        [19.0797046494737,-104.2859202174179],[19.07887745343695,-104.286142720049],
+        [19.0776861498863,-104.28650575281],
+      ],
+    },
+    {
+      id: "mzllo_colima",
+      name: "Manzanillo → Colima",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["manzanillo colima", "mzllo colima"],
+      vialidadId: "mzllo_colima",
+      coords: [
+        [19.07513237214499,-104.2847467000724],[19.07387080844731,-104.282476735095],
+        [19.07270304793202,-104.2804010684781],[19.07200223558479,-104.2791014884412],
+        [19.07160549162992,-104.278454764291],[19.07099626326914,-104.2762233320208],
+      ],
+    },
+    {
+      id: "colima_mzllo",
+      name: "Colima → Manzanillo",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["colima manzanillo", "colima mzllo"],
+      vialidadId: "colima_mzllo",
+      coords: [
+        [19.07115254996702,-104.2762001284719],[19.07144897704953,-104.2774832253349],
+        [19.0716652443332,-104.2783467743601],[19.07263908079699,-104.2800186694388],
+        [19.0741621236607,-104.2828124229572],[19.0750515019934,-104.2843004152151],
+      ],
+    },
+    {
+      id: "algodones",
+      name: "Calle Algodones",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["algodones"],
+      vialidadId: "algodones",
+      coords: [
+        [19.09051167248701,-104.2787068361492],[19.09269669726169,-104.2819435088931],
+        [19.09374142813102,-104.2834496954496],[19.09660945127452,-104.2877128809602],
+      ],
+    },
+    {
+      id: "libramiento",
+      name: "Cihuatlán–Manzanillo",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["libramiento", "cihuatlan", "cihuatlán"],
+      vialidadId: "libramiento",
+      coords: [
+        [19.09426886580907,-104.275893188039],[19.09717476920536,-104.2782234757976],
+        [19.09787484730029,-104.2795237753191],[19.09855656321739,-104.2822022597094],
+        [19.09897027846576,-104.2840776241292],[19.09884619877892,-104.2855238490435],
+      ],
+    },
+    {
+      id: "antonio_suarez",
+      name: "Antonio Suárez",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["antonio suarez", "antonio suárez"],
+      vialidadId: null,
+      coords: [
+        [19.08621155065439,-104.2956155458168],[19.08591359885211,-104.2948151552219],
+        [19.08351233172974,-104.2928127939532],[19.07808926571032,-104.2884105001789],
+      ],
+    },
+    {
+      id: "av_trabajo",
+      name: "Av. del Trabajo",
+      color: "#22c55e",
+      weight: 6,
+      matchKeys: ["trabajo", "av trabajo", "av. del trabajo"],
+      vialidadId: null,
+      coords: [
+        [19.07420139717458,-104.2826615811781],[19.07697086498353,-104.2819707930699],
+        [19.08080436211426,-104.2810388376526],[19.08924016049061,-104.2789227969467],
       ],
     },
   ];
@@ -3598,6 +3708,24 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
     }
   }, [tileMode]);
 
+  // Actualizar colores de vialidades cuando cambia su estado
+  useEffect(() => {
+    if (!leafRef.current || !window.L || !vialidades) return;
+    KML_LINES.forEach(line => {
+      if (!line.vialidadId) return;
+      const layer = layersRef.current[line.id];
+      if (!layer) return;
+      const st = vialidades[line.vialidadId];
+      const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st?.status) || VIALIDAD_STATUS_OPTIONS[0];
+      // Solo cambiar si no hay incidente activo sobreescribiendo
+      if (!incGeoMap[line.id]) {
+        layer.setStyle({ color: opt.color, weight: 6, opacity: 0.9, dashArray: null });
+      }
+      // Actualizar el tooltip para mostrar el estado
+      layer.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+    });
+  }, [JSON.stringify(vialidades)]);
+
   // Actualizar estilos cuando cambian incidentes
   useEffect(() => {
     if (!leafRef.current || !window.L) return;
@@ -3643,8 +3771,14 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
   }, [JSON.stringify(incGeoMap)]);
 
   // ── Índice / leyenda ──────────────────────────────────────────────────────
+  const getVialColor = (vialidadId) => {
+    if (!vialidades || !vialidades[vialidadId]) return "#22c55e";
+    const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades[vialidadId].status);
+    return opt ? opt.color : "#22c55e";
+  };
+
   const LEGEND_ITEMS = [
-    // Rutas
+    // Rutas fijas
     { type: "line", color: "#fbc02d", label: "Segundo Acceso" },
     { type: "line", color: "#1976d2", label: "Vialidad Confinada" },
     // Accesos
@@ -3720,11 +3854,46 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
 
         {/* Terminales */}
         <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "7px" }}>TERMINALES</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "12px" }}>
           {LEGEND_ITEMS.filter(i => { const accesoNames = ["Acceso Zona Norte","Acceso Pez Vela","Acceso Puerta 15","Acceso Patios"]; return i.type === "dot" && !accesoNames.includes(i.label); }).map(item => (
             <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "7px 10px" }}>
               <div style={{ width: "12px", height: "12px", background: item.color, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.5)", flexShrink: 0 }} />
               <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Vialidades — colores dinámicos según estado */}
+        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "7px" }}>VIALIDADES</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "10px" }}>
+          {[
+            { id: "jalipa_puerto", name: "Jalipa → Puerto" },
+            { id: "puerto_jalipa", name: "Puerto → Jalipa" },
+            { id: "mzllo_colima",  name: "Manzanillo → Colima" },
+            { id: "colima_mzllo",  name: "Colima → Manzanillo" },
+            { id: "algodones",     name: "Calle Algodones" },
+            { id: "libramiento",   name: "Cihuatlán–Manzanillo" },
+          ].map(v => {
+            const color = getVialColor(v.id);
+            const opt   = vialidades?.[v.id] ? VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades[v.id].status) : VIALIDAD_STATUS_OPTIONS[0];
+            return (
+              <div key={v.id} style={{ display: "flex", alignItems: "center", gap: "8px", background: `${color}10`, border: `1px solid ${color}40`, borderRadius: "8px", padding: "7px 10px" }}>
+                <div style={{ width: "22px", height: "4px", background: color, borderRadius: "2px", flexShrink: 0, boxShadow: `0 0 6px ${color}80` }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.8)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.name}</div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color, fontWeight: 700 }}>{opt?.icon} {opt?.label || "Libre"}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Leyenda de colores de estado */}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", padding: "8px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {VIALIDAD_STATUS_OPTIONS.map(o => (
+            <div key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div style={{ width: "16px", height: "3px", background: o.color, borderRadius: "2px" }} />
+              <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.55)" }}>{o.label}</span>
             </div>
           ))}
         </div>
