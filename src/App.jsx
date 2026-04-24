@@ -225,6 +225,8 @@ const VIALIDADES = [
   { id: "mzllo_colima",     name: "Manzanillo → Colima",          fullName: "Carretera Manzanillo-Colima" },
   { id: "colima_mzllo",     name: "Colima → Manzanillo",          fullName: "Carretera Colima-Manzanillo" },
   { id: "algodones",        name: "Calle Algodones",              fullName: "Calle Algodones" },
+  { id: "antonio_suarez",   name: "Antonio Suárez",               fullName: "Calle Antonio Suárez" },
+  { id: "av_trabajo",       name: "Av. del Trabajo",              fullName: "Avenida del Trabajo" },
 ];
 
 const VIALIDAD_STATUS_OPTIONS = [
@@ -3473,6 +3475,24 @@ function MapaVialidades({ vialidades }) {
         [19.09374142813102,-104.2834496954496],[19.09660945127452,-104.2877128809602],
       ],
     },
+    {
+      id: "antonio_suarez",
+      name: "Antonio Suárez",
+      weight: 7,
+      coords: [
+        [19.08621155065439,-104.2956155458168],[19.08591359885211,-104.2948151552219],
+        [19.08351233172974,-104.2928127939532],[19.07808926571032,-104.2884105001789],
+      ],
+    },
+    {
+      id: "av_trabajo",
+      name: "Av. del Trabajo",
+      weight: 7,
+      coords: [
+        [19.07420139717458,-104.2826615811781],[19.07697086498353,-104.2819707930699],
+        [19.08080436211426,-104.2810388376526],[19.08924016049061,-104.2789227969467],
+      ],
+    },
   ];
 
   const TILE_OPTIONS = [
@@ -3784,7 +3804,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
       color: "#22c55e",
       weight: 6,
       matchKeys: ["antonio suarez", "antonio suárez"],
-      vialidadId: null,
+      vialidadId: "antonio_suarez",
       coords: [
         [19.08621155065439,-104.2956155458168],[19.08591359885211,-104.2948151552219],
         [19.08351233172974,-104.2928127939532],[19.07808926571032,-104.2884105001789],
@@ -3796,7 +3816,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
       color: "#22c55e",
       weight: 6,
       matchKeys: ["trabajo", "av trabajo", "av. del trabajo"],
-      vialidadId: null,
+      vialidadId: "av_trabajo",
       coords: [
         [19.07420139717458,-104.2826615811781],[19.07697086498353,-104.2819707930699],
         [19.08080436211426,-104.2810388376526],[19.08924016049061,-104.2789227969467],
