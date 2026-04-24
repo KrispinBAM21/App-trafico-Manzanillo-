@@ -4289,15 +4289,22 @@ const TRAFICO_STATUS = {
   fluido:   { color: "#22c55e", label: "Fluido",   emoji: "🟢", bg: "#dcfce7", text: "#15803d" },
   moderado: { color: "#f97316", label: "Moderado", emoji: "🟠", bg: "#ffedd5", text: "#c2410c" },
   detenido: { color: "#ef4444", label: "Detenido", emoji: "🔴", bg: "#fee2e2", text: "#b91c1c" },
+  sinuso:   { color: "#a855f7", label: "Sin Uso",  emoji: "🟣", bg: "#f3e8ff", text: "#7e22ce" },
 };
 
 const TRAFICO_MAP_STYLES = {
-  streets:     { name: "Calles", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '© OpenStreetMap', subdomains: 'abc' },
-  humanitarian:{ name: "Claro",  url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", attribution: '© OpenStreetMap', subdomains: 'ab' },
-  satellite:   { name: "Satélite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: '© Esri', subdomains: '' },
+  streets:     { name: "Calles",   url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",    attribution: "© OpenStreetMap", subdomains: "abc" },
+  humanitarian:{ name: "Claro",    url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", attribution: "© OpenStreetMap", subdomains: "ab"  },
+  satellite:   { name: "Satélite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri", subdomains: "" },
 };
 
 const toLLC = (coords) => coords.map(([lng, lat]) => [lat, lng]);
+
+const VOTOS_DEFAULT = {
+  1: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+  2: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+  3: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+};
 
 function useLeaflet() {
   const [L, setL] = useState(null);
@@ -4318,49 +4325,89 @@ function useLeaflet() {
 // ─── Sub-componente: Mapa de Tráfico para 2do Acceso ─────────────────────────
 function TrafficMapSegundo({ theme }) {
   const L = useLeaflet();
-  const mapRef = useRef(null);
+  const mapRef    = useRef(null);
   const mapInstanceRef = useRef(null);
-  const linesRef = useRef({});
+  const linesRef  = useRef({});
   const shadowsRef = useRef({});
   const tileLayerRef = useRef(null);
 
-  const [votos, setVotos] = useState({ 1:{fluido:0,moderado:0,detenido:0}, 2:{fluido:0,moderado:0,detenido:0}, 3:{fluido:0,moderado:0,detenido:0} });
-  const [statusMapa, setStatusMapa] = useState({ 1:"fluido", 2:"fluido", 3:"fluido" });
+  const [votos, setVotos]           = useState(VOTOS_DEFAULT);
+  const [statusMapa, setStatusMapa] = useState({ 1: "fluido", 2: "fluido", 3: "fluido" });
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [activeVote, setActiveVote] = useState({ fase:null, tipo:null });
-  const [mapStyle, setMapStyle] = useState("streets");
+  const [activeVote, setActiveVote] = useState({ fase: null, tipo: null });
+  const [mapStyle, setMapStyle]     = useState("streets");
 
+  const TABLA  = "carriles";
+  const ROW_ID = "trafico_mapa_votos";
+
+  // ── Calcular status dominante ──────────────────────────────────────────────
+  const calcStatus = (votes) => {
+    // "Sin Uso" toma prioridad si tiene al menos un voto
+    if ((votes.sinuso || 0) > 0) return "sinuso";
+    const entries = Object.entries(votes).filter(([k]) => k !== "sinuso");
+    const total = entries.reduce((s, [, n]) => s + n, 0);
+    if (total === 0) return "fluido";
+    return entries.reduce((best, [k, n]) => (n > best[1] ? [k, n] : best), ["fluido", -1])[0];
+  };
+
+  const recalcAllStatus = (v) => ({
+    1: calcStatus(v[1]),
+    2: calcStatus(v[2]),
+    3: calcStatus(v[3]),
+  });
+
+  // ── Cargar votos desde Supabase + suscripción en tiempo real ──────────────
+  useEffect(() => {
+    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
+      if (data?.data) {
+        const loaded = { ...VOTOS_DEFAULT, ...data.data };
+        setVotos(loaded);
+        setStatusMapa(recalcAllStatus(loaded));
+      }
+    });
+    const chan = sb.channel("trafico-mapa-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
+        if (r?.id === ROW_ID && r?.data) {
+          const loaded = { ...VOTOS_DEFAULT, ...r.data };
+          setVotos(loaded);
+          setStatusMapa(recalcAllStatus(loaded));
+        }
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  // ── Inicializar mapa Leaflet ───────────────────────────────────────────────
   useEffect(() => {
     if (!L || !mapRef.current || mapInstanceRef.current) return;
-    const map = L.map(mapRef.current, { center:[19.0905,-104.2890], zoom:15, zoomControl:true });
+    const map = L.map(mapRef.current, { center: [19.0905, -104.2890], zoom: 15, zoomControl: true });
     const style = TRAFICO_MAP_STYLES[mapStyle];
-    const tileLayer = L.tileLayer(style.url, { attribution:style.attribution, subdomains:style.subdomains||'abc', maxZoom:20 }).addTo(map);
-    tileLayerRef.current = tileLayer;
-    L.polygon(toLLC(TRAFICO_POLIGONO), { color:"#fbbf24", weight:2.5, opacity:0.7, fillColor:"#fbbf24", fillOpacity:0.08 })
-      .addTo(map).bindTooltip("Vialidad — contorno general", { sticky:true });
+    tileLayerRef.current = L.tileLayer(style.url, { attribution: style.attribution, subdomains: style.subdomains || "abc", maxZoom: 20 }).addTo(map);
+    L.polygon(toLLC(TRAFICO_POLIGONO), { color: "#fbbf24", weight: 2.5, opacity: 0.7, fillColor: "#fbbf24", fillOpacity: 0.08 })
+      .addTo(map).bindTooltip("Vialidad — contorno general", { sticky: true });
     Object.entries(TRAFICO_FASES).forEach(([id, fase]) => {
-      const shadow = L.polyline(toLLC(fase.coords), { color:"#000", weight:14, opacity:0.2, lineCap:"round", lineJoin:"round" }).addTo(map);
-      const line = L.polyline(toLLC(fase.coords), { color:TRAFICO_STATUS.fluido.color, weight:9, opacity:0.95, lineCap:"round", lineJoin:"round" }).addTo(map);
-      line.bindTooltip(`<b>${fase.nombre}</b><br>${fase.descripcion}`, { sticky:true });
+      const shadow = L.polyline(toLLC(fase.coords), { color: "#000", weight: 14, opacity: 0.2, lineCap: "round", lineJoin: "round" }).addTo(map);
+      const line   = L.polyline(toLLC(fase.coords), { color: TRAFICO_STATUS.fluido.color, weight: 9, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(map);
+      line.bindTooltip(`<b>${fase.nombre}</b><br>${fase.descripcion}`, { sticky: true });
       shadowsRef.current[id] = shadow;
-      linesRef.current[id] = line;
+      linesRef.current[id]   = line;
     });
-    L.circleMarker([19.08615,-104.29568], { radius:8, fillColor:"#6366f1", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Explanada Zona Norte", { direction:"right" });
-    L.circleMarker([19.08743,-104.28564], { radius:8, fillColor:"#8b5cf6", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Correos de México", { direction:"top" });
-    L.circleMarker([19.09373,-104.28356], { radius:8, fillColor:"#ec4899", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Algodones", { direction:"top" });
-    L.circleMarker([19.09845,-104.28316], { radius:8, fillColor:"#14b8a6", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Libramiento", { direction:"left" });
+    L.circleMarker([19.08615, -104.29568], { radius: 8, fillColor: "#6366f1", color: "#fff", weight: 3, fillOpacity: 1 }).addTo(map).bindTooltip("Explanada Zona Norte", { direction: "right" });
+    L.circleMarker([19.08743, -104.28564], { radius: 8, fillColor: "#8b5cf6", color: "#fff", weight: 3, fillOpacity: 1 }).addTo(map).bindTooltip("Correos de México",    { direction: "top"   });
+    L.circleMarker([19.09373, -104.28356], { radius: 8, fillColor: "#ec4899", color: "#fff", weight: 3, fillOpacity: 1 }).addTo(map).bindTooltip("Algodones",             { direction: "top"   });
+    L.circleMarker([19.09845, -104.28316], { radius: 8, fillColor: "#14b8a6", color: "#fff", weight: 3, fillOpacity: 1 }).addTo(map).bindTooltip("Libramiento",           { direction: "left"  });
     mapInstanceRef.current = map;
   }, [L]);
 
+  // ── Cambiar estilo de mapa ─────────────────────────────────────────────────
   const changeMapStyle = (newStyle) => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
     mapInstanceRef.current.removeLayer(tileLayerRef.current);
     const style = TRAFICO_MAP_STYLES[newStyle];
-    const newTile = L.tileLayer(style.url, { attribution:style.attribution, subdomains:style.subdomains||'abc', maxZoom:20 }).addTo(mapInstanceRef.current);
-    tileLayerRef.current = newTile;
+    tileLayerRef.current = L.tileLayer(style.url, { attribution: style.attribution, subdomains: style.subdomains || "abc", maxZoom: 20 }).addTo(mapInstanceRef.current);
     setMapStyle(newStyle);
   };
 
+  // ── Actualizar colores en el mapa cuando cambia el status ─────────────────
   useEffect(() => {
     Object.entries(statusMapa).forEach(([id, st]) => {
       const line = linesRef.current[id];
@@ -4368,104 +4415,121 @@ function TrafficMapSegundo({ theme }) {
     });
   }, [statusMapa]);
 
-  const calcStatus = (votes) => {
-    const entries = Object.entries(votes);
-    const total = entries.reduce((s,[,n]) => s+n, 0);
-    if (total===0) return "fluido";
-    return entries.reduce((best,[k,n]) => (n>best[1] ? [k,n] : best), ["fluido",-1])[0];
-  };
-
-  const votar = (fase, tipo) => {
+  // ── Votar y guardar en Supabase ────────────────────────────────────────────
+  const votar = async (fase, tipo) => {
     setActiveVote({ fase, tipo });
-    setTimeout(() => setActiveVote({ fase:null, tipo:null }), 600);
-    setVotos((prev) => {
-      const next = { ...prev, [fase]:{ ...prev[fase], [tipo]:prev[fase][tipo]+1 } };
-      setStatusMapa((s) => ({ ...s, [fase]: calcStatus(next[fase]) }));
-      return next;
-    });
+    setTimeout(() => setActiveVote({ fase: null, tipo: null }), 600);
+
+    let next;
+    if (tipo === "sinuso") {
+      // Toggle: si ya está en sinuso, lo desactiva; si no, lo activa y limpia los demás
+      const yaActivo = statusMapa[fase] === "sinuso";
+      next = {
+        ...votos,
+        [fase]: yaActivo
+          ? { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 }
+          : { fluido: 0, moderado: 0, detenido: 0, sinuso: 1 },
+      };
+    } else {
+      next = {
+        ...votos,
+        [fase]: { ...votos[fase], sinuso: 0, [tipo]: votos[fase][tipo] + 1 },
+      };
+    }
+
+    setVotos(next);
+    setStatusMapa(recalcAllStatus(next));
+
     const now = new Date();
     setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
+
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: next });
   };
 
-  const totalVotos = (fase) => Object.values(votos[fase]).reduce((a,b) => a+b, 0);
+  const totalVotos = (fase) => Object.entries(votos[fase]).filter(([k]) => k !== "sinuso").reduce((a, [,b]) => a + b, 0);
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
       {/* Header del mapa */}
-      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"12px", padding:"12px 16px", marginBottom:"12px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+      <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "12px", padding: "12px 16px", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), letterSpacing:"2px", marginBottom:"2px", fontWeight:"700" }}>MAPA — VIALIDAD EN TIEMPO REAL</div>
-          <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px", fontFamily:getFont(theme,"secondary") }}>Reportado por usuarios · Manzanillo, Colima</div>
+          <div style={{ fontSize: "10px", color: "#38bdf8", fontFamily: getFont(theme,"secondary"), letterSpacing: "2px", marginBottom: "2px", fontWeight: "700" }}>MAPA — VIALIDAD EN TIEMPO REAL</div>
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", fontFamily: getFont(theme,"secondary") }}>Reportado por usuarios · Manzanillo, Colima</div>
         </div>
         {lastUpdate && (
-          <span style={{ fontSize:"11px", color:"#e2e8f0", background:"rgba(56,189,248,0.12)", padding:"5px 12px", borderRadius:"20px", border:"1px solid rgba(56,189,248,0.3)", fontFamily:getFont(theme,"secondary") }}>
+          <span style={{ fontSize: "11px", color: "#e2e8f0", background: "rgba(56,189,248,0.12)", padding: "5px 12px", borderRadius: "20px", border: "1px solid rgba(56,189,248,0.3)", fontFamily: getFont(theme,"secondary") }}>
             🕐 {lastUpdate}
           </span>
         )}
       </div>
 
       {/* Selector de estilo de mapa */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:"10px" }}>
-        <span style={{ fontSize:"11px", color:"rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), display:"flex", alignItems:"center" }}>Estilo:</span>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
+        <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", fontFamily: getFont(theme,"secondary") }}>Estilo:</span>
         {Object.entries(TRAFICO_MAP_STYLES).map(([key, style]) => (
-          <button key={key} onClick={() => changeMapStyle(key)} style={{ fontSize:"11px", padding:"5px 10px", borderRadius:"8px", border:`1.5px solid ${mapStyle===key ? "#38bdf8" : "rgba(255,255,255,0.18)"}`, background:mapStyle===key ? "rgba(56,189,248,0.18)" : "rgba(255,255,255,0.04)", color:mapStyle===key ? "#38bdf8" : "#e2e8f0", cursor:"pointer", fontWeight:mapStyle===key ? 700 : 500, fontFamily:getFont(theme,"secondary"), transition:"all 0.2s" }}>
+          <button key={key} onClick={() => changeMapStyle(key)} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "8px", border: `1.5px solid ${mapStyle === key ? "#38bdf8" : "rgba(255,255,255,0.18)"}`, background: mapStyle === key ? "rgba(56,189,248,0.18)" : "rgba(255,255,255,0.04)", color: mapStyle === key ? "#38bdf8" : "#e2e8f0", cursor: "pointer", fontWeight: mapStyle === key ? 700 : 500, fontFamily: getFont(theme,"secondary"), transition: "all 0.2s" }}>
             {style.name}
           </button>
         ))}
       </div>
 
-      {/* Mapa */}
-      <div ref={mapRef} style={{ width:"100%", height:420, borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.15)", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", marginBottom:"14px", background:"#1a2942" }} />
-      {!L && <div style={{ textAlign:"center", color:"#94a3b8", fontSize:"13px", marginBottom:"12px", padding:"12px", background:"rgba(255,255,255,0.04)", borderRadius:"10px", border:"1px solid rgba(255,255,255,0.1)", fontFamily:getFont(theme,"secondary") }}>Cargando mapa…</div>}
+      {/* Mapa Leaflet */}
+      <div ref={mapRef} style={{ width: "100%", height: 420, borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)", marginBottom: "14px", background: "#1a2942" }} />
+      {!L && <div style={{ textAlign: "center", color: "#94a3b8", fontSize: "13px", marginBottom: "12px", padding: "12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.1)", fontFamily: getFont(theme,"secondary") }}>Cargando mapa…</div>}
 
       {/* Cards de votación */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:12, marginBottom:14 }}>
-        {[1,2,3].map((id) => {
-          const st = statusMapa[id];
-          const t = TRAFICO_STATUS[st];
-          const v = votos[id];
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, marginBottom: 14 }}>
+        {[1, 2, 3].map((id) => {
+          const st    = statusMapa[id];
+          const t     = TRAFICO_STATUS[st];
+          const v     = votos[id];
           const total = totalVotos(id);
-          const fase = TRAFICO_FASES[id];
+          const fase  = TRAFICO_FASES[id];
           return (
-            <div key={id} style={{ background:"rgba(255,255,255,0.05)", backdropFilter:"blur(12px)", borderRadius:"14px", border:`2px solid ${t.color}`, padding:"14px", display:"flex", flexDirection:"column", gap:9, transition:"all 0.4s", boxShadow:`0 4px 16px ${t.color}40` }}>
+            <div key={id} style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)", borderRadius: "14px", border: `2px solid ${t.color}`, padding: "14px", display: "flex", flexDirection: "column", gap: 9, transition: "all 0.4s", boxShadow: `0 4px 16px ${t.color}40` }}>
               {/* Encabezado */}
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <span style={{ fontSize:"14px", fontWeight:700, color:"#ffffff", fontFamily:getFont(theme,"secondary") }}>{fase.nombre}</span>
-                <span style={{ fontSize:"10px", fontWeight:700, background:t.bg, color:t.text, padding:"3px 9px", borderRadius:"20px", border:`1px solid ${t.color}40` }}>{t.emoji} {t.label}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "#ffffff", fontFamily: getFont(theme,"secondary") }}>{fase.nombre}</span>
+                <span style={{ fontSize: "10px", fontWeight: 700, background: t.bg, color: t.text, padding: "3px 9px", borderRadius: "20px", border: `1px solid ${t.color}40` }}>{t.emoji} {t.label}</span>
               </div>
-              <p style={{ margin:0, fontSize:"11px", color:"#94a3b8", lineHeight:1.5, fontFamily:getFont(theme,"secondary") }}>{fase.descripcion}</p>
+              <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", lineHeight: 1.5, fontFamily: getFont(theme,"secondary") }}>{fase.descripcion}</p>
 
               {/* Barra de votos */}
               {total > 0 && (
-                <div style={{ display:"flex", gap:2, height:5, borderRadius:6, overflow:"hidden", background:"rgba(255,255,255,0.1)" }}>
-                  {["fluido","moderado","detenido"].map((tipo) => {
-                    const pct = total > 0 ? (v[tipo]/total)*100 : 0;
-                    return pct > 0 ? <div key={tipo} style={{ width:`${pct}%`, background:TRAFICO_STATUS[tipo].color, transition:"width 0.4s" }} /> : null;
+                <div style={{ display: "flex", gap: 2, height: 5, borderRadius: 6, overflow: "hidden", background: "rgba(255,255,255,0.1)" }}>
+                  {["fluido","moderado","detenido","sinuso"].map((tipo) => {
+                    const pct = (v[tipo] / total) * 100;
+                    return pct > 0 ? <div key={tipo} style={{ width: `${pct}%`, background: TRAFICO_STATUS[tipo].color, transition: "width 0.4s" }} /> : null;
                   })}
                 </div>
               )}
 
               {/* Botones de voto */}
-              <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:2 }}>
-                {["fluido","moderado","detenido"].map((tipo) => {
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 2 }}>
+                {["fluido","moderado","detenido","sinuso"].map((tipo) => {
                   const tr = TRAFICO_STATUS[tipo];
-                  const isActive = activeVote.fase===id && activeVote.tipo===tipo;
+                  const isActive = activeVote.fase === id && activeVote.tipo === tipo;
+                  const isSinUsoOn = tipo === "sinuso" && st === "sinuso";
                   return (
-                    <button key={tipo} onClick={() => votar(id,tipo)} style={{ fontSize:"11px", padding:"9px 10px", borderRadius:"9px", border:`2px solid ${tr.color}`, background:isActive ? tr.color : "rgba(255,255,255,0.04)", color:isActive ? "#fff" : "#e2e8f0", cursor:"pointer", fontWeight:600, transition:"all 0.2s", transform:isActive ? "scale(0.97)" : "scale(1)", display:"flex", alignItems:"center", gap:7, fontFamily:getFont(theme,"secondary") }}
-                      onMouseEnter={(e) => { if(!isActive) e.currentTarget.style.background=`${tr.color}20`; }}
-                      onMouseLeave={(e) => { if(!isActive) e.currentTarget.style.background="rgba(255,255,255,0.04)"; }}
+                    <button
+                      key={tipo}
+                      onClick={() => votar(id, tipo)}
+                      style={{ fontSize: "11px", padding: "9px 10px", borderRadius: "9px", border: `2px solid ${tr.color}`, background: isActive || isSinUsoOn ? tr.color : "rgba(255,255,255,0.04)", color: isActive || isSinUsoOn ? "#fff" : "#e2e8f0", cursor: "pointer", fontWeight: 600, transition: "all 0.2s", transform: isActive ? "scale(0.97)" : "scale(1)", display: "flex", alignItems: "center", gap: 7, fontFamily: getFont(theme,"secondary") }}
+                      onMouseEnter={(e) => { if (!isActive && !isSinUsoOn) e.currentTarget.style.background = `${tr.color}20`; }}
+                      onMouseLeave={(e) => { if (!isActive && !isSinUsoOn) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
-                      <span style={{ fontSize:"14px" }}>{tr.emoji}</span>
-                      <span>{tr.label}</span>
-                      {v[tipo] > 0 && <span style={{ marginLeft:"auto", background:tr.color, color:"#fff", borderRadius:"12px", padding:"1px 7px", fontSize:"10px", fontWeight:700 }}>{v[tipo]}</span>}
+                      <span style={{ fontSize: "14px" }}>{tr.emoji}</span>
+                      <span>{tr.label}{isSinUsoOn ? " (activo — toca para desactivar)" : ""}</span>
+                      {v[tipo] > 0 && tipo !== "sinuso" && <span style={{ marginLeft: "auto", background: tr.color, color: "#fff", borderRadius: "12px", padding: "1px 7px", fontSize: "10px", fontWeight: 700 }}>{v[tipo]}</span>}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Total */}
-              <div style={{ fontSize:"10px", color:"#94a3b8", borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:7, textAlign:"center", fontFamily:getFont(theme,"secondary") }}>
-                {total===0 ? "Sin votos aún" : `${total} voto${total!==1?"s":""} registrado${total!==1?"s":""}`}
+              {/* Total votos */}
+              <div style={{ fontSize: "10px", color: "#94a3b8", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 7, textAlign: "center", fontFamily: getFont(theme,"secondary") }}>
+                {total === 0 ? "Sin votos aún" : `${total} voto${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`}
               </div>
             </div>
           );
@@ -4473,17 +4537,17 @@ function TrafficMapSegundo({ theme }) {
       </div>
 
       {/* Leyenda */}
-      <div style={{ display:"flex", gap:14, alignItems:"center", flexWrap:"wrap", fontSize:"11px", color:"#94a3b8", background:"rgba(255,255,255,0.04)", backdropFilter:"blur(12px)", borderRadius:"10px", padding:"12px 16px", border:"1px solid rgba(255,255,255,0.1)" }}>
-        <span style={{ fontWeight:700, color:"#ffffff", fontFamily:getFont(theme,"secondary") }}>Leyenda:</span>
-        {Object.entries(TRAFICO_STATUS).map(([key,t]) => (
-          <span key={key} style={{ display:"flex", alignItems:"center", gap:5 }}>
-            <span style={{ width:24, height:5, borderRadius:4, background:t.color, display:"inline-block", boxShadow:`0 0 8px ${t.color}60` }} />
-            <span style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary") }}>{t.label}</span>
+      <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", fontSize: "11px", color: "#94a3b8", background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <span style={{ fontWeight: 700, color: "#ffffff", fontFamily: getFont(theme,"secondary") }}>Leyenda:</span>
+        {Object.entries(TRAFICO_STATUS).map(([key, t]) => (
+          <span key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 24, height: 5, borderRadius: 4, background: t.color, display: "inline-block", boxShadow: `0 0 8px ${t.color}60` }} />
+            <span style={{ color: "#e2e8f0", fontFamily: getFont(theme,"secondary") }}>{t.label}</span>
           </span>
         ))}
-        <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-          <span style={{ width:24, height:5, borderRadius:4, background:"#fbbf24", display:"inline-block", boxShadow:"0 0 8px #fbbf2460" }} />
-          <span style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary") }}>Vialidad (contorno)</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 24, height: 5, borderRadius: 4, background: "#fbbf24", display: "inline-block", boxShadow: "0 0 8px #fbbf2460" }} />
+          <span style={{ color: "#e2e8f0", fontFamily: getFont(theme,"secondary") }}>Vialidad (contorno)</span>
         </span>
       </div>
     </div>
@@ -4597,9 +4661,9 @@ function SegundoAccesoTab() {
       {/* ── Sub-tab selector ── */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
         {[
-          { id:"segundo",   label:"2DO ACCESO",  icon:"🛣️",  color:"#34d399" },
-          { id:"confinada", label:"CONFINADA",   icon:"🔒", color:"#a78bfa" },
-          { id:"mapa",      label:"MAPA TRÁFICO",icon:"🗺️", color:"#38bdf8" },
+          { id:"segundo",   label:"2DO ACCESO",   icon:"🛣️",  color:"#34d399" },
+          { id:"confinada", label:"CONFINADA",    icon:"🔒", color:"#a78bfa" },
+          { id:"mapa",      label:"MAPA TRÁFICO", icon:"🗺️", color:"#38bdf8" },
         ].map(tab => (
           <button
             key={tab.id}
