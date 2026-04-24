@@ -4233,6 +4233,263 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
   );
 }
 
+// ─── MAPA DE TRÁFICO — Datos para 2do Acceso ─────────────────────────────────
+const TRAFICO_POLIGONO = [
+  [-104.2956432328187,19.08619209124374],[-104.2958012400686,19.08612353367882],
+  [-104.295237002161,19.08548834050964],[-104.2935769847386,19.08346115004283],
+  [-104.2929648937837,19.08271533570677],[-104.2927876591146,19.0825059505056],
+  [-104.2926958990455,19.08243047868295],[-104.2925098213441,19.08234118866323],
+  [-104.2923198787531,19.08228563078084],[-104.2921099866352,19.08227915286889],
+  [-104.2918012457869,19.08236984573452],[-104.2912425111083,19.08259531619683],
+  [-104.2904769657134,19.08287557945914],[-104.2902670834497,19.08297022506358],
+  [-104.2899109973722,19.08327349493017],[-104.2896155062826,19.08354535141965],
+  [-104.2894642386681,19.08374550992097],[-104.2893643146049,19.08396303706772],
+  [-104.2891251747735,19.08421311626825],[-104.2880868407839,19.085140979565],
+  [-104.2862908405063,19.08673429594806],[-104.2851452649081,19.08773494781913],
+  [-104.2848239952701,19.08800377725654],[-104.284578976879,19.08790925616328],
+  [-104.2845293666355,19.0880134022355],[-104.2849993401042,19.08842799978833],
+  [-104.2850684558474,19.08852554320096],[-104.285063519266,19.08885936093019],
+  [-104.2850823762815,19.08967029162529],[-104.28487643742,19.09060924337723],
+  [-104.284637535181,19.09153000811393],[-104.2845454082646,19.091824845858],
+  [-104.2837140360618,19.09328485849791],[-104.2830848869176,19.09439916644509],
+  [-104.282875952596,19.09479619656998],[-104.2828539377395,19.09512323676537],
+  [-104.2830321652888,19.09591953640828],[-104.2831730456464,19.09655741957823],
+  [-104.2833366996257,19.09693315400825],[-104.2833801180437,19.09725733105946],
+  [-104.2832808923378,19.09759914423141],[-104.2830810686392,19.09835181633892],
+  [-104.2832630559254,19.09844454745516],[-104.2835064852598,19.09746109534955],
+  [-104.2835759095441,19.09709534374852],[-104.2834771366589,19.09676893864881],
+  [-104.2833830530463,19.09655937108205],[-104.2832535580456,19.0961424961597],
+  [-104.2831193966912,19.09542962605835],[-104.2830565882209,19.09510222903079],
+  [-104.2830694995621,19.09489180095153],[-104.2832679223545,19.09443543927461],
+  [-104.2837297069643,19.09358075378652],[-104.2843303407103,19.0925472223253],
+  [-104.2846806347927,19.09192902322917],[-104.2847899463359,19.09168427780067],
+  [-104.2849481312142,19.09102076845924],[-104.2851562313191,19.0902180805804],
+  [-104.2852761572432,19.08973551293583],[-104.2852326843038,19.08909857089786],
+  [-104.2852181469885,19.08842824627107],[-104.2853219530563,19.08802616350718],
+  [-104.2854400621628,19.08777906650823],[-104.2855966008766,19.08759158025215],
+  [-104.2858788741858,19.0873182784884],[-104.2872117289639,19.08614139684764],
+  [-104.2887021935913,19.08480441208977],[-104.2894261290447,19.08420016677874],
+  [-104.2895499907893,19.08403106068409],[-104.2896772834872,19.08377100405592],
+  [-104.289833747144,19.08359710991313],[-104.2903461857223,19.08314729059766],
+  [-104.2906729291834,19.08298499870989],[-104.2914323855376,19.08269258818945],
+  [-104.2920481341167,19.08247699820355],[-104.2923002738972,19.08247494003926],
+  [-104.2925585156614,19.08254974003597],[-104.2927825558107,19.08276688508045],
+  [-104.2931883188278,19.08325875146242],[-104.2936771799497,19.08381058708915],
+  [-104.2944559279856,19.08476658875541],[-104.2948519888484,19.08529460955485],
+  [-104.2952194575188,19.08574234095812],[-104.2956432328187,19.08619209124374],
+];
+
+const TRAFICO_FASES = {
+  1: { nombre: "Fase 1", descripcion: "Explanada Zona Norte → Correos de México", coords: [[-104.2956819191555,19.08615187774392],[-104.2933482926518,19.08329862234055],[-104.2926130412677,19.08246484120855],[-104.2923604823659,19.08237622650364],[-104.2919951914411,19.08238298388435],[-104.2912298218874,19.08269613031682],[-104.2903750532096,19.08301205959789],[-104.2897695783387,19.08352106173542],[-104.289595889205,19.08371635973616],[-104.2894480932443,19.08403501303767],[-104.2885276558661,19.08486118178601],[-104.2856464237334,19.08742932269167]] },
+  2: { nombre: "Fase 2", descripcion: "Correos de México → Algodones", coords: [[-104.2851377878937,19.08904301224161],[-104.2851611059012,19.08972573464031],[-104.2847464925899,19.09156089341323],[-104.2835650740145,19.09373023521704]] },
+  3: { nombre: "Fase 3", descripcion: "Algodones → Libramiento", coords: [[-104.2835322448865,19.0938393761189],[-104.2830335782314,19.09478118077988],[-104.2829477956785,19.09503652399597],[-104.2831681456968,19.09613774222283],[-104.2833216300948,19.09667034384744],[-104.2834821239215,19.09708402791151],[-104.2834505445804,19.09727893231578],[-104.283162837602,19.09844677179581]] },
+};
+
+const TRAFICO_STATUS = {
+  fluido:   { color: "#22c55e", label: "Fluido",   emoji: "🟢", bg: "#dcfce7", text: "#15803d" },
+  moderado: { color: "#f97316", label: "Moderado", emoji: "🟠", bg: "#ffedd5", text: "#c2410c" },
+  detenido: { color: "#ef4444", label: "Detenido", emoji: "🔴", bg: "#fee2e2", text: "#b91c1c" },
+};
+
+const TRAFICO_MAP_STYLES = {
+  streets:     { name: "Calles", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: '© OpenStreetMap', subdomains: 'abc' },
+  humanitarian:{ name: "Claro",  url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", attribution: '© OpenStreetMap', subdomains: 'ab' },
+  satellite:   { name: "Satélite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: '© Esri', subdomains: '' },
+};
+
+const toLLC = (coords) => coords.map(([lng, lat]) => [lat, lng]);
+
+function useLeaflet() {
+  const [L, setL] = useState(null);
+  useEffect(() => {
+    if (window.L) { setL(window.L); return; }
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(link);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    script.onload = () => setL(window.L);
+    document.head.appendChild(script);
+  }, []);
+  return L;
+}
+
+// ─── Sub-componente: Mapa de Tráfico para 2do Acceso ─────────────────────────
+function TrafficMapSegundo({ theme }) {
+  const L = useLeaflet();
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const linesRef = useRef({});
+  const shadowsRef = useRef({});
+  const tileLayerRef = useRef(null);
+
+  const [votos, setVotos] = useState({ 1:{fluido:0,moderado:0,detenido:0}, 2:{fluido:0,moderado:0,detenido:0}, 3:{fluido:0,moderado:0,detenido:0} });
+  const [statusMapa, setStatusMapa] = useState({ 1:"fluido", 2:"fluido", 3:"fluido" });
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [activeVote, setActiveVote] = useState({ fase:null, tipo:null });
+  const [mapStyle, setMapStyle] = useState("streets");
+
+  useEffect(() => {
+    if (!L || !mapRef.current || mapInstanceRef.current) return;
+    const map = L.map(mapRef.current, { center:[19.0905,-104.2890], zoom:15, zoomControl:true });
+    const style = TRAFICO_MAP_STYLES[mapStyle];
+    const tileLayer = L.tileLayer(style.url, { attribution:style.attribution, subdomains:style.subdomains||'abc', maxZoom:20 }).addTo(map);
+    tileLayerRef.current = tileLayer;
+    L.polygon(toLLC(TRAFICO_POLIGONO), { color:"#fbbf24", weight:2.5, opacity:0.7, fillColor:"#fbbf24", fillOpacity:0.08 })
+      .addTo(map).bindTooltip("Vialidad — contorno general", { sticky:true });
+    Object.entries(TRAFICO_FASES).forEach(([id, fase]) => {
+      const shadow = L.polyline(toLLC(fase.coords), { color:"#000", weight:14, opacity:0.2, lineCap:"round", lineJoin:"round" }).addTo(map);
+      const line = L.polyline(toLLC(fase.coords), { color:TRAFICO_STATUS.fluido.color, weight:9, opacity:0.95, lineCap:"round", lineJoin:"round" }).addTo(map);
+      line.bindTooltip(`<b>${fase.nombre}</b><br>${fase.descripcion}`, { sticky:true });
+      shadowsRef.current[id] = shadow;
+      linesRef.current[id] = line;
+    });
+    L.circleMarker([19.08615,-104.29568], { radius:8, fillColor:"#6366f1", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Explanada Zona Norte", { direction:"right" });
+    L.circleMarker([19.08743,-104.28564], { radius:8, fillColor:"#8b5cf6", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Correos de México", { direction:"top" });
+    L.circleMarker([19.09373,-104.28356], { radius:8, fillColor:"#ec4899", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Algodones", { direction:"top" });
+    L.circleMarker([19.09845,-104.28316], { radius:8, fillColor:"#14b8a6", color:"#fff", weight:3, fillOpacity:1 }).addTo(map).bindTooltip("Libramiento", { direction:"left" });
+    mapInstanceRef.current = map;
+  }, [L]);
+
+  const changeMapStyle = (newStyle) => {
+    if (!mapInstanceRef.current || !tileLayerRef.current) return;
+    mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    const style = TRAFICO_MAP_STYLES[newStyle];
+    const newTile = L.tileLayer(style.url, { attribution:style.attribution, subdomains:style.subdomains||'abc', maxZoom:20 }).addTo(mapInstanceRef.current);
+    tileLayerRef.current = newTile;
+    setMapStyle(newStyle);
+  };
+
+  useEffect(() => {
+    Object.entries(statusMapa).forEach(([id, st]) => {
+      const line = linesRef.current[id];
+      if (line) line.setStyle({ color: TRAFICO_STATUS[st].color });
+    });
+  }, [statusMapa]);
+
+  const calcStatus = (votes) => {
+    const entries = Object.entries(votes);
+    const total = entries.reduce((s,[,n]) => s+n, 0);
+    if (total===0) return "fluido";
+    return entries.reduce((best,[k,n]) => (n>best[1] ? [k,n] : best), ["fluido",-1])[0];
+  };
+
+  const votar = (fase, tipo) => {
+    setActiveVote({ fase, tipo });
+    setTimeout(() => setActiveVote({ fase:null, tipo:null }), 600);
+    setVotos((prev) => {
+      const next = { ...prev, [fase]:{ ...prev[fase], [tipo]:prev[fase][tipo]+1 } };
+      setStatusMapa((s) => ({ ...s, [fase]: calcStatus(next[fase]) }));
+      return next;
+    });
+    const now = new Date();
+    setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
+  };
+
+  const totalVotos = (fase) => Object.values(votos[fase]).reduce((a,b) => a+b, 0);
+
+  return (
+    <div>
+      {/* Header del mapa */}
+      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"12px", padding:"12px 16px", marginBottom:"12px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+        <div>
+          <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), letterSpacing:"2px", marginBottom:"2px", fontWeight:"700" }}>MAPA — VIALIDAD EN TIEMPO REAL</div>
+          <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px", fontFamily:getFont(theme,"secondary") }}>Reportado por usuarios · Manzanillo, Colima</div>
+        </div>
+        {lastUpdate && (
+          <span style={{ fontSize:"11px", color:"#e2e8f0", background:"rgba(56,189,248,0.12)", padding:"5px 12px", borderRadius:"20px", border:"1px solid rgba(56,189,248,0.3)", fontFamily:getFont(theme,"secondary") }}>
+            🕐 {lastUpdate}
+          </span>
+        )}
+      </div>
+
+      {/* Selector de estilo de mapa */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:"10px" }}>
+        <span style={{ fontSize:"11px", color:"rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), display:"flex", alignItems:"center" }}>Estilo:</span>
+        {Object.entries(TRAFICO_MAP_STYLES).map(([key, style]) => (
+          <button key={key} onClick={() => changeMapStyle(key)} style={{ fontSize:"11px", padding:"5px 10px", borderRadius:"8px", border:`1.5px solid ${mapStyle===key ? "#38bdf8" : "rgba(255,255,255,0.18)"}`, background:mapStyle===key ? "rgba(56,189,248,0.18)" : "rgba(255,255,255,0.04)", color:mapStyle===key ? "#38bdf8" : "#e2e8f0", cursor:"pointer", fontWeight:mapStyle===key ? 700 : 500, fontFamily:getFont(theme,"secondary"), transition:"all 0.2s" }}>
+            {style.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Mapa */}
+      <div ref={mapRef} style={{ width:"100%", height:420, borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.15)", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", marginBottom:"14px", background:"#1a2942" }} />
+      {!L && <div style={{ textAlign:"center", color:"#94a3b8", fontSize:"13px", marginBottom:"12px", padding:"12px", background:"rgba(255,255,255,0.04)", borderRadius:"10px", border:"1px solid rgba(255,255,255,0.1)", fontFamily:getFont(theme,"secondary") }}>Cargando mapa…</div>}
+
+      {/* Cards de votación */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:12, marginBottom:14 }}>
+        {[1,2,3].map((id) => {
+          const st = statusMapa[id];
+          const t = TRAFICO_STATUS[st];
+          const v = votos[id];
+          const total = totalVotos(id);
+          const fase = TRAFICO_FASES[id];
+          return (
+            <div key={id} style={{ background:"rgba(255,255,255,0.05)", backdropFilter:"blur(12px)", borderRadius:"14px", border:`2px solid ${t.color}`, padding:"14px", display:"flex", flexDirection:"column", gap:9, transition:"all 0.4s", boxShadow:`0 4px 16px ${t.color}40` }}>
+              {/* Encabezado */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <span style={{ fontSize:"14px", fontWeight:700, color:"#ffffff", fontFamily:getFont(theme,"secondary") }}>{fase.nombre}</span>
+                <span style={{ fontSize:"10px", fontWeight:700, background:t.bg, color:t.text, padding:"3px 9px", borderRadius:"20px", border:`1px solid ${t.color}40` }}>{t.emoji} {t.label}</span>
+              </div>
+              <p style={{ margin:0, fontSize:"11px", color:"#94a3b8", lineHeight:1.5, fontFamily:getFont(theme,"secondary") }}>{fase.descripcion}</p>
+
+              {/* Barra de votos */}
+              {total > 0 && (
+                <div style={{ display:"flex", gap:2, height:5, borderRadius:6, overflow:"hidden", background:"rgba(255,255,255,0.1)" }}>
+                  {["fluido","moderado","detenido"].map((tipo) => {
+                    const pct = total > 0 ? (v[tipo]/total)*100 : 0;
+                    return pct > 0 ? <div key={tipo} style={{ width:`${pct}%`, background:TRAFICO_STATUS[tipo].color, transition:"width 0.4s" }} /> : null;
+                  })}
+                </div>
+              )}
+
+              {/* Botones de voto */}
+              <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:2 }}>
+                {["fluido","moderado","detenido"].map((tipo) => {
+                  const tr = TRAFICO_STATUS[tipo];
+                  const isActive = activeVote.fase===id && activeVote.tipo===tipo;
+                  return (
+                    <button key={tipo} onClick={() => votar(id,tipo)} style={{ fontSize:"11px", padding:"9px 10px", borderRadius:"9px", border:`2px solid ${tr.color}`, background:isActive ? tr.color : "rgba(255,255,255,0.04)", color:isActive ? "#fff" : "#e2e8f0", cursor:"pointer", fontWeight:600, transition:"all 0.2s", transform:isActive ? "scale(0.97)" : "scale(1)", display:"flex", alignItems:"center", gap:7, fontFamily:getFont(theme,"secondary") }}
+                      onMouseEnter={(e) => { if(!isActive) e.currentTarget.style.background=`${tr.color}20`; }}
+                      onMouseLeave={(e) => { if(!isActive) e.currentTarget.style.background="rgba(255,255,255,0.04)"; }}
+                    >
+                      <span style={{ fontSize:"14px" }}>{tr.emoji}</span>
+                      <span>{tr.label}</span>
+                      {v[tipo] > 0 && <span style={{ marginLeft:"auto", background:tr.color, color:"#fff", borderRadius:"12px", padding:"1px 7px", fontSize:"10px", fontWeight:700 }}>{v[tipo]}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Total */}
+              <div style={{ fontSize:"10px", color:"#94a3b8", borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:7, textAlign:"center", fontFamily:getFont(theme,"secondary") }}>
+                {total===0 ? "Sin votos aún" : `${total} voto${total!==1?"s":""} registrado${total!==1?"s":""}`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Leyenda */}
+      <div style={{ display:"flex", gap:14, alignItems:"center", flexWrap:"wrap", fontSize:"11px", color:"#94a3b8", background:"rgba(255,255,255,0.04)", backdropFilter:"blur(12px)", borderRadius:"10px", padding:"12px 16px", border:"1px solid rgba(255,255,255,0.1)" }}>
+        <span style={{ fontWeight:700, color:"#ffffff", fontFamily:getFont(theme,"secondary") }}>Leyenda:</span>
+        {Object.entries(TRAFICO_STATUS).map(([key,t]) => (
+          <span key={key} style={{ display:"flex", alignItems:"center", gap:5 }}>
+            <span style={{ width:24, height:5, borderRadius:4, background:t.color, display:"inline-block", boxShadow:`0 0 8px ${t.color}60` }} />
+            <span style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary") }}>{t.label}</span>
+          </span>
+        ))}
+        <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+          <span style={{ width:24, height:5, borderRadius:4, background:"#fbbf24", display:"inline-block", boxShadow:"0 0 8px #fbbf2460" }} />
+          <span style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary") }}>Vialidad (contorno)</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function SegundoAccesoTab() {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
@@ -4340,8 +4597,9 @@ function SegundoAccesoTab() {
       {/* ── Sub-tab selector ── */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
         {[
-          { id:"segundo",   label:"2DO ACCESO", icon:"🛣️",  color:"#34d399" },
-          { id:"confinada", label:"CONFINADA",  icon:"🔒", color:"#a78bfa" },
+          { id:"segundo",   label:"2DO ACCESO",  icon:"🛣️",  color:"#34d399" },
+          { id:"confinada", label:"CONFINADA",   icon:"🔒", color:"#a78bfa" },
+          { id:"mapa",      label:"MAPA TRÁFICO",icon:"🗺️", color:"#38bdf8" },
         ].map(tab => (
           <button
             key={tab.id}
@@ -4552,6 +4810,11 @@ function SegundoAccesoTab() {
           })()}
         </div>
       </>}
+
+      {/* ════════════════════════════════════════════════════
+          SUB-TAB: MAPA TRÁFICO
+      ════════════════════════════════════════════════════ */}
+      {subTab === "mapa" && <TrafficMapSegundo theme={theme} />}
 
       {/* ════════════════════════════════════════════════════
           SUB-TAB: CONFINADA
