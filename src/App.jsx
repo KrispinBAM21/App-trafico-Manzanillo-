@@ -4233,7 +4233,7 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
   );
 }
 
-function SegundoAccesoTab({ myId }) {
+function SegundoAccesoTab() {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
 
@@ -4241,20 +4241,6 @@ function SegundoAccesoTab({ myId }) {
   const [carriles, setCarriles] = useState(mkSegundoIngreso);
   // ── Estado CONFINADA ──
   const [confinada, setConfinada] = useState(mkConfinadaState);
-
-  const [traficoVial,    setTraficoVial]    = useState(null);
-  const [vialChangeModal, setVialChangeModal] = useState(null);
-
-  const VIALIDAD_TRAFICO_FASES = [
-    { id: "fase_1", label: "Fase 1", desc: "Explanada Zona Norte → Correos de México" },
-    { id: "fase_2", label: "Fase 2", desc: "Correos de México → Algodones" },
-    { id: "fase_3", label: "Fase 3", desc: "Algodones → Libramiento" },
-  ];
-  const VIALIDAD_TRAFICO_OPTS = [
-    { id: "fluido",   label: "Fluido",   color: "#22c55e", icon: "🟢" },
-    { id: "lento",    label: "Lento",    color: "#f59e0b", icon: "🟡" },
-    { id: "detenido", label: "Detenido", color: "#ef4444", icon: "🔴" },
-  ];
 
   const [toast, setToast] = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
@@ -4278,53 +4264,8 @@ function SegundoAccesoTab({ myId }) {
         if (r?.id === ROW_ID && r?.data) setCarriles(r.data);
         if (r?.id === ROW_ID_CF && r?.data) setConfinada(r.data);
       }).subscribe();
-   // ── Fetch tráfico vialidad ──
-    const MK_TRAFICO_VIAL = () => ({
-      fase_1: { status: "fluido", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} },
-      fase_2: { status: "fluido", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} },
-      fase_3: { status: "fluido", lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {} },
-    });
-    sb.from("vialidad_trafico").select("*").then(({ data }) => {
-      if (!data || data.length === 0) { setTraficoVial(MK_TRAFICO_VIAL()); return; }
-      const map = {};
-      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setTraficoVial({ ...MK_TRAFICO_VIAL(), ...map });
-    });
-    const chanVial = sb.channel("vialidad-trafico-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "vialidad_trafico" }, ({ new: r }) => {
-        if (!r) return;
-        setTraficoVial(prev => ({ ...prev, [r.id]: { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
-      }).subscribe();
-
-    return () => { sb.removeChannel(chan); sb.removeChannel(chanVial); };
+    return () => sb.removeChannel(chan);
   }, []);
-
-  // ── Handler VOTOS TRÁFICO VIALIDAD ──
-  const voteTrafico = async (faseId, newStatus, forceChange = false) => {
-    const rl = rateLimiter.check(`vialtrafico_${myId}_${faseId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("vialidad_id", faseId).eq("tipo", "vialidad_trafico");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = VIALIDAD_TRAFICO_OPTS.find(o => o.id === newStatus)?.label || newStatus;
-      setVialChangeModal({ faseId, newStatus, label });
-      return;
-    }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("vialidad_id", faseId).eq("tipo", "vialidad_trafico");
-    }
-    await sb.from("votos").insert({ key: `vialtrafico_${faseId}_${newStatus}`, user_id: myId, vialidad_id: faseId, status: newStatus, tipo: "vialidad_trafico" });
-    try { localStorage.setItem(`last_vote_vialtrafico_${faseId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("vialidad_id", faseId).eq("tipo", "vialidad_trafico");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a, b) => b[1] - a[1])[0];
-    setTraficoVial(prev => ({ ...prev, [faseId]: { ...prev?.[faseId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo } }));
-    await sb.from("vialidad_trafico").upsert({ id: faseId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    const faseLabel = VIALIDAD_TRAFICO_FASES.find(f => f.id === faseId)?.label || faseId;
-    const label = VIALIDAD_TRAFICO_OPTS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${faseLabel}: ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    await publicarNoticia({ tipo: "segundo", icono: "🚦", color: "#38bdf8", titulo: `Vialidad ${faseLabel} — ${label}`, detalle: `Consenso de ${votosGanador} voto(s)` });
-  };
 
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
@@ -4611,113 +4552,7 @@ function SegundoAccesoTab({ myId }) {
           })()}
         </div>
       </>}
-{/* ════════════════════════════════════════════════════
-          TRÁFICO VIALIDAD — aparece solo en sub-tab 2DO ACCESO
-      ════════════════════════════════════════════════════ */}
-      {subTab === "segundo" && (
-        <div style={{ marginBottom: "20px" }}>
 
-          {/* Modal cambio de voto */}
-          {vialChangeModal && (
-            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-              <div style={{ background:"#1a2942", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"16px", padding:"24px", maxWidth:"320px", width:"100%" }}>
-                <div style={{ fontSize:"14px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-                <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.6)", marginBottom:"20px" }}>
-                  Ya votaste en esta fase. ¿Cambiar a{" "}
-                  <b style={{ color: VIALIDAD_TRAFICO_OPTS.find(o => o.id === vialChangeModal.newStatus)?.color }}>
-                    {vialChangeModal.label}
-                  </b>?
-                </div>
-                <div style={{ display:"flex", gap:"10px" }}>
-                  <button
-                    onClick={() => setVialChangeModal(null)}
-                    style={{ flex:1, padding:"10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", color:"rgba(255,255,255,0.7)", cursor:"pointer", fontSize:"12px", fontFamily:getFont(theme,"secondary") }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => { voteTrafico(vialChangeModal.faseId, vialChangeModal.newStatus, true); setVialChangeModal(null); }}
-                    style={{ flex:1, padding:"10px", borderRadius:"8px", border:"none", background: VIALIDAD_TRAFICO_OPTS.find(o => o.id === vialChangeModal.newStatus)?.color || "#38bdf8", color:"#fff", cursor:"pointer", fontSize:"12px", fontWeight:"700", fontFamily:getFont(theme,"secondary") }}
-                  >
-                    Sí, cambiar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Header */}
-          <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), letterSpacing:"2px", marginBottom:"10px" }}>
-            🚦 VIALIDAD EN FASES DEL SEGUNDO ACCESO
-          </div>
-
-         {/* Mapa interactivo de fases */}
-          <div style={{ borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", marginBottom:"14px" }}>
-            <TrafficMap />
-          </div>
-
-          {/* Cards por fase */}
-          {!traficoVial
-            ? <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"20px", textAlign:"center", color:"rgba(255,255,255,0.3)", fontSize:"12px", fontFamily:getFont(theme,"secondary") }}>Cargando…</div>
-            : VIALIDAD_TRAFICO_FASES.map(fase => {
-                const st     = traficoVial[fase.id] || { status:"fluido", pendingVoters:{} };
-                const curOpt = VIALIDAD_TRAFICO_OPTS.find(o => o.id === st.status) || VIALIDAD_TRAFICO_OPTS[0];
-                const totalV = Object.values(st.pendingVoters || {}).reduce((a, b) => a + b, 0);
-                return (
-                  <div key={fase.id} style={{ background:"rgba(255,255,255,0.05)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${curOpt.color}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
-
-                    {/* Encabezado */}
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
-                      <div>
-                        <div style={{ fontSize:"13px", fontWeight:"800", color:"#fff", fontFamily:getFont(theme,"secondary") }}>{fase.label}</div>
-                        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)", marginTop:"2px", fontFamily:getFont(theme,"secondary") }}>{fase.desc}</div>
-                      </div>
-                      <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}55`, borderRadius:"20px", padding:"4px 10px", fontSize:"11px", fontWeight:"700", color:curOpt.color, fontFamily:getFont(theme,"secondary"), display:"flex", alignItems:"center", gap:"4px" }}>
-                        {curOpt.icon} {curOpt.label}
-                      </div>
-                    </div>
-
-                    {/* Barra de votos */}
-                    {totalV > 0 && (
-                      <div style={{ display:"flex", gap:"2px", height:"5px", borderRadius:"4px", overflow:"hidden", background:"rgba(255,255,255,0.08)", marginBottom:"8px" }}>
-                        {VIALIDAD_TRAFICO_OPTS.map(opt => {
-                          const pct = ((st.pendingVoters?.[opt.id] || 0) / totalV) * 100;
-                          return pct > 0 ? <div key={opt.id} style={{ width:`${pct}%`, background:opt.color, transition:"width 0.4s" }} /> : null;
-                        })}
-                      </div>
-                    )}
-
-                    {/* Botones de voto */}
-                    <div style={{ display:"flex", gap:"6px" }}>
-                      {VIALIDAD_TRAFICO_OPTS.map(opt => {
-                        const v         = st.pendingVoters?.[opt.id] || 0;
-                        const isWinning = st.status === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            onClick={() => voteTrafico(fase.id, opt.id)}
-                            style={{ flex:1, padding:"8px 4px", borderRadius:"8px", border:`2px solid ${opt.color}${isWinning ? "ff" : "44"}`, background: isWinning ? opt.color+"30" : "rgba(255,255,255,0.04)", color: isWinning ? opt.color : "rgba(255,255,255,0.45)", cursor:"pointer", fontSize:"11px", fontWeight: isWinning ? "800" : "600", fontFamily:getFont(theme,"secondary"), display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", transition:"all 0.2s" }}
-                          >
-                            <span style={{ fontSize:"16px" }}>{opt.icon}</span>
-                            <span>{opt.label}</span>
-                            {v > 0 && (
-                              <span style={{ background:opt.color, color:"#fff", borderRadius:"10px", padding:"1px 6px", fontSize:"10px", fontWeight:"700" }}>{v}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Footer */}
-                    <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.25)", marginTop:"6px", fontFamily:getFont(theme,"secondary"), textAlign:"right" }}>
-                      {totalV === 0 ? "Sin votos aún" : `${totalV} voto${totalV !== 1 ? "s" : ""}`} · {timeAgo(st.lastUpdate)}
-                    </div>
-                  </div>
-                );
-              })
-          }
-        </div>
-      )}
       {/* ════════════════════════════════════════════════════
           SUB-TAB: CONFINADA
       ════════════════════════════════════════════════════ */}
@@ -7826,7 +7661,7 @@ function App() {
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
-        {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
+        {active === "segundo"    && <SegundoAccesoTab />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <DonativosTab />}
