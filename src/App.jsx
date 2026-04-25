@@ -50,6 +50,14 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
+// ─── FIX: Aplicar fondo INMEDIATAMENTE antes del primer render de React ────────
+// Evita el flash blanco/gris que aparece unos frames antes de que React monte
+(function applyDefaultBackground() {
+  const bg = "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)";
+  document.documentElement.style.cssText += "background:" + bg + ";margin:0;padding:0;";
+  document.body.style.cssText += "background:" + bg + ";margin:0;padding:0;";
+})();
+
 // Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
 fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
@@ -1871,7 +1879,42 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               {config.backgroundType === "gradient" && (
                 <div>
                   <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
-                    Código CSS del Degradado
+                    Paletas Predefinidas
+                  </label>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"16px" }}>
+                    {[
+                      { label:"Puerto Noche",   gradient:"linear-gradient(135deg, #0a1628 0%, #1a2942 100%)" },
+                      { label:"Océano Profundo",gradient:"linear-gradient(135deg, #0c1445 0%, #0d3b6e 100%)" },
+                      { label:"Medianoche",     gradient:"linear-gradient(135deg, #0f0c29 0%, #302b63 100%)" },
+                      { label:"Mar Oscuro",     gradient:"linear-gradient(180deg, #000428 0%, #004e92 100%)" },
+                      { label:"Carbón",         gradient:"linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" },
+                      { label:"Noche Tropical", gradient:"linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" },
+                      { label:"Puerto Azul",    gradient:"linear-gradient(135deg, #051937 0%, #004d7a 50%, #008793 100%)" },
+                      { label:"Marino Índigo",  gradient:"linear-gradient(135deg, #141e30 0%, #243b55 100%)" },
+                      { label:"Zafiro",         gradient:"linear-gradient(135deg, #0d1b2e 0%, #1b3a6b 100%)" },
+                    ].map(p => {
+                      const isActive = config.backgroundGradient === p.gradient;
+                      return (
+                        <button
+                          key={p.label}
+                          onClick={() => setConfig(prev => ({ ...prev, backgroundGradient: p.gradient }))}
+                          style={{
+                            borderRadius:"8px",
+                            border: isActive ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.1)",
+                            overflow:"hidden",
+                            cursor:"pointer",
+                            padding:0,
+                            transition:"all 0.2s"
+                          }}
+                        >
+                          <div style={{ width:"100%", height:"40px", background:p.gradient }} />
+                          <div style={{ padding:"4px 6px", background:"rgba(0,0,0,0.5)", fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color: isActive ? "#38bdf8" : "rgba(255,255,255,0.6)", fontWeight: isActive ? "700" : "400", textAlign:"center" }}>{p.label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Código CSS Personalizado
                   </label>
                   <input
                     type="text"
@@ -1981,24 +2024,51 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               </h3>
               
               <div style={{ display:"grid", gap:"20px" }}>
+                {/* ── Fuente Principal (Títulos) ── */}
                 <div>
-                  <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                  <label style={{ display:"block", marginBottom:"10px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                     Fuente Principal (Títulos)
                   </label>
-                  <select
-                    value={config.primaryFont}
-                    onChange={(e) => setConfig(prev => ({ ...prev, primaryFont: e.target.value }))}
-                    style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"13px" }}
-                  >
-                    <option value="'Playfair Display', serif">Playfair Display</option>
-                    <option value="'Montserrat', sans-serif">Montserrat</option>
-                    <option value="'Roboto', sans-serif">Roboto</option>
-                    <option value="'Poppins', sans-serif">Poppins</option>
-                    <option value="'Lato', sans-serif">Lato</option>
-                    {config.customPrimaryFont && <option value={config.customPrimaryFont}>Fuente Personalizada</option>}
-                  </select>
-                  
-                  <div style={{ marginTop:"12px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>
+                    {[
+                      { label:"Playfair Display", value:"'Playfair Display', serif", sample:"Aa" },
+                      { label:"Montserrat",        value:"'Montserrat', sans-serif",  sample:"Aa" },
+                      { label:"Roboto",            value:"'Roboto', sans-serif",      sample:"Aa" },
+                      { label:"Poppins",           value:"'Poppins', sans-serif",     sample:"Aa" },
+                      { label:"Lato",              value:"'Lato', sans-serif",        sample:"Aa" },
+                      { label:"Open Sans",         value:"'Open Sans', sans-serif",   sample:"Aa" },
+                    ].map(f => {
+                      const isActive = config.primaryFont === f.value;
+                      return (
+                        <button
+                          key={f.value}
+                          onClick={() => setConfig(prev => ({ ...prev, primaryFont: f.value }))}
+                          style={{
+                            padding:"12px 10px",
+                            borderRadius:"8px",
+                            border: isActive ? "2px solid #38bdf8" : "1px solid rgba(255,255,255,0.12)",
+                            background: isActive ? "rgba(56,189,248,0.15)" : "rgba(255,255,255,0.03)",
+                            cursor:"pointer",
+                            display:"flex",
+                            flexDirection:"column",
+                            alignItems:"center",
+                            gap:"4px",
+                            transition:"all 0.2s"
+                          }}
+                        >
+                          <span style={{ fontFamily:f.value, fontSize:"22px", color: isActive ? "#38bdf8" : "rgba(255,255,255,0.85)", fontWeight:"700", lineHeight:1 }}>{f.sample}</span>
+                          <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px", color: isActive ? "#38bdf8" : "rgba(255,255,255,0.45)", fontWeight: isActive ? "700" : "400" }}>{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Preview en vivo */}
+                  <div style={{ padding:"14px 16px", borderRadius:"8px", background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", marginBottom:"10px" }}>
+                    <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>PREVIEW</div>
+                    <div style={{ fontFamily:config.primaryFont, fontSize:"20px", color:"#fff", fontWeight:"700", marginBottom:"4px" }}>Conect Manzanillo</div>
+                    <div style={{ fontFamily:config.primaryFont, fontSize:"14px", color:"rgba(255,255,255,0.6)" }}>Terminal Zona Norte · Puerto</div>
+                  </div>
+                  <div style={{ marginTop:"8px" }}>
                     <input
                       ref={el => fileInputRefs.current["primaryFont"] = el}
                       type="file"
@@ -2010,6 +2080,10 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         reader.onload = (event) => {
                           const fontName = file.name.split('.')[0];
                           const fontData = event.target.result;
+                          // Inyectar la fuente en el documento
+                          const styleEl = document.createElement("style");
+                          styleEl.textContent = `@font-face { font-family: '${fontName}'; src: url('${fontData}'); }`;
+                          document.head.appendChild(styleEl);
                           setConfig(prev => ({
                             ...prev,
                             customPrimaryFont: `'${fontName}', serif`,
@@ -2030,24 +2104,51 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   </div>
                 </div>
                 
+                {/* ── Fuente Secundaria (Texto) ── */}
                 <div>
-                  <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
-                    Fuente Secundaria (Texto)
+                  <label style={{ display:"block", marginBottom:"10px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                    Fuente Secundaria (Texto General)
                   </label>
-                  <select
-                    value={config.secondaryFont}
-                    onChange={(e) => setConfig(prev => ({ ...prev, secondaryFont: e.target.value }))}
-                    style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"13px" }}
-                  >
-                    <option value="'DM Sans', sans-serif">DM Sans</option>
-                    <option value="'Open Sans', sans-serif">Open Sans</option>
-                    <option value="'Roboto', sans-serif">Roboto</option>
-                    <option value="'Poppins', sans-serif">Poppins</option>
-                    <option value="'Lato', sans-serif">Lato</option>
-                    {config.customSecondaryFont && <option value={config.customSecondaryFont}>Fuente Personalizada</option>}
-                  </select>
-                  
-                  <div style={{ marginTop:"12px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>
+                    {[
+                      { label:"DM Sans",    value:"'DM Sans', sans-serif",    sample:"Aa" },
+                      { label:"Open Sans",  value:"'Open Sans', sans-serif",  sample:"Aa" },
+                      { label:"Roboto",     value:"'Roboto', sans-serif",     sample:"Aa" },
+                      { label:"Poppins",    value:"'Poppins', sans-serif",    sample:"Aa" },
+                      { label:"Lato",       value:"'Lato', sans-serif",       sample:"Aa" },
+                      { label:"Montserrat", value:"'Montserrat', sans-serif", sample:"Aa" },
+                    ].map(f => {
+                      const isActive = config.secondaryFont === f.value;
+                      return (
+                        <button
+                          key={f.value}
+                          onClick={() => setConfig(prev => ({ ...prev, secondaryFont: f.value }))}
+                          style={{
+                            padding:"12px 10px",
+                            borderRadius:"8px",
+                            border: isActive ? "2px solid #a78bfa" : "1px solid rgba(255,255,255,0.12)",
+                            background: isActive ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
+                            cursor:"pointer",
+                            display:"flex",
+                            flexDirection:"column",
+                            alignItems:"center",
+                            gap:"4px",
+                            transition:"all 0.2s"
+                          }}
+                        >
+                          <span style={{ fontFamily:f.value, fontSize:"22px", color: isActive ? "#a78bfa" : "rgba(255,255,255,0.85)", fontWeight:"400", lineHeight:1 }}>{f.sample}</span>
+                          <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"10px", color: isActive ? "#a78bfa" : "rgba(255,255,255,0.45)", fontWeight: isActive ? "700" : "400" }}>{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Preview en vivo */}
+                  <div style={{ padding:"14px 16px", borderRadius:"8px", background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", marginBottom:"10px" }}>
+                    <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>PREVIEW</div>
+                    <div style={{ fontFamily:config.secondaryFont, fontSize:"13px", color:"rgba(255,255,255,0.9)", marginBottom:"4px", fontWeight:"600" }}>Estado del tráfico en tiempo real</div>
+                    <div style={{ fontFamily:config.secondaryFont, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.5" }}>Terminales · Patios · Carriles · Vialidades · Reportes</div>
+                  </div>
+                  <div style={{ marginTop:"8px" }}>
                     <input
                       ref={el => fileInputRefs.current["secondaryFont"] = el}
                       type="file"
@@ -2059,6 +2160,9 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         reader.onload = (event) => {
                           const fontName = file.name.split('.')[0];
                           const fontData = event.target.result;
+                          const styleEl = document.createElement("style");
+                          styleEl.textContent = `@font-face { font-family: '${fontName}'; src: url('${fontData}'); }`;
+                          document.head.appendChild(styleEl);
                           setConfig(prev => ({
                             ...prev,
                             customSecondaryFont: `'${fontName}', sans-serif`,
@@ -4682,6 +4786,8 @@ function MapaTerminales({ zona, stMap }) {
   const polyRefs  = useRef({});
   const tileRef   = useRef(null);
   const labelRef  = useRef(null);
+  const zonaRef   = useRef(zona); // ✅ FIX: ref para acceder a zona actual en callbacks
+  const stMapRef  = useRef(stMap);
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
@@ -4691,27 +4797,58 @@ function MapaTerminales({ zona, stMap }) {
     { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                             subdomains: "abcd", labels: null },
   ];
 
-  const polygons = TERM_POLYGONS[zona] || [];
-
-  const getPolyColor = (id) => {
-    if (!stMap || !stMap[id]) return "#22c55e";
-    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap[id].status);
+  const getPolyColor = (id, sm) => {
+    const s = sm || stMapRef.current;
+    if (!s || !s[id]) return "#22c55e";
+    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === s[id].status);
     return opt ? opt.color : "#22c55e";
   };
 
-  // Centro por zona
-  const CENTER = zona === "norte"
-    ? [19.0785, -104.2983]
-    : [19.0615, -104.2960];
-  const ZOOM = zona === "norte" ? 14 : 14;
+  // ✅ FIX: Helper para cargar polígonos de una zona en el mapa existente
+  const loadZonePolygons = (z, sm) => {
+    if (!leafRef.current || !window.L) return;
+    const L = window.L;
+    const map = leafRef.current;
 
+    // Limpiar polígonos anteriores
+    Object.values(polyRefs.current).forEach(layer => { try { map.removeLayer(layer); } catch {} });
+    polyRefs.current = {};
+
+    // Centro y zoom según zona
+    const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
+    map.setView(center, 14, { animate: true, duration: 0.5 });
+
+    // Añadir polígonos de la nueva zona
+    const polys = TERM_POLYGONS[z] || [];
+    polys.forEach(poly => {
+      const color = getPolyColor(poly.id, sm);
+      const layer = L.polygon(poly.coords, {
+        color,
+        weight: 2.5,
+        opacity: 1,
+        fillColor: color,
+        fillOpacity: 0.35,
+      }).addTo(map);
+      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === sm?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
+      layer.bindTooltip(
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        { sticky: true, className: "cm-tooltip", direction: "center" }
+      );
+      polyRefs.current[poly.id] = layer;
+    });
+  };
+
+  // ✅ FIX PRINCIPAL: Init solo una vez con []
   useEffect(() => {
     const init = () => {
       if (leafRef.current || !mapRef.current || !window.L) return;
       const L = window.L;
+      const z = zonaRef.current;
+      const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
+
       const map = L.map(mapRef.current, {
-        center: CENTER,
-        zoom: ZOOM,
+        center,
+        zoom: 14,
         zoomControl: true,
         attributionControl: false,
         scrollWheelZoom: true,
@@ -4719,22 +4856,8 @@ function MapaTerminales({ zona, stMap }) {
       tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains }).addTo(map);
       leafRef.current = map;
 
-      polygons.forEach(poly => {
-        const color = getPolyColor(poly.id);
-        const layer = L.polygon(poly.coords, {
-          color,
-          weight: 2.5,
-          opacity: 1,
-          fillColor: color,
-          fillOpacity: 0.35,
-        }).addTo(map);
-        const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
-        layer.bindTooltip(
-          `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
-          { sticky: true, className: "cm-tooltip", direction: "center" }
-        );
-        polyRefs.current[poly.id] = layer;
-      });
+      // Cargar polígonos de la zona inicial
+      loadZonePolygons(z, stMapRef.current);
 
       if (!document.getElementById("cm-map-style")) {
         const s = document.createElement("style");
@@ -4749,22 +4872,33 @@ function MapaTerminales({ zona, stMap }) {
       }
     };
 
-    if (window.L) { init(); return; }
-    if (!document.querySelector('link[href*="leaflet"]')) {
-      const link = document.createElement("link"); link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
-    if (!document.querySelector('script[src*="leaflet"]')) {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.onload = init;
-      document.head.appendChild(script);
-    } else {
-      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    if (window.L) { init(); }
+    else {
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement("link"); link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+      if (!document.querySelector('script[src*="leaflet"]')) {
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.onload = init;
+        document.head.appendChild(script);
+      } else {
+        const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+      }
     }
     return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
-  }, [zona]);
+  }, []); // ✅ Solo [] — el mapa se crea una sola vez
+
+  // ✅ FIX: Effect separado que reacciona al cambio de zona SIN recrear el mapa
+  useEffect(() => {
+    zonaRef.current = zona;
+    stMapRef.current = stMap;
+    if (leafRef.current && window.L) {
+      loadZonePolygons(zona, stMap);
+    }
+  }, [zona]); // eslint-disable-line
 
   // Cambiar tile
   useEffect(() => {
@@ -4780,13 +4914,15 @@ function MapaTerminales({ zona, stMap }) {
     }
   }, [tileMode]);
 
-  // Actualizar colores cuando cambia stMap
+  // ✅ FIX: Effect para actualizar colores cuando cambia stMap (sin recrear nada)
   useEffect(() => {
+    stMapRef.current = stMap;
     if (!leafRef.current || !stMap) return;
-    polygons.forEach(poly => {
+    const polys = TERM_POLYGONS[zonaRef.current] || [];
+    polys.forEach(poly => {
       const layer = polyRefs.current[poly.id];
       if (!layer) return;
-      const color = getPolyColor(poly.id);
+      const color = getPolyColor(poly.id, stMap);
       layer.setStyle({ color, fillColor: color, fillOpacity: 0.35, weight: 2.5, opacity: 1 });
       const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
       layer.bindTooltip(
