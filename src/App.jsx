@@ -4344,6 +4344,302 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
   );
 }
 
+// ─── MAPA DE TERMINALES (Polígonos Leaflet — Zona Norte y Sur) ───────────────
+const TERM_POLYGONS = {
+  norte: [
+    {
+      id: "contecon",
+      name: "Terminal CONTECON",
+      coords: [
+        [19.07259343532231,-104.3001577299536],[19.07035526789256,-104.2984716919632],
+        [19.0715341281856,-104.2969527347803],[19.07216655660368,-104.2969872334632],
+        [19.07217647680472,-104.2965532134932],[19.07252348978535,-104.2964980200868],
+        [19.07253958196979,-104.2961397217739],[19.08241600416959,-104.2985699233267],
+        [19.08251423814663,-104.2982629594914],[19.08434297041979,-104.2991464486752],
+        [19.0856482329018,-104.3014009847926],[19.08560142045884,-104.3027802249611],
+        [19.08459728741261,-104.3034837818302],[19.08348416314914,-104.3037779611769],
+        [19.08119551061989,-104.3031894630627],[19.07624387569157,-104.3013300320585],
+        [19.0736832884229,-104.3004618636652],[19.07259343532231,-104.3001577299536],
+      ],
+    },
+    {
+      id: "hazesa",
+      name: "Terminal HAZESA",
+      coords: [
+        [19.08087297783128,-104.2955252513315],[19.07909647966719,-104.2947746965392],
+        [19.07922356655249,-104.2945401313519],[19.0797447843262,-104.2938218072611],
+        [19.08097243379871,-104.2948126723753],[19.0816578883964,-104.2938855999497],
+        [19.08190132086511,-104.2937794989158],[19.0824023621304,-104.2941665413803],
+        [19.08301520020058,-104.2932979079222],[19.08491848107109,-104.2949034692849],
+        [19.08485815894894,-104.295015046867],[19.08465584985267,-104.2948715072131],
+        [19.08443288025033,-104.2948882878617],[19.08430557799981,-104.2949890442737],
+        [19.08421769090845,-104.2951385472211],[19.08415578452841,-104.2953726437304],
+        [19.08429369406628,-104.2956241264926],[19.08433642111384,-104.2958426964074],
+        [19.08405054409992,-104.2970402138667],[19.08400111934708,-104.2972545867877],
+        [19.08349044617464,-104.2971237553297],[19.08333237361442,-104.297881169229],
+        [19.08301481455872,-104.2977296849959],[19.08343259437139,-104.2965555970505],
+        [19.08087297783128,-104.2955252513315],
+      ],
+    },
+  ],
+  sur: [
+    {
+      id: "timsa",
+      name: "Terminal TIMSA",
+      coords: [
+        [19.05804268353717,-104.2940583237333],[19.05709833621557,-104.2936952304654],
+        [19.05735173148216,-104.2926720548844],[19.05754750073681,-104.2922233620006],
+        [19.05805643909389,-104.2916375548249],[19.05871161156576,-104.2912426525859],
+        [19.0588872142691,-104.2910487864586],[19.05948161925259,-104.29095032432],
+        [19.06150696129355,-104.2905773801025],[19.06171177241057,-104.292283632046],
+        [19.05856177636457,-104.2925763987665],[19.05837539658991,-104.2927806249156],
+        [19.05804268353717,-104.2940583237333],
+      ],
+    },
+    {
+      id: "ssa",
+      name: "Terminal SSA MARINE",
+      coords: [
+        [19.0646977400203,-104.2922061515036],[19.0646357975454,-104.2915678108654],
+        [19.06513417096276,-104.290420578519],[19.0658454930346,-104.2897055437055],
+        [19.06614967666973,-104.2895652744067],[19.06761220238709,-104.2892762266203],
+        [19.06841839844327,-104.2891863799502],[19.06930191507501,-104.2890470713492],
+        [19.06927595855804,-104.2888339616764],[19.07124104555771,-104.288521046546],
+        [19.0730506826051,-104.2881910696242],[19.07498415322076,-104.2879562168251],
+        [19.07501681526491,-104.2882506334688],[19.07535754173578,-104.2881681536336],
+        [19.07641767011053,-104.2879717090527],[19.07678168309192,-104.2879518186103],
+        [19.07703627728095,-104.2880238279835],[19.07738433613553,-104.2883195345198],
+        [19.07752933920258,-104.2884648275602],[19.07754098075692,-104.2886124982734],
+        [19.07727686574874,-104.2889627963783],[19.07706644591396,-104.2891840483577],
+        [19.07680104894372,-104.289235556245],[19.07665602971498,-104.2894047131787],
+        [19.07676504037099,-104.2900603486475],[19.0646977400203,-104.2922061515036],
+      ],
+    },
+    {
+      id: "ocupa",
+      name: "Terminal Multipropósito (OCUPA)",
+      coords: [
+        [19.05989996607472,-104.3008986613557],[19.05975293929198,-104.3012223754536],
+        [19.05941459192042,-104.3011039505642],[19.05886736913771,-104.3013473627874],
+        [19.05870323453135,-104.3011878333852],[19.05574274834413,-104.3027532172049],
+        [19.05567524445685,-104.3028407787419],[19.05560328437275,-104.3027279994677],
+        [19.05563724456303,-104.3024957457179],[19.05564429389753,-104.3020339084677],
+        [19.05570273925106,-104.3010814043656],[19.05576885143374,-104.2996348212271],
+        [19.05583429012136,-104.2995201136561],[19.05596961999662,-104.2994643518991],
+        [19.05661311547551,-104.2997930482844],[19.05788640774683,-104.3004339367377],
+        [19.05801863524582,-104.300370532563],[19.05831116652419,-104.299612138612],
+        [19.06011175328339,-104.300476420493],[19.06017845074481,-104.3005243107278],
+        [19.06005697331839,-104.3007820149846],[19.05994731924822,-104.3007585668205],
+        [19.05989996607472,-104.3008986613557],
+      ],
+    },
+    {
+      id: "multimodal",
+      name: "Terminal MULTIMODAL",
+      coords: [
+        [19.05793245011511,-104.2940442104837],[19.05767481634728,-104.2949011423269],
+        [19.05686212239299,-104.294583094978],[19.05701723506709,-104.293887016796],
+        [19.0571117352032,-104.2938749917222],[19.05717284136455,-104.2937533843375],
+        [19.05793245011511,-104.2940442104837],
+      ],
+    },
+    {
+      id: "friman",
+      name: "Terminal FRIMAN",
+      coords: [
+        [19.0569472326289,-104.2947288656582],[19.05761932789732,-104.2949610853841],
+        [19.05752906310905,-104.2953283771701],[19.05721635560518,-104.2964426492044],
+        [19.05670633403471,-104.2982947234177],[19.05655430974296,-104.2984883056355],
+        [19.05635625719471,-104.2983769751084],[19.05616793064814,-104.2981625100036],
+        [19.05606951343465,-104.2978269311122],[19.05636641298848,-104.2964946159845],
+        [19.05652142083681,-104.2959258432888],[19.0566727559921,-104.2954740490033],
+        [19.05680194999001,-104.2947797829167],[19.0569472326289,-104.2947288656582],
+      ],
+    },
+    {
+      id: "lajunta",
+      name: "Terminal LA JUNTA (TAP)",
+      coords: [
+        [19.06388640182398,-104.2915710917714],[19.06179982510325,-104.2920048012427],
+        [19.06159085502389,-104.2906351882321],[19.0617389020674,-104.2905223574031],
+        [19.06483481073561,-104.2900795825545],[19.06487326624962,-104.2903089697335],
+        [19.06374377195202,-104.2906601180799],[19.06388640182398,-104.2915710917714],
+      ],
+    },
+    {
+      id: "cemex",
+      name: "Terminal CEMEX",
+      coords: [
+        [19.05823509178276,-104.299576764146],[19.0579022641942,-104.3003518287037],
+        [19.05646208605675,-104.2995707953476],[19.05680036542494,-104.2988041808041],
+        [19.05823509178276,-104.299576764146],
+      ],
+    },
+  ],
+};
+
+function MapaTerminales({ zona, stMap }) {
+  const theme = React.useContext(ThemeContext);
+  const mapRef    = useRef(null);
+  const leafRef   = useRef(null);
+  const polyRefs  = useRef({});
+  const tileRef   = useRef(null);
+  const labelRef  = useRef(null);
+  const [tileMode, setTileMode] = useState("dark");
+
+  const TILE_OPTIONS = [
+    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                              subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                         subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                              subdomains: "",     labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                             subdomains: "abcd", labels: null },
+  ];
+
+  const polygons = TERM_POLYGONS[zona] || [];
+
+  const getPolyColor = (id) => {
+    if (!stMap || !stMap[id]) return "#22c55e";
+    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap[id].status);
+    return opt ? opt.color : "#22c55e";
+  };
+
+  // Centro por zona
+  const CENTER = zona === "norte"
+    ? [19.0785, -104.2983]
+    : [19.0608, -104.2938];
+  const ZOOM = zona === "norte" ? 14 : 14;
+
+  useEffect(() => {
+    const init = () => {
+      if (leafRef.current || !mapRef.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, {
+        center: CENTER,
+        zoom: ZOOM,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+      });
+      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains }).addTo(map);
+      leafRef.current = map;
+
+      polygons.forEach(poly => {
+        const color = getPolyColor(poly.id);
+        const layer = L.polygon(poly.coords, {
+          color,
+          weight: 2.5,
+          opacity: 1,
+          fillColor: color,
+          fillOpacity: 0.35,
+        }).addTo(map);
+        const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
+        layer.bindTooltip(
+          `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+          { sticky: true, className: "cm-tooltip", direction: "center" }
+        );
+        polyRefs.current[poly.id] = layer;
+      });
+
+      if (!document.getElementById("cm-map-style")) {
+        const s = document.createElement("style");
+        s.id = "cm-map-style";
+        s.textContent = `
+          .cm-tooltip { background:rgba(4,12,24,0.95)!important; border:1px solid rgba(56,189,248,0.35)!important; border-radius:6px!important; color:rgba(255,255,255,0.9)!important; font-family:'DM Sans',sans-serif!important; font-size:12px!important; font-weight:600!important; padding:4px 9px!important; box-shadow:0 2px 12px rgba(0,0,0,0.5)!important; white-space:nowrap!important; }
+          .cm-tooltip::before { display:none!important; }
+          .leaflet-control-zoom a { background:rgba(4,12,24,0.9)!important; color:rgba(255,255,255,0.7)!important; border-color:rgba(255,255,255,0.1)!important; }
+          .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
+        `;
+        document.head.appendChild(s);
+      }
+    };
+
+    if (window.L) { init(); return; }
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link"); link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="leaflet"]')) {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = init;
+      document.head.appendChild(script);
+    } else {
+      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    }
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
+  }, [zona]);
+
+  // Cambiar tile
+  useEffect(() => {
+    if (!leafRef.current || !tileRef.current || !window.L) return;
+    const L = window.L;
+    const t = TILE_OPTIONS.find(t => t.id === tileMode);
+    if (!t) return;
+    tileRef.current.setUrl(t.url);
+    tileRef.current.options.subdomains = t.subdomains || "abc";
+    if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
+    if (t.labels) {
+      labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
+    }
+  }, [tileMode]);
+
+  // Actualizar colores cuando cambia stMap
+  useEffect(() => {
+    if (!leafRef.current || !stMap) return;
+    polygons.forEach(poly => {
+      const layer = polyRefs.current[poly.id];
+      if (!layer) return;
+      const color = getPolyColor(poly.id);
+      layer.setStyle({ color, fillColor: color, fillOpacity: 0.35, weight: 2.5, opacity: 1 });
+      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
+      layer.bindTooltip(
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        { sticky: true, className: "cm-tooltip", direction: "center" }
+      );
+    });
+  }, [JSON.stringify(stMap)]);
+
+  const zonaColor = zona === "norte" ? "#38bdf8" : "#a78bfa";
+
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      {/* Header */}
+      <div style={{ borderRadius: "14px 14px 0 0", overflow: "hidden", border: `1px solid ${zonaColor}33`, borderBottom: "none" }}>
+        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "13px" }}>🗺️</span>
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>
+            Mapa Terminales <span style={{ color: zonaColor }}>Zona {zona === "norte" ? "Norte" : "Sur"}</span>
+          </span>
+          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· estado en tiempo real</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            {TILE_OPTIONS.map(t => (
+              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
+                background: tileMode === t.id ? zonaColor : "rgba(255,255,255,0.08)",
+                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
+                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
+              }}>{t.icon} {t.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Mapa */}
+      <div style={{ border: `1px solid ${zonaColor}33`, borderTop: "none", borderRadius: "0 0 14px 14px", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,0,0,0.5)" }}>
+        <div ref={mapRef} style={{ width: "100%", height: "300px", background: "#040c18" }} />
+      </div>
+      {/* Leyenda */}
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px", padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {TERMINAL_STATUS_OPTIONS.map(o => (
+          <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
+            <span style={{ width: "14px", height: "14px", borderRadius: "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
+            {o.icon} {o.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
 // ─── TICKER MÁQUINA DE ESCRIBIR ───────────────────────────────────────────────
 function TypewriterTicker({ items }) {
@@ -4539,6 +4835,7 @@ function TerminalesTab({ myId }) {
         ))}
       </div>
       <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
+      <MapaTerminales zona={zona} stMap={stMap} />
       {(!stN || !stS) ? <SkeletonCard n={4}/> : terminals.map(terminal => {
         const st  = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"..." };
         const opt = getOpt(st.status);
