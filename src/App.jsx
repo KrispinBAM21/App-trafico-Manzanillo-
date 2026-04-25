@@ -5662,7 +5662,7 @@ function SegundoAccesoTab() {
     await saveConfinada(next);
     notify("✓ Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
-    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Transferencia Aduana" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const resetAllConfinada = async () => {
@@ -5982,15 +5982,18 @@ function SegundoAccesoTab() {
           const c1 = getCarrilColor("cf_c1");
           const c2 = getCarrilColor("cf_c2");
           const c3 = getCarrilColor("cf_c3");
-          // Duración de animación inversa al estado (saturado = más lento)
-          const speed = (id) => {
+
+          const getTermShort = (id) => {
             const st = confinada[id];
-            if (!st || st.terminal === "sin_uso") return null;
-            if (st.saturado) return "9s";
-            if (st.transferencia) return "7s";
-            return "4.5s";
+            if (!st) return "—";
+            if (st.terminal === "sin_uso") return "SIN USO";
+            if (st.terminal === "general") return "GENERAL";
+            const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
+            return found ? found.name : st.terminal.toUpperCase();
           };
-          const sp1 = speed("cf_c1"), sp2 = speed("cf_c2"), sp3 = speed("cf_c3");
+          const t1 = getTermShort("cf_c1");
+          const t2 = getTermShort("cf_c2");
+          const t3 = getTermShort("cf_c3");
 
           return (
             <div style={{ background:"rgba(4,10,22,0.95)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"10px 12px", marginBottom:"16px" }}>
@@ -6013,71 +6016,37 @@ function SegundoAccesoTab() {
                 {/* Zona salida (izquierda) */}
                 <rect x="0" y="0" width="28" height="72" fill="#071a09" rx="0"/>
                 <line x1="28" y1="0" x2="28" y2="72" stroke="rgba(34,197,94,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
-                <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">ADUANA</text>
+                <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">2° ACCESO</text>
 
                 {/* ── Carril 1 — franja superior ── */}
-                {/* Carril relleno */}
                 <rect x="28" y="2" width="240" height="20" fill={c1 + "20"} rx="2"/>
-                {/* Borde superior e inferior del carril */}
                 <line x1="28" y1="2"  x2="268" y2="2"  stroke={c1} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="22" x2="268" y2="22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
-                {/* Label izq */}
-                <text x="32" y="15" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C1</text>
-                {/* Indicador color */}
                 <rect x="28" y="2" width="3" height="20" fill={c1} opacity="0.9"/>
-                {/* Camión animado */}
-                {sp1 && (
-                  <g>
-                    <rect width="18" height="10" fill={c1} rx="2" opacity="0.9" y="7" x="230">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-195,0;0,0" dur={sp1} repeatCount="indefinite"/>
-                    </rect>
-                    <text fontSize="7" y="15" x="239" textAnchor="middle">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-195,0;0,0" dur={sp1} repeatCount="indefinite"/>
-                      🚛
-                    </text>
-                  </g>
-                )}
+                <text x="32" y="15" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C1</text>
+                {/* Terminal en centro */}
+                <text x="148" y="15" textAnchor="middle" fill={c1} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t1}</text>
 
                 {/* ── Carril 2 — franja media ── */}
                 <rect x="28" y="26" width="240" height="20" fill={c2 + "20"} rx="2"/>
                 <line x1="28" y1="26" x2="268" y2="26" stroke={c2} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="46" x2="268" y2="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
-                <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
                 <rect x="28" y="26" width="3" height="20" fill={c2} opacity="0.9"/>
-                {sp2 && (
-                  <g>
-                    <rect width="18" height="10" fill={c2} rx="2" opacity="0.9" y="31" x="180">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-145,0;0,0" dur={sp2} repeatCount="indefinite" begin="1.2s"/>
-                    </rect>
-                    <text fontSize="7" y="39" x="189" textAnchor="middle">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-145,0;0,0" dur={sp2} repeatCount="indefinite" begin="1.2s"/>
-                      🚛
-                    </text>
-                  </g>
-                )}
+                <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
+                <text x="148" y="39" textAnchor="middle" fill={c2} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t2}</text>
 
                 {/* ── Carril 3 — franja inferior ── */}
                 <rect x="28" y="50" width="240" height="20" fill={c3 + "20"} rx="2"/>
                 <line x1="28" y1="50" x2="268" y2="50" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="70" x2="268" y2="70" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
-                <text x="32" y="63" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C3</text>
                 <rect x="28" y="50" width="3" height="20" fill={c3} opacity="0.9"/>
-                {sp3 && (
-                  <g>
-                    <rect width="18" height="10" fill={c3} rx="2" opacity="0.9" y="55" x="210">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-175,0;0,0" dur={sp3} repeatCount="indefinite" begin="2.6s"/>
-                    </rect>
-                    <text fontSize="7" y="63" x="219" textAnchor="middle">
-                      <animateTransform attributeName="transform" type="translate" values="0,0;-175,0;0,0" dur={sp3} repeatCount="indefinite" begin="2.6s"/>
-                      🚛
-                    </text>
-                  </g>
-                )}
+                <text x="32" y="63" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C3</text>
+                <text x="148" y="63" textAnchor="middle" fill={c3} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t3}</text>
               </svg>
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","Trans."],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","2° Acceso"],["#6b7280","Sin uso"]].map(([c,l]) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -6087,38 +6056,6 @@ function SegundoAccesoTab() {
             </div>
           );
         })()}
-
-        {/* Diagrama rápido — tarjetas */}
-        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN DE CARRILES</div>
-          <div style={{ display:"flex", gap:"8px" }}>
-            {CONFINADA_CARRILES.map((c, i) => {
-              const st = confinada[c.id];
-              const sinUso = st.terminal === "sin_uso";
-              const esGeneral = st.terminal === "general";
-              const bc = sinUso ? "#6b7280" : st.saturado ? "#ef4444" : st.transferencia ? "#fbbf24" : "#22c55e";
-              const tc = esGeneral ? "#fbbf24" : "#a78bfa";
-              return (
-                <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
-                  <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:getFont(theme, "secondary"), fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
-                  {sinUso
-                    ? <div style={{ background:"#6b728022", border:"1px solid #6b728055", borderRadius:"6px", padding:"4px 4px" }}>
-                        <SlotText value="SIN USO" color="#9ca3af" fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
-                      </div>
-                    : <div style={{ background:tc+"22", border:`1px solid ${tc}55`, borderRadius:"6px", padding:"4px 4px" }}>
-                        <SlotText value={getTermName(st.terminal)} color={tc} fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
-                      </div>
-                  }
-                  {!sinUso && st.transferencia && <div style={{ fontSize:"11px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>🔄 TRANS.</div>}
-                  {!sinUso && st.retornos && <div style={{ fontSize:"14px" }}>↩</div>}
-                  <div>
-                    <SlotText value={sinUso ? "N/A" : st.saturado ? "SAT" : st.transferencia ? "TRANS" : "OK"} color={bc} fontSize="clamp(12px,2vw,16px)" delay={i * 180 + 90} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
         <SectionLabel text="CARRILES DE INGRESO (C1–C3) · ZONA SUR" rightBtn={<NormalBtn onClick={resetAllConfinada} label="TODO NORMAL" />} />
 
@@ -6141,7 +6078,7 @@ function SegundoAccesoTab() {
                       ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
                       : <Badge color="#22c55e" small>INGRESO</Badge>
                     }
-                    {st.transferencia && st.terminal !== "sin_uso" && <Badge color="#fbbf24" small>🔄 ADUANA</Badge>}
+                    {st.transferencia && st.terminal !== "sin_uso" && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
                   </div>
                   <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
@@ -6226,8 +6163,8 @@ function SegundoAccesoTab() {
 
               {/* Transferencia de Aduana — al final */}
               <div style={{ background: st.transferencia ? "#fbbf2415" : "rgba(255,255,255,0.03)", border:`1px solid ${st.transferencia?"#fbbf2466":"rgba(255,255,255,0.08)"}`, borderRadius:"10px", padding:"12px" }}>
-                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 TRANSFERENCIA DE ADUANA</div>
-                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), marginBottom:"8px" }}>Indica si este carril es utilizado para transferencias aduanales.</div>
+                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 SEGUNDO ACCESO</div>
+                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), marginBottom:"8px" }}>Indica si este carril opera como Segundo Acceso.</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
                   <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>✓ NORMAL</button>
                   <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
@@ -8816,6 +8753,77 @@ function CookieBanner({ onAccept, onReject }) {
   );
 }
 
+// ─── COPYROW — componente auxiliar para filas copiables (HOOKS fuera de .map()) ──
+function CopyRow({ label, value, mono, theme, getFont }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1800);
+        });
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      }
+    } catch {}
+  };
+  return (
+    <div
+      onClick={handleCopy}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        background: copied ? "rgba(168,85,247,0.18)" : (mono ? "rgba(255,255,255,0.05)" : "transparent"),
+        borderRadius: "8px",
+        padding: "8px 10px",
+        marginBottom: "6px",
+        cursor: "pointer",
+        border: `1px solid ${copied ? "rgba(168,85,247,0.6)" : "rgba(255,255,255,0.07)"}`,
+        transition: "all 0.2s",
+        userSelect: "none",
+      }}
+      title={`Toca para copiar ${label}`}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+        <span style={{ color: "rgba(255,255,255,0.45)", fontFamily: getFont(theme, "secondary"), fontSize: "9px", letterSpacing: "1px" }}>{label.toUpperCase()}</span>
+        <span style={{
+          color: mono ? "#A855F7" : "#fff",
+          fontFamily: mono ? "'Space Mono', monospace" : getFont(theme, "secondary"),
+          fontSize: mono ? "13px" : "12px",
+          fontWeight: "700",
+          letterSpacing: mono ? "0.5px" : "0",
+        }}>{value}</span>
+      </div>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        background: copied ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.1)",
+        border: `1px solid ${copied ? "rgba(168,85,247,0.5)" : "rgba(255,255,255,0.15)"}`,
+        borderRadius: "6px",
+        padding: "4px 8px",
+        transition: "all 0.2s",
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: "11px" }}>{copied ? "✓" : "📋"}</span>
+        <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: copied ? "#c084fc" : "rgba(255,255,255,0.6)", fontWeight: "700" }}>
+          {copied ? "¡Copiado!" : "Copiar"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
 // ✅ FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
@@ -9407,7 +9415,10 @@ function App() {
                 cursor: "pointer",
                 animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
                 animationDelay: "0.2s",
-                opacity: 0
+                opacity: 0,
+                outline: "none",
+                WebkitTapHighlightColor: "transparent",
+                userSelect: "none",
               }}
             >
               <div style={{
@@ -9944,77 +9955,9 @@ function App() {
                 { label: "Banco",   value: "Mifel",              mono: false },
                 { label: "Titular", value: "Ramon Romero",        mono: false },
                 { label: "CLABE",   value: "014028090014825779",  mono: true  },
-              ].map(({ label, value, mono }) => {
-                const [copied, setCopied] = React.useState(false);
-                const handleCopy = () => {
-                  try {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                      navigator.clipboard.writeText(value).then(() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1800);
-                      });
-                    } else {
-                      // Fallback para móvil sin clipboard API
-                      const ta = document.createElement("textarea");
-                      ta.value = value;
-                      ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
-                      document.body.appendChild(ta);
-                      ta.focus(); ta.select();
-                      document.execCommand("copy");
-                      document.body.removeChild(ta);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1800);
-                    }
-                  } catch {}
-                };
-                return (
-                  <div
-                    key={label}
-                    onClick={handleCopy}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      background: copied ? "rgba(168,85,247,0.18)" : (mono ? "rgba(255,255,255,0.05)" : "transparent"),
-                      borderRadius: "8px",
-                      padding: "8px 10px",
-                      marginBottom: "6px",
-                      cursor: "pointer",
-                      border: `1px solid ${copied ? "rgba(168,85,247,0.6)" : "rgba(255,255,255,0.07)"}`,
-                      transition: "all 0.2s",
-                      userSelect: "none",
-                    }}
-                    title={`Toca para copiar ${label}`}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                      <span style={{ color: "rgba(255,255,255,0.45)", fontFamily: getFont(theme, "secondary"), fontSize: "9px", letterSpacing: "1px" }}>{label.toUpperCase()}</span>
-                      <span style={{
-                        color: mono ? "#A855F7" : "#fff",
-                        fontFamily: mono ? "'Space Mono', monospace" : getFont(theme, "secondary"),
-                        fontSize: mono ? "13px" : "12px",
-                        fontWeight: "700",
-                        letterSpacing: mono ? "0.5px" : "0",
-                      }}>{value}</span>
-                    </div>
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      background: copied ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.1)",
-                      border: `1px solid ${copied ? "rgba(168,85,247,0.5)" : "rgba(255,255,255,0.15)"}`,
-                      borderRadius: "6px",
-                      padding: "4px 8px",
-                      transition: "all 0.2s",
-                      flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: "11px" }}>{copied ? "✓" : "📋"}</span>
-                      <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: copied ? "#c084fc" : "rgba(255,255,255,0.6)", fontWeight: "700" }}>
-                        {copied ? "¡Copiado!" : "Copiar"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              ].map(({ label, value, mono }) => (
+                <CopyRow key={label} label={label} value={value} mono={mono} theme={theme} getFont={getFont} />
+              ))}
 
               {/* Hint */}
               <div style={{ textAlign: "center", marginTop: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)" }}>
