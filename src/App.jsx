@@ -5970,140 +5970,117 @@ function SegundoAccesoTab() {
           SUB-TAB: CONFINADA
       ════════════════════════════════════════════════════ */}
       {subTab === "confinada" && <>
-        {/* ── MINI-MAPA VIAL CONFINADA ── */}
+        {/* ── MINI-MAPA VIAL CONFINADA — compacto ── */}
         {(() => {
           const getCarrilColor = (id) => {
             const st = confinada[id];
-            if (!st) return "#22c55e";
-            if (st.terminal === "sin_uso") return "#6b7280";
+            if (!st || st.terminal === "sin_uso") return "#6b7280";
             if (st.saturado) return "#ef4444";
             if (st.transferencia) return "#fbbf24";
             return "#22c55e";
           };
-          const getCarrilLabel = (id) => {
-            const st = confinada[id];
-            if (!st || st.terminal === "sin_uso") return "SIN USO";
-            if (st.saturado) return "SAT";
-            if (st.transferencia) return "TRANS";
-            return "LIBRE";
-          };
-          const getTermShort = (id) => {
-            const st = confinada[id];
-            if (!st || st.terminal === "sin_uso") return "—";
-            if (st.terminal === "general") return "GRAL";
-            return TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal.toUpperCase();
-          };
           const c1 = getCarrilColor("cf_c1");
           const c2 = getCarrilColor("cf_c2");
           const c3 = getCarrilColor("cf_c3");
+          // Duración de animación inversa al estado (saturado = más lento)
+          const speed = (id) => {
+            const st = confinada[id];
+            if (!st || st.terminal === "sin_uso") return null;
+            if (st.saturado) return "9s";
+            if (st.transferencia) return "7s";
+            return "4.5s";
+          };
+          const sp1 = speed("cf_c1"), sp2 = speed("cf_c2"), sp3 = speed("cf_c3");
 
           return (
-            <div style={{ background:"rgba(4,10,22,0.9)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:"14px", padding:"16px 14px 14px", marginBottom:"18px", overflow:"hidden" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
-                <div style={{ fontSize:"10px", color:"rgba(167,139,250,0.8)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>🗺️ MAPA ZONA CONFINADA</div>
-                <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary") }}>flujo: entrada → derecha</div>
+            <div style={{ background:"rgba(4,10,22,0.95)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"10px 12px", marginBottom:"16px" }}>
+              {/* Header */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <span style={{ fontSize:"9px", color:"rgba(167,139,250,0.7)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>ZONA CONFINADA · VISTA VIAL</span>
+                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.25)", fontFamily:getFont(theme, "secondary") }}>→ entrada puerto</span>
               </div>
 
-              {/* SVG del mapa vial */}
-              <svg viewBox="0 0 340 180" style={{ width:"100%", height:"auto", display:"block", borderRadius:"10px" }} xmlns="http://www.w3.org/2000/svg">
-                {/* Fondo */}
-                <rect width="340" height="180" fill="#060d1a" rx="8"/>
+              {/* SVG compacto */}
+              <svg viewBox="0 0 300 72" style={{ width:"100%", height:"auto", display:"block" }} xmlns="http://www.w3.org/2000/svg">
+                {/* Fondo carretera */}
+                <rect width="300" height="72" fill="#0a0f1a" rx="6"/>
 
-                {/* ── ZONA PUERTO (derecha) — entrada ── */}
-                <rect x="290" y="0" width="50" height="180" fill="#0a1f3a" opacity="0.9"/>
-                <text x="315" y="95" textAnchor="middle" fill="rgba(56,189,248,0.7)" fontSize="8" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,315,95)">ENTRADA PUERTO</text>
-                <line x1="290" y1="0" x2="290" y2="180" stroke="rgba(56,189,248,0.4)" strokeWidth="1.5" strokeDasharray="6,4"/>
+                {/* Zona entrada (derecha) */}
+                <rect x="268" y="0" width="32" height="72" fill="#071828" rx="0"/>
+                <line x1="268" y1="0" x2="268" y2="72" stroke="rgba(56,189,248,0.35)" strokeWidth="1" strokeDasharray="4,3"/>
+                <text x="284" y="40" textAnchor="middle" fill="rgba(56,189,248,0.5)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,284,40)">PUERTO</text>
 
-                {/* ── ZONA ADUANA / CASETAS (izquierda) ── */}
-                <rect x="0" y="0" width="52" height="180" fill="#0d1f10" opacity="0.9"/>
-                <text x="26" y="95" textAnchor="middle" fill="rgba(34,197,94,0.6)" fontSize="8" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,26,95)">SALIDA / ADUANA</text>
-                <line x1="52" y1="0" x2="52" y2="180" stroke="rgba(34,197,94,0.25)" strokeWidth="1" strokeDasharray="4,4"/>
+                {/* Zona salida (izquierda) */}
+                <rect x="0" y="0" width="28" height="72" fill="#071a09" rx="0"/>
+                <line x1="28" y1="0" x2="28" y2="72" stroke="rgba(34,197,94,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
+                <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">ADUANA</text>
 
-                {/* ── SEPARADORES ENTRE CARRILES ── */}
-                <line x1="52" y1="60" x2="290" y2="60" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="8,6"/>
-                <line x1="52" y1="120" x2="290" y2="120" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="8,6"/>
-
-                {/* ══ CARRIL 1 (top) ══ */}
-                {/* Fondo del carril */}
-                <rect x="52" y="4" width="238" height="52" fill={c1 + "18"} rx="3"/>
-                {/* Franja de color del carril */}
-                <rect x="52" y="4" width="5" height="52" fill={c1} opacity="0.85"/>
-                {/* Etiqueta carril */}
-                <text x="72" y="20" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 1</text>
-                {/* Terminal */}
-                <rect x="72" y="26" width="70" height="16" fill={c1 + "33"} rx="3"/>
-                <text x="107" y="38" textAnchor="middle" fill={c1} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c1")}</text>
-                {/* Estado */}
-                <rect x="150" y="26" width="50" height="16" fill={c1 + "22"} rx="3"/>
-                <text x="175" y="38" textAnchor="middle" fill={c1} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c1")}</text>
-                {/* Camión animado → izquierda (flujo) */}
-                {confinada["cf_c1"]?.terminal !== "sin_uso" && (
+                {/* ── Carril 1 — franja superior ── */}
+                {/* Carril relleno */}
+                <rect x="28" y="2" width="240" height="20" fill={c1 + "20"} rx="2"/>
+                {/* Borde superior e inferior del carril */}
+                <line x1="28" y1="2"  x2="268" y2="2"  stroke={c1} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="22" x2="268" y2="22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
+                {/* Label izq */}
+                <text x="32" y="15" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C1</text>
+                {/* Indicador color */}
+                <rect x="28" y="2" width="3" height="20" fill={c1} opacity="0.9"/>
+                {/* Camión animado */}
+                {sp1 && (
                   <g>
-                    <rect x="215" y="18" width="32" height="18" fill={c1} rx="3" opacity="0.85">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="5s" repeatCount="indefinite"/>
+                    <rect width="18" height="10" fill={c1} rx="2" opacity="0.9" y="7" x="230">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-195,0;0,0" dur={sp1} repeatCount="indefinite"/>
                     </rect>
-                    <text x="231" y="31" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="5s" repeatCount="indefinite"/>
+                    <text fontSize="7" y="15" x="239" textAnchor="middle">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-195,0;0,0" dur={sp1} repeatCount="indefinite"/>
                       🚛
                     </text>
                   </g>
                 )}
 
-                {/* ══ CARRIL 2 (middle) ══ */}
-                <rect x="52" y="64" width="238" height="52" fill={c2 + "18"} rx="3"/>
-                <rect x="52" y="64" width="5" height="52" fill={c2} opacity="0.85"/>
-                <text x="72" y="80" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 2</text>
-                <rect x="72" y="86" width="70" height="16" fill={c2 + "33"} rx="3"/>
-                <text x="107" y="98" textAnchor="middle" fill={c2} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c2")}</text>
-                <rect x="150" y="86" width="50" height="16" fill={c2 + "22"} rx="3"/>
-                <text x="175" y="98" textAnchor="middle" fill={c2} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c2")}</text>
-                {confinada["cf_c2"]?.terminal !== "sin_uso" && (
+                {/* ── Carril 2 — franja media ── */}
+                <rect x="28" y="26" width="240" height="20" fill={c2 + "20"} rx="2"/>
+                <line x1="28" y1="26" x2="268" y2="26" stroke={c2} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="46" x2="268" y2="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
+                <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
+                <rect x="28" y="26" width="3" height="20" fill={c2} opacity="0.9"/>
+                {sp2 && (
                   <g>
-                    <rect x="215" y="78" width="32" height="18" fill={c2} rx="3" opacity="0.85">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="6.5s" repeatCount="indefinite" begin="1.5s"/>
+                    <rect width="18" height="10" fill={c2} rx="2" opacity="0.9" y="31" x="180">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-145,0;0,0" dur={sp2} repeatCount="indefinite" begin="1.2s"/>
                     </rect>
-                    <text x="231" y="91" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="6.5s" repeatCount="indefinite" begin="1.5s"/>
+                    <text fontSize="7" y="39" x="189" textAnchor="middle">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-145,0;0,0" dur={sp2} repeatCount="indefinite" begin="1.2s"/>
                       🚛
                     </text>
                   </g>
                 )}
 
-                {/* ══ CARRIL 3 (bottom) ══ */}
-                <rect x="52" y="124" width="238" height="52" fill={c3 + "18"} rx="3"/>
-                <rect x="52" y="124" width="5" height="52" fill={c3} opacity="0.85"/>
-                <text x="72" y="140" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 3</text>
-                <rect x="72" y="146" width="70" height="16" fill={c3 + "33"} rx="3"/>
-                <text x="107" y="158" textAnchor="middle" fill={c3} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c3")}</text>
-                <rect x="150" y="146" width="50" height="16" fill={c3 + "22"} rx="3"/>
-                <text x="175" y="158" textAnchor="middle" fill={c3} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c3")}</text>
-                {confinada["cf_c3"]?.terminal !== "sin_uso" && (
+                {/* ── Carril 3 — franja inferior ── */}
+                <rect x="28" y="50" width="240" height="20" fill={c3 + "20"} rx="2"/>
+                <line x1="28" y1="50" x2="268" y2="50" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="70" x2="268" y2="70" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
+                <text x="32" y="63" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C3</text>
+                <rect x="28" y="50" width="3" height="20" fill={c3} opacity="0.9"/>
+                {sp3 && (
                   <g>
-                    <rect x="215" y="138" width="32" height="18" fill={c3} rx="3" opacity="0.85">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="7.8s" repeatCount="indefinite" begin="3s"/>
+                    <rect width="18" height="10" fill={c3} rx="2" opacity="0.9" y="55" x="210">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-175,0;0,0" dur={sp3} repeatCount="indefinite" begin="2.6s"/>
                     </rect>
-                    <text x="231" y="151" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
-                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="7.8s" repeatCount="indefinite" begin="3s"/>
+                    <text fontSize="7" y="63" x="219" textAnchor="middle">
+                      <animateTransform attributeName="transform" type="translate" values="0,0;-175,0;0,0" dur={sp3} repeatCount="indefinite" begin="2.6s"/>
                       🚛
                     </text>
                   </g>
                 )}
-
-                {/* Flecha de flujo general */}
-                <defs>
-                  <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-                    <path d="M6,0 L6,6 L0,3 Z" fill="rgba(255,255,255,0.25)"/>
-                  </marker>
-                </defs>
-                <line x1="285" y1="90" x2="60" y2="90" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="5,5" markerEnd="url(#arr)"/>
               </svg>
 
-              {/* Leyenda */}
-              <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","General/Trans."],["#6b7280","Sin Uso"]].map(([c,l]) => (
-                  <div key={l} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-                    <div style={{ width:"10px", height:"10px", background:c, borderRadius:"2px" }} />
-                    <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
+              {/* Leyenda inline compacta */}
+              <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
+                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","Trans."],["#6b7280","Sin uso"]].map(([c,l]) => (
+                  <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
+                    <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
+                    <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
                   </div>
                 ))}
               </div>
