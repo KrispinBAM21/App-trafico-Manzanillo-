@@ -3292,6 +3292,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaAccesos accesos={accesos} />
           <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
@@ -3398,6 +3399,175 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
       <ToastBox toast={toast} />
 
+    </div>
+  );
+}
+
+// ─── MAPA DE ACCESOS (Polígonos Leaflet — Pez Vela, Puerta 15, Zona Norte) ───
+const ACCESO_POLYGONS = [
+  {
+    id: "pezvela",
+    name: "Acceso Pez Vela",
+    color: "#a78bfa",
+    coords: [
+      [19.07727442823635,-104.2875800770409],[19.07629253261736,-104.2877292283769],
+      [19.07615088491381,-104.2868412884972],[19.0764817502675,-104.2867799120668],
+      [19.07649521015128,-104.2868511856857],[19.07714965512969,-104.2867251059351],
+      [19.07727442823635,-104.2875800770409],
+    ],
+  },
+  {
+    id: "puerta15",
+    name: "Acceso Puerta 15",
+    color: "#34d399",
+    coords: [
+      [19.07789914021028,-104.2886263532717],[19.07777484878713,-104.288514650122],
+      [19.07789227497389,-104.2883455186732],[19.07802134149496,-104.2884734204219],
+      [19.07789914021028,-104.2886263532717],
+    ],
+  },
+  {
+    id: "zonanorte",
+    name: "Acceso Zona Norte",
+    color: "#38bdf8",
+    coords: [
+      [19.08674185086953,-104.2968903999984],[19.08704712309154,-104.2969844176178],
+      [19.08672247073757,-104.2983679102416],[19.08644827095395,-104.2982655501238],
+      [19.08674185086953,-104.2968903999984],
+    ],
+  },
+];
+
+function MapaAccesos({ accesos }) {
+  const theme     = React.useContext(ThemeContext);
+  const mapRef    = useRef(null);
+  const leafRef   = useRef(null);
+  const polyRefs  = useRef({});
+  const tileRef   = useRef(null);
+  const labelRef  = useRef(null);
+  const [tileMode, setTileMode] = useState("dark");
+
+  const TILE_OPTIONS = [
+    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                   subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                              subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                   subdomains: "",     labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                  subdomains: "abcd", labels: null },
+  ];
+
+  const getColor = (id) => {
+    if (!accesos || !accesos[id]) return ACCESO_POLYGONS.find(p => p.id === id)?.color || "#22c55e";
+    const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos[id].status);
+    return opt ? opt.color : ACCESO_POLYGONS.find(p => p.id === id)?.color || "#22c55e";
+  };
+
+  useEffect(() => {
+    const init = () => {
+      if (leafRef.current || !mapRef.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, {
+        center: [19.081, -104.292],
+        zoom: 14,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+      });
+      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains }).addTo(map);
+      leafRef.current = map;
+
+      ACCESO_POLYGONS.forEach(poly => {
+        const color = getColor(poly.id);
+        const layer = L.polygon(poly.coords, {
+          color, weight: 3, opacity: 1, fillColor: color, fillOpacity: 0.45,
+        }).addTo(map);
+        const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
+        layer.bindTooltip(
+          `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+          { sticky: true, className: "cm-tooltip", direction: "center" }
+        );
+        polyRefs.current[poly.id] = layer;
+      });
+
+      if (!document.getElementById("cm-map-style")) {
+        const s = document.createElement("style"); s.id = "cm-map-style";
+        s.textContent = `.cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}.cm-tooltip::before{display:none!important;}.leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}.leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}`;
+        document.head.appendChild(s);
+      }
+    };
+
+    if (window.L) { init(); return; }
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link"); link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="leaflet"]')) {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = init; document.head.appendChild(script);
+    } else {
+      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    }
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
+  }, []);
+
+  // Cambiar tile
+  useEffect(() => {
+    if (!leafRef.current || !tileRef.current || !window.L) return;
+    const L = window.L;
+    const t = TILE_OPTIONS.find(t => t.id === tileMode);
+    if (!t) return;
+    tileRef.current.setUrl(t.url);
+    tileRef.current.options.subdomains = t.subdomains || "abc";
+    if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
+    if (t.labels) labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
+  }, [tileMode]);
+
+  // Actualizar colores cuando cambia accesos
+  useEffect(() => {
+    if (!leafRef.current || !accesos) return;
+    ACCESO_POLYGONS.forEach(poly => {
+      const layer = polyRefs.current[poly.id];
+      if (!layer) return;
+      const color = getColor(poly.id);
+      layer.setStyle({ color, fillColor: color, fillOpacity: 0.45, weight: 3, opacity: 1 });
+      const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
+      layer.bindTooltip(
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        { sticky: true, className: "cm-tooltip", direction: "center" }
+      );
+    });
+  }, [JSON.stringify(accesos)]);
+
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <div style={{ borderRadius:"14px 14px 0 0", overflow:"hidden", border:"1px solid rgba(255,255,255,0.1)", borderBottom:"none" }}>
+        <div style={{ padding:"10px 14px", background:"rgba(4,12,24,0.95)", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+          <span style={{ fontSize:"13px" }}>🗺️</span>
+          <span style={{ fontFamily:getFont(theme,"title"), fontSize:"14px", color:"rgba(255,255,255,0.9)" }}>Mapa de Accesos</span>
+          <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.3)" }}>· estado en tiempo real</span>
+          <div style={{ marginLeft:"auto", display:"flex", gap:"4px", flexWrap:"wrap" }}>
+            {TILE_OPTIONS.map(t => (
+              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                padding:"3px 8px", borderRadius:"6px", border:"none", cursor:"pointer",
+                background: tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
+                color: tileMode===t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
+                fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight: tileMode===t.id ? "700" : "400",
+              }}>{t.icon} {t.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ border:"1px solid rgba(255,255,255,0.1)", borderTop:"none", borderRadius:"0 0 14px 14px", overflow:"hidden", boxShadow:"0 4px 32px rgba(0,0,0,0.5)" }}>
+        <div ref={mapRef} style={{ width:"100%", height:"300px", background:"#040c18" }} />
+      </div>
+      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"8px", padding:"8px 12px", background:"rgba(255,255,255,0.04)", borderRadius:"10px", border:"1px solid rgba(255,255,255,0.08)" }}>
+        {ACCESO_STATUS_OPTIONS.map(o => (
+          <span key={o.id} style={{ display:"flex", alignItems:"center", gap:"5px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#e2e8f0" }}>
+            <span style={{ width:"14px", height:"14px", borderRadius:"3px", background:o.color+"55", border:`2px solid ${o.color}`, display:"inline-block", boxShadow:`0 0 6px ${o.color}70` }} />
+            {o.icon} {o.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -5418,37 +5588,81 @@ function SegundoAccesoTab() {
           SUB-TAB: 2DO ACCESO
       ════════════════════════════════════════════════════ */}
       {subTab === "segundo" && <>
-        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
-          <div style={{ display:"flex", gap:"8px" }}>
-            {SEGUNDO_CARRILES_INGRESO.map((c, i) => {
-              const st = carriles[c.id];
-              const bc = st.saturado ? "#ef4444" : "#22c55e";
-              const tz = getTermZona(st.terminal);
-              const tc = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
-              return (
-                <div key={c.id} style={{ flex:1, background:bc+"15", border:`2px solid ${bc}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
-                  <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:getFont(theme, "secondary"), fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>{c.label}</div>
-                  <div style={{ background:tc+"22", border:`1px solid ${tc}55`, borderRadius:"6px", padding:"4px 4px" }}>
-                    <SlotText value={getTermName(st.terminal)} color={tc} fontSize="clamp(10px,1.8vw,14px)" delay={i * 180} />
+        {/* ── Diagrama visual de carriles ── */}
+        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"14px", marginBottom:"18px", overflow:"hidden" }}>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"12px" }}>DIAGRAMA — VISTA DE CARRILES (PUENTE 2DO ACCESO)</div>
+
+          {/* Carretera con carriles */}
+          <div style={{ background:"#1a1a2e", borderRadius:"10px", padding:"14px 10px 10px", position:"relative", border:"1px solid rgba(255,255,255,0.08)" }}>
+
+            {/* Líneas amarillas del pavimento */}
+            <div style={{ position:"absolute", top:0, bottom:0, left:"50%", width:"3px", background:"repeating-linear-gradient(to bottom, #f59e0b 0px, #f59e0b 12px, transparent 12px, transparent 22px)", transform:"translateX(-50%)", opacity:0.7 }} />
+            <div style={{ position:"absolute", top:0, bottom:0, left:"calc(50% - 80px)", width:"2px", background:"repeating-linear-gradient(to bottom, #4b5563 0px, #4b5563 10px, transparent 10px, transparent 20px)", transform:"translateX(-50%)", opacity:0.5 }} />
+            <div style={{ position:"absolute", top:0, bottom:0, left:"calc(50% + 80px)", width:"2px", background:"repeating-linear-gradient(to bottom, #4b5563 0px, #4b5563 10px, transparent 10px, transparent 20px)", transform:"translateX(-50%)", opacity:0.5 }} />
+
+            {/* Flechas de carriles */}
+            <div style={{ display:"flex", gap:"6px", position:"relative", zIndex:1 }}>
+
+              {/* C4 — SALIDA (izquierda, rojo) */}
+              {(() => {
+                const c4sat = carriles?.c4?.saturado;
+                const c4col = c4sat ? "#ef4444" : "#f97316";
+                return (
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+                    {/* Flecha hacia ARRIBA (salida) */}
+                    <div style={{ position:"relative", width:"52px" }}>
+                      <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${c4col}88)` }}>
+                        <polygon points="26,4 48,28 36,28 36,56 16,56 16,28 4,28" fill={c4col} opacity="0.9"/>
+                      </svg>
+                    </div>
+                    <div style={{ background:c4col+"22", border:`1.5px solid ${c4col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
+                      <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
+                      <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
+                      <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>{c4sat?"SATURADO":"LIBRE"}</div>
+                    </div>
                   </div>
-                  {st.retornos && <div style={{ fontSize:"14px" }}>↩</div>}
-                  <div>
-                    <SlotText value={st.saturado ? "SAT" : "OK"} color={bc} fontSize="clamp(12px,2vw,16px)" delay={i * 180 + 90} />
+                );
+              })()}
+
+              {/* C1, C2, C3 — INGRESO (teal/verde) */}
+              {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c, i) => {
+                const st  = carriles?.[c.id];
+                const sat = st?.saturado;
+                const col = sat ? "#ef4444" : "#14b8a6";
+                const tz  = getTermZona(st?.terminal);
+                const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
+                return (
+                  <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+                    {/* Flecha hacia ABAJO (ingreso) */}
+                    <div style={{ position:"relative", width:"52px" }}>
+                      <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${col}88)` }}>
+                        <polygon points="26,56 48,32 36,32 36,4 16,4 16,32 4,32" fill={col} opacity="0.9"/>
+                      </svg>
+                    </div>
+                    <div style={{ background:col+"22", border:`1.5px solid ${col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
+                      <div style={{ color:col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>{c.label}</div>
+                      <div style={{ background:tc+"33", borderRadius:"4px", padding:"2px 3px", marginTop:"3px" }}>
+                        <div style={{ color:tc, fontFamily:getFont(theme,"secondary"), fontSize:"8px", fontWeight:"700", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                          {getTermName(st?.terminal)}
+                        </div>
+                      </div>
+                      {st?.retornos && <div style={{ color:"#f97316", fontSize:"10px", marginTop:"2px" }}>↩</div>}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            {carriles && <div style={{ flex:1, background: carriles.c4.saturado?"#ef444415":"#f9731615", border:`2px solid ${carriles.c4.saturado?"#ef4444":"#f97316"}`, borderRadius:"10px", padding:"12px 6px", textAlign:"center", display:"flex", flexDirection:"column", gap:"6px", justifyContent:"center" }}>
-              <div style={{ color:"rgba(255,255,255,0.85)", fontFamily:getFont(theme, "secondary"), fontSize:"clamp(13px,2.5vw,18px)", fontWeight:"800", letterSpacing:"1px" }}>C4</div>
-              <div style={{ fontSize:"clamp(10px,1.8vw,14px)", color:"#f97316", fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>SALIDA</div>
-              <div>
-                <SlotText value={carriles.c4.saturado ? "SAT" : "OK"} color={carriles.c4.saturado?"#ef4444":"#22c55e"} fontSize="clamp(12px,2vw,16px)" delay={540} />
-              </div>
-            </div>}
+                );
+              })}
+            </div>
+
+            {/* Etiquetas de dirección */}
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:"8px", padding:"0 4px" }}>
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ HACIA CIUDAD</div>
+              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ AL PUERTO</div>
+            </div>
           </div>
-          <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#f59e0b","T. LENTO"],["#dc2626","T. DETENIDO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+
+          {/* Leyenda */}
+          <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
+            {[["#14b8a6","INGRESO"],["#f97316","SALIDA"],["#ef4444","SATURADO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
