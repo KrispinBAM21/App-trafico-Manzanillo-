@@ -5970,9 +5970,150 @@ function SegundoAccesoTab() {
           SUB-TAB: CONFINADA
       ════════════════════════════════════════════════════ */}
       {subTab === "confinada" && <>
-        {/* Diagrama rápido */}
+        {/* ── MINI-MAPA VIAL CONFINADA ── */}
+        {(() => {
+          const getCarrilColor = (id) => {
+            const st = confinada[id];
+            if (!st) return "#22c55e";
+            if (st.terminal === "sin_uso") return "#6b7280";
+            if (st.saturado) return "#ef4444";
+            if (st.transferencia) return "#fbbf24";
+            return "#22c55e";
+          };
+          const getCarrilLabel = (id) => {
+            const st = confinada[id];
+            if (!st || st.terminal === "sin_uso") return "SIN USO";
+            if (st.saturado) return "SAT";
+            if (st.transferencia) return "TRANS";
+            return "LIBRE";
+          };
+          const getTermShort = (id) => {
+            const st = confinada[id];
+            if (!st || st.terminal === "sin_uso") return "—";
+            if (st.terminal === "general") return "GRAL";
+            return TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal.toUpperCase();
+          };
+          const c1 = getCarrilColor("cf_c1");
+          const c2 = getCarrilColor("cf_c2");
+          const c3 = getCarrilColor("cf_c3");
+
+          return (
+            <div style={{ background:"rgba(4,10,22,0.9)", border:"1px solid rgba(167,139,250,0.3)", borderRadius:"14px", padding:"16px 14px 14px", marginBottom:"18px", overflow:"hidden" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+                <div style={{ fontSize:"10px", color:"rgba(167,139,250,0.8)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>🗺️ MAPA ZONA CONFINADA</div>
+                <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary") }}>flujo: entrada → derecha</div>
+              </div>
+
+              {/* SVG del mapa vial */}
+              <svg viewBox="0 0 340 180" style={{ width:"100%", height:"auto", display:"block", borderRadius:"10px" }} xmlns="http://www.w3.org/2000/svg">
+                {/* Fondo */}
+                <rect width="340" height="180" fill="#060d1a" rx="8"/>
+
+                {/* ── ZONA PUERTO (derecha) — entrada ── */}
+                <rect x="290" y="0" width="50" height="180" fill="#0a1f3a" opacity="0.9"/>
+                <text x="315" y="95" textAnchor="middle" fill="rgba(56,189,248,0.7)" fontSize="8" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,315,95)">ENTRADA PUERTO</text>
+                <line x1="290" y1="0" x2="290" y2="180" stroke="rgba(56,189,248,0.4)" strokeWidth="1.5" strokeDasharray="6,4"/>
+
+                {/* ── ZONA ADUANA / CASETAS (izquierda) ── */}
+                <rect x="0" y="0" width="52" height="180" fill="#0d1f10" opacity="0.9"/>
+                <text x="26" y="95" textAnchor="middle" fill="rgba(34,197,94,0.6)" fontSize="8" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,26,95)">SALIDA / ADUANA</text>
+                <line x1="52" y1="0" x2="52" y2="180" stroke="rgba(34,197,94,0.25)" strokeWidth="1" strokeDasharray="4,4"/>
+
+                {/* ── SEPARADORES ENTRE CARRILES ── */}
+                <line x1="52" y1="60" x2="290" y2="60" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="8,6"/>
+                <line x1="52" y1="120" x2="290" y2="120" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="8,6"/>
+
+                {/* ══ CARRIL 1 (top) ══ */}
+                {/* Fondo del carril */}
+                <rect x="52" y="4" width="238" height="52" fill={c1 + "18"} rx="3"/>
+                {/* Franja de color del carril */}
+                <rect x="52" y="4" width="5" height="52" fill={c1} opacity="0.85"/>
+                {/* Etiqueta carril */}
+                <text x="72" y="20" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 1</text>
+                {/* Terminal */}
+                <rect x="72" y="26" width="70" height="16" fill={c1 + "33"} rx="3"/>
+                <text x="107" y="38" textAnchor="middle" fill={c1} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c1")}</text>
+                {/* Estado */}
+                <rect x="150" y="26" width="50" height="16" fill={c1 + "22"} rx="3"/>
+                <text x="175" y="38" textAnchor="middle" fill={c1} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c1")}</text>
+                {/* Camión animado → izquierda (flujo) */}
+                {confinada["cf_c1"]?.terminal !== "sin_uso" && (
+                  <g>
+                    <rect x="215" y="18" width="32" height="18" fill={c1} rx="3" opacity="0.85">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="5s" repeatCount="indefinite"/>
+                    </rect>
+                    <text x="231" y="31" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="5s" repeatCount="indefinite"/>
+                      🚛
+                    </text>
+                  </g>
+                )}
+
+                {/* ══ CARRIL 2 (middle) ══ */}
+                <rect x="52" y="64" width="238" height="52" fill={c2 + "18"} rx="3"/>
+                <rect x="52" y="64" width="5" height="52" fill={c2} opacity="0.85"/>
+                <text x="72" y="80" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 2</text>
+                <rect x="72" y="86" width="70" height="16" fill={c2 + "33"} rx="3"/>
+                <text x="107" y="98" textAnchor="middle" fill={c2} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c2")}</text>
+                <rect x="150" y="86" width="50" height="16" fill={c2 + "22"} rx="3"/>
+                <text x="175" y="98" textAnchor="middle" fill={c2} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c2")}</text>
+                {confinada["cf_c2"]?.terminal !== "sin_uso" && (
+                  <g>
+                    <rect x="215" y="78" width="32" height="18" fill={c2} rx="3" opacity="0.85">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="6.5s" repeatCount="indefinite" begin="1.5s"/>
+                    </rect>
+                    <text x="231" y="91" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="6.5s" repeatCount="indefinite" begin="1.5s"/>
+                      🚛
+                    </text>
+                  </g>
+                )}
+
+                {/* ══ CARRIL 3 (bottom) ══ */}
+                <rect x="52" y="124" width="238" height="52" fill={c3 + "18"} rx="3"/>
+                <rect x="52" y="124" width="5" height="52" fill={c3} opacity="0.85"/>
+                <text x="72" y="140" fill="rgba(255,255,255,0.9)" fontSize="10" fontFamily="DM Sans,sans-serif" fontWeight="800">CARRIL 3</text>
+                <rect x="72" y="146" width="70" height="16" fill={c3 + "33"} rx="3"/>
+                <text x="107" y="158" textAnchor="middle" fill={c3} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getTermShort("cf_c3")}</text>
+                <rect x="150" y="146" width="50" height="16" fill={c3 + "22"} rx="3"/>
+                <text x="175" y="158" textAnchor="middle" fill={c3} fontSize="9" fontFamily="DM Sans,sans-serif" fontWeight="700">{getCarrilLabel("cf_c3")}</text>
+                {confinada["cf_c3"]?.terminal !== "sin_uso" && (
+                  <g>
+                    <rect x="215" y="138" width="32" height="18" fill={c3} rx="3" opacity="0.85">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="7.8s" repeatCount="indefinite" begin="3s"/>
+                    </rect>
+                    <text x="231" y="151" textAnchor="middle" fill="#000" fontSize="9" fontWeight="900">
+                      <animateTransform attributeName="transform" type="translate" values="0,0; -155,0; 0,0" dur="7.8s" repeatCount="indefinite" begin="3s"/>
+                      🚛
+                    </text>
+                  </g>
+                )}
+
+                {/* Flecha de flujo general */}
+                <defs>
+                  <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                    <path d="M6,0 L6,6 L0,3 Z" fill="rgba(255,255,255,0.25)"/>
+                  </marker>
+                </defs>
+                <line x1="285" y1="90" x2="60" y2="90" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="5,5" markerEnd="url(#arr)"/>
+              </svg>
+
+              {/* Leyenda */}
+              <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
+                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","General/Trans."],["#6b7280","Sin Uso"]].map(([c,l]) => (
+                  <div key={l} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+                    <div style={{ width:"10px", height:"10px", background:c, borderRadius:"2px" }} />
+                    <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Diagrama rápido — tarjetas */}
         <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"14px", marginBottom:"18px" }}>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>DIAGRAMA — VISTA RÁPIDA</div>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN DE CARRILES</div>
           <div style={{ display:"flex", gap:"8px" }}>
             {CONFINADA_CARRILES.map((c, i) => {
               const st = confinada[c.id];
@@ -5999,14 +6140,6 @@ function SegundoAccesoTab() {
                 </div>
               );
             })}
-          </div>
-          <div style={{ display:"flex", justifyContent:"center", gap:"10px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#22c55e","LIBRE"],["#ef4444","SATURADO"],["#fbbf24","GENERAL/TRANS."],["#a78bfa","ZONA SUR"],["#6b7280","SIN USO"]].map(([c,l]) => (
-              <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-                <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
-                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -9829,81 +9962,86 @@ function App() {
                 Datos para transferencia:
               </div>
               
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px"
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center"
-                }}>
-                  <span style={{
-                    color: "rgba(255, 255, 255, 0.6)",
-                    fontFamily: getFont(theme, "secondary"),
-                    fontSize: "11px"
-                  }}>
-                    Banco:
-                  </span>
-                  <span style={{
-                    color: "#fff",
-                    fontFamily: getFont(theme, "secondary"),
-                    fontSize: "12px",
-                    fontWeight: "600"
-                  }}>
-                    Mifel
-                  </span>
-                </div>
-                
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center"
-                }}>
-                  <span style={{
-                    color: "rgba(255, 255, 255, 0.6)",
-                    fontFamily: getFont(theme, "secondary"),
-                    fontSize: "11px"
-                  }}>
-                    Titular:
-                  </span>
-                  <span style={{
-                    color: "#fff",
-                    fontFamily: getFont(theme, "secondary"),
-                    fontSize: "12px",
-                    fontWeight: "600"
-                  }}>
-                    Ramon Romero
-                  </span>
-                </div>
-                
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  borderRadius: "8px",
-                  padding: "8px 12px",
-                  marginTop: "4px"
-                }}>
-                  <span style={{
-                    color: "rgba(255, 255, 255, 0.6)",
-                    fontFamily: getFont(theme, "secondary"),
-                    fontSize: "11px"
-                  }}>
-                    CLABE:
-                  </span>
-                  <span style={{
-                    color: "#A855F7",
-                    fontFamily: "'Space Mono', monospace",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    letterSpacing: "0.5px"
-                  }}>
-                    014028090014825779
-                  </span>
-                </div>
+              {/* Filas con botón copiar */}
+              {[
+                { label: "Banco",   value: "Mifel",              mono: false },
+                { label: "Titular", value: "Ramon Romero",        mono: false },
+                { label: "CLABE",   value: "014028090014825779",  mono: true  },
+              ].map(({ label, value, mono }) => {
+                const [copied, setCopied] = React.useState(false);
+                const handleCopy = () => {
+                  try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                      navigator.clipboard.writeText(value).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1800);
+                      });
+                    } else {
+                      // Fallback para móvil sin clipboard API
+                      const ta = document.createElement("textarea");
+                      ta.value = value;
+                      ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+                      document.body.appendChild(ta);
+                      ta.focus(); ta.select();
+                      document.execCommand("copy");
+                      document.body.removeChild(ta);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1800);
+                    }
+                  } catch {}
+                };
+                return (
+                  <div
+                    key={label}
+                    onClick={handleCopy}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      background: copied ? "rgba(168,85,247,0.18)" : (mono ? "rgba(255,255,255,0.05)" : "transparent"),
+                      borderRadius: "8px",
+                      padding: "8px 10px",
+                      marginBottom: "6px",
+                      cursor: "pointer",
+                      border: `1px solid ${copied ? "rgba(168,85,247,0.6)" : "rgba(255,255,255,0.07)"}`,
+                      transition: "all 0.2s",
+                      userSelect: "none",
+                    }}
+                    title={`Toca para copiar ${label}`}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+                      <span style={{ color: "rgba(255,255,255,0.45)", fontFamily: getFont(theme, "secondary"), fontSize: "9px", letterSpacing: "1px" }}>{label.toUpperCase()}</span>
+                      <span style={{
+                        color: mono ? "#A855F7" : "#fff",
+                        fontFamily: mono ? "'Space Mono', monospace" : getFont(theme, "secondary"),
+                        fontSize: mono ? "13px" : "12px",
+                        fontWeight: "700",
+                        letterSpacing: mono ? "0.5px" : "0",
+                      }}>{value}</span>
+                    </div>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      background: copied ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.1)",
+                      border: `1px solid ${copied ? "rgba(168,85,247,0.5)" : "rgba(255,255,255,0.15)"}`,
+                      borderRadius: "6px",
+                      padding: "4px 8px",
+                      transition: "all 0.2s",
+                      flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: "11px" }}>{copied ? "✓" : "📋"}</span>
+                      <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: copied ? "#c084fc" : "rgba(255,255,255,0.6)", fontWeight: "700" }}>
+                        {copied ? "¡Copiado!" : "Copiar"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Hint */}
+              <div style={{ textAlign: "center", marginTop: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)" }}>
+                Toca cualquier dato para copiarlo al portapapeles
               </div>
             </div>
 
