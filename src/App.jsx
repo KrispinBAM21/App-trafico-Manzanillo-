@@ -5562,7 +5562,6 @@ function SegundoAccesoTab() {
         {[
           { id:"segundo",   label:"2DO ACCESO",   icon:"🛣️",  color:"#34d399" },
           { id:"confinada", label:"CONFINADA",    icon:"🔒", color:"#a78bfa" },
-          { id:"mapa",      label:"MAPA TRÁFICO", icon:"🗺️", color:"#38bdf8" },
         ].map(tab => (
           <button
             key={tab.id}
@@ -5816,12 +5815,20 @@ function SegundoAccesoTab() {
             );
           })()}
         </div>
-      </>}
 
-      {/* ════════════════════════════════════════════════════
-          SUB-TAB: MAPA TRÁFICO
-      ════════════════════════════════════════════════════ */}
-      {subTab === "mapa" && <TrafficMapSegundo theme={theme} />}
+        {/* ── Segundo Acceso Por Fases ── */}
+        <div style={{ marginTop:"8px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+            <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", padding:"5px 12px", background:"rgba(52,211,153,0.08)", border:"1px solid rgba(52,211,153,0.25)", borderRadius:"20px" }}>
+              <span style={{ fontSize:"13px" }}>🗺️</span>
+              <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#34d399", fontWeight:"800", letterSpacing:"1px" }}>SEGUNDO ACCESO POR FASES</span>
+            </div>
+            <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
+          </div>
+          <TrafficMapSegundo theme={theme} />
+        </div>
+      </>}
 
       {/* ════════════════════════════════════════════════════
           SUB-TAB: CONFINADA
