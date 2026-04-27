@@ -5368,13 +5368,21 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                   EVENTOS ACTIVOS ({visibles.length})
                 </div>
                 {visibles.map(inc => {
-                  const cfg = PIN_CFG_EV[inc.type] || PIN_CFG_EV.incidente;
-                  const resolveV = inc.resolve_votes || {};
-                  const resueltos = Object.values(resolveV).length;
+                  const cfg       = PIN_CFG_EV[inc.type] || PIN_CFG_EV.incidente;
+                  const votes     = inc.votes        || {};
+                  const falseV    = inc.false_votes   || {};
+                  const resolveV  = inc.resolve_votes || {};
+                  const myVote    = votes[myId];
+                  const myFalse   = falseV[myId];
                   const myResolve = resolveV[myId];
+                  const conf      = Object.values(votes).filter(v => v === 1).length;
+                  const falsos    = Object.values(falseV).length;
+                  const resueltos = Object.values(resolveV).length;
+                  const borderC   = falsos >= conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : cfg.color;
                   return (
-                    <div key={inc.id} style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${cfg.color}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px" }}>
-                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start" }}>
+                    <div key={inc.id} style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${borderC}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+                      {/* Cabecera */}
+                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start", marginBottom:"10px" }}>
                         <div style={{ width:"40px", height:"40px", background:cfg.color+"22", border:`1.5px solid ${cfg.color}66`, borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", flexShrink:0 }}>
                           {cfg.emoji}
                         </div>
@@ -5387,26 +5395,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           {inc.desc && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.desc}</div>}
                           <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"5px" }}>{timeAgo(inc.ts)}</div>
                         </div>
-                      </div>
-
-                      {/* Botón resuelto */}
-                      <div style={{ marginTop:"10px", display:"flex", justifyContent:"flex-end" }}>
-                        <button onClick={async () => {
-                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
-                          const newResolve = { ...resolveV, [myId]: 1 };
-                          const count = Object.values(newResolve).length;
-                          if (count >= 3) {
-                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
-                            notify("🏁 Incidente cerrado como resuelto", "#6b7280");
-                          } else {
-                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
-                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
-                          }
-                        }}
-                          style={{ padding:"7px 14px", background: myResolve ? "#6b728033" : "#6b728015", border:`1px solid ${myResolve ? "#6b7280" : "#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", gap:"5px" }}>
-                          🏁 <span>RESUELTO</span>
-                          <span style={{ background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 5px", fontSize:"10px" }}>{resueltos}/3</span>
-                        </button>
                         {isAdmin && (
                           <button onClick={async () => {
                             const { error } = await sb.from("incidents").delete().eq("id", inc.id);
@@ -5414,10 +5402,85 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
                             notify("🗑 Evento eliminado", "#f97316");
                           }}
-                            style={{ marginLeft:"6px", padding:"7px 12px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>
+                            style={{ padding:"4px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", flexShrink:0 }}>
                             🗑
                           </button>
                         )}
+                      </div>
+
+                      {/* Barra de votos de confirmación */}
+                      <VoteBar count={conf} needed={3} color="#22c55e" />
+
+                      {/* Botones de votación */}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+
+                        {/* CONFIRMAR */}
+                        <button onClick={async () => {
+                          if (myVote === 1) return notify("Ya confirmaste este evento", "#38bdf8");
+                          const newVotes = { ...votes, [myId]: 1 };
+                          const newConf  = Object.values(newVotes).filter(v => v === 1).length;
+                          await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
+                          setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
+                          notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
+                        }}
+                          style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>✅</span>
+                          <span>CONFIRMO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
+                        </button>
+
+                        {/* FALSO — 3 votos eliminan el evento */}
+                        <button onClick={async () => {
+                          if (myFalse) return notify("Ya lo marcaste como falso", "#38bdf8");
+                          const newFalse = { ...falseV, [myId]: 1 };
+                          const count    = Object.values(newFalse).length;
+                          if (count >= 3) {
+                            await sb.from("incidents").delete().eq("id", inc.id);
+                            setIncidents(prev => prev.filter(i => i.id !== inc.id));
+                            notify("❌ Evento eliminado — 3 votos falsos", "#ef4444");
+                          } else {
+                            await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
+                            notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                          }
+                        }}
+                          style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>❌</span>
+                          <span>FALSO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
+                        </button>
+
+                        {/* RESUELTO — 3 votos cierran el evento */}
+                        <button onClick={async () => {
+                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                          const newResolve = { ...resolveV, [myId]: 1 };
+                          const count      = Object.values(newResolve).length;
+                          if (count >= 3) {
+                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
+                            notify("🏁 Evento cerrado como resuelto", "#6b7280");
+                          } else {
+                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
+                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                          }
+                        }}
+                          style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>🏁</span>
+                          <span>RESUELTO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{resueltos}</span>
+                        </button>
+                      </div>
+
+                      {/* Indicador de mi voto */}
+                      {(myVote || myFalse || myResolve) && (
+                        <div style={{ fontSize:"9px", fontFamily:getFont(theme,"secondary"), marginTop:"6px", textAlign:"center",
+                          color: myVote===1 ? "#22c55e" : myFalse ? "#ef4444" : "#94a3b8" }}>
+                          {myVote===1  ? "✓ Confirmaste este evento"
+                          : myFalse   ? "✗ Lo marcaste como falso"
+                          :             "🏁 Votaste como resuelto"}
+                        </div>
+                      )}
                       </div>
                     </div>
                   );
