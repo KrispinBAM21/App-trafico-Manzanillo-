@@ -4426,7 +4426,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const [location,  setLocation]  = useState("");
   const [showUbic,  setShowUbic]  = useState(false);
   const [grupoOpen, setGrupoOpen] = useState(null);
-  const [toast,     setToast]     = useState(null);
+  const [toast,          setToast]          = useState(null);
+  const [confirmDelete,  setConfirmDelete]  = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
   const subcats   = INCIDENT_SUBCATEGORIAS[categoria] || [];
@@ -4637,16 +4638,28 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
                     <Badge color={borderC} small>PENDIENTE</Badge>
-                    {isAdmin && (
-                      <button onClick={async () => {
-                        if (window.confirm("¿Eliminar este reporte?")) {
-                          await sb.from("incidents").delete().eq("id", inc.id);
-                          notify("🗑 Reporte eliminado por admin", "#f97316");
-                        }
-                      }}
+                    {isAdmin && confirmDelete !== inc.id && (
+                      <button onClick={() => setConfirmDelete(inc.id)}
                         style={{ padding:"3px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700", letterSpacing:"0.5px" }}>
                         🗑 BORRAR
                       </button>
+                    )}
+                    {isAdmin && confirmDelete === inc.id && (
+                      <div style={{ display:"flex", gap:"4px", alignItems:"center" }}>
+                        <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>¿Seguro?</span>
+                        <button onClick={async () => {
+                          await sb.from("incidents").delete().eq("id", inc.id);
+                          setConfirmDelete(null);
+                          notify("🗑 Reporte eliminado", "#f97316");
+                        }}
+                          style={{ padding:"3px 8px", background:"#ef4444", border:"none", borderRadius:"6px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700" }}>
+                          SÍ
+                        </button>
+                        <button onClick={() => setConfirmDelete(null)}
+                          style={{ padding:"3px 8px", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"6px", color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700" }}>
+                          NO
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
