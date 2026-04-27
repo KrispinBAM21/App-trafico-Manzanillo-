@@ -5481,7 +5481,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           :             "🏁 Votaste como resuelto"}
                         </div>
                       )}
-                      </div>
                     </div>
                   );
                 })}
