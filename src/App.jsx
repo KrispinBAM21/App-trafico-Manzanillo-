@@ -4983,6 +4983,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       setIncidents(prev => [{
         id: r.id, type: r.type, location: r.location,
         desc: r.description, votes: r.votes || {},
+        false_votes: r.false_votes || {},
+        resolve_votes: r.resolve_votes || {},
         resolveVotes: r.resolve_votes || {},
         visible: r.visible, resolved: r.resolved, ts: r.ts,
         coords: r.coords || null,
@@ -9912,6 +9914,8 @@ function App() {
       if (data) setIncidents(data.map(r => ({
         id: r.id, type: r.type, location: r.location,
         desc: r.description, votes: r.votes || {},
+        false_votes: r.false_votes || {},
+        resolve_votes: r.resolve_votes || {},
         resolveVotes: r.resolve_votes || {},
         visible: r.visible, resolved: r.resolved, ts: r.ts,
         coords: r.coords || null,
@@ -9925,6 +9929,8 @@ function App() {
           if (data) setIncidents(data.map(r => ({
             id: r.id, type: r.type, location: r.location,
             desc: r.description, votes: r.votes || {},
+            false_votes: r.false_votes || {},
+            resolve_votes: r.resolve_votes || {},
             resolveVotes: r.resolve_votes || {},
             visible: r.visible, resolved: r.resolved, ts: r.ts,
             coords: r.coords || null,
