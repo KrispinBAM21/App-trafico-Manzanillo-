@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// ─── SEGURIDAD ────────────────────────────────────────────────────────────────
+// --- SEGURIDAD ---
 const sanitize = (str) => {
   if (typeof str !== "string") return "";
   return str
@@ -50,7 +50,7 @@ const saveCookieConsent = (val) => {
   try { localStorage.setItem(COOKIE_KEY, val); } catch {}
 };
 
-// ─── FIX: Aplicar fondo INMEDIATAMENTE antes del primer render de React ────────
+// --- FIX: Aplicar fondo INMEDIATAMENTE antes del primer render de React ---
 // Evita el flash blanco/gris que aparece unos frames antes de que React monte
 (function applyDefaultBackground() {
   const bg = "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)";
@@ -64,12 +64,12 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+// --- SUPABASE ---
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+// --- CONSTANTS ---
 // ❌ DEPRECATED - Usar getFont(theme, "secondary") en su lugar
 // const MN    = "'DM Sans', sans-serif";
 
@@ -97,9 +97,9 @@ const TABS = [
   { key: "tutorial",    label: "Tutorial",    icon: "🎓" }
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 // CONFIGURACIÓN DE TEMA POR DEFECTO
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 const DEFAULT_THEME = {
   // Fondo
   backgroundType: "gradient", // "color" | "gradient" | "image"
@@ -341,7 +341,7 @@ const mkSegundoState = () => {
   return state;
 };
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// --- HELPERS ---
 const timeAgo = (ts) => {
   const d = Date.now() - ts;
   if (d < 60000)   return "hace un momento";
@@ -442,7 +442,7 @@ const mkSegundoIngreso = () => ({
   c4: { saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
-// ─── CONFINADA ────────────────────────────────────────────────────────────────
+// --- CONFINADA ---
 const CONFINADA_CARRILES = [
   { id: "cf_c1", label: "Carril 1", defaultTerminal: "general",    transferencia: false }, // ✨ CAMBIADO A GENERAL
   { id: "cf_c2", label: "Carril 2", defaultTerminal: "general",    transferencia: false }, // ✨ CAMBIADO A GENERAL
@@ -498,7 +498,7 @@ const mkCarrilesState = () => {
   return s;
 };
 
-// ─── ADMIN MODE ───────────────────────────────────────────────────────────────
+// --- ADMIN MODE ---
 function useAdminMode() {
   const theme = React.useContext(ThemeContext);
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -649,12 +649,12 @@ function useAdminMode() {
   return { isAdmin, handleLogoTap, openModal, logout, Modal };
 }
 
-// ─── HELPER: publicar noticia ────────────────────────────────────────────────
+// --- HELPER: publicar noticia ---
 const publicarNoticia = async ({ tipo, titulo, detalle, icono, color }) => {
   await sb.from("noticias").insert({ tipo, titulo, detalle, icono, color });
 };
 
-// ─── SHARED UI ────────────────────────────────────────────────────────────────
+// --- SHARED UI ---
 function Badge({ color, children, small }) {
   const theme = React.useContext(ThemeContext);
   return (
@@ -736,7 +736,7 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
   );
 }
 
-// ─── DONATE BANNER ────────────────────────────────────────────────────────────
+// --- DONATE BANNER ---
 function DonateBanner({ active }) {
   const theme = React.useContext(ThemeContext);
   const [visible, setVisible] = useState(false);
@@ -837,8 +837,8 @@ function DonateBanner({ active }) {
 }
 
 
-// ─── ANUNCIOS BANNER ──────────────────────────────────────────────────────────
-// ─── RESPONSIVE HOOK ─────────────────────────────────────────────────────────
+// --- ANUNCIOS BANNER ---
+// --- RESPONSIVE HOOK ---
 function useWindowWidth() {
   const [w, setW] = useState(() => window.innerWidth);
   useEffect(() => {
@@ -1026,7 +1026,7 @@ function AnunciosBanner({ isAdmin }) {
           <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
         </div>
       </div>
-      {/* ── Imagen: subir archivo O pegar URL ── */}
+      {/* -- Imagen: subir archivo O pegar URL -- */}
       <div style={{ marginBottom:"10px" }}>
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>IMAGEN (OPCIONAL)</div>
         {/* Tabs: Subir / URL */}
@@ -1460,10 +1460,10 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 // 🔧 HOOK: CARGAR Y SUSCRIBIRSE AL TEMA GLOBAL EN SUPABASE (TIEMPO REAL)
 // Permite que TODOS los usuarios vean los cambios de tema instantáneamente
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 function useGlobalTheme(isAdmin) {
   // ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de null
   const [supabaseTheme, setSupabaseTheme] = React.useState(DEFAULT_THEME);
@@ -1628,10 +1628,10 @@ function useGlobalTheme(isAdmin) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 // 🔧 FUNCIÓN: GUARDAR TEMA EN SUPABASE (SOLO ADMIN)
 // Sincroniza el tema para todos los usuarios en tiempo real
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 async function saveThemeToDatabase(newTheme) {
   try {
     const { data, error } = await sb
@@ -1658,10 +1658,10 @@ async function saveThemeToDatabase(newTheme) {
 }
 
 
-// ─── NAVBAR ───────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
+// --- NAVBAR ---
+// ---
 // PANEL DE CONFIGURACIÓN DE TEMA
-// ─────────────────────────────────────────────────────────────────────────────
+// ---
 function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCancel, onClose }) {
   const [config, setConfig] = useState(theme);
   const [saving, setSaving] = useState(false);
@@ -2024,7 +2024,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               </h3>
               
               <div style={{ display:"grid", gap:"20px" }}>
-                {/* ── Fuente Principal (Títulos) ── */}
+                {/* -- Fuente Principal (Títulos) -- */}
                 <div>
                   <label style={{ display:"block", marginBottom:"10px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                     Fuente Principal (Títulos)
@@ -2104,7 +2104,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   </div>
                 </div>
                 
-                {/* ── Fuente Secundaria (Texto) ── */}
+                {/* -- Fuente Secundaria (Texto) -- */}
                 <div>
                   <label style={{ display:"block", marginBottom:"10px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                     Fuente Secundaria (Texto General)
@@ -3019,7 +3019,7 @@ function NavBar({ active, set }) {
   );
 }
 
-// ─── CONVOY SCENE ────────────────────────────────────────────────────────────
+// --- CONVOY SCENE ---
 function ConvoyScene({ accentColor }) {
   const c = accentColor || "#38bdf8";
 
@@ -3219,7 +3219,7 @@ function ConvoyScene({ accentColor }) {
   );
 }
 
-// ─── SKELETON CARD ────────────────────────────────────────────────────────────
+// --- SKELETON CARD ---
 function SkeletonCard({ n = 3 }) {
   const theme = React.useContext(ThemeContext);
   return (
@@ -3248,7 +3248,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
-  // ── Accesos ──
+  // -- Accesos --
   useEffect(() => {
     sb.from("accesos").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
@@ -3272,7 +3272,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     return () => sb.removeChannel(chan);
   }, []);
 
-  // ── Vialidades ──
+  // -- Vialidades --
   useEffect(() => {
     sb.from("vialidades").select("*").then(async ({ data }) => {
       if (!data || data.length === 0) {
@@ -3395,7 +3395,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   return (
     <div style={{ paddingBottom: "80px" }}>
 
-      {/* ── Sub-tabs ── */}
+      {/* -- Sub-tabs -- */}
       <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
@@ -3411,18 +3411,18 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         ))}
       </div>
 
-      {/* ══════════════════════════════════════
+      {/* ---
           SECCIÓN: MAPA
-      ══════════════════════════════════════ */}
+      --- */}
       {activeSection === "mapa" && (
         <div style={{ padding: "16px" }}>
           <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
         </div>
       )}
 
-      {/* ══════════════════════════════════════
+      {/* ---
           SECCIÓN: ACCESOS
-      ══════════════════════════════════════ */}
+      --- */}
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
@@ -3458,9 +3458,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
       )}
 
-      {/* ══════════════════════════════════════
+      {/* ---
           SECCIÓN: VIALIDADES
-      ══════════════════════════════════════ */}
+      --- */}
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
           <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
@@ -3495,12 +3495,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
       )}
 
-      {/* ══════════════════════════════════════
+      {/* ---
           SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
-      {/* ══════════════════════════════════════
+      --- */}
+      {/* ---
           SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
+      --- */}
       {activeSection === "incidentes" && (
         <div style={{ padding: "16px" }}>
           {/* Mapa solo con incidentes */}
@@ -3516,9 +3516,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
       )}
 
-      {/* ══════════════════════════════════════
+      {/* ---
           SECCIÓN: ACCIDENTES
-      ══════════════════════════════════════ */}
+      --- */}
       {activeSection === "accidentes" && (
         <div style={{ padding: "16px" }}>
           {/* Mapa solo con accidentes */}
@@ -3540,7 +3540,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   );
 }
 
-// ─── MAPA DE ACCESOS (Polígonos Leaflet — Pez Vela, Puerta 15, Zona Norte) ───
+// --- MAPA DE ACCESOS (Polígonos Leaflet — Pez Vela, Puerta 15, Zona Norte) ---
 const ACCESO_POLYGONS = [
   {
     id: "pezvela",
@@ -3710,7 +3710,7 @@ function MapaAccesos({ accesos }) {
   );
 }
 
-// ─── MAPA DE VIALIDADES (Leaflet — sección Tráfico > Vialidades) ─────────────
+// --- MAPA DE VIALIDADES (Leaflet — sección Tráfico > Vialidades) ---
 function MapaVialidades({ vialidades }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
@@ -3943,7 +3943,7 @@ function MapaVialidades({ vialidades }) {
   );
 }
 
-// ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
+// --- MAPA DE TRÁFICO (Leaflet con KML real) ---
 const MAP_TILES = [
   { id: "dark",      label: "Noche",    icon: "🌙",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -4036,7 +4036,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         [19.08704263945231,-104.2952775551105],
       ],
     },
-    // ── Vialidades del KML (coloreadas por estado reportado) ──────────────────
+    // -- Vialidades del KML (coloreadas por estado reportado) ---
     {
       id: "jalipa_puerto",
       name: "Jalipa → Puerto",
@@ -4329,7 +4329,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     });
   }, [JSON.stringify(incGeoMap)]);
 
-  // ── Pins de incidentes con coordenadas GPS ────────────────────────────────
+  // -- Pins de incidentes con coordenadas GPS ---
   useEffect(() => {
     if (!leafRef.current || !window.L) return;
     const L = window.L;
@@ -4360,7 +4360,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     });
   }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type })))]);
 
-  // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
+  // -- Helper: colocar/actualizar pin de preview en el mapa ---
   const applyPreviewPin = (coords, type) => {
     if (!leafRef.current || !window.L) return;
     const L = window.L;
@@ -4391,7 +4391,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     map.setView(coords, 16, { animate: true, duration: 0.5 });
   };
 
-  // ── Pin de preview: sincronizar ref y aplicar al mapa ─────────────────────
+  // -- Pin de preview: sincronizar ref y aplicar al mapa ---
   useEffect(() => {
     previewCoordsRef.current = previewCoords;
     previewTypeRef.current   = previewType;
@@ -4402,7 +4402,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     // Si el mapa aún no está listo, el init lo aplicará cuando cargue
   }, [JSON.stringify(previewCoords), previewType]); // eslint-disable-line
 
-  // ── Índice / leyenda ──────────────────────────────────────────────────────
+  // -- Índice / leyenda ---
   const getVialColor = (vialidadId) => {
     if (!vialidades || !vialidades[vialidadId]) return "#22c55e";
     const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades[vialidadId].status);
@@ -4536,7 +4536,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 
 
 
-// ─── UBICACIONES PREDEFINIDAS PARA REPORTES ──────────────────────────────────
+// --- UBICACIONES PREDEFINIDAS PARA REPORTES ---
 const UBICACIONES_REPORTE = [
   {
     grupo: "Vialidades de acceso al puerto",
@@ -4652,9 +4652,9 @@ const UBICACIONES_REPORTE = [
   },
 ];
 
-// ─── HELPER: Extraer coordenadas de un link de Google Maps ───────────────────
+// --- HELPER: Extraer coordenadas de un link de Google Maps ---
 // Soporta: maps.app.goo.gl (short), maps.google.com/@lat,lng, ?q=lat,lng
-// ─── HELPER: Extraer coordenadas de texto o link de Google Maps ──────────────
+// --- HELPER: Extraer coordenadas de texto o link de Google Maps ---
 // Acepta:
 //  1. Coordenadas directas: "19.092788, -104.276555"  o  "19.092788,-104.276555"
 //  2. URL de Google Maps con @lat,lng o ?q=lat,lng
@@ -4716,7 +4716,7 @@ function isValidInput(str) {
 }
 
 
-// ─── MAPA DE EVENTOS (solo incidentes/accidentes con GPS, sin terminales ni vialidades) ──
+// --- MAPA DE EVENTOS (solo incidentes/accidentes con GPS, sin terminales ni vialidades) --
 function MapaEventos({ incidents }) {
   const mapRef  = useRef(null);
   const leafRef = useRef(null);
@@ -4931,7 +4931,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     }
   };
 
-  // ── Auto-expiración: elimina reportes pendientes con más de 1 hora sin alcanzar 3 confirmaciones
+  // -- Auto-expiración: elimina reportes pendientes con más de 1 hora sin alcanzar 3 confirmaciones
   useEffect(() => {
     const check = setInterval(() => {
       const ahora = Date.now();
@@ -4999,7 +4999,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px" }}>
 
-      {/* ── Navegación sub-tabs: Reportar / Eventos ── */}
+      {/* -- Navegación sub-tabs: Reportar / Eventos -- */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"20px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px" }}>
         {[
           { id:"reportar", label:"Reportar",  icon:"📢", color:"#0ea5e9" },
@@ -5020,7 +5020,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         })}
       </div>
 
-      {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
+      {/* -- VISTA: REPORTAR --- */}
       {reporteView === "reportar" && (<>
 
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
@@ -5195,7 +5195,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         ENVIAR REPORTE →
       </button>
 
-      {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
+      {/* -- REPORTES PENDIENTES DE VERIFICACIÓN -- */}
       {pendingAll.length > 0 && (
         <>
           <SectionLabel text={`PENDIENTES DE VERIFICACIÓN (${pendingAll.length})`} />
@@ -5336,7 +5336,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       <ToastBox toast={toast} />
       </>)}
 
-      {/* ══ VISTA: EVENTOS ═══════════════════════════════════════════════════ */}
+      {/* -- VISTA: EVENTOS --- */}
       {reporteView === "eventos" && (
         <div>
           {/* Mapa de eventos */}
@@ -5496,7 +5496,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   );
 }
 
-// ─── MAPA DE TERMINALES (Polígonos Leaflet — Zona Norte y Sur) ───────────────
+// --- MAPA DE TERMINALES (Polígonos Leaflet — Zona Norte y Sur) ---
 const TERM_POLYGONS = {
   norte: [
     {
@@ -5847,8 +5847,8 @@ function MapaTerminales({ zona, stMap }) {
   );
 }
 
-// ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
-// ─── TICKER MÁQUINA DE ESCRIBIR ───────────────────────────────────────────────
+// --- TAB: TERMINALES ---
+// --- TICKER MÁQUINA DE ESCRIBIR ---
 function TypewriterTicker({ items }) {
   const [idx,     setIdx]     = useState(0);
   const [display, setDisplay] = useState("");
@@ -6093,8 +6093,8 @@ function TerminalesTab({ myId }) {
   );
 }
 
-// ─── TAB: SEGUNDO ACCESO ──────────────────────────────────────────────────────
-// ─── SLOT TEXT ───────────────────────────────────────────────────────────────
+// --- TAB: SEGUNDO ACCESO ---
+// --- SLOT TEXT ---
 function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700", delay = 0 }) {
   const [displayed, setDisplayed] = useState(value);
   const valueRef = useRef(value);   // siempre tiene el valor más reciente
@@ -6142,7 +6142,7 @@ function SlotText({ value, color = "#fff", fontSize = "9px", fontWeight = "700",
   );
 }
 
-// ─── MAPA DE TRÁFICO — Datos para 2do Acceso ─────────────────────────────────
+// --- MAPA DE TRÁFICO — Datos para 2do Acceso ---
 const TRAFICO_POLIGONO = [
   [-104.2956432328187,19.08619209124374],[-104.2958012400686,19.08612353367882],
   [-104.295237002161,19.08548834050964],[-104.2935769847386,19.08346115004283],
@@ -6231,7 +6231,7 @@ function useLeaflet() {
   return L;
 }
 
-// ─── Sub-componente: Mapa de Tráfico para 2do Acceso ─────────────────────────
+// --- Sub-componente: Mapa de Tráfico para 2do Acceso ---
 function TrafficMapSegundo({ theme }) {
   const L = useLeaflet();
   const mapRef    = useRef(null);
@@ -6249,7 +6249,7 @@ function TrafficMapSegundo({ theme }) {
   const TABLA  = "carriles";
   const ROW_ID = "trafico_mapa_votos";
 
-  // ── Calcular status dominante ──────────────────────────────────────────────
+  // -- Calcular status dominante ---
   const calcStatus = (votes) => {
     // "Sin Uso" toma prioridad si tiene al menos un voto
     if ((votes.sinuso || 0) > 0) return "sinuso";
@@ -6265,7 +6265,7 @@ function TrafficMapSegundo({ theme }) {
     3: calcStatus(v[3]),
   });
 
-  // ── Cargar votos desde Supabase + suscripción en tiempo real ──────────────
+  // -- Cargar votos desde Supabase + suscripción en tiempo real ---
   useEffect(() => {
     sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
       if (data?.data) {
@@ -6285,7 +6285,7 @@ function TrafficMapSegundo({ theme }) {
     return () => sb.removeChannel(chan);
   }, []);
 
-  // ── Inicializar mapa Leaflet ───────────────────────────────────────────────
+  // -- Inicializar mapa Leaflet ---
   useEffect(() => {
     if (!L || !mapRef.current || mapInstanceRef.current) return;
     const map = L.map(mapRef.current, { center: [19.0905, -104.2890], zoom: 15, zoomControl: true });
@@ -6307,7 +6307,7 @@ function TrafficMapSegundo({ theme }) {
     mapInstanceRef.current = map;
   }, [L]);
 
-  // ── Cambiar estilo de mapa ─────────────────────────────────────────────────
+  // -- Cambiar estilo de mapa ---
   const changeMapStyle = (newStyle) => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
     mapInstanceRef.current.removeLayer(tileLayerRef.current);
@@ -6316,7 +6316,7 @@ function TrafficMapSegundo({ theme }) {
     setMapStyle(newStyle);
   };
 
-  // ── Actualizar colores en el mapa cuando cambia el status ─────────────────
+  // -- Actualizar colores en el mapa cuando cambia el status ---
   useEffect(() => {
     Object.entries(statusMapa).forEach(([id, st]) => {
       const line = linesRef.current[id];
@@ -6324,7 +6324,7 @@ function TrafficMapSegundo({ theme }) {
     });
   }, [statusMapa]);
 
-  // ── Votar y guardar en Supabase ────────────────────────────────────────────
+  // -- Votar y guardar en Supabase ---
   const votar = async (fase, tipo) => {
     setActiveVote({ fase, tipo });
     setTimeout(() => setActiveVote({ fase: null, tipo: null }), 600);
@@ -6357,7 +6357,7 @@ function TrafficMapSegundo({ theme }) {
 
   const totalVotos = (fase) => Object.entries(votos[fase]).filter(([k]) => k !== "sinuso").reduce((a, [,b]) => a + b, 0);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // -- Render ---
   return (
     <div>
       {/* Header del mapa */}
@@ -6467,9 +6467,9 @@ function SegundoAccesoTab() {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
 
-  // ── Estado 2DO ACCESO ──
+  // -- Estado 2DO ACCESO --
   const [carriles, setCarriles] = useState(mkSegundoIngreso);
-  // ── Estado CONFINADA ──
+  // -- Estado CONFINADA --
   const [confinada, setConfinada] = useState(mkConfinadaState);
 
   const [toast, setToast] = useState(null);
@@ -6497,7 +6497,7 @@ function SegundoAccesoTab() {
     return () => sb.removeChannel(chan);
   }, []);
 
-  // ── Handlers 2DO ACCESO ──
+  // -- Handlers 2DO ACCESO --
   const updateIngreso = async (id, field, value) => {
     if (!carriles) return;
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -6528,7 +6528,7 @@ function SegundoAccesoTab() {
     notify("✓ Carril restablecido", "#22c55e");
   };
 
-  // ── Handlers CONFINADA ──
+  // -- Handlers CONFINADA --
   const updateConfinada = async (id, field, value) => {
     if (!confinada) return;
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -6561,13 +6561,13 @@ function SegundoAccesoTab() {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
 
-      {/* ── Header principal ── */}
+      {/* -- Header principal -- */}
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"4px" }}>CONFINADOS — PUERTO MANZANILLO</div>
         <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>2do Acceso y zona confinada · Ingreso con terminal asignada.</div>
       </div>
 
-      {/* ── Sub-tab selector ── */}
+      {/* -- Sub-tab selector -- */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
         {[
           { id:"segundo",   label:"2DO ACCESO",   icon:"🛣️",  color:"#34d399" },
@@ -6593,11 +6593,11 @@ function SegundoAccesoTab() {
         ))}
       </div>
 
-      {/* ════════════════════════════════════════════════════
+      {/* ---
           SUB-TAB: 2DO ACCESO
-      ════════════════════════════════════════════════════ */}
+      --- */}
       {subTab === "segundo" && <>
-        {/* ── Diagrama visual de carriles ── */}
+        {/* -- Diagrama visual de carriles -- */}
         <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"14px", marginBottom:"18px", overflow:"hidden" }}>
           <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"12px" }}>DIAGRAMA — VISTA DE CARRILES (PUENTE 2DO ACCESO)</div>
 
@@ -6826,7 +6826,7 @@ function SegundoAccesoTab() {
           })()}
         </div>
 
-        {/* ── Segundo Acceso Por Fases ── */}
+        {/* -- Segundo Acceso Por Fases -- */}
         <div style={{ marginTop:"8px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
             <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
@@ -6840,11 +6840,11 @@ function SegundoAccesoTab() {
         </div>
       </>}
 
-      {/* ════════════════════════════════════════════════════
+      {/* ---
           SUB-TAB: CONFINADA
-      ════════════════════════════════════════════════════ */}
+      --- */}
       {subTab === "confinada" && <>
-        {/* ── MINI-MAPA VIAL CONFINADA — compacto ── */}
+        {/* -- MINI-MAPA VIAL CONFINADA — compacto -- */}
         {(() => {
           const getCarrilColor = (id) => {
             const st = confinada[id];
@@ -6892,7 +6892,7 @@ function SegundoAccesoTab() {
                 <line x1="28" y1="0" x2="28" y2="72" stroke="rgba(34,197,94,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
                 <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">2° ACCESO</text>
 
-                {/* ── Carril 1 — franja superior ── */}
+                {/* -- Carril 1 — franja superior -- */}
                 <rect x="28" y="2" width="240" height="20" fill={c1 + "20"} rx="2"/>
                 <line x1="28" y1="2"  x2="268" y2="2"  stroke={c1} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="22" x2="268" y2="22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
@@ -6901,7 +6901,7 @@ function SegundoAccesoTab() {
                 {/* Terminal en centro */}
                 <text x="148" y="15" textAnchor="middle" fill={c1} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t1}</text>
 
-                {/* ── Carril 2 — franja media ── */}
+                {/* -- Carril 2 — franja media -- */}
                 <rect x="28" y="26" width="240" height="20" fill={c2 + "20"} rx="2"/>
                 <line x1="28" y1="26" x2="268" y2="26" stroke={c2} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="46" x2="268" y2="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
@@ -6909,7 +6909,7 @@ function SegundoAccesoTab() {
                 <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
                 <text x="148" y="39" textAnchor="middle" fill={c2} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t2}</text>
 
-                {/* ── Carril 3 — franja inferior ── */}
+                {/* -- Carril 3 — franja inferior -- */}
                 <rect x="28" y="50" width="240" height="20" fill={c3 + "20"} rx="2"/>
                 <line x1="28" y1="50" x2="268" y2="50" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
                 <line x1="28" y1="70" x2="268" y2="70" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
@@ -7054,7 +7054,7 @@ function SegundoAccesoTab() {
   );
 }
 
-// ─── TAB: CARRILES ────────────────────────────────────────────────────────────
+// --- TAB: CARRILES ---
 function CarrilesTab() {
   const theme = React.useContext(ThemeContext);
   const [estado,  setEstado]  = useState(mkCarrilesState);
@@ -7219,8 +7219,8 @@ function CarrilesTab() {
   );
 }
 
-// ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
-// ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
+// --- TAB: NOTICIAS ---
+// --- VISOR FULLSCREEN ---
 function VisorFullscreen({ item, onClose }) {
   const theme = React.useContext(ThemeContext);
   const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
@@ -7265,7 +7265,7 @@ function VisorFullscreen({ item, onClose }) {
 }
 
 
-// ─── SUBIR COMUNICADO (con fechas y aprobación) ──────────────────────────────
+// --- SUBIR COMUNICADO (con fechas y aprobación) ---
 function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [titulo, setTitulo] = useState("");
@@ -7484,7 +7484,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   );
 }
 
-// ─── SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ──────────────────────
+// --- SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ---
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, timeAgo, isPdf }) {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
@@ -7638,7 +7638,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </button>
       </div>
 
-      {/* ── MODAL CONFIRMACIÓN ELIMINAR ── position:fixed cubre toda la pantalla sin necesitar portal */}
+      {/* -- MODAL CONFIRMACIÓN ELIMINAR -- position:fixed cubre toda la pantalla sin necesitar portal */}
       {confirmId && (
         <div
           onClick={() => !eliminando && setConfirmId(null)}
@@ -7695,7 +7695,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </div>
       )}
 
-      {/* ── SUB-TAB: VER COMUNICADOS ── */}
+      {/* -- SUB-TAB: VER COMUNICADOS -- */}
       {subTab === "ver" && (
         <>
           {vigentes.length === 0 ? (
@@ -7747,7 +7747,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
         </>
       )}
 
-      {/* ── SUB-TAB: PROPONER / PUBLICAR ── */}
+      {/* -- SUB-TAB: PROPONER / PUBLICAR -- */}
       {subTab === "proponer" && (
         <>
           {/* Descripción contextual */}
@@ -7767,7 +7767,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
 
           <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
 
-          {/* ── PENDIENTES DE APROBACIÓN (solo admin) ── */}
+          {/* -- PENDIENTES DE APROBACIÓN (solo admin) -- */}
           {isAdmin && (
             <div style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -7846,7 +7846,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   );
 }
 
-// ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
+// --- TAB: NOTICIAS ---
 function NoticiasTab({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
@@ -7964,7 +7964,7 @@ function NoticiasTab({ isAdmin }) {
         </button>
       </div>
 
-      {/* ── SECCIÓN NOTICIAS ── */}
+      {/* -- SECCIÓN NOTICIAS -- */}
       {seccion === "noticias" && (
         <>
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
@@ -7996,7 +7996,7 @@ function NoticiasTab({ isAdmin }) {
         </>
       )}
 
-      {/* ── SECCIÓN COMUNICADOS ── */}
+      {/* -- SECCIÓN COMUNICADOS -- */}
       {seccion === "comunicados" && (
         <ComunicadosSection 
           isAdmin={isAdmin}
@@ -8011,7 +8011,7 @@ function NoticiasTab({ isAdmin }) {
   );
 }
 
-// ─── TAB: DONATIVOS ───────────────────────────────────────────────────────────
+// --- TAB: DONATIVOS ---
 function DonativosTab() {
   const theme = React.useContext(ThemeContext);
   const [copied, setCopied] = useState(false);
@@ -8133,7 +8133,7 @@ function DonativosTab() {
   );
 }
 
-// ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
+// --- TAB: PATIO REGULADOR ---
 function PatioReguladorTab({ myId }) {
   const theme = React.useContext(ThemeContext);
   const [patios,      setPatios]      = useState(null);  // null = loading
@@ -8288,13 +8288,13 @@ function PatioReguladorTab({ myId }) {
   );
 }
 
-// ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
+// --- TAB: TUTORIAL ---
 function TutorialTab({ setActive, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [open, setOpen] = useState(null);
   const toggle = (id) => setOpen(prev => prev === id ? null : id);
 
-  // ── Auth panel state ──
+  // -- Auth panel state --
   const [authMode, setAuthMode] = useState("login"); // "login" | "registro" | "forgot"
   // Login
   const [loginUser, setLoginUser]   = useState(() => { try { return localStorage.getItem("cm_remember_email") || ""; } catch { return ""; } });
@@ -8340,7 +8340,7 @@ function TutorialTab({ setActive, isAdmin }) {
 
   const passStrong = (p) => p.length >= 10 && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
 
-  // ── LOGIN con correo/contraseña real ──
+  // -- LOGIN con correo/contraseña real --
   const handleLogin = async () => {
     if (!loginUser.trim() || !loginPass) { setLoginMsg({type:"err", text:"Completa usuario y contraseña"}); return; }
     setLoading(true); setLoginMsg(null);
@@ -8361,7 +8361,7 @@ function TutorialTab({ setActive, isAdmin }) {
     }
   };
 
-  // ── LOGIN con Google ──
+  // -- LOGIN con Google --
   const handleLoginGoogle = async () => {
     setLoading(true); setLoginMsg(null);
     const { error } = await sb.auth.signInWithOAuth({
@@ -8371,7 +8371,7 @@ function TutorialTab({ setActive, isAdmin }) {
     if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
   };
 
-  // ── ENVIAR OTP por SMS ──
+  // -- ENVIAR OTP por SMS --
   const handleEnviarOtp = async () => {
     const tel = regTel.trim();
     if (!tel.match(/^\+[0-9]{10,15}$/)) { setRegMsg({type:"err", text:"Número inválido. Usa formato internacional: +521XXXXXXXXXX"}); return; }
@@ -8382,7 +8382,7 @@ function TutorialTab({ setActive, isAdmin }) {
     else { setOtpEnviado(true); setRegMsg({type:"ok", text:"✅ Código enviado por SMS. Revisa tu teléfono."}); }
   };
 
-  // ── VERIFICAR OTP ──
+  // -- VERIFICAR OTP --
   const handleVerificarOtp = async () => {
     if (regOtp.length < 6) { setRegMsg({type:"err", text:"El código debe tener 6 dígitos"}); return; }
     setLoading(true); setRegMsg(null);
@@ -8392,7 +8392,7 @@ function TutorialTab({ setActive, isAdmin }) {
     else { setRegMsg({type:"ok", text:"✅ Teléfono verificado correctamente."}); setRegStep(3); }
   };
 
-  // ── REGISTRO completo con Supabase ──
+  // -- REGISTRO completo con Supabase --
   const handleRegStep = async () => {
     setRegMsg(null);
     if (regStep === 1) {
@@ -8433,7 +8433,7 @@ function TutorialTab({ setActive, isAdmin }) {
     }
   };
 
-  // ── RECUPERAR CONTRASEÑA real ──
+  // -- RECUPERAR CONTRASEÑA real --
   const handleForgot = async () => {
     if (!forgotCorreo.includes("@")) { setForgotMsg({type:"err", text:"Ingresa un correo válido"}); return; }
     setLoading(true); setForgotMsg(null);
@@ -8524,9 +8524,9 @@ function TutorialTab({ setActive, isAdmin }) {
   return (
     <div style={{ padding:"20px 16px", paddingBottom:"80px" }}>
 
-      {/* ══════════════════════════════════════════════════════
+      {/* ---
           PANEL DE AUTENTICACIÓN
-      ══════════════════════════════════════════════════════ */}
+      --- */}
       <div style={{ background:"linear-gradient(160deg,#0d1b2e,#0a2540)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"20px", padding:"24px 20px", marginBottom:"28px" }}>
 
         {/* Avatar */}
@@ -8550,7 +8550,7 @@ function TutorialTab({ setActive, isAdmin }) {
           ))}
         </div>
 
-        {/* ── LOGIN ── */}
+        {/* -- LOGIN -- */}
         {authMode === "login" && (
           <div>
             <MsgBox msg={loginMsg} />
@@ -8584,7 +8584,7 @@ function TutorialTab({ setActive, isAdmin }) {
           </div>
         )}
 
-        {/* ── REGISTRO MULTI-PASO ── */}
+        {/* -- REGISTRO MULTI-PASO -- */}
         {authMode === "registro" && (
           <div>
             {/* Progress bar */}
@@ -8687,7 +8687,7 @@ function TutorialTab({ setActive, isAdmin }) {
           </div>
         )}
 
-        {/* ── RECUPERAR CONTRASEÑA ── */}
+        {/* -- RECUPERAR CONTRASEÑA -- */}
         {authMode === "forgot" && (
           <div>
             <MsgBox msg={forgotMsg} />
@@ -8701,13 +8701,13 @@ function TutorialTab({ setActive, isAdmin }) {
         )}
 
       </div>
-      {/* ── fin panel auth ── */}
+      {/* -- fin panel auth -- */}
 
-      {/* ══════════════════════════════════════════════════════
+      {/* ---
           GUÍA DE USO
-      {/* ══════════════════════════════════════════════════════
+      {/* ---
           GUÍA DE USO - SECCIÓN "MÁS INFO" ACTUALIZADA
-      ══════════════════════════════════════════════════════ */}
+      --- */}
       <div style={{ textAlign:"center", marginBottom:"24px" }}>
         <div style={{ fontSize:"36px", marginBottom:"10px" }}>📖</div>
         <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"6px" }}>MÁS INFORMACIÓN</div>
@@ -8715,9 +8715,9 @@ function TutorialTab({ setActive, isAdmin }) {
         <div style={{ width:"40px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"12px auto 0" }} />
       </div>
       {[
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // INICIO
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel de control general", items: [
           { label: "Resumen Visual", desc: "Vista rápida del estado actual del puerto: tráfico, terminales, patios y accesos principales." },
           { label: "Incidentes Activos", desc: "Muestra alertas e incidentes verificados por la comunidad en tiempo real." },
@@ -8726,9 +8726,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Alertas Importantes", desc: "Notificaciones y avisos relevantes del día publicados por administradores." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // TRÁFICO
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
           { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
           { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real con colores: Verde (libre/fluido), Amarillo (tráfico lento), Rojo (saturado), Gris (cerrado). Puedes votar el estado actual que observes." },
@@ -8740,9 +8740,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad con 3+ votos de confirmación. Puedes votar para marcarlos como resueltos cuando ya no existan." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // REPORTAR
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
           { label: "Paso 1 · Categoría", desc: "Elige entre: Incidente ⚠️ (problemas mecánicos, camiones varados, obstrucciones), Accidente 🚨 (choques, heridos, volcaduras, personas sin vida), Bloqueo/Corte 🚧 (manifestaciones, cierres viales) u Obra/Desvío 🏗️ (construcciones, mantenimiento)." },
           { label: "Paso 2 · Tipo específico", desc: "Selecciona el subtipo exacto: falla mecánica, camión atravesado, falta de diesel, contenedor ladeado, plataforma/carga/camión abandonado, atropellado, choque, volcadura, herido, caída de material, persona sin vida, zona de asalto/robo." },
@@ -8754,9 +8754,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Notificaciones", desc: "Recibirás confirmación visual (toast) de que tu reporte fue enviado exitosamente o si hubo algún error." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // TERMINALES
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
           { label: "Zona Norte (2 terminales)", desc: "CONTECON (Contecon Manzanillo S.A.) y HAZESA (Hazesa Terminal Especializada). Operaciones de carga/descarga de contenedores de la zona norte del puerto." },
           { label: "Zona Sur (7 terminales)", desc: "TIMSA (Terminal Internacional de Manzanillo), SSA (SSA México Terminal), OCUPA (Terminal Multipropósito), MULTIMODAL (Terminal Multimodal), FRIMAN (Frigoríficos de Manzanillo), LA JUNTA (Terminal TAP), CEMEX (Terminal Marítima)." },
@@ -8770,9 +8770,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Indicadores Visuales", desc: "Cada terminal tiene un color distintivo y un ícono que facilita identificar su estado de un vistazo." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // PATIOS
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los patios de contenedores", items: [
           { label: "¿Qué es el Patio Regulador?", desc: "Áreas de espera y almacenaje externas al puerto donde los camiones aguardan antes de ingresar a terminales. Hay 6 patios principales más ASIPONA." },
           { label: "Patios Disponibles", desc: "ASIPONA (Asociación de Prestadores de Servicios del Puerto de Manzanillo A.C.), BAYER, DEL SUR, LÓPEZ, CHECO (El Checo), VENUSTIANO (Venustiano Carranza)." },
@@ -8785,9 +8785,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Indicador de Capacidad", desc: "Algunos patios muestran el porcentaje aproximado de ocupación basado en votos acumulados." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // SEGUNDO ACCESO
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "segundo", icon: "🛣️", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
           { label: "Accesos disponibles", desc: "Acceso Pez Vela (Zona Sur - morado) con 8 carriles, Puerta 15 (Zona Sur - verde) con 3 carriles, Acceso Zona Norte (azul) con 3 carriles. Total: 14 carriles monitoreados." },
           { label: "Carriles de Ingreso", desc: "Cada carril tiene asignada una terminal de destino (GENERAL, CONTECON, HAZESA, TIMSA, SSA, etc.). Puedes cambiar la terminal, indicar saturación o activar retornos." },
@@ -8799,9 +8799,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "TODO ABIERTO", desc: "Botón por acceso para restablecer todos sus carriles a estado Abierto simultáneamente." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // CARRILES
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Carriles individuales por acceso", items: [
           { label: "Acceso Norte", desc: "3 carriles monitoreados: Norte 1, Norte 2, Norte 3. Cada uno con estado independiente de operación." },
           { label: "Acceso Sur", desc: "4 carriles principales: Sur 1, Sur 2, Sur 3, Sur 4. Mayor capacidad de ingreso debido al volumen de tráfico." },
@@ -8813,9 +8813,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado a estado Libre de una sola vez." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // VIALIDADES
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "vialidades", icon: "🛣️", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
           { label: "¿Qué son las Vialidades?", desc: "Carreteras y calles principales de acceso: Jalipa → Puerto, Puerto → Jalipa (sentidos opuestos), Libramiento Cihuatlán-Manzanillo, Manzanillo → Colima, Colima → Manzanillo, Calle Algodones." },
           { label: "Estados disponibles", desc: "Libre (verde): tráfico fluido, sin demoras. Tráfico Lento (amarillo): demoras moderadas, avance reducido. Saturado (naranja): alta congestión, considerar ruta alterna. Tráfico Detenido (rojo): sin avance, totalmente bloqueado." },
@@ -8826,9 +8826,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Alertas de Congestión", desc: "Cuando una vialidad cambia a estado Saturado o Detenido, se genera una alerta automática visible en el inicio." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // NOTICIAS
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "noticias", icon: "📰", color: "#3b82f6", title: "NOTICIAS", subtitle: "Comunicados y avisos oficiales", items: [
           { label: "Centro de Noticias", desc: "Publicaciones oficiales de administradores sobre cambios operativos, eventos, mantenimientos y avisos importantes del puerto." },
           { label: "Comunicados Oficiales", desc: "Anuncios formales de las autoridades portuarias, terminales y entidades reguladoras." },
@@ -8843,9 +8843,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Archivado Automático", desc: "Las noticias se archivan automáticamente después de su fecha de expiración para mantener el feed limpio." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // DONATIVOS
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
           { label: "¿Para qué sirven?", desc: "Cubren costos de servidor Supabase, dominio, desarrollo continuo, nuevas funcionalidades, mantenimiento de base de datos y mejoras de rendimiento." },
           { label: "Transferencia MIFEL", desc: "Banco: MIFEL. Titular: Ramon Romero. CLABE: 014028090014825779. Cualquier monto es apreciado y ayuda a mantener el servicio activo." },
@@ -8856,9 +8856,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Botón Flotante", desc: "Acceso rápido desde cualquier sección mediante el botón flotante con ícono 💝 en la esquina inferior." },
           { label: "Agradecimiento", desc: "Mensaje de agradecimiento personalizado para todos los donantes que apoyan el proyecto comunitario." },
         ]},
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // REGISTRO Y AUTENTICACIÓN
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
           { label: "¿Es obligatorio registrarse?", desc: "No. Puedes usar toda la app sin crear una cuenta. El registro es opcional y te permite participar con identidad verificada en la comunidad." },
           { label: "Información básica", desc: "Nombre, apellidos, nombre de usuario (único), fecha de nacimiento, país y ciudad. Esto permite identificar al usuario y detectar cuentas duplicadas o sospechosas." },
@@ -8872,9 +8872,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Indicador de Progreso", desc: "Barra visual muestra en qué paso del registro te encuentras (1/4, 2/4, 3/4, 4/4)." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // INICIO DE SESIÓN
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Accede a tu cuenta de forma segura", items: [
           { label: "¿Cómo iniciar sesión?", desc: "Ingresa tu correo electrónico y contraseña. El sistema valida las credenciales vía Supabase Auth con encriptación segura." },
           { label: "Login con Google", desc: "Botón 'Continuar con Google' para autenticación OAuth2. Redirige a Google, autoriza y regresa automáticamente con sesión activa." },
@@ -8888,9 +8888,9 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Loading States", desc: "Botones se deshabilitan mientras procesa la autenticación, mostrando 'Iniciando sesión...' para evitar doble-submit." },
         ]},
         
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         // RECUPERACIÓN DE CONTRASEÑA
-        // ═══════════════════════════════════════════════════════════════════
+        // ---
         { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recupera el acceso a tu cuenta", items: [
           { label: "Paso 1 · Ingresa tu correo", desc: "En la pantalla de inicio de sesión, toca '¿Olvidaste tu contraseña?', introduce el correo electrónico registrado y envía." },
           { label: "Paso 2 · Revisa tu bandeja", desc: "Recibirás un correo de Supabase con enlace de recuperación seguro (token de un solo uso con expiración de 1 hora). Revisa también carpeta de spam/promociones." },
@@ -8927,9 +8927,9 @@ function TutorialTab({ setActive, isAdmin }) {
           )}
         </div>
       ))}
-      {/* ══════════════════════════════════════════════════════
+      {/* ---
           ENCUESTA DE SATISFACCIÓN
-      ══════════════════════════════════════════════════════ */}
+      --- */}
       <EncuestaSatisfaccion isAdmin={isAdmin} />
 
       <div style={{ textAlign:"center", marginTop:"24px", padding:"14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)" }}>
@@ -8940,7 +8940,7 @@ function TutorialTab({ setActive, isAdmin }) {
   );
 }
 
-// ─── ENCUESTA DE SATISFACCIÓN ─────────────────────────────────────────────────
+// --- ENCUESTA DE SATISFACCIÓN ---
 function EncuestaSatisfaccion({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [expanded, setExpanded] = useState(false);
@@ -9049,7 +9049,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
 
   return (
     <div style={{ marginTop:"24px", marginBottom:"16px" }}>
-      {/* ── Botón trigger ── */}
+      {/* -- Botón trigger -- */}
       <button
         onClick={() => { setExpanded(v=>!v); setAdminView(false); }}
         style={{ width:"100%", background: expanded ? "linear-gradient(135deg,rgba(251,191,36,0.12),rgba(167,139,250,0.12))" : "linear-gradient(135deg,rgba(56,189,248,0.08),rgba(167,139,250,0.08))", border:`1px solid ${expanded?"rgba(251,191,36,0.4)":"rgba(56,189,248,0.25)"}`, borderRadius: expanded?"14px 14px 0 0":"14px", padding:"14px 18px", display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", textAlign:"left", transition:"all 0.2s" }}
@@ -9065,7 +9065,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
       {expanded && (
         <div style={{ background:"#060e1a", border:"1px solid rgba(251,191,36,0.2)", borderTop:"none", borderRadius:"0 0 14px 14px", overflow:"hidden" }}>
 
-          {/* ── VISTA ADMIN ── */}
+          {/* -- VISTA ADMIN -- */}
           {isAdmin && !adminView && step !== "thanks" && (
             <div style={{ padding:"12px 16px 0", borderBottom:"1px solid rgba(255,255,255,0.06)", marginBottom:"4px" }}>
               <button onClick={handleAdminView} style={{ padding:"7px 14px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:"8px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
@@ -9074,7 +9074,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
             </div>
           )}
 
-          {/* ── Panel de respuestas admin ── */}
+          {/* -- Panel de respuestas admin -- */}
           {isAdmin && adminView && (
             <div style={{ padding:"16px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
@@ -9141,7 +9141,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
             </div>
           )}
 
-          {/* ── FORMULARIO PÚBLICO ── */}
+          {/* -- FORMULARIO PÚBLICO -- */}
           {!adminView && step === "form" && (
             <div style={{ padding:"16px" }}>
               <div style={{ textAlign:"center", marginBottom:"18px" }}>
@@ -9220,7 +9220,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
             </div>
           )}
 
-          {/* ── GRACIAS ── */}
+          {/* -- GRACIAS -- */}
           {!adminView && step === "thanks" && (
             <div style={{ padding:"28px 20px", textAlign:"center" }}>
               <div style={{ fontSize:"40px", marginBottom:"12px" }}>🙏</div>
@@ -9240,7 +9240,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
   );
 }
 
-// ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
+// --- TAB: REDES SOCIALES ---
 function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
   const theme = React.useContext(ThemeContext);
   const [showQR, setShowQR] = useState(false);
@@ -9306,7 +9306,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
   return (
     <div style={{ padding: "20px 16px", paddingBottom: "100px" }}>
 
-      {/* ─── SPEECH ──────────────────────────────────────────────────────────── */}
+      {/* --- SPEECH --- */}
       <div style={{
         marginBottom: "28px",
         background: "linear-gradient(135deg, rgba(56,189,248,0.07) 0%, rgba(167,139,250,0.07) 100%)",
@@ -9379,15 +9379,15 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
         </div>
       </div>
 
-      {/* ─── ANIMACIÓN CONVOY ─────────────────────────────────────────────────── */}
+      {/* --- ANIMACIÓN CONVOY --- */}
       <div style={{ marginBottom: "28px" }}>
         <ConvoyScene accentColor="#38bdf8" />
       </div>
 
-      {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
+      {/* --- REDES SOCIALES --- */}
       <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
 
-      {/* ── WhatsApp Channel ─────────────────────────────────── */}
+      {/* -- WhatsApp Channel --- */}
       <div style={{ marginBottom: "14px", background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "16px", overflow: "hidden" }}>
         {/* Badge */}
         <div style={{ background: "rgba(37,211,102,0.15)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(37,211,102,0.15)" }}>
@@ -9451,7 +9451,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
         </div>
       </div>
 
-      {/* ── Facebook Group ───────────────────────────────────── */}
+      {/* -- Facebook Group --- */}
       <div style={{ marginBottom: "14px", background: "rgba(24,119,242,0.08)", border: "1px solid rgba(24,119,242,0.3)", borderRadius: "16px", overflow: "hidden" }}>
         <div style={{ background: "rgba(24,119,242,0.15)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(24,119,242,0.15)" }}>
           <span style={{ fontSize: "14px" }}>👥</span>
@@ -9482,7 +9482,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
         </div>
       </div>
 
-      {/* ── Facebook Page ────────────────────────────────────── */}
+      {/* -- Facebook Page --- */}
       <div style={{ marginBottom: "14px", background: "rgba(24,119,242,0.05)", border: "1px solid rgba(24,119,242,0.25)", borderRadius: "16px", overflow: "hidden" }}>
         <div style={{ background: "rgba(24,119,242,0.12)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(24,119,242,0.12)" }}>
           <span style={{ fontSize: "14px" }}>📣</span>
@@ -9513,7 +9513,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
         </div>
       </div>
 
-      {/* ── Instagram ──────────────────────────────────────── */}
+      {/* -- Instagram --- */}
       <div style={{ marginBottom: "14px", background: "rgba(225,48,108,0.06)", border: "1px solid rgba(225,48,108,0.28)", borderRadius: "16px", overflow: "hidden" }}>
         <div style={{ background: "rgba(225,48,108,0.13)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(225,48,108,0.13)" }}>
           <span style={{ fontSize: "14px" }}>📸</span>
@@ -9573,7 +9573,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
   );
 }
 
-// ─── COOKIE BANNER ────────────────────────────────────────────────────────────
+// --- COOKIE BANNER ---
 // ✅ FIX: Botones con estilos completos y handlers correctos
 function CookieBanner({ onAccept, onReject }) {
   const theme = React.useContext(ThemeContext);
@@ -9627,7 +9627,7 @@ function CookieBanner({ onAccept, onReject }) {
   );
 }
 
-// ─── COPYROW — componente auxiliar para filas copiables (HOOKS fuera de .map()) ──
+// --- COPYROW — componente auxiliar para filas copiables (HOOKS fuera de .map()) --
 function CopyRow({ label, value, mono, theme, getFont }) {
   const [copied, setCopied] = React.useState(false);
   const handleCopy = () => {
@@ -9698,7 +9698,7 @@ function CopyRow({ label, value, mono, theme, getFont }) {
   );
 }
 
-// ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
+// --- APP (RAÍZ) ---
 // ✅ FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
 
@@ -9821,11 +9821,11 @@ function App() {
     }
   });
 
-  // ── Sesión de usuario Supabase Auth ──
+  // -- Sesión de usuario Supabase Auth --
   const [authUser, setAuthUser] = useState(null);
   const [showSessionMenu, setShowSessionMenu] = useState(false);
   
-  // ── Widget de Soporte WhatsApp ──
+  // -- Widget de Soporte WhatsApp --
   const [supportExpanded, setSupportExpanded] = useState(false);
   const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo'
   const handleSignOut = async () => {
