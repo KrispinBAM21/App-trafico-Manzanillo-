@@ -4599,35 +4599,62 @@ const UBICACIONES_REPORTE = [
 
 // ─── HELPER: Extraer coordenadas de un link de Google Maps ───────────────────
 // Soporta: maps.app.goo.gl (short), maps.google.com/@lat,lng, ?q=lat,lng
-async function extractCoordsFromGMapsLink(url) {
-  // 1. Intentar extraer coords directamente del URL (sin fetch)
-  const directMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                      url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                      url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (directMatch) return [parseFloat(directMatch[1]), parseFloat(directMatch[2])];
+// ─── HELPER: Extraer coordenadas de texto o link de Google Maps ──────────────
+// Acepta:
+//  1. Coordenadas directas: "19.092788, -104.276555"  o  "19.092788,-104.276555"
+//  2. URL de Google Maps con @lat,lng o ?q=lat,lng
+//  3. Short link maps.app.goo.gl (intenta resolver, con fallback a pedir coords)
+function parseCoordsFromText(text) {
+  if (!text) return null;
+  // Formato: "lat, lng" o "lat,lng"
+  const plain = text.trim().match(/^(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})$/);
+  if (plain) {
+    const lat = parseFloat(plain[1]), lng = parseFloat(plain[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return [lat, lng];
+  }
+  // URL con @lat,lng
+  const atMatch = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) return [parseFloat(atMatch[1]), parseFloat(atMatch[2])];
+  // URL con ?q=lat,lng
+  const qMatch = text.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) return [parseFloat(qMatch[1]), parseFloat(qMatch[2])];
+  // URL con ll=lat,lng
+  const llMatch = text.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (llMatch) return [parseFloat(llMatch[1]), parseFloat(llMatch[2])];
+  // !3d{lat}!4d{lng} (formato interno de Google)
+  const d3Match = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (d3Match) return [parseFloat(d3Match[1]), parseFloat(d3Match[2])];
+  return null;
+}
 
-  // 2. Si es short link (maps.app.goo.gl), resolver vía proxy de cors
-  if (url.includes("goo.gl") || url.includes("maps.app")) {
-    try {
-      // Intentar con un servicio de expansión de URL
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-      const data = await res.json();
-      const expanded = data?.contents || "";
-      // Buscar coords en el contenido expandido
-      const m = expanded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                expanded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
-                expanded.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (m) return [parseFloat(m[1]), parseFloat(m[2])];
-    } catch {}
-    // Fallback: intentar con otro proxy
-    try {
-      const res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
-      const text = await res2.text();
-      const m2 = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-                 text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-      if (m2) return [parseFloat(m2[1]), parseFloat(m2[2])];
-    } catch {}
+async function extractCoordsFromGMapsLink(url) {
+  // 1. Intentar extraer coords directamente del URL (sin red)
+  const direct = parseCoordsFromText(url);
+  if (direct) return direct;
+
+  // 2. Short link: intentar expandir con múltiples proxies
+  if (/goo\.gl|maps\.app/i.test(url)) {
+    // Proxy 1: allorigins (devuelve el HTML de la página destino)
+    const proxies = [
+      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    ];
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(9000) });
+        const text = typeof (await res.clone().json().catch(() => null))?.contents === 'string'
+          ? (await res.json()).contents
+          : await res.text();
+        const c = parseCoordsFromText(text);
+        if (c) return c;
+        // También buscar en las URLs embebidas del HTML
+        const urlsInHtml = text.match(/https:\/\/www\.google\.com\/maps[^\s"'<>]*/g) || [];
+        for (const u of urlsInHtml) {
+          const cc = parseCoordsFromText(decodeURIComponent(u));
+          if (cc) return cc;
+        }
+      } catch {}
+    }
   }
   return null;
 }
@@ -4635,6 +4662,15 @@ async function extractCoordsFromGMapsLink(url) {
 function isGMapsUrl(str) {
   return /maps\.app\.goo\.gl|maps\.google\.com|goo\.gl\/maps/i.test(str);
 }
+
+// Acepta también coordenadas directas pegadas
+function isValidInput(str) {
+  if (!str) return false;
+  if (isGMapsUrl(str)) return true;
+  // Coordenadas directas: "19.092788, -104.276555"
+  return /^-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}$/.test(str.trim());
+}
+
 
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
@@ -4656,16 +4692,25 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
   const subcatObj = subcats.find(s => s.id === subcat);
 
-  // Procesar link de Google Maps cuando cambia
+  // Procesar link de Google Maps o coordenadas directas
   const handleGmapsInput = async (val) => {
     setGmapsLink(val);
     setCoords(null);
     setCoordsError("");
     if (!val.trim()) return;
-    if (!isGMapsUrl(val.trim())) {
-      setCoordsError("Pega un enlace de Google Maps (maps.app.goo.gl o maps.google.com)");
+
+    // Intentar parsear directamente primero (rápido, sin red)
+    const directCoords = parseCoordsFromText(val.trim());
+    if (directCoords) {
+      setCoords(directCoords);
       return;
     }
+
+    if (!isValidInput(val.trim())) {
+      setCoordsError("Pega un enlace de Google Maps o las coordenadas directas (ej: 19.0927, -104.2765)");
+      return;
+    }
+
     setCoordsLoading(true);
     try {
       const c = await extractCoordsFromGMapsLink(val.trim());
@@ -4673,10 +4718,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         setCoords(c);
         setCoordsError("");
       } else {
-        setCoordsError("No se pudieron obtener las coordenadas. Intenta con otro enlace.");
+        setCoordsError("No se pudieron leer las coordenadas del enlace. Copia las coordenadas directamente de Google Maps (ej: 19.0927, -104.2765) y pégalas aquí.");
       }
     } catch {
-      setCoordsError("Error al procesar el enlace. Intenta de nuevo.");
+      setCoordsError("Error al procesar el enlace. Intenta copiar y pegar las coordenadas directamente.");
     } finally {
       setCoordsLoading(false);
     }
@@ -4833,9 +4878,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         </div>
         <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"10px", padding:"10px 12px", marginBottom:"8px", display:"flex", alignItems:"flex-start", gap:"8px" }}>
           <span style={{ fontSize:"16px", flexShrink:0 }}>ℹ️</span>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)", lineHeight:1.5 }}>
-            Abre Google Maps, mantén presionado el lugar del incidente y copia el enlace compartido.<br/>
-            <span style={{ color:"#38bdf8" }}>Ejemplo: https://maps.app.goo.gl/1jL9q...</span>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)", lineHeight:1.7 }}>
+            <b style={{ color:"rgba(255,255,255,0.85)" }}>Opción A (recomendada):</b> En Google Maps mantén presionado el lugar → aparecen las coordenadas abajo → cópialas y pégalas aquí.<br/>
+            <span style={{ color:"#22c55e" }}>Ej: 19.092788, -104.276555</span><br/>
+            <b style={{ color:"rgba(255,255,255,0.85)" }}>Opción B:</b> Pega el enlace compartido de Google Maps.<br/>
+            <span style={{ color:"#38bdf8" }}>Ej: https://maps.app.goo.gl/...</span>
           </div>
         </div>
 
@@ -4843,7 +4890,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           <input
             value={gmapsLink}
             onChange={e => handleGmapsInput(e.target.value)}
-            placeholder="Pega aquí el enlace de Google Maps..."
+            placeholder="19.092788, -104.276555  —ó—  https://maps.app.goo.gl/..."
             style={{
               width:"100%", padding:"11px 40px 11px 14px",
               background: coords ? "rgba(34,197,94,0.08)" : coordsError ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.08)",
@@ -4873,8 +4920,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           </div>
         )}
         {coordsError && !coordsLoading && (
-          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#ef4444" }}>
+          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#f97316", lineHeight:1.5 }}>
             ❌ {coordsError}
+            <div style={{ marginTop:"5px", color:"rgba(255,255,255,0.5)", fontSize:"10px" }}>
+              💡 Tip rápido: en Google Maps mantén presionado el punto → copia los números que aparecen abajo (ej: 19.0927, -104.2765) y pégalos aquí.
+            </div>
           </div>
         )}
       </div>
