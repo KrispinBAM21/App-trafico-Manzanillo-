@@ -4718,8 +4718,168 @@ function isValidInput(str) {
 }
 
 
+// ─── MAPA DE EVENTOS (solo incidentes/accidentes con GPS, sin terminales ni vialidades) ──
+function MapaEventos({ incidents }) {
+  const mapRef  = useRef(null);
+  const leafRef = useRef(null);
+  const markersRef = useRef({});
+  const tileRef = useRef(null);
+  const [tileMode, setTileMode] = useState("dark");
+
+  const PIN_CFG = {
+    incidente: { color: "#f97316", emoji: "⚠️", label: "Incidente" },
+    accidente: { color: "#ef4444", emoji: "🚨", label: "Accidente" },
+    bloqueo:   { color: "#eab308", emoji: "🚧", label: "Bloqueo"   },
+    obra:      { color: "#3b82f6", emoji: "🏗️", label: "Obra"      },
+  };
+
+  // Centro por defecto: Manzanillo
+  const DEFAULT_CENTER = [19.075, -104.295];
+  const DEFAULT_ZOOM   = 13;
+
+  useEffect(() => {
+    const init = () => {
+      if (leafRef.current || !mapRef.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, {
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
+        zoomControl: true,
+        attributionControl: false,
+      });
+      tileRef.current = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        { maxZoom: 19 }
+      ).addTo(map);
+      leafRef.current = map;
+
+      // Asegurar CSS base de popups/tooltips
+      if (!document.getElementById("cm-map-style")) {
+        const s = document.createElement("style");
+        s.id = "cm-map-style";
+        s.textContent = `
+          .cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}
+          .cm-tooltip::before{display:none!important;}
+          .cm-inc-pulse{animation:cmPulse 1.4s ease-in-out infinite;}
+          @keyframes cmPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.6}}
+          .cm-popup .leaflet-popup-content-wrapper{background:rgba(4,12,24,0.97)!important;border:1px solid rgba(56,189,248,0.3)!important;border-radius:10px!important;box-shadow:0 4px 24px rgba(0,0,0,0.6)!important;color:#fff!important;}
+          .cm-popup .leaflet-popup-tip{background:rgba(4,12,24,0.97)!important;}
+          .cm-popup .leaflet-popup-close-button{color:rgba(255,255,255,0.5)!important;}
+          .leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}
+          .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+        `;
+        document.head.appendChild(s);
+      }
+    };
+
+    if (window.L) { init(); return; }
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link"); link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[src*="leaflet"]')) {
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = init;
+      document.head.appendChild(script);
+    } else {
+      const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
+    }
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
+  }, []);
+
+  // Cambiar modo de tile
+  useEffect(() => {
+    if (!leafRef.current || !tileRef.current) return;
+    const urls = {
+      dark:      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      streets:   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    };
+    tileRef.current.setUrl(urls[tileMode] || urls.dark);
+  }, [tileMode]);
+
+  // Actualizar pins cuando cambian incidentes
+  useEffect(() => {
+    if (!leafRef.current || !window.L) return;
+    const L = window.L;
+    const map = leafRef.current;
+
+    // Limpiar markers anteriores
+    Object.values(markersRef.current).forEach(m => { try { map.removeLayer(m); } catch {} });
+    markersRef.current = {};
+
+    const visibles = incidents.filter(i => i.visible && !i.resolved && i.coords?.lat && i.coords?.lng);
+    visibles.forEach(inc => {
+      const cfg = PIN_CFG[inc.type] || PIN_CFG.incidente;
+      const icon = L.divIcon({
+        html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+          <div class="cm-inc-pulse" style="width:34px;height:34px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
+            <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${cfg.emoji}</span>
+          </div>
+          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${inc.location ? inc.location.slice(0,28)+(inc.location.length>28?"…":"") : cfg.label}</div>
+        </div>`,
+        className: "", iconSize: [80, 60], iconAnchor: [17, 34],
+      });
+      const marker = L.marker([inc.coords.lat, inc.coords.lng], { icon, zIndexOffset: 1000 }).addTo(map);
+      marker.bindPopup(
+        `<div style="font-family:'DM Sans',sans-serif;min-width:190px;padding:4px;">
+          <div style="font-size:15px;font-weight:700;color:${cfg.color};margin-bottom:6px;">${cfg.emoji} ${cfg.label}</div>
+          <div style="font-size:12px;color:#fff;margin-bottom:4px;line-height:1.4;">${inc.location || ""}</div>
+          ${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:4px;">${inc.description}</div>` : ""}
+          <div style="font-size:10px;color:rgba(255,255,255,0.4);">📍 ${inc.coords.lat.toFixed(5)}, ${inc.coords.lng.toFixed(5)}</div>
+        </div>`,
+        { className: "cm-popup" }
+      );
+      markersRef.current[inc.id] = marker;
+    });
+
+    // Si hay incidentes, ajustar vista para mostrarlos todos
+    if (visibles.length > 0) {
+      try {
+        const bounds = L.latLngBounds(visibles.map(i => [i.coords.lat, i.coords.lng]));
+        map.fitBounds(bounds.pad(0.3), { maxZoom: 16, animate: true });
+      } catch {}
+    }
+  }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, location: i.location })))]);
+
+  const visiblesCount = incidents.filter(i => i.visible && !i.resolved && i.coords?.lat).length;
+
+  return (
+    <div style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", position: "relative" }}>
+      {/* Selector de mapa */}
+      <div style={{ position: "absolute", top: "10px", right: "10px", zIndex: 800, display: "flex", gap: "4px" }}>
+        {[
+          { id: "dark",      label: "🌑" },
+          { id: "streets",   label: "🗺️" },
+          { id: "satellite", label: "🛰️" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTileMode(t.id)}
+            style={{ padding: "4px 8px", background: tileMode === t.id ? "rgba(56,189,248,0.9)" : "rgba(4,12,24,0.85)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", color: "#fff", fontSize: "12px", cursor: "pointer" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Badge contador */}
+      {visiblesCount === 0 && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ background: "rgba(4,12,24,0.85)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", padding: "12px 18px", textAlign: "center" }}>
+            <div style={{ fontSize: "28px", marginBottom: "6px" }}>📭</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: "'DM Sans', sans-serif", fontSize: "12px" }}>Sin eventos activos con ubicación GPS</div>
+          </div>
+        </div>
+      )}
+
+      <div ref={mapRef} style={{ width: "100%", height: "340px", background: "#0a1628" }} />
+    </div>
+  );
+}
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
+  const [reporteView, setReporteView] = useState("reportar"); // "reportar" | "eventos"
   const [categoria, setCategoria] = useState("incidente");
   const [subcat,    setSubcat]    = useState("");
   const [acceso,    setAcceso]    = useState("");
@@ -4823,6 +4983,31 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px" }}>
+
+      {/* ── Navegación sub-tabs: Reportar / Eventos ── */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"20px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px" }}>
+        {[
+          { id:"reportar", label:"Reportar",  icon:"📢", color:"#0ea5e9" },
+          { id:"eventos",  label:"Eventos",   icon:"🗺️", color:"#f97316" },
+        ].map(tab => {
+          const active = reporteView === tab.id;
+          const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
+          return (
+            <button key={tab.id} onClick={() => setReporteView(tab.id)}
+              style={{ flex:1, padding:"11px 8px", border:`1.5px solid ${active ? tab.color : "rgba(255,255,255,0.1)"}`, background: active ? tab.color+"22" : "transparent", borderRadius:"9px", color: active ? tab.color : "rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight: active ? "700" : "500", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+              <span style={{ fontSize:"16px" }}>{tab.icon}</span>
+              {tab.label}
+              {tab.id === "eventos" && evCount > 0 && (
+                <span style={{ background: active ? tab.color : "rgba(249,115,22,0.3)", color: active ? "#0a1628" : "#f97316", borderRadius:"10px", padding:"1px 7px", fontSize:"9px", fontWeight:"700", minWidth:"18px", textAlign:"center" }}>{evCount}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
+      {reporteView === "reportar" && (<>
+
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
         <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
@@ -5134,6 +5319,101 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         </>
       )}
       <ToastBox toast={toast} />
+      </>)}
+
+      {/* ══ VISTA: EVENTOS ═══════════════════════════════════════════════════ */}
+      {reporteView === "eventos" && (
+        <div>
+          {/* Mapa de eventos */}
+          <div style={{ marginBottom:"16px" }}>
+            <MapaEventos incidents={incidents} />
+          </div>
+
+          {/* Lista de incidentes y accidentes verificados */}
+          {(() => {
+            const visibles = incidents.filter(i => i.visible && !i.resolved);
+            const PIN_CFG_EV = {
+              incidente: { color:"#f97316", emoji:"⚠️", label:"Incidente" },
+              accidente: { color:"#ef4444", emoji:"🚨", label:"Accidente" },
+              bloqueo:   { color:"#eab308", emoji:"🚧", label:"Bloqueo"  },
+              obra:      { color:"#3b82f6", emoji:"🏗️", label:"Obra"     },
+            };
+            if (visibles.length === 0) {
+              return (
+                <div style={{ textAlign:"center", padding:"32px 16px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"12px" }}>
+                  <div style={{ fontSize:"36px", marginBottom:"10px" }}>✅</div>
+                  <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"600" }}>Sin eventos activos</div>
+                  <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"6px" }}>No hay incidentes ni accidentes reportados en este momento</div>
+                </div>
+              );
+            }
+            return (
+              <>
+                <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", marginBottom:"10px" }}>
+                  EVENTOS ACTIVOS ({visibles.length})
+                </div>
+                {visibles.map(inc => {
+                  const cfg = PIN_CFG_EV[inc.type] || PIN_CFG_EV.incidente;
+                  const resolveV = inc.resolve_votes || {};
+                  const resueltos = Object.values(resolveV).length;
+                  const myResolve = resolveV[myId];
+                  return (
+                    <div key={inc.id} style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${cfg.color}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px" }}>
+                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start" }}>
+                        <div style={{ width:"40px", height:"40px", background:cfg.color+"22", border:`1.5px solid ${cfg.color}66`, borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", flexShrink:0 }}>
+                          {cfg.emoji}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"3px", flexWrap:"wrap" }}>
+                            <span style={{ background:cfg.color+"22", color:cfg.color, borderRadius:"5px", padding:"1px 7px", fontSize:"9px", fontWeight:"700", letterSpacing:"0.5px" }}>{cfg.label.toUpperCase()}</span>
+                            {inc.coords?.lat && <span style={{ color:"rgba(255,255,255,0.4)", fontSize:"9px" }}>📍 GPS</span>}
+                          </div>
+                          <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"600", lineHeight:1.3 }}>{inc.location}</div>
+                          {inc.description && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.description}</div>}
+                          <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"5px" }}>{timeAgo(inc.ts)}</div>
+                        </div>
+                      </div>
+
+                      {/* Botón resuelto */}
+                      <div style={{ marginTop:"10px", display:"flex", justifyContent:"flex-end" }}>
+                        <button onClick={async () => {
+                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                          const newResolve = { ...resolveV, [myId]: 1 };
+                          const count = Object.values(newResolve).length;
+                          if (count >= 3) {
+                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                            notify("🏁 Incidente cerrado como resuelto", "#6b7280");
+                          } else {
+                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                          }
+                        }}
+                          style={{ padding:"7px 14px", background: myResolve ? "#6b728033" : "#6b728015", border:`1px solid ${myResolve ? "#6b7280" : "#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", gap:"5px" }}>
+                          🏁 <span>RESUELTO</span>
+                          <span style={{ background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 5px", fontSize:"10px" }}>{resueltos}/3</span>
+                        </button>
+                        {isAdmin && (
+                          <button onClick={async () => {
+                            const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+                            if (error) { notify("Error: " + error.message, "#ef4444"); return; }
+                            setIncidents(prev => prev.filter(i => i.id !== inc.id));
+                            notify("🗑 Evento eliminado", "#f97316");
+                          }}
+                            style={{ marginLeft:"6px", padding:"7px 12px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>
+                            🗑
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
+          <ToastBox toast={toast} />
+        </div>
+      )}
+
     </div>
   );
 }
