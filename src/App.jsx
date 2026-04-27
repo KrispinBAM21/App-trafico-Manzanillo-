@@ -3956,6 +3956,16 @@ const MAP_TILES = [
     labels: null },
 ];
 
+// Normaliza coordenadas de reportes guardadas como {lat,lng}, [lat,lng] o strings numéricos.
+const getIncidentLatLng = (inc) => {
+  const c = inc?.coords;
+  if (!c) return null;
+  const lat = Array.isArray(c) ? Number(c[0]) : Number(c.lat ?? c.latitude);
+  const lng = Array.isArray(c) ? Number(c[1]) : Number(c.lng ?? c.lon ?? c.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+};
+
 function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente", cleanReportMap = false, reportTypeFilter = null }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
@@ -3968,6 +3978,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   const previewCoordsRef = useRef(null);   // stores latest coords even before map is ready
   const previewTypeRef   = useRef("incidente");
   const [tileMode, setTileMode] = useState("dark");
+  const [mapReady, setMapReady] = useState(false);
 
   // Sync preview props to refs immediately (synchronous, before any effects run)
   previewCoordsRef.current = previewCoords;
@@ -3976,7 +3987,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   // En modo Reportar usamos un mapa limpio: sin rutas, terminales ni accesos; solo pins del tipo elegido.
   const reportPinType = reportTypeFilter || previewType;
   const shouldShowIncidentOnMap = (inc) => {
-    if (!inc || inc.resolved || !inc.coords || !inc.coords.lat || !inc.coords.lng) return false;
+    if (!inc || inc.resolved || !getIncidentLatLng(inc)) return false;
     // En Reportar, mostrar todos los reportes no resueltos de la categoría seleccionada,
     // incluso si todavía están pendientes de validación comunitaria (visible === false).
     if (cleanReportMap) return inc.type === reportPinType;
@@ -4185,6 +4196,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       });
       tileRef.current = L.tileLayer(MAP_TILES[0].url, { maxZoom: 19 }).addTo(map);
       leafRef.current = map;
+      setMapReady(true);
 
       // Líneas KML (ocultas en el mapa limpio de Reportar)
       if (!cleanReportMap) KML_LINES.forEach(line => {
@@ -4257,7 +4269,10 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     } else {
       const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
     }
-    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
+    return () => {
+      setMapReady(false);
+      if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
+    };
   }, [cleanReportMap]);
 
   // Cambiar capa de tiles cuando cambia el modo
@@ -4342,7 +4357,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 
   // ── Pins de incidentes con coordenadas GPS ────────────────────────────────
   useEffect(() => {
-    if (!leafRef.current || !window.L) return;
+    if (!mapReady || !leafRef.current || !window.L) return;
     const L = window.L;
     const map = leafRef.current;
     Object.values(incMarkersRef.current).forEach(m => { try { map.removeLayer(m); } catch {} });
@@ -4355,6 +4370,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     };
     const visibles = incidents.filter(shouldShowIncidentOnMap);
     visibles.forEach(inc => {
+      const pos = getIncidentLatLng(inc);
+      if (!pos) return;
       const cfg = PIN_CFG[inc.type] || PIN_CFG.incidente;
       const icon = L.divIcon({
         html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
@@ -4365,11 +4382,22 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         </div>`,
         className: "", iconSize: [80, 60], iconAnchor: [16, 32],
       });
-      const marker = L.marker([inc.coords.lat, inc.coords.lng], { icon, zIndexOffset: 1000 }).addTo(map);
+      const marker = L.marker([pos.lat, pos.lng], { icon, zIndexOffset: 1000 }).addTo(map);
       marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${cfg.emoji} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
       incMarkersRef.current[inc.id] = marker;
     });
-  }, [JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, reportPinType]);
+
+    // En Reportar, centrar el mapa sobre los pins existentes de la categoría seleccionada.
+    if (cleanReportMap && visibles.length > 0) {
+      try {
+        const bounds = L.latLngBounds(visibles.map(i => {
+          const p = getIncidentLatLng(i);
+          return [p.lat, p.lng];
+        }));
+        map.fitBounds(bounds.pad(0.35), { maxZoom: 16, animate: true });
+      } catch {}
+    }
+  }, [mapReady, JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, reportPinType]);
 
   // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
   const applyPreviewPin = (coords, type) => {
@@ -5009,8 +5037,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       }, ...prev]);
     }
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
-    notify("📍 Reporte enviado — aparece en Eventos", "#22c55e");
-    setReporteView("eventos");
+    notify("📍 Reporte enviado — pin agregado al mapa", "#22c55e");
   };
 
   const incType    = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
@@ -8751,191 +8778,77 @@ function TutorialTab({ setActive, isAdmin }) {
         <div style={{ width:"40px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"12px auto 0" }} />
       </div>
       {[
-        // ═══════════════════════════════════════════════════════════════════
-        // INICIO
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel de control general", items: [
-          { label: "Resumen Visual", desc: "Vista rápida del estado actual del puerto: tráfico, terminales, patios y accesos principales." },
-          { label: "Incidentes Activos", desc: "Muestra alertas e incidentes verificados por la comunidad en tiempo real." },
-          { label: "Estado de Terminales", desc: "Resumen del status de las 9 terminales del puerto (libres/llenas/retorno)." },
-          { label: "Acceso Rápido", desc: "Botones directos para reportar incidentes y acceder a secciones clave." },
-          { label: "Alertas Importantes", desc: "Notificaciones y avisos relevantes del día publicados por administradores." },
+        { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel general y accesos rápidos", items: [
+          { label: "Resumen general", desc: "Vista rápida del estado del puerto: tráfico, terminales, patios, accesos, carriles, anuncios e incidentes activos." },
+          { label: "Tiempo real", desc: "La información se alimenta con votos comunitarios y actualizaciones realtime desde Supabase." },
+          { label: "Persistencia de sección", desc: "La app recuerda la sección donde estabas. Si recargas, vuelve a abrir esa misma sección o subsección cuando aplique." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // TRÁFICO
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
-          { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
-          { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real con colores: Verde (libre/fluido), Amarillo (tráfico lento), Rojo (saturado), Gris (cerrado). Puedes votar el estado actual que observes." },
-          { label: "Tipo de Retorno", desc: "Indica si hay retornos activos: Sin Retornos (verde), Retorno Terminal (naranja) o Retorno ASIPONA (morado)." },
-          { label: "Filtros por Acceso", desc: "Filtra la información por Acceso Norte o Acceso Sur para ver datos específicos de cada zona." },
-          { label: "Tiempo de Espera", desc: "Estimación del tiempo de espera basado en reportes de la comunidad y estado actual del tráfico." },
-          { label: "Actualización Automática", desc: "Los datos se actualizan cada 5 minutos automáticamente para mantener información precisa." },
-          { label: "Incidentes Pendientes", desc: "Reportes que aún no tienen votos suficientes. Puedes confirmar o marcar como falso para validar la información." },
-          { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad con 3+ votos de confirmación. Puedes votar para marcarlos como resueltos cuando ya no existan." },
+        { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa general + accesos + eventos validados", items: [
+          { label: "Mapa general", desc: "Muestra accesos, puntos importantes y eventos visibles/validados por la comunidad." },
+          { label: "Accesos principales", desc: "Consulta y vota Acceso Pez Vela, Puerta 15 y Zona Norte: Libre/Fluido, Lento, Saturado o Cerrado." },
+          { label: "Retornos", desc: "Indica Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
+          { label: "Eventos validados", desc: "El mapa general mantiene la vista operativa y muestra reportes visibles; los reportes pendientes se revisan desde Eventos y Reportar." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // REPORTAR
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
-          { label: "Paso 1 · Categoría", desc: "Elige entre: Incidente ⚠️ (problemas mecánicos, camiones varados, obstrucciones), Accidente 🚨 (choques, heridos, volcaduras, personas sin vida), Bloqueo/Corte 🚧 (manifestaciones, cierres viales) u Obra/Desvío 🏗️ (construcciones, mantenimiento)." },
-          { label: "Paso 2 · Tipo específico", desc: "Selecciona el subtipo exacto: falla mecánica, camión atravesado, falta de diesel, contenedor ladeado, plataforma/carga/camión abandonado, atropellado, choque, volcadura, herido, caída de material, persona sin vida, zona de asalto/robo." },
-          { label: "Paso 3 · Zona (opcional)", desc: "Indica en qué acceso o zona ocurrió: Acceso Norte, Acceso Sur, Zona Industrial, Centro, etc., para mayor contexto geográfico." },
-          { label: "Paso 4 · Ubicación", desc: "Selecciona de la lista predefinida (Jalipa-Puerto, Puerto-Jalipa, Libramiento, Manzanillo-Colima, Colima-Manzanillo, Calle Algodones, etc.) o escribe manualmente el punto exacto con km, carril o referencia visual." },
-          { label: "Paso 5 · Descripción", desc: "Agrega detalles adicionales: número de carril afectado, vehículos involucrados, severidad, dirección del tráfico afectado. La descripción es sanitizada automáticamente para evitar contenido malicioso." },
-          { label: "Rate Limiting", desc: "El sistema permite 1 reporte cada 30 segundos por usuario para evitar spam y garantizar calidad de la información." },
-          { label: "Validación Comunitaria", desc: "Tu reporte aparece como PENDIENTE y necesita al menos 3 votos de confirmación de otros usuarios para mostrarse en el mapa como ACTIVO." },
-          { label: "Notificaciones", desc: "Recibirás confirmación visual (toast) de que tu reporte fue enviado exitosamente o si hubo algún error." },
+        { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Reportes por categoría con mapas limpios", items: [
+          { label: "Categorías separadas", desc: "Reporta Incidente o Accidente desde su propia subsección." },
+          { label: "Mapa de Incidente", desc: "Solo muestra pins de incidentes no resueltos con GPS. No muestra accidentes, rutas, terminales ni accesos del KML." },
+          { label: "Mapa de Accidente", desc: "Solo muestra pins de accidentes no resueltos con GPS. No mezcla incidentes ni elementos del mapa general." },
+          { label: "Pins pendientes", desc: "Los reportes aparecen en el mapa de su categoría aunque estén pendientes, siempre que tengan coordenadas GPS y no estén resueltos." },
+          { label: "Ubicación", desc: "Acepta enlace de Google Maps o coordenadas directas; la app intenta convertir enlaces cortos a latitud y longitud." },
+          { label: "Al enviar", desc: "Después de enviar un reporte, la app permanece en la misma sección/subsección; ya no cambia automáticamente a Tráfico." },
+          { label: "Recarga", desc: "Si recargas en Reportar, conserva la subsección y categoría donde estabas." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // TERMINALES
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
-          { label: "Zona Norte (2 terminales)", desc: "CONTECON (Contecon Manzanillo S.A.) y HAZESA (Hazesa Terminal Especializada). Operaciones de carga/descarga de contenedores de la zona norte del puerto." },
-          { label: "Zona Sur (7 terminales)", desc: "TIMSA (Terminal Internacional de Manzanillo), SSA (SSA México Terminal), OCUPA (Terminal Multipropósito), MULTIMODAL (Terminal Multimodal), FRIMAN (Frigoríficos de Manzanillo), LA JUNTA (Terminal TAP), CEMEX (Terminal Marítima)." },
-          { label: "Estados disponibles", desc: "✓ Terminal Libre (verde): aceptando camiones. ✗ Terminal Llena (rojo): capacidad máxima alcanzada. ↩ Retorno Terminal (naranja): regresando camiones a espera. ⚓ Retorno ASIPONA (morado): enviando camiones al patio regulador ASIPONA." },
-          { label: "Actualizar estatus", desc: "Toca el estado que observas. El sistema contabiliza los votos de toda la comunidad y muestra el estado con mayor consenso en tiempo real." },
-          { label: "Sistema de Votación", desc: "Cada terminal mantiene un conteo de votos. El estado con más votos se muestra como oficial. Tu voto cuenta y se actualiza instantáneamente vía realtime." },
-          { label: "Votos cada 15 minutos", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener el estatus actualizado. Tu selección se guarda en localStorage y se re-envía automáticamente — no necesitas volver a votar." },
-          { label: "Persistencia de Voto", desc: "Tu último voto se guarda en tu dispositivo y sobrevive la limpieza de 15 minutos, manteniéndose activo hasta que cambies de opinión." },
-          { label: "TODO NORMAL", desc: "Botón para restablecer todas las terminales a 'Libre' de una sola vez. Útil al inicio del turno o cuando todas normalizan operaciones." },
-          { label: "Última Actualización", desc: "Cada terminal muestra quién actualizó su estado y hace cuánto tiempo (ej: 'hace 2min', 'hace 1h')." },
-          { label: "Indicadores Visuales", desc: "Cada terminal tiene un color distintivo y un ícono que facilita identificar su estado de un vistazo." },
+        { id: "eventos", icon: "⚠️", color: "#f97316", title: "EVENTOS", subtitle: "Validación de incidentes y accidentes", items: [
+          { label: "Lista de eventos", desc: "Muestra reportes activos, pendientes o recientes con tipo, ubicación, descripción, hora, GPS y estado de verificación." },
+          { label: "Confirmo", desc: "Úsalo cuando el evento sí existe. Al llegar al mínimo de votos, el reporte queda validado." },
+          { label: "Falso", desc: "Úsalo cuando el reporte no corresponde o ya no existe." },
+          { label: "Resuelto", desc: "Úsalo cuando el evento ya fue atendido o liberado. El conteo usa resolve_votes y se sincroniza con Supabase." },
+          { label: "Conteos estables", desc: "Los votos de Confirmo, Falso y Resuelto se mantienen al actualizarse realtime; no deben volver a 0 después de votar." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // PATIOS
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los patios de contenedores", items: [
-          { label: "¿Qué es el Patio Regulador?", desc: "Áreas de espera y almacenaje externas al puerto donde los camiones aguardan antes de ingresar a terminales. Hay 6 patios principales más ASIPONA." },
-          { label: "Patios Disponibles", desc: "ASIPONA (Asociación de Prestadores de Servicios del Puerto de Manzanillo A.C.), BAYER, DEL SUR, LÓPEZ, CHECO (El Checo), VENUSTIANO (Venustiano Carranza)." },
-          { label: "Estados posibles", desc: "✓ Disponible (verde): hay espacio, camiones pueden ingresar. ⚠ Espacio Limitado (naranja): capacidad reducida, considerar alternativas. ✗ Lleno (rojo): sin espacio disponible, buscar otro patio." },
-          { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos de la comunidad y muestra el estatus con más consenso." },
-          { label: "Votación Comunitaria", desc: "Similar a Terminales: cada voto cuenta, el estado con más votos prevalece, actualización en tiempo real vía Supabase Realtime." },
-          { label: "Persistencia Local", desc: "Tu voto se guarda localmente y sobrevive las limpiezas periódicas de 15 minutos, re-enviándose automáticamente." },
-          { label: "Información Expandible", desc: "Cada patio puede expandirse para mostrar detalles adicionales: ubicación exacta, capacidad estimada, notas de operación." },
-          { label: "TODO LIBRE", desc: "Botón 'TODOS LIBRES' para restablecer todos los patios a 'Disponible' simultáneamente. Ideal al inicio de jornada laboral." },
-          { label: "Indicador de Capacidad", desc: "Algunos patios muestran el porcentaje aproximado de ocupación basado en votos acumulados." },
+        { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de terminales del puerto", items: [
+          { label: "Terminales", desc: "Consulta Zona Norte y Zona Sur: CONTECON, HAZESA, TIMSA, SSA, OCUPA, MULTIMODAL, FRIMAN, LA JUNTA, CEMEX, GRANELERA y ASIPONA cuando aplique." },
+          { label: "Estados", desc: "Terminal Libre, Terminal Llena, Retorno Terminal y Retorno ASIPONA." },
+          { label: "Votación", desc: "Cada usuario puede votar el estado que observa y el sistema refleja el mayor consenso." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // SEGUNDO ACCESO
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "segundo", icon: "🛣️", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
-          { label: "Accesos disponibles", desc: "Acceso Pez Vela (Zona Sur - morado) con 8 carriles, Puerta 15 (Zona Sur - verde) con 3 carriles, Acceso Zona Norte (azul) con 3 carriles. Total: 14 carriles monitoreados." },
-          { label: "Carriles de Ingreso", desc: "Cada carril tiene asignada una terminal de destino (GENERAL, CONTECON, HAZESA, TIMSA, SSA, etc.). Puedes cambiar la terminal, indicar saturación o activar retornos." },
-          { label: "Terminal Asignada", desc: "Los carriles 1-4 de Pez Vela permiten seleccionar qué terminal están atendiendo en ese momento. La opción GENERAL indica que aceptan cualquier terminal." },
-          { label: "Carriles de Exportación", desc: "Marcados con 📤. Exclusivos para camiones que llevan carga hacia los barcos. Se marcan como Abierto/Cerrado/Saturado." },
-          { label: "Carriles de Importación", desc: "Marcados con 📥. Para camiones que retiran mercancía del puerto. Misma lógica de estado que exportación." },
-          { label: "Estados del Carril", desc: "Abierto (verde): operando normalmente. Cerrado (rojo): fuera de servicio. Saturado (amarillo): congestionado pero funcionando. Retornos (morado): enviando camiones de regreso." },
-          { label: "Última Actualización", desc: "Cada carril muestra quién lo actualizó y cuándo, garantizando transparencia en la información." },
-          { label: "TODO ABIERTO", desc: "Botón por acceso para restablecer todos sus carriles a estado Abierto simultáneamente." },
+        { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIOS", subtitle: "Patios reguladores y disponibilidad", items: [
+          { label: "Patios", desc: "Consulta CIMA 1, CIMA 2, ISL, ALMAN, SIA, ALMACONT y SSA." },
+          { label: "Estados", desc: "Patio Libre, Saturado, Cerrado o Patio Lleno." },
+          { label: "Uso operativo", desc: "Ayuda a decidir a qué patio dirigirse antes de intentar ingresar a terminales o accesos." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // CARRILES
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Carriles individuales por acceso", items: [
-          { label: "Acceso Norte", desc: "3 carriles monitoreados: Norte 1, Norte 2, Norte 3. Cada uno con estado independiente de operación." },
-          { label: "Acceso Sur", desc: "4 carriles principales: Sur 1, Sur 2, Sur 3, Sur 4. Mayor capacidad de ingreso debido al volumen de tráfico." },
-          { label: "Estados disponibles", desc: "✓ Libre (verde): flujo normal de tráfico. ⚠ Lento (amarillo): demoras moderadas, tráfico reducido. ✗ Cerrado (rojo): carril bloqueado o fuera de servicio. 🚫 Congestión (rojo oscuro): completamente saturado, evitar." },
-          { label: "Actualización cada 3 min", desc: "Los carriles se actualizan automáticamente cada 3 minutos para reflejar cambios rápidos en el flujo vehicular." },
-          { label: "Motivo de Cierre", desc: "Cuando un carril está cerrado, se puede especificar el motivo: mantenimiento, accidente, inspección, etc." },
-          { label: "Estimado de Reapertura", desc: "Para carriles cerrados, opcionalmente se puede indicar la hora estimada de reapertura." },
-          { label: "Indicador Visual", desc: "Cada carril tiene un color distintivo que facilita identificar rápidamente su estado desde el panel principal." },
-          { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado a estado Libre de una sola vez." },
+        { id: "segundo", icon: "🛣️", color: "#22c55e", title: "2° ACCESO", subtitle: "Carriles de ingreso y estado operativo", items: [
+          { label: "Accesos", desc: "Incluye Acceso Pez Vela, Puerta 15 y Zona Norte con sus carriles operativos." },
+          { label: "Carriles", desc: "Cada carril puede marcarse abierto/cerrado, saturado, con retornos o asociado a terminal cuando corresponde." },
+          { label: "Expo/Impo", desc: "Distingue flujos de exportación e importación y estado del contenedor cuando aplica." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // VIALIDADES
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "vialidades", icon: "🛣️", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
-          { label: "¿Qué son las Vialidades?", desc: "Carreteras y calles principales de acceso: Jalipa → Puerto, Puerto → Jalipa (sentidos opuestos), Libramiento Cihuatlán-Manzanillo, Manzanillo → Colima, Colima → Manzanillo, Calle Algodones." },
-          { label: "Estados disponibles", desc: "Libre (verde): tráfico fluido, sin demoras. Tráfico Lento (amarillo): demoras moderadas, avance reducido. Saturado (naranja): alta congestión, considerar ruta alterna. Tráfico Detenido (rojo): sin avance, totalmente bloqueado." },
-          { label: "Cómo votar", desc: "Toca el estado que observas en la vialidad mientras circulas o estás detenido. Tu reporte ayuda a otros conductores a tomar decisiones informadas." },
-          { label: "Sistema de Consenso", desc: "El sistema muestra el estado con mayor número de votos entre todos los usuarios activos en esa vialidad." },
-          { label: "Renovación cada 15 min", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener la información actualizada. Tu voto se guarda y reenvía sin necesidad de votar nuevamente." },
-          { label: "Mapa Integrado", desc: "Las vialidades se muestran en el mapa con colores correspondientes a su estado actual para visualización rápida." },
-          { label: "Alertas de Congestión", desc: "Cuando una vialidad cambia a estado Saturado o Detenido, se genera una alerta automática visible en el inicio." },
+        { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Control rápido de carriles por acceso", items: [
+          { label: "Carriles por acceso", desc: "Consulta carriles de Pez Vela, Puerta 15 y Zona Norte con estado abierto o cerrado." },
+          { label: "Actualización simple", desc: "El estado cambia con un toque y queda registrado con hora y usuario/sistema." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // NOTICIAS
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "noticias", icon: "📰", color: "#3b82f6", title: "NOTICIAS", subtitle: "Comunicados y avisos oficiales", items: [
-          { label: "Centro de Noticias", desc: "Publicaciones oficiales de administradores sobre cambios operativos, eventos, mantenimientos y avisos importantes del puerto." },
-          { label: "Comunicados Oficiales", desc: "Anuncios formales de las autoridades portuarias, terminales y entidades reguladoras." },
-          { label: "Avisos Importantes", desc: "Alertas sobre cambios en horarios, cierres temporales, nuevos procedimientos, requisitos de acceso." },
-          { label: "Eventos Especiales", desc: "Información sobre eventos que afectan operaciones: llegadas de buques importantes, operativos especiales, visitas oficiales." },
-          { label: "Mantenimientos Programados", desc: "Calendario de mantenimientos planificados en terminales, carriles, vialidades que afectarán el flujo normal." },
-          { label: "Alertas Meteorológicas", desc: "Avisos de condiciones climáticas adversas: huracanes, tormentas, vientos fuertes que afecten operaciones portuarias." },
-          { label: "Actualizaciones de Horarios", desc: "Cambios en horarios de operación de terminales, patios, carriles por temporada alta/baja." },
-          { label: "Categorización", desc: "Las noticias se clasifican por importancia: Crítico (rojo), Importante (naranja), Informativo (azul), General (gris)." },
-          { label: "Fecha y Hora", desc: "Cada noticia muestra claramente cuándo fue publicada y por quién (usuario admin que la creó)." },
-          { label: "Búsqueda y Filtros", desc: "Busca noticias por palabra clave o filtra por categoría, fecha, terminal afectada." },
-          { label: "Archivado Automático", desc: "Las noticias se archivan automáticamente después de su fecha de expiración para mantener el feed limpio." },
+        { id: "noticias", icon: "📰", color: "#06b6d4", title: "NOTICIAS", subtitle: "Avisos, comunicados y anuncios", items: [
+          { label: "Noticias operativas", desc: "Publica y consulta avisos sobre cierres, horarios, afectaciones, seguridad o comunicados." },
+          { label: "Anuncios", desc: "Los administradores pueden crear anuncios con texto, imagen, enlace, WhatsApp, fecha de inicio y fecha de fin." },
+          { label: "Limpieza automática", desc: "Anuncios vencidos dejan de mostrarse para mantener la sección actualizada." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // DONATIVOS
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
-          { label: "¿Para qué sirven?", desc: "Cubren costos de servidor Supabase, dominio, desarrollo continuo, nuevas funcionalidades, mantenimiento de base de datos y mejoras de rendimiento." },
-          { label: "Transferencia MIFEL", desc: "Banco: MIFEL. Titular: Ramon Romero. CLABE: 014028090014825779. Cualquier monto es apreciado y ayuda a mantener el servicio activo." },
-          { label: "Mercado Pago", desc: "Enlaces de donación rápida vía Mercado Pago: tú eliges el monto, proceso seguro, confirmación instantánea." },
-          { label: "Ko-fi Internacional", desc: "Para usuarios internacionales: Ko-fi permite donativos anónimos con tarjeta de crédito o PayPal." },
-          { label: "Transparencia", desc: "Los fondos se utilizan exclusivamente para infraestructura técnica: servidor, almacenamiento de base de datos, ancho de banda, actualizaciones." },
-          { label: "No es obligatorio", desc: "El sistema es 100% gratuito para todos los usuarios. Los donativos son voluntarios y opcionales." },
-          { label: "Botón Flotante", desc: "Acceso rápido desde cualquier sección mediante el botón flotante con ícono 💝 en la esquina inferior." },
-          { label: "Agradecimiento", desc: "Mensaje de agradecimiento personalizado para todos los donantes que apoyan el proyecto comunitario." },
+        { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoyo voluntario al proyecto", items: [
+          { label: "Uso", desc: "Ayudan a cubrir Supabase, almacenamiento, dominio, mantenimiento y desarrollo continuo." },
+          { label: "Opcional", desc: "La app sigue siendo gratuita; donar es voluntario." },
         ]},
-        // ═══════════════════════════════════════════════════════════════════
-        // REGISTRO Y AUTENTICACIÓN
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
-          { label: "¿Es obligatorio registrarse?", desc: "No. Puedes usar toda la app sin crear una cuenta. El registro es opcional y te permite participar con identidad verificada en la comunidad." },
-          { label: "Información básica", desc: "Nombre, apellidos, nombre de usuario (único), fecha de nacimiento, país y ciudad. Esto permite identificar al usuario y detectar cuentas duplicadas o sospechosas." },
-          { label: "Verificación por teléfono (obligatoria)", desc: "Introduce tu número de teléfono en formato internacional (+521XXXXXXXXXX) y recibirás un código SMS (OTP de 6 dígitos). Solo si el código es correcto podrás continuar. Esto evita que bots creen cuentas falsas." },
-          { label: "Correo electrónico", desc: "Ingresa tu correo y confírmalo. Se enviará un correo de verificación antes de activar la cuenta. Usa un correo real — los correos temporales o desechables son bloqueados por Supabase." },
-          { label: "Contraseña segura", desc: "Mínimo 10 caracteres, al menos 1 mayúscula, 1 número y 1 símbolo especial. Ejemplo válido: Micuenta#2026. Las contraseñas débiles son rechazadas automáticamente. Barra de fortaleza visual." },
-          { label: "Protección anti-bots", desc: "Verificación humana simple: ¿Cuánto es 3 + 5? Respuesta incorrecta bloquea el registro." },
-          { label: "Confirmaciones obligatorias", desc: "Debes aceptar explícitamente los Términos y Condiciones y la Política de Privacidad (checkboxes requeridos)." },
-          { label: "Reglas contra perfiles falsos", desc: "Solo se permite 1 cuenta por número de teléfono. Se bloquean: teléfonos temporales/VoIP, correos desechables, registros masivos desde la misma IP, dispositivos con múltiples cuentas detectadas." },
-          { label: "Proceso de 4 Pasos", desc: "Paso 1: Datos básicos. Paso 2: Verificación de teléfono vía SMS. Paso 3: Correo electrónico y confirmación. Paso 4: Contraseña segura + anti-bot + términos." },
-          { label: "Indicador de Progreso", desc: "Barra visual muestra en qué paso del registro te encuentras (1/4, 2/4, 3/4, 4/4)." },
+        { id: "tutorial", icon: "🎓", color: "#8b5cf6", title: "TUTORIAL", subtitle: "Guía rápida de uso", items: [
+          { label: "Cómo participar", desc: "Vota solo lo que puedas confirmar y reporta con ubicación precisa." },
+          { label: "Buenas prácticas", desc: "Evita duplicados, describe con claridad, usa GPS y marca como resuelto cuando el problema ya no exista." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // INICIO DE SESIÓN
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Accede a tu cuenta de forma segura", items: [
-          { label: "¿Cómo iniciar sesión?", desc: "Ingresa tu correo electrónico y contraseña. El sistema valida las credenciales vía Supabase Auth con encriptación segura." },
-          { label: "Login con Google", desc: "Botón 'Continuar con Google' para autenticación OAuth2. Redirige a Google, autoriza y regresa automáticamente con sesión activa." },
-          { label: "Recordar Sesión", desc: "Checkbox 'Recordarme' guarda tu correo en localStorage para autocompletar la próxima vez. La contraseña NO se guarda por seguridad." },
-          { label: "Mostrar/Ocultar Contraseña", desc: "Ícono de ojo 👁/🙈 permite alternar visibilidad de la contraseña para verificar que la escribiste correctamente." },
-          { label: "Sesión Persistente", desc: "Una vez iniciada sesión, el token se guarda en localStorage y la sesión persiste al cerrar/reabrir el navegador (hasta 7 días o logout manual)." },
-          { label: "Intentos Fallidos", desc: "Después de 5 intentos fallidos en 15 minutos, Supabase bloquea temporalmente la cuenta por seguridad (60 minutos de espera)." },
-          { label: "Recuperar Contraseña", desc: "Link '¿Olvidaste tu contraseña?' debajo del formulario. Redirige a flujo de recuperación por correo electrónico." },
-          { label: "Sin Cuenta", desc: "Botón 'Crear cuenta' para cambiar a modo de registro. Puedes también continuar usando la app sin autenticarte." },
-          { label: "Mensajes de Error", desc: "Errores claros: 'Correo o contraseña incorrectos', 'Completa usuario y contraseña', 'Error al conectar con Google', etc." },
-          { label: "Loading States", desc: "Botones se deshabilitan mientras procesa la autenticación, mostrando 'Iniciando sesión...' para evitar doble-submit." },
+        { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro opcional y seguro", items: [
+          { label: "Registro opcional", desc: "Puedes usar la app sin cuenta; crear cuenta permite participación más confiable." },
+          { label: "Seguridad", desc: "Usa correo, contraseña segura y verificaciones para reducir abuso." },
         ]},
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // RECUPERACIÓN DE CONTRASEÑA
-        // ═══════════════════════════════════════════════════════════════════
-        { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recupera el acceso a tu cuenta", items: [
-          { label: "Paso 1 · Ingresa tu correo", desc: "En la pantalla de inicio de sesión, toca '¿Olvidaste tu contraseña?', introduce el correo electrónico registrado y envía." },
-          { label: "Paso 2 · Revisa tu bandeja", desc: "Recibirás un correo de Supabase con enlace de recuperación seguro (token de un solo uso con expiración de 1 hora). Revisa también carpeta de spam/promociones." },
-          { label: "Paso 3 · Crea nueva contraseña", desc: "El enlace te lleva a pantalla de reset. Introduce nueva contraseña (cumpliendo requisitos: 10+ chars, 1 mayúscula, 1 número, 1 símbolo) y confirma." },
-          { label: "Validación de Fortaleza", desc: "Barra visual de 4 segmentos verifica en tiempo real: longitud, mayúscula, número, símbolo. Debe cumplir los 4 para aceptar." },
-          { label: "Token de Seguridad", desc: "El enlace de recuperación es token criptográfico único, válido por 1 hora, de un solo uso. Usado o expirado requiere generar nuevo." },
-          { label: "Cuenta Bloqueada", desc: "Si tu cuenta fue bloqueada por múltiples intentos fallidos, el proceso de recuperación también la desbloquea automáticamente una vez verificada tu identidad." },
-          { label: "Sin Acceso al Correo", desc: "Si perdiste acceso al correo registrado, contacta al administrador del sistema con prueba de identidad para recuperación manual." },
-          { label: "Confirmación", desc: "Una vez cambiada la contraseña, recibirás correo de confirmación y podrás iniciar sesión inmediatamente con la nueva contraseña." },
+        { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Acceso seguro", items: [
+          { label: "Correo y contraseña", desc: "Inicia sesión con Supabase Auth." },
+          { label: "Google", desc: "Cuando está disponible, permite entrar con Google OAuth." },
+          { label: "Recuperación", desc: "Si olvidaste tu contraseña, solicita un enlace por correo." },
+        ]},
+        { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recuperación por correo", items: [
+          { label: "Solicitar enlace", desc: "Ingresa el correo registrado y revisa tu bandeja o spam." },
+          { label: "Nueva contraseña", desc: "Define una contraseña nueva que cumpla los requisitos de seguridad." },
         ]},
       ].map(sec => (
         <div key={sec.id} style={{ marginBottom:"10px" }}>
