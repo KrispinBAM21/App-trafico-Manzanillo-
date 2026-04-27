@@ -4929,14 +4929,31 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
     const safeDesc  = sanitize(labelFull);
     if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
-    await sb.from("incidents").insert({
+    const newIncident = {
       type: categoria, location: safeLoc, description: safeDesc,
       votes: {}, resolve_votes: {}, false_votes: {},
       visible: true, resolved: false, ts: Date.now(),
       coords: coords ? { lat: coords[0], lng: coords[1] } : null,
-    });
+    };
+    const { data: insertedRows, error: insertError } = await sb
+      .from("incidents")
+      .insert(newIncident)
+      .select();
+    if (insertError) {
+      return notify("❌ Error al enviar el reporte: " + insertError.message, "#ef4444");
+    }
+    if (insertedRows && insertedRows[0]) {
+      const r = insertedRows[0];
+      setIncidents(prev => [{
+        id: r.id, type: r.type, location: r.location,
+        desc: r.description, votes: r.votes || {},
+        resolveVotes: r.resolve_votes || {},
+        visible: r.visible, resolved: r.resolved, ts: r.ts,
+        coords: r.coords || null,
+      }, ...prev]);
+    }
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
-    notify("📍 Reporte enviado — la comunidad lo verificará", "#22c55e");
+    notify("📍 Reporte enviado — aparece en Eventos", "#22c55e");
     setTimeout(() => setActiveTab("trafico"), 1200);
   };
 
