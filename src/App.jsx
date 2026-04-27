@@ -3976,8 +3976,12 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   // En modo Reportar usamos un mapa limpio: sin rutas, terminales ni accesos; solo pins del tipo elegido.
   const reportPinType = reportTypeFilter || previewType;
   const shouldShowIncidentOnMap = (inc) => {
-    if (!inc || !inc.visible || inc.resolved || !inc.coords || !inc.coords.lat || !inc.coords.lng) return false;
-    return !cleanReportMap || inc.type === reportPinType;
+    if (!inc || inc.resolved || !inc.coords || !inc.coords.lat || !inc.coords.lng) return false;
+    // En Reportar, mostrar todos los reportes no resueltos de la categoría seleccionada,
+    // incluso si todavía están pendientes de validación comunitaria (visible === false).
+    if (cleanReportMap) return inc.type === reportPinType;
+    // En el mapa general de Tráfico, mantener el comportamiento original: solo visibles/activos.
+    return !!inc.visible;
   };
 
   // Datos exactos del KML
@@ -4365,7 +4369,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${cfg.emoji} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
       incMarkersRef.current[inc.id] = marker;
     });
-  }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type }))), cleanReportMap, reportPinType]);
+  }, [JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, reportPinType]);
 
   // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
   const applyPreviewPin = (coords, type) => {
