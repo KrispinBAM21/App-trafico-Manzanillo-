@@ -3922,13 +3922,15 @@ const MAP_TILES = [
     labels: null },
 ];
 
-function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
+function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente" }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
   const leafRef   = useRef(null);
   const layersRef = useRef({});
   const tileRef      = useRef(null);
   const labelLayerRef = useRef(null);
+  const incMarkersRef = useRef({});
+  const previewMarkerRef = useRef(null);
   const [tileMode, setTileMode] = useState("dark");
 
   // Datos exactos del KML
@@ -4180,6 +4182,9 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
           .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
           .cm-inc-pulse { animation: cmPulse 1.4s ease-in-out infinite; }
           @keyframes cmPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:0.6} }
+          .cm-popup .leaflet-popup-content-wrapper { background:rgba(4,12,24,0.97)!important; border:1px solid rgba(56,189,248,0.3)!important; border-radius:10px!important; box-shadow:0 4px 24px rgba(0,0,0,0.6)!important; color:#fff!important; }
+          .cm-popup .leaflet-popup-tip { background:rgba(4,12,24,0.97)!important; }
+          .cm-popup .leaflet-popup-close-button { color:rgba(255,255,255,0.5)!important; }
         `;
         document.head.appendChild(s);
       }
@@ -4283,6 +4288,64 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
       }).openTooltip();
     });
   }, [JSON.stringify(incGeoMap)]);
+
+  // ── Pins de incidentes con coordenadas GPS ────────────────────────────────
+  useEffect(() => {
+    if (!leafRef.current || !window.L) return;
+    const L = window.L;
+    const map = leafRef.current;
+    Object.values(incMarkersRef.current).forEach(m => { try { map.removeLayer(m); } catch {} });
+    incMarkersRef.current = {};
+    const PIN_CFG = {
+      incidente: { color: "#f97316", emoji: "⚠️", label: "Incidente" },
+      accidente: { color: "#ef4444", emoji: "🚨", label: "Accidente" },
+      bloqueo:   { color: "#eab308", emoji: "🚧", label: "Bloqueo" },
+      obra:      { color: "#3b82f6", emoji: "🏗️", label: "Obra" },
+    };
+    const visibles = incidents.filter(i => i.visible && !i.resolved && i.coords && i.coords.lat && i.coords.lng);
+    visibles.forEach(inc => {
+      const cfg = PIN_CFG[inc.type] || PIN_CFG.incidente;
+      const icon = L.divIcon({
+        html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+          <div class="cm-inc-pulse" style="width:32px;height:32px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
+            <span style="transform:rotate(45deg);font-size:14px;line-height:1;">${cfg.emoji}</span>
+          </div>
+          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${inc.location ? inc.location.slice(0,28) + (inc.location.length > 28 ? "…" : "") : cfg.label}</div>
+        </div>`,
+        className: "", iconSize: [80, 60], iconAnchor: [16, 32],
+      });
+      const marker = L.marker([inc.coords.lat, inc.coords.lng], { icon, zIndexOffset: 1000 }).addTo(map);
+      marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${cfg.emoji} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
+      incMarkersRef.current[inc.id] = marker;
+    });
+  }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type })))]);
+
+  // ── Pin de preview ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!leafRef.current || !window.L) return;
+    const L = window.L;
+    const map = leafRef.current;
+    if (previewMarkerRef.current) { try { map.removeLayer(previewMarkerRef.current); } catch {} previewMarkerRef.current = null; }
+    if (!previewCoords) return;
+    const PIN_CFG = {
+      incidente: { color: "#f97316", emoji: "⚠️" },
+      accidente: { color: "#ef4444", emoji: "🚨" },
+      bloqueo:   { color: "#eab308", emoji: "🚧" },
+      obra:      { color: "#3b82f6", emoji: "🏗️" },
+    };
+    const cfg = PIN_CFG[previewType] || PIN_CFG.incidente;
+    const icon = L.divIcon({
+      html: `<div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:28px;height:28px;background:${cfg.color};border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 12px ${cfg.color}99;display:flex;align-items:center;justify-content:center;opacity:0.85;">
+          <span style="transform:rotate(45deg);font-size:12px;">${cfg.emoji}</span>
+        </div>
+        <div style="margin-top:3px;background:rgba(4,12,24,0.85);border:1px solid ${cfg.color}66;border-radius:4px;padding:1px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;">Aquí</div>
+      </div>`,
+      className: "", iconSize: [60, 50], iconAnchor: [14, 28],
+    });
+    previewMarkerRef.current = L.marker(previewCoords, { icon, zIndexOffset: 2000 }).addTo(map);
+    map.setView(previewCoords, 16, { animate: true, duration: 0.6 });
+  }, [JSON.stringify(previewCoords), previewType]);
 
   // ── Índice / leyenda ──────────────────────────────────────────────────────
   const getVialColor = (vialidadId) => {
@@ -4534,12 +4597,55 @@ const UBICACIONES_REPORTE = [
   },
 ];
 
+// ─── HELPER: Extraer coordenadas de un link de Google Maps ───────────────────
+// Soporta: maps.app.goo.gl (short), maps.google.com/@lat,lng, ?q=lat,lng
+async function extractCoordsFromGMapsLink(url) {
+  // 1. Intentar extraer coords directamente del URL (sin fetch)
+  const directMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                      url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                      url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (directMatch) return [parseFloat(directMatch[1]), parseFloat(directMatch[2])];
+
+  // 2. Si es short link (maps.app.goo.gl), resolver vía proxy de cors
+  if (url.includes("goo.gl") || url.includes("maps.app")) {
+    try {
+      // Intentar con un servicio de expansión de URL
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      const expanded = data?.contents || "";
+      // Buscar coords en el contenido expandido
+      const m = expanded.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                expanded.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ||
+                expanded.match(/center=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+    } catch {}
+    // Fallback: intentar con otro proxy
+    try {
+      const res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
+      const text = await res2.text();
+      const m2 = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+                 text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+      if (m2) return [parseFloat(m2[1]), parseFloat(m2[2])];
+    } catch {}
+  }
+  return null;
+}
+
+function isGMapsUrl(str) {
+  return /maps\.app\.goo\.gl|maps\.google\.com|goo\.gl\/maps/i.test(str);
+}
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [categoria, setCategoria] = useState("incidente");
   const [subcat,    setSubcat]    = useState("");
   const [acceso,    setAcceso]    = useState("");
   const [location,  setLocation]  = useState("");
+  const [gmapsLink, setGmapsLink] = useState("");
+  const [coords,    setCoords]    = useState(null);   // [lat, lng] | null
+  const [coordsLoading, setCoordsLoading] = useState(false);
+  const [coordsError,   setCoordsError]   = useState("");
   const [showUbic,  setShowUbic]  = useState(false);
   const [grupoOpen, setGrupoOpen] = useState(null);
   const [toast,          setToast]          = useState(null);
@@ -4549,6 +4655,32 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const subcats   = INCIDENT_SUBCATEGORIAS[categoria] || [];
   const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
   const subcatObj = subcats.find(s => s.id === subcat);
+
+  // Procesar link de Google Maps cuando cambia
+  const handleGmapsInput = async (val) => {
+    setGmapsLink(val);
+    setCoords(null);
+    setCoordsError("");
+    if (!val.trim()) return;
+    if (!isGMapsUrl(val.trim())) {
+      setCoordsError("Pega un enlace de Google Maps (maps.app.goo.gl o maps.google.com)");
+      return;
+    }
+    setCoordsLoading(true);
+    try {
+      const c = await extractCoordsFromGMapsLink(val.trim());
+      if (c) {
+        setCoords(c);
+        setCoordsError("");
+      } else {
+        setCoordsError("No se pudieron obtener las coordenadas. Intenta con otro enlace.");
+      }
+    } catch {
+      setCoordsError("Error al procesar el enlace. Intenta de nuevo.");
+    } finally {
+      setCoordsLoading(false);
+    }
+  };
 
   // ── Auto-expiración: elimina reportes pendientes con más de 1 hora sin alcanzar 3 confirmaciones
   useEffect(() => {
@@ -4569,7 +4701,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
   const submit = async () => {
     if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
-    if (!location.trim()) return notify("Ingresa la ubicación", "#ef4444");
+    if (!location.trim()) return notify("Selecciona o escribe la ubicación", "#ef4444");
+    if (!coords)          return notify("Pega un enlace de Google Maps válido con coordenadas", "#ef4444");
     const rl = rateLimiter.check(`report_${myId}`, 120000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316");
     const labelFull = `${subcatObj?.icon || ""} ${subcatObj?.label || subcat}`;
@@ -4579,9 +4712,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     await sb.from("incidents").insert({
       type: categoria, location: safeLoc, description: safeDesc,
       votes: {}, resolve_votes: {}, false_votes: {},
-      visible: false, resolved: false, ts: Date.now()
+      visible: false, resolved: false, ts: Date.now(),
+      coords: coords ? { lat: coords[0], lng: coords[1] } : null,
     });
-    setSubcat(""); setLocation(""); setAcceso("");
+    setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
     notify("📍 Reporte enviado — la comunidad lo verificará", "#22c55e");
     setTimeout(() => setActiveTab("trafico"), 1200);
   };
@@ -4604,9 +4738,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Necesita 3 confirmaciones · expira en 1h si no se verifica</div>
       </div>
 
-      {/* Mapa de referencia */}
+      {/* Mapa de referencia con pin del reporte actual */}
       <div style={{ marginBottom:"16px" }}>
-        <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact />
+        <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact previewCoords={coords} previewType={categoria} />
       </div>
 
       {/* Paso 1: Categoría */}
@@ -4649,10 +4783,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       </div>
 
       {/* Paso 4: Ubicación */}
-      <div style={{ marginBottom:"18px" }}>
+      <div style={{ marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
 
-        {/* Botón desplegable — FIX color: solo borde+texto cambian, fondo sutil */}
+        {/* Selector predefinido */}
         <button onClick={() => setShowUbic(p => !p)}
           style={{
             width:"100%", padding:"11px 14px",
@@ -4665,7 +4799,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             display:"flex", justifyContent:"space-between", alignItems:"center",
             marginBottom:"0", boxSizing:"border-box", transition:"all 0.2s"
           }}>
-          <span>📍 Seleccionar ubicación predefinida</span>
+          <span>{location ? `📍 ${location}` : "📍 Seleccionar ubicación predefinida"}</span>
           <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
         </button>
 
@@ -4690,14 +4824,59 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             ))}
           </div>
         )}
+      </div>
 
-        {/* Campo de texto para detalles adicionales */}
-        <input
-          value={location}
-          onChange={e => setLocation(e.target.value)}
-          placeholder="O escribe la ubicación / añade detalle (km, carril, referencia...)"
-          style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginTop:"8px" }}
-        />
+      {/* Paso 5: Link de Google Maps (obligatorio) */}
+      <div style={{ marginBottom:"18px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>
+          PASO 5 · ENLACE DE GOOGLE MAPS *
+        </div>
+        <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"10px", padding:"10px 12px", marginBottom:"8px", display:"flex", alignItems:"flex-start", gap:"8px" }}>
+          <span style={{ fontSize:"16px", flexShrink:0 }}>ℹ️</span>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)", lineHeight:1.5 }}>
+            Abre Google Maps, mantén presionado el lugar del incidente y copia el enlace compartido.<br/>
+            <span style={{ color:"#38bdf8" }}>Ejemplo: https://maps.app.goo.gl/1jL9q...</span>
+          </div>
+        </div>
+
+        <div style={{ position:"relative" }}>
+          <input
+            value={gmapsLink}
+            onChange={e => handleGmapsInput(e.target.value)}
+            placeholder="Pega aquí el enlace de Google Maps..."
+            style={{
+              width:"100%", padding:"11px 40px 11px 14px",
+              background: coords ? "rgba(34,197,94,0.08)" : coordsError ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.08)",
+              backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+              border:`1px solid ${coords ? "#22c55e66" : coordsError ? "#ef444466" : "rgba(255,255,255,0.15)"}`,
+              borderRadius:"10px",
+              color:"rgba(255,255,255,0.95)",
+              fontFamily:getFont(theme, "secondary"), fontSize:"12px",
+              boxSizing:"border-box", outline:"none",
+            }}
+          />
+          <span style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"16px", pointerEvents:"none" }}>
+            {coordsLoading ? "⏳" : coords ? "✅" : coordsError ? "❌" : "🔗"}
+          </span>
+        </div>
+
+        {/* Feedback */}
+        {coordsLoading && (
+          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#38bdf8" }}>
+            ⏳ Obteniendo coordenadas...
+          </div>
+        )}
+        {coords && !coordsLoading && (
+          <div style={{ marginTop:"6px", display:"flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e" }}>
+            ✅ Coordenadas obtenidas: {coords[0].toFixed(5)}, {coords[1].toFixed(5)}
+            <span style={{ color:"rgba(255,255,255,0.4)" }}>— pin visible en el mapa ↑</span>
+          </div>
+        )}
+        {coordsError && !coordsLoading && (
+          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#ef4444" }}>
+            ❌ {coordsError}
+          </div>
+        )}
       </div>
 
       {/* Vista previa */}
@@ -4709,13 +4888,14 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             <div>
               <div style={{ color:catObj.color, fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
               <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
+              {coords && <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"3px" }}>📍 Pin en mapa: {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>}
             </div>
           </div>
         </div>
       )}
 
       <button onClick={submit}
-        style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>
+        style={{ width:"100%", padding:"14px", background: (subcat && location && coords) ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "rgba(255,255,255,0.08)", border:"none", borderRadius:"12px", color: (subcat && location && coords) ? "#fff" : "rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor: (subcat && location && coords) ? "pointer" : "not-allowed", letterSpacing:"1px", marginBottom:"20px", transition:"all 0.2s" }}>
         ENVIAR REPORTE →
       </button>
 
