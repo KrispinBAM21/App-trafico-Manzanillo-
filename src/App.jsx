@@ -5036,6 +5036,13 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         coords: r.coords || null,
       }, ...prev]);
     }
+    await publicarNoticia({
+      tipo: categoria,
+      icono: catObj?.icon || (categoria === "accidente" ? "🚨" : "⚠️"),
+      color: catObj?.color || (categoria === "accidente" ? "#ef4444" : "#f97316"),
+      titulo: `${categoria === "accidente" ? "Accidente" : "Incidente"}: ${subcatObj?.label || subcat}`,
+      detalle: safeLoc,
+    });
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
     notify("📍 Reporte enviado — pin agregado al mapa", "#22c55e");
   };
@@ -6576,6 +6583,14 @@ function SegundoAccesoTab() {
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril de salida actualizado", "#22c55e");
+    const fieldLabel =
+      field === "saturado" ? (value ? "Saturado" : "Libre") :
+      field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
+      field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
+      field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
+      field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
+      "Actualizado";
+    await publicarNoticia({ tipo: "segundo", icono: "🛣️", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
   const resetAll = async () => {
     const next = mkSegundoIngreso();
@@ -6678,7 +6693,7 @@ function SegundoAccesoTab() {
               {/* C4 — SALIDA (izquierda, rojo) */}
               {(() => {
                 const c4sat = carriles?.c4?.saturado;
-                const c4col = c4sat ? "#ef4444" : "#f97316";
+                const c4col = c4sat ? "#ef4444" : "#22c55e";
                 return (
                   <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
                     {/* Flecha hacia ARRIBA (salida) */}
@@ -6727,14 +6742,14 @@ function SegundoAccesoTab() {
 
             {/* Etiquetas de dirección */}
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:"8px", padding:"0 4px" }}>
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ HACIA CIUDAD</div>
-              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ AL PUERTO</div>
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ AL PUERTO</div>
+              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ HACIA CIUDAD</div>
             </div>
           </div>
 
           {/* Leyenda */}
           <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#14b8a6","INGRESO"],["#f97316","SALIDA"],["#ef4444","SATURADO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+            {[["#14b8a6","INGRESO"],["#22c55e","SALIDA LIBRE"],["#ef4444","SATURADO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -7971,8 +7986,10 @@ function NoticiasTab({ isAdmin }) {
     { id: "todos",     label: "Todos",      icon: "📰" },
     { id: "acceso",    label: "Accesos",    icon: "📍" },
     { id: "terminal",  label: "Terminales", icon: "⚓" },
-    { id: "incidente", label: "Incidentes", icon: "🚨" },
+    { id: "incidente", label: "Incidentes", icon: "⚠️" },
+    { id: "accidente", label: "Accidentes", icon: "🚨" },
     { id: "segundo",   label: "2do Acceso", icon: "🛣️" },
+    { id: "patio",     label: "Patios",     icon: "🏭" },
     { id: "carril",    label: "Carriles",   icon: "🚦" },
   ];
 
