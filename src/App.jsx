@@ -4648,7 +4648,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       <div style={{ display:"flex", gap:"4px", alignItems:"center" }}>
                         <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>¿Seguro?</span>
                         <button onClick={async () => {
-                          await sb.from("incidents").delete().eq("id", inc.id);
+                          const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+                          if (error) { notify("Error al eliminar: " + error.message, "#ef4444"); return; }
+                          setIncidents(prev => prev.filter(i => i.id !== inc.id));
                           setConfirmDelete(null);
                           notify("🗑 Reporte eliminado", "#f97316");
                         }}
