@@ -6762,8 +6762,8 @@ function SegundoAccesoTab() {
 </div>
             {/* Etiquetas de dirección */}
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:"8px", padding:"0 4px" }}>
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ HACIA CIUDAD</div>
-              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ HACIA EL PUERTO</div>
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ HACIA CIUDAD</div>
+              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ HACIA EL PUERTO</div>
             </div>
           </div>
 
