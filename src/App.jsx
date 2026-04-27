@@ -3341,6 +3341,31 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
 
+  // Helper para renderizar tarjeta de incidente/accidente
+  const renderIncidentCard = (inc) => {
+    const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
+    const conf = Object.values(inc.votes).filter(v => v === 1).length;
+    return (
+      <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
+          <span style={{ fontSize: "22px" }}>{t.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
+            <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
+            {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
+          </div>
+          <Badge color={t.color} small>ACTIVO</Badge>
+        </div>
+        <VoteBar count={conf} needed={15} color={t.color} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
+          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
+        </div>
+      </div>
+    );
+  };
+
   const voteConfirm = async (id) => {
     const inc = incidents.find(i => i.id === id);
     if (!inc) return;
@@ -3364,6 +3389,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     { id: "accesos",     label: "Accesos",     icon: "⚓" },
     { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
     { id: "incidentes",  label: "Incidentes",  icon: "⚠️" },
+    { id: "accidentes",  label: "Accidentes",  icon: "🚨" },
   ];
 
   return (
@@ -3472,36 +3498,39 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {/* ══════════════════════════════════════
           SECCIÓN: INCIDENTES
       ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
       {activeSection === "incidentes" && (
         <div style={{ padding: "16px" }}>
-          {activeIncidents.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px" }}>
-              <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
-              Sin incidentes activos en este momento
-            </div>
-          ) : activeIncidents.map(inc => {
-            const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
-            const conf = Object.values(inc.votes).filter(v => v === 1).length;
-            return (
-              <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
-                  <span style={{ fontSize: "22px" }}>{t.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
-                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
-                    {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
-                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
-                  </div>
-                  <Badge color={t.color} small>ACTIVO</Badge>
-                </div>
-                <VoteBar count={conf} needed={15} color={t.color} />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
-                  <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
-                  <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
-                </div>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin incidentes activos en este momento
               </div>
-            );
-          })}
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
         </div>
       )}
 
@@ -5355,7 +5384,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                             {inc.coords?.lat && <span style={{ color:"rgba(255,255,255,0.4)", fontSize:"9px" }}>📍 GPS</span>}
                           </div>
                           <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"600", lineHeight:1.3 }}>{inc.location}</div>
-                          {inc.description && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.description}</div>}
+                          {inc.desc && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.desc}</div>}
                           <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"5px" }}>{timeAgo(inc.ts)}</div>
                         </div>
                       </div>
