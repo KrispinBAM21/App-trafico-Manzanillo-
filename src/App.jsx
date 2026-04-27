@@ -4418,7 +4418,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
 
 
 
-function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
+function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [categoria, setCategoria] = useState("incidente");
   const [subcat,    setSubcat]    = useState("");
@@ -4429,9 +4429,26 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
   const [toast,     setToast]     = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
-  const subcats = INCIDENT_SUBCATEGORIAS[categoria] || [];
-  const catObj  = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
+  const subcats   = INCIDENT_SUBCATEGORIAS[categoria] || [];
+  const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
   const subcatObj = subcats.find(s => s.id === subcat);
+
+  // ── Auto-expiración: elimina reportes pendientes con más de 1 hora sin alcanzar 3 confirmaciones
+  useEffect(() => {
+    const check = setInterval(() => {
+      const ahora = Date.now();
+      incidents
+        .filter(i => !i.visible && !i.resolved)
+        .forEach(async inc => {
+          const conf = Object.values(inc.votes || {}).filter(v => v === 1).length;
+          const edad = ahora - (inc.ts || 0);
+          if (edad >= 3600000 && conf < 3) {
+            await sb.from("incidents").delete().eq("id", inc.id);
+          }
+        });
+    }, 30000);
+    return () => clearInterval(check);
+  }, [incidents]);
 
   const submit = async () => {
     if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
@@ -4442,21 +4459,32 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
     const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
     const safeDesc  = sanitize(labelFull);
     if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
-    await sb.from("incidents").insert({ type: categoria, location: safeLoc, description: safeDesc, votes: {}, resolve_votes: {}, visible: false, resolved: false, ts: Date.now() });
+    await sb.from("incidents").insert({
+      type: categoria, location: safeLoc, description: safeDesc,
+      votes: {}, resolve_votes: {}, false_votes: {},
+      visible: false, resolved: false, ts: Date.now()
+    });
     setSubcat(""); setLocation(""); setAcceso("");
-    notify("📍 Reporte enviado — se verificará con la comunidad", "#22c55e");
+    notify("📍 Reporte enviado — la comunidad lo verificará", "#22c55e");
     setTimeout(() => setActiveTab("trafico"), 1200);
   };
 
-  const incType = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
-  const pendingMine = incidents.filter(i => !i.visible && !i.resolved);
+  const incType    = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
+  const pendingAll = incidents.filter(i => !i.visible && !i.resolved);
+
+  const tiempoRestante = (ts) => {
+    const resta = 3600000 - (Date.now() - ts);
+    if (resta <= 0) return "expirando...";
+    const min = Math.floor(resta / 60000);
+    return `${min}min restantes`;
+  };
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px" }}>
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
         <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Tu reporte será verificado por la comunidad antes de aparecer en el mapa.</div>
+        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Necesita 3 confirmaciones · expira en 1h si no se verifica</div>
       </div>
 
       {/* Mapa de referencia */}
@@ -4469,7 +4497,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 1 · CATEGORÍA</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           {INCIDENT_CATEGORIAS.map(cat => (
-            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }} style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
+            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }}
+              style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
               <span style={{ fontSize:"26px" }}>{cat.icon}</span>{cat.label}
             </button>
           ))}
@@ -4481,7 +4510,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 2 · TIPO ESPECÍFICO</div>
         <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
           {subcats.map(s => (
-            <button key={s.id} onClick={() => setSubcat(s.id)} style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
+            <button key={s.id} onClick={() => setSubcat(s.id)}
+              style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
               <span style={{ fontSize:"18px", flexShrink:0 }}>{s.icon}</span>{s.label}
             </button>
           ))}
@@ -4493,7 +4523,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 3 · ZONA / ACCESO (opcional)</div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
-            <button key={a} onClick={() => setAcceso(a)} style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>{a === "" ? "Sin zona" : a}</button>
+            <button key={a} onClick={() => setAcceso(a)}
+              style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>
+              {a === "" ? "Sin zona" : a}
+            </button>
           ))}
         </div>
       </div>
@@ -4502,8 +4535,19 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
       <div style={{ marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
 
-        {/* Botón desplegable de ubicaciones */}
-        <button onClick={() => setShowUbic(p => !p)} style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`, borderRadius: showUbic ? "10px 10px 0 0" : "10px", color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0", boxSizing:"border-box" }}>
+        {/* Botón desplegable — FIX color: solo borde+texto cambian, fondo sutil */}
+        <button onClick={() => setShowUbic(p => !p)}
+          style={{
+            width:"100%", padding:"11px 14px",
+            background: showUbic ? "rgba(56,189,248,0.10)" : "rgba(255,255,255,0.05)",
+            backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+            border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`,
+            borderRadius: showUbic ? "10px 10px 0 0" : "10px",
+            color: showUbic ? "#38bdf8" : "rgba(255,255,255,0.7)",
+            fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer",
+            display:"flex", justifyContent:"space-between", alignItems:"center",
+            marginBottom:"0", boxSizing:"border-box", transition:"all 0.2s"
+          }}>
           <span>📍 Seleccionar ubicación predefinida</span>
           <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
         </button>
@@ -4512,13 +4556,15 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
           <div style={{ background:"#060e1a", border:"1px solid #38bdf855", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:"320px", overflowY:"auto", marginBottom:"8px" }}>
             {UBICACIONES_REPORTE.map(grupo => (
               <div key={grupo.grupo}>
-                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)} style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
+                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)}
+                  style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
                   <span>{grupo.icon}</span>
                   <span style={{ flex:1 }}>{grupo.grupo}</span>
                   <span style={{ fontSize:"9px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
                 </button>
                 {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
-                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }} style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
+                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }}
+                    style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
                     {location===op && <span style={{ color:"#38bdf8", fontSize:"10px" }}>✓</span>}
                     {op}
                   </button>
@@ -4551,65 +4597,128 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab }) {
         </div>
       )}
 
-      <button onClick={submit} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>ENVIAR REPORTE →</button>
+      <button onClick={submit}
+        style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#0369a1,#0ea5e9)", border:"none", borderRadius:"12px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor:"pointer", letterSpacing:"1px", marginBottom:"20px" }}>
+        ENVIAR REPORTE →
+      </button>
 
-      {pendingMine.length > 0 && (
+      {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
+      {pendingAll.length > 0 && (
         <>
-          <SectionLabel text="REPORTES PENDIENTES DE VERIFICACIÓN" />
-          {pendingMine.map(inc => {
-            const t      = incType(inc.type);
-            const myVote = inc.votes[myId];
-            const conf   = Object.values(inc.votes).filter(v=>v===1).length;
-            const falsos = Object.values(inc.votes).filter(v=>v===-1).length;
-            const borderC = falsos > conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : "#f97316";
+          <SectionLabel text={`PENDIENTES DE VERIFICACIÓN (${pendingAll.length})`} />
+          {pendingAll.map(inc => {
+            const t         = incType(inc.type);
+            const votes     = inc.votes        || {};
+            const falseV    = inc.false_votes   || {};
+            const resolveV  = inc.resolve_votes || {};
+            const myVote    = votes[myId];
+            const myFalse   = falseV[myId];
+            const myResolve = resolveV[myId];
+            const conf      = Object.values(votes).filter(v => v === 1).length;
+            const falsos    = Object.values(falseV).length;
+            const resueltos = Object.values(resolveV).length;
+            const borderC   = falsos >= conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : "#f97316";
+
             return (
-              <div key={inc.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
+              <div key={inc.id}
+                style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${borderC}`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+
+                {/* Header */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
                   <div style={{ display:"flex", gap:"8px", flex:1 }}>
                     <span style={{ fontSize:"20px" }}>{t.icon}</span>
                     <div>
                       <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700" }}>{inc.location}</div>
-                      {inc.desc && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.desc}</div>}
-                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(inc.ts)}</div>
+                      {inc.description && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.description}</div>}
+                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>
+                        {timeAgo(inc.ts)} · ⏱ {tiempoRestante(inc.ts)}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px" }}>
                     <Badge color={borderC} small>PENDIENTE</Badge>
-                    <div style={{ fontSize:"9px", fontFamily:getFont(theme, "secondary"), color:"rgba(255,255,255,0.4)" }}>✓{conf} ✗{falsos}</div>
+                    {isAdmin && (
+                      <button onClick={async () => {
+                        if (window.confirm("¿Eliminar este reporte?")) {
+                          await sb.from("incidents").delete().eq("id", inc.id);
+                          notify("🗑 Reporte eliminado por admin", "#f97316");
+                        }
+                      }}
+                        style={{ padding:"3px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700", letterSpacing:"0.5px" }}>
+                        🗑 BORRAR
+                      </button>
+                    )}
                   </div>
                 </div>
-                <VoteBar count={conf} needed={15} />
+
+                {/* Barra de verificación (3 votos) */}
+                <VoteBar count={conf} needed={3} color="#22c55e" />
+
+                {/* Botones con contadores */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+
+                  {/* CONFIRMAR */}
                   <button onClick={async () => {
-                    const votes = { ...inc.votes, [myId]: 1 };
-                    const visible = Object.values(votes).filter(v=>v===1).length >= 15;
-                    await sb.from("incidents").update({ votes, visible }).eq("id", inc.id);
-                    notify(visible ? "✅ Reporte verificado" : `✓ Confirmado (${Object.values(votes).filter(v=>v===1).length}/15)`, "#22c55e");
-                  }} style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    if (myVote === 1) return notify("Ya confirmaste este reporte", "#38bdf8");
+                    const newVotes = { ...votes, [myId]: 1 };
+                    const newConf  = Object.values(newVotes).filter(v => v === 1).length;
+                    const visible  = newConf >= 3;
+                    await sb.from("incidents").update({ votes: newVotes, visible }).eq("id", inc.id);
+                    if (visible) notify("✅ ¡Reporte verificado y publicado!", "#22c55e");
+                    else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
+                  }}
+                    style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>✅</span>
                     <span>CONFIRMO</span>
+                    <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
                   </button>
+
+                  {/* FALSO — 3 votos eliminan el reporte */}
                   <button onClick={async () => {
-                    const votes = { ...inc.votes, [myId]: -1 };
-                    await sb.from("incidents").update({ votes }).eq("id", inc.id);
-                    notify("✗ Marcado como falso", "#ef4444");
-                  }} style={{ padding:"9px 4px", background: myVote===-1?"#ef444433":"#ef444415", border:`1px solid ${myVote===-1?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    if (myFalse) return notify("Ya lo marcaste como falso", "#38bdf8");
+                    const newFalse = { ...falseV, [myId]: 1 };
+                    const count    = Object.values(newFalse).length;
+                    if (count >= 3) {
+                      await sb.from("incidents").delete().eq("id", inc.id);
+                      notify("❌ Reporte eliminado — 3 votos falsos", "#ef4444");
+                    } else {
+                      await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                      notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                    }
+                  }}
+                    style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>❌</span>
                     <span>FALSO</span>
+                    <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
                   </button>
+
+                  {/* RESUELTO — 3 votos cierran el incidente */}
                   <button onClick={async () => {
-                    const rv = { ...inc.resolveVotes, [myId]: 1 };
-                    const resolved = Object.keys(rv).length >= 15;
-                    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", inc.id);
-                    notify(resolved ? "✓ Marcado como resuelto" : `Voto (${Object.keys(rv).length}/15)`, "#6b7280");
-                  }} style={{ padding:"9px 4px", background:"#6b728015", border:"1px solid #6b728044", borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                    if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                    const newResolve = { ...resolveV, [myId]: 1 };
+                    const count      = Object.values(newResolve).length;
+                    if (count >= 3) {
+                      await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                      notify("🏁 Incidente cerrado como resuelto", "#6b7280");
+                    } else {
+                      await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                      notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                    }
+                  }}
+                    style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>🏁</span>
                     <span>RESUELTO</span>
+                    <span style={{ fontSize:"11px", background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{resueltos}</span>
                   </button>
                 </div>
-                {myVote !== undefined && (
-                  <div style={{ fontSize:"9px", color: myVote===1?"#22c55e":"#ef4444", fontFamily:getFont(theme, "secondary"), marginTop:"6px", textAlign:"center" }}>
-                    {myVote===1 ? "✓ Confirmaste este reporte" : "✗ Lo marcaste como falso"}
+
+                {/* Indicador de mi voto */}
+                {(myVote || myFalse || myResolve) && (
+                  <div style={{ fontSize:"9px", fontFamily:getFont(theme, "secondary"), marginTop:"6px", textAlign:"center",
+                    color: myVote===1 ? "#22c55e" : myFalse ? "#ef4444" : "#94a3b8" }}>
+                    {myVote===1  ? "✓ Confirmaste este reporte"
+                    : myFalse   ? "✗ Lo marcaste como falso"
+                    :             "🏁 Votaste como resuelto"}
                   </div>
                 )}
               </div>
@@ -9189,7 +9298,7 @@ function App() {
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
-        {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} />}
+        {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab />}
