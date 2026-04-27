@@ -4418,6 +4418,86 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false }) {
 
 
 
+// ─── UBICACIONES PREDEFINIDAS PARA REPORTES ──────────────────────────────────
+const UBICACIONES_REPORTE = [
+  {
+    grupo: "Vialidades principales",
+    icon: "🛣️",
+    opciones: [
+      "Jalipa → Puerto (Vialidad)",
+      "Puerto → Jalipa (Vialidad)",
+      "Libramiento Cihuatlán-Manzanillo",
+      "Carretera Manzanillo → Colima",
+      "Carretera Colima → Manzanillo",
+    ]
+  },
+  {
+    grupo: "Calles y avenidas",
+    icon: "🏙️",
+    opciones: [
+      "Calle Algodones",
+      "Calle Antonio Suárez",
+      "Av. del Trabajo",
+      "Blvd. Miguel de la Madrid",
+      "Av. Teniente Azueta",
+      "Calle Niños Héroes",
+    ]
+  },
+  {
+    grupo: "Accesos al puerto",
+    icon: "⚓",
+    opciones: [
+      "Acceso Pez Vela",
+      "Acceso Puerta 15",
+      "Acceso Zona Norte",
+      "Segundo Acceso (Confinada)",
+      "Garita Principal ASIPONA",
+    ]
+  },
+  {
+    grupo: "Patios reguladores",
+    icon: "📦",
+    opciones: [
+      "Patio CIMA 1",
+      "Patio CIMA 2",
+      "Patio ISL",
+      "Patio ALMAN",
+      "Patio SIA",
+      "Patio ALMACONT",
+      "Patio SSA",
+    ]
+  },
+  {
+    grupo: "Terminales",
+    icon: "🏭",
+    opciones: [
+      "Terminal CONTECON",
+      "Terminal HAZESA",
+      "Terminal TIMSA",
+      "Terminal SSA",
+      "Terminal OCUPA",
+      "Terminal MULTIMODAL",
+      "Terminal FRIMAN",
+      "Terminal LA JUNTA",
+      "Terminal CEMEX",
+      "Terminal GRANELERA",
+    ]
+  },
+  {
+    grupo: "Zonas y referencias",
+    icon: "📍",
+    opciones: [
+      "Zona Norte del Puerto",
+      "Zona Sur del Puerto",
+      "Redondel Pez Vela",
+      "Glorieta Tapeixtles",
+      "Área Correos de México",
+      "Zona Comercial Las Brisas",
+      "Centro de Manzanillo",
+    ]
+  },
+];
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [categoria, setCategoria] = useState("incidente");
@@ -4540,11 +4620,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         <button onClick={() => setShowUbic(p => !p)}
           style={{
             width:"100%", padding:"11px 14px",
-            background: showUbic ? "rgba(56,189,248,0.10)" : "rgba(255,255,255,0.05)",
+            background: showUbic ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.05)",
             backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
             border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`,
             borderRadius: showUbic ? "10px 10px 0 0" : "10px",
-            color: showUbic ? "#38bdf8" : "rgba(255,255,255,0.7)",
+            color: "rgba(255,255,255,0.85)",
             fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer",
             display:"flex", justifyContent:"space-between", alignItems:"center",
             marginBottom:"0", boxSizing:"border-box", transition:"all 0.2s"
