@@ -2981,9 +2981,13 @@ function NavBar({ active, set }) {
           whiteSpace: "nowrap", 
           minWidth: "0",
           WebkitTapHighlightColor: "transparent",
+          MozTapHighlightColor: "transparent",
           outline: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
           touchAction: "manipulation"
         }}
+        onFocus={(e) => { e.currentTarget.style.outline = "none"; }}
         onMouseEnter={() => {
           if (!isActive) setIsHovered(true);
         }}
@@ -3337,6 +3341,31 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
 
+  // Helper para renderizar tarjeta de incidente/accidente
+  const renderIncidentCard = (inc) => {
+    const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
+    const conf = Object.values(inc.votes).filter(v => v === 1).length;
+    return (
+      <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
+          <span style={{ fontSize: "22px" }}>{t.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
+            <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
+            {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
+          </div>
+          <Badge color={t.color} small>ACTIVO</Badge>
+        </div>
+        <VoteBar count={conf} needed={15} color={t.color} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
+          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
+        </div>
+      </div>
+    );
+  };
+
   const voteConfirm = async (id) => {
     const inc = incidents.find(i => i.id === id);
     if (!inc) return;
@@ -3360,6 +3389,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     { id: "accesos",     label: "Accesos",     icon: "⚓" },
     { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
     { id: "incidentes",  label: "Incidentes",  icon: "⚠️" },
+    { id: "accidentes",  label: "Accidentes",  icon: "🚨" },
   ];
 
   return (
@@ -3468,36 +3498,39 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       {/* ══════════════════════════════════════
           SECCIÓN: INCIDENTES
       ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
       {activeSection === "incidentes" && (
         <div style={{ padding: "16px" }}>
-          {activeIncidents.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px" }}>
-              <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
-              Sin incidentes activos en este momento
-            </div>
-          ) : activeIncidents.map(inc => {
-            const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
-            const conf = Object.values(inc.votes).filter(v => v === 1).length;
-            return (
-              <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
-                  <span style={{ fontSize: "22px" }}>{t.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
-                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
-                    {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
-                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
-                  </div>
-                  <Badge color={t.color} small>ACTIVO</Badge>
-                </div>
-                <VoteBar count={conf} needed={15} color={t.color} />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
-                  <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
-                  <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
-                </div>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin incidentes activos en este momento
               </div>
-            );
-          })}
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
         </div>
       )}
 
@@ -3597,30 +3630,6 @@ function MapaAccesos({ accesos }) {
         document.head.appendChild(s);
       }
 
-      // ✅ Si ya había coordenadas de preview antes de que cargara el mapa, aplicarlas ahora
-      if (previewCoordsRef.current) {
-        const _pendingCoords = previewCoordsRef.current;
-        const _pendingType   = previewTypeRef.current;
-        const PIN_CFG_INIT = {
-          incidente: { color: "#f97316", emoji: "⚠️" },
-          accidente: { color: "#ef4444", emoji: "🚨" },
-          bloqueo:   { color: "#eab308", emoji: "🚧" },
-          obra:      { color: "#3b82f6", emoji: "🏗️" },
-        };
-        setTimeout(() => {
-          if (!_pendingCoords || !leafRef.current || !window.L) return;
-          const _L = window.L;
-          const _map = leafRef.current;
-          if (previewMarkerRef.current) { try { _map.removeLayer(previewMarkerRef.current); } catch {} previewMarkerRef.current = null; }
-          const _cfg = PIN_CFG_INIT[_pendingType] || PIN_CFG_INIT.incidente;
-          const _icon = _L.divIcon({
-            html: `<div style="display:flex;flex-direction:column;align-items:center;"><div class="cm-inc-pulse" style="width:34px;height:34px;background:${_cfg.color};border:3.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 16px ${_cfg.color}bb;display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">${_cfg.emoji}</span></div><div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${_cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;">📍 Aquí</div></div>`,
-            className: "", iconSize: [70, 55], iconAnchor: [17, 34],
-          });
-          previewMarkerRef.current = _L.marker(_pendingCoords, { icon: _icon, zIndexOffset: 3000 }).addTo(_map);
-          _map.setView(_pendingCoords, 16, { animate: true, duration: 0.5 });
-        }, 400);
-      }
     };
 
     if (window.L) { init(); return; }
@@ -4949,14 +4958,31 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
     const safeDesc  = sanitize(labelFull);
     if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
-    await sb.from("incidents").insert({
+    const newIncident = {
       type: categoria, location: safeLoc, description: safeDesc,
       votes: {}, resolve_votes: {}, false_votes: {},
-      visible: false, resolved: false, ts: Date.now(),
+      visible: true, resolved: false, ts: Date.now(),
       coords: coords ? { lat: coords[0], lng: coords[1] } : null,
-    });
+    };
+    const { data: insertedRows, error: insertError } = await sb
+      .from("incidents")
+      .insert(newIncident)
+      .select();
+    if (insertError) {
+      return notify("❌ Error al enviar el reporte: " + insertError.message, "#ef4444");
+    }
+    if (insertedRows && insertedRows[0]) {
+      const r = insertedRows[0];
+      setIncidents(prev => [{
+        id: r.id, type: r.type, location: r.location,
+        desc: r.description, votes: r.votes || {},
+        resolveVotes: r.resolve_votes || {},
+        visible: r.visible, resolved: r.resolved, ts: r.ts,
+        coords: r.coords || null,
+      }, ...prev]);
+    }
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
-    notify("📍 Reporte enviado — la comunidad lo verificará", "#22c55e");
+    notify("📍 Reporte enviado — aparece en Eventos", "#22c55e");
     setTimeout(() => setActiveTab("trafico"), 1200);
   };
 
@@ -5342,13 +5368,21 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                   EVENTOS ACTIVOS ({visibles.length})
                 </div>
                 {visibles.map(inc => {
-                  const cfg = PIN_CFG_EV[inc.type] || PIN_CFG_EV.incidente;
-                  const resolveV = inc.resolve_votes || {};
-                  const resueltos = Object.values(resolveV).length;
+                  const cfg       = PIN_CFG_EV[inc.type] || PIN_CFG_EV.incidente;
+                  const votes     = inc.votes        || {};
+                  const falseV    = inc.false_votes   || {};
+                  const resolveV  = inc.resolve_votes || {};
+                  const myVote    = votes[myId];
+                  const myFalse   = falseV[myId];
                   const myResolve = resolveV[myId];
+                  const conf      = Object.values(votes).filter(v => v === 1).length;
+                  const falsos    = Object.values(falseV).length;
+                  const resueltos = Object.values(resolveV).length;
+                  const borderC   = falsos >= conf && falsos >= 2 ? "#ef4444" : conf >= 2 ? "#22c55e" : cfg.color;
                   return (
-                    <div key={inc.id} style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${cfg.color}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px" }}>
-                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start" }}>
+                    <div key={inc.id} style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1.5px solid ${borderC}55`, borderRadius:"12px", padding:"12px", marginBottom:"10px", transition:"border-color 0.3s" }}>
+                      {/* Cabecera */}
+                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start", marginBottom:"10px" }}>
                         <div style={{ width:"40px", height:"40px", background:cfg.color+"22", border:`1.5px solid ${cfg.color}66`, borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", flexShrink:0 }}>
                           {cfg.emoji}
                         </div>
@@ -5358,29 +5392,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                             {inc.coords?.lat && <span style={{ color:"rgba(255,255,255,0.4)", fontSize:"9px" }}>📍 GPS</span>}
                           </div>
                           <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"600", lineHeight:1.3 }}>{inc.location}</div>
-                          {inc.description && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.description}</div>}
+                          {inc.desc && <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"11px", marginTop:"3px" }}>{inc.desc}</div>}
                           <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"5px" }}>{timeAgo(inc.ts)}</div>
                         </div>
-                      </div>
-
-                      {/* Botón resuelto */}
-                      <div style={{ marginTop:"10px", display:"flex", justifyContent:"flex-end" }}>
-                        <button onClick={async () => {
-                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
-                          const newResolve = { ...resolveV, [myId]: 1 };
-                          const count = Object.values(newResolve).length;
-                          if (count >= 3) {
-                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
-                            notify("🏁 Incidente cerrado como resuelto", "#6b7280");
-                          } else {
-                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
-                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
-                          }
-                        }}
-                          style={{ padding:"7px 14px", background: myResolve ? "#6b728033" : "#6b728015", border:`1px solid ${myResolve ? "#6b7280" : "#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", alignItems:"center", gap:"5px" }}>
-                          🏁 <span>RESUELTO</span>
-                          <span style={{ background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 5px", fontSize:"10px" }}>{resueltos}/3</span>
-                        </button>
                         {isAdmin && (
                           <button onClick={async () => {
                             const { error } = await sb.from("incidents").delete().eq("id", inc.id);
@@ -5388,10 +5402,85 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
                             notify("🗑 Evento eliminado", "#f97316");
                           }}
-                            style={{ marginLeft:"6px", padding:"7px 12px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>
+                            style={{ padding:"4px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", flexShrink:0 }}>
                             🗑
                           </button>
                         )}
+                      </div>
+
+                      {/* Barra de votos de confirmación */}
+                      <VoteBar count={conf} needed={3} color="#22c55e" />
+
+                      {/* Botones de votación */}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px", marginTop:"10px" }}>
+
+                        {/* CONFIRMAR */}
+                        <button onClick={async () => {
+                          if (myVote === 1) return notify("Ya confirmaste este evento", "#38bdf8");
+                          const newVotes = { ...votes, [myId]: 1 };
+                          const newConf  = Object.values(newVotes).filter(v => v === 1).length;
+                          await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
+                          setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
+                          notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
+                        }}
+                          style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>✅</span>
+                          <span>CONFIRMO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
+                        </button>
+
+                        {/* FALSO — 3 votos eliminan el evento */}
+                        <button onClick={async () => {
+                          if (myFalse) return notify("Ya lo marcaste como falso", "#38bdf8");
+                          const newFalse = { ...falseV, [myId]: 1 };
+                          const count    = Object.values(newFalse).length;
+                          if (count >= 3) {
+                            await sb.from("incidents").delete().eq("id", inc.id);
+                            setIncidents(prev => prev.filter(i => i.id !== inc.id));
+                            notify("❌ Evento eliminado — 3 votos falsos", "#ef4444");
+                          } else {
+                            await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
+                            notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                          }
+                        }}
+                          style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>❌</span>
+                          <span>FALSO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
+                        </button>
+
+                        {/* RESUELTO — 3 votos cierran el evento */}
+                        <button onClick={async () => {
+                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                          const newResolve = { ...resolveV, [myId]: 1 };
+                          const count      = Object.values(newResolve).length;
+                          if (count >= 3) {
+                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
+                            notify("🏁 Evento cerrado como resuelto", "#6b7280");
+                          } else {
+                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                            setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
+                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                          }
+                        }}
+                          style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
+                          <span style={{ fontSize:"16px" }}>🏁</span>
+                          <span>RESUELTO</span>
+                          <span style={{ fontSize:"11px", background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{resueltos}</span>
+                        </button>
+                      </div>
+
+                      {/* Indicador de mi voto */}
+                      {(myVote || myFalse || myResolve) && (
+                        <div style={{ fontSize:"9px", fontFamily:getFont(theme,"secondary"), marginTop:"6px", textAlign:"center",
+                          color: myVote===1 ? "#22c55e" : myFalse ? "#ef4444" : "#94a3b8" }}>
+                          {myVote===1  ? "✓ Confirmaste este evento"
+                          : myFalse   ? "✗ Lo marcaste como falso"
+                          :             "🏁 Votaste como resuelto"}
+                        </div>
+                      )}
                       </div>
                     </div>
                   );
@@ -9809,6 +9898,7 @@ function App() {
         desc: r.description, votes: r.votes || {},
         resolveVotes: r.resolve_votes || {},
         visible: r.visible, resolved: r.resolved, ts: r.ts,
+        coords: r.coords || null,
       })));
       setDbReady(true);
     });
@@ -9821,6 +9911,7 @@ function App() {
             desc: r.description, votes: r.votes || {},
             resolveVotes: r.resolve_votes || {},
             visible: r.visible, resolved: r.resolved, ts: r.ts,
+            coords: r.coords || null,
           })));
         });
       }).subscribe();
