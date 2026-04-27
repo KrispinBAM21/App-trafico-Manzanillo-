@@ -3956,7 +3956,7 @@ const MAP_TILES = [
     labels: null },
 ];
 
-function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente" }) {
+function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente", cleanReportMap = false, reportTypeFilter = null }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
   const leafRef   = useRef(null);
@@ -3972,6 +3972,13 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   // Sync preview props to refs immediately (synchronous, before any effects run)
   previewCoordsRef.current = previewCoords;
   previewTypeRef.current   = previewType;
+
+  // En modo Reportar usamos un mapa limpio: sin rutas, terminales ni accesos; solo pins del tipo elegido.
+  const reportPinType = reportTypeFilter || previewType;
+  const shouldShowIncidentOnMap = (inc) => {
+    if (!inc || !inc.visible || inc.resolved || !inc.coords || !inc.coords.lat || !inc.coords.lng) return false;
+    return !cleanReportMap || inc.type === reportPinType;
+  };
 
   // Datos exactos del KML
   const KML_POINTS = [
@@ -4147,7 +4154,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   ];
 
   // Incidentes activos: qué elementos iluminar
-  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+  const activeIncidents = incidents.filter(i => cleanReportMap ? shouldShowIncidentOnMap(i) : (i.visible && !i.resolved));
   const incGeoMap = {};
   activeIncidents.forEach(inc => {
     const text  = (inc.location || "").toLowerCase();
@@ -4175,8 +4182,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       tileRef.current = L.tileLayer(MAP_TILES[0].url, { maxZoom: 19 }).addTo(map);
       leafRef.current = map;
 
-      // Líneas KML
-      KML_LINES.forEach(line => {
+      // Líneas KML (ocultas en el mapa limpio de Reportar)
+      if (!cleanReportMap) KML_LINES.forEach(line => {
         const poly = L.polyline(line.coords, {
           color: line.color, weight: line.weight, opacity: 0.85,
           lineCap: "round", lineJoin: "round",
@@ -4185,8 +4192,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         layersRef.current[line.id] = poly;
       });
 
-      // Puntos KML con colores exactos del KML
-      KML_POINTS.forEach(pt => {
+      // Puntos KML con colores exactos del KML (ocultos en el mapa limpio de Reportar)
+      if (!cleanReportMap) KML_POINTS.forEach(pt => {
         const icon = L.divIcon({
           html: `<div style="
             width:14px; height:14px;
@@ -4247,7 +4254,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
     }
     return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
-  }, []);
+  }, [cleanReportMap]);
 
   // Cambiar capa de tiles cuando cambia el modo
   useEffect(() => {
@@ -4287,7 +4294,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 
   // Actualizar estilos cuando cambian incidentes
   useEffect(() => {
-    if (!leafRef.current || !window.L) return;
+    if (cleanReportMap || !leafRef.current || !window.L) return;
     const L = window.L;
 
     KML_LINES.forEach(line => {
@@ -4327,7 +4334,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         permanent: true, direction: "top", offset: [0, -10], className: "cm-tooltip-permanent",
       }).openTooltip();
     });
-  }, [JSON.stringify(incGeoMap)]);
+  }, [JSON.stringify(incGeoMap), cleanReportMap]);
 
   // ── Pins de incidentes con coordenadas GPS ────────────────────────────────
   useEffect(() => {
@@ -4342,7 +4349,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       bloqueo:   { color: "#eab308", emoji: "🚧", label: "Bloqueo" },
       obra:      { color: "#3b82f6", emoji: "🏗️", label: "Obra" },
     };
-    const visibles = incidents.filter(i => i.visible && !i.resolved && i.coords && i.coords.lat && i.coords.lng);
+    const visibles = incidents.filter(shouldShowIncidentOnMap);
     visibles.forEach(inc => {
       const cfg = PIN_CFG[inc.type] || PIN_CFG.incidente;
       const icon = L.divIcon({
@@ -4358,7 +4365,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${cfg.emoji} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
       incMarkersRef.current[inc.id] = marker;
     });
-  }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type })))]);
+  }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type }))), cleanReportMap, reportPinType]);
 
   // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
   const applyPreviewPin = (coords, type) => {
@@ -5031,7 +5038,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
       {/* Mapa de referencia con pin del reporte actual */}
       <div style={{ marginBottom:"16px" }}>
-        <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact previewCoords={coords} previewType={categoria} />
+        <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
       </div>
 
       {/* Paso 1: Categoría */}
@@ -5270,7 +5277,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     const newVotes = { ...votes, [myId]: 1 };
                     const newConf  = Object.values(newVotes).filter(v => v === 1).length;
                     const visible  = newConf >= 3;
-                    await sb.from("incidents").update({ votes: newVotes, visible }).eq("id", inc.id);
+                    const { error } = await sb.from("incidents").update({ votes: newVotes, visible }).eq("id", inc.id);
+                    if (error) return notify("Error al votar: " + error.message, "#ef4444");
+                    setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes, visible } : i));
                     if (visible) notify("✅ ¡Reporte verificado y publicado!", "#22c55e");
                     else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                   }}
@@ -5286,10 +5295,14 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     const newFalse = { ...falseV, [myId]: 1 };
                     const count    = Object.values(newFalse).length;
                     if (count >= 3) {
-                      await sb.from("incidents").delete().eq("id", inc.id);
+                      const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+                      if (error) return notify("Error al eliminar: " + error.message, "#ef4444");
+                      setIncidents(prev => prev.filter(i => i.id !== inc.id));
                       notify("❌ Reporte eliminado — 3 votos falsos", "#ef4444");
                     } else {
-                      await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                      const { error } = await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                      if (error) return notify("Error al votar: " + error.message, "#ef4444");
+                      setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
                       notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
                     }
                   }}
@@ -5305,10 +5318,14 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     const newResolve = { ...resolveV, [myId]: 1 };
                     const count      = Object.values(newResolve).length;
                     if (count >= 3) {
-                      await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                      const { error } = await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                      if (error) return notify("Error al votar: " + error.message, "#ef4444");
+                      setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
                       notify("🏁 Incidente cerrado como resuelto", "#6b7280");
                     } else {
-                      await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                      const { error } = await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                      if (error) return notify("Error al votar: " + error.message, "#ef4444");
+                      setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
                       notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
                     }
                   }}
