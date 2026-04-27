@@ -9789,6 +9789,7 @@ function App() {
         desc: r.description, votes: r.votes || {},
         resolveVotes: r.resolve_votes || {},
         visible: r.visible, resolved: r.resolved, ts: r.ts,
+        coords: r.coords || null,
       })));
       setDbReady(true);
     });
@@ -9801,6 +9802,7 @@ function App() {
             desc: r.description, votes: r.votes || {},
             resolveVotes: r.resolve_votes || {},
             visible: r.visible, resolved: r.resolved, ts: r.ts,
+            coords: r.coords || null,
           })));
         });
       }).subscribe();
