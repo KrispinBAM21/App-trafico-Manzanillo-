@@ -6688,58 +6688,78 @@ function SegundoAccesoTab() {
             <div style={{ position:"absolute", top:0, bottom:0, left:"calc(50% + 80px)", width:"2px", background:"repeating-linear-gradient(to bottom, #4b5563 0px, #4b5563 10px, transparent 10px, transparent 20px)", transform:"translateX(-50%)", opacity:0.5 }} />
 
             {/* Flechas de carriles */}
-            <div style={{ display:"flex", gap:"6px", position:"relative", zIndex:1 }}>
+<div style={{ display:"flex", gap:"6px", position:"relative", zIndex:1 }}>
 
-              {/* C4 — SALIDA (izquierda, rojo) */}
-              {(() => {
-                const c4sat = carriles?.c4?.saturado;
-                const c4col = c4sat ? "#ef4444" : "#22c55e";
-                return (
-                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-                    {/* Flecha hacia ARRIBA (salida) */}
-                    <div style={{ position:"relative", width:"52px" }}>
-                      <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${c4col}88)` }}>
-                        <polygon points="26,4 48,28 36,28 36,56 16,56 16,28 4,28" fill={c4col} opacity="0.9"/>
-                      </svg>
-                    </div>
-                    <div style={{ background:c4col+"22", border:`1.5px solid ${c4col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
-                      <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
-                      <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
-                      <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>{c4sat?"SATURADO":"LIBRE"}</div>
-                    </div>
-                  </div>
-                );
-              })()}
+  {/* C4 — SALIDA (ciudad, verde/rojo) */}
+  {(() => {
+    const c4sat = carriles?.c4?.saturado;
+    const c4col = c4sat ? "#ef4444" : "#22c55e";
+    return (
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+        
+        {/* Flecha hacia ABAJO (ciudad) */}
+        <div style={{ position:"relative", width:"52px" }}>
+          <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${c4col}88)` }}>
+            <polygon
+              points="26,56 48,32 36,32 36,4 16,4 16,32 4,32"
+              fill={c4col}
+              opacity="0.9"
+            />
+          </svg>
+        </div>
 
-              {/* C1, C2, C3 — INGRESO (teal/verde) */}
-              {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c, i) => {
-                const st  = carriles?.[c.id];
-                const sat = st?.saturado;
-                const col = sat ? "#ef4444" : "#14b8a6";
-                const tz  = getTermZona(st?.terminal);
-                const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
-                return (
-                  <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-                    {/* Flecha hacia ABAJO (ingreso) */}
-                    <div style={{ position:"relative", width:"52px" }}>
-                      <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${col}88)` }}>
-                        <polygon points="26,56 48,32 36,32 36,4 16,4 16,32 4,32" fill={col} opacity="0.9"/>
-                      </svg>
-                    </div>
-                    <div style={{ background:col+"22", border:`1.5px solid ${col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
-                      <div style={{ color:col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>{c.label}</div>
-                      <div style={{ background:tc+"33", borderRadius:"4px", padding:"2px 3px", marginTop:"3px" }}>
-                        <div style={{ color:tc, fontFamily:getFont(theme,"secondary"), fontSize:"8px", fontWeight:"700", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                          {getTermName(st?.terminal)}
-                        </div>
-                      </div>
-                      {st?.retornos && <div style={{ color:"#f97316", fontSize:"10px", marginTop:"2px" }}>↩</div>}
-                    </div>
-                  </div>
-                );
-              })}
+        <div style={{ background:c4col+"22", border:`1.5px solid ${c4col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
+          <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
+          <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
+          <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>
+            {c4sat ? "SATURADO" : "LIBRE"}
+          </div>
+        </div>
+      </div>
+    );
+  })()}
+
+  {/* C1, C2, C3 — INGRESO (puerto) */}
+  {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
+    const st  = carriles?.[c.id];
+    const sat = st?.saturado;
+    const col = sat ? "#ef4444" : "#14b8a6";
+    const tz  = getTermZona(st?.terminal);
+    const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
+
+    return (
+      <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
+        
+        {/* Flecha hacia ARRIBA (puerto) */}
+        <div style={{ position:"relative", width:"52px" }}>
+          <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${col}88)` }}>
+            <polygon
+              points="26,4 48,28 36,28 36,56 16,56 16,28 4,28"
+              fill={col}
+              opacity="0.9"
+            />
+          </svg>
+        </div>
+
+        <div style={{ background:col+"22", border:`1.5px solid ${col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
+          <div style={{ color:col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>
+            {c.label}
+          </div>
+
+          <div style={{ background:tc+"33", borderRadius:"4px", padding:"2px 3px", marginTop:"3px" }}>
+            <div style={{ color:tc, fontFamily:getFont(theme,"secondary"), fontSize:"8px", fontWeight:"700", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+              {getTermName(st?.terminal)}
             </div>
+          </div>
 
+          {st?.retornos && (
+            <div style={{ color:"#f97316", fontSize:"10px", marginTop:"2px" }}>↩</div>
+          )}
+        </div>
+      </div>
+    );
+  })}
+</div>
             {/* Etiquetas de dirección */}
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:"8px", padding:"0 4px" }}>
               <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ AL PUERTO</div>
