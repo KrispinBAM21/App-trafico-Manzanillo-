@@ -4674,35 +4674,21 @@ function parseCoordsFromText(text) {
 }
 
 async function extractCoordsFromGMapsLink(url) {
-  // 1. Intentar extraer coords directamente del URL (sin red)
-  const direct = parseCoordsFromText(url);
-  if (direct) return direct;
-
-  // 2. Short link: intentar expandir con múltiples proxies
-  if (/goo\.gl|maps\.app/i.test(url)) {
-    // Proxy 1: allorigins (devuelve el HTML de la página destino)
-    const proxies = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-    ];
-    for (const proxyUrl of proxies) {
-      try {
-        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(9000) });
-        const text = typeof (await res.clone().json().catch(() => null))?.contents === 'string'
-          ? (await res.json()).contents
-          : await res.text();
-        const c = parseCoordsFromText(text);
-        if (c) return c;
-        // También buscar en las URLs embebidas del HTML
-        const urlsInHtml = text.match(/https:\/\/www\.google\.com\/maps[^\s"'<>]*/g) || [];
-        for (const u of urlsInHtml) {
-          const cc = parseCoordsFromText(decodeURIComponent(u));
-          if (cc) return cc;
-        }
-      } catch {}
-    }
+  try {
+    const res = await fetch(
+      "https://wnchrhglwsrzrcrhhukg.supabase.co/functions/v1/resolve-maps",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      }
+    );
+    const data = await res.json();
+    if (data.lat && data.lng) return [data.lat, data.lng];
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function isGMapsUrl(str) {
