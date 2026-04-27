@@ -2981,9 +2981,13 @@ function NavBar({ active, set }) {
           whiteSpace: "nowrap", 
           minWidth: "0",
           WebkitTapHighlightColor: "transparent",
+          MozTapHighlightColor: "transparent",
           outline: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
           touchAction: "manipulation"
         }}
+        onFocus={(e) => { e.currentTarget.style.outline = "none"; }}
         onMouseEnter={() => {
           if (!isActive) setIsHovered(true);
         }}
@@ -4952,7 +4956,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     await sb.from("incidents").insert({
       type: categoria, location: safeLoc, description: safeDesc,
       votes: {}, resolve_votes: {}, false_votes: {},
-      visible: false, resolved: false, ts: Date.now(),
+      visible: true, resolved: false, ts: Date.now(),
       coords: coords ? { lat: coords[0], lng: coords[1] } : null,
     });
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
