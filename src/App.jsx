@@ -4884,8 +4884,22 @@ function MapaEventos({ incidents }) {
 
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
-  const [reporteView, setReporteView] = useState("reportar"); // "reportar" | "eventos"
-  const [categoria, setCategoria] = useState("incidente");
+  const [reporteViewRaw, setReporteViewRaw] = useState(() => {
+    try { return localStorage.getItem("puerto_reporte_view") || "reportar"; } catch { return "reportar"; }
+  }); // "reportar" | "eventos"
+  const setReporteView = (view) => {
+    try { localStorage.setItem("puerto_reporte_view", view); } catch {}
+    setReporteViewRaw(view);
+  };
+  const reporteView = reporteViewRaw
+  const [categoriaRaw, setCategoriaRaw] = useState(() => {
+    try { return localStorage.getItem("puerto_reporte_categoria") || "incidente"; } catch { return "incidente"; }
+  });
+  const setCategoria = (cat) => {
+    try { localStorage.setItem("puerto_reporte_categoria", cat); } catch {}
+    setCategoriaRaw(cat);
+  };
+  const categoria = categoriaRaw;
   const [subcat,    setSubcat]    = useState("");
   const [acceso,    setAcceso]    = useState("");
   const [location,  setLocation]  = useState("");
@@ -4992,7 +5006,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     }
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
     notify("📍 Reporte enviado — aparece en Eventos", "#22c55e");
-    setTimeout(() => setActiveTab("trafico"), 1200);
+    setReporteView("eventos");
   };
 
   const incType    = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
