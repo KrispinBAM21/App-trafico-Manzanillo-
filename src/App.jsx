@@ -3596,6 +3596,31 @@ function MapaAccesos({ accesos }) {
         s.textContent = `.cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}.cm-tooltip::before{display:none!important;}.leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}.leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}`;
         document.head.appendChild(s);
       }
+
+      // ✅ Si ya había coordenadas de preview antes de que cargara el mapa, aplicarlas ahora
+      if (previewCoordsRef.current) {
+        const _pendingCoords = previewCoordsRef.current;
+        const _pendingType   = previewTypeRef.current;
+        const PIN_CFG_INIT = {
+          incidente: { color: "#f97316", emoji: "⚠️" },
+          accidente: { color: "#ef4444", emoji: "🚨" },
+          bloqueo:   { color: "#eab308", emoji: "🚧" },
+          obra:      { color: "#3b82f6", emoji: "🏗️" },
+        };
+        setTimeout(() => {
+          if (!_pendingCoords || !leafRef.current || !window.L) return;
+          const _L = window.L;
+          const _map = leafRef.current;
+          if (previewMarkerRef.current) { try { _map.removeLayer(previewMarkerRef.current); } catch {} previewMarkerRef.current = null; }
+          const _cfg = PIN_CFG_INIT[_pendingType] || PIN_CFG_INIT.incidente;
+          const _icon = _L.divIcon({
+            html: `<div style="display:flex;flex-direction:column;align-items:center;"><div class="cm-inc-pulse" style="width:34px;height:34px;background:${_cfg.color};border:3.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 16px ${_cfg.color}bb;display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">${_cfg.emoji}</span></div><div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${_cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;">📍 Aquí</div></div>`,
+            className: "", iconSize: [70, 55], iconAnchor: [17, 34],
+          });
+          previewMarkerRef.current = _L.marker(_pendingCoords, { icon: _icon, zIndexOffset: 3000 }).addTo(_map);
+          _map.setView(_pendingCoords, 16, { animate: true, duration: 0.5 });
+        }, 400);
+      }
     };
 
     if (window.L) { init(); return; }
@@ -3931,7 +3956,13 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   const labelLayerRef = useRef(null);
   const incMarkersRef = useRef({});
   const previewMarkerRef = useRef(null);
+  const previewCoordsRef = useRef(null);   // stores latest coords even before map is ready
+  const previewTypeRef   = useRef("incidente");
   const [tileMode, setTileMode] = useState("dark");
+
+  // Sync preview props to refs immediately (synchronous, before any effects run)
+  previewCoordsRef.current = previewCoords;
+  previewTypeRef.current   = previewType;
 
   // Datos exactos del KML
   const KML_POINTS = [
@@ -4320,32 +4351,47 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     });
   }, [JSON.stringify(incidents.filter(i => i.visible && !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type })))]);
 
-  // ── Pin de preview ────────────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
+  const applyPreviewPin = (coords, type) => {
     if (!leafRef.current || !window.L) return;
     const L = window.L;
     const map = leafRef.current;
-    if (previewMarkerRef.current) { try { map.removeLayer(previewMarkerRef.current); } catch {} previewMarkerRef.current = null; }
-    if (!previewCoords) return;
+    // Borrar pin anterior
+    if (previewMarkerRef.current) {
+      try { map.removeLayer(previewMarkerRef.current); } catch {}
+      previewMarkerRef.current = null;
+    }
+    if (!coords) return;
     const PIN_CFG = {
       incidente: { color: "#f97316", emoji: "⚠️" },
       accidente: { color: "#ef4444", emoji: "🚨" },
       bloqueo:   { color: "#eab308", emoji: "🚧" },
       obra:      { color: "#3b82f6", emoji: "🏗️" },
     };
-    const cfg = PIN_CFG[previewType] || PIN_CFG.incidente;
+    const cfg = PIN_CFG[type] || PIN_CFG.incidente;
     const icon = L.divIcon({
       html: `<div style="display:flex;flex-direction:column;align-items:center;">
-        <div style="width:28px;height:28px;background:${cfg.color};border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 12px ${cfg.color}99;display:flex;align-items:center;justify-content:center;opacity:0.85;">
-          <span style="transform:rotate(45deg);font-size:12px;">${cfg.emoji}</span>
+        <div class="cm-inc-pulse" style="width:34px;height:34px;background:${cfg.color};border:3.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 16px ${cfg.color}bb,0 2px 8px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
+          <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${cfg.emoji}</span>
         </div>
-        <div style="margin-top:3px;background:rgba(4,12,24,0.85);border:1px solid ${cfg.color}66;border-radius:4px;padding:1px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;">Aquí</div>
+        <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:0.5px;">📍 Aquí</div>
       </div>`,
-      className: "", iconSize: [60, 50], iconAnchor: [14, 28],
+      className: "", iconSize: [70, 55], iconAnchor: [17, 34],
     });
-    previewMarkerRef.current = L.marker(previewCoords, { icon, zIndexOffset: 2000 }).addTo(map);
-    map.setView(previewCoords, 16, { animate: true, duration: 0.6 });
-  }, [JSON.stringify(previewCoords), previewType]);
+    previewMarkerRef.current = L.marker(coords, { icon, zIndexOffset: 3000 }).addTo(map);
+    map.setView(coords, 16, { animate: true, duration: 0.5 });
+  };
+
+  // ── Pin de preview: sincronizar ref y aplicar al mapa ─────────────────────
+  useEffect(() => {
+    previewCoordsRef.current = previewCoords;
+    previewTypeRef.current   = previewType;
+    // Si el mapa ya está listo, aplicar inmediatamente
+    if (leafRef.current) {
+      applyPreviewPin(previewCoords, previewType);
+    }
+    // Si el mapa aún no está listo, el init lo aplicará cuando cargue
+  }, [JSON.stringify(previewCoords), previewType]); // eslint-disable-line
 
   // ── Índice / leyenda ──────────────────────────────────────────────────────
   const getVialColor = (vialidadId) => {
