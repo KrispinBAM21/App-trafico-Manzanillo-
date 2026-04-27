@@ -3601,30 +3601,6 @@ function MapaAccesos({ accesos }) {
         document.head.appendChild(s);
       }
 
-      // ✅ Si ya había coordenadas de preview antes de que cargara el mapa, aplicarlas ahora
-      if (previewCoordsRef.current) {
-        const _pendingCoords = previewCoordsRef.current;
-        const _pendingType   = previewTypeRef.current;
-        const PIN_CFG_INIT = {
-          incidente: { color: "#f97316", emoji: "⚠️" },
-          accidente: { color: "#ef4444", emoji: "🚨" },
-          bloqueo:   { color: "#eab308", emoji: "🚧" },
-          obra:      { color: "#3b82f6", emoji: "🏗️" },
-        };
-        setTimeout(() => {
-          if (!_pendingCoords || !leafRef.current || !window.L) return;
-          const _L = window.L;
-          const _map = leafRef.current;
-          if (previewMarkerRef.current) { try { _map.removeLayer(previewMarkerRef.current); } catch {} previewMarkerRef.current = null; }
-          const _cfg = PIN_CFG_INIT[_pendingType] || PIN_CFG_INIT.incidente;
-          const _icon = _L.divIcon({
-            html: `<div style="display:flex;flex-direction:column;align-items:center;"><div class="cm-inc-pulse" style="width:34px;height:34px;background:${_cfg.color};border:3.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 16px ${_cfg.color}bb;display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">${_cfg.emoji}</span></div><div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${_cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;">📍 Aquí</div></div>`,
-            className: "", iconSize: [70, 55], iconAnchor: [17, 34],
-          });
-          previewMarkerRef.current = _L.marker(_pendingCoords, { icon: _icon, zIndexOffset: 3000 }).addTo(_map);
-          _map.setView(_pendingCoords, 16, { animate: true, duration: 0.5 });
-        }, 400);
-      }
     };
 
     if (window.L) { init(); return; }
