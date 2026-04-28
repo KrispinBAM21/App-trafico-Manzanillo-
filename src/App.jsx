@@ -7595,12 +7595,15 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     return d.toLocaleString("es-MX", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  // Normaliza aprobado para boolean, string o número.
+  // Esto evita que Supabase lo regrese como "true"/"false" y rompa los filtros.
+  const isComunicadoAprobado = (value) =>
+    value === true || value === "true" || value === 1 || value === "1";
+
   // Filtrar comunicados para mostrar
   const ahora = Date.now();
   const vigentes = comunicados.filter(c => {
-    // Verificar aprobado — acepta boolean true o string "true"
-    const aprobado = c.aprobado === true || c.aprobado === "true" || c.aprobado === 1;
-    if (!aprobado) return false;
+    if (!isComunicadoAprobado(c.aprobado)) return false;
     // Si no hay fecha_fin, mostrar siempre
     if (!c.fecha_fin) return true;
     const fin = toMs(c.fecha_fin);
@@ -7611,11 +7614,18 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
 
   const cargarPendientes = () => {
     if (!isAdmin) return;
+    // Cargar y filtrar en cliente para soportar false, "false", 0 o null.
+    // .eq("aprobado", false) puede fallar si el campo no es boolean puro.
     sb.from("comunicados")
       .select("*")
-      .eq("aprobado", false)
       .order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setPendientes(data); });
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error cargando pendientes:", error);
+          return;
+        }
+        if (data) setPendientes(data.filter(c => !isComunicadoAprobado(c.aprobado)));
+      });
   };
 
   // Cargar pendientes (solo admin)
@@ -7626,17 +7636,40 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [procesando, setProcesando] = useState(null); // id del que se está procesando
 
   const aprobar = async (id) => {
-  setProcesando(id);
-  const { error } = await sb.from("comunicados").update({ aprobado: true }).eq("id", id);
-  setProcesando(null);
-  if (error) { alert("Error al aprobar: " + error.message); return; }
-  // Quitar del estado local inmediatamente — no re-cargar pendientes
-  // para evitar race condition (Supabase puede no haber propagado el cambio aún)
-  setPendientes(prev => prev.filter(p => p.id !== id));
-  onReload();
-  // Re-verificar pendientes con delay para asegurar consistencia
-  setTimeout(() => cargarPendientes(), 1500);
-};
+    if (procesando) return;
+    setProcesando(id);
+
+    const { data, error } = await sb
+      .from("comunicados")
+      .update({ aprobado: true })
+      .eq("id", id)
+      .select("*"); // confirma que Supabase realmente actualizó la fila
+
+    setProcesando(null);
+
+    if (error) {
+      console.error("Error al aprobar comunicado:", error);
+      alert("Error al aprobar: " + error.message);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert("No se pudo aprobar el comunicado. Revisa las políticas RLS de Supabase para UPDATE en la tabla comunicados.");
+      cargarPendientes();
+      return;
+    }
+
+    // UI inmediata: lo quitamos de pendientes sin esperar realtime.
+    setPendientes(prev => prev.filter(p => p.id !== id));
+
+    // Recarga diferida para evitar que vuelva visualmente como pendiente.
+    if (onReload) {
+      setTimeout(() => {
+        onReload();
+        cargarPendientes();
+      }, 500);
+    }
+  };
 
   const rechazar = async (id) => {
     setProcesando(id);
@@ -7957,18 +7990,18 @@ function NoticiasTab({ isAdmin }) {
   const [visorItem,     setVisorItem]     = useState(null);
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
 
+  const isComunicadoAprobado = (value) =>
+    value === true || value === "true" || value === 1 || value === "1";
+
   const cargarComunicados = () => {
-    // Trae todos los comunicados — el filtro por aprobado se hace en el cliente
-    // Cargar solo comunicados aprobados (vigentes)
-    // para evitar problemas con tipos booleanos en Supabase
+    // Trae todos y filtra en cliente para soportar aprobado como boolean, string o número.
     sb.from("comunicados")
       .select("*")
-      .eq("aprobado", true)
       .order("created_at", { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
         if (error) console.error("Error cargando comunicados:", error);
-        if (data) setComunicados(data);
+        if (data) setComunicados(data.filter(c => isComunicadoAprobado(c.aprobado)));
       });
   };
 
@@ -7982,16 +8015,16 @@ function NoticiasTab({ isAdmin }) {
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, ({ new: r }) => {
         // Solo agregar si está aprobado
-        const aprobado = r.aprobado === true || r.aprobado === "true" || r.aprobado === 1;
+        const aprobado = isComunicadoAprobado(r.aprobado);
         if (r && aprobado) setComunicados(prev => [r, ...prev].slice(0, 50));
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, ({ new: r }) => {
         // Si se aprobó, agregarlo a la lista (si no estaba)
-        const aprobado = r.aprobado === true || r.aprobado === "true" || r.aprobado === 1;
+        const aprobado = isComunicadoAprobado(r.aprobado);
         if (r && aprobado) {
           setComunicados(prev => {
-            // Si ya existe, no duplicar
-            if (prev.some(c => c.id === r.id)) return prev;
+            // Si ya existe, actualizarlo; si no, agregarlo.
+            if (prev.some(c => c.id === r.id)) return prev.map(c => c.id === r.id ? r : c);
             return [r, ...prev].slice(0, 50);
           });
         }
