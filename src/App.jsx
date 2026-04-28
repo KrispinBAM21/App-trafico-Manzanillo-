@@ -7626,14 +7626,17 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [procesando, setProcesando] = useState(null); // id del que se está procesando
 
   const aprobar = async (id) => {
-    setProcesando(id);
-    const { error } = await sb.from("comunicados").update({ aprobado: true }).eq("id", id);
-    setProcesando(null);
-    if (error) { alert("Error al aprobar: " + error.message); return; }
-    setPendientes(prev => prev.filter(p => p.id !== id));
-    onReload();
-    cargarPendientes();
-  };
+  setProcesando(id);
+  const { error } = await sb.from("comunicados").update({ aprobado: true }).eq("id", id);
+  setProcesando(null);
+  if (error) { alert("Error al aprobar: " + error.message); return; }
+  // Quitar del estado local inmediatamente — no re-cargar pendientes
+  // para evitar race condition (Supabase puede no haber propagado el cambio aún)
+  setPendientes(prev => prev.filter(p => p.id !== id));
+  onReload();
+  // Re-verificar pendientes con delay para asegurar consistencia
+  setTimeout(() => cargarPendientes(), 1500);
+};
 
   const rechazar = async (id) => {
     setProcesando(id);
