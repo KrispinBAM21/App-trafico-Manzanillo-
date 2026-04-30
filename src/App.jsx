@@ -862,6 +862,26 @@ const RUTA_FISCAL_STATUS_OPTIONS = [
 const mkRutasFiscales = () =>
   Object.fromEntries(RUTAS_FISCALES.map(r => [r.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
 
+const RUTA_FISCAL_REFERENCIAS = [
+  // Zona Norte
+  { id:"ref_contecon", zona:"Norte", tipo:"terminal", name:"Terminal CONTECON", short:"CONTECON", coords:[19.08578,-104.30082], icon:"🏭" },
+  { id:"ref_hazesa", zona:"Norte", tipo:"terminal", name:"Terminal HAZESA", short:"HAZESA", coords:[19.08385,-104.29602], icon:"🏭" },
+  { id:"ref_acceso_norte", zona:"Norte", tipo:"acceso", name:"Acceso Zona Norte", short:"Acceso Norte", coords:[19.08502,-104.29648], icon:"🚪" },
+
+  // Zona Sur
+  { id:"ref_ssa", zona:"Sur", tipo:"terminal", name:"Terminal SSA", short:"SSA", coords:[19.06188,-104.29072], icon:"🏭" },
+  { id:"ref_timsa", zona:"Sur", tipo:"terminal", name:"Terminal TIMSA", short:"TIMSA", coords:[19.06418,-104.28978], icon:"🏭" },
+  { id:"ref_ocupa", zona:"Sur", tipo:"terminal", name:"Terminal OCUPA", short:"OCUPA", coords:[19.05972,-104.29118], icon:"🏭" },
+  { id:"ref_multimodal", zona:"Sur", tipo:"terminal", name:"Terminal Multimodal", short:"Multimodal", coords:[19.05882,-104.29178], icon:"🏭" },
+  { id:"ref_friman", zona:"Sur", tipo:"terminal", name:"FRIMAN", short:"FRIMAN", coords:[19.05778,-104.29232], icon:"🏭" },
+  { id:"ref_lajunta", zona:"Sur", tipo:"terminal", name:"La Junta", short:"La Junta", coords:[19.05526,-104.29406], icon:"🏭" },
+  { id:"ref_cemex", zona:"Sur", tipo:"terminal", name:"CEMEX", short:"CEMEX", coords:[19.06482,-104.29005], icon:"🏭" },
+  { id:"ref_granelera", zona:"Sur", tipo:"terminal", name:"Granelera", short:"Granelera", coords:[19.06292,-104.29026], icon:"🏭" },
+  { id:"ref_asipona", zona:"Sur", tipo:"terminal", name:"ASIPONA", short:"ASIPONA", coords:[19.06034,-104.29220], icon:"⚓" },
+  { id:"ref_pezvela", zona:"Sur", tipo:"acceso", name:"Acceso Pez Vela", short:"Pez Vela", coords:[19.05258,-104.29610], icon:"🚪" },
+  { id:"ref_puerta15", zona:"Sur", tipo:"acceso", name:"Acceso Puerta 15", short:"Puerta 15", coords:[19.06095,-104.29098], icon:"🚪" },
+];
+
 function FiscalZoneMap({ zona, rutas }) {
   const theme = React.useContext(ThemeContext);
   const L = useLeaflet();
@@ -871,9 +891,11 @@ function FiscalZoneMap({ zona, rutas }) {
   const tileRef = useRef(null);
   const labelRef = useRef(null);
   const routeRefs = useRef({});
+  const refRefs = useRef({});
   const [tileMode, setTileMode] = useState("dark");
 
   const filtered = RUTAS_FISCALES.filter(r => r.zona === zona);
+  const filteredRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zona);
   const TILE_OPTIONS = [
     { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
     { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
@@ -892,6 +914,14 @@ function FiscalZoneMap({ zona, rutas }) {
     if (!map || !layer) return;
     map.fitBounds(layer.getBounds(), { padding: [38, 38], maxZoom: 17 });
     layer.openTooltip();
+  };
+
+  const focusReference = (refId) => {
+    const map = leafRef.current;
+    const marker = refRefs.current[refId];
+    if (!map || !marker) return;
+    map.setView(marker.getLatLng(), Math.max(map.getZoom(), 17), { animate: true });
+    marker.openTooltip();
   };
 
   useEffect(() => {
@@ -917,6 +947,7 @@ function FiscalZoneMap({ zona, rutas }) {
         leafRef.current = null;
         layersRef.current = null;
         routeRefs.current = {};
+        refRefs.current = {};
       }
     };
   }, [L]);
@@ -935,6 +966,7 @@ function FiscalZoneMap({ zona, rutas }) {
     if (!map || !L || !layersRef.current) return;
     layersRef.current.clearLayers();
     routeRefs.current = {};
+    refRefs.current = {};
     const allCoords = [];
     filtered.forEach(route => {
       const st = rutas?.[route.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
@@ -956,6 +988,26 @@ function FiscalZoneMap({ zona, rutas }) {
         .addTo(layersRef.current);
       routeRefs.current[route.id] = layer;
     });
+    filteredRefs.forEach(ref => {
+      allCoords.push(ref.coords);
+      const color = ref.tipo === "acceso" ? "#fbbf24" : "#38bdf8";
+      const marker = L.marker(ref.coords, {
+        icon: L.divIcon({
+          className: "cm-ref-marker",
+          html: `<div class="cm-ref-dot" style="border-color:${color};box-shadow:0 0 0 4px ${color}22,0 6px 18px rgba(0,0,0,.45)"><span>${ref.icon}</span></div><div class="cm-ref-label" style="border-color:${color}66;color:${color}">${ref.short}</div>`,
+          iconSize: [96, 42],
+          iconAnchor: [18, 18],
+        })
+      })
+        .bindTooltip(`<b>${ref.name}</b><br><span>${ref.tipo === "acceso" ? "Acceso de referencia" : "Terminal de referencia"}</span>`, {
+          permanent: false,
+          sticky: true,
+          className: "cm-tooltip",
+        })
+        .addTo(layersRef.current);
+      refRefs.current[ref.id] = marker;
+    });
+
     if (allCoords.length) {
       map.fitBounds(L.latLngBounds(allCoords), { padding: [28, 28], maxZoom: zona === "Norte" ? 17 : 15 });
       setTimeout(() => map.invalidateSize(), 150);
@@ -969,6 +1021,9 @@ function FiscalZoneMap({ zona, rutas }) {
         .cm-tooltip::before{display:none!important;}
         .leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.75)!important;border-color:rgba(255,255,255,0.1)!important;}
         .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+        .cm-ref-marker{background:transparent!important;border:none!important;}
+        .cm-ref-dot{width:34px;height:34px;border:2px solid #38bdf8;border-radius:999px;background:rgba(4,12,24,.94);display:flex;align-items:center;justify-content:center;font-size:16px;}
+        .cm-ref-label{position:absolute;left:38px;top:6px;white-space:nowrap;background:rgba(4,12,24,.88);border:1px solid rgba(56,189,248,.45);border-radius:7px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:0 4px 12px rgba(0,0,0,.28);}
       `}</style>
       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"10px" }}>
         <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.48)", fontWeight:"700" }}>Vista:</span>
@@ -991,6 +1046,17 @@ function FiscalZoneMap({ zona, rutas }) {
               </button>
             );
           })}
+          <div style={{ height:"1px", background:"rgba(255,255,255,0.10)", margin:"10px 0" }} />
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", marginBottom:"8px" }}>REFERENCIAS</div>
+          {filteredRefs.map(ref => {
+            const color = ref.tipo === "acceso" ? "#fbbf24" : "#38bdf8";
+            return (
+              <button key={ref.id} onClick={() => focusReference(ref.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:"8px", textAlign:"left", background:"rgba(10,22,40,0.52)", border:`1px solid ${color}33`, borderRadius:"9px", padding:"8px 9px", marginBottom:"6px", cursor:"pointer" }}>
+                <span style={{ width:"24px", height:"24px", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"999px", background:color+"18", border:`1px solid ${color}55`, flexShrink:0 }}>{ref.icon}</span>
+                <span style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.86)", fontSize:"11px", fontWeight:"700", lineHeight:1.2 }}>{ref.name}</span>
+              </button>
+            );
+          })}
         </div>
         <div
           ref={mapRef}
@@ -1008,7 +1074,7 @@ function FiscalZoneMap({ zona, rutas }) {
       </div>
       {!L && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa…</div>}
       <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.42)", marginTop:"8px" }}>
-        Puedes mover, acercar y alejar el mapa. Usa el índice para ubicar cada ruta y cambia entre Oscuro, Satélite, Claro o Calles.
+        Puedes mover, acercar y alejar el mapa. Usa el índice para ubicar rutas, terminales y accesos de referencia; cambia entre Oscuro, Satélite, Claro o Calles.
       </div>
     </div>
   );
@@ -4840,7 +4906,10 @@ function MapaAccesos({ accesos }) {
 
       if (!document.getElementById("cm-map-style")) {
         const s = document.createElement("style"); s.id = "cm-map-style";
-        s.textContent = `.cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}.cm-tooltip::before{display:none!important;}.leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}.leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}`;
+        s.textContent = `.cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}.cm-tooltip::before{display:none!important;}.leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}.leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+        .cm-ref-marker{background:transparent!important;border:none!important;}
+        .cm-ref-dot{width:34px;height:34px;border:2px solid #38bdf8;border-radius:999px;background:rgba(4,12,24,.94);display:flex;align-items:center;justify-content:center;font-size:16px;}
+        .cm-ref-label{position:absolute;left:38px;top:6px;white-space:nowrap;background:rgba(4,12,24,.88);border:1px solid rgba(56,189,248,.45);border-radius:7px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:0 4px 12px rgba(0,0,0,.28);}`;
         document.head.appendChild(s);
       }
 
@@ -6018,6 +6087,9 @@ function MapaEventos({ incidents }) {
           .cm-popup .leaflet-popup-close-button{color:rgba(255,255,255,0.5)!important;}
           .leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}
           .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+        .cm-ref-marker{background:transparent!important;border:none!important;}
+        .cm-ref-dot{width:34px;height:34px;border:2px solid #38bdf8;border-radius:999px;background:rgba(4,12,24,.94);display:flex;align-items:center;justify-content:center;font-size:16px;}
+        .cm-ref-label{position:absolute;left:38px;top:6px;white-space:nowrap;background:rgba(4,12,24,.88);border:1px solid rgba(56,189,248,.45);border-radius:7px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.6);box-shadow:0 4px 12px rgba(0,0,0,.28);}
         `;
         document.head.appendChild(s);
       }
