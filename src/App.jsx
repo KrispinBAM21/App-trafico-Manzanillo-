@@ -863,23 +863,25 @@ const mkRutasFiscales = () =>
   Object.fromEntries(RUTAS_FISCALES.map(r => [r.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
 
 const RUTA_FISCAL_REFERENCIAS = [
+  // Coordenadas alineadas con la sección MAPA / KML_POINTS para que las referencias caigan en el mismo punto.
   // Zona Norte
-  { id:"ref_contecon", zona:"Norte", tipo:"terminal", name:"Terminal CONTECON", short:"CONTECON", coords:[19.08578,-104.30082], icon:"🏭" },
-  { id:"ref_hazesa", zona:"Norte", tipo:"terminal", name:"Terminal HAZESA", short:"HAZESA", coords:[19.08385,-104.29602], icon:"🏭" },
-  { id:"ref_acceso_norte", zona:"Norte", tipo:"acceso", name:"Acceso Zona Norte", short:"Acceso Norte", coords:[19.08502,-104.29648], icon:"🚪" },
+  { id:"ref_contecon", zona:"Norte", tipo:"terminal", name:"Terminal CONTECON", short:"CONTECON", coords:[19.08418178396766,-104.3020765405659], icon:"🏭" },
+  { id:"ref_hazesa", zona:"Norte", tipo:"terminal", name:"Terminal HAZESA", short:"HAZESA", coords:[19.08389836997078,-104.295058165122], icon:"🏭" },
+  { id:"ref_acceso_norte", zona:"Norte", tipo:"acceso", name:"Acceso Zona Norte", short:"Acceso Norte", coords:[19.08656881040979,-104.2970097872907], icon:"🚪" },
 
   // Zona Sur
-  { id:"ref_ssa", zona:"Sur", tipo:"terminal", name:"Terminal SSA", short:"SSA", coords:[19.06188,-104.29072], icon:"🏭" },
-  { id:"ref_timsa", zona:"Sur", tipo:"terminal", name:"Terminal TIMSA", short:"TIMSA", coords:[19.06418,-104.28978], icon:"🏭" },
-  { id:"ref_ocupa", zona:"Sur", tipo:"terminal", name:"Terminal OCUPA", short:"OCUPA", coords:[19.05972,-104.29118], icon:"🏭" },
-  { id:"ref_multimodal", zona:"Sur", tipo:"terminal", name:"Terminal Multimodal", short:"Multimodal", coords:[19.05882,-104.29178], icon:"🏭" },
-  { id:"ref_friman", zona:"Sur", tipo:"terminal", name:"FRIMAN", short:"FRIMAN", coords:[19.05778,-104.29232], icon:"🏭" },
-  { id:"ref_lajunta", zona:"Sur", tipo:"terminal", name:"La Junta", short:"La Junta", coords:[19.05526,-104.29406], icon:"🏭" },
-  { id:"ref_cemex", zona:"Sur", tipo:"terminal", name:"CEMEX", short:"CEMEX", coords:[19.06482,-104.29005], icon:"🏭" },
-  { id:"ref_granelera", zona:"Sur", tipo:"terminal", name:"Granelera", short:"Granelera", coords:[19.06292,-104.29026], icon:"🏭" },
-  { id:"ref_asipona", zona:"Sur", tipo:"terminal", name:"ASIPONA", short:"ASIPONA", coords:[19.06034,-104.29220], icon:"⚓" },
-  { id:"ref_pezvela", zona:"Sur", tipo:"acceso", name:"Acceso Pez Vela", short:"Pez Vela", coords:[19.05258,-104.29610], icon:"🚪" },
-  { id:"ref_puerta15", zona:"Sur", tipo:"acceso", name:"Acceso Puerta 15", short:"Puerta 15", coords:[19.06095,-104.29098], icon:"🚪" },
+  { id:"ref_ssa", zona:"Sur", tipo:"terminal", name:"Terminal SSA", short:"SSA", coords:[19.07463139813982,-104.2891322457856], icon:"🏭" },
+  { id:"ref_granelera", zona:"Sur", tipo:"terminal", name:"Granelera", short:"Granelera", coords:[19.06434906950253,-104.2907952693104], icon:"🏭" },
+  { id:"ref_lajunta", zona:"Sur", tipo:"terminal", name:"La Junta", short:"La Junta", coords:[19.06322612268734,-104.2910153355142], icon:"🏭" },
+  { id:"ref_timsa", zona:"Sur", tipo:"terminal", name:"Terminal TIMSA", short:"TIMSA", coords:[19.06126633877015,-104.2909711781655], icon:"🏭" },
+  { id:"ref_multimodal", zona:"Sur", tipo:"terminal", name:"Terminal MULTIMODAL", short:"MULTIMODAL", coords:[19.05724964895184,-104.2942608658049], icon:"🏭" },
+  { id:"ref_friman", zona:"Sur", tipo:"terminal", name:"Terminal FRIMAN", short:"FRIMAN", coords:[19.05698919310202,-104.2954019724908], icon:"🏭" },
+  { id:"ref_ocupa", zona:"Sur", tipo:"terminal", name:"Terminal OCUPA", short:"OCUPA", coords:[19.05651848457071,-104.3003288440099], icon:"🏭" },
+  { id:"ref_cemex", zona:"Sur", tipo:"terminal", name:"Terminal CEMEX", short:"CEMEX", coords:[19.05780874594614,-104.2997456907227], icon:"🏭" },
+  { id:"ref_asipona", zona:"Sur", tipo:"terminal", name:"Recinto ASIPONA", short:"ASIPONA", coords:[19.05604853655314,-104.3034885062604], icon:"⚓" },
+  { id:"ref_pezvela", zona:"Sur", tipo:"acceso", name:"Acceso Pez Vela", short:"Pez Vela", coords:[19.07634709752751,-104.2873039903065], icon:"🚪" },
+  { id:"ref_puerta15", zona:"Sur", tipo:"acceso", name:"Acceso Puerta 15", short:"Puerta 15", coords:[19.07789046237833,-104.2884816132865], icon:"🚪" },
+  { id:"ref_patio", zona:"Sur", tipo:"acceso", name:"Acceso Patio Regulador", short:"Patio Regulador", coords:[19.10354265164766,-104.2702980795862], icon:"🚪" },
 ];
 
 function FiscalZoneMap({ zona, rutas }) {
