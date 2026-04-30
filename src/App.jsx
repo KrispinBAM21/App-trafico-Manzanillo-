@@ -263,6 +263,642 @@ const RETORNO_OPTIONS = [
   { id: "asipona",  label: "Retorno ASIPONA",   color: "#a855f7", icon: "⚓" },
 ];
 
+const RUTAS_FISCALES = [
+  {
+    "id": "contecon_ruta",
+    "name": "CONTECON - RUTA",
+    "zona": "Norte",
+    "points": [
+      [
+        12.77,
+        5.0
+      ],
+      [
+        13.89,
+        5.2
+      ],
+      [
+        14.53,
+        4.76
+      ],
+      [
+        13.2,
+        4.55
+      ],
+      [
+        6.7,
+        5.16
+      ],
+      [
+        4.55,
+        5.55
+      ],
+      [
+        5.57,
+        5.8
+      ],
+      [
+        12.77,
+        5.0
+      ]
+    ]
+  },
+  {
+    "id": "ruta_fiscal_norte",
+    "name": "Ruta Fiscal Norte",
+    "zona": "Norte",
+    "points": [
+      [
+        20.27,
+        5.44
+      ],
+      [
+        19.11,
+        6.34
+      ],
+      [
+        21.63,
+        7.06
+      ],
+      [
+        24.46,
+        8.27
+      ],
+      [
+        25.97,
+        9.25
+      ],
+      [
+        26.48,
+        9.71
+      ],
+      [
+        27.98,
+        10.17
+      ],
+      [
+        29.55,
+        10.44
+      ],
+      [
+        31.15,
+        10.46
+      ],
+      [
+        36.47,
+        9.89
+      ],
+      [
+        40.92,
+        9.41
+      ],
+      [
+        42.73,
+        9.07
+      ],
+      [
+        43.97,
+        8.23
+      ],
+      [
+        44.39,
+        7.45
+      ],
+      [
+        43.65,
+        6.38
+      ],
+      [
+        41.81,
+        5.49
+      ],
+      [
+        39.33,
+        4.97
+      ],
+      [
+        35.52,
+        5.16
+      ],
+      [
+        33.68,
+        5.27
+      ],
+      [
+        33.76,
+        5.5
+      ],
+      [
+        28.84,
+        5.94
+      ],
+      [
+        29.46,
+        6.89
+      ],
+      [
+        36.25,
+        6.25
+      ],
+      [
+        36.16,
+        6.13
+      ],
+      [
+        39.38,
+        5.85
+      ],
+      [
+        40.44,
+        6.04
+      ],
+      [
+        41.95,
+        7.1
+      ],
+      [
+        42.0,
+        7.84
+      ],
+      [
+        41.34,
+        8.24
+      ],
+      [
+        40.34,
+        8.44
+      ],
+      [
+        30.61,
+        9.46
+      ],
+      [
+        29.8,
+        9.42
+      ],
+      [
+        28.94,
+        9.32
+      ],
+      [
+        28.22,
+        9.01
+      ],
+      [
+        27.27,
+        8.38
+      ],
+      [
+        25.35,
+        7.27
+      ],
+      [
+        23.87,
+        6.63
+      ],
+      [
+        22.84,
+        6.17
+      ],
+      [
+        20.27,
+        5.44
+      ]
+    ]
+  },
+  {
+    "id": "ruta_fiscal_sur",
+    "name": "Ruta Fiscal Sur",
+    "zona": "Sur",
+    "points": [
+      [
+        90.13,
+        41.22
+      ],
+      [
+        89.96,
+        42.59
+      ],
+      [
+        89.13,
+        45.18
+      ],
+      [
+        88.29,
+        46.71
+      ],
+      [
+        81.93,
+        63.78
+      ],
+      [
+        83.68,
+        63.94
+      ],
+      [
+        85.11,
+        59.64
+      ],
+      [
+        86.75,
+        55.06
+      ],
+      [
+        88.35,
+        50.5
+      ],
+      [
+        89.49,
+        47.53
+      ],
+      [
+        90.02,
+        45.88
+      ],
+      [
+        90.86,
+        44.66
+      ],
+      [
+        91.45,
+        43.5
+      ],
+      [
+        91.74,
+        42.5
+      ],
+      [
+        92.42,
+        41.92
+      ],
+      [
+        92.99,
+        40.74
+      ],
+      [
+        94.52,
+        40.89
+      ],
+      [
+        95.45,
+        38.22
+      ],
+      [
+        91.31,
+        37.86
+      ],
+      [
+        90.13,
+        41.22
+      ]
+    ]
+  },
+  {
+    "id": "vialidad_ruta",
+    "name": "Vialidad - Ruta",
+    "zona": "Sur",
+    "points": [
+      [
+        77.74,
+        69.71
+      ],
+      [
+        76.98,
+        71.35
+      ],
+      [
+        76.0,
+        74.28
+      ],
+      [
+        74.91,
+        77.29
+      ],
+      [
+        73.92,
+        80.19
+      ],
+      [
+        72.35,
+        84.25
+      ],
+      [
+        71.57,
+        86.55
+      ],
+      [
+        70.21,
+        88.07
+      ],
+      [
+        68.06,
+        89.41
+      ],
+      [
+        65.16,
+        90.54
+      ],
+      [
+        61.26,
+        91.45
+      ],
+      [
+        55.43,
+        92.06
+      ],
+      [
+        46.47,
+        93.1
+      ],
+      [
+        36.42,
+        94.19
+      ],
+      [
+        29.13,
+        95.01
+      ],
+      [
+        25.75,
+        95.19
+      ],
+      [
+        26.11,
+        95.45
+      ],
+      [
+        27.72,
+        95.39
+      ],
+      [
+        30.59,
+        95.08
+      ],
+      [
+        35.14,
+        94.58
+      ],
+      [
+        43.69,
+        93.59
+      ],
+      [
+        51.25,
+        92.74
+      ],
+      [
+        57.32,
+        92.04
+      ],
+      [
+        61.13,
+        91.67
+      ],
+      [
+        63.54,
+        91.18
+      ],
+      [
+        65.78,
+        90.59
+      ],
+      [
+        67.78,
+        89.81
+      ],
+      [
+        69.59,
+        88.85
+      ],
+      [
+        70.78,
+        87.94
+      ],
+      [
+        71.89,
+        86.72
+      ],
+      [
+        72.44,
+        85.56
+      ],
+      [
+        74.77,
+        78.96
+      ],
+      [
+        76.29,
+        74.77
+      ],
+      [
+        77.1,
+        72.3
+      ],
+      [
+        77.75,
+        70.53
+      ],
+      [
+        78.16,
+        70.06
+      ],
+      [
+        79.98,
+        68.59
+      ],
+      [
+        79.52,
+        68.09
+      ],
+      [
+        77.74,
+        69.71
+      ]
+    ]
+  },
+  {
+    "id": "vialidad_contraruta",
+    "name": "Vialidad - Contra ruta",
+    "zona": "Sur",
+    "points": [
+      [
+        76.9,
+        70.25
+      ],
+      [
+        75.96,
+        73.13
+      ],
+      [
+        74.8,
+        76.63
+      ],
+      [
+        73.79,
+        78.85
+      ],
+      [
+        72.22,
+        83.69
+      ],
+      [
+        71.04,
+        86.47
+      ],
+      [
+        69.75,
+        87.95
+      ],
+      [
+        68.31,
+        88.91
+      ],
+      [
+        66.26,
+        89.87
+      ],
+      [
+        64.22,
+        90.5
+      ],
+      [
+        61.63,
+        91.08
+      ],
+      [
+        48.78,
+        92.54
+      ],
+      [
+        37.82,
+        93.8
+      ],
+      [
+        28.93,
+        94.79
+      ],
+      [
+        29.28,
+        94.96
+      ],
+      [
+        38.08,
+        94.0
+      ],
+      [
+        50.03,
+        92.63
+      ],
+      [
+        61.16,
+        91.47
+      ],
+      [
+        62.56,
+        91.14
+      ],
+      [
+        65.07,
+        90.59
+      ],
+      [
+        68.05,
+        89.42
+      ],
+      [
+        70.2,
+        87.99
+      ],
+      [
+        71.47,
+        86.71
+      ],
+      [
+        71.59,
+        86.27
+      ],
+      [
+        72.78,
+        83.05
+      ],
+      [
+        73.83,
+        80.37
+      ],
+      [
+        74.87,
+        77.31
+      ],
+      [
+        75.97,
+        74.26
+      ],
+      [
+        77.21,
+        70.75
+      ],
+      [
+        78.41,
+        67.9
+      ],
+      [
+        77.4,
+        67.76
+      ],
+      [
+        76.9,
+        70.25
+      ]
+    ]
+  }
+];
+
+const RUTA_FISCAL_STATUS_OPTIONS = [
+  { id: "libre", label: "Libre", color: "#22c55e", icon: "✓" },
+  { id: "moderado", label: "Tráfico Moderado", color: "#f97316", icon: "⚠" },
+  { id: "detenido", label: "Tráfico Detenido", color: "#ef4444", icon: "■" },
+];
+
+const mkRutasFiscales = () =>
+  Object.fromEntries(RUTAS_FISCALES.map(r => [r.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
+
+function MapaRutasFiscales({ rutas }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <div style={{ background:"linear-gradient(180deg,#061428,#0b1f38)", border:"1px solid rgba(56,189,248,0.22)", borderRadius:"14px", padding:"12px", marginBottom:"14px", overflow:"hidden" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"8px", flexWrap:"wrap" }}>
+        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}>🛣️ Rutas fiscales</div>
+        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+          {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
+            <span key={o.id} style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:o.color, background:o.color+"18", border:`1px solid ${o.color}44`, borderRadius:"999px", padding:"3px 7px" }}>{o.label}</span>
+          ))}
+        </div>
+      </div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width:"100%", height:"280px", display:"block", background:"radial-gradient(circle at 50% 35%, rgba(56,189,248,0.12), transparent 55%)", borderRadius:"10px" }}>
+        <defs>
+          <filter id="rutaGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.2" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        {RUTAS_FISCALES.map(r => {
+          const st = rutas?.[r.id] || { status:"libre" };
+          const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+          const pts = r.points.map(p => p.join(",")).join(" ");
+          const cx = r.points.reduce((a,p)=>a+p[0],0)/r.points.length;
+          const cy = r.points.reduce((a,p)=>a+p[1],0)/r.points.length;
+          return (
+            <g key={r.id}>
+              <polygon points={pts} fill={opt.color+"55"} stroke={opt.color} strokeWidth="0.9" filter="url(#rutaGlow)" />
+              <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" style={{ fill:"#fff", fontSize:"2.8px", fontFamily:getFont(theme,"secondary"), fontWeight:"700", paintOrder:"stroke", stroke:"#061428", strokeWidth:"0.45" }}>{r.name}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 const TODAS_TERMINALES = [
   { id: "general",    name: "GENERAL",    zona: "Todas" }, // ✨ NUEVO - Opción General
   { id: "contecon",   name: "CONTECON",   zona: "Norte" },
@@ -856,11 +1492,11 @@ function AnunciosBanner({ isAdmin }) {
   const isTablet = vw >= 480 && vw < 768;
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
-  const [viewerImage, setViewerImage] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
   const intervalRef = useRef(null);
 
   const cargar = async () => {
@@ -1142,29 +1778,8 @@ function AnunciosBanner({ isAdmin }) {
       {/* Slide animado */}
       <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
         {a.imagen_url && (
-          <div
-            onClick={() => setViewerImage({ url: a.imagen_url, title: a.titulo })}
-            title="Ver anuncio completo"
-            style={{
-              width:"100%",
-              aspectRatio:"4 / 1",
-              minHeight: isMobile ? "70px" : isTablet ? "110px" : "150px",
-              maxHeight: isMobile ? "120px" : "280px",
-              background:"#0a1628",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              overflow:"hidden",
-              cursor:"zoom-in",
-              borderBottom:"1px solid rgba(56,189,248,0.12)"
-            }}
-          >
-            <img
-              src={a.imagen_url}
-              alt={a.titulo}
-              style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block" }}
-              onError={e=>e.currentTarget.parentElement.style.display="none"}
-            />
+          <div onClick={() => setPreviewImage(a.imagen_url)} title="Ver anuncio completo" style={{ width:"100%", background:"#061224", display:"flex", justifyContent:"center", alignItems:"center", cursor:"zoom-in", overflow:"hidden" }}>
+            <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"auto", maxHeight: isMobile ? "none" : "72vh", objectFit:"contain", objectPosition:"center", display:"block", background:"#061224" }} onError={e=>e.target.style.display="none"} />
           </div>
         )}
         <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
@@ -1246,25 +1861,13 @@ function AnunciosBanner({ isAdmin }) {
           </div>
         )}
       </div>
-      {viewerImage && (
-        <div
-          onClick={() => setViewerImage(null)}
-          style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", cursor:"zoom-out" }}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setViewerImage(null); }}
-            style={{ position:"absolute", top:"14px", right:"14px", width:"38px", height:"38px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.25)", background:"rgba(255,255,255,0.08)", color:"#fff", fontSize:"20px", cursor:"pointer", lineHeight:1 }}
-            aria-label="Cerrar anuncio"
-          >✕</button>
-          <img
-            src={viewerImage.url}
-            alt={viewerImage.title || "Anuncio"}
-            style={{ maxWidth:"100%", maxHeight:"92vh", objectFit:"contain", borderRadius:"10px", boxShadow:"0 18px 60px rgba(0,0,0,0.55)" }}
-            onClick={(e) => e.stopPropagation()}
-          />
+      {BtnAdmin}
+      {previewImage && (
+        <div onClick={() => setPreviewImage(null)} style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", cursor:"zoom-out" }}>
+          <button onClick={() => setPreviewImage(null)} style={{ position:"absolute", top:"14px", right:"14px", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", borderRadius:"999px", width:"38px", height:"38px", fontSize:"20px", cursor:"pointer" }}>×</button>
+          <img src={previewImage} alt="Anuncio completo" style={{ maxWidth:"100%", maxHeight:"92vh", objectFit:"contain", borderRadius:"10px", boxShadow:"0 20px 80px rgba(0,0,0,0.8)" }} />
         </div>
       )}
-      {BtnAdmin}
       <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
     </div>
   );
@@ -1531,6 +2134,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 //     nombre text,
 //     activo boolean DEFAULT true,
 //     permisos jsonb DEFAULT '{}',
+//     expires_at timestamptz,
 //     created_at timestamptz DEFAULT now()
 //   );
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1555,20 +2159,20 @@ function AdminUsuariosPanel() {
   const theme = React.useContext(ThemeContext);
   const [usuarios, setUsuarios] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ id: null, username: "", password: "", nombre: "", activo: true, permisos: {} });
+  const [form, setForm] = useState({ id: null, username: "", password: "", nombre: "", activo: true, expires_at: "", permisos: {} });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [showPass, setShowPass] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const cargar = async () => {
-    const { data } = await sb.from("sub_admins").select("id,username,nombre,activo,permisos,created_at").order("created_at", { ascending: false });
+    const { data } = await sb.from("sub_admins").select("id,username,nombre,activo,permisos,expires_at,created_at").order("created_at", { ascending: false });
     if (data) setUsuarios(data);
   };
 
   useEffect(() => { cargar(); }, []);
 
-  const resetForm = () => setForm({ id: null, username: "", password: "", nombre: "", activo: true, permisos: {} });
+  const resetForm = () => setForm({ id: null, username: "", password: "", nombre: "", activo: true, expires_at: "", permisos: {} });
 
   const handleGuardar = async () => {
     if (!form.username.trim()) { setMsg({ type:"err", text:"El nombre de usuario es obligatorio." }); return; }
@@ -1581,6 +2185,7 @@ function AdminUsuariosPanel() {
         nombre: form.nombre.trim() || form.username.trim(),
         activo: form.activo,
         permisos: form.permisos,
+        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
       };
       if (form.password.trim()) {
         payload.password_hash = await hashPassword(form.password.trim());
@@ -1603,7 +2208,14 @@ function AdminUsuariosPanel() {
   };
 
   const handleEditar = (u) => {
-    setForm({ id: u.id, username: u.username, password: "", nombre: u.nombre || "", activo: u.activo, permisos: u.permisos || {} });
+    const toLocal = (iso) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    setForm({ id: u.id, username: u.username, password: "", nombre: u.nombre || "", activo: u.activo, expires_at: toLocal(u.expires_at), permisos: u.permisos || {} });
     setShowForm(true);
     setMsg(null);
   };
@@ -1668,6 +2280,12 @@ function AdminUsuariosPanel() {
             </span>
           </div>
 
+          <div>
+            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA DE VENCIMIENTO DEL ACCESO</div>
+            <input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} />
+            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"-6px", marginBottom:"10px" }}>Al vencer, el usuario queda sin acceso aunque conserve sus permisos.</div>
+          </div>
+
           {/* Permisos */}
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"10px" }}>PERMISOS DEL USUARIO</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"14px" }}>
@@ -1722,6 +2340,9 @@ function AdminUsuariosPanel() {
                     <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700", color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.nombre || u.username}</span>
                     <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", background:"rgba(255,255,255,0.06)", borderRadius:"4px", padding:"1px 5px" }}>@{u.username}</span>
                   </div>
+                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color: u.expires_at && new Date(u.expires_at) < new Date() ? "#ef4444" : "rgba(255,255,255,0.35)", marginBottom:"5px" }}>
+                    {u.expires_at ? (new Date(u.expires_at) < new Date() ? "⛔ Vencido: " : "⏳ Vigente hasta: ") + new Date(u.expires_at).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "⏳ Sin vencimiento"}
+                  </div>
                   {/* Permisos activos */}
                   <div style={{ display:"flex", flexWrap:"wrap", gap:"4px" }}>
                     {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).map(p => (
@@ -1773,8 +2394,8 @@ function useSubAdminSession() {
     try {
       const hash = await hashPassword(loginForm.password.trim());
       const { data } = await sb.from("sub_admins").select("*").eq("username", loginForm.username.trim().toLowerCase()).eq("password_hash", hash).eq("activo", true).single();
-      if (data) {
-        const session = { id: data.id, username: data.username, nombre: data.nombre, permisos: data.permisos || {} };
+      if (data && (!data.expires_at || new Date(data.expires_at).getTime() > Date.now())) {
+        const session = { id: data.id, username: data.username, nombre: data.nombre, permisos: data.permisos || {}, expires_at: data.expires_at || null };
         try { sessionStorage.setItem("cm_subadmin", JSON.stringify(session)); } catch {}
         setSubAdmin(session);
         setShowLogin(false);
@@ -1798,7 +2419,7 @@ function useSubAdminSession() {
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa tus credenciales de acceso.</div>
         <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:e.target.value}))} />
         <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:e.target.value})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
-        {loginErr && <div style={{ color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }}>Usuario o contraseña incorrectos.</div>}
+        {loginErr && <div style={{ color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }}>Usuario, contraseña incorrectos o acceso vencido.</div>}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           <button onClick={()=>{setShowLogin(false);setLoginErr(false);setLoginForm({username:"",password:""});}} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
           <button onClick={trySubLogin} disabled={loginLoading} style={{ padding:"11px", background:"#6366f1", border:"none", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"700", cursor:"pointer", opacity:loginLoading?0.7:1 }}>{loginLoading?"...":"Entrar"}</button>
@@ -3587,17 +4208,18 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [accesos,     setAccesos]     = useState(null);   // null = loading
   const [vialidades,  setVialidades]  = useState(null);  // null = loading
+  const [rutasFiscales, setRutasFiscales] = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem("trafico_section") || "mapa";
-      return ["incidentes", "accidentes"].includes(saved) ? "mapa" : saved;
-    } catch { return "mapa"; }
+    try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
   });
   const setActiveSectionPersist = (s) => {
     try { sessionStorage.setItem("trafico_section", s); } catch {}
     setActiveSection(s);
   };
+  useEffect(() => {
+    if (["incidentes","accidentes"].includes(activeSection)) setActiveSectionPersist("mapa");
+  }, []);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
@@ -3649,6 +4271,31 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     return () => sb.removeChannel(chan);
   }, []);
 
+  // ── Rutas fiscales ──
+  useEffect(() => {
+    sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
+      if (error) { setRutasFiscales(mkRutasFiscales()); return; }
+      if (!data || data.length === 0) {
+        await sb.from("rutas_fiscales").upsert(RUTAS_FISCALES.map(r => ({ id: r.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setRutasFiscales(mkRutasFiscales());
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+      setRutasFiscales({ ...mkRutasFiscales(), ...map });
+    });
+    const chan = sb.channel("rutas-fiscales-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
+        sb.from("rutas_fiscales").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+          setRutasFiscales(prev => ({ ...prev, ...map }));
+        });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
   const voteAcceso = async (id, newStatus) => {
     const acc = accesos?.[id];
     if (!acc) return;
@@ -3690,6 +4337,21 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
+  };
+
+  const voteRutaFiscal = async (id, newStatus) => {
+    const ruta = rutasFiscales?.[id];
+    if (!ruta) return;
+    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const actor = isAdmin ? "⚡ Admin" : `Usuario_${myId.slice(-4)}`;
+    const rl = isAdmin ? { allowed:true } : rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    setRutasFiscales(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: actor } }));
+    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "🛣️", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
@@ -3741,6 +4403,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     { id: "mapa",        label: "Mapa",        icon: "🗺️" },
     { id: "accesos",     label: "Accesos",     icon: "⚓" },
     { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: "🚛" },
   ];
 
   return (
@@ -3843,6 +4506,86 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: RUTAS FISCALES
+      ══════════════════════════════════════ */}
+      {activeSection === "rutas_fiscales" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;}}`}</style>
+          <MapaRutasFiscales rutas={rutasFiscales} />
+          {!rutasFiscales ? <SkeletonCard n={3}/> : (
+            <>
+              {["Norte", "Sur"].map(zona => (
+                <div key={zona} style={{ marginBottom:"14px" }}>
+                  <SectionLabel text={`ZONA ${zona.toUpperCase()}`} />
+                  {RUTAS_FISCALES.filter(r => r.zona === zona).map(r => {
+                    const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+                    const curOpt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+                    return (
+                      <div key={r.id} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${curOpt.color}44`, borderRadius:"12px", padding:"12px", marginBottom:"10px", overflow:"hidden" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", marginBottom:"8px" }}>
+                          <div>
+                            <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"700" }}>{r.name}</div>
+                            <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                          </div>
+                          <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}>{curOpt.icon} {curOpt.label}</div>
+                        </div>
+                        <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+                          {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
+                            <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
+                              {o.icon} {o.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "incidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin incidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
         </div>
       )}
 
@@ -8896,10 +9639,12 @@ function TutorialTab({ setActive, isAdmin }) {
   const stepLabels = ["Datos básicos","Teléfono","Correo","Contraseña"];
 
   const sections = [
-    { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos", items: [
-      { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual." },
+    { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
+      { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
       { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real. Puedes votar el estado actual: Libre/Fluido, Tráfico Lento, Saturado o Cerrado." },
       { label: "Tipo de Retorno", desc: "Indica si hay retornos activos: Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
+      { label: "Incidentes Pendientes", desc: "Reportes que aún no tienen votos suficientes. Puedes confirmar o marcar como falso." },
+      { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad. Puedes votar para marcarlos como resueltos." },
     ]},
     { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
       { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
