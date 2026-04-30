@@ -864,105 +864,151 @@ const mkRutasFiscales = () =>
 
 function FiscalZoneMap({ zona, rutas }) {
   const theme = React.useContext(ThemeContext);
+  const L = useLeaflet();
   const mapRef = useRef(null);
   const leafRef = useRef(null);
   const layersRef = useRef(null);
+  const tileRef = useRef(null);
+  const labelRef = useRef(null);
+  const routeRefs = useRef({});
+  const [tileMode, setTileMode] = useState("dark");
+
   const filtered = RUTAS_FISCALES.filter(r => r.zona === zona);
+  const TILE_OPTIONS = [
+    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "streets", label: "Calles", icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png" },
+  ];
+
+  const getRutaColor = (routeId) => {
+    const st = rutas?.[routeId] || { status: "libre" };
+    return (RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0]).color;
+  };
+
+  const focusRoute = (routeId) => {
+    const map = leafRef.current;
+    const layer = routeRefs.current[routeId];
+    if (!map || !layer) return;
+    map.fitBounds(layer.getBounds(), { padding: [38, 38], maxZoom: 17 });
+    layer.openTooltip();
+  };
 
   useEffect(() => {
-    if (!document.querySelector('link[href*="leaflet"]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
-    if (!document.querySelector('script[src*="leaflet"]') && !window.L) {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.async = true;
-      document.body.appendChild(script);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const init = () => {
-      if (cancelled || !window.L || !mapRef.current) return false;
-      const L = window.L;
-      if (!leafRef.current) {
-        const map = L.map(mapRef.current, {
-          zoomControl: true,
-          scrollWheelZoom: true,
-          dragging: true,
-          touchZoom: true,
-          doubleClickZoom: true,
-          attributionControl: false,
-        });
-        leafRef.current = map;
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          maxZoom: 20,
-          subdomains: "abcd",
-        }).addTo(map);
-        layersRef.current = L.layerGroup().addTo(map);
-        setTimeout(() => map.invalidateSize(), 120);
+    if (!L || !mapRef.current || leafRef.current) return;
+    const firstTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+    const map = L.map(mapRef.current, {
+      center: zona === "Norte" ? [19.0852, -104.2985] : [19.0638, -104.2912],
+      zoom: zona === "Norte" ? 15 : 14,
+      zoomControl: true,
+      attributionControl: false,
+      scrollWheelZoom: true,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+    });
+    tileRef.current = L.tileLayer(firstTile.url, { maxZoom: 20, subdomains: firstTile.subdomains || "abc" }).addTo(map);
+    layersRef.current = L.layerGroup().addTo(map);
+    leafRef.current = map;
+    setTimeout(() => map.invalidateSize(), 150);
+    return () => {
+      if (leafRef.current) {
+        leafRef.current.remove();
+        leafRef.current = null;
+        layersRef.current = null;
+        routeRefs.current = {};
       }
-      return true;
     };
-    if (init()) return;
-    const timer = setInterval(() => { if (init()) clearInterval(timer); }, 80);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, []);
+  }, [L]);
+
+  useEffect(() => {
+    if (!L || !leafRef.current || !tileRef.current) return;
+    const t = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+    leafRef.current.removeLayer(tileRef.current);
+    tileRef.current = L.tileLayer(t.url, { maxZoom: 20, subdomains: t.subdomains || "abc" }).addTo(leafRef.current);
+    if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
+    if (t.labels) labelRef.current = L.tileLayer(t.labels, { maxZoom: 20, subdomains: "abcd", pane: "overlayPane" }).addTo(leafRef.current);
+  }, [tileMode, L]);
 
   useEffect(() => {
     const map = leafRef.current;
-    if (!map || !window.L || !layersRef.current) return;
-    const L = window.L;
+    if (!map || !L || !layersRef.current) return;
     layersRef.current.clearLayers();
+    routeRefs.current = {};
     const allCoords = [];
     filtered.forEach(route => {
       const st = rutas?.[route.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
       const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
       route.coords.forEach(c => allCoords.push(c));
-      L.polygon(route.coords, {
+      const layer = L.polygon(route.coords, {
         color: opt.color,
         fillColor: opt.color,
         fillOpacity: 0.38,
-        opacity: 0.95,
+        opacity: 1,
         weight: 4,
         lineJoin: "round",
       })
-        .bindTooltip(`${route.name} · ${opt.label}`, {
+        .bindTooltip(`<b>${route.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, {
           permanent: false,
-          direction: "center",
+          sticky: true,
           className: "cm-tooltip",
         })
         .addTo(layersRef.current);
+      routeRefs.current[route.id] = layer;
     });
     if (allCoords.length) {
-      map.fitBounds(L.latLngBounds(allCoords), { padding: [22, 22], maxZoom: zona === "Norte" ? 17 : 15 });
-      setTimeout(() => map.invalidateSize(), 80);
+      map.fitBounds(L.latLngBounds(allCoords), { padding: [28, 28], maxZoom: zona === "Norte" ? 17 : 15 });
+      setTimeout(() => map.invalidateSize(), 150);
     }
-  }, [zona, rutas]);
+  }, [zona, rutas, L]);
 
   return (
     <div style={{ marginBottom:"14px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px", gap:"8px" }}>
-        <SectionLabel text={`MAPA ZONA ${zona.toUpperCase()}`} />
+      <style>{`
+        .cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:700!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}
+        .cm-tooltip::before{display:none!important;}
+        .leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.75)!important;border-color:rgba(255,255,255,0.1)!important;}
+        .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+      `}</style>
+      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"10px" }}>
+        <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.48)", fontWeight:"700" }}>Vista:</span>
+        {TILE_OPTIONS.map(t => (
+          <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 10px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.16)"}`, background:tileMode===t.id ? "rgba(56,189,248,0.16)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.75)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer" }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
       </div>
-      <div
-        ref={mapRef}
-        style={{
-          width:"100%",
-          height: zona === "Norte" ? "340px" : "380px",
-          borderRadius:"14px",
-          overflow:"hidden",
-          border:"1px solid rgba(56,189,248,0.28)",
-          boxShadow:"0 12px 36px rgba(0,0,0,0.35)",
-          background:"#061428",
-        }}
-      />
-      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.42)", marginTop:"6px" }}>
-        Puedes mover, acercar y alejar el mapa. Los polígonos cambian de color según el estado reportado.
+      <div style={{ display:"grid", gridTemplateColumns:"minmax(190px, 260px) 1fr", gap:"12px", alignItems:"stretch" }} className="rutas-fiscales-map-grid">
+        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"13px", padding:"10px", overflow:"hidden" }}>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", marginBottom:"8px" }}>ÍNDICE · ZONA {zona.toUpperCase()}</div>
+          {filtered.map(route => {
+            const st = rutas?.[route.id] || { status:"libre" };
+            const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+            return (
+              <button key={route.id} onClick={() => focusRoute(route.id)} style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", textAlign:"left", background:"rgba(10,22,40,0.72)", border:`1px solid ${opt.color}44`, borderLeft:`4px solid ${opt.color}`, borderRadius:"9px", padding:"9px 10px", marginBottom:"7px", cursor:"pointer" }}>
+                <span style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"12px", fontWeight:"700", lineHeight:1.25 }}>{route.name}</span>
+                <span style={{ fontFamily:getFont(theme,"secondary"), color:opt.color, fontSize:"10px", fontWeight:"800", whiteSpace:"nowrap" }}>{opt.icon}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div
+          ref={mapRef}
+          style={{
+            width:"100%",
+            minHeight: zona === "Norte" ? "420px" : "460px",
+            height:"clamp(420px, 52vh, 620px)",
+            borderRadius:"14px",
+            overflow:"hidden",
+            border:"1px solid rgba(56,189,248,0.28)",
+            boxShadow:"0 12px 36px rgba(0,0,0,0.35)",
+            background:"#061428",
+          }}
+        />
+      </div>
+      {!L && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa…</div>}
+      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.42)", marginTop:"8px" }}>
+        Puedes mover, acercar y alejar el mapa. Usa el índice para ubicar cada ruta y cambia entre Oscuro, Satélite, Claro o Calles.
       </div>
     </div>
   );
@@ -973,10 +1019,9 @@ function MapaRutasFiscales({ rutas, zona = "Norte" }) {
   return (
     <div style={{ background:"linear-gradient(180deg,#061428,#0b1f38)", border:"1px solid rgba(56,189,248,0.22)", borderRadius:"14px", padding:"12px", marginBottom:"14px", overflow:"hidden" }}>
       <style>{`
-        .cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:700!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}
-        .cm-tooltip::before{display:none!important;}
-        .leaflet-control-zoom a{background:rgba(4,12,24,0.9)!important;color:rgba(255,255,255,0.7)!important;border-color:rgba(255,255,255,0.1)!important;}
-        .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
+        @media (max-width: 760px){
+          .rutas-fiscales-map-grid{grid-template-columns:1fr!important;}
+        }
       `}</style>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"8px", flexWrap:"wrap" }}>
         <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}>🛣️ Mapa Ruta Fiscal · Zona {zona}</div>
