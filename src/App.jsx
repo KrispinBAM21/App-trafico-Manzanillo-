@@ -968,7 +968,7 @@ function FiscalZoneMap({ zona, rutas }) {
   );
 }
 
-function MapaRutasFiscales({ rutas }) {
+function MapaRutasFiscales({ rutas, zona = "Norte" }) {
   const theme = React.useContext(ThemeContext);
   return (
     <div style={{ background:"linear-gradient(180deg,#061428,#0b1f38)", border:"1px solid rgba(56,189,248,0.22)", borderRadius:"14px", padding:"12px", marginBottom:"14px", overflow:"hidden" }}>
@@ -979,18 +979,70 @@ function MapaRutasFiscales({ rutas }) {
         .leaflet-control-zoom a:hover{background:rgba(56,189,248,0.2)!important;}
       `}</style>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"8px", flexWrap:"wrap" }}>
-        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}>🛣️ Rutas fiscales</div>
+        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}>🛣️ Mapa Ruta Fiscal · Zona {zona}</div>
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
           {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
             <span key={o.id} style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:o.color, background:o.color+"18", border:`1px solid ${o.color}44`, borderRadius:"999px", padding:"3px 7px" }}>{o.label}</span>
           ))}
         </div>
       </div>
-      <FiscalZoneMap zona="Norte" rutas={rutas} />
-      <FiscalZoneMap zona="Sur" rutas={rutas} />
+      <FiscalZoneMap zona={zona} rutas={rutas} />
     </div>
   );
 }
+
+function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
+  const theme = React.useContext(ThemeContext);
+  const [zonaActiva, setZonaActiva] = useState("Norte");
+  const zonas = [
+    { id:"Norte", label:"Zona Norte", icon:"⬆️" },
+    { id:"Sur", label:"Zona Sur", icon:"⬇️" },
+  ];
+
+  if (!rutasFiscales) return <SkeletonCard n={3}/>;
+
+  return (
+    <div>
+      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"14px", padding:"8px", marginBottom:"14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+        {zonas.map(z => (
+          <button key={z.id} onClick={() => setZonaActiva(z.id)} style={{ padding:"12px 10px", borderRadius:"11px", border:`1px solid ${zonaActiva===z.id ? "rgba(56,189,248,0.65)" : "rgba(255,255,255,0.08)"}`, background: zonaActiva===z.id ? "linear-gradient(135deg,rgba(56,189,248,0.20),rgba(129,140,248,0.12))" : "rgba(255,255,255,0.04)", color: zonaActiva===z.id ? "#38bdf8" : "rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer", letterSpacing:"0.5px" }}>
+            {z.icon} {z.label}
+          </button>
+        ))}
+      </div>
+
+      <SectionLabel text={`RUTAS FISCALES · ${zonaActiva.toUpperCase()}`} />
+      <MapaRutasFiscales rutas={rutasFiscales} zona={zonaActiva} />
+
+      <div style={{ marginBottom:"14px" }}>
+        <SectionLabel text={`ESTADOS · ZONA ${zonaActiva.toUpperCase()}`} />
+        {RUTAS_FISCALES.filter(r => r.zona === zonaActiva).map(r => {
+          const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+          const curOpt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+          return (
+            <div key={r.id} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${curOpt.color}44`, borderRadius:"12px", padding:"12px", marginBottom:"10px", overflow:"hidden" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", marginBottom:"8px" }}>
+                <div>
+                  <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"700" }}>{r.name}</div>
+                  <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                </div>
+                <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}>{curOpt.icon} {curOpt.label}</div>
+              </div>
+              <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+                {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
+                  <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
+                    {o.icon} {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 const TODAS_TERMINALES = [
   { id: "general",    name: "GENERAL",    zona: "Todas" }, // ✨ NUEVO - Opción General
@@ -4607,39 +4659,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       ══════════════════════════════════════ */}
       {activeSection === "rutas_fiscales" && (
         <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;}}`}</style>
-          <MapaRutasFiscales rutas={rutasFiscales} />
-          {!rutasFiscales ? <SkeletonCard n={3}/> : (
-            <>
-              {["Norte", "Sur"].map(zona => (
-                <div key={zona} style={{ marginBottom:"14px" }}>
-                  <SectionLabel text={`ZONA ${zona.toUpperCase()}`} />
-                  {RUTAS_FISCALES.filter(r => r.zona === zona).map(r => {
-                    const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
-                    const curOpt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
-                    return (
-                      <div key={r.id} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${curOpt.color}44`, borderRadius:"12px", padding:"12px", marginBottom:"10px", overflow:"hidden" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", marginBottom:"8px" }}>
-                          <div>
-                            <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"700" }}>{r.name}</div>
-                            <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                          </div>
-                          <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}>{curOpt.icon} {curOpt.label}</div>
-                        </div>
-                        <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
-                          {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
-                            <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
-                              {o.icon} {o.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </>
-          )}
+          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;} }`}</style>
+          <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
         </div>
       )}
 
@@ -12037,34 +12058,3 @@ function App() {
 }
 
 export default App;
-
-
-/*
-SQL necesario para este ajuste:
-
--- 1) Vencimiento de usuarios administradores
-ALTER TABLE sub_admins
-  ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-
--- 2) Estados de rutas fiscales
-CREATE TABLE IF NOT EXISTS rutas_fiscales (
-  id text PRIMARY KEY,
-  status text NOT NULL DEFAULT 'libre',
-  last_update bigint DEFAULT (extract(epoch from now()) * 1000)::bigint,
-  updated_by text DEFAULT 'Sistema',
-  created_at timestamptz DEFAULT now()
-);
-
-INSERT INTO rutas_fiscales (id, status, last_update, updated_by)
-VALUES
-  ('contecon_ruta', 'libre', (extract(epoch from now()) * 1000)::bigint, 'Sistema'),
-  ('ruta_fiscal_norte', 'libre', (extract(epoch from now()) * 1000)::bigint, 'Sistema'),
-  ('ruta_fiscal_sur', 'libre', (extract(epoch from now()) * 1000)::bigint, 'Sistema'),
-  ('vialidad_ruta', 'libre', (extract(epoch from now()) * 1000)::bigint, 'Sistema'),
-  ('vialidad_contraruta', 'libre', (extract(epoch from now()) * 1000)::bigint, 'Sistema')
-ON CONFLICT (id) DO NOTHING;
-
--- Opcional si tienes RLS activo:
-ALTER TABLE rutas_fiscales ENABLE ROW LEVEL SECURITY;
--- Crea políticas SELECT / INSERT / UPDATE públicas según tu esquema de seguridad.
-*/
