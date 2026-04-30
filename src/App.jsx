@@ -1000,16 +1000,34 @@ function AnunciosBanner({ isAdmin }) {
     }
   };
 
+  const [adminTab, setAdminTab] = useState("anuncios");
   const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
 
   // Panel admin de gestión
   if (isAdmin && showForm) return (
-    <div style={{ margin:"0 0 0 0", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"0", padding:"16px" }}>
+    <div style={{ margin:"0 0 0 0", background:"rgba(10,22,50,0.95)", borderTop:"2px solid rgba(251,191,36,0.4)", padding:"0" }}>
+      {/* Tabs del panel admin */}
+      <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
+        {[
+          { id:"anuncios", label:"📢 Anuncios", color:"#fbbf24" },
+          { id:"usuarios", label:"👥 Usuarios", color:"#818cf8" },
+        ].map(t => (
+          <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ flex:1, padding:"12px 16px", background: adminTab===t.id ? "rgba(255,255,255,0.05)" : "transparent", border:"none", borderBottom: adminTab===t.id ? `2px solid ${t.color}` : "2px solid transparent", color: adminTab===t.id ? t.color : "rgba(255,255,255,0.4)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", marginBottom:"-1px" }}>
+            {t.label}
+          </button>
+        ))}
+        <button onClick={() => { setShowForm(false); setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true }); }} style={{ padding:"12px 16px", background:"transparent", border:"none", borderBottom:"2px solid transparent", color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:"16px", transition:"color 0.2s" }} onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.3)"}>✕</button>
+      </div>
+
+      {/* Tab: Usuarios */}
+      {adminTab === "usuarios" && <AdminUsuariosPanel />}
+
+      {/* Tab: Anuncios */}
+      {adminTab === "anuncios" && <div style={{ padding:"16px", background:"rgba(251,191,36,0.04)" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
         <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#fbbf24", letterSpacing:"1px" }}>
           {form.id ? "✏️ EDITAR ANUNCIO" : "📢 NUEVO ANUNCIO"}
         </span>
-        <button onClick={() => { setShowForm(false); setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true }); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
       </div>
       {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
       <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
@@ -1093,6 +1111,7 @@ function AnunciosBanner({ isAdmin }) {
 
       {/* Lista de anuncios existentes para admin */}
       <AdminAnunciosList onToggle={handleToggle} onDelete={handleEliminar} onEdit={handleEditar} onRefresh={cargar} />
+      </div>}
     </div>
   );
 
@@ -1100,7 +1119,7 @@ function AnunciosBanner({ isAdmin }) {
   const BtnAdmin = isAdmin ? (
     <div style={{ display:"flex", justifyContent:"flex-end", padding:"6px 12px 0", background:"rgba(251,191,36,0.04)", borderTop:"1px solid rgba(251,191,36,0.15)" }}>
       <button onClick={() => setShowForm(true)} style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:"8px", padding:"5px 12px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
-        ＋ GESTIONAR ANUNCIOS
+        ＋ GESTIONAR ANUNCIOS · USUARIOS
       </button>
     </div>
   ) : null;
@@ -1122,7 +1141,7 @@ function AnunciosBanner({ isAdmin }) {
       {/* Slide animado */}
       <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
         {a.imagen_url && (
-          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"auto", maxHeight: isMobile ? "120px" : "160px", objectFit:"contain", objectPosition:"center", display:"block", background:"#0a1628" }} onError={e=>e.target.style.display="none"} />
+          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:isMobile ? "auto" : "auto", maxHeight: isMobile ? "120px" : "250px", objectFit:"cover", objectPosition:"center", display:"block", background:"#0a1628" }} onError={e=>e.target.style.display="none"} />
         )}
         <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
@@ -1458,6 +1477,295 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
       )}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 👥 ADMIN USUARIOS — Gestión de sub-admins con permisos granulares
+// Tabla requerida en Supabase:
+//   CREATE TABLE IF NOT EXISTS sub_admins (
+//     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+//     username text UNIQUE NOT NULL,
+//     password_hash text NOT NULL,
+//     nombre text,
+//     activo boolean DEFAULT true,
+//     permisos jsonb DEFAULT '{}',
+//     created_at timestamptz DEFAULT now()
+//   );
+// ─────────────────────────────────────────────────────────────────────────────
+const PERMISOS_DISPONIBLES = [
+  { id: "publicar_anuncios",    label: "Publicar anuncios",        icon: "📢", desc: "Crear y gestionar anuncios publicitarios" },
+  { id: "publicar_comunicados", label: "Publicar comunicados",     icon: "📋", desc: "Crear noticias y comunicados oficiales" },
+  { id: "actualizar_trafico",   label: "Actualizar tráfico",       icon: "🚗", desc: "Modificar estado de vialidades y accesos" },
+  { id: "actualizar_terminales",label: "Actualizar terminales",    icon: "🏭", desc: "Modificar estado de terminales" },
+  { id: "actualizar_patios",    label: "Actualizar patios",        icon: "📦", desc: "Modificar estado de patios reguladores" },
+  { id: "actualizar_carriles",  label: "Actualizar carriles",      icon: "🚦", desc: "Modificar estado de carriles" },
+  { id: "moderar_reportes",     label: "Moderar reportes",         icon: "📌", desc: "Resolver y eliminar reportes de usuarios" },
+];
+
+const hashPassword = async (pass) => {
+  const encoded = new TextEncoder().encode(pass + "_cm_salt_2025");
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+};
+
+function AdminUsuariosPanel() {
+  const theme = React.useContext(ThemeContext);
+  const [usuarios, setUsuarios] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ id: null, username: "", password: "", nombre: "", activo: true, permisos: {} });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [showPass, setShowPass] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const cargar = async () => {
+    const { data } = await sb.from("sub_admins").select("id,username,nombre,activo,permisos,created_at").order("created_at", { ascending: false });
+    if (data) setUsuarios(data);
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  const resetForm = () => setForm({ id: null, username: "", password: "", nombre: "", activo: true, permisos: {} });
+
+  const handleGuardar = async () => {
+    if (!form.username.trim()) { setMsg({ type:"err", text:"El nombre de usuario es obligatorio." }); return; }
+    if (!form.id && !form.password.trim()) { setMsg({ type:"err", text:"La contraseña es obligatoria para nuevos usuarios." }); return; }
+    if (form.password && form.password.length < 6) { setMsg({ type:"err", text:"La contraseña debe tener al menos 6 caracteres." }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const payload = {
+        username: form.username.trim().toLowerCase(),
+        nombre: form.nombre.trim() || form.username.trim(),
+        activo: form.activo,
+        permisos: form.permisos,
+      };
+      if (form.password.trim()) {
+        payload.password_hash = await hashPassword(form.password.trim());
+      }
+      let error;
+      if (form.id) {
+        ({ error } = await sb.from("sub_admins").update(payload).eq("id", form.id));
+      } else {
+        ({ error } = await sb.from("sub_admins").insert(payload));
+      }
+      if (error) { setMsg({ type:"err", text: error.code === "23505" ? "Ese nombre de usuario ya existe." : "Error: " + error.message }); }
+      else {
+        setMsg({ type:"ok", text: form.id ? "Usuario actualizado." : "Usuario creado correctamente." });
+        resetForm();
+        setTimeout(() => { setShowForm(false); setMsg(null); cargar(); }, 1500);
+      }
+    } catch(ex) {
+      setMsg({ type:"err", text:"Error inesperado: " + (ex?.message || ex) });
+    } finally { setSaving(false); }
+  };
+
+  const handleEditar = (u) => {
+    setForm({ id: u.id, username: u.username, password: "", nombre: u.nombre || "", activo: u.activo, permisos: u.permisos || {} });
+    setShowForm(true);
+    setMsg(null);
+  };
+
+  const handleEliminar = async (id) => {
+    await sb.from("sub_admins").delete().eq("id", id);
+    setConfirmDelete(null);
+    cargar();
+  };
+
+  const handleToggle = async (id, activo) => {
+    await sb.from("sub_admins").update({ activo: !activo }).eq("id", id);
+    cargar();
+  };
+
+  const togglePermiso = (pid) => {
+    setForm(f => ({ ...f, permisos: { ...f.permisos, [pid]: !f.permisos[pid] } }));
+  };
+
+  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+
+  return (
+    <div style={{ padding:"16px", background:"rgba(99,102,241,0.05)", borderTop:"1px solid rgba(99,102,241,0.2)" }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#818cf8", letterSpacing:"1px" }}>👥 GESTIÓN DE USUARIOS</div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", marginTop:"2px" }}>Crea sub-admins y asigna permisos específicos</div>
+        </div>
+        {!showForm && (
+          <button onClick={() => { resetForm(); setShowForm(true); setMsg(null); }} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)", borderRadius:"8px", padding:"6px 12px", color:"#818cf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+            ＋ NUEVO USUARIO
+          </button>
+        )}
+      </div>
+
+      {/* Formulario */}
+      {showForm && (
+        <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:"12px", padding:"16px", marginBottom:"16px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+            <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#818cf8", letterSpacing:"1px" }}>
+              {form.id ? "✏️ EDITAR USUARIO" : "👤 NUEVO USUARIO"}
+            </span>
+            <button onClick={() => { setShowForm(false); resetForm(); setMsg(null); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
+          </div>
+
+          {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
+
+          <input style={inp} placeholder="Nombre de usuario (único) *" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))} />
+          <input style={inp} placeholder="Nombre visible (ej: Juan Pérez)" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} />
+
+          <div style={{ position:"relative", marginBottom:"10px" }}>
+            <input
+              type={showPass ? "text" : "password"}
+              style={{...inp, marginBottom:0, paddingRight:"44px"}}
+              placeholder={form.id ? "Nueva contraseña (dejar vacío = sin cambio)" : "Contraseña (mín. 6 caracteres) *"}
+              value={form.password}
+              onChange={e=>setForm(f=>({...f,password:e.target.value}))}
+            />
+            <span onClick={()=>setShowPass(v=>!v)} style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"rgba(255,255,255,0.4)", fontSize:"14px" }}>
+              {showPass ? "🙈" : "👁"}
+            </span>
+          </div>
+
+          {/* Permisos */}
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"10px" }}>PERMISOS DEL USUARIO</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"14px" }}>
+            {PERMISOS_DISPONIBLES.map(p => (
+              <div
+                key={p.id}
+                onClick={() => togglePermiso(p.id)}
+                style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"8px", cursor:"pointer", background: form.permisos[p.id] ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.04)", border:`1px solid ${form.permisos[p.id] ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.08)"}`, transition:"all 0.2s", userSelect:"none" }}
+              >
+                <div style={{ width:"14px", height:"14px", borderRadius:"3px", border:`2px solid ${form.permisos[p.id] ? "#818cf8" : "rgba(255,255,255,0.2)"}`, background: form.permisos[p.id] ? "#818cf8" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.2s" }}>
+                  {form.permisos[p.id] && <span style={{ color:"#fff", fontSize:"9px", fontWeight:"900", lineHeight:1 }}>✓</span>}
+                </div>
+                <div>
+                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", color: form.permisos[p.id] ? "#c7d2fe" : "rgba(255,255,255,0.6)" }}>{p.icon} {p.label}</div>
+                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"rgba(255,255,255,0.3)", lineHeight:1.3 }}>{p.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Activo toggle */}
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
+            <div onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${form.activo?"#22c55e":"rgba(255,255,255,0.2)"}`, background:form.activo?"#22c55e":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, transition:"all 0.2s" }}>
+              {form.activo && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
+            </div>
+            <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)" }}>Usuario activo</span>
+          </div>
+
+          <button onClick={handleGuardar} disabled={saving} style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#6366f1,#818cf8)", border:"none", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:saving?"not-allowed":"pointer", letterSpacing:"0.5px", opacity:saving?0.7:1 }}>
+            {saving ? "Guardando..." : (form.id ? "💾 GUARDAR CAMBIOS" : "👤 CREAR USUARIO")}
+          </button>
+        </div>
+      )}
+
+      {/* Lista de usuarios */}
+      {usuarios.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"24px", color:"rgba(255,255,255,0.25)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>
+          No hay usuarios creados aún.<br/>
+          <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.15)" }}>Crea el primer sub-admin con el botón de arriba.</span>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px", marginBottom:"8px" }}>
+            USUARIOS CREADOS ({usuarios.length})
+          </div>
+          {usuarios.map(u => (
+            <div key={u.id} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"4px" }}>
+                    <div style={{ width:"8px", height:"8px", borderRadius:"50%", background: u.activo ? "#22c55e" : "#6b7280", flexShrink:0 }} />
+                    <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700", color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.nombre || u.username}</span>
+                    <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", background:"rgba(255,255,255,0.06)", borderRadius:"4px", padding:"1px 5px" }}>@{u.username}</span>
+                  </div>
+                  {/* Permisos activos */}
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:"4px" }}>
+                    {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).map(p => (
+                      <span key={p.id} style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"#c7d2fe", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:"3px", padding:"1px 6px" }}>
+                        {p.icon} {p.label}
+                      </span>
+                    ))}
+                    {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).length === 0 && (
+                      <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"rgba(255,255,255,0.2)" }}>Sin permisos asignados</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:"5px", flexShrink:0 }}>
+                  <button onClick={() => handleEditar(u)} style={{ background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"6px", padding:"5px 9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✏️</button>
+                  <button onClick={() => handleToggle(u.id, u.activo)} style={{ background: u.activo ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", border:`1px solid ${u.activo?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.12)"}`, borderRadius:"6px", padding:"5px 9px", color: u.activo ? "#22c55e" : "rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>{u.activo?"ON":"OFF"}</button>
+                  {confirmDelete === u.id ? (
+                    <>
+                      <button onClick={() => handleEliminar(u.id)} style={{ background:"rgba(239,68,68,0.2)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ Confirmar</button>
+                      <button onClick={() => setConfirmDelete(null)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"6px", padding:"5px 9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>✕</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(u.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>🗑</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HOOK: LOGIN PARA SUB-ADMINS ─────────────────────────────────────────────
+// Permite a usuarios con permisos específicos iniciar sesión
+function useSubAdminSession() {
+  const [subAdmin, setSubAdmin] = useState(() => {
+    try { const s = sessionStorage.getItem("cm_subadmin"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username:"", password:"" });
+  const [loginErr, setLoginErr] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const theme = React.useContext(ThemeContext);
+
+  const trySubLogin = async () => {
+    if (!loginForm.username.trim() || !loginForm.password.trim()) return;
+    setLoginLoading(true); setLoginErr(false);
+    try {
+      const hash = await hashPassword(loginForm.password.trim());
+      const { data } = await sb.from("sub_admins").select("*").eq("username", loginForm.username.trim().toLowerCase()).eq("password_hash", hash).eq("activo", true).single();
+      if (data) {
+        const session = { id: data.id, username: data.username, nombre: data.nombre, permisos: data.permisos || {} };
+        try { sessionStorage.setItem("cm_subadmin", JSON.stringify(session)); } catch {}
+        setSubAdmin(session);
+        setShowLogin(false);
+        setLoginForm({ username:"", password:"" });
+      } else {
+        setLoginErr(true);
+      }
+    } catch { setLoginErr(true); }
+    finally { setLoginLoading(false); }
+  };
+
+  const subLogout = () => {
+    try { sessionStorage.removeItem("cm_subadmin"); } catch {}
+    setSubAdmin(null);
+  };
+
+  const LoginModal = showLogin ? (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
+      <div style={{ background:"#0d1b2e", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
+        <div style={{ fontFamily:getFont(theme,"title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Acceso Operador</div>
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa tus credenciales de acceso.</div>
+        <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:e.target.value}))} />
+        <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:e.target.value})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
+        {loginErr && <div style={{ color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }}>Usuario o contraseña incorrectos.</div>}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+          <button onClick={()=>{setShowLogin(false);setLoginErr(false);setLoginForm({username:"",password:""});}} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
+          <button onClick={trySubLogin} disabled={loginLoading} style={{ padding:"11px", background:"#6366f1", border:"none", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"700", cursor:"pointer", opacity:loginLoading?0.7:1 }}>{loginLoading?"...":"Entrar"}</button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return { subAdmin, subLogout, showLogin, setShowLogin, LoginModal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9726,6 +10034,7 @@ function CopyRow({ label, value, mono, theme, getFont }) {
 
 function App() {
   const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
+  const { subAdmin, subLogout, setShowLogin: setShowSubLogin, LoginModal } = useSubAdminSession();
 
   const [active,    setActiveRaw]  = useState(() => {
     try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
@@ -10110,6 +10419,7 @@ function App() {
 
       {/* Modal Admin — fuera de cualquier stacking context */}
       {Modal}
+      {LoginModal}
       
       {/* Panel de Configuración de Tema */}
       {showThemeConfig && (
