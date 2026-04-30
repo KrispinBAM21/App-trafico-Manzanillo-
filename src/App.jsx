@@ -856,6 +856,7 @@ function AnunciosBanner({ isAdmin }) {
   const isTablet = vw >= 480 && vw < 768;
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
+  const [viewerImage, setViewerImage] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
   const [saving, setSaving] = useState(false);
@@ -1141,7 +1142,30 @@ function AnunciosBanner({ isAdmin }) {
       {/* Slide animado */}
       <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
         {a.imagen_url && (
-          <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:isMobile ? "auto" : "auto", maxHeight: isMobile ? "120px" : "250px", objectFit:"cover", objectPosition:"center", display:"block", background:"#0a1628" }} onError={e=>e.target.style.display="none"} />
+          <div
+            onClick={() => setViewerImage({ url: a.imagen_url, title: a.titulo })}
+            title="Ver anuncio completo"
+            style={{
+              width:"100%",
+              aspectRatio:"4 / 1",
+              minHeight: isMobile ? "70px" : isTablet ? "110px" : "150px",
+              maxHeight: isMobile ? "120px" : "280px",
+              background:"#0a1628",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              overflow:"hidden",
+              cursor:"zoom-in",
+              borderBottom:"1px solid rgba(56,189,248,0.12)"
+            }}
+          >
+            <img
+              src={a.imagen_url}
+              alt={a.titulo}
+              style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block" }}
+              onError={e=>e.currentTarget.parentElement.style.display="none"}
+            />
+          </div>
         )}
         <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
@@ -1222,6 +1246,24 @@ function AnunciosBanner({ isAdmin }) {
           </div>
         )}
       </div>
+      {viewerImage && (
+        <div
+          onClick={() => setViewerImage(null)}
+          style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", cursor:"zoom-out" }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setViewerImage(null); }}
+            style={{ position:"absolute", top:"14px", right:"14px", width:"38px", height:"38px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.25)", background:"rgba(255,255,255,0.08)", color:"#fff", fontSize:"20px", cursor:"pointer", lineHeight:1 }}
+            aria-label="Cerrar anuncio"
+          >✕</button>
+          <img
+            src={viewerImage.url}
+            alt={viewerImage.title || "Anuncio"}
+            style={{ maxWidth:"100%", maxHeight:"92vh", objectFit:"contain", borderRadius:"10px", boxShadow:"0 18px 60px rgba(0,0,0,0.55)" }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       {BtnAdmin}
       <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
     </div>
@@ -3547,7 +3589,10 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const [vialidades,  setVialidades]  = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
-    try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
+    try {
+      const saved = sessionStorage.getItem("trafico_section") || "mapa";
+      return ["incidentes", "accidentes"].includes(saved) ? "mapa" : saved;
+    } catch { return "mapa"; }
   });
   const setActiveSectionPersist = (s) => {
     try { sessionStorage.setItem("trafico_section", s); } catch {}
@@ -3696,8 +3741,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     { id: "mapa",        label: "Mapa",        icon: "🗺️" },
     { id: "accesos",     label: "Accesos",     icon: "⚓" },
     { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
-    { id: "incidentes",  label: "Incidentes",  icon: "⚠️" },
-    { id: "accidentes",  label: "Accidentes",  icon: "🚨" },
   ];
 
   return (
@@ -3800,45 +3843,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
-      {/* ══════════════════════════════════════
-          SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
-      {activeSection === "incidentes" && (
-        <div style={{ padding: "16px" }}>
-          {/* Mapa solo con incidentes */}
-          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
-          <div style={{ marginTop: "16px" }}>
-            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
-                Sin incidentes activos en este momento
-              </div>
-            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: ACCIDENTES
-      ══════════════════════════════════════ */}
-      {activeSection === "accidentes" && (
-        <div style={{ padding: "16px" }}>
-          {/* Mapa solo con accidentes */}
-          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
-          <div style={{ marginTop: "16px" }}>
-            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
-                Sin accidentes activos en este momento
-              </div>
-            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
-          </div>
         </div>
       )}
 
@@ -8892,12 +8896,10 @@ function TutorialTab({ setActive, isAdmin }) {
   const stepLabels = ["Datos básicos","Teléfono","Correo","Contraseña"];
 
   const sections = [
-    { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
-      { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
+    { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos", items: [
+      { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual." },
       { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real. Puedes votar el estado actual: Libre/Fluido, Tráfico Lento, Saturado o Cerrado." },
       { label: "Tipo de Retorno", desc: "Indica si hay retornos activos: Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
-      { label: "Incidentes Pendientes", desc: "Reportes que aún no tienen votos suficientes. Puedes confirmar o marcar como falso." },
-      { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad. Puedes votar para marcarlos como resueltos." },
     ]},
     { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
       { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
