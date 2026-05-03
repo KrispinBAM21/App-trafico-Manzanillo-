@@ -171,6 +171,31 @@ const DEFAULT_THEME = {
 // ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
 const ThemeContext = React.createContext(DEFAULT_THEME);
 
+// ─── ICONOS REALISTAS SVG (sin dependencias externas) ───────────────────────
+function AppIcon({ name, size = 20, active = false, style = {} }) {
+  const glow = active ? "drop-shadow(0 0 6px rgba(56,189,248,0.55))" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))";
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", style:{ display:"block", filter:glow, ...style } };
+  const stroke = active ? "#f8fafc" : "#94a3b8";
+  const accent = active ? "#38bdf8" : "#64748b";
+  const green = "#25D366";
+  switch (name) {
+    case "home": return <svg {...common}><path d="M3 11.2 12 4l9 7.2" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M5.5 10.5V20h13v-9.5" fill="rgba(56,189,248,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M9.5 20v-6h5v6" stroke={accent} strokeWidth="1.8"/></svg>;
+    case "traffic": return <svg {...common}><path d="M4 17c4-6 12-6 16 0" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="M7 14l2-5h6l2 5" fill="rgba(56,189,248,.18)" stroke={stroke} strokeWidth="1.7" strokeLinejoin="round"/><circle cx="8" cy="15.7" r="1.4" fill="#38bdf8"/><circle cx="16" cy="15.7" r="1.4" fill="#38bdf8"/><path d="M10 9V6h4v3" stroke="#f59e0b" strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case "report": return <svg {...common}><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" fill="rgba(239,68,68,.18)" stroke={stroke} strokeWidth="1.8"/><circle cx="12" cy="10" r="2.4" fill="#ef4444"/><path d="M12 6v2" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "terminal": return <svg {...common}><path d="M3 19h18" stroke={stroke} strokeWidth="1.8"/><path d="M5 18V8l6-3 6 3v10" fill="rgba(56,189,248,.16)" stroke={stroke} strokeWidth="1.6"/><path d="M8 18v-5h8v5" fill="rgba(15,23,42,.7)" stroke={accent} strokeWidth="1.5"/><path d="M8 10h1.7M11.2 10h1.7M14.4 10h1.7" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "yard": return <svg {...common}><path d="M4 8h16v10H4z" fill="rgba(251,146,60,.18)" stroke={stroke} strokeWidth="1.7"/><path d="M7 8V5h10v3M8 11h8M8 14h8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="M4 18h16" stroke="#f59e0b" strokeWidth="1.8"/></svg>;
+    case "access": return <svg {...common}><path d="M5 19c3-7 11-7 14 0" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="M12 4v9" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="m8 8 4-4 4 4" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "lanes": return <svg {...common}><path d="M6 21 9 3M18 21 15 3" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><path d="M4 21h16" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
+    case "news": return <svg {...common}><path d="M5 5h12a2 2 0 0 1 2 2v12H7a2 2 0 0 1-2-2V5Z" fill="rgba(148,163,184,.18)" stroke={stroke} strokeWidth="1.7"/><path d="M8 9h6M8 12h8M8 15h5" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="M19 8h1v9a2 2 0 0 1-2 2" stroke={stroke} strokeWidth="1.5"/></svg>;
+    case "donate": return <svg {...common}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="rgba(59,130,246,.22)" stroke={stroke} strokeWidth="1.6"/><path d="M9 12h6" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case "info": return <svg {...common}><circle cx="12" cy="12" r="8.5" fill="rgba(56,189,248,.14)" stroke={stroke} strokeWidth="1.7"/><path d="M12 10.5v5" stroke={accent} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="7.7" r="1.2" fill="#38bdf8"/></svg>;
+    case "whatsapp": return <svg {...common} viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill={green}/><path d="M22.7 9.4A9.4 9.4 0 0 0 7.2 21.6L6.1 26l4.5-1.2A9.4 9.4 0 0 0 22.7 9.4Z" fill="rgba(255,255,255,.16)" stroke="white" strokeWidth="1.5"/><path d="M20.4 18.3c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.5.1a7 7 0 0 1-3.4-3c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.2-.5s0-.3-.1-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.3s1 2.7 1.1 2.9c.1.2 2 3.1 4.9 4.3 2.4 1 2.9.7 3.5.6.5-.1 1.6-.7 1.9-1.4.2-.6.2-1.2.1-1.3-.1-.2-.3-.2-.5-.3Z" fill="white"/></svg>;
+    case "web": return <svg {...common}><circle cx="12" cy="12" r="8.5" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.7"/><path d="M3.8 12h16.4M12 3.5c2.2 2.4 3.2 5.2 3.2 8.5S14.2 18.1 12 20.5C9.8 18.1 8.8 15.3 8.8 12S9.8 5.9 12 3.5Z" stroke={accent} strokeWidth="1.5"/></svg>;
+    case "phone": return <svg {...common}><rect x="7" y="3" width="10" height="18" rx="2.3" fill="rgba(37,211,102,.14)" stroke={stroke} strokeWidth="1.7"/><path d="M10 6h4M11.2 18h1.6" stroke={green} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    default: return <span style={{fontSize:size, lineHeight:1}}>{name}</span>;
+  }
+}
+
 
 const TERMINALS_NORTE = [
   { id: "contecon", name: "CONTECON", fullName: "Contecon Manzanillo S.A." },
@@ -1906,11 +1931,11 @@ function AnunciosBanner({ isAdmin }) {
       <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>📱</span>
+          <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="whatsapp" size={18} /></span>
           <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
         </div>
         <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", pointerEvents:"none" }}>🌐</span>
+          <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="web" size={18} /></span>
           <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
         </div>
       </div>
@@ -2056,7 +2081,7 @@ function AnunciosBanner({ isAdmin }) {
                   target="_blank" rel="noopener noreferrer"
                   style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e", fontWeight:"700", textDecoration:"none", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:"8px", padding:"7px 14px" }}
                 >
-                  <span style={{ fontSize:"14px" }}>📱</span> WhatsApp
+                  <AppIcon name="whatsapp" size={17} /> WhatsApp
                 </a>
               )}
               {a.enlace && (
@@ -4137,18 +4162,18 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
 function NavBar({ active, set }) {
   const theme = React.useContext(ThemeContext);
   const row1 = [
-    { id: "inicio",      label: "Inicio",      icon: "🏠"  },
-    { id: "trafico",     label: "Tráfico",     icon: "🗺️" },
-    { id: "reporte",     label: "Reportar",    icon: "📍"  },
-    { id: "terminales",  label: "Terminales",  icon: "⚓"  },
-    { id: "patio",       label: "Patios",      icon: "🏭"  },
+    { id: "inicio",      label: "Inicio",      icon: "home"  },
+    { id: "trafico",     label: "Tráfico",     icon: "traffic" },
+    { id: "reporte",     label: "Reportar",    icon: "report"  },
+    { id: "terminales",  label: "Terminales",  icon: "terminal"  },
+    { id: "patio",       label: "Patios",      icon: "yard"  },
   ];
   const row2 = [
-    { id: "segundo",    label: "Confinados", icon: "🚪"  },
-    { id: "carriles",   label: "Carriles",   icon: "🚦"  },
-    { id: "noticias",   label: "Noticias",   icon: "📰"  },
-    { id: "donativos",  label: "Donativos",  icon: "💙"  },
-    { id: "tutorial",   label: "Más Info",   icon: "📖"  },
+    { id: "segundo",    label: "Confinados", icon: "access"  },
+    { id: "carriles",   label: "Carriles",   icon: "lanes"  },
+    { id: "noticias",   label: "Noticias",   icon: "news"  },
+    { id: "donativos",  label: "Donativos",  icon: "donate"  },
+    { id: "tutorial",   label: "Más Info",   icon: "info"  },
   ];
 
   const TabBtn = (t) => {
@@ -4199,7 +4224,7 @@ function NavBar({ active, set }) {
           setIsHovered(false);
         }}
       >
-        <span style={{ fontSize: "14px" }}>{t.icon}</span>
+        <AppIcon name={t.icon} size={18} active={isActive} />
         {t.label.toUpperCase()}
       </button>
     );
