@@ -250,6 +250,7 @@ const ACCESOS_PRINCIPALES = [
   { id: "pezvela",   label: "Acceso Pez Vela",  color: "#a78bfa", zona: "Zona Sur"   },
   { id: "puerta15",  label: "Acceso Puerta 15", color: "#34d399", zona: "Zona Sur"   },
   { id: "zonanorte", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Zona Norte" },
+  { id: "patio",     label: "Acceso Patio Regulador", color: "#06eb7a", zona: "Zona Sur" },
 ];
 const ACCESO_STATUS_OPTIONS = [
   { id: "libre",    label: "Libre / Fluido", color: "#22c55e", icon: "✓" },
@@ -1035,48 +1036,22 @@ function FiscalZoneMap({ zona, rutas }) {
           </button>
         ))}
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"minmax(190px, 260px) 1fr", gap:"12px", alignItems:"stretch" }} className="rutas-fiscales-map-grid">
-        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"13px", padding:"10px", overflow:"hidden" }}>
-          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", marginBottom:"8px" }}>ÍNDICE · ZONA {zona.toUpperCase()}</div>
-          {filtered.map(route => {
-            const st = rutas?.[route.id] || { status:"libre" };
-            const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
-            return (
-              <button key={route.id} onClick={() => focusRoute(route.id)} style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", textAlign:"left", background:"rgba(10,22,40,0.72)", border:`1px solid ${opt.color}44`, borderLeft:`4px solid ${opt.color}`, borderRadius:"9px", padding:"9px 10px", marginBottom:"7px", cursor:"pointer" }}>
-                <span style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"12px", fontWeight:"700", lineHeight:1.25 }}>{route.name}</span>
-                <span style={{ fontFamily:getFont(theme,"secondary"), color:opt.color, fontSize:"10px", fontWeight:"800", whiteSpace:"nowrap" }}>{opt.icon}</span>
-              </button>
-            );
-          })}
-          <div style={{ height:"1px", background:"rgba(255,255,255,0.10)", margin:"10px 0" }} />
-          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", marginBottom:"8px" }}>REFERENCIAS</div>
-          {filteredRefs.map(ref => {
-            const color = ref.tipo === "acceso" ? "#fbbf24" : "#38bdf8";
-            return (
-              <button key={ref.id} onClick={() => focusReference(ref.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:"8px", textAlign:"left", background:"rgba(10,22,40,0.52)", border:`1px solid ${color}33`, borderRadius:"9px", padding:"8px 9px", marginBottom:"6px", cursor:"pointer" }}>
-                <span style={{ width:"24px", height:"24px", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"999px", background:color+"18", border:`1px solid ${color}55`, flexShrink:0 }}>{ref.icon}</span>
-                <span style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.86)", fontSize:"11px", fontWeight:"700", lineHeight:1.2 }}>{ref.name}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div
-          ref={mapRef}
-          style={{
-            width:"100%",
-            minHeight: zona === "Norte" ? "420px" : "460px",
-            height:"clamp(420px, 52vh, 620px)",
-            borderRadius:"14px",
-            overflow:"hidden",
-            border:"1px solid rgba(56,189,248,0.28)",
-            boxShadow:"0 12px 36px rgba(0,0,0,0.35)",
-            background:"#061428",
-          }}
-        />
-      </div>
+      <div
+        ref={mapRef}
+        style={{
+          width:"100%",
+          minHeight: zona === "Norte" ? "420px" : "460px",
+          height:"clamp(420px, 58vh, 660px)",
+          borderRadius:"14px",
+          overflow:"hidden",
+          border:"1px solid rgba(56,189,248,0.28)",
+          boxShadow:"0 12px 36px rgba(0,0,0,0.35)",
+          background:"#061428",
+        }}
+      />
       {!L && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa…</div>}
       <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.42)", marginTop:"8px" }}>
-        Puedes mover, acercar y alejar el mapa. Usa el índice para ubicar rutas, terminales y accesos de referencia; cambia entre Oscuro, Satélite, Claro o Calles.
+        Puedes mover, acercar y alejar el mapa. Los iconos del mapa muestran terminales y accesos de referencia; cambia entre Oscuro, Satélite, Claro o Calles.
       </div>
     </div>
   );
@@ -4853,6 +4828,16 @@ const ACCESO_POLYGONS = [
       [19.08674185086953,-104.2968903999984],[19.08704712309154,-104.2969844176178],
       [19.08672247073757,-104.2983679102416],[19.08644827095395,-104.2982655501238],
       [19.08674185086953,-104.2968903999984],
+    ],
+  },
+  {
+    id: "patio",
+    name: "Acceso Patio Regulador",
+    color: "#06eb7a",
+    coords: [
+      [19.103245,-104.270605],[19.103850,-104.270605],
+      [19.103850,-104.269990],[19.103245,-104.269990],
+      [19.103245,-104.270605],
     ],
   },
 ];
