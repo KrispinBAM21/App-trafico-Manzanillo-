@@ -7583,6 +7583,39 @@ const VOTOS_DEFAULT = {
   3: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
 };
 
+const USER_VOTES_DEFAULT = { 1: {}, 2: {}, 3: {} };
+
+const contarVotosFases = (userVotes = USER_VOTES_DEFAULT) => {
+  const counts = JSON.parse(JSON.stringify(VOTOS_DEFAULT));
+  [1, 2, 3].forEach((fase) => {
+    Object.values(userVotes?.[fase] || {}).forEach((tipo) => {
+      if (counts[fase]?.[tipo] !== undefined) counts[fase][tipo] += 1;
+    });
+  });
+  return counts;
+};
+
+const normalizarVotosFases = (raw) => {
+  // Formato nuevo: { _userVotes: { fase: { userId: status } } }
+  if (raw?._userVotes) {
+    const userVotes = { ...USER_VOTES_DEFAULT, ...raw._userVotes };
+    return { userVotes, counts: contarVotosFases(userVotes) };
+  }
+  // Formato anterior: solo conteos. Se respeta para no romper datos existentes,
+  // pero los votos nuevos ya se guardan por usuario.
+  return {
+    userVotes: { ...USER_VOTES_DEFAULT },
+    counts: { ...VOTOS_DEFAULT, ...(raw || {}) },
+  };
+};
+
+const paqueteVotosFases = (userVotes) => ({
+  _version: 2,
+  _userVotes: userVotes,
+  counts: contarVotosFases(userVotes),
+  updatedAt: Date.now(),
+});
+
 function useLeaflet() {
   const [L, setL] = useState(null);
   useEffect(() => {
@@ -7600,7 +7633,7 @@ function useLeaflet() {
 }
 
 // ─── Sub-componente: Mapa de Tráfico para 2do Acceso ─────────────────────────
-function TrafficMapSegundo({ theme }) {
+function TrafficMapSegundo({ theme, myId }) {
   const L = useLeaflet();
   const mapRef    = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -7609,6 +7642,7 @@ function TrafficMapSegundo({ theme }) {
   const tileLayerRef = useRef(null);
 
   const [votos, setVotos]           = useState(VOTOS_DEFAULT);
+  const [userVotes, setUserVotes]   = useState(USER_VOTES_DEFAULT);
   const [statusMapa, setStatusMapa] = useState({ 1: "fluido", 2: "fluido", 3: "fluido" });
   const [lastUpdate, setLastUpdate] = useState(null);
   const [activeVote, setActiveVote] = useState({ fase: null, tipo: null });
@@ -7637,17 +7671,19 @@ function TrafficMapSegundo({ theme }) {
   useEffect(() => {
     sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
       if (data?.data) {
-        const loaded = { ...VOTOS_DEFAULT, ...data.data };
-        setVotos(loaded);
-        setStatusMapa(recalcAllStatus(loaded));
+        const { userVotes: uv, counts } = normalizarVotosFases(data.data);
+        setUserVotes(uv);
+        setVotos(counts);
+        setStatusMapa(recalcAllStatus(counts));
       }
     });
     const chan = sb.channel("trafico-mapa-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
         if (r?.id === ROW_ID && r?.data) {
-          const loaded = { ...VOTOS_DEFAULT, ...r.data };
-          setVotos(loaded);
-          setStatusMapa(recalcAllStatus(loaded));
+          const { userVotes: uv, counts } = normalizarVotosFases(r.data);
+          setUserVotes(uv);
+          setVotos(counts);
+          setStatusMapa(recalcAllStatus(counts));
         }
       }).subscribe();
     return () => sb.removeChannel(chan);
@@ -7694,36 +7730,41 @@ function TrafficMapSegundo({ theme }) {
 
   // ── Votar y guardar en Supabase ────────────────────────────────────────────
   const votar = async (fase, tipo) => {
+    const faseKey = String(fase);
+    const votoActual = userVotes?.[faseKey]?.[myId] || userVotes?.[fase]?.[myId] || null;
+
+    if (votoActual === tipo) {
+      alert(`Ya tienes registrado tu voto como ${TRAFICO_STATUS[tipo].label} en ${TRAFICO_FASES[fase].nombre}.`);
+      return;
+    }
+
+    if (votoActual && !window.confirm(`Ya votaste ${TRAFICO_STATUS[votoActual].label} en ${TRAFICO_FASES[fase].nombre}.\n\n¿Quieres cambiar tu voto a ${TRAFICO_STATUS[tipo].label}?`)) {
+      return;
+    }
+
+    const rl = rateLimiter.check(`trafico_fase_${myId}_${fase}`, 2500);
+    if (!rl.allowed) return;
+
     setActiveVote({ fase, tipo });
     setTimeout(() => setActiveVote({ fase: null, tipo: null }), 600);
 
-    let next;
-    if (tipo === "sinuso") {
-      // Toggle: si ya está en sinuso, lo desactiva; si no, lo activa y limpia los demás
-      const yaActivo = statusMapa[fase] === "sinuso";
-      next = {
-        ...votos,
-        [fase]: yaActivo
-          ? { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 }
-          : { fluido: 0, moderado: 0, detenido: 0, sinuso: 1 },
-      };
-    } else {
-      next = {
-        ...votos,
-        [fase]: { ...votos[fase], sinuso: 0, [tipo]: votos[fase][tipo] + 1 },
-      };
-    }
+    const nextUserVotes = {
+      ...userVotes,
+      [faseKey]: { ...(userVotes?.[faseKey] || userVotes?.[fase] || {}), [myId]: tipo },
+    };
+    const nextCounts = contarVotosFases(nextUserVotes);
 
-    setVotos(next);
-    setStatusMapa(recalcAllStatus(next));
+    setUserVotes(nextUserVotes);
+    setVotos(nextCounts);
+    setStatusMapa(recalcAllStatus(nextCounts));
 
     const now = new Date();
     setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
 
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: next });
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: paqueteVotosFases(nextUserVotes) });
   };
 
-  const totalVotos = (fase) => Object.entries(votos[fase]).filter(([k]) => k !== "sinuso").reduce((a, [,b]) => a + b, 0);
+  const totalVotos = (fase) => Object.values(votos[fase] || {}).reduce((a, b) => a + b, 0);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -7772,13 +7813,10 @@ function TrafficMapSegundo({ theme }) {
               </div>
               <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", lineHeight: 1.5, fontFamily: getFont(theme,"secondary") }}>{fase.descripcion}</p>
 
-              {/* Barra de votos */}
+              {/* Barra de estado dominante: ya no pinta varios colores al mismo tiempo */}
               {total > 0 && (
-                <div style={{ display: "flex", gap: 2, height: 5, borderRadius: 6, overflow: "hidden", background: "rgba(255,255,255,0.1)" }}>
-                  {["fluido","moderado","detenido","sinuso"].map((tipo) => {
-                    const pct = (v[tipo] / total) * 100;
-                    return pct > 0 ? <div key={tipo} style={{ width: `${pct}%`, background: TRAFICO_STATUS[tipo].color, transition: "width 0.4s" }} /> : null;
-                  })}
+                <div style={{ height: 6, borderRadius: 6, overflow: "hidden", background: "rgba(255,255,255,0.1)" }}>
+                  <div style={{ width: "100%", height: "100%", background: t.color, transition: "background 0.4s", boxShadow: `0 0 12px ${t.color}70` }} />
                 </div>
               )}
 
@@ -7787,18 +7825,20 @@ function TrafficMapSegundo({ theme }) {
                 {["fluido","moderado","detenido","sinuso"].map((tipo) => {
                   const tr = TRAFICO_STATUS[tipo];
                   const isActive = activeVote.fase === id && activeVote.tipo === tipo;
+                  const miVoto = userVotes?.[String(id)]?.[myId] || userVotes?.[id]?.[myId];
+                  const isMine = miVoto === tipo;
                   const isSinUsoOn = tipo === "sinuso" && st === "sinuso";
                   return (
                     <button
                       key={tipo}
                       onClick={() => votar(id, tipo)}
-                      style={{ fontSize: "11px", padding: "9px 10px", borderRadius: "9px", border: `2px solid ${tr.color}`, background: isActive || isSinUsoOn ? tr.color : "rgba(255,255,255,0.04)", color: isActive || isSinUsoOn ? "#fff" : "#e2e8f0", cursor: "pointer", fontWeight: 600, transition: "all 0.2s", transform: isActive ? "scale(0.97)" : "scale(1)", display: "flex", alignItems: "center", gap: 7, fontFamily: getFont(theme,"secondary") }}
-                      onMouseEnter={(e) => { if (!isActive && !isSinUsoOn) e.currentTarget.style.background = `${tr.color}20`; }}
-                      onMouseLeave={(e) => { if (!isActive && !isSinUsoOn) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                      style={{ fontSize: "11px", padding: "9px 10px", borderRadius: "9px", border: `2px solid ${tr.color}`, background: isActive || isMine ? tr.color : "rgba(255,255,255,0.04)", color: isActive || isMine ? "#fff" : "#e2e8f0", cursor: "pointer", fontWeight: 600, transition: "all 0.2s", transform: isActive ? "scale(0.97)" : "scale(1)", display: "flex", alignItems: "center", gap: 7, fontFamily: getFont(theme,"secondary") }}
+                      onMouseEnter={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = `${tr.color}20`; }}
+                      onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
                       <span style={{ fontSize: "14px" }}>{tr.emoji}</span>
-                      <span>{tr.label}{isSinUsoOn ? " (activo — toca para desactivar)" : ""}</span>
-                      {v[tipo] > 0 && tipo !== "sinuso" && <span style={{ marginLeft: "auto", background: tr.color, color: "#fff", borderRadius: "12px", padding: "1px 7px", fontSize: "10px", fontWeight: 700 }}>{v[tipo]}</span>}
+                      <span>{tr.label}{isMine ? " · tu voto" : ""}</span>
+                      {v[tipo] > 0 && <span style={{ marginLeft: "auto", background: tr.color, color: "#fff", borderRadius: "12px", padding: "1px 7px", fontSize: "10px", fontWeight: 700 }}>{v[tipo]}</span>}
                     </button>
                   );
                 })}
@@ -7831,7 +7871,7 @@ function TrafficMapSegundo({ theme }) {
   );
 }
 
-function SegundoAccesoTab() {
+function SegundoAccesoTab({ myId }) {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
 
@@ -8232,7 +8272,7 @@ function SegundoAccesoTab() {
             </div>
             <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
           </div>
-          <TrafficMapSegundo theme={theme} />
+          <TrafficMapSegundo theme={theme} myId={myId} />
         </div>
       </>}
 
@@ -11393,7 +11433,7 @@ function App() {
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
         {active === "patio"      && <PatioReguladorTab myId={myId} />}
-        {active === "segundo"    && <SegundoAccesoTab />}
+        {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <DonativosTab />}
