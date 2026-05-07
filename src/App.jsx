@@ -97,6 +97,55 @@ const TABS = [
   { key: "tutorial",    label: "Tutorial",    icon: "🎓" }
 ];
 
+// ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
+// Permite compartir URLs como: https://conectmanzanillo.com/#reporte
+// También acepta: ?seccion=reporte, ?tab=reporte o ?section=reporte
+const VALID_TAB_KEYS = TABS.map(t => t.key);
+const TAB_ALIASES = {
+  reportar: "reporte",
+  patio: "patio",
+  patios: "patio",
+  terminal: "terminales",
+  terminales: "terminales",
+  trafico: "trafico",
+  tráfico: "trafico",
+  segundoacceso: "segundo",
+  segundo_acceso: "segundo",
+  "2doacceso": "segundo",
+  "2do_acceso": "segundo",
+  confinados: "segundo",
+  mapa: "reporte",
+  accesos: "trafico"
+};
+const normalizeTabKey = (value) => {
+  if (!value || typeof value !== "string") return null;
+  const clean = decodeURIComponent(value)
+    .toLowerCase()
+    .trim()
+    .replace(/^#/, "")
+    .replace(/^\//, "")
+    .replace(/[^a-z0-9_áéíóúñ]/g, "");
+  const mapped = TAB_ALIASES[clean] || clean;
+  return VALID_TAB_KEYS.includes(mapped) ? mapped : null;
+};
+const getTabFromUrl = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return normalizeTabKey(params.get("seccion") || params.get("tab") || params.get("section") || window.location.hash);
+  } catch {
+    return null;
+  }
+};
+const updateUrlForTab = (tab, replace = false) => {
+  try {
+    const safe = normalizeTabKey(tab) || "inicio";
+    const nextUrl = `${window.location.pathname}${window.location.search}#${safe}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` === nextUrl) return;
+    const fn = replace ? "replaceState" : "pushState";
+    window.history[fn]({ tab: safe }, "", nextUrl);
+  } catch {}
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIGURACIÓN DE TEMA POR DEFECTO
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6553,7 +6602,129 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         style={{ width:"100%", padding:"14px", background: (subcat && location && coords) ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "rgba(255,255,255,0.08)", border:"none", borderRadius:"12px", color: (subcat && location && coords) ? "#fff" : "rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor: (subcat && location && coords) ? "pointer" : "not-allowed", letterSpacing:"1px", marginBottom:"20px", transition:"all 0.2s" }}>
         ENVIAR REPORTE →
       </button>
+ {/* ───────────────── TUTORIAL REPORTAR ───────────────── */}
+      <div
+        style={{
+          marginTop: "18px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(56,189,248,0.18)",
+          borderRadius: "14px",
+          padding: "16px",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "12px",
+          }}
+        >
+          <span style={{ fontSize: "22px" }}>🎥</span>
 
+          <div>
+            <div
+              style={{
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: "700",
+                fontFamily: getFont(theme, "title"),
+              }}
+            >
+              Tutorial · Cómo usar REPORTAR
+            </div>
+
+            <div
+              style={{
+                color: "rgba(255,255,255,0.55)",
+                fontSize: "11px",
+                marginTop: "2px",
+                fontFamily: getFont(theme, "secondary"),
+              }}
+            >
+              Aprende a reportar incidentes, tráfico y accidentes correctamente.
+            </div>
+          </div>
+        </div>
+
+        <a
+          href="https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s/2673"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg,#25D366,#1faa52)",
+              borderRadius: "12px",
+              padding: "14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              transition: "0.2s",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  width: "46px",
+                  height: "46px",
+                  borderRadius: "12px",
+                  background: "rgba(255,255,255,0.16)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "24px",
+                }}
+              >
+                ▶️
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "#fff",
+                    fontWeight: "700",
+                    fontSize: "14px",
+                    fontFamily: getFont(theme, "secondary"),
+                  }}
+                >
+                  Ver video tutorial
+                </div>
+
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.82)",
+                    fontSize: "11px",
+                    marginTop: "2px",
+                    fontFamily: getFont(theme, "secondary"),
+                  }}
+                >
+                  Canal oficial de WhatsApp Connect Manzanillo
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                color: "#fff",
+                fontWeight: "700",
+                fontSize: "12px",
+                background: "rgba(0,0,0,0.18)",
+                padding: "8px 12px",
+                borderRadius: "10px",
+                fontFamily: getFont(theme, "secondary"),
+              }}
+            >
+              ABRIR
+            </div>
+          </div>
+        </a>
+      </div>
+        
       {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
       {pendingAll.length > 0 && (
         <>
@@ -11067,12 +11238,33 @@ function App() {
   const { subAdmin, subLogout, setShowLogin: setShowSubLogin, LoginModal } = useSubAdminSession();
 
   const [active,    setActiveRaw]  = useState(() => {
-    try { return localStorage.getItem("puerto_active_tab") || "inicio"; } catch { return "inicio"; }
+    const fromUrl = getTabFromUrl();
+    if (fromUrl) return fromUrl;
+    try { return normalizeTabKey(localStorage.getItem("puerto_active_tab")) || "inicio"; } catch { return "inicio"; }
   });
-  const setActive = (tab) => {
-    try { localStorage.setItem("puerto_active_tab", tab); } catch {}
-    setActiveRaw(tab);
+  const setActive = (tab, opts = {}) => {
+    const safeTab = normalizeTabKey(tab) || "inicio";
+    try { localStorage.setItem("puerto_active_tab", safeTab); } catch {}
+    setActiveRaw(safeTab);
+    updateUrlForTab(safeTab, !!opts.replace);
   };
+
+  // Sincroniza la sección con URLs compartidas y con botones atrás/adelante del navegador.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const tab = getTabFromUrl();
+      if (!tab) return;
+      try { localStorage.setItem("puerto_active_tab", tab); } catch {}
+      setActiveRaw(tab);
+    };
+    syncFromUrl();
+    window.addEventListener("hashchange", syncFromUrl);
+    window.addEventListener("popstate", syncFromUrl);
+    return () => {
+      window.removeEventListener("hashchange", syncFromUrl);
+      window.removeEventListener("popstate", syncFromUrl);
+    };
+  }, []);
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
