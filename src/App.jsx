@@ -1782,7 +1782,13 @@ function RutaCostoAdmin() {
   const [origin,      setOrigin]      = useState("");
   const [destination, setDestination] = useState("");
   const [gasPrice,    setGasPrice]    = useState(24);
+  const [dieselPrice, setDieselPrice] = useState(25);
+  const [fuelType, setFuelType] = useState("gasolina");
   const [kmPerLiter,  setKmPerLiter]  = useState(12);
+  const [cityKmPerLiter, setCityKmPerLiter] = useState(12);
+  const [roadKmPerLiter, setRoadKmPerLiter] = useState(17);
+  const [cityPercent, setCityPercent] = useState(60);
+  const [maxSpeed, setMaxSpeed] = useState(60);
   const [profit,      setProfit]      = useState(40);
   const [showProfit,  setShowProfit]  = useState(true);
 
@@ -1793,6 +1799,63 @@ function RutaCostoAdmin() {
   const [showMap,  setShowMap]  = useState(false);
   const [selected, setSelected] = useState(0);
   const [mapsErr,  setMapsErr]  = useState(false);
+  const [stops, setStops] = useState([""]);
+  const [routeMode, setRouteMode] = useState("alternativas"); // alternativas | paradas
+  const [mapType, setMapType] = useState("roadmap");
+  const [showKmlLayer, setShowKmlLayer] = useState(true);
+  const kmlLayerRef = useRef(null);
+  const markersRef = useRef([]);
+
+
+  const fuelPrice = fuelType === "diesel" ? dieselPrice : gasPrice;
+  const roadPercent = Math.max(0, 100 - Number(cityPercent || 0));
+  const effectiveKmPerLiter = (() => {
+    const city = Number(cityKmPerLiter || 0);
+    const road = Number(roadKmPerLiter || 0);
+    const cPct = Number(cityPercent || 0) / 100;
+    const rPct = roadPercent / 100;
+    const weighted = (city * cPct) + (road * rPct);
+    return weighted > 0 ? weighted : Number(kmPerLiter || 1);
+  })();
+
+  const addCity = useCallback((s) =>
+    String(s || "").toLowerCase().includes("manzanillo") ? s : `${s}, Manzanillo, Colima`, []);
+
+  const cleanStops = stops.map(s => String(s || "").trim()).filter(Boolean);
+
+  const routeWaypoints = cleanStops.map(s => ({
+    location: addCity(s),
+    stopover: true,
+  }));
+
+  const clearCalcMarkers = useCallback(() => {
+    markersRef.current.forEach(m => m?.setMap?.(null));
+    markersRef.current = [];
+  }, []);
+
+  const drawRouteMarkers = useCallback((leg) => {
+    if (!window.google?.maps || !gmap.current || !leg) return;
+    clearCalcMarkers();
+    const mk = (pos, label, color) => {
+      const marker = new window.google.maps.Marker({
+        position: pos,
+        map: gmap.current,
+        label: { text: label, color: "#fff", fontWeight: "700" },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: color,
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2,
+        },
+      });
+      markersRef.current.push(marker);
+    };
+    mk(leg.start_location, "A", "#22c55e");
+    mk(leg.end_location, "B", "#ef4444");
+  }, [clearCalcMarkers]);
+
 
   /* ── Init mapa ── */
   useEffect(() => {
@@ -1812,10 +1875,23 @@ function RutaCostoAdmin() {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
+          mapTypeId: "roadmap",
           zoomControlOptions: {
             position: window.google.maps.ControlPosition.RIGHT_TOP,
           },
         });
+
+        // Capa KML opcional: sube "Mapa Manzanillo.kml" a /public/mapa-manzanillo.kml
+        // o publica un KML accesible por URL y cambia esta ruta.
+        try {
+          const kmlUrl = `${window.location.origin}/mapa-manzanillo.kml`;
+          kmlLayerRef.current = new window.google.maps.KmlLayer({
+            url: kmlUrl,
+            map: showKmlLayer ? gmap.current : null,
+            preserveViewport: true,
+            suppressInfoWindows: false,
+          });
+        } catch {}
 
         dirSvc.current  = new window.google.maps.DirectionsService();
         dirRend.current = new window.google.maps.DirectionsRenderer({
@@ -1852,6 +1928,17 @@ function RutaCostoAdmin() {
       .catch(() => setMapsErr(true));
   }, []);
 
+  useEffect(() => {
+    if (!gmap.current || !window.google?.maps) return;
+    gmap.current.setMapTypeId(mapType);
+    gmap.current.setOptions({ styles: mapType === "roadmap" ? DARK_STYLES : null });
+  }, [mapType]);
+
+  useEffect(() => {
+    if (!kmlLayerRef.current || !gmap.current) return;
+    kmlLayerRef.current.setMap(showKmlLayer ? gmap.current : null);
+  }, [showKmlLayer]);
+
   /* ── Calcular rutas ── */
   const calcular = useCallback(() => {
     if (!origin.trim() || !destination.trim()) {
@@ -1873,8 +1960,10 @@ function RutaCostoAdmin() {
       {
         origin:      addCity(origin),
         destination: addCity(destination),
+        waypoints: routeMode === "paradas" ? routeWaypoints : [],
+        optimizeWaypoints: routeMode === "paradas",
         travelMode:  "DRIVING",
-        provideRouteAlternatives: true,
+        provideRouteAlternatives: routeMode === "alternativas" && routeWaypoints.length === 0,
         region: "mx",
       },
       (result, status) => {
@@ -1894,10 +1983,21 @@ function RutaCostoAdmin() {
         /* Validar que las rutas estén dentro de Manzanillo */
         const rutas = result.routes
           .map((r, i) => {
-            const leg    = r.legs[0];
-            const distKm = leg.distance.value / 1000;
-            const liters = distKm / kmPerLiter;
-            const cost   = liters * gasPrice;
+            const mainLeg = r.legs[0];
+            const totalMeters = r.legs.reduce((acc, leg) => acc + (leg.distance?.value || 0), 0);
+            const totalSeconds = r.legs.reduce((acc, leg) => acc + (leg.duration?.value || 0), 0);
+            const distKm = totalMeters / 1000;
+            const liters = distKm / effectiveKmPerLiter;
+            const cost   = liters * fuelPrice;
+            const leg    = {
+              ...mainLeg,
+              distance: { text: `${distKm.toFixed(1)} km`, value: totalMeters },
+              duration: { text: `${Math.round(totalSeconds / 60)} min`, value: totalSeconds },
+              start_address: r.legs[0]?.start_address,
+              end_address: r.legs[r.legs.length - 1]?.end_address,
+              start_location: r.legs[0]?.start_location,
+              end_location: r.legs[r.legs.length - 1]?.end_location,
+            };
             return {
               index:      i,
               summary:    r.summary || `Ruta ${i + 1}`,
@@ -1916,16 +2016,19 @@ function RutaCostoAdmin() {
 
         dirRend.current.setDirections(result);
         dirRend.current.setRouteIndex(rutas[0].index);
+        drawRouteMarkers(result.routes[rutas[0].index]?.legs?.[0]);
         setSelected(rutas[0].index);
         setShowMap(true);
         setRoutes(rutas);
       }
     );
-  }, [origin, destination, gasPrice, kmPerLiter, profit, mapReady]);
+  }, [origin, destination, fuelPrice, effectiveKmPerLiter, profit, mapReady, routeMode, routeWaypoints, addCity, drawRouteMarkers]);
 
   const selectRoute = (item) => {
     setSelected(item.index);
     dirRend.current?.setRouteIndex(item.index);
+    const dirs = dirRend.current?.getDirections?.();
+    drawRouteMarkers(dirs?.routes?.[item.index]?.legs?.[0]);
   };
 
   /* ── Recalcular costos si cambia precio o rendimiento ── */
@@ -1934,12 +2037,12 @@ function RutaCostoAdmin() {
     setRoutes(prev =>
       prev.map(r => ({
         ...r,
-        liters: r.distKm / kmPerLiter,
-        cost:   (r.distKm / kmPerLiter) * gasPrice,
-        total:  (r.distKm / kmPerLiter) * gasPrice * (1 + profit / 100),
+        liters: r.distKm / effectiveKmPerLiter,
+        cost:   (r.distKm / effectiveKmPerLiter) * fuelPrice,
+        total:  (r.distKm / effectiveKmPerLiter) * fuelPrice * (1 + profit / 100),
       })).sort((a, b) => a.cost - b.cost)
     );
-  }, [gasPrice, kmPerLiter, profit]);
+  }, [fuelPrice, effectiveKmPerLiter, profit]);
 
   /* ─────────────────────────────────────────────────── render ── */
   return (
@@ -2011,8 +2114,78 @@ function RutaCostoAdmin() {
             </div>
           </div>
 
+          {/* Referencias y mapa */}
+          <SLabel style={{ marginTop: 22 }}>Referencias y mapa</SLabel>
+
+          <div style={sx.fuelSwitch}>
+            <button type="button" onClick={() => setRouteMode("alternativas")}
+              style={{ ...sx.fuelBtn, ...(routeMode === "alternativas" ? sx.fuelBtnActive : {}) }}>
+              🔀 Rutas alternativas
+            </button>
+            <button type="button" onClick={() => setRouteMode("paradas")}
+              style={{ ...sx.fuelBtn, ...(routeMode === "paradas" ? sx.fuelBtnActive : {}) }}>
+              📍 Pasar por referencias
+            </button>
+          </div>
+
+          {routeMode === "paradas" && (
+            <div style={sx.refBox}>
+              <div style={sx.helpTxt}>Agrega puntos intermedios. Google Maps calculará la ruta pasando por esas referencias y mostrará el costo total.</div>
+              {stops.map((stop, idx) => (
+                <div key={idx} style={{ display:"flex", gap:8, marginTop:8 }}>
+                  <div style={{ ...sx.inputWrap, flex:1 }}>
+                    <span style={sx.inputIcon}>📌</span>
+                    <input
+                      type="text"
+                      value={stop}
+                      onChange={e => setStops(prev => prev.map((s, i) => i === idx ? e.target.value : s))}
+                      placeholder={`Referencia ${idx + 1}: Ej. Terminal SSA, Puerto, Pez Vela...`}
+                      style={sx.input}
+                    />
+                  </div>
+                  <button type="button" onClick={() => setStops(prev => prev.filter((_, i) => i !== idx))}
+                    style={sx.removeBtn}>×</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setStops(prev => [...prev, ""])}
+                style={sx.addRefBtn}>+ Añadir referencia</button>
+            </div>
+          )}
+
+          <div style={sx.mapControls}>
+            {[
+              ["roadmap", "🌙 Oscuro"],
+              ["satellite", "🛰️ Satélite"],
+              ["hybrid", "🗺️ Híbrido"],
+              ["terrain", "⛰️ Terreno"],
+            ].map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setMapType(id)}
+                style={{ ...sx.mapBtn, ...(mapType === id ? sx.mapBtnActive : {}) }}>
+                {label}
+              </button>
+            ))}
+            <button type="button" onClick={() => setShowKmlLayer(v => !v)}
+              style={{ ...sx.mapBtn, ...(showKmlLayer ? sx.mapBtnActive : {}) }}>
+              🧭 KML Manzanillo
+            </button>
+          </div>
+
+          <div ref={mapRef} style={sx.mapBoxAlways} />
+
           {/* Config vehículo */}
-          <SLabel style={{ marginTop: 22 }}>Vehículo</SLabel>
+          <SLabel style={{ marginTop: 22 }}>Vehículo y combustible</SLabel>
+
+          <div style={sx.fuelSwitch}>
+            <button type="button" onClick={() => setFuelType("gasolina")}
+              style={{ ...sx.fuelBtn, ...(fuelType === "gasolina" ? sx.fuelBtnActive : {}) }}>
+              ⛽ Gasolina
+            </button>
+            <button type="button" onClick={() => setFuelType("diesel")}
+              style={{ ...sx.fuelBtn, ...(fuelType === "diesel" ? sx.fuelBtnActive : {}) }}>
+              🚛 Diésel
+            </button>
+          </div>
+
           <div style={sx.twoCol}>
             <div style={sx.fieldWrap}>
               <label style={sx.lbl}>Gasolina ($/litro)</label>
@@ -2024,13 +2197,74 @@ function RutaCostoAdmin() {
               </div>
             </div>
             <div style={sx.fieldWrap}>
-              <label style={sx.lbl}>Rendimiento (km/L)</label>
+              <label style={sx.lbl}>Diésel ($/litro)</label>
               <div style={sx.inputWrap}>
-                <span style={sx.inputIcon}>🚗</span>
-                <input type="number" value={kmPerLiter} min="1" step="0.5"
-                  onChange={e => setKmPerLiter(parseFloat(e.target.value) || 0)}
+                <span style={sx.inputIcon}>💲</span>
+                <input type="number" value={dieselPrice} min="1" step="0.5"
+                  onChange={e => setDieselPrice(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
+            </div>
+          </div>
+
+          <div style={sx.twoCol}>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Rendimiento ciudad (km/L)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>🏙️</span>
+                <input type="number" value={cityKmPerLiter} min="1" step="0.5"
+                  onChange={e => setCityKmPerLiter(parseFloat(e.target.value) || 0)}
+                  style={sx.input} />
+              </div>
+              <div style={sx.helpTxt}>Sugerido editable: 10 - 15 km/L</div>
+            </div>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Rendimiento carretera (km/L)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>🛣️</span>
+                <input type="number" value={roadKmPerLiter} min="1" step="0.5"
+                  onChange={e => setRoadKmPerLiter(parseFloat(e.target.value) || 0)}
+                  style={sx.input} />
+              </div>
+              <div style={sx.helpTxt}>Sugerido editable: 15 - 20 km/L</div>
+            </div>
+          </div>
+
+          <div style={sx.twoCol}>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Porcentaje de ruta en ciudad (%)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>% </span>
+                <input type="number" value={cityPercent} min="0" max="100" step="5"
+                  onChange={e => setCityPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  style={sx.input} />
+              </div>
+              <div style={sx.helpTxt}>Carretera calculada: {roadPercent}%</div>
+            </div>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Velocidad máxima estimada (km/h)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>⚡</span>
+                <input type="number" value={maxSpeed} min="10" max="120" step="5"
+                  onChange={e => setMaxSpeed(parseFloat(e.target.value) || 0)}
+                  style={sx.input} />
+              </div>
+              <div style={sx.helpTxt}>Variable editable de referencia para operación.</div>
+            </div>
+          </div>
+
+          <div style={sx.summaryBox}>
+            <div>
+              <div style={sx.summaryLbl}>Combustible activo</div>
+              <div style={sx.summaryVal}>{fuelType === "diesel" ? "Diésel" : "Gasolina"} · ${fuelPrice.toFixed(2)}/L</div>
+            </div>
+            <div>
+              <div style={sx.summaryLbl}>Rendimiento ponderado</div>
+              <div style={sx.summaryVal}>{effectiveKmPerLiter.toFixed(2)} km/L</div>
+            </div>
+            <div>
+              <div style={sx.summaryLbl}>Velocidad máxima</div>
+              <div style={sx.summaryVal}>{maxSpeed} km/h</div>
             </div>
           </div>
 
@@ -2069,9 +2303,7 @@ function RutaCostoAdmin() {
           </button>
         </div>
 
-        {/* ── Mapa ── */}
-        <div ref={mapRef}
-          style={{ ...sx.mapBox, display: showMap ? "block" : "none" }} />
+        {/* ── El mapa principal está integrado arriba en Referencias y mapa ── */}
 
         {/* ── Rutas resultantes ── */}
         {routes.length > 0 && (
@@ -2127,8 +2359,8 @@ function RutaCostoAdmin() {
                       )}
                     </div>
                     <div style={sx.formula}>
-                      {item.distKm.toFixed(1)} km ÷ {kmPerLiter} km/L<br />
-                      = {item.liters.toFixed(2)} L × ${gasPrice}<br />
+                      {item.distKm.toFixed(1)} km ÷ {effectiveKmPerLiter.toFixed(2)} km/L<br />
+                      = {item.liters.toFixed(2)} L × ${fuelPrice}<br />
                       <strong style={{ color: "#cbd5e1" }}>= ${item.cost.toFixed(2)}</strong>
                     </div>
                   </div>
@@ -2157,7 +2389,7 @@ function RutaCostoAdmin() {
             })}
 
             <p style={sx.foot}>
-              🗺 Rutas calculadas por Google Maps Directions API · Solo Manzanillo, Colima<br />
+              🗺 Rutas calculadas por Google Maps Directions API · Mapa de Manzanillo y referencias editables<br />
               El costo real puede variar según tráfico, tipo de camino y estilo de conducción.
             </p>
           </>
@@ -2237,7 +2469,25 @@ const sx = {
     borderRadius: 20, padding: "22px 22px 20px", marginBottom: 18,
     boxShadow: "0 0 40px rgba(249,115,22,.04)",
   },
-  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 },
+  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 },
+  fuelSwitch: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 },
+  fuelBtn: {
+    background: "#161c28", border: "1px solid #1e2840", borderRadius: 11,
+    padding: "11px 12px", color: "#6b7280", fontWeight: 700, cursor: "pointer",
+    fontFamily: "inherit", letterSpacing: .3,
+  },
+  fuelBtnActive: {
+    background: "rgba(249,115,22,.14)", border: "1px solid rgba(249,115,22,.55)",
+    color: "#fb923c", boxShadow: "0 0 0 3px rgba(249,115,22,.10)",
+  },
+  helpTxt: { fontSize: 10, color: "#4b5563", marginTop: 5 },
+  summaryBox: {
+    background: "rgba(249,115,22,.06)", border: "1px solid rgba(249,115,22,.16)",
+    borderRadius: 13, padding: "12px 14px", display: "grid",
+    gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 4, marginBottom: 8,
+  },
+  summaryLbl: { fontSize: 10, color: "#6b7280", marginBottom: 3 },
+  summaryVal: { fontSize: 13, color: "#fb923c", fontWeight: 800 },
   fieldWrap: { marginBottom: 0 },
   lbl: { fontSize: 11, color: "#6b7280", display: "block", marginBottom: 5, letterSpacing: 0.3 },
   inputWrap: { position: "relative" },
@@ -2339,6 +2589,7 @@ if (typeof document !== "undefined" && !document.getElementById("rc-global")) {
     "*{box-sizing:border-box}",
     "input:focus{border-color:#f97316!important;box-shadow:0 0 0 3px rgba(249,115,22,.15)!important}",
     "input[type=range]{cursor:pointer}",
+    "@media(max-width:720px){.ruta-costo-two-col{grid-template-columns:1fr!important}}",
     "::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:#0d1117} ::-webkit-scrollbar-thumb{background:#1e2840;border-radius:3px}",
   ].join("\n");
   document.head.appendChild(st);
