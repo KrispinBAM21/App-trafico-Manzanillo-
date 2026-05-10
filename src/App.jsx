@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -1679,6 +1679,690 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
   );
 }
 
+
+
+// ─── ADMIN · CALCULADORA DE COSTO DE RUTA ───────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════
+   RutaCosto Manzanillo — Calculadora de tarifa por gasolina
+   Solo opera dentro del municipio de Manzanillo, Colima, México
+   ═══════════════════════════════════════════════════════════════ */
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "TU_API_KEY_AQUI"; // 🔑 Configura VITE_GOOGLE_MAPS_API_KEY en Vercel
+
+/* ── Límites geográficos de Manzanillo, Colima ──────────────── */
+const MANZANILLO_BOUNDS = {
+  north: 19.22,
+  south: 19.02,
+  east:  -104.20,
+  west:  -104.45,
+};
+
+const MANZANILLO_CENTER = { lat: 19.1021, lng: -104.3140 };
+
+/* Puntos de referencia populares para el autocomplete */
+const LUGARES_CONOCIDOS = [
+  "Manzanillo, Colima",
+  "Puerto de Manzanillo",
+  "Plaza Manzanillo",
+  "Centro de Manzanillo",
+  "Zona Dorada Manzanillo",
+  "Las Brisas Manzanillo",
+  "Santiago Manzanillo",
+  "Salagua Manzanillo",
+  "La Punta Manzanillo",
+  "El Naranjo Manzanillo",
+  "Salahua Manzanillo",
+  "Playa Azul Manzanillo",
+  "Aeropuerto de Manzanillo",
+];
+
+/* ── Verifica si una coordenada está dentro de Manzanillo ───── */
+function dentroManzanillo(lat, lng) {
+  return (
+    lat >= MANZANILLO_BOUNDS.south &&
+    lat <= MANZANILLO_BOUNDS.north &&
+    lng >= MANZANILLO_BOUNDS.west &&
+    lng <= MANZANILLO_BOUNDS.east
+  );
+}
+
+/* ── Loader de Google Maps ───────────────────────────────────── */
+function loadGoogleMaps() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.maps) return resolve();
+    if (document.getElementById("gmaps-script")) {
+      const check = setInterval(() => {
+        if (window.google?.maps) { clearInterval(check); resolve(); }
+      }, 100);
+      return;
+    }
+    window.__gmapsCb = resolve;
+    const s = document.createElement("script");
+    s.id = "gmaps-script";
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=__gmapsCb&language=es&region=MX`;
+    s.async = true;
+    s.onerror = () => reject(new Error("Error cargando Google Maps"));
+    document.head.appendChild(s);
+  });
+}
+
+/* ── Estilos oscuros del mapa ────────────────────────────────── */
+const DARK_STYLES = [
+  { elementType: "geometry",           stylers: [{ color: "#0d1117" }] },
+  { elementType: "labels.text.fill",   stylers: [{ color: "#526070" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0d1117" }] },
+  { featureType: "road",               elementType: "geometry",        stylers: [{ color: "#1a2030" }] },
+  { featureType: "road",               elementType: "geometry.stroke", stylers: [{ color: "#0d1117" }] },
+  { featureType: "road.highway",       elementType: "geometry",        stylers: [{ color: "#1e2840" }] },
+  { featureType: "road.highway",       elementType: "geometry.stroke", stylers: [{ color: "#f97316" }] },
+  { featureType: "water",              elementType: "geometry",        stylers: [{ color: "#060c18" }] },
+  { featureType: "poi",                                                stylers: [{ visibility: "off" }] },
+  { featureType: "transit",                                            stylers: [{ visibility: "off" }] },
+  { featureType: "administrative",     elementType: "geometry.stroke", stylers: [{ color: "#1a2030" }] },
+  { featureType: "landscape.natural",  elementType: "geometry",        stylers: [{ color: "#0d1a10" }] },
+];
+
+const BADGE = [
+  { label: "⭐ Más económica", bg: "rgba(34,197,94,.13)",  color: "#22c55e", bar: "#22c55e", border: "rgba(34,197,94,.3)" },
+  { label: "⚡ Más rápida",    bg: "rgba(59,130,246,.13)",  color: "#60a5fa", bar: "#3b82f6", border: "rgba(59,130,246,.3)" },
+  { label: "🔀 Alternativa",   bg: "rgba(168,85,247,.13)", color: "#c084fc", bar: "#a855f7", border: "rgba(168,85,247,.3)" },
+];
+
+/* ══════════════════════════════════════════════════════════════ */
+function RutaCostoAdmin() {
+  const mapRef      = useRef(null);
+  const gmap        = useRef(null);
+  const dirSvc      = useRef(null);
+  const dirRend     = useRef(null);
+  const acOrigin    = useRef(null);
+  const acDest      = useRef(null);
+  const originRef   = useRef(null);
+  const destRef     = useRef(null);
+
+  const [origin,      setOrigin]      = useState("");
+  const [destination, setDestination] = useState("");
+  const [gasPrice,    setGasPrice]    = useState(24);
+  const [kmPerLiter,  setKmPerLiter]  = useState(12);
+  const [profit,      setProfit]      = useState(40);
+  const [showProfit,  setShowProfit]  = useState(true);
+
+  const [routes,   setRoutes]   = useState([]);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [mapReady, setMapReady] = useState(false);
+  const [showMap,  setShowMap]  = useState(false);
+  const [selected, setSelected] = useState(0);
+  const [mapsErr,  setMapsErr]  = useState(false);
+
+  /* ── Init mapa ── */
+  useEffect(() => {
+    loadGoogleMaps()
+      .then(() => {
+        if (!mapRef.current) return;
+        const bounds = new window.google.maps.LatLngBounds(
+          new window.google.maps.LatLng(MANZANILLO_BOUNDS.south, MANZANILLO_BOUNDS.west),
+          new window.google.maps.LatLng(MANZANILLO_BOUNDS.north, MANZANILLO_BOUNDS.east)
+        );
+
+        gmap.current = new window.google.maps.Map(mapRef.current, {
+          center: MANZANILLO_CENTER,
+          zoom: 13,
+          styles: DARK_STYLES,
+          restriction: { latLngBounds: bounds, strictBounds: false },
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControlOptions: {
+            position: window.google.maps.ControlPosition.RIGHT_TOP,
+          },
+        });
+
+        dirSvc.current  = new window.google.maps.DirectionsService();
+        dirRend.current = new window.google.maps.DirectionsRenderer({
+          suppressMarkers: false,
+          polylineOptions: { strokeColor: "#f97316", strokeWeight: 5, strokeOpacity: 0.9 },
+        });
+        dirRend.current.setMap(gmap.current);
+
+        /* Autocomplete limitado a Manzanillo */
+        const acOpts = {
+          bounds,
+          componentRestrictions: { country: "mx" },
+          fields: ["geometry", "name", "formatted_address"],
+          strictBounds: false,
+        };
+
+        if (originRef.current) {
+          acOrigin.current = new window.google.maps.places.Autocomplete(originRef.current, acOpts);
+          acOrigin.current.addListener("place_changed", () => {
+            const p = acOrigin.current.getPlace();
+            if (p?.formatted_address) setOrigin(p.formatted_address);
+          });
+        }
+        if (destRef.current) {
+          acDest.current = new window.google.maps.places.Autocomplete(destRef.current, acOpts);
+          acDest.current.addListener("place_changed", () => {
+            const p = acDest.current.getPlace();
+            if (p?.formatted_address) setDestination(p.formatted_address);
+          });
+        }
+
+        setMapReady(true);
+      })
+      .catch(() => setMapsErr(true));
+  }, []);
+
+  /* ── Calcular rutas ── */
+  const calcular = useCallback(() => {
+    if (!origin.trim() || !destination.trim()) {
+      setError("Ingresa el origen y el destino dentro de Manzanillo.");
+      return;
+    }
+    if (!mapReady) { setError("El mapa está cargando, espera un momento."); return; }
+
+    /* Añadimos "Manzanillo, Colima" si no está en el texto */
+    const addCity = (s) =>
+      s.toLowerCase().includes("manzanillo") ? s : `${s}, Manzanillo, Colima`;
+
+    setError("");
+    setLoading(true);
+    setRoutes([]);
+    setShowMap(false);
+
+    dirSvc.current.route(
+      {
+        origin:      addCity(origin),
+        destination: addCity(destination),
+        travelMode:  "DRIVING",
+        provideRouteAlternatives: true,
+        region: "mx",
+      },
+      (result, status) => {
+        setLoading(false);
+
+        if (status !== "OK") {
+          const msgs = {
+            NOT_FOUND:         "No se encontró una de las direcciones. Intenta ser más específico.",
+            ZERO_RESULTS:      "No hay rutas disponibles entre esos puntos.",
+            REQUEST_DENIED:    "API Key inválida o sin permisos para Directions API.",
+            OVER_QUERY_LIMIT:  "Límite de consultas alcanzado. Intenta más tarde.",
+          };
+          setError(msgs[status] || `Error al calcular rutas (${status}).`);
+          return;
+        }
+
+        /* Validar que las rutas estén dentro de Manzanillo */
+        const rutas = result.routes
+          .map((r, i) => {
+            const leg    = r.legs[0];
+            const distKm = leg.distance.value / 1000;
+            const liters = distKm / kmPerLiter;
+            const cost   = liters * gasPrice;
+            return {
+              index:      i,
+              summary:    r.summary || `Ruta ${i + 1}`,
+              distKm,
+              distText:   leg.distance.text,
+              duration:   leg.duration.text,
+              durationSec: leg.duration.value,
+              liters,
+              cost,
+              total:      cost * (1 + profit / 100),
+              startAddr:  leg.start_address,
+              endAddr:    leg.end_address,
+            };
+          })
+          .sort((a, b) => a.cost - b.cost);
+
+        dirRend.current.setDirections(result);
+        dirRend.current.setRouteIndex(rutas[0].index);
+        setSelected(rutas[0].index);
+        setShowMap(true);
+        setRoutes(rutas);
+      }
+    );
+  }, [origin, destination, gasPrice, kmPerLiter, profit, mapReady]);
+
+  const selectRoute = (item) => {
+    setSelected(item.index);
+    dirRend.current?.setRouteIndex(item.index);
+  };
+
+  /* ── Recalcular costos si cambia precio o rendimiento ── */
+  useEffect(() => {
+    if (!routes.length) return;
+    setRoutes(prev =>
+      prev.map(r => ({
+        ...r,
+        liters: r.distKm / kmPerLiter,
+        cost:   (r.distKm / kmPerLiter) * gasPrice,
+        total:  (r.distKm / kmPerLiter) * gasPrice * (1 + profit / 100),
+      })).sort((a, b) => a.cost - b.cost)
+    );
+  }, [gasPrice, kmPerLiter, profit]);
+
+  /* ─────────────────────────────────────────────────── render ── */
+  return (
+    <div style={sx.root}>
+      <div style={sx.gridBg} />
+
+      <div style={sx.wrap}>
+
+        {/* ── Header ── */}
+        <header style={sx.header}>
+          <div style={sx.logoBox}>⛽</div>
+          <div>
+            <h1 style={sx.h1}>Ruta<span style={{ color: "#f97316" }}>Costo</span></h1>
+            <div style={sx.tagline}>
+              <span style={sx.cityPill}>📍 Manzanillo, Colima</span>
+              <span style={sx.tagSub}>Calculadora de tarifa por combustible</span>
+            </div>
+          </div>
+        </header>
+
+        {mapsErr && (
+          <div style={{ ...sx.error, marginBottom: 16 }}>
+            ⚠️ Error al cargar Google Maps. Verifica tu API Key en el archivo JSX.
+          </div>
+        )}
+
+        {/* ── Formulario ── */}
+        <div style={sx.card}>
+          <SLabel>Origen y Destino</SLabel>
+
+          {/* Origen */}
+          <div style={sx.fieldWrap}>
+            <label style={sx.lbl}>Punto de origen</label>
+            <div style={sx.inputWrap}>
+              <span style={sx.inputIcon}>🟢</span>
+              <input
+                ref={originRef}
+                type="text"
+                value={origin}
+                onChange={e => setOrigin(e.target.value)}
+                placeholder="Ej: Plaza Manzanillo, Centro, Santiago..."
+                style={sx.input}
+                onKeyDown={e => e.key === "Enter" && destRef.current?.focus()}
+              />
+            </div>
+          </div>
+
+          {/* Conector visual */}
+          <div style={sx.connector}>
+            <div style={sx.connLine} />
+            <div style={sx.connDot}>⇅</div>
+            <div style={sx.connLine} />
+          </div>
+
+          {/* Destino */}
+          <div style={sx.fieldWrap}>
+            <label style={sx.lbl}>Punto de destino</label>
+            <div style={sx.inputWrap}>
+              <span style={sx.inputIcon}>🔴</span>
+              <input
+                ref={destRef}
+                type="text"
+                value={destination}
+                onChange={e => setDestination(e.target.value)}
+                placeholder="Ej: La Punta, Salagua, Las Brisas..."
+                style={sx.input}
+                onKeyDown={e => e.key === "Enter" && calcular()}
+              />
+            </div>
+          </div>
+
+          {/* Config vehículo */}
+          <SLabel style={{ marginTop: 22 }}>Vehículo</SLabel>
+          <div style={sx.twoCol}>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Gasolina ($/litro)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>💲</span>
+                <input type="number" value={gasPrice} min="1" step="0.5"
+                  onChange={e => setGasPrice(parseFloat(e.target.value) || 0)}
+                  style={sx.input} />
+              </div>
+            </div>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Rendimiento (km/L)</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>🚗</span>
+                <input type="number" value={kmPerLiter} min="1" step="0.5"
+                  onChange={e => setKmPerLiter(parseFloat(e.target.value) || 0)}
+                  style={sx.input} />
+              </div>
+            </div>
+          </div>
+
+          {/* Ganancia */}
+          <div style={sx.profitRow}>
+            <SLabel style={{ margin: 0 }}>Margen de ganancia</SLabel>
+            <button style={sx.eyeBtn} onClick={() => setShowProfit(p => !p)}>
+              {showProfit ? "👁 Ocultar" : "👁‍🗨 Mostrar"}
+            </button>
+          </div>
+
+          {showProfit && (
+            <div style={sx.sliderBox}>
+              <div style={sx.sliderLeft}>
+                <span style={sx.pctNum}>{profit}%</span>
+                <span style={sx.pctSub}>sobre gasolina</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <input type="range" min="0" max="200" step="5" value={profit}
+                  onChange={e => setProfit(Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "#f97316", cursor: "pointer" }} />
+                <div style={sx.sliderRange}>
+                  <span>0%</span><span>100%</span><span>200%</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && <div style={sx.error}>{error}</div>}
+
+          <button style={{ ...sx.calcBtn, opacity: loading ? 0.65 : 1 }}
+            disabled={loading} onClick={calcular}>
+            {loading
+              ? <><Spin /> Buscando rutas en Manzanillo...</>
+              : <><span>Calcular Rutas</span><span style={{ marginLeft: 6 }}>→</span></>}
+          </button>
+        </div>
+
+        {/* ── Mapa ── */}
+        <div ref={mapRef}
+          style={{ ...sx.mapBox, display: showMap ? "block" : "none" }} />
+
+        {/* ── Rutas resultantes ── */}
+        {routes.length > 0 && (
+          <>
+            <div style={sx.resultsBar}>
+              <span style={sx.resultsLbl}>{routes.length} ruta{routes.length > 1 ? "s" : ""} encontrada{routes.length > 1 ? "s" : ""}</span>
+              <span style={sx.resultsAddr}>{origin} → {destination}</span>
+            </div>
+
+            {routes.map((item, rank) => {
+              const cfg   = BADGE[rank] ?? BADGE[2];
+              const isSel = item.index === selected;
+              const diff  = item.cost - routes[0].cost;
+
+              return (
+                <div key={item.index} onClick={() => selectRoute(item)}
+                  style={{
+                    ...sx.routeCard,
+                    borderColor:  isSel ? "#f97316" : rank === 0 ? "rgba(34,197,94,.3)" : "#1a2030",
+                    boxShadow:    isSel
+                      ? "0 0 0 2px rgba(249,115,22,.25), 0 8px 28px rgba(0,0,0,.4)"
+                      : "0 2px 14px rgba(0,0,0,.3)",
+                    transform: isSel ? "translateY(-2px)" : "none",
+                  }}>
+
+                  <div style={{ ...sx.accentBar, background: isSel ? "#f97316" : cfg.bar }} />
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ ...sx.badge, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                      {rank === 0 ? cfg.label : rank === 1 ? cfg.label : `${cfg.label} ${rank + 1}`}
+                    </span>
+                    {isSel && <span style={sx.selTag}>● activa</span>}
+                  </div>
+
+                  <div style={sx.routeName}>Vía {item.summary}</div>
+
+                  <div style={sx.metaRow}>
+                    <Chip icon="📍" val={item.distText}                       sub="distancia" />
+                    <Chip icon="⏱️" val={item.duration}                       sub="aprox." />
+                    <Chip icon="🛢️" val={`${item.liters.toFixed(2)} L`}       sub="gasolina" />
+                  </div>
+
+                  {/* Costo combustible */}
+                  <div style={sx.costBox}>
+                    <div>
+                      <div style={sx.costLbl}>Costo de combustible</div>
+                      <div style={sx.costVal}>
+                        ${item.cost.toFixed(2)}
+                        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 4, fontWeight: 400 }}>MXN</span>
+                      </div>
+                      {diff > 0 && (
+                        <div style={sx.diffNote}>+${diff.toFixed(2)} vs más económica</div>
+                      )}
+                    </div>
+                    <div style={sx.formula}>
+                      {item.distKm.toFixed(1)} km ÷ {kmPerLiter} km/L<br />
+                      = {item.liters.toFixed(2)} L × ${gasPrice}<br />
+                      <strong style={{ color: "#cbd5e1" }}>= ${item.cost.toFixed(2)}</strong>
+                    </div>
+                  </div>
+
+                  {/* Ganancia — ocultable con botón ── */}
+                  {showProfit && (
+                    <div style={sx.profitBlock}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 3 }}>Precio sugerido al cliente</div>
+                        <div style={sx.totalVal}>
+                          ${item.total.toFixed(2)}
+                          <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 4, fontWeight: 400 }}>MXN</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                          Ganancia: <span style={{ color: "#fb923c" }}>${(item.total - item.cost).toFixed(2)}</span> ({profit}%)
+                        </div>
+                      </div>
+                      <div style={sx.profitPill}>
+                        <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#f97316" }}>+{profit}%</div>
+                        <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>margen</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <p style={sx.foot}>
+              🗺 Rutas calculadas por Google Maps Directions API · Solo Manzanillo, Colima<br />
+              El costo real puede variar según tráfico, tipo de camino y estilo de conducción.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Mini-componentes ────────────────────────────────────────── */
+function SLabel({ children, style }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, ...style }}>
+      <div style={{ width: 16, height: 2, background: "#f97316", borderRadius: 2 }} />
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "#f97316" }}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function Chip({ icon, val, sub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#6b7280" }}>
+      <span>{icon}</span>
+      <strong style={{ color: "#c8cad4", fontWeight: 600 }}>{val}</strong>
+      <span>{sub}</span>
+    </div>
+  );
+}
+
+function Spin() {
+  return (
+    <span style={{
+      display: "inline-block", width: 14, height: 14,
+      border: "2px solid rgba(255,255,255,.25)", borderTopColor: "#fff",
+      borderRadius: "50%", animation: "spin .7s linear infinite", marginRight: 8,
+    }} />
+  );
+}
+
+/* ─── Estilos ──────────────────────────────────────────────────── */
+const sx = {
+  root: {
+    background: "#080c12",
+    minHeight: "auto",
+    color: "#dde2ec",
+    fontFamily: "'Segoe UI', 'Helvetica Neue', sans-serif",
+    position: "relative",
+  },
+  gridBg: {
+    position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
+    backgroundImage:
+      "linear-gradient(rgba(249,115,22,.022) 1px,transparent 1px)," +
+      "linear-gradient(90deg,rgba(249,115,22,.022) 1px,transparent 1px)",
+    backgroundSize: "44px 44px",
+  },
+  wrap: { maxWidth: 900, margin: "0 auto", padding: "18px 12px 26px", position: "relative", zIndex: 1 },
+
+  header: { display: "flex", alignItems: "center", gap: 14, marginBottom: 28 },
+  logoBox: {
+    width: 50, height: 50,
+    background: "linear-gradient(135deg,#f97316,#c2410c)",
+    borderRadius: 14, display: "grid", placeItems: "center",
+    fontSize: 23, boxShadow: "0 4px 22px rgba(249,115,22,.45)", flexShrink: 0,
+  },
+  h1: { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: "1.85rem", fontWeight: 700, letterSpacing: -0.5, margin: 0 },
+  tagline: { display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" },
+  cityPill: {
+    background: "rgba(249,115,22,.12)", border: "1px solid rgba(249,115,22,.3)",
+    borderRadius: 20, padding: "2px 10px", fontSize: 11, color: "#fb923c", fontWeight: 600,
+  },
+  tagSub: { fontSize: 11, color: "#4b5563" },
+
+  card: {
+    background: "#0f1420", border: "1px solid #1a2030",
+    borderRadius: 20, padding: "22px 22px 20px", marginBottom: 18,
+    boxShadow: "0 0 40px rgba(249,115,22,.04)",
+  },
+  twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 },
+  fieldWrap: { marginBottom: 0 },
+  lbl: { fontSize: 11, color: "#6b7280", display: "block", marginBottom: 5, letterSpacing: 0.3 },
+  inputWrap: { position: "relative" },
+  inputIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none" },
+  input: {
+    width: "100%", background: "#161c28", border: "1px solid #1e2840",
+    borderRadius: 11, padding: "12px 12px 12px 38px",
+    color: "#dde2ec", fontSize: 14, outline: "none", fontFamily: "inherit",
+    transition: "border-color .2s, box-shadow .2s",
+  },
+
+  connector: { display: "flex", alignItems: "center", gap: 8, margin: "8px 0", paddingLeft: 10 },
+  connLine: { flex: 1, height: 1, background: "#1a2030" },
+  connDot: { fontSize: 12, color: "#374151", userSelect: "none" },
+
+  profitRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 12 },
+  eyeBtn: {
+    background: "rgba(249,115,22,.1)", border: "1px solid rgba(249,115,22,.25)",
+    borderRadius: 8, padding: "5px 13px", color: "#f97316",
+    fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: 0.3,
+    transition: "background .15s",
+  },
+  sliderBox: {
+    background: "#161c28", border: "1px solid #1e2840", borderRadius: 13,
+    padding: "14px 16px", marginBottom: 6,
+    display: "flex", alignItems: "center", gap: 18,
+  },
+  sliderLeft: { display: "flex", flexDirection: "column", minWidth: 58 },
+  pctNum: { fontFamily: "Georgia,serif", fontSize: "1.6rem", fontWeight: 700, color: "#f97316", lineHeight: 1 },
+  pctSub: { fontSize: 10, color: "#6b7280", marginTop: 3 },
+  sliderRange: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#374151", marginTop: 3 },
+
+  error: {
+    marginTop: 12, background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)",
+    borderRadius: 10, padding: "10px 14px", color: "#f87171", fontSize: 13,
+  },
+  calcBtn: {
+    marginTop: 18, width: "100%", padding: "14px 0",
+    background: "linear-gradient(135deg,#f97316,#c2410c)",
+    border: "none", borderRadius: 13, color: "#fff",
+    fontFamily: "Georgia,serif", fontSize: 15, fontWeight: 700,
+    letterSpacing: 0.5, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+    boxShadow: "0 4px 22px rgba(249,115,22,.38)",
+    transition: "opacity .2s, transform .15s",
+  },
+
+  mapBox: {
+    width: "100%", height: 330, borderRadius: 16,
+    border: "1px solid #1a2030", marginBottom: 20, overflow: "hidden",
+  },
+
+  resultsBar: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 6 },
+  resultsLbl: { fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#4b5563" },
+  resultsAddr: { fontSize: 11, color: "#374151", maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+
+  routeCard: {
+    background: "#0f1420", border: "1px solid #1a2030",
+    borderRadius: 16, padding: "16px 18px 15px 20px",
+    marginBottom: 14, position: "relative", overflow: "hidden",
+    cursor: "pointer", transition: "border-color .2s, box-shadow .2s, transform .15s",
+  },
+  accentBar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: "16px 0 0 16px", transition: "background .2s" },
+  badge: { display: "inline-flex", gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", padding: "3px 9px", borderRadius: 6 },
+  selTag: { fontSize: 10, color: "#f97316", fontWeight: 700, letterSpacing: 0.5 },
+  routeName: { fontSize: 15, fontWeight: 700, fontFamily: "Georgia,serif", marginBottom: 10, color: "#dde2ec" },
+  metaRow: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 13 },
+
+  costBox: {
+    background: "#161c28", border: "1px solid #1e2840", borderRadius: 12,
+    padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center",
+    marginBottom: 10,
+  },
+  costLbl: { fontSize: 11, color: "#6b7280", marginBottom: 3 },
+  costVal: { fontFamily: "Georgia,serif", fontSize: "1.55rem", fontWeight: 700, color: "#f97316", lineHeight: 1 },
+  diffNote: { fontSize: 11, color: "#6b7280", marginTop: 4 },
+  formula: { fontSize: 11, color: "#4b5563", textAlign: "right", lineHeight: 1.9 },
+
+  profitBlock: {
+    background: "rgba(249,115,22,.07)", border: "1px solid rgba(249,115,22,.18)",
+    borderRadius: 12, padding: "12px 14px",
+    display: "flex", justifyContent: "space-between", alignItems: "center",
+  },
+  totalVal: { fontFamily: "Georgia,serif", fontSize: "1.45rem", fontWeight: 700, color: "#fb923c", lineHeight: 1 },
+  profitPill: {
+    background: "rgba(249,115,22,.15)", border: "1px solid rgba(249,115,22,.28)",
+    borderRadius: 10, padding: "8px 12px", textAlign: "center", minWidth: 52,
+  },
+
+  foot: { fontSize: 11, color: "#1e2a3a", textAlign: "center", marginTop: 30, lineHeight: 2 },
+};
+
+/* ─── Keyframe global ──────────────────────────────────────────── */
+if (typeof document !== "undefined" && !document.getElementById("rc-global")) {
+  const st = document.createElement("style");
+  st.id = "rc-global";
+  st.textContent = [
+    "@keyframes spin{to{transform:rotate(360deg)}}",
+    "*{box-sizing:border-box}",
+    "input:focus{border-color:#f97316!important;box-shadow:0 0 0 3px rgba(249,115,22,.15)!important}",
+    "input[type=range]{cursor:pointer}",
+    "::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:#0d1117} ::-webkit-scrollbar-thumb{background:#1e2840;border-radius:3px}",
+  ].join("\n");
+  document.head.appendChild(st);
+}
+
+
+function AdminCalculadoraPanel() {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <div style={{ padding:"16px", background:"rgba(249,115,22,0.045)" }}>
+      <div style={{ marginBottom:"12px" }}>
+        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"800" }}>⛽ Calculadora de costo de ruta</div>
+        <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.48)", fontSize:"11px", marginTop:"4px" }}>Herramienta privada del administrador principal. Calcula rutas dentro de Manzanillo usando Google Maps.</div>
+      </div>
+      {GOOGLE_MAPS_API_KEY === "TU_API_KEY_AQUI" && (
+        <div style={{ marginBottom:"12px", padding:"10px 12px", borderRadius:"10px", background:"rgba(249,115,22,0.12)", border:"1px solid rgba(249,115,22,0.35)", color:"#fb923c", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+          Configura la variable <strong>VITE_GOOGLE_MAPS_API_KEY</strong> en Vercel para activar el mapa y las rutas.
+        </div>
+      )}
+      <RutaCostoAdmin />
+    </div>
+  );
+}
+
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
 function DonateBanner({ active }) {
   const theme = React.useContext(ThemeContext);
@@ -1955,6 +2639,7 @@ function AnunciosBanner({ isAdmin }) {
         {[
           { id:"anuncios", label:"📢 Anuncios", color:"#fbbf24" },
           { id:"usuarios", label:"👥 Usuarios", color:"#818cf8" },
+          { id:"calculadora", label:"⛽ Calculadora", color:"#f97316" },
         ].map(t => (
           <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ flex:1, padding:"12px 16px", background: adminTab===t.id ? "rgba(255,255,255,0.05)" : "transparent", border:"none", borderBottom: adminTab===t.id ? `2px solid ${t.color}` : "2px solid transparent", color: adminTab===t.id ? t.color : "rgba(255,255,255,0.4)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", marginBottom:"-1px" }}>
             {t.label}
@@ -1965,6 +2650,9 @@ function AnunciosBanner({ isAdmin }) {
 
       {/* Tab: Usuarios */}
       {adminTab === "usuarios" && <AdminUsuariosPanel />}
+
+      {/* Tab: Calculadora — solo admin principal */}
+      {adminTab === "calculadora" && <AdminCalculadoraPanel />}
 
       {/* Tab: Anuncios */}
       {adminTab === "anuncios" && <div style={{ padding:"16px", background:"rgba(251,191,36,0.04)" }}>
@@ -6602,129 +7290,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         style={{ width:"100%", padding:"14px", background: (subcat && location && coords) ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "rgba(255,255,255,0.08)", border:"none", borderRadius:"12px", color: (subcat && location && coords) ? "#fff" : "rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor: (subcat && location && coords) ? "pointer" : "not-allowed", letterSpacing:"1px", marginBottom:"20px", transition:"all 0.2s" }}>
         ENVIAR REPORTE →
       </button>
- {/* ───────────────── TUTORIAL REPORTAR ───────────────── */}
-      <div
-        style={{
-          marginTop: "18px",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(56,189,248,0.18)",
-          borderRadius: "14px",
-          padding: "16px",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "12px",
-          }}
-        >
-          <span style={{ fontSize: "22px" }}>🎥</span>
 
-          <div>
-            <div
-              style={{
-                color: "#fff",
-                fontSize: "15px",
-                fontWeight: "700",
-                fontFamily: getFont(theme, "title"),
-              }}
-            >
-              Tutorial · Cómo usar REPORTAR
-            </div>
-
-            <div
-              style={{
-                color: "rgba(255,255,255,0.55)",
-                fontSize: "11px",
-                marginTop: "2px",
-                fontFamily: getFont(theme, "secondary"),
-              }}
-            >
-              Aprende a reportar incidentes, tráfico y accidentes correctamente.
-            </div>
-          </div>
-        </div>
-
-        <a
-          href="https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s/2673"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: "none" }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(135deg,#25D366,#1faa52)",
-              borderRadius: "12px",
-              padding: "14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-              transition: "0.2s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div
-                style={{
-                  width: "46px",
-                  height: "46px",
-                  borderRadius: "12px",
-                  background: "rgba(255,255,255,0.16)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                ▶️
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "#fff",
-                    fontWeight: "700",
-                    fontSize: "14px",
-                    fontFamily: getFont(theme, "secondary"),
-                  }}
-                >
-                  Ver video tutorial
-                </div>
-
-                <div
-                  style={{
-                    color: "rgba(255,255,255,0.82)",
-                    fontSize: "11px",
-                    marginTop: "2px",
-                    fontFamily: getFont(theme, "secondary"),
-                  }}
-                >
-                  Canal oficial de WhatsApp Connect Manzanillo
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                color: "#fff",
-                fontWeight: "700",
-                fontSize: "12px",
-                background: "rgba(0,0,0,0.18)",
-                padding: "8px 12px",
-                borderRadius: "10px",
-                fontFamily: getFont(theme, "secondary"),
-              }}
-            >
-              ABRIR
-            </div>
-          </div>
-        </a>
-      </div>
-        
       {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
       {pendingAll.length > 0 && (
         <>
