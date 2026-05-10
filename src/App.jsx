@@ -1687,7 +1687,7 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
    Solo opera dentro del municipio de Manzanillo, Colima, México
    ═══════════════════════════════════════════════════════════════ */
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "TU_API_KEY_AQUI"; // 🔑 Configura VITE_GOOGLE_MAPS_API_KEY en Vercel
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "TU_API_KEY_AQUI"; 
 
 /* ── Límites geográficos de Manzanillo, Colima ──────────────── */
 const MANZANILLO_BOUNDS = {
@@ -1729,6 +1729,10 @@ function dentroManzanillo(lat, lng) {
 /* ── Loader de Google Maps ───────────────────────────────────── */
 function loadGoogleMaps() {
   return new Promise((resolve, reject) => {
+    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "TU_API_KEY_AQUI") {
+      reject(new Error("Falta configurar VITE_GOOGLE_MAPS_API_KEY en Vercel."));
+      return;
+    }
     if (window.google?.maps) return resolve();
     if (document.getElementById("gmaps-script")) {
       const check = setInterval(() => {
@@ -1736,7 +1740,7 @@ function loadGoogleMaps() {
       }, 100);
       return;
     }
-    window.__gmapsCb = resolve;
+    window.__gmapsCb = () => resolve();
     const s = document.createElement("script");
     s.id = "gmaps-script";
     s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=__gmapsCb&language=es&region=MX`;
@@ -1908,14 +1912,14 @@ function RutaCostoAdmin() {
           strictBounds: false,
         };
 
-        if (originRef.current) {
+        if (window.google.maps.places?.Autocomplete && originRef.current) {
           acOrigin.current = new window.google.maps.places.Autocomplete(originRef.current, acOpts);
           acOrigin.current.addListener("place_changed", () => {
             const p = acOrigin.current.getPlace();
             if (p?.formatted_address) setOrigin(p.formatted_address);
           });
         }
-        if (destRef.current) {
+        if (window.google.maps.places?.Autocomplete && destRef.current) {
           acDest.current = new window.google.maps.places.Autocomplete(destRef.current, acOpts);
           acDest.current.addListener("place_changed", () => {
             const p = acDest.current.getPlace();
@@ -1924,6 +1928,13 @@ function RutaCostoAdmin() {
         }
 
         setMapReady(true);
+        setShowMap(true);
+        setTimeout(() => {
+          try {
+            window.google.maps.event.trigger(gmap.current, "resize");
+            gmap.current.setCenter(MANZANILLO_CENTER);
+          } catch {}
+        }, 250);
       })
       .catch(() => setMapsErr(true));
   }, []);
@@ -1954,7 +1965,7 @@ function RutaCostoAdmin() {
     setError("");
     setLoading(true);
     setRoutes([]);
-    setShowMap(false);
+    setShowMap(true);
 
     dirSvc.current.route(
       {
@@ -2171,6 +2182,11 @@ function RutaCostoAdmin() {
           </div>
 
           <div ref={mapRef} style={sx.mapBoxAlways} />
+          {mapsErr && (
+            <div style={{ ...sx.error, marginTop: 8, marginBottom: 12 }}>
+              ⚠️ No se pudo cargar Google Maps. Revisa que exista VITE_GOOGLE_MAPS_API_KEY en Vercel y que estén activadas Maps JavaScript API, Directions API y Places API.
+            </div>
+          )}
 
           {/* Config vehículo */}
           <SLabel style={{ marginTop: 22 }}>Vehículo y combustible</SLabel>
