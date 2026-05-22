@@ -11022,6 +11022,7 @@ function PatioIdentificaMap({ myId }) {
   const bindLayerMeta = (layer, feature) => {
     layer.options.featureId = feature.id;
     layer.options.featureName = feature.name;
+    layer.options.featureSource = feature.source || "usuario";
     const safeName = sanitize(feature.name);
     const typeText = feature.type === "marker" ? "Pin / etiqueta" : "Polígono";
     layer.bindTooltip(`<b>${safeName}</b><br><span>${typeText}</span>`, {
@@ -11172,11 +11173,22 @@ function PatioIdentificaMap({ myId }) {
 
     map.on(L.Draw.Event.DELETED, (e) => {
       const deleted = new Set();
-      e.layers.eachLayer(layer => deleted.add(layer.options.featureId));
+      let protectedCount = 0;
+      e.layers.eachLayer(layer => {
+        const id = layer.options.featureId;
+        const feature = featuresRef.current.find(f => f.id === id);
+        if (feature?.source === "kml" || layer.options.featureSource === "kml") {
+          protectedCount += 1;
+          return;
+        }
+        deleted.add(id);
+      });
       const next = featuresRef.current.filter(f => !deleted.has(f.id));
       persistFeatures(next);
       if (deleted.has(selectedId)) setSelectedId(null);
-      notify("Elemento eliminado.", "#ef4444");
+      if (protectedCount && deleted.size) notify("Se eliminaron tus elementos. Los patios base del KML están protegidos.", "#fbbf24");
+      else if (protectedCount) notify("Los patios base del KML están protegidos y no se pueden eliminar.", "#fbbf24");
+      else notify("Elemento eliminado y guardado automáticamente.", "#ef4444");
     });
 
     setTimeout(() => {
@@ -11226,6 +11238,7 @@ function PatioIdentificaMap({ myId }) {
     notify("Nombre actualizado.", "#22c55e");
   };
 
+
   const focusAll = () => {
     const map = mapInstanceRef.current;
     const group = drawnGroupRef.current;
@@ -11260,7 +11273,7 @@ function PatioIdentificaMap({ myId }) {
         <div>
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
-            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, eliminar, colocar pins y buscar patios por nombre.
+            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
@@ -11270,11 +11283,9 @@ function PatioIdentificaMap({ myId }) {
         </div>
       </div>
 
-      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
         <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
-        <button onClick={resetToKml} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>↺ Restaurar KML</button>
-        <button onClick={() => persistFeatures(features)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>💾 Guardar</button>
       </div>
 
       <div ref={mapRef} style={{ width:"100%", minHeight:"520px", height:"clamp(520px, 68vh, 780px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
@@ -11289,7 +11300,7 @@ function PatioIdentificaMap({ myId }) {
       </div>
 
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.46)" }}>
-        <span>Polígono: delimita patio · Pin: etiqueta/punto de referencia · Editar: corrige vértices · Basura: elimina.</span>
+        <span>Polígono: delimita patio · Pin: etiqueta/punto de referencia · Editar: corrige vértices · Basura: elimina solo elementos creados por usuarios.</span>
         <span>{features.filter(isValidFeature).length} elemento(s) registrados</span>
       </div>
       {msg && <div style={{ marginTop:"10px", padding:"9px 11px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}>{msg.text}</div>}
