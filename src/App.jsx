@@ -5820,6 +5820,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
       )}
 
+      <PatioIdentificaMap myId={myId} />
       <ToastBox toast={toast} />
 
     </div>
@@ -10612,6 +10613,630 @@ function DonativosTab() {
 }
 
 // ─── TAB: PATIO REGULADOR ─────────────────────────────────────────────────────
+
+// ─── KML: PATIOS MANZANILLO + editor tipo Google Earth ──────────────────────
+const PATIOS_KML_REFERENCIA = [
+  {
+    "id": "kml_impala_1",
+    "name": "IMPALA",
+    "type": "polygon",
+    "coords": [
+      [
+        19.07998235478026,
+        -104.2841658883876
+      ],
+      [
+        19.07824439675706,
+        -104.2852880087386
+      ],
+      [
+        19.0777380701928,
+        -104.2844701945941
+      ],
+      [
+        19.07831557575004,
+        -104.28408909786
+      ],
+      [
+        19.07930582606959,
+        -104.283036714451
+      ],
+      [
+        19.0795099892271,
+        -104.2830521674913
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_patio_vacios_ssa_1",
+    "name": "PATIO VACÍOS SSA",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08659792886365,
+        -104.2832431528907
+      ],
+      [
+        19.08727008262447,
+        -104.2847628473908
+      ],
+      [
+        19.08444596509731,
+        -104.2862314843482
+      ],
+      [
+        19.08287407919109,
+        -104.284175333949
+      ],
+      [
+        19.0829026174185,
+        -104.2840309005433
+      ],
+      [
+        19.08459718285574,
+        -104.2828516459234
+      ],
+      [
+        19.08483309574476,
+        -104.2835233782336
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_patio_llenos_ssa_1",
+    "name": "PATIO LLENOS SSA",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08332448065189,
+        -104.2825392206887
+      ],
+      [
+        19.08289868116786,
+        -104.2827445197816
+      ],
+      [
+        19.0831687403057,
+        -104.2834063576126
+      ],
+      [
+        19.08196976561888,
+        -104.2841993292402
+      ],
+      [
+        19.08088254256907,
+        -104.2816071224204
+      ],
+      [
+        19.0811537167766,
+        -104.2814613801185
+      ],
+      [
+        19.08096341794535,
+        -104.2810799939899
+      ],
+      [
+        19.0826354894932,
+        -104.2806163804811
+      ],
+      [
+        19.08279911263151,
+        -104.2812951579897
+      ],
+      [
+        19.0830128652513,
+        -104.2818506470017
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_patio_tep_1",
+    "name": "PATIO TEP",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08900145144877,
+        -104.2855872426179
+      ],
+      [
+        19.08742964512263,
+        -104.287962891917
+      ],
+      [
+        19.08717581056621,
+        -104.2880480472744
+      ],
+      [
+        19.08612081759448,
+        -104.287201400593
+      ],
+      [
+        19.08757484583369,
+        -104.2855972580024
+      ],
+      [
+        19.08789326296231,
+        -104.2853726177319
+      ],
+      [
+        19.08837105090526,
+        -104.2852364879437
+      ],
+      [
+        19.08860693783504,
+        -104.2852401816535
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_patio_alcam_1",
+    "name": "PATIO ALCAM",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08946811172674,
+        -104.2788522638417
+      ],
+      [
+        19.08931803541211,
+        -104.2788217320578
+      ],
+      [
+        19.08877291321522,
+        -104.2762513617087
+      ],
+      [
+        19.08910353716587,
+        -104.2761316961981
+      ],
+      [
+        19.08900508716888,
+        -104.2756116941832
+      ],
+      [
+        19.08945381039345,
+        -104.2756864524864
+      ],
+      [
+        19.08991083677116,
+        -104.2785535194966
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_patio_acoman_1",
+    "name": "PATIO ACOMAN",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08190281245233,
+        -104.2842406734745
+      ],
+      [
+        19.08147911821307,
+        -104.2845524495004
+      ],
+      [
+        19.08124460531891,
+        -104.2840297974524
+      ],
+      [
+        19.08099487359753,
+        -104.2834555232468
+      ],
+      [
+        19.08147659452009,
+        -104.2832171100773
+      ]
+    ],
+    "source": "kml"
+  },
+  {
+    "id": "kml_impala_terminals_1",
+    "name": "IMPALA TERMINALS",
+    "type": "polygon",
+    "coords": [
+      [
+        19.08943176891918,
+        -104.2794398978021
+      ],
+      [
+        19.08996793329248,
+        -104.2811317351449
+      ],
+      [
+        19.08975501613804,
+        -104.283485312116
+      ],
+      [
+        19.08726106418154,
+        -104.2847593653361
+      ],
+      [
+        19.08660965417748,
+        -104.2832133276309
+      ],
+      [
+        19.08606299682246,
+        -104.2833028988063
+      ],
+      [
+        19.0857317621049,
+        -104.281959666124
+      ]
+    ],
+    "source": "kml"
+  }
+];
+
+const PATIO_DRAW_LOCAL_KEY = "cm_patio_identifica_features";
+const PATIO_DRAW_TABLE = "patio_identificados";
+
+const makePatioFeatureId = () => `patio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizePatioFeatureName = (name) => sanitize(String(name || "").trim()).replace(/&#x2F;/g, "/").slice(0, 80);
+
+const getPatioFeatureCenter = (feature) => {
+  if (!feature) return [19.0788, -104.2848];
+  if (feature.type === "marker" && Array.isArray(feature.coords)) return feature.coords;
+  const coords = Array.isArray(feature.coords) ? feature.coords : [];
+  if (!coords.length) return [19.0788, -104.2848];
+  const sum = coords.reduce((acc, c) => [acc[0] + Number(c[0] || 0), acc[1] + Number(c[1] || 0)], [0, 0]);
+  return [sum[0] / coords.length, sum[1] / coords.length];
+};
+
+function PatioIdentificaMap({ myId }) {
+  const theme = React.useContext(ThemeContext);
+  const L = useLeaflet();
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const drawnGroupRef = useRef(null);
+  const tileRef = useRef(null);
+  const layerByIdRef = useRef({});
+  const syncingRef = useRef(false);
+  const [drawReady, setDrawReady] = useState(false);
+  const [tileMode, setTileMode] = useState("satellite");
+  const [features, setFeatures] = useState(PATIOS_KML_REFERENCIA);
+  const [selectedId, setSelectedId] = useState(null);
+  const [query, setQuery] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const TILE_OPTIONS = [
+    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "" },
+    { id: "streets", label: "Calles", icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
+    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+  ];
+
+  const notify = (text, color = "#38bdf8") => {
+    setMsg({ text, color });
+    setTimeout(() => setMsg(null), 3200);
+  };
+
+  const saveLocal = (next) => {
+    try { localStorage.setItem(PATIO_DRAW_LOCAL_KEY, JSON.stringify(next)); } catch {}
+  };
+
+  const upsertRemote = async (next) => {
+    try {
+      await sb.from(PATIO_DRAW_TABLE).upsert({
+        id: "manzanillo",
+        data: next,
+        updated_at: new Date().toISOString(),
+        updated_by: myId || "anon"
+      });
+    } catch {}
+  };
+
+  const persistFeatures = (next, remote = true) => {
+    setFeatures(next);
+    saveLocal(next);
+    if (remote) upsertRemote(next);
+  };
+
+  const loadInitialFeatures = useCallback(async () => {
+    let loaded = null;
+    try {
+      const { data, error } = await sb.from(PATIO_DRAW_TABLE).select("data").eq("id", "manzanillo").maybeSingle();
+      if (!error && Array.isArray(data?.data) && data.data.length) loaded = data.data;
+    } catch {}
+    if (!loaded) {
+      try {
+        const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
+        if (Array.isArray(local) && local.length) loaded = local;
+      } catch {}
+    }
+    persistFeatures(loaded || PATIOS_KML_REFERENCIA, false);
+  }, []);
+
+  useEffect(() => { loadInitialFeatures(); }, [loadInitialFeatures]);
+
+  useEffect(() => {
+    const chan = sb.channel("patio-identifica-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: PATIO_DRAW_TABLE }, ({ new: r }) => {
+        if (Array.isArray(r?.data)) {
+          syncingRef.current = true;
+          setFeatures(r.data);
+          saveLocal(r.data);
+          setTimeout(() => { syncingRef.current = false; }, 200);
+        }
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  useEffect(() => {
+    if (!L || drawReady || window.L?.Control?.Draw) { if (window.L?.Control?.Draw) setDrawReady(true); return; }
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css";
+    document.head.appendChild(css);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js";
+    script.onload = () => setDrawReady(true);
+    document.head.appendChild(script);
+  }, [L, drawReady]);
+
+  const layerToFeature = (layer, fallback = {}) => {
+    const id = layer.options?.featureId || fallback.id || makePatioFeatureId();
+    const name = normalizePatioFeatureName(layer.options?.featureName || fallback.name || "");
+    if (layer instanceof L.Marker) {
+      const ll = layer.getLatLng();
+      return { id, name, type: "marker", coords: [ll.lat, ll.lng], source: fallback.source || "usuario" };
+    }
+    const latLngs = layer.getLatLngs?.();
+    const ring = Array.isArray(latLngs?.[0]) ? latLngs[0] : latLngs;
+    const coords = (ring || []).map(ll => [ll.lat, ll.lng]);
+    return { id, name, type: "polygon", coords, source: fallback.source || "usuario" };
+  };
+
+  const featureStyle = (feature) => {
+    const selected = selectedId === feature.id;
+    return {
+      color: selected ? "#fbbf24" : (feature.source === "kml" ? "#38bdf8" : "#fb923c"),
+      fillColor: selected ? "#fbbf24" : (feature.source === "kml" ? "#38bdf8" : "#fb923c"),
+      fillOpacity: selected ? 0.48 : 0.25,
+      opacity: 1,
+      weight: selected ? 5 : 3,
+      lineJoin: "round",
+    };
+  };
+
+  const bindLayerMeta = (layer, feature) => {
+    layer.options.featureId = feature.id;
+    layer.options.featureName = feature.name;
+    const html = `<b>${sanitize(feature.name)}</b><br><span>${feature.type === "marker" ? "Pin / etiqueta" : "Polígono de patio"}</span>`;
+    layer.bindTooltip(html, { sticky: true, className: "cm-tooltip" });
+    layer.on("click", () => setSelectedId(feature.id));
+    return layer;
+  };
+
+  const rebuildLayers = useCallback(() => {
+    const map = mapInstanceRef.current;
+    const group = drawnGroupRef.current;
+    if (!map || !L || !group) return;
+    group.clearLayers();
+    layerByIdRef.current = {};
+    const all = [];
+    features.forEach(feature => {
+      if (!feature?.name) return;
+      let layer;
+      if (feature.type === "marker") {
+        const selected = selectedId === feature.id;
+        layer = L.marker(feature.coords, {
+          featureId: feature.id,
+          featureName: feature.name,
+          icon: L.divIcon({
+            className: "cm-patio-pin",
+            html: `<div class="cm-patio-pin-dot ${selected ? "selected" : ""}">📍</div><div class="cm-patio-pin-label ${selected ? "selected" : ""}">${sanitize(feature.name)}</div>`,
+            iconSize: [150, 44],
+            iconAnchor: [16, 32],
+          })
+        });
+        all.push(feature.coords);
+      } else {
+        layer = L.polygon(feature.coords, { ...featureStyle(feature), featureId: feature.id, featureName: feature.name });
+        (feature.coords || []).forEach(c => all.push(c));
+      }
+      bindLayerMeta(layer, feature).addTo(group);
+      layerByIdRef.current[feature.id] = layer;
+    });
+    if (!selectedId && all.length) {
+      map.fitBounds(L.latLngBounds(all), { padding: [26, 26], maxZoom: 16 });
+    }
+  }, [L, features, selectedId]);
+
+  useEffect(() => {
+    if (!L || !drawReady || !mapRef.current || mapInstanceRef.current) return;
+    const initialTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+    const map = L.map(mapRef.current, {
+      center: [19.0788, -104.2848],
+      zoom: 14,
+      zoomControl: true,
+      attributionControl: false,
+      scrollWheelZoom: true,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+    });
+    tileRef.current = L.tileLayer(initialTile.url, { maxZoom: 20, subdomains: initialTile.subdomains || "abc" }).addTo(map);
+    drawnGroupRef.current = L.featureGroup().addTo(map);
+    mapInstanceRef.current = map;
+
+    const drawControl = new L.Control.Draw({
+      position: "topright",
+      draw: {
+        polyline: false,
+        rectangle: false,
+        circle: false,
+        circlemarker: false,
+        polygon: {
+          allowIntersection: false,
+          showArea: true,
+          shapeOptions: { color: "#fb923c", fillColor: "#fb923c", fillOpacity: 0.32, weight: 3 }
+        },
+        marker: true
+      },
+      edit: { featureGroup: drawnGroupRef.current, remove: true }
+    });
+    map.addControl(drawControl);
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+      let name = "";
+      while (!name) {
+        const input = window.prompt(e.layerType === "marker" ? "Nombre obligatorio para este pin o etiqueta:" : "Nombre obligatorio para este patio:");
+        if (input === null) return;
+        name = normalizePatioFeatureName(input);
+        if (!name) window.alert("Debes escribir un nombre para guardar el elemento.");
+      }
+      const layer = e.layer;
+      layer.options.featureId = makePatioFeatureId();
+      layer.options.featureName = name;
+      const nextFeature = layerToFeature(layer, { name });
+      persistFeatures([...featuresRef.current, nextFeature]);
+      setSelectedId(nextFeature.id);
+      notify(`Guardado: ${name}`, "#22c55e");
+    });
+
+    map.on(L.Draw.Event.EDITED, (e) => {
+      const edited = {};
+      e.layers.eachLayer(layer => {
+        const old = featuresRef.current.find(f => f.id === layer.options.featureId);
+        edited[layer.options.featureId] = layerToFeature(layer, old);
+      });
+      const next = featuresRef.current.map(f => edited[f.id] || f);
+      persistFeatures(next);
+      notify("Cambios guardados.", "#22c55e");
+    });
+
+    map.on(L.Draw.Event.DELETED, (e) => {
+      const deleted = new Set();
+      e.layers.eachLayer(layer => deleted.add(layer.options.featureId));
+      const next = featuresRef.current.filter(f => !deleted.has(f.id));
+      persistFeatures(next);
+      if (deleted.has(selectedId)) setSelectedId(null);
+      notify("Elemento eliminado.", "#ef4444");
+    });
+
+    setTimeout(() => map.invalidateSize(), 150);
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+      drawnGroupRef.current = null;
+      layerByIdRef.current = {};
+    };
+  }, [L, drawReady]);
+
+  const featuresRef = useRef(features);
+  useEffect(() => { featuresRef.current = features; }, [features]);
+
+  useEffect(() => { rebuildLayers(); }, [rebuildLayers]);
+
+  useEffect(() => {
+    if (!L || !mapInstanceRef.current || !tileRef.current) return;
+    const nextTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+    mapInstanceRef.current.removeLayer(tileRef.current);
+    tileRef.current = L.tileLayer(nextTile.url, { maxZoom: 20, subdomains: nextTile.subdomains || "abc" }).addTo(mapInstanceRef.current);
+  }, [tileMode, L]);
+
+  const selectFeature = (id) => {
+    const feature = features.find(f => f.id === id);
+    const map = mapInstanceRef.current;
+    const layer = layerByIdRef.current[id];
+    if (!feature || !map || !layer) return;
+    setSelectedId(id);
+    setTimeout(() => {
+      if (feature.type === "marker") {
+        map.setView(getPatioFeatureCenter(feature), Math.max(map.getZoom(), 17), { animate: true });
+      } else if (layer.getBounds) {
+        map.fitBounds(layer.getBounds(), { padding: [36, 36], maxZoom: 18 });
+      }
+      layer.openTooltip?.();
+    }, 80);
+  };
+
+  const renameSelected = () => {
+    const feature = features.find(f => f.id === selectedId);
+    if (!feature) return notify("Selecciona primero un patio o pin.", "#f97316");
+    const input = window.prompt("Nuevo nombre obligatorio:", feature.name);
+    const name = normalizePatioFeatureName(input);
+    if (!name) return notify("No se cambió el nombre: el campo no puede quedar vacío.", "#ef4444");
+    const next = features.map(f => f.id === selectedId ? { ...f, name } : f);
+    persistFeatures(next);
+    notify("Nombre actualizado.", "#22c55e");
+  };
+
+  const resetToKml = () => {
+    if (!window.confirm("¿Restaurar el mapa a los patios del KML? Se eliminarán los dibujos locales/compartidos actuales.")) return;
+    setSelectedId(null);
+    persistFeatures(PATIOS_KML_REFERENCIA);
+    notify("Mapa restaurado desde el KML.", "#38bdf8");
+  };
+
+  const filteredFeatures = features
+    .filter(f => (f.name || "").toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), "es"));
+
+  return (
+    <div style={{ background:"linear-gradient(180deg,rgba(251,146,60,0.10),rgba(56,189,248,0.06))", border:"1px solid rgba(251,146,60,0.26)", borderRadius:"16px", padding:"14px", margin:"18px 0", overflow:"hidden" }}>
+      <style>{`
+        .cm-tooltip{background:rgba(4,12,24,0.96)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:7px!important;color:rgba(255,255,255,0.92)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:800!important;padding:5px 9px!important;box-shadow:0 6px 20px rgba(0,0,0,.42)!important;white-space:nowrap!important;}
+        .cm-tooltip::before{display:none!important;}
+        .cm-patio-pin{background:transparent!important;border:none!important;}
+        .cm-patio-pin-dot{width:32px;height:32px;border-radius:999px;background:rgba(4,12,24,.94);border:2px solid #fb923c;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(251,146,60,.18),0 8px 18px rgba(0,0,0,.42);}
+        .cm-patio-pin-dot.selected{border-color:#fbbf24;box-shadow:0 0 0 5px rgba(251,191,36,.25),0 0 22px rgba(251,191,36,.45);}
+        .cm-patio-pin-label{position:absolute;left:38px;top:5px;white-space:nowrap;background:rgba(4,12,24,.9);border:1px solid rgba(251,146,60,.55);border-radius:8px;padding:4px 8px;color:#fb923c;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;box-shadow:0 4px 14px rgba(0,0,0,.30);}
+        .cm-patio-pin-label.selected{border-color:#fbbf24;color:#fbbf24;}
+        .leaflet-draw-toolbar a{background-color:rgba(4,12,24,.94)!important;border-color:rgba(255,255,255,.16)!important;}
+        .leaflet-draw-toolbar a:hover{background-color:rgba(251,146,60,.18)!important;}
+        .leaflet-control-zoom a{background:rgba(4,12,24,0.94)!important;color:rgba(255,255,255,0.75)!important;border-color:rgba(255,255,255,0.12)!important;}
+        @media (max-width:760px){.patio-identifica-actions{grid-template-columns:1fr!important}.patio-identifica-search{grid-template-columns:1fr!important}}
+      `}</style>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
+            Usa el mapa de referencia del KML para dibujar polígonos, colocar pins/etiquetas, corregir formas y eliminar elementos. Todo elemento debe tener nombre.
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+          {TILE_OPTIONS.map(t => (
+            <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>{t.icon} {t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+        <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar seleccionado</button>
+        <button onClick={resetToKml} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>↺ Restaurar KML</button>
+        <button onClick={() => persistFeatures(features)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>💾 Guardar ahora</button>
+      </div>
+
+      <div ref={mapRef} style={{ width:"100%", minHeight:"470px", height:"clamp(470px, 62vh, 720px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
+      {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando herramientas de dibujo…</div>}
+
+      <div className="patio-identifica-search" style={{ display:"grid", gridTemplateColumns:"1.15fr .85fr", gap:"8px", marginTop:"12px" }}>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={selectedId || ""} onChange={e => selectFeature(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+          <option value="">Selecciona un patio para centrar el mapa</option>
+          {filteredFeatures.map(f => <option key={f.id} value={f.id}>{f.name} · {f.type === "marker" ? "Pin" : "Polígono"}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.46)" }}>
+        <span>Polígono: delimita patio · Pin: etiqueta/punto de referencia · Editar: corrige vértices · Basura: elimina.</span>
+        <span>{features.length} elemento(s) registrados</span>
+      </div>
+      {msg && <div style={{ marginTop:"10px", padding:"9px 11px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}>{msg.text}</div>}
+    </div>
+  );
+}
+
+
 function PatioReguladorTab({ myId }) {
   const theme = React.useContext(ThemeContext);
   const [patios,      setPatios]      = useState(null);  // null = loading
