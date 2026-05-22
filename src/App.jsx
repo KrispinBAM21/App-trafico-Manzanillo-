@@ -5820,7 +5820,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
       )}
 
-      <PatioIdentificaMap myId={myId} />
       <ToastBox toast={toast} />
 
     </div>
@@ -11337,6 +11336,7 @@ function PatioReguladorTab({ myId }) {
           </div>
         ))}
       </div>
+      <PatioIdentificaMap myId={myId} />
       <SectionLabel text="PATIOS REGULADORES" rightBtn={<NormalBtn onClick={resetAll} label="TODOS LIBRES" />} />
       {(!patios) ? <SkeletonCard n={4}/> : PATIOS_REGULADORES.map(patio => {
         const st  = patios[patio.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
