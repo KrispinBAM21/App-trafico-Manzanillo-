@@ -10895,21 +10895,37 @@ function PatioIdentificaMap({ myId }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const drawnGroupRef = useRef(null);
-  const tileRef = useRef(null);
+  const baseTileRef = useRef(null);
+  const labelTileRef = useRef(null);
   const layerByIdRef = useRef({});
-  const syncingRef = useRef(false);
+  const initialFitDoneRef = useRef(false);
   const [drawReady, setDrawReady] = useState(false);
-  const [tileMode, setTileMode] = useState("satellite");
+  const [tileMode, setTileMode] = useState("satellite_labels");
   const [features, setFeatures] = useState(PATIOS_KML_REFERENCIA);
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [msg, setMsg] = useState(null);
 
   const TILE_OPTIONS = [
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "" },
+    {
+      id: "satellite_labels",
+      label: "Satélite + calles",
+      icon: "🛰️",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      subdomains: "",
+      labelsUrl: "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
+      labelsSubdomains: "abcd",
+    },
+    {
+      id: "satellite",
+      label: "Satélite",
+      icon: "🌎",
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      subdomains: "",
+    },
     { id: "streets", label: "Calles", icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
-    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
     { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
   ];
 
   const notify = (text, color = "#38bdf8") => {
@@ -10917,65 +10933,61 @@ function PatioIdentificaMap({ myId }) {
     setTimeout(() => setMsg(null), 3200);
   };
 
+  const featuresRef = useRef(features);
+  useEffect(() => { featuresRef.current = features; }, [features]);
+
+  const isValidFeature = (f) => {
+    if (!f || !f.id || !f.name || !f.type) return false;
+    if (f.type === "marker") return Array.isArray(f.coords) && f.coords.length === 2 && !isNaN(f.coords[0]) && !isNaN(f.coords[1]);
+    return Array.isArray(f.coords) && f.coords.length >= 3;
+  };
+
+  const mergeWithKmlReference = (saved = []) => {
+    const map = new Map(PATIOS_KML_REFERENCIA.filter(isValidFeature).map(f => [f.id, { ...f, source: "kml" }]));
+    (Array.isArray(saved) ? saved : []).filter(isValidFeature).forEach(f => map.set(f.id, f));
+    return Array.from(map.values());
+  };
+
   const saveLocal = (next) => {
-    try { localStorage.setItem(PATIO_DRAW_LOCAL_KEY, JSON.stringify(next)); } catch {}
+    try { localStorage.setItem(PATIO_DRAW_LOCAL_KEY, JSON.stringify(next.filter(isValidFeature))); } catch {}
   };
 
-  const upsertRemote = async (next) => {
+  const persistFeatures = (next) => {
+    const clean = mergeWithKmlReference(next);
+    setFeatures(clean);
+    saveLocal(clean);
+  };
+
+  useEffect(() => {
     try {
-      await sb.from(PATIO_DRAW_TABLE).upsert({
-        id: "manzanillo",
-        data: next,
-        updated_at: new Date().toISOString(),
-        updated_by: myId || "anon"
-      });
-    } catch {}
-  };
-
-  const persistFeatures = (next, remote = true) => {
-    setFeatures(next);
-    saveLocal(next);
-    if (remote) upsertRemote(next);
-  };
-
-  const loadInitialFeatures = useCallback(async () => {
-    let loaded = null;
-    try {
-      const { data, error } = await sb.from(PATIO_DRAW_TABLE).select("data").eq("id", "manzanillo").maybeSingle();
-      if (!error && Array.isArray(data?.data) && data.data.length) loaded = data.data;
-    } catch {}
-    if (!loaded) {
-      try {
-        const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
-        if (Array.isArray(local) && local.length) loaded = local;
-      } catch {}
+      const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
+      setFeatures(mergeWithKmlReference(local));
+    } catch {
+      setFeatures(PATIOS_KML_REFERENCIA);
     }
-    persistFeatures(loaded || PATIOS_KML_REFERENCIA, false);
-  }, []);
-
-  useEffect(() => { loadInitialFeatures(); }, [loadInitialFeatures]);
-
-  useEffect(() => {
-    const chan = sb.channel("patio-identifica-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: PATIO_DRAW_TABLE }, ({ new: r }) => {
-        if (Array.isArray(r?.data)) {
-          syncingRef.current = true;
-          setFeatures(r.data);
-          saveLocal(r.data);
-          setTimeout(() => { syncingRef.current = false; }, 200);
-        }
-      }).subscribe();
-    return () => sb.removeChannel(chan);
   }, []);
 
   useEffect(() => {
-    if (!L || drawReady || window.L?.Control?.Draw) { if (window.L?.Control?.Draw) setDrawReady(true); return; }
-    const css = document.createElement("link");
-    css.rel = "stylesheet";
-    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css";
-    document.head.appendChild(css);
+    if (!L || drawReady || window.L?.Control?.Draw) {
+      if (window.L?.Control?.Draw) setDrawReady(true);
+      return;
+    }
+    const existingCss = document.querySelector('link[data-leaflet-draw="true"]');
+    if (!existingCss) {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css";
+      css.dataset.leafletDraw = "true";
+      document.head.appendChild(css);
+    }
+    const existingScript = document.querySelector('script[data-leaflet-draw="true"]');
+    if (existingScript) {
+      existingScript.addEventListener("load", () => setDrawReady(true), { once: true });
+      return;
+    }
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js";
+    script.dataset.leafletDraw = "true";
     script.onload = () => setDrawReady(true);
     document.head.appendChild(script);
   }, [L, drawReady]);
@@ -10989,18 +11001,20 @@ function PatioIdentificaMap({ myId }) {
     }
     const latLngs = layer.getLatLngs?.();
     const ring = Array.isArray(latLngs?.[0]) ? latLngs[0] : latLngs;
-    const coords = (ring || []).map(ll => [ll.lat, ll.lng]);
+    const coords = (ring || []).map(ll => [ll.lat, ll.lng]).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
     return { id, name, type: "polygon", coords, source: fallback.source || "usuario" };
   };
 
   const featureStyle = (feature) => {
     const selected = selectedId === feature.id;
+    const isKml = feature.source === "kml";
     return {
-      color: selected ? "#fbbf24" : (feature.source === "kml" ? "#38bdf8" : "#fb923c"),
-      fillColor: selected ? "#fbbf24" : (feature.source === "kml" ? "#38bdf8" : "#fb923c"),
-      fillOpacity: selected ? 0.48 : 0.25,
+      pane: "patioPane",
+      color: selected ? "#fbbf24" : (isKml ? "#00e5ff" : "#fb923c"),
+      fillColor: selected ? "#fbbf24" : (isKml ? "#00bcd4" : "#fb923c"),
+      fillOpacity: selected ? 0.58 : (isKml ? 0.38 : 0.34),
       opacity: 1,
-      weight: selected ? 5 : 3,
+      weight: selected ? 6 : 4,
       lineJoin: "round",
     };
   };
@@ -11008,8 +11022,14 @@ function PatioIdentificaMap({ myId }) {
   const bindLayerMeta = (layer, feature) => {
     layer.options.featureId = feature.id;
     layer.options.featureName = feature.name;
-    const html = `<b>${sanitize(feature.name)}</b><br><span>${feature.type === "marker" ? "Pin / etiqueta" : "Polígono de patio"}</span>`;
-    layer.bindTooltip(html, { sticky: true, className: "cm-tooltip" });
+    const safeName = sanitize(feature.name);
+    const typeText = feature.type === "marker" ? "Pin / etiqueta" : "Polígono";
+    layer.bindTooltip(`<b>${safeName}</b><br><span>${typeText}</span>`, {
+      permanent: feature.type === "polygon",
+      direction: feature.type === "polygon" ? "center" : "top",
+      sticky: feature.type !== "polygon",
+      className: selectedId === feature.id ? "cm-tooltip patio-label patio-label-selected" : "cm-tooltip patio-label",
+    });
     layer.on("click", () => setSelectedId(feature.id));
     return layer;
   };
@@ -11021,18 +11041,19 @@ function PatioIdentificaMap({ myId }) {
     group.clearLayers();
     layerByIdRef.current = {};
     const all = [];
-    features.forEach(feature => {
-      if (!feature?.name) return;
+
+    features.filter(isValidFeature).forEach(feature => {
       let layer;
       if (feature.type === "marker") {
         const selected = selectedId === feature.id;
         layer = L.marker(feature.coords, {
           featureId: feature.id,
           featureName: feature.name,
+          pane: "markerPane",
           icon: L.divIcon({
             className: "cm-patio-pin",
             html: `<div class="cm-patio-pin-dot ${selected ? "selected" : ""}">📍</div><div class="cm-patio-pin-label ${selected ? "selected" : ""}">${sanitize(feature.name)}</div>`,
-            iconSize: [150, 44],
+            iconSize: [170, 44],
             iconAnchor: [16, 32],
           })
         });
@@ -11044,16 +11065,41 @@ function PatioIdentificaMap({ myId }) {
       bindLayerMeta(layer, feature).addTo(group);
       layerByIdRef.current[feature.id] = layer;
     });
-    if (!selectedId && all.length) {
-      map.fitBounds(L.latLngBounds(all), { padding: [26, 26], maxZoom: 16 });
+
+    group.bringToFront();
+    if (!initialFitDoneRef.current && all.length) {
+      initialFitDoneRef.current = true;
+      map.fitBounds(L.latLngBounds(all), { padding: [30, 30], maxZoom: 15 });
     }
   }, [L, features, selectedId]);
 
+  const applyTileMode = useCallback((mode) => {
+    const map = mapInstanceRef.current;
+    if (!map || !L) return;
+    const option = TILE_OPTIONS.find(t => t.id === mode) || TILE_OPTIONS[0];
+    if (baseTileRef.current) map.removeLayer(baseTileRef.current);
+    if (labelTileRef.current) {
+      map.removeLayer(labelTileRef.current);
+      labelTileRef.current = null;
+    }
+    baseTileRef.current = L.tileLayer(option.url, {
+      maxZoom: 20,
+      subdomains: option.subdomains || "abc",
+    }).addTo(map);
+    if (option.labelsUrl) {
+      labelTileRef.current = L.tileLayer(option.labelsUrl, {
+        maxZoom: 20,
+        subdomains: option.labelsSubdomains || "abcd",
+        pane: "labelPane",
+      }).addTo(map);
+    }
+    drawnGroupRef.current?.bringToFront?.();
+  }, [L]);
+
   useEffect(() => {
     if (!L || !drawReady || !mapRef.current || mapInstanceRef.current) return;
-    const initialTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
     const map = L.map(mapRef.current, {
-      center: [19.0788, -104.2848],
+      center: [19.0848, -104.2839],
       zoom: 14,
       zoomControl: true,
       attributionControl: false,
@@ -11062,9 +11108,20 @@ function PatioIdentificaMap({ myId }) {
       touchZoom: true,
       doubleClickZoom: true,
     });
-    tileRef.current = L.tileLayer(initialTile.url, { maxZoom: 20, subdomains: initialTile.subdomains || "abc" }).addTo(map);
+
+    if (!map.getPane("labelPane")) {
+      map.createPane("labelPane");
+      map.getPane("labelPane").style.zIndex = 420;
+      map.getPane("labelPane").style.pointerEvents = "none";
+    }
+    if (!map.getPane("patioPane")) {
+      map.createPane("patioPane");
+      map.getPane("patioPane").style.zIndex = 470;
+    }
+
     drawnGroupRef.current = L.featureGroup().addTo(map);
     mapInstanceRef.current = map;
+    applyTileMode(tileMode);
 
     const drawControl = new L.Control.Draw({
       position: "topright",
@@ -11076,7 +11133,7 @@ function PatioIdentificaMap({ myId }) {
         polygon: {
           allowIntersection: false,
           showArea: true,
-          shapeOptions: { color: "#fb923c", fillColor: "#fb923c", fillOpacity: 0.32, weight: 3 }
+          shapeOptions: { pane: "patioPane", color: "#fb923c", fillColor: "#fb923c", fillOpacity: 0.34, weight: 4 }
         },
         marker: true
       },
@@ -11095,7 +11152,7 @@ function PatioIdentificaMap({ myId }) {
       const layer = e.layer;
       layer.options.featureId = makePatioFeatureId();
       layer.options.featureName = name;
-      const nextFeature = layerToFeature(layer, { name });
+      const nextFeature = layerToFeature(layer, { name, source: "usuario" });
       persistFeatures([...featuresRef.current, nextFeature]);
       setSelectedId(nextFeature.id);
       notify(`Guardado: ${name}`, "#22c55e");
@@ -11105,7 +11162,8 @@ function PatioIdentificaMap({ myId }) {
       const edited = {};
       e.layers.eachLayer(layer => {
         const old = featuresRef.current.find(f => f.id === layer.options.featureId);
-        edited[layer.options.featureId] = layerToFeature(layer, old);
+        const nextFeature = layerToFeature(layer, old);
+        if (isValidFeature(nextFeature)) edited[nextFeature.id] = nextFeature;
       });
       const next = featuresRef.current.map(f => edited[f.id] || f);
       persistFeatures(next);
@@ -11121,26 +11179,23 @@ function PatioIdentificaMap({ myId }) {
       notify("Elemento eliminado.", "#ef4444");
     });
 
-    setTimeout(() => map.invalidateSize(), 150);
+    setTimeout(() => {
+      map.invalidateSize();
+      rebuildLayers();
+    }, 180);
+
     return () => {
       map.remove();
       mapInstanceRef.current = null;
       drawnGroupRef.current = null;
+      baseTileRef.current = null;
+      labelTileRef.current = null;
       layerByIdRef.current = {};
     };
   }, [L, drawReady]);
 
-  const featuresRef = useRef(features);
-  useEffect(() => { featuresRef.current = features; }, [features]);
-
   useEffect(() => { rebuildLayers(); }, [rebuildLayers]);
-
-  useEffect(() => {
-    if (!L || !mapInstanceRef.current || !tileRef.current) return;
-    const nextTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
-    mapInstanceRef.current.removeLayer(tileRef.current);
-    tileRef.current = L.tileLayer(nextTile.url, { maxZoom: 20, subdomains: nextTile.subdomains || "abc" }).addTo(mapInstanceRef.current);
-  }, [tileMode, L]);
+  useEffect(() => { applyTileMode(tileMode); }, [tileMode, applyTileMode]);
 
   const selectFeature = (id) => {
     const feature = features.find(f => f.id === id);
@@ -11152,10 +11207,12 @@ function PatioIdentificaMap({ myId }) {
       if (feature.type === "marker") {
         map.setView(getPatioFeatureCenter(feature), Math.max(map.getZoom(), 17), { animate: true });
       } else if (layer.getBounds) {
-        map.fitBounds(layer.getBounds(), { padding: [36, 36], maxZoom: 18 });
+        map.fitBounds(layer.getBounds(), { padding: [42, 42], maxZoom: 18 });
+        layer.setStyle?.(featureStyle({ ...feature, id }));
+        layer.bringToFront?.();
       }
       layer.openTooltip?.();
-    }, 80);
+    }, 90);
   };
 
   const renameSelected = () => {
@@ -11164,19 +11221,30 @@ function PatioIdentificaMap({ myId }) {
     const input = window.prompt("Nuevo nombre obligatorio:", feature.name);
     const name = normalizePatioFeatureName(input);
     if (!name) return notify("No se cambió el nombre: el campo no puede quedar vacío.", "#ef4444");
-    const next = features.map(f => f.id === selectedId ? { ...f, name } : f);
+    const next = features.map(f => f.id === selectedId ? { ...f, name, source: f.source || "usuario" } : f);
     persistFeatures(next);
     notify("Nombre actualizado.", "#22c55e");
   };
 
   const resetToKml = () => {
-    if (!window.confirm("¿Restaurar el mapa a los patios del KML? Se eliminarán los dibujos locales/compartidos actuales.")) return;
+    if (!window.confirm("¿Restaurar el mapa a los patios del KML? Se eliminarán los dibujos guardados en este navegador.")) return;
+    initialFitDoneRef.current = false;
     setSelectedId(null);
-    persistFeatures(PATIOS_KML_REFERENCIA);
+    try { localStorage.removeItem(PATIO_DRAW_LOCAL_KEY); } catch {}
+    setFeatures(PATIOS_KML_REFERENCIA);
     notify("Mapa restaurado desde el KML.", "#38bdf8");
   };
 
+  const focusAll = () => {
+    const map = mapInstanceRef.current;
+    const group = drawnGroupRef.current;
+    if (!map || !group) return;
+    const bounds = group.getBounds?.();
+    if (bounds?.isValid?.()) map.fitBounds(bounds, { padding: [34, 34], maxZoom: 15 });
+  };
+
   const filteredFeatures = features
+    .filter(isValidFeature)
     .filter(f => (f.name || "").toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "es"));
 
@@ -11185,6 +11253,8 @@ function PatioIdentificaMap({ myId }) {
       <style>{`
         .cm-tooltip{background:rgba(4,12,24,0.96)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:7px!important;color:rgba(255,255,255,0.92)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:800!important;padding:5px 9px!important;box-shadow:0 6px 20px rgba(0,0,0,.42)!important;white-space:nowrap!important;}
         .cm-tooltip::before{display:none!important;}
+        .patio-label{background:rgba(0,0,0,.78)!important;border:1px solid rgba(0,229,255,.65)!important;color:#fff!important;border-radius:8px!important;padding:4px 8px!important;font-size:11px!important;font-weight:900!important;text-shadow:0 1px 2px rgba(0,0,0,.65)!important;box-shadow:0 2px 10px rgba(0,0,0,.35)!important;}
+        .patio-label-selected{border-color:#fbbf24!important;color:#fbbf24!important;box-shadow:0 0 18px rgba(251,191,36,.45)!important;}
         .cm-patio-pin{background:transparent!important;border:none!important;}
         .cm-patio-pin-dot{width:32px;height:32px;border-radius:999px;background:rgba(4,12,24,.94);border:2px solid #fb923c;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(251,146,60,.18),0 8px 18px rgba(0,0,0,.42);}
         .cm-patio-pin-dot.selected{border-color:#fbbf24;box-shadow:0 0 0 5px rgba(251,191,36,.25),0 0 22px rgba(251,191,36,.45);}
@@ -11199,7 +11269,7 @@ function PatioIdentificaMap({ myId }) {
         <div>
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
-            Usa el mapa de referencia del KML para dibujar polígonos, colocar pins/etiquetas, corregir formas y eliminar elementos. Todo elemento debe tener nombre.
+            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, eliminar, colocar pins y buscar patios por nombre.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
@@ -11209,14 +11279,15 @@ function PatioIdentificaMap({ myId }) {
         </div>
       </div>
 
-      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-        <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar seleccionado</button>
+      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+        <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
+        <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
         <button onClick={resetToKml} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>↺ Restaurar KML</button>
-        <button onClick={() => persistFeatures(features)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>💾 Guardar ahora</button>
+        <button onClick={() => persistFeatures(features)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>💾 Guardar</button>
       </div>
 
-      <div ref={mapRef} style={{ width:"100%", minHeight:"470px", height:"clamp(470px, 62vh, 720px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
-      {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando herramientas de dibujo…</div>}
+      <div ref={mapRef} style={{ width:"100%", minHeight:"520px", height:"clamp(520px, 68vh, 780px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
+      {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa y herramientas de dibujo…</div>}
 
       <div className="patio-identifica-search" style={{ display:"grid", gridTemplateColumns:"1.15fr .85fr", gap:"8px", marginTop:"12px" }}>
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
@@ -11228,7 +11299,7 @@ function PatioIdentificaMap({ myId }) {
 
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.46)" }}>
         <span>Polígono: delimita patio · Pin: etiqueta/punto de referencia · Editar: corrige vértices · Basura: elimina.</span>
-        <span>{features.length} elemento(s) registrados</span>
+        <span>{features.filter(isValidFeature).length} elemento(s) registrados</span>
       </div>
       {msg && <div style={{ marginTop:"10px", padding:"9px 11px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}>{msg.text}</div>}
     </div>
