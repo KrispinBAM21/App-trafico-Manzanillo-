@@ -10875,6 +10875,12 @@ const PATIOS_KML_REFERENCIA = [
 
 const PATIO_DRAW_LOCAL_KEY = "cm_patio_identifica_features";
 const PATIO_DRAW_TABLE = "patio_identificados";
+const PATIO_POLYGON_COLORS = [
+  "#00e5ff", "#22c55e", "#fbbf24", "#fb923c",
+  "#ef4444", "#a855f7", "#38bdf8", "#ffffff"
+];
+const DEFAULT_KML_POLYGON_COLOR = "#00e5ff";
+const DEFAULT_USER_POLYGON_COLOR = "#fb923c";
 
 const makePatioFeatureId = () => `patio_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -10943,7 +10949,7 @@ function PatioIdentificaMap({ myId }) {
   };
 
   const mergeWithKmlReference = (saved = []) => {
-    const map = new Map(PATIOS_KML_REFERENCIA.filter(isValidFeature).map(f => [f.id, { ...f, source: "kml" }]));
+    const map = new Map(PATIOS_KML_REFERENCIA.filter(isValidFeature).map(f => [f.id, { ...f, source: "kml", color: f.color || DEFAULT_KML_POLYGON_COLOR }]));
     (Array.isArray(saved) ? saved : []).filter(isValidFeature).forEach(f => map.set(f.id, f));
     return Array.from(map.values());
   };
@@ -11002,17 +11008,18 @@ function PatioIdentificaMap({ myId }) {
     const latLngs = layer.getLatLngs?.();
     const ring = Array.isArray(latLngs?.[0]) ? latLngs[0] : latLngs;
     const coords = (ring || []).map(ll => [ll.lat, ll.lng]).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
-    return { id, name, type: "polygon", coords, source: fallback.source || "usuario" };
+    return { id, name, type: "polygon", coords, source: fallback.source || "usuario", color: layer.options?.featureColor || fallback.color || DEFAULT_USER_POLYGON_COLOR };
   };
 
   const featureStyle = (feature) => {
     const selected = selectedId === feature.id;
     const isKml = feature.source === "kml";
+    const baseColor = feature.color || (isKml ? DEFAULT_KML_POLYGON_COLOR : DEFAULT_USER_POLYGON_COLOR);
     return {
       pane: "patioPane",
-      color: selected ? "#fbbf24" : (isKml ? "#00e5ff" : "#fb923c"),
-      fillColor: selected ? "#fbbf24" : (isKml ? "#00bcd4" : "#fb923c"),
-      fillOpacity: selected ? 0.58 : (isKml ? 0.38 : 0.34),
+      color: selected ? "#fbbf24" : baseColor,
+      fillColor: baseColor,
+      fillOpacity: selected ? 0.62 : (isKml ? 0.38 : 0.36),
       opacity: 1,
       weight: selected ? 6 : 4,
       lineJoin: "round",
@@ -11023,9 +11030,9 @@ function PatioIdentificaMap({ myId }) {
     layer.options.featureId = feature.id;
     layer.options.featureName = feature.name;
     layer.options.featureSource = feature.source || "usuario";
+    if (feature.type === "polygon") layer.options.featureColor = feature.color || (feature.source === "kml" ? DEFAULT_KML_POLYGON_COLOR : DEFAULT_USER_POLYGON_COLOR);
     const safeName = sanitize(feature.name);
-    const typeText = feature.type === "marker" ? "Pin / etiqueta" : "Polígono";
-    layer.bindTooltip(`<b>${safeName}</b><br><span>${typeText}</span>`, {
+    layer.bindTooltip(`<b>${safeName}</b>`, {
       permanent: feature.type === "polygon",
       direction: feature.type === "polygon" ? "center" : "top",
       sticky: feature.type !== "polygon",
@@ -11060,7 +11067,7 @@ function PatioIdentificaMap({ myId }) {
         });
         all.push(feature.coords);
       } else {
-        layer = L.polygon(feature.coords, { ...featureStyle(feature), featureId: feature.id, featureName: feature.name });
+        layer = L.polygon(feature.coords, { ...featureStyle(feature), featureId: feature.id, featureName: feature.name, featureColor: feature.color || (feature.source === "kml" ? DEFAULT_KML_POLYGON_COLOR : DEFAULT_USER_POLYGON_COLOR) });
         (feature.coords || []).forEach(c => all.push(c));
       }
       bindLayerMeta(layer, feature).addTo(group);
@@ -11134,7 +11141,7 @@ function PatioIdentificaMap({ myId }) {
         polygon: {
           allowIntersection: false,
           showArea: true,
-          shapeOptions: { pane: "patioPane", color: "#fb923c", fillColor: "#fb923c", fillOpacity: 0.34, weight: 4 }
+          shapeOptions: { pane: "patioPane", color: DEFAULT_USER_POLYGON_COLOR, fillColor: DEFAULT_USER_POLYGON_COLOR, fillOpacity: 0.36, weight: 4 }
         },
         marker: true
       },
@@ -11153,7 +11160,8 @@ function PatioIdentificaMap({ myId }) {
       const layer = e.layer;
       layer.options.featureId = makePatioFeatureId();
       layer.options.featureName = name;
-      const nextFeature = layerToFeature(layer, { name, source: "usuario" });
+      if (e.layerType !== "marker") layer.options.featureColor = DEFAULT_USER_POLYGON_COLOR;
+      const nextFeature = layerToFeature(layer, { name, source: "usuario", color: DEFAULT_USER_POLYGON_COLOR });
       persistFeatures([...featuresRef.current, nextFeature]);
       setSelectedId(nextFeature.id);
       notify(`Guardado: ${name}`, "#22c55e");
@@ -11239,6 +11247,16 @@ function PatioIdentificaMap({ myId }) {
   };
 
 
+  const changeSelectedColor = (color) => {
+    const feature = features.find(f => f.id === selectedId);
+    if (!feature) return notify("Selecciona primero un patio.", "#f97316");
+    if (feature.type !== "polygon") return notify("El color solo aplica para polígonos.", "#f97316");
+    const next = features.map(f => f.id === selectedId ? { ...f, color, source: f.source || "usuario" } : f);
+    persistFeatures(next);
+    notify("Color actualizado y guardado automáticamente.", color);
+  };
+
+
   const focusAll = () => {
     const map = mapInstanceRef.current;
     const group = drawnGroupRef.current;
@@ -11273,7 +11291,7 @@ function PatioIdentificaMap({ myId }) {
         <div>
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
-            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente.
+            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
@@ -11283,9 +11301,17 @@ function PatioIdentificaMap({ myId }) {
         </div>
       </div>
 
-      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
         <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
+        <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}>🎨 Color
+          <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(e.target.value)} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
+        </label>
+      </div>
+      <div style={{ display:"flex", gap:"7px", flexWrap:"wrap", margin:"-2px 0 10px" }}>
+        {PATIO_POLYGON_COLORS.map(color => (
+          <button key={color} onClick={() => changeSelectedColor(color)} title="Cambiar color del polígono seleccionado" style={{ width:"28px", height:"28px", borderRadius:"999px", border:`2px solid ${selectedId && features.find(f => f.id === selectedId)?.color === color ? "#fff" : "rgba(255,255,255,.28)"}`, background:color, cursor:"pointer", boxShadow:"0 4px 12px rgba(0,0,0,.28)" }} />
+        ))}
       </div>
 
       <div ref={mapRef} style={{ width:"100%", minHeight:"520px", height:"clamp(520px, 68vh, 780px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
@@ -11295,12 +11321,12 @@ function PatioIdentificaMap({ myId }) {
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
         <select value={selectedId || ""} onChange={e => selectFeature(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
           <option value="">Selecciona un patio para centrar el mapa</option>
-          {filteredFeatures.map(f => <option key={f.id} value={f.id}>{f.name} · {f.type === "marker" ? "Pin" : "Polígono"}</option>)}
+          {filteredFeatures.map(f => <option key={f.id} value={f.id}>{f.type === "marker" ? `${f.name} · Pin` : f.name}</option>)}
         </select>
       </div>
 
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.46)" }}>
-        <span>Polígono: delimita patio · Pin: etiqueta/punto de referencia · Editar: corrige vértices · Basura: elimina solo elementos creados por usuarios.</span>
+        <span>Dibuja patios, cambia color, coloca pins y corrige vértices. La basura elimina solo elementos creados por usuarios.</span>
         <span>{features.filter(isValidFeature).length} elemento(s) registrados</span>
       </div>
       {msg && <div style={{ marginTop:"10px", padding:"9px 11px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}>{msg.text}</div>}
