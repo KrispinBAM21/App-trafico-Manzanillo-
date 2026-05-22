@@ -11226,15 +11226,6 @@ function PatioIdentificaMap({ myId }) {
     notify("Nombre actualizado.", "#22c55e");
   };
 
-  const resetToKml = () => {
-    if (!window.confirm("¿Restaurar el mapa a los patios del KML? Se eliminarán los dibujos guardados en este navegador.")) return;
-    initialFitDoneRef.current = false;
-    setSelectedId(null);
-    try { localStorage.removeItem(PATIO_DRAW_LOCAL_KEY); } catch {}
-    setFeatures(PATIOS_KML_REFERENCIA);
-    notify("Mapa restaurado desde el KML.", "#38bdf8");
-  };
-
   const focusAll = () => {
     const map = mapInstanceRef.current;
     const group = drawnGroupRef.current;
