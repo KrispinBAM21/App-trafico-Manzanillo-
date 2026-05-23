@@ -10911,6 +10911,8 @@ function PatioIdentificaMap({ myId }) {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
   const [msg, setMsg] = useState(null);
+  const suppressRemoteSyncRef = useRef(false);
+  const dbReadyRef = useRef(false);
 
   const TILE_OPTIONS = [
     {
@@ -10919,8 +10921,8 @@ function PatioIdentificaMap({ myId }) {
       icon: "🛰️",
       url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       subdomains: "",
-      labelsUrl: "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
-      labelsSubdomains: "abcd",
+      labelsUrl: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      labelsSubdomains: "",
     },
     {
       id: "satellite",
@@ -10958,6 +10960,47 @@ function PatioIdentificaMap({ myId }) {
     try { localStorage.setItem(PATIO_DRAW_LOCAL_KEY, JSON.stringify(next.filter(isValidFeature))); } catch {}
   };
 
+  const patioFeatureToDbRow = (feature) => ({
+    id: String(feature.id),
+    nombre: feature.name,
+    color: feature.color || DEFAULT_USER_POLYGON_COLOR,
+    tipo: feature.type || "polygon",
+    geojson: { type: feature.type || "polygon", coords: feature.coords || [] },
+    is_base_kml: false,
+    created_by: myId || "anon",
+    updated_at: new Date().toISOString(),
+  });
+
+  const patioDbRowToFeature = (row) => {
+    const geo = row?.geojson || {};
+    return {
+      id: String(row.id),
+      name: normalizePatioFeatureName(row.nombre),
+      type: row.tipo || geo.type || "polygon",
+      coords: Array.isArray(geo.coords) ? geo.coords : [],
+      source: row.is_base_kml ? "kml" : "usuario",
+      color: row.color || DEFAULT_USER_POLYGON_COLOR,
+    };
+  };
+
+  const upsertRemoteFeature = async (feature) => {
+    if (!feature || feature.source === "kml" || !isValidFeature(feature)) return;
+    const { error } = await sb.from("patios_mapa").upsert(patioFeatureToDbRow(feature), { onConflict: "id" });
+    if (error) {
+      console.error("No se pudo guardar patio global:", error);
+      notify("Guardado local. Revisa la tabla patios_mapa en Supabase.", "#f97316");
+    }
+  };
+
+  const deleteRemoteFeature = async (id) => {
+    if (!id) return;
+    const { error } = await sb.from("patios_mapa").delete().eq("id", id).eq("is_base_kml", false);
+    if (error) {
+      console.error("No se pudo eliminar patio global:", error);
+      notify("Se eliminó localmente, pero no en Supabase.", "#f97316");
+    }
+  };
+
   const persistFeatures = (next) => {
     const clean = mergeWithKmlReference(next);
     setFeatures(clean);
@@ -10965,13 +11008,48 @@ function PatioIdentificaMap({ myId }) {
   };
 
   useEffect(() => {
-    try {
-      const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
-      setFeatures(mergeWithKmlReference(local));
-    } catch {
-      setFeatures(PATIOS_KML_REFERENCIA);
-    }
-  }, []);
+    let alive = true;
+    const loadGlobalPatios = async () => {
+      const { data, error } = await sb.from("patios_mapa").select("*");
+      if (!alive) return;
+      if (error) {
+        console.error("No se pudo leer patios_mapa:", error);
+        try {
+          const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
+          setFeatures(mergeWithKmlReference(local));
+        } catch {
+          setFeatures(PATIOS_KML_REFERENCIA);
+        }
+        notify("Usando modo local: falta configurar patios_mapa o sus permisos.", "#f97316");
+        return;
+      }
+      dbReadyRef.current = true;
+      const remoteFeatures = (data || []).map(patioDbRowToFeature).filter(isValidFeature);
+      setFeatures(mergeWithKmlReference(remoteFeatures));
+      saveLocal(mergeWithKmlReference(remoteFeatures));
+    };
+
+    loadGlobalPatios();
+
+    const channel = sb.channel("patios-mapa-global")
+      .on("postgres_changes", { event: "*", schema: "public", table: "patios_mapa" }, (payload) => {
+        if (!payload) return;
+        suppressRemoteSyncRef.current = true;
+        setFeatures(prev => {
+          const without = prev.filter(f => f.source === "kml" || f.id !== String(payload.old?.id || payload.new?.id));
+          if (payload.eventType === "DELETE") return mergeWithKmlReference(without);
+          const incoming = patioDbRowToFeature(payload.new);
+          return mergeWithKmlReference([...without, incoming]);
+        });
+        setTimeout(() => { suppressRemoteSyncRef.current = false; }, 250);
+      })
+      .subscribe();
+
+    return () => {
+      alive = false;
+      sb.removeChannel(channel);
+    };
+  }, [myId]);
 
   useEffect(() => {
     if (!L || drawReady || window.L?.Control?.Draw) {
@@ -11163,6 +11241,7 @@ function PatioIdentificaMap({ myId }) {
       if (e.layerType !== "marker") layer.options.featureColor = DEFAULT_USER_POLYGON_COLOR;
       const nextFeature = layerToFeature(layer, { name, source: "usuario", color: DEFAULT_USER_POLYGON_COLOR });
       persistFeatures([...featuresRef.current, nextFeature]);
+      upsertRemoteFeature(nextFeature);
       setSelectedId(nextFeature.id);
       notify(`Guardado: ${name}`, "#22c55e");
     });
@@ -11176,7 +11255,8 @@ function PatioIdentificaMap({ myId }) {
       });
       const next = featuresRef.current.map(f => edited[f.id] || f);
       persistFeatures(next);
-      notify("Cambios guardados.", "#22c55e");
+      Object.values(edited).forEach(f => upsertRemoteFeature(f));
+      notify("Cambios guardados globalmente.", "#22c55e");
     });
 
     map.on(L.Draw.Event.DELETED, (e) => {
@@ -11193,6 +11273,7 @@ function PatioIdentificaMap({ myId }) {
       });
       const next = featuresRef.current.filter(f => !deleted.has(f.id));
       persistFeatures(next);
+      deleted.forEach(id => deleteRemoteFeature(id));
       if (deleted.has(selectedId)) setSelectedId(null);
       if (protectedCount && deleted.size) notify("Se eliminaron tus elementos. Los patios base del KML están protegidos.", "#fbbf24");
       else if (protectedCount) notify("Los patios base del KML están protegidos y no se pueden eliminar.", "#fbbf24");
@@ -11241,9 +11322,11 @@ function PatioIdentificaMap({ myId }) {
     const input = window.prompt("Nuevo nombre obligatorio:", feature.name);
     const name = normalizePatioFeatureName(input);
     if (!name) return notify("No se cambió el nombre: el campo no puede quedar vacío.", "#ef4444");
-    const next = features.map(f => f.id === selectedId ? { ...f, name, source: f.source || "usuario" } : f);
+    const updated = { ...feature, name, source: feature.source || "usuario" };
+    const next = features.map(f => f.id === selectedId ? updated : f);
     persistFeatures(next);
-    notify("Nombre actualizado.", "#22c55e");
+    upsertRemoteFeature(updated);
+    notify("Nombre actualizado globalmente.", "#22c55e");
   };
 
 
@@ -11251,9 +11334,11 @@ function PatioIdentificaMap({ myId }) {
     const feature = features.find(f => f.id === selectedId);
     if (!feature) return notify("Selecciona primero un patio.", "#f97316");
     if (feature.type !== "polygon") return notify("El color solo aplica para polígonos.", "#f97316");
-    const next = features.map(f => f.id === selectedId ? { ...f, color, source: f.source || "usuario" } : f);
+    const updated = { ...feature, color, source: feature.source || "usuario" };
+    const next = features.map(f => f.id === selectedId ? updated : f);
     persistFeatures(next);
-    notify("Color actualizado y guardado automáticamente.", color);
+    upsertRemoteFeature(updated);
+    notify("Color actualizado globalmente.", color);
   };
 
 
@@ -11291,7 +11376,7 @@ function PatioIdentificaMap({ myId }) {
         <div>
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
-            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente.
+            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente en Supabase para todos los usuarios.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
