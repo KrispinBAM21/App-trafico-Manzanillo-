@@ -10895,6 +10895,72 @@ const getPatioFeatureCenter = (feature) => {
   return [sum[0] / coords.length, sum[1] / coords.length];
 };
 
+// Evita que los usuarios apilen patios encima de patios existentes.
+// Trabajamos en coordenadas Leaflet [lat, lng].
+const patioOrientation = (a, b, c) => {
+  const v = (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1]);
+  if (Math.abs(v) < 1e-12) return 0;
+  return v > 0 ? 1 : 2;
+};
+
+const patioOnSegment = (a, b, c) =>
+  Math.min(a[0], c[0]) <= b[0] + 1e-12 && b[0] <= Math.max(a[0], c[0]) + 1e-12 &&
+  Math.min(a[1], c[1]) <= b[1] + 1e-12 && b[1] <= Math.max(a[1], c[1]) + 1e-12;
+
+const patioSegmentsIntersect = (p1, q1, p2, q2) => {
+  const o1 = patioOrientation(p1, q1, p2);
+  const o2 = patioOrientation(p1, q1, q2);
+  const o3 = patioOrientation(p2, q2, p1);
+  const o4 = patioOrientation(p2, q2, q1);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && patioOnSegment(p1, p2, q1)) return true;
+  if (o2 === 0 && patioOnSegment(p1, q2, q1)) return true;
+  if (o3 === 0 && patioOnSegment(p2, p1, q2)) return true;
+  if (o4 === 0 && patioOnSegment(p2, q1, q2)) return true;
+  return false;
+};
+
+const patioPointInPolygon = (point, polygon) => {
+  const x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    const intersect = ((yi > y) !== (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const patioPolygonBounds = (coords) => coords.reduce((b, c) => ({
+  minLat: Math.min(b.minLat, c[0]), maxLat: Math.max(b.maxLat, c[0]),
+  minLng: Math.min(b.minLng, c[1]), maxLng: Math.max(b.maxLng, c[1]),
+}), { minLat: Infinity, maxLat: -Infinity, minLng: Infinity, maxLng: -Infinity });
+
+const patioBoundsOverlap = (a, b) => !(a.maxLat < b.minLat || a.minLat > b.maxLat || a.maxLng < b.minLng || a.minLng > b.maxLng);
+
+const patioPolygonsOverlap = (polyA = [], polyB = []) => {
+  if (!Array.isArray(polyA) || !Array.isArray(polyB) || polyA.length < 3 || polyB.length < 3) return false;
+  if (!patioBoundsOverlap(patioPolygonBounds(polyA), patioPolygonBounds(polyB))) return false;
+  for (let i = 0; i < polyA.length; i++) {
+    const a1 = polyA[i], a2 = polyA[(i + 1) % polyA.length];
+    for (let j = 0; j < polyB.length; j++) {
+      const b1 = polyB[j], b2 = polyB[(j + 1) % polyB.length];
+      if (patioSegmentsIntersect(a1, a2, b1, b2)) return true;
+    }
+  }
+  return patioPointInPolygon(polyA[0], polyB) || patioPointInPolygon(polyB[0], polyA);
+};
+
+const patioOverlapsExisting = (candidate, existingFeatures = []) => {
+  if (!candidate || candidate.type !== "polygon") return null;
+  const hit = (existingFeatures || []).find(f =>
+    f && f.type === "polygon" && f.id !== candidate.id && patioPolygonsOverlap(candidate.coords, f.coords)
+  );
+  return hit || null;
+};
+
 function PatioIdentificaMap({ myId }) {
   const theme = React.useContext(ThemeContext);
   const L = useLeaflet();
@@ -11031,6 +11097,16 @@ function PatioIdentificaMap({ myId }) {
 
     loadGlobalPatios();
 
+    // Respaldo de sincronización: si Realtime no está habilitado en Supabase,
+    // todos los usuarios se actualizan por polling cada pocos segundos.
+    const syncTimer = setInterval(async () => {
+      const { data, error } = await sb.from("patios_mapa").select("*");
+      if (!alive || error) return;
+      const remoteFeatures = (data || []).map(patioDbRowToFeature).filter(isValidFeature);
+      setFeatures(mergeWithKmlReference(remoteFeatures));
+      saveLocal(mergeWithKmlReference(remoteFeatures));
+    }, 6000);
+
     const channel = sb.channel("patios-mapa-global")
       .on("postgres_changes", { event: "*", schema: "public", table: "patios_mapa" }, (payload) => {
         if (!payload) return;
@@ -11047,6 +11123,7 @@ function PatioIdentificaMap({ myId }) {
 
     return () => {
       alive = false;
+      clearInterval(syncTimer);
       sb.removeChannel(channel);
     };
   }, [myId]);
@@ -11240,10 +11317,16 @@ function PatioIdentificaMap({ myId }) {
       layer.options.featureName = name;
       if (e.layerType !== "marker") layer.options.featureColor = DEFAULT_USER_POLYGON_COLOR;
       const nextFeature = layerToFeature(layer, { name, source: "usuario", color: DEFAULT_USER_POLYGON_COLOR });
+      const overlap = patioOverlapsExisting(nextFeature, featuresRef.current);
+      if (overlap) {
+        window.alert(`No se puede guardar: este polígono se encima con "${overlap.name}". Dibuja el patio en una zona libre.`);
+        notify(`No guardado: se encimaba con ${overlap.name}.`, "#ef4444");
+        return;
+      }
       persistFeatures([...featuresRef.current, nextFeature]);
       upsertRemoteFeature(nextFeature);
       setSelectedId(nextFeature.id);
-      notify(`Guardado: ${name}`, "#22c55e");
+      notify(`Guardado globalmente: ${name}`, "#22c55e");
     });
 
     map.on(L.Draw.Event.EDITED, (e) => {
@@ -11254,6 +11337,13 @@ function PatioIdentificaMap({ myId }) {
         if (isValidFeature(nextFeature)) edited[nextFeature.id] = nextFeature;
       });
       const next = featuresRef.current.map(f => edited[f.id] || f);
+      const overlapping = Object.values(edited).map(f => [f, patioOverlapsExisting(f, next)]).find(([f, hit]) => hit);
+      if (overlapping) {
+        const [changed, hit] = overlapping;
+        notify(`Edición cancelada: ${changed.name} se encimaba con ${hit.name}.`, "#ef4444");
+        setTimeout(() => rebuildLayers(), 60);
+        return;
+      }
       persistFeatures(next);
       Object.values(edited).forEach(f => upsertRemoteFeature(f));
       notify("Cambios guardados globalmente.", "#22c55e");
@@ -11376,7 +11466,7 @@ function PatioIdentificaMap({ myId }) {
         <div>
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
-            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. Los patios base están protegidos; los nuevos cambios se guardan automáticamente en Supabase para todos los usuarios.
+            Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. No se permite encimar polígonos sobre patios existentes. Los patios base están protegidos; los nuevos cambios se guardan automáticamente en Supabase para todos los usuarios.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
