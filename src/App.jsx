@@ -65,8 +65,8 @@ fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co/rest/v1/";
-const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2ODYxODgsImV4cCI6MjA4ODI2MjE4OH0.7nq62CIAGbVZMqfPW92wA05rl44tbhvKhWqbY-Afp2Q";
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co";
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -11029,10 +11029,11 @@ function PatioIdentificaMap({ myId }) {
   const patioFeatureToDbRow = (feature) => ({
     id: String(feature.id),
     nombre: feature.name,
-    color: feature.color || DEFAULT_USER_POLYGON_COLOR,
+    color: feature.color || (feature.source === "kml" ? DEFAULT_KML_POLYGON_COLOR : DEFAULT_USER_POLYGON_COLOR),
     tipo: feature.type || "polygon",
     geojson: { type: feature.type || "polygon", coords: feature.coords || [] },
-    is_base_kml: false,
+    // Los patios base KML sí pueden guardar color global, pero siguen protegidos contra borrado/renombrado.
+    is_base_kml: feature.source === "kml",
     created_by: myId || "anon",
     updated_at: new Date().toISOString(),
   });
@@ -11052,7 +11053,7 @@ function PatioIdentificaMap({ myId }) {
   const [dbStatus, setDbStatus] = useState({ ok: false, text: "Conectando con Supabase…" });
 
   const upsertRemoteFeature = async (feature) => {
-    if (!feature || feature.source === "kml" || !isValidFeature(feature)) return { ok: true };
+    if (!feature || !isValidFeature(feature)) return { ok: true };
     const row = patioFeatureToDbRow(feature);
     const { error } = await sb
       .from("patios_mapa")
@@ -11361,11 +11362,21 @@ function PatioIdentificaMap({ myId }) {
 
     map.on(L.Draw.Event.EDITED, async (e) => {
       const edited = {};
+      let protectedKmlEdits = 0;
       e.layers.eachLayer(layer => {
         const old = featuresRef.current.find(f => f.id === layer.options.featureId);
+        if (old?.source === "kml" || layer.options.featureSource === "kml") {
+          protectedKmlEdits += 1;
+          return;
+        }
         const nextFeature = layerToFeature(layer, old);
         if (isValidFeature(nextFeature)) edited[nextFeature.id] = nextFeature;
       });
+      if (protectedKmlEdits) {
+        notify("Los patios base del KML están protegidos contra edición de forma. Solo puedes cambiarles color.", "#fbbf24");
+        setTimeout(() => rebuildLayers(), 60);
+      }
+      if (!Object.keys(edited).length) return;
       const next = featuresRef.current.map(f => edited[f.id] || f);
       const overlapping = Object.values(edited).map(f => [f, patioOverlapsExisting(f, next)]).find(([f, hit]) => hit);
       if (overlapping) {
@@ -11469,12 +11480,25 @@ function PatioIdentificaMap({ myId }) {
     const feature = features.find(f => f.id === selectedId);
     if (!feature) return notify("Selecciona primero un patio.", "#f97316");
     if (feature.type !== "polygon") return notify("El color solo aplica para polígonos.", "#f97316");
-    if (feature.source === "kml") return notify("Los patios base del KML no se modifican; selecciona un patio creado por usuarios.", "#fbbf24");
+
     const updated = { ...feature, color, source: feature.source || "usuario" };
+
+    // Actualización visual inmediata en este dispositivo.
+    setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f));
+    const layer = layerByIdRef.current[updated.id];
+    if (layer?.setStyle) {
+      layer.options.featureColor = color;
+      layer.setStyle(featureStyle(updated));
+      layer.bringToFront?.();
+    }
+
     const saved = await upsertRemoteFeature(updated);
-    if (!saved.ok) return;
+    if (!saved.ok) {
+      await fetchGlobalPatios(true);
+      return;
+    }
     await fetchGlobalPatios(true);
-    notify("Color actualizado globalmente.", color);
+    notify(feature.source === "kml" ? "Color del patio base actualizado globalmente." : "Color actualizado globalmente.", color);
   };
 
 
