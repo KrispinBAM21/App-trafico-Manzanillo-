@@ -11049,22 +11049,45 @@ function PatioIdentificaMap({ myId }) {
     };
   };
 
+  const [dbStatus, setDbStatus] = useState({ ok: false, text: "Conectando con Supabase…" });
+
   const upsertRemoteFeature = async (feature) => {
-    if (!feature || feature.source === "kml" || !isValidFeature(feature)) return;
-    const { error } = await sb.from("patios_mapa").upsert(patioFeatureToDbRow(feature), { onConflict: "id" });
+    if (!feature || feature.source === "kml" || !isValidFeature(feature)) return { ok: true };
+    const row = patioFeatureToDbRow(feature);
+    const { error } = await sb
+      .from("patios_mapa")
+      .upsert(row, { onConflict: "id" })
+      .select("id")
+      .single();
+
     if (error) {
       console.error("No se pudo guardar patio global:", error);
-      notify("Guardado local. Revisa la tabla patios_mapa en Supabase.", "#f97316");
+      setDbStatus({ ok: false, text: `Supabase error: ${error.message || error.code || "no guardó"}` });
+      notify(`No se guardó globalmente: ${error.message || "revisa permisos de patios_mapa"}`, "#ef4444");
+      return { ok: false, error };
     }
+
+    setDbStatus({ ok: true, text: "Supabase conectado · guardado global activo" });
+    return { ok: true };
   };
 
   const deleteRemoteFeature = async (id) => {
-    if (!id) return;
-    const { error } = await sb.from("patios_mapa").delete().eq("id", id).eq("is_base_kml", false);
+    if (!id) return { ok: true };
+    const { error } = await sb
+      .from("patios_mapa")
+      .delete()
+      .eq("id", id)
+      .eq("is_base_kml", false);
+
     if (error) {
       console.error("No se pudo eliminar patio global:", error);
-      notify("Se eliminó localmente, pero no en Supabase.", "#f97316");
+      setDbStatus({ ok: false, text: `Supabase error: ${error.message || error.code || "no eliminó"}` });
+      notify(`No se eliminó globalmente: ${error.message || "revisa permisos"}`, "#ef4444");
+      return { ok: false, error };
     }
+
+    setDbStatus({ ok: true, text: "Supabase conectado · guardado global activo" });
+    return { ok: true };
   };
 
   const persistFeatures = (next) => {
@@ -11073,39 +11096,39 @@ function PatioIdentificaMap({ myId }) {
     saveLocal(clean);
   };
 
+  const fetchGlobalPatios = useCallback(async (silent = false) => {
+    const { data, error } = await sb
+      .from("patios_mapa")
+      .select("*")
+      .order("updated_at", { ascending: true });
+
+    if (error) {
+      console.error("No se pudo leer patios_mapa:", error);
+      setDbStatus({ ok: false, text: `Sin sincronización: ${error.message || error.code || "error Supabase"}` });
+      if (!silent) notify(`No se pudo sincronizar Supabase: ${error.message || "revisa patios_mapa"}`, "#ef4444");
+      return false;
+    }
+
+    dbReadyRef.current = true;
+    setDbStatus({ ok: true, text: `Supabase conectado · ${(data || []).length} patio(s) global(es)` });
+    const remoteFeatures = (data || []).map(patioDbRowToFeature).filter(isValidFeature);
+    const merged = mergeWithKmlReference(remoteFeatures);
+    setFeatures(merged);
+    saveLocal(merged);
+    return true;
+  }, []);
+
   useEffect(() => {
     let alive = true;
-    const loadGlobalPatios = async () => {
-      const { data, error } = await sb.from("patios_mapa").select("*");
-      if (!alive) return;
-      if (error) {
-        console.error("No se pudo leer patios_mapa:", error);
-        try {
-          const local = JSON.parse(localStorage.getItem(PATIO_DRAW_LOCAL_KEY) || "null");
-          setFeatures(mergeWithKmlReference(local));
-        } catch {
-          setFeatures(PATIOS_KML_REFERENCIA);
-        }
-        notify("Usando modo local: falta configurar patios_mapa o sus permisos.", "#f97316");
-        return;
-      }
-      dbReadyRef.current = true;
-      const remoteFeatures = (data || []).map(patioDbRowToFeature).filter(isValidFeature);
-      setFeatures(mergeWithKmlReference(remoteFeatures));
-      saveLocal(mergeWithKmlReference(remoteFeatures));
-    };
 
-    loadGlobalPatios();
+    fetchGlobalPatios(true);
 
     // Respaldo de sincronización: si Realtime no está habilitado en Supabase,
     // todos los usuarios se actualizan por polling cada pocos segundos.
     const syncTimer = setInterval(async () => {
-      const { data, error } = await sb.from("patios_mapa").select("*");
-      if (!alive || error) return;
-      const remoteFeatures = (data || []).map(patioDbRowToFeature).filter(isValidFeature);
-      setFeatures(mergeWithKmlReference(remoteFeatures));
-      saveLocal(mergeWithKmlReference(remoteFeatures));
-    }, 6000);
+      if (!alive) return;
+      await fetchGlobalPatios(true);
+    }, 3000);
 
     const channel = sb.channel("patios-mapa-global")
       .on("postgres_changes", { event: "*", schema: "public", table: "patios_mapa" }, (payload) => {
@@ -11304,7 +11327,7 @@ function PatioIdentificaMap({ myId }) {
     });
     map.addControl(drawControl);
 
-    map.on(L.Draw.Event.CREATED, (e) => {
+    map.on(L.Draw.Event.CREATED, async (e) => {
       let name = "";
       while (!name) {
         const input = window.prompt(e.layerType === "marker" ? "Nombre obligatorio para este pin o etiqueta:" : "Nombre obligatorio para este patio:");
@@ -11323,13 +11346,20 @@ function PatioIdentificaMap({ myId }) {
         notify(`No guardado: se encimaba con ${overlap.name}.`, "#ef4444");
         return;
       }
-      persistFeatures([...featuresRef.current, nextFeature]);
-      upsertRemoteFeature(nextFeature);
+
+      notify("Guardando en Supabase…", "#38bdf8");
+      const saved = await upsertRemoteFeature(nextFeature);
+      if (!saved.ok) {
+        window.alert("El trazo NO se guardó globalmente. Revisa que la tabla patios_mapa y sus policies existan en el mismo Supabase de esta app.");
+        return;
+      }
+
+      await fetchGlobalPatios(true);
       setSelectedId(nextFeature.id);
       notify(`Guardado globalmente: ${name}`, "#22c55e");
     });
 
-    map.on(L.Draw.Event.EDITED, (e) => {
+    map.on(L.Draw.Event.EDITED, async (e) => {
       const edited = {};
       e.layers.eachLayer(layer => {
         const old = featuresRef.current.find(f => f.id === layer.options.featureId);
@@ -11344,12 +11374,19 @@ function PatioIdentificaMap({ myId }) {
         setTimeout(() => rebuildLayers(), 60);
         return;
       }
-      persistFeatures(next);
-      Object.values(edited).forEach(f => upsertRemoteFeature(f));
+      notify("Guardando cambios en Supabase…", "#38bdf8");
+      const results = await Promise.all(Object.values(edited).map(f => upsertRemoteFeature(f)));
+      if (results.some(r => !r?.ok)) {
+        window.alert("La edición NO se guardó globalmente. Se restaurará el mapa para evitar diferencias entre usuarios.");
+        await fetchGlobalPatios(true);
+        setTimeout(() => rebuildLayers(), 80);
+        return;
+      }
+      await fetchGlobalPatios(true);
       notify("Cambios guardados globalmente.", "#22c55e");
     });
 
-    map.on(L.Draw.Event.DELETED, (e) => {
+    map.on(L.Draw.Event.DELETED, async (e) => {
       const deleted = new Set();
       let protectedCount = 0;
       e.layers.eachLayer(layer => {
@@ -11361,13 +11398,20 @@ function PatioIdentificaMap({ myId }) {
         }
         deleted.add(id);
       });
-      const next = featuresRef.current.filter(f => !deleted.has(f.id));
-      persistFeatures(next);
-      deleted.forEach(id => deleteRemoteFeature(id));
+      if (deleted.size) {
+        notify("Eliminando en Supabase…", "#38bdf8");
+        const results = await Promise.all(Array.from(deleted).map(id => deleteRemoteFeature(id)));
+        if (results.some(r => !r?.ok)) {
+          window.alert("No se pudo eliminar globalmente. Se sincronizará otra vez desde Supabase.");
+          await fetchGlobalPatios(true);
+          return;
+        }
+      }
+      await fetchGlobalPatios(true);
       if (deleted.has(selectedId)) setSelectedId(null);
       if (protectedCount && deleted.size) notify("Se eliminaron tus elementos. Los patios base del KML están protegidos.", "#fbbf24");
       else if (protectedCount) notify("Los patios base del KML están protegidos y no se pueden eliminar.", "#fbbf24");
-      else notify("Elemento eliminado y guardado automáticamente.", "#ef4444");
+      else notify("Elemento eliminado globalmente.", "#ef4444");
     });
 
     setTimeout(() => {
@@ -11406,28 +11450,30 @@ function PatioIdentificaMap({ myId }) {
     }, 90);
   };
 
-  const renameSelected = () => {
+  const renameSelected = async () => {
     const feature = features.find(f => f.id === selectedId);
     if (!feature) return notify("Selecciona primero un patio o pin.", "#f97316");
+    if (feature.source === "kml") return notify("Los patios base del KML no se renombran; crea un patio nuevo si necesitas uno editable.", "#fbbf24");
     const input = window.prompt("Nuevo nombre obligatorio:", feature.name);
     const name = normalizePatioFeatureName(input);
     if (!name) return notify("No se cambió el nombre: el campo no puede quedar vacío.", "#ef4444");
     const updated = { ...feature, name, source: feature.source || "usuario" };
-    const next = features.map(f => f.id === selectedId ? updated : f);
-    persistFeatures(next);
-    upsertRemoteFeature(updated);
+    const saved = await upsertRemoteFeature(updated);
+    if (!saved.ok) return;
+    await fetchGlobalPatios(true);
     notify("Nombre actualizado globalmente.", "#22c55e");
   };
 
 
-  const changeSelectedColor = (color) => {
+  const changeSelectedColor = async (color) => {
     const feature = features.find(f => f.id === selectedId);
     if (!feature) return notify("Selecciona primero un patio.", "#f97316");
     if (feature.type !== "polygon") return notify("El color solo aplica para polígonos.", "#f97316");
+    if (feature.source === "kml") return notify("Los patios base del KML no se modifican; selecciona un patio creado por usuarios.", "#fbbf24");
     const updated = { ...feature, color, source: feature.source || "usuario" };
-    const next = features.map(f => f.id === selectedId ? updated : f);
-    persistFeatures(next);
-    upsertRemoteFeature(updated);
+    const saved = await upsertRemoteFeature(updated);
+    if (!saved.ok) return;
+    await fetchGlobalPatios(true);
     notify("Color actualizado globalmente.", color);
   };
 
@@ -11470,18 +11516,22 @@ function PatioIdentificaMap({ myId }) {
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+          <span title={dbStatus.text} style={{ alignSelf:"center", padding:"6px 9px", borderRadius:"999px", border:`1px solid ${dbStatus.ok ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)"}`, background:dbStatus.ok ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)", color:dbStatus.ok ? "#22c55e" : "#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900" }}>
+            {dbStatus.ok ? "🟢 Global activo" : "🔴 Sin global"}
+          </span>
           {TILE_OPTIONS.map(t => (
             <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>{t.icon} {t.label}</button>
           ))}
         </div>
       </div>
 
-      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+      <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
         <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
         <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}>🎨 Color
           <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(e.target.value)} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
         </label>
+        <button onClick={() => fetchGlobalPatios(false)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🔄 Sincronizar</button>
       </div>
       <div style={{ display:"flex", gap:"7px", flexWrap:"wrap", margin:"-2px 0 10px" }}>
         {PATIO_POLYGON_COLORS.map(color => (
