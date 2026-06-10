@@ -8735,17 +8735,9 @@ function TrafficMapSegundo({ theme, myId }) {
   // ── Votar y guardar en Supabase ────────────────────────────────────────────
   const votar = async (fase, tipo) => {
     const faseKey = String(fase);
-    const votoActual = userVotes?.[faseKey]?.[myId] || userVotes?.[fase]?.[myId] || null;
 
-    if (votoActual === tipo) {
-      alert(`Ya tienes registrado tu voto como ${TRAFICO_STATUS[tipo].label} en ${TRAFICO_FASES[fase].nombre}.`);
-      return;
-    }
-
-    if (votoActual && !window.confirm(`Ya votaste ${TRAFICO_STATUS[votoActual].label} en ${TRAFICO_FASES[fase].nombre}.\n\n¿Quieres cambiar tu voto a ${TRAFICO_STATUS[tipo].label}?`)) {
-      return;
-    }
-
+    // Modo tipo "Segundo Acceso": un toque cambia el estado operativo de la fase.
+    // No pide confirmación ni acumula consenso; el último estado reportado queda activo.
     const rl = rateLimiter.check(`trafico_fase_${myId}_${fase}`, 2500);
     if (!rl.allowed) return;
 
@@ -8754,7 +8746,7 @@ function TrafficMapSegundo({ theme, myId }) {
 
     const nextUserVotes = {
       ...userVotes,
-      [faseKey]: { ...(userVotes?.[faseKey] || userVotes?.[fase] || {}), [myId]: tipo },
+      [faseKey]: { [myId || "ultimo"]: tipo },
     };
     const nextCounts = contarVotosFases(nextUserVotes);
 
@@ -8841,8 +8833,7 @@ function TrafficMapSegundo({ theme, myId }) {
                       onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
                       <span style={{ fontSize: "14px" }}>{tr.emoji}</span>
-                      <span>{tr.label}{isMine ? " · tu voto" : ""}</span>
-                      {v[tipo] > 0 && <span style={{ marginLeft: "auto", background: tr.color, color: "#fff", borderRadius: "12px", padding: "1px 7px", fontSize: "10px", fontWeight: 700 }}>{v[tipo]}</span>}
+                      <span>{tr.label}{st === tipo ? " · activo" : ""}</span>
                     </button>
                   );
                 })}
@@ -8850,7 +8841,7 @@ function TrafficMapSegundo({ theme, myId }) {
 
               {/* Total votos */}
               <div style={{ fontSize: "10px", color: "#94a3b8", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 7, textAlign: "center", fontFamily: getFont(theme,"secondary") }}>
-                {total === 0 ? "Sin votos aún" : `${total} voto${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`}
+                Estado por fase · el último reporte actualiza el mapa en tiempo real
               </div>
             </div>
           );
@@ -12167,18 +12158,21 @@ function TutorialTab({ setActive, isAdmin }) {
       </div>
       {[
         { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel general y accesos rápidos", items: [
-          { label: "Resumen general", desc: "Vista rápida del estado del puerto: tráfico, terminales, patios, accesos, carriles, anuncios e incidentes activos." },
+          { label: "Resumen general", desc: "Vista rápida del estado del puerto: tráfico, terminales, patios, accesos, confinados, carriles, anuncios e incidentes activos." },
+          { label: "Accesos rápidos", desc: "Desde Inicio se orienta al usuario hacia Reportar, Tráfico, Terminales, Patios, Confinados/2° Acceso, Noticias y Más Info." },
           { label: "Tiempo real", desc: "La información se alimenta con votos comunitarios y actualizaciones realtime desde Supabase." },
           { label: "Persistencia de sección", desc: "La app recuerda la sección donde estabas. Si recargas, vuelve a abrir esa misma sección o subsección cuando aplique." },
         ]},
         { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa general + accesos + eventos validados", items: [
-          { label: "Mapa general", desc: "Muestra accesos, puntos importantes y eventos visibles/validados por la comunidad." },
-          { label: "Accesos principales", desc: "Consulta y vota Acceso Pez Vela, Puerta 15 y Zona Norte: Libre/Fluido, Lento, Saturado o Cerrado." },
+          { label: "Mapa general", desc: "Muestra accesos, puntos importantes, rutas, referencias de terminales y eventos visibles/validados por la comunidad." },
+          { label: "Accesos principales", desc: "Consulta y vota Acceso Pez Vela, Puerta 15, Zona Norte y Patio Regulador: Libre/Fluido, Lento, Saturado o Cerrado." },
+          { label: "Vialidades", desc: "Consulta vialidades como Jalipa-Puerto, Puerto-Jalipa, libramiento y carretera Manzanillo-Colima para anticipar tiempos." },
           { label: "Retornos", desc: "Indica Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
           { label: "Eventos validados", desc: "El mapa general mantiene la vista operativa y muestra reportes visibles; los reportes pendientes se revisan desde Eventos y Reportar." },
         ]},
         { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Reportes por categoría con mapas limpios", items: [
           { label: "Categorías separadas", desc: "Reporta Incidente o Accidente desde su propia subsección." },
+          { label: "Subcategorías", desc: "Incidente incluye fallas, falta de diésel, contenedor ladeado, plataforma/carga/camión abandonado; Accidente incluye choque, volcadura, herido, robo o zona de riesgo." },
           { label: "Mapa de Incidente", desc: "Solo muestra pins de incidentes no resueltos con GPS. No muestra accidentes, rutas, terminales ni accesos del KML." },
           { label: "Mapa de Accidente", desc: "Solo muestra pins de accidentes no resueltos con GPS. No mezcla incidentes ni elementos del mapa general." },
           { label: "Pins pendientes", desc: "Los reportes aparecen en el mapa de su categoría aunque estén pendientes, siempre que tengan coordenadas GPS y no estén resueltos." },
@@ -12201,12 +12195,15 @@ function TutorialTab({ setActive, isAdmin }) {
         { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIOS", subtitle: "Patios reguladores y disponibilidad", items: [
           { label: "Patios", desc: "Consulta CIMA 1, CIMA 2, ISL, ALMAN, SIA, ALMACONT y SSA." },
           { label: "Estados", desc: "Patio Libre, Saturado, Cerrado o Patio Lleno." },
+          { label: "Votación", desc: "Marca el estado real del patio; la información queda visible para quienes vienen en ruta." },
           { label: "Uso operativo", desc: "Ayuda a decidir a qué patio dirigirse antes de intentar ingresar a terminales o accesos." },
         ]},
-        { id: "segundo", icon: "🛣️", color: "#22c55e", title: "2° ACCESO", subtitle: "Carriles de ingreso y estado operativo", items: [
-          { label: "Accesos", desc: "Incluye Acceso Pez Vela, Puerta 15 y Zona Norte con sus carriles operativos." },
-          { label: "Carriles", desc: "Cada carril puede marcarse abierto/cerrado, saturado, con retornos o asociado a terminal cuando corresponde." },
-          { label: "Expo/Impo", desc: "Distingue flujos de exportación e importación y estado del contenedor cuando aplica." },
+        { id: "segundo", icon: "🛣️", color: "#22c55e", title: "CONFINADOS / 2° ACCESO", subtitle: "Carriles, zona confinada y fases", items: [
+          { label: "2DO ACCESO", desc: "Muestra carriles de ingreso y salida; cada carril puede actualizar terminal asignada, saturación, retornos y flujo Expo/Impo." },
+          { label: "Carril de salida C4", desc: "Permite reportar si la salida general está fluida o saturada, si hay retornos y el estado de exportación/importación." },
+          { label: "Segundo Acceso por fases", desc: "Divide la vialidad en Fase 1, Fase 2 y Fase 3; ahora se actualiza con un toque, igual que los carriles del Segundo Acceso." },
+          { label: "Confinada", desc: "Permite indicar terminal, libre/saturado, retornos, tráfico Expo/Impo, contenedor Expo y si opera como Segundo Acceso." },
+          { label: "Sin uso", desc: "Cuando un carril no opera, puede marcarse como Sin uso para que no se interprete como disponible." },
         ]},
         { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Control rápido de carriles por acceso", items: [
           { label: "Carriles por acceso", desc: "Consulta carriles de Pez Vela, Puerta 15 y Zona Norte con estado abierto o cerrado." },
@@ -12215,15 +12212,18 @@ function TutorialTab({ setActive, isAdmin }) {
         { id: "noticias", icon: "📰", color: "#06b6d4", title: "NOTICIAS", subtitle: "Avisos, comunicados y anuncios", items: [
           { label: "Noticias operativas", desc: "Publica y consulta avisos sobre cierres, horarios, afectaciones, seguridad o comunicados." },
           { label: "Anuncios", desc: "Los administradores pueden crear anuncios con texto, imagen, enlace, WhatsApp, fecha de inicio y fecha de fin." },
+          { label: "Vigencia", desc: "Cada anuncio puede tener inicio y fin para mostrarse solo durante el periodo necesario." },
           { label: "Limpieza automática", desc: "Anuncios vencidos dejan de mostrarse para mantener la sección actualizada." },
         ]},
         { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoyo voluntario al proyecto", items: [
           { label: "Uso", desc: "Ayudan a cubrir Supabase, almacenamiento, dominio, mantenimiento y desarrollo continuo." },
           { label: "Opcional", desc: "La app sigue siendo gratuita; donar es voluntario." },
         ]},
-        { id: "tutorial", icon: "🎓", color: "#8b5cf6", title: "TUTORIAL", subtitle: "Guía rápida de uso", items: [
+        { id: "tutorial", icon: "🎓", color: "#8b5cf6", title: "MÁS INFO", subtitle: "Guía rápida de uso", items: [
           { label: "Cómo participar", desc: "Vota solo lo que puedas confirmar y reporta con ubicación precisa." },
+          { label: "Subapartados", desc: "Incluye guía de Tráfico, Reportar, Eventos, Terminales, Patios, Confinados/2° Acceso, Carriles, Noticias, Donativos y cuenta de usuario." },
           { label: "Buenas prácticas", desc: "Evita duplicados, describe con claridad, usa GPS y marca como resuelto cuando el problema ya no exista." },
+          { label: "Privacidad", desc: "Los reportes y votos operativos se usan para informar a la comunidad; evita publicar datos personales innecesarios." },
         ]},
         { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro opcional y seguro", items: [
           { label: "Registro opcional", desc: "Puedes usar la app sin cuenta; crear cuenta permite participación más confiable." },
@@ -12706,6 +12706,28 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
               <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
             </div>
           ))}
+        </div>
+
+        <div style={{ background:"rgba(15,23,42,0.45)", border:"1px solid rgba(56,189,248,0.16)", borderRadius:"12px", padding:"12px", marginBottom:"18px" }}>
+          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"800", letterSpacing:"1.4px", marginBottom:"10px" }}>CÓMO FUNCIONA LA APP</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px" }}>
+            {[
+              { icon:"🚗", title:"Tráfico", desc:"Consulta accesos, vialidades y mapa; el color indica si está libre, lento, saturado o detenido." },
+              { icon:"📢", title:"Reportes", desc:"Selecciona categoría, ubicación y detalle. La comunidad confirma, marca falso o resuelve el evento." },
+              { icon:"🏭", title:"Terminales y patios", desc:"Vota el estado operativo para ayudar a decidir rutas antes de llegar a la zona portuaria." },
+              { icon:"🛣️", title:"Confinados", desc:"Revisa carriles, retornos, flujos Expo/Impo y Segundo Acceso por fases en tiempo real." },
+              { icon:"📰", title:"Noticias", desc:"Recibe avisos operativos, comunicados y anuncios activos con fechas de vigencia." },
+              { icon:"🎓", title:"Más info", desc:"Encuentra la guía completa, registro, inicio de sesión, recuperación y buenas prácticas." },
+            ].map((item, i) => (
+              <div key={i} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"10px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"7px", marginBottom:"5px" }}>
+                  <span style={{ fontSize:"15px" }}>{item.icon}</span>
+                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#ffffff", fontWeight:"800" }}>{item.title}</span>
+                </div>
+                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.58)", lineHeight:"1.6" }}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", paddingTop:"14px", display:"flex", alignItems:"center", gap:"10px" }}>
