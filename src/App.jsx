@@ -3408,6 +3408,7 @@ const PERMISOS_DISPONIBLES = [
   { id: "actualizar_patios",    label: "Actualizar patios",        icon: "📦", desc: "Modificar estado de patios reguladores" },
   { id: "actualizar_carriles",  label: "Actualizar carriles",      icon: "🚦", desc: "Modificar estado de carriles" },
   { id: "moderar_reportes",     label: "Moderar reportes",         icon: "📌", desc: "Resolver y eliminar reportes de usuarios" },
+  { id: "ver_control_portuario",label: "Control portuario",        icon: "⚓", desc: "Acceso al sistema de control de citas y carga portuaria" },
 ];
 
 const hashPassword = async (pass) => {
@@ -12578,7 +12579,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
+function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSetActive }) {
   const theme = React.useContext(ThemeContext);
   const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
@@ -12679,12 +12680,16 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig }) {
             <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
             <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
           {isAdmin && (
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginTop:"8px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginTop:"8px", flexWrap:"wrap" }}>
               <span style={{ background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"700" }}>⚡ ADMIN</span>
               <button 
                 onClick={onOpenThemeConfig}
                 style={{ background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.4)", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#a78bfa", fontWeight:"700", cursor:"pointer" }}
               >🎨 TEMA</button>
+              <button
+                onClick={() => { if (onSetActive) onSetActive("portuario"); }}
+                style={{ background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"700", cursor:"pointer" }}
+              >⚓ CONTROL</button>
               <button onClick={logout} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", padding:"2px 4px" }}>✕</button>
             </div>
           )}
@@ -13053,6 +13058,369 @@ function CopyRow({ label, value, mono, theme, getFont }) {
           {copied ? "¡Copiado!" : "Copiar"}
         </span>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚓ SISTEMA DE CONTROL PORTUARIO — Tab oculta solo para admins/privilegiados
+// Integra gestión de citas, operadores y clientes del puerto de Manzanillo.
+// Tabla Supabase requerida: citas (ver schema en /supabase/schema.sql del zip)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Colores de estatus para las citas portuarias
+const ESTATUS_COLOR = {
+  VALIDADO:    { bg: "rgba(74,222,128,0.15)",  border: "rgba(74,222,128,0.5)",  text: "#4ade80"  },
+  NO_VALIDADO: { bg: "rgba(248,113,113,0.15)", border: "rgba(248,113,113,0.5)", text: "#f87171"  },
+  EN_TRANSITO: { bg: "rgba(251,191,36,0.15)",  border: "rgba(251,191,36,0.5)",  text: "#fbbf24"  },
+  INGRESO:     { bg: "rgba(56,189,248,0.15)",  border: "rgba(56,189,248,0.5)",  text: "#38bdf8"  },
+  RETORNO:     { bg: "rgba(167,139,250,0.15)", border: "rgba(167,139,250,0.5)", text: "#a78bfa"  },
+  NO_INGRESO:  { bg: "rgba(156,163,175,0.15)", border: "rgba(156,163,175,0.5)", text: "#9ca3af"  },
+};
+
+function EstadoCita({ estatus }) {
+  const theme = React.useContext(ThemeContext);
+  const c = ESTATUS_COLOR[estatus] || ESTATUS_COLOR["NO_VALIDADO"];
+  return (
+    <span style={{
+      background: c.bg, border: `1px solid ${c.border}`, color: c.text,
+      borderRadius: "6px", padding: "2px 8px",
+      fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", letterSpacing: "0.5px"
+    }}>
+      {estatus}
+    </span>
+  );
+}
+
+function SistemaControlPortuario() {
+  const theme = React.useContext(ThemeContext);
+  const [citas, setCitas]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [filtro, setFiltro]       = useState("TODOS");
+  const [vista, setVista]         = useState("dashboard"); // "dashboard" | "citas" | "operadores"
+  const [error, setError]         = useState(null);
+
+  // ── Stats derivadas ──────────────────────────────────────────────────────────
+  const stats = React.useMemo(() => {
+    const hoy = new Date().toDateString();
+    const deHoy     = citas.filter(c => new Date(c.fecha_cita).toDateString() === hoy);
+    const validados = citas.filter(c => c.estatus === "VALIDADO").length;
+    const enTransito= citas.filter(c => c.estatus === "EN_TRANSITO").length;
+    const eficiencia= citas.length ? Math.round((validados / citas.length) * 100) : 0;
+    return { deHoy: deHoy.length, validados, enTransito, eficiencia, total: citas.length };
+  }, [citas]);
+
+  // Conteo por patio
+  const patioData = React.useMemo(() => {
+    const buckets = {};
+    citas.forEach(c => {
+      const p = c.patio_destino || "Sin asignar";
+      buckets[p] = (buckets[p] || 0) + 1;
+    });
+    return Object.entries(buckets).map(([patio, total]) => ({ patio, total }));
+  }, [citas]);
+
+  const citasFiltradas = filtro === "TODOS" ? citas : citas.filter(c => c.estatus === filtro);
+
+  // ── Carga en tiempo real ─────────────────────────────────────────────────────
+  useEffect(() => {
+    let chan;
+    const cargar = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: err } = await sb
+          .from("citas")
+          .select("*")
+          .order("fecha_cita", { ascending: false })
+          .limit(200);
+        if (err) { setError(err.message); } else { setCitas(data || []); }
+      } catch (e) { setError(e.message); }
+      setLoading(false);
+    };
+
+    cargar();
+
+    try {
+      chan = sb.channel("citas-control-portuario")
+        .on("postgres_changes", { event: "*", schema: "public", table: "citas" }, cargar)
+        .subscribe();
+    } catch (_) { /* tabla aún no existe */ }
+
+    return () => { if (chan) sb.removeChannel(chan); };
+  }, []);
+
+  // ── Estilos base ─────────────────────────────────────────────────────────────
+  const cardStyle = {
+    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "12px", padding: "14px 16px"
+  };
+  const labelStyle = {
+    fontFamily: getFont(theme, "secondary"), fontSize: "9px",
+    color: "rgba(255,255,255,0.4)", letterSpacing: "1px", fontWeight: "700", marginBottom: "4px"
+  };
+  const valueStyle = {
+    fontFamily: getFont(theme, "title"), fontSize: "28px",
+    fontWeight: "800", color: "#fff"
+  };
+
+  // ── Vista de datos no disponibles ────────────────────────────────────────────
+  if (error) return (
+    <div style={{ padding: "24px", textAlign: "center" }}>
+      <div style={{ fontSize: "36px", marginBottom: "10px" }}>⚓</div>
+      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>
+        Tabla <code>citas</code> no encontrada en Supabase.
+      </div>
+      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
+        Ejecuta el schema SQL del Sistema de Control Portuario en el SQL Editor de tu proyecto Supabase.
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "16px", maxWidth: "900px", margin: "0 auto" }}>
+
+      {/* Cabecera */}
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", marginBottom: "4px" }}>
+          MÓDULO RESTRINGIDO · SOLO ADMINISTRADORES
+        </div>
+        <h2 style={{ fontFamily: getFont(theme, "title"), fontSize: "20px", fontWeight: "800", color: "#fff", margin: 0 }}>
+          ⚓ Sistema de Control Portuario
+        </h2>
+        <p style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.45)", margin: "4px 0 0" }}>
+          Gestión de citas, operadores y movimientos de carga — Puerto Lázaro Cárdenas / Manzanillo
+        </p>
+      </div>
+
+      {/* Sub-navegación */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+        {[
+          { id: "dashboard",   label: "📊 Dashboard",   color: "#38bdf8" },
+          { id: "citas",       label: "📋 Citas",       color: "#fbbf24" },
+          { id: "operadores",  label: "🚛 Operadores",  color: "#4ade80" },
+        ].map(v => (
+          <button key={v.id} onClick={() => setVista(v.id)} style={{
+            background: vista === v.id ? `${v.color}22` : "rgba(255,255,255,0.05)",
+            border: `1px solid ${vista === v.id ? v.color + "88" : "rgba(255,255,255,0.12)"}`,
+            borderRadius: "8px", padding: "7px 14px",
+            color: vista === v.id ? v.color : "rgba(255,255,255,0.55)",
+            fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700",
+            cursor: "pointer", transition: "all 0.18s", letterSpacing: "0.5px"
+          }}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.35)",
+          fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
+          Cargando datos portuarios…
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          {/* ── DASHBOARD ─────────────────────────────────────────────────────── */}
+          {vista === "dashboard" && (
+            <div>
+              {/* KPIs */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px", marginBottom: "16px" }}>
+                {[
+                  { label: "HOY",          value: stats.deHoy,      icon: "🚛", color: "#fbbf24" },
+                  { label: "VALIDADOS",    value: stats.validados,  icon: "✅", color: "#4ade80" },
+                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "🔄", color: "#38bdf8" },
+                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "📈", color: "#a78bfa" },
+                  { label: "TOTAL",        value: stats.total,      icon: "📦", color: "rgba(255,255,255,0.6)" },
+                ].map(k => (
+                  <div key={k.label} style={cardStyle}>
+                    <div style={labelStyle}>{k.icon} {k.label}</div>
+                    <div style={{ ...valueStyle, fontSize: "24px", color: k.color }}>{k.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Distribución por patio */}
+              {patioData.length > 0 && (
+                <div style={{ ...cardStyle, marginBottom: "16px" }}>
+                  <div style={labelStyle}>MOVIMIENTOS POR PATIO DESTINO</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                    {patioData.sort((a,b) => b.total - a.total).map(({ patio, total }) => {
+                      const pct = stats.total ? Math.round((total / stats.total) * 100) : 0;
+                      return (
+                        <div key={patio}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                            <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.7)" }}>{patio}</span>
+                            <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)" }}>{total} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: "4px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
+                            <div style={{ height: "4px", width: `${pct}%`, background: "linear-gradient(90deg, #38bdf8, #a78bfa)", borderRadius: "2px", transition: "width 0.4s" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Últimas citas */}
+              <div style={cardStyle}>
+                <div style={{ ...labelStyle, marginBottom: "10px" }}>ÚLTIMOS 5 MOVIMIENTOS</div>
+                {citas.slice(0, 5).map(c => (
+                  <div key={c.id} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)"
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#38bdf8" }}>{c.folio}</div>
+                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
+                        {c.placas} · {c.patio_destino} · {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
+                      </div>
+                    </div>
+                    <EstadoCita estatus={c.estatus} />
+                  </div>
+                ))}
+                {citas.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.3)",
+                    fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
+                    No hay movimientos registrados.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── CITAS ─────────────────────────────────────────────────────────── */}
+          {vista === "citas" && (
+            <div>
+              {/* Filtro de estatus */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", letterSpacing: "1px" }}>FILTRAR:</span>
+                {["TODOS","VALIDADO","NO_VALIDADO","EN_TRANSITO","INGRESO","RETORNO","NO_INGRESO"].map(s => (
+                  <button key={s} onClick={() => setFiltro(s)} style={{
+                    background: filtro === s ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${filtro === s ? "rgba(56,189,248,0.5)" : "rgba(255,255,255,0.1)"}`,
+                    borderRadius: "6px", padding: "4px 10px",
+                    color: filtro === s ? "#38bdf8" : "rgba(255,255,255,0.45)",
+                    fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700",
+                    cursor: "pointer", transition: "all 0.15s", letterSpacing: "0.5px"
+                  }}>
+                    {s === "TODOS" ? "Todos" : s}
+                  </button>
+                ))}
+                <span style={{ marginLeft: "auto", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)" }}>
+                  {citasFiltradas.length} registros
+                </span>
+              </div>
+
+              {/* Tabla */}
+              <div style={{ ...cardStyle, overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                  <thead>
+                    <tr>
+                      {["FOLIO","PLACAS","PATIO","MOVIMIENTO","FECHA","ESTATUS"].map(h => (
+                        <th key={h} style={{
+                          textAlign: "left", padding: "8px 10px 10px",
+                          fontFamily: getFont(theme, "secondary"), fontSize: "9px",
+                          color: "rgba(255,255,255,0.35)", fontWeight: "700", letterSpacing: "1px",
+                          borderBottom: "1px solid rgba(255,255,255,0.08)"
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {citasFiltradas.map(c => (
+                      <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "9px 10px", fontFamily: "monospace", color: "#38bdf8" }}>{c.folio}</td>
+                        <td style={{ padding: "9px 10px", fontFamily: "monospace", color: "rgba(255,255,255,0.7)" }}>{c.placas}</td>
+                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.6)", fontFamily: getFont(theme, "secondary") }}>{c.patio_destino}</td>
+                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.6)", fontFamily: getFont(theme, "secondary") }}>{c.tipo_movimiento}</td>
+                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.35)", fontFamily: getFont(theme, "secondary") }}>
+                          {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
+                        </td>
+                        <td style={{ padding: "9px 10px" }}><EstadoCita estatus={c.estatus} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {citasFiltradas.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "24px", color: "rgba(255,255,255,0.3)",
+                    fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
+                    No hay citas con el estatus seleccionado.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── OPERADORES ────────────────────────────────────────────────────── */}
+          {vista === "operadores" && (
+            <div>
+              <div style={cardStyle}>
+                <div style={{ ...labelStyle, marginBottom: "12px" }}>OPERADORES CON CITAS ACTIVAS</div>
+                {(() => {
+                  // Agrupar citas por operador_id
+                  const ops = {};
+                  citas.forEach(c => {
+                    if (!c.operador_id) return;
+                    if (!ops[c.operador_id]) ops[c.operador_id] = { id: c.operador_id, total: 0, activas: 0 };
+                    ops[c.operador_id].total++;
+                    if (["EN_TRANSITO","INGRESO"].includes(c.estatus)) ops[c.operador_id].activas++;
+                  });
+                  const lista = Object.values(ops);
+                  if (lista.length === 0) return (
+                    <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.3)",
+                      fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
+                      No hay operadores con citas asignadas.
+                    </div>
+                  );
+                  return lista.sort((a,b) => b.activas - a.activas).map(op => (
+                    <div key={op.id} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)"
+                    }}>
+                      <div>
+                        <div style={{ fontFamily: "monospace", fontSize: "10px", color: "rgba(255,255,255,0.5)" }}>
+                          {op.id.slice(0,8)}…
+                        </div>
+                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+                          {op.total} cita(s) total
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "18px", fontWeight: "800",
+                          color: op.activas > 0 ? "#4ade80" : "rgba(255,255,255,0.3)" }}>
+                          {op.activas}
+                        </div>
+                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", letterSpacing: "0.5px" }}>
+                          ACTIVAS
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Aviso de limitación */}
+              <div style={{ ...cardStyle, marginTop: "12px", background: "rgba(251,191,36,0.05)", borderColor: "rgba(251,191,36,0.2)" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                  <span style={{ fontSize: "18px" }}>ℹ️</span>
+                  <div>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700", marginBottom: "3px" }}>
+                      PERFILES DE OPERADOR
+                    </div>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", lineHeight: "1.5" }}>
+                      Los nombres completos se obtienen de la tabla <code style={{ color: "#fbbf24" }}>profiles</code> de Supabase Auth.
+                      Asegúrate de que el trigger <code style={{ color: "#fbbf24" }}>on_auth_user_created</code> esté activo en tu proyecto.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -13448,7 +13816,7 @@ function App() {
 
         <AnunciosBanner isAdmin={isAdmin} />
 
-        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
+        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesTab myId={myId} />}
@@ -13458,6 +13826,23 @@ function App() {
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <DonativosTab />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} />}
+
+        {/* ⚓ CONTROL PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
+        {active === "portuario" && (
+          isAdmin || subAdmin?.permisos?.ver_control_portuario
+            ? <SistemaControlPortuario />
+            : (
+              <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                <div style={{ fontSize: "48px", marginBottom: "12px" }}>🔒</div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "14px", color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
+                  Acceso restringido
+                </div>
+                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>
+                  Necesitas el permiso <strong style={{ color: "rgba(255,255,255,0.5)" }}>Control portuario</strong> para ver esta sección.
+                </div>
+              </div>
+            )
+        )}
 
         {/* ✅ FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
