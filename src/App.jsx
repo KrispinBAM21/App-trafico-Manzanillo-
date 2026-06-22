@@ -13063,6 +13063,327 @@ function CopyRow({ label, value, mono, theme, getFont }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🧮 CALCULADORA DE FLETE — Puerto Manzanillo / Lázaro Cárdenas
+// Variables: distancia, peso, combustible, casetas, comida, tiempo, tipo carga
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RUTAS_PRESET = [
+  { nombre: "Manzanillo → CDMX",         km: 1020, casetas: 820 },
+  { nombre: "Manzanillo → Guadalajara",   km: 330,  casetas: 210 },
+  { nombre: "Manzanillo → Monterrey",     km: 1450, casetas: 1150 },
+  { nombre: "Manzanillo → Tijuana",       km: 2980, casetas: 1800 },
+  { nombre: "Manzanillo → Puebla",        km: 1100, casetas: 900 },
+  { nombre: "Manzanillo → Querétaro",     km: 880,  casetas: 680 },
+  { nombre: "Manzanillo → Veracruz",      km: 1380, casetas: 1100 },
+  { nombre: "Ruta personalizada",         km: 0,    casetas: 0 },
+];
+
+const TIPO_CARGA = [
+  { id: "general",    label: "Carga General",    factor: 1.0 },
+  { id: "peligrosa",  label: "Carga Peligrosa",  factor: 1.35 },
+  { id: "refrigerada",label: "Refrigerada",       factor: 1.25 },
+  { id: "sobredim",   label: "Sobredimensionada", factor: 1.45 },
+  { id: "contenedor", label: "Contenedor ISO",    factor: 1.0 },
+];
+
+function SliderField({ label, value, min, max, step, unit, color, onChange, getFont, theme }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+        <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.55)", fontWeight: "600" }}>{label}</span>
+        <span style={{ fontFamily: "monospace", fontSize: "12px", color, fontWeight: "700" }}>{Number(value).toLocaleString("es-MX")} {unit}</span>
+      </div>
+      <div style={{ position: "relative", height: "6px", background: "rgba(255,255,255,0.08)", borderRadius: "3px" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, height: "6px", width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: "3px", transition: "width 0.1s" }} />
+        <input
+          type="range" min={min} max={max} step={step} value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          style={{ position: "absolute", top: "-5px", left: 0, width: "100%", opacity: 0, cursor: "pointer", height: "16px" }}
+        />
+        <div style={{
+          position: "absolute", top: "50%", left: `${pct}%`,
+          transform: "translate(-50%, -50%)",
+          width: "14px", height: "14px", borderRadius: "50%",
+          background: color, border: "2px solid rgba(0,0,0,0.4)",
+          boxShadow: `0 0 8px ${color}66`, pointerEvents: "none",
+          transition: "left 0.1s"
+        }} />
+      </div>
+    </div>
+  );
+}
+
+function CalculadoraFlete({ theme, getFont }) {
+  const [rutaIdx, setRutaIdx]           = React.useState(0);
+  const [kmCustom, setKmCustom]         = React.useState(500);
+  const [caseCustom, setCaseCustom]     = React.useState(400);
+  const [pesoBruto, setPesoBruto]       = React.useState(20000);
+  const [rendimiento, setRendimiento]   = React.useState(3.2);   // km/litro
+  const [precioDiesel, setPrecioDiesel] = React.useState(24.5);  // MXN/litro
+  const [comidaOp, setComidaOp]         = React.useState(350);   // MXN/dia
+  const [diasViaje, setDiasViaje]       = React.useState(2);
+  const [tipoCargaId, setTipoCargaId]   = React.useState("general");
+  const [margen, setMargen]             = React.useState(20);    // %
+  const [resultado, setResultado]       = React.useState(null);
+
+  const ruta    = RUTAS_PRESET[rutaIdx];
+  const km      = rutaIdx === RUTAS_PRESET.length - 1 ? kmCustom : ruta.km;
+  const casetas = rutaIdx === RUTAS_PRESET.length - 1 ? caseCustom : ruta.casetas;
+  const tipoCarga = TIPO_CARGA.find(t => t.id === tipoCargaId) || TIPO_CARGA[0];
+
+  const calcular = () => {
+    const litros     = km / rendimiento;
+    const cDiesel    = litros * precioDiesel;
+    const cCasetas   = casetas;
+    const cComida    = comidaOp * diasViaje;
+    const cDesgaste  = km * 1.8;            // desgaste llantas/mantenimiento ~$1.80/km
+    const cSeguro    = pesoBruto * 0.0008;  // ~0.08% del valor del flete como seguro estimado
+    const subtotal   = (cDiesel + cCasetas + cComida + cDesgaste + cSeguro) * tipoCarga.factor;
+    const gananciaBruta = subtotal * (margen / 100);
+    const total      = subtotal + gananciaBruta;
+    const porTonelada = pesoBruto > 0 ? total / (pesoBruto / 1000) : 0;
+    const porKm      = km > 0 ? total / km : 0;
+
+    setResultado({
+      cDiesel, cCasetas, cComida, cDesgaste, cSeguro,
+      subtotal, gananciaBruta, total, porTonelada, porKm, litros
+    });
+  };
+
+  const cardSty = {
+    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "14px", padding: "16px"
+  };
+  const lblSty = {
+    fontFamily: getFont(theme, "secondary"), fontSize: "8px",
+    color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", fontWeight: "800", marginBottom: "10px"
+  };
+
+  return (
+    <div>
+      {/* Header calculadora */}
+      <div style={{ ...cardSty, marginBottom: "12px", background: "linear-gradient(135deg, rgba(251,146,60,0.1) 0%, rgba(251,146,60,0.03) 100%)", borderColor: "rgba(251,146,60,0.25)" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <div style={{ fontSize: "28px" }}>🧮</div>
+          <div>
+            <div style={{ fontFamily: getFont(theme, "title"), fontSize: "16px", fontWeight: "800", color: "#fb923c" }}>Calculadora de Flete</div>
+            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
+              Estima el costo total del viaje incluyendo combustible, casetas, comida, desgaste y margen de ganancia.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+
+        {/* Panel izquierdo: Ruta + Carga */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {/* Ruta */}
+          <div style={cardSty}>
+            <div style={lblSty}>📍 RUTA</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+              {RUTAS_PRESET.map((r, i) => (
+                <button key={i} onClick={() => setRutaIdx(i)} style={{
+                  background: rutaIdx === i ? "rgba(251,146,60,0.2)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${rutaIdx === i ? "rgba(251,146,60,0.6)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: "6px", padding: "4px 10px",
+                  color: rutaIdx === i ? "#fb923c" : "rgba(255,255,255,0.45)",
+                  fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700",
+                  cursor: "pointer", transition: "all 0.15s"
+                }}>{r.nombre}</button>
+              ))}
+            </div>
+            {rutaIdx === RUTAS_PRESET.length - 1 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "4px" }}>DISTANCIA (km)</div>
+                  <input type="number" value={kmCustom} onChange={e => setKmCustom(Number(e.target.value))} min={1} style={{
+                    width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "8px", padding: "8px 10px", color: "#fff",
+                    fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box"
+                  }} />
+                </div>
+                <div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "4px" }}>CASETAS (MXN)</div>
+                  <input type="number" value={caseCustom} onChange={e => setCaseCustom(Number(e.target.value))} min={0} style={{
+                    width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "8px", padding: "8px 10px", color: "#fff",
+                    fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box"
+                  }} />
+                </div>
+              </div>
+            )}
+            {rutaIdx !== RUTAS_PRESET.length - 1 && (
+              <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ flex: 1, background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.2)", borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#38bdf8" }}>{km.toLocaleString("es-MX")}</div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>KILÓMETROS</div>
+                </div>
+                <div style={{ flex: 1, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#fbbf24" }}>${casetas.toLocaleString("es-MX")}</div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>CASETAS</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tipo de carga */}
+          <div style={cardSty}>
+            <div style={lblSty}>📦 TIPO DE CARGA</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {TIPO_CARGA.map(t => (
+                <button key={t.id} onClick={() => setTipoCargaId(t.id)} style={{
+                  background: tipoCargaId === t.id ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${tipoCargaId === t.id ? "rgba(167,139,250,0.6)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: "6px", padding: "5px 11px",
+                  color: tipoCargaId === t.id ? "#a78bfa" : "rgba(255,255,255,0.45)",
+                  fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700",
+                  cursor: "pointer", transition: "all 0.15s"
+                }}>
+                  {t.label}
+                  {t.factor > 1 && <span style={{ color: "#f87171", fontSize: "8px", marginLeft: "4px" }}>+{Math.round((t.factor-1)*100)}%</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Peso */}
+          <div style={cardSty}>
+            <div style={lblSty}>⚖️ CARGA</div>
+            <SliderField label="Peso bruto" value={pesoBruto} min={1000} max={50000} step={500} unit="kg" color="#4ade80" onChange={setPesoBruto} getFont={getFont} theme={theme} />
+          </div>
+        </div>
+
+        {/* Panel derecho: Variables de costo */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {/* Combustible */}
+          <div style={cardSty}>
+            <div style={lblSty}>⛽ COMBUSTIBLE</div>
+            <SliderField label="Rendimiento" value={rendimiento} min={1.5} max={6} step={0.1} unit="km/L" color="#fb923c" onChange={setRendimiento} getFont={getFont} theme={theme} />
+            <SliderField label="Precio diésel" value={precioDiesel} min={18} max={35} step={0.5} unit="MXN/L" color="#fbbf24" onChange={setPrecioDiesel} getFont={getFont} theme={theme} />
+          </div>
+
+          {/* Operador */}
+          <div style={cardSty}>
+            <div style={lblSty}>👤 OPERADOR</div>
+            <SliderField label="Viáticos / día" value={comidaOp} min={100} max={800} step={50} unit="MXN" color="#38bdf8" onChange={setComidaOp} getFont={getFont} theme={theme} />
+            <SliderField label="Días de viaje" value={diasViaje} min={1} max={10} step={1} unit="días" color="#a78bfa" onChange={setDiasViaje} getFont={getFont} theme={theme} />
+          </div>
+
+          {/* Margen */}
+          <div style={cardSty}>
+            <div style={lblSty}>📈 MARGEN DE GANANCIA</div>
+            <SliderField label="Margen deseado" value={margen} min={0} max={60} step={1} unit="%" color="#4ade80" onChange={setMargen} getFont={getFont} theme={theme} />
+          </div>
+
+          {/* Botón calcular */}
+          <button onClick={calcular} style={{
+            width: "100%", padding: "14px",
+            background: "linear-gradient(135deg, #fb923c 0%, #f97316 100%)",
+            border: "none", borderRadius: "12px",
+            color: "#fff", fontFamily: getFont(theme, "title"),
+            fontSize: "14px", fontWeight: "800", cursor: "pointer",
+            boxShadow: "0 4px 20px rgba(251,146,60,0.4)",
+            transition: "all 0.2s", letterSpacing: "0.5px"
+          }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(251,146,60,0.5)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(251,146,60,0.4)"; }}
+          >
+            🧮 Calcular Flete
+          </button>
+        </div>
+      </div>
+
+      {/* Resultado */}
+      {resultado && (
+        <div style={{ marginTop: "14px" }}>
+          {/* Total destacado */}
+          <div style={{
+            background: "linear-gradient(135deg, rgba(251,146,60,0.15) 0%, rgba(249,115,22,0.08) 100%)",
+            border: "1px solid rgba(251,146,60,0.4)",
+            borderRadius: "16px", padding: "20px 24px", marginBottom: "12px",
+            display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px"
+          }}>
+            <div>
+              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(251,146,60,0.7)", letterSpacing: "1.5px", fontWeight: "800" }}>COSTO TOTAL DEL FLETE</div>
+              <div style={{ fontFamily: getFont(theme, "title"), fontSize: "36px", fontWeight: "900", color: "#fb923c", lineHeight: 1, marginTop: "4px" }}>
+                ${Math.round(resultado.total).toLocaleString("es-MX")}
+              </div>
+              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "4px" }}>MXN · incluye {margen}% de margen</div>
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#38bdf8" }}>
+                  ${Math.round(resultado.porKm).toLocaleString("es-MX")}
+                </div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>MXN/KM</div>
+              </div>
+              <div style={{ width: "1px", background: "rgba(255,255,255,0.08)" }} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#4ade80" }}>
+                  ${Math.round(resultado.porTonelada).toLocaleString("es-MX")}
+                </div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>MXN/TON</div>
+              </div>
+              <div style={{ width: "1px", background: "rgba(255,255,255,0.08)" }} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#fbbf24" }}>
+                  {Math.round(resultado.litros).toLocaleString("es-MX")} L
+                </div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>DIÉSEL</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Desglose */}
+          <div style={{
+            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "14px", padding: "16px"
+          }}>
+            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", fontWeight: "800", marginBottom: "12px" }}>
+              📊 DESGLOSE DE COSTOS
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {[
+                { label: "⛽ Combustible",    value: resultado.cDiesel,     color: "#fb923c" },
+                { label: "🛣️ Casetas",        value: resultado.cCasetas,    color: "#fbbf24" },
+                { label: "🍽️ Viáticos op.",   value: resultado.cComida,     color: "#38bdf8" },
+                { label: "🔧 Desgaste/Mant.", value: resultado.cDesgaste,   color: "#a78bfa" },
+                { label: "🛡️ Seguro est.",    value: resultado.cSeguro,     color: "#4ade80" },
+                { label: "📈 Ganancia bruta", value: resultado.gananciaBruta, color: "#fb923c" },
+              ].map(({ label, value, color }) => {
+                const pct = resultado.total > 0 ? Math.round((value / resultado.total) * 100) : 0;
+                return (
+                  <div key={label} style={{
+                    background: `${color}08`, border: `1px solid ${color}22`,
+                    borderRadius: "10px", padding: "10px 12px",
+                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.5)", marginBottom: "2px" }}>{label}</div>
+                      <div style={{ fontFamily: "monospace", fontSize: "13px", fontWeight: "700", color }}>${Math.round(value).toLocaleString("es-MX")}</div>
+                    </div>
+                    <div style={{
+                      background: `${color}22`, borderRadius: "6px", padding: "2px 7px",
+                      fontFamily: "monospace", fontSize: "10px", color, fontWeight: "700"
+                    }}>{pct}%</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", lineHeight: 1.6 }}>
+              ⚠️ Estimación referencial. El desgaste considera ~$1.80/km (llantas, aceite, mantenimiento preventivo). El seguro es aproximado. Verifica precios actuales de diésel en tu zona.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚓ SISTEMA DE CONTROL PORTUARIO — Tab oculta solo para admins/privilegiados
 // Integra gestión de citas, operadores y clientes del puerto de Manzanillo.
@@ -13200,6 +13521,7 @@ function SistemaControlPortuario() {
           { id: "dashboard",   label: "📊 Dashboard",   color: "#38bdf8" },
           { id: "citas",       label: "📋 Citas",       color: "#fbbf24" },
           { id: "operadores",  label: "🚛 Operadores",  color: "#4ade80" },
+          { id: "flete",       label: "🧮 Calculadora",  color: "#fb923c" },
         ].map(v => (
           <button key={v.id} onClick={() => setVista(v.id)} style={{
             background: vista === v.id ? `${v.color}22` : "rgba(255,255,255,0.05)",
@@ -13226,66 +13548,128 @@ function SistemaControlPortuario() {
           {/* ── DASHBOARD ─────────────────────────────────────────────────────── */}
           {vista === "dashboard" && (
             <div>
-              {/* KPIs */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px", marginBottom: "16px" }}>
+              {/* KPIs mejorados */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "16px" }}>
                 {[
-                  { label: "HOY",          value: stats.deHoy,      icon: "🚛", color: "#fbbf24" },
-                  { label: "VALIDADOS",    value: stats.validados,  icon: "✅", color: "#4ade80" },
-                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "🔄", color: "#38bdf8" },
-                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "📈", color: "#a78bfa" },
-                  { label: "TOTAL",        value: stats.total,      icon: "📦", color: "rgba(255,255,255,0.6)" },
+                  { label: "CITAS HOY",    value: stats.deHoy,      icon: "🚛", color: "#fbbf24", sub: "programadas" },
+                  { label: "VALIDADOS",    value: stats.validados,  icon: "✅", color: "#4ade80", sub: "confirmados" },
+                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "🔄", color: "#38bdf8", sub: "en movimiento" },
+                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "📈", color: "#a78bfa", sub: "tasa validación" },
+                  { label: "TOTAL",        value: stats.total,      icon: "📦", color: "#fb923c", sub: "en sistema" },
                 ].map(k => (
-                  <div key={k.label} style={cardStyle}>
-                    <div style={labelStyle}>{k.icon} {k.label}</div>
-                    <div style={{ ...valueStyle, fontSize: "24px", color: k.color }}>{k.value}</div>
+                  <div key={k.label} style={{
+                    background: `linear-gradient(135deg, ${k.color}10 0%, rgba(255,255,255,0.03) 100%)`,
+                    border: `1px solid ${k.color}33`,
+                    borderRadius: "14px", padding: "16px",
+                    position: "relative", overflow: "hidden"
+                  }}>
+                    <div style={{
+                      position: "absolute", top: "10px", right: "12px",
+                      fontSize: "22px", opacity: 0.25
+                    }}>{k.icon}</div>
+                    <div style={{
+                      fontFamily: getFont(theme, "secondary"), fontSize: "8px",
+                      color: k.color, letterSpacing: "1.5px", fontWeight: "800", marginBottom: "8px"
+                    }}>{k.label}</div>
+                    <div style={{
+                      fontFamily: getFont(theme, "title"), fontSize: "30px",
+                      fontWeight: "900", color: k.color, lineHeight: 1
+                    }}>{k.value}</div>
+                    <div style={{
+                      fontFamily: getFont(theme, "secondary"), fontSize: "9px",
+                      color: "rgba(255,255,255,0.3)", marginTop: "6px"
+                    }}>{k.sub}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Distribución por patio */}
-              {patioData.length > 0 && (
-                <div style={{ ...cardStyle, marginBottom: "16px" }}>
-                  <div style={labelStyle}>MOVIMIENTOS POR PATIO DESTINO</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
-                    {patioData.sort((a,b) => b.total - a.total).map(({ patio, total }) => {
-                      const pct = stats.total ? Math.round((total / stats.total) * 100) : 0;
-                      return (
-                        <div key={patio}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
-                            <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.7)" }}>{patio}</span>
-                            <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)" }}>{total} ({pct}%)</span>
-                          </div>
-                          <div style={{ height: "4px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
-                            <div style={{ height: "4px", width: `${pct}%`, background: "linear-gradient(90deg, #38bdf8, #a78bfa)", borderRadius: "2px", transition: "width 0.4s" }} />
-                          </div>
+              {/* Fila: distribución por estatus + por patio */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                {/* Estatus breakdown */}
+                <div style={{ ...cardStyle }}>
+                  <div style={{ ...labelStyle, marginBottom: "10px" }}>⚡ ESTADO ACTUAL</div>
+                  {Object.entries(ESTATUS_COLOR).map(([est, col]) => {
+                    const cnt = citas.filter(c => c.estatus === est).length;
+                    const pct = stats.total ? Math.round((cnt / stats.total) * 100) : 0;
+                    return (
+                      <div key={est} style={{ marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: col.text, fontWeight: "700" }}>{est}</span>
+                          <span style={{ fontFamily: "monospace", fontSize: "9px", color: "rgba(255,255,255,0.4)" }}>{cnt} · {pct}%</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px" }}>
+                          <div style={{ height: "3px", width: `${pct}%`, background: col.text, borderRadius: "2px", transition: "width 0.5s ease", opacity: cnt === 0 ? 0.2 : 1 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {stats.total === 0 && (
+                    <div style={{ textAlign: "center", padding: "12px 0", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.2)" }}>
+                      Sin datos aún
+                    </div>
+                  )}
                 </div>
-              )}
 
-              {/* Últimas citas */}
+                {/* Patios */}
+                <div style={{ ...cardStyle }}>
+                  <div style={{ ...labelStyle, marginBottom: "10px" }}>🏭 PATIOS DESTINO</div>
+                  {patioData.length > 0 ? patioData.sort((a,b) => b.total - a.total).map(({ patio, total }, i) => {
+                    const pct = stats.total ? Math.round((total / stats.total) * 100) : 0;
+                    const colors = ["#38bdf8","#a78bfa","#4ade80","#fbbf24","#fb923c","#f87171"];
+                    const c = colors[i % colors.length];
+                    return (
+                      <div key={patio} style={{ marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.65)", maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{patio}</span>
+                          <span style={{ fontFamily: "monospace", fontSize: "9px", color: "rgba(255,255,255,0.4)" }}>{total} · {pct}%</span>
+                        </div>
+                        <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px" }}>
+                          <div style={{ height: "3px", width: `${pct}%`, background: c, borderRadius: "2px", transition: "width 0.5s ease" }} />
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div style={{ textAlign: "center", padding: "12px 0", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.2)" }}>
+                      Sin datos aún
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Últimas citas — tabla más compacta y visual */}
               <div style={cardStyle}>
-                <div style={{ ...labelStyle, marginBottom: "10px" }}>ÚLTIMOS 5 MOVIMIENTOS</div>
-                {citas.slice(0, 5).map(c => (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <div style={labelStyle}>🕐 ÚLTIMOS 5 MOVIMIENTOS</div>
+                  <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>
+                    {new Date().toLocaleDateString("es-MX", { weekday:"short", day:"numeric", month:"short" })}
+                  </span>
+                </div>
+                {citas.slice(0, 5).map((c, i) => (
                   <div key={c.id} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)"
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "9px 10px", marginBottom: "4px",
+                    background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
+                    borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)"
                   }}>
-                    <div>
-                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#38bdf8" }}>{c.folio}</div>
-                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
-                        {c.placas} · {c.patio_destino} · {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
+                    <div style={{
+                      width: "28px", height: "28px", borderRadius: "8px",
+                      background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontFamily: "monospace", fontSize: "9px", color: "#38bdf8", fontWeight: "700", flexShrink: 0
+                    }}>{i+1}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#38bdf8", fontWeight: "700" }}>{c.folio || "—"}</div>
+                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        🚛 {c.placas || "—"} &nbsp;·&nbsp; 🏭 {c.patio_destino || "—"} &nbsp;·&nbsp; 📅 {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
                       </div>
                     </div>
                     <EstadoCita estatus={c.estatus} />
                   </div>
                 ))}
                 {citas.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.3)",
+                  <div style={{ textAlign: "center", padding: "28px", color: "rgba(255,255,255,0.2)",
                     fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
-                    No hay movimientos registrados.
+                    🚛 No hay movimientos registrados aún.
                   </div>
                 )}
               </div>
@@ -13354,6 +13738,9 @@ function SistemaControlPortuario() {
               </div>
             </div>
           )}
+
+          {/* ── CALCULADORA DE FLETE ─────────────────────────────────────────── */}
+          {vista === "flete" && <CalculadoraFlete theme={theme} getFont={getFont} />}
 
           {/* ── OPERADORES ────────────────────────────────────────────────────── */}
           {vista === "operadores" && (
