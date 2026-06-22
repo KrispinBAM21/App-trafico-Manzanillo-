@@ -100,7 +100,8 @@ const TABS = [
 // ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
 // Permite compartir URLs como: https://conectmanzanillo.com/#reporte
 // También acepta: ?seccion=reporte, ?tab=reporte o ?section=reporte
-const VALID_TAB_KEYS = TABS.map(t => t.key);
+// "portuario" es una tab oculta (solo admin), no aparece en TABS pero debe ser válida
+const VALID_TAB_KEYS = [...TABS.map(t => t.key), "portuario"];
 const TAB_ALIASES = {
   reportar: "reporte",
   patio: "patio",
