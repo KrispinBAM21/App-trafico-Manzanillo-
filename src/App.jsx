@@ -13065,29 +13065,186 @@ function CopyRow({ label, value, mono, theme, getFont }) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 🧮 CALCULADORA DE FLETE — Puerto Manzanillo / Lázaro Cárdenas
-// Variables: distancia, peso, combustible, casetas, comida, tiempo, tipo carga
+// 🧮 MÓDULO DE COTIZACIÓN DE FLETES — Puerto Manzanillo / Lázaro Cárdenas
+// Motor completo: rutas, vehículos, tipo carga, maniobras, seguro, margen
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RUTAS_PRESET = [
-  { nombre: "Manzanillo → CDMX",         km: 1020, casetas: 820 },
-  { nombre: "Manzanillo → Guadalajara",   km: 330,  casetas: 210 },
-  { nombre: "Manzanillo → Monterrey",     km: 1450, casetas: 1150 },
-  { nombre: "Manzanillo → Tijuana",       km: 2980, casetas: 1800 },
-  { nombre: "Manzanillo → Puebla",        km: 1100, casetas: 900 },
-  { nombre: "Manzanillo → Querétaro",     km: 880,  casetas: 680 },
-  { nombre: "Manzanillo → Veracruz",      km: 1380, casetas: 1100 },
-  { nombre: "Ruta personalizada",         km: 0,    casetas: 0 },
+// ── Parámetros de Operación (diccionario central) ─────────────────────────────
+const parametrosFlete = {
+  // Generales
+  precioDiesel:        24.50,  // MXN / litro
+  viaticosPorDia:      500,    // apoyo diario al operador (MXN)
+  costoManiobraBase:   800,    // maniobras sencillas (MXN)
+  costoManiobrasDobles:1400,   // maniobras dobles para Full (MXN)
+  margenGanancia:      0.20,   // 20 % sobre costo total
+  tasaSeguroCarga:     0.01,   // 1 % sobre valor declarado de mercancía
+
+  // Rendimiento km/L por tipo de vehículo
+  rendimientoKmLitro: {
+    rabon:               3.5,
+    torton:              2.8,
+    sencillo_caja:       2.4,
+    sencillo_contenedor: 2.3,
+    full:                1.7,
+  },
+
+  // Mantenimiento + llantas por km (MXN/km)
+  costoMantenimientoKm: {
+    rabon:               1.5,
+    torton:              2.0,
+    sencillo_caja:       3.0,
+    sencillo_contenedor: 3.0,
+    full:                5.5,
+  },
+
+  // Sueldo operador por km (MXN/km)
+  sueldoOperadorKm: {
+    rabon:               1.2,
+    torton:              1.5,
+    sencillo_caja:       1.8,
+    sencillo_contenedor: 1.8,
+    full:                2.5,
+  },
+
+  // Multiplicador de peaje según número de ejes
+  multiplicadorPeaje: {
+    rabon:               1.0,
+    torton:              1.2,
+    sencillo_caja:       1.5,
+    sencillo_contenedor: 1.5,
+    full:                2.2,
+  },
+};
+
+// ── Rutas con distancia y peaje base ─────────────────────────────────────────
+// TODO: conectar km y peajeBase con tu API de mapas (Google Maps Distance Matrix
+//       o similar). Por ahora son valores estimados.
+const RUTAS_FLETE = [
+  // Origen: CONTECON (Terminal Interior)
+  { origen: "CONTECON",        destino: "CDMX",          km: 1020, peajeBase: 820  },
+  { origen: "CONTECON",        destino: "Guadalajara",   km: 330,  peajeBase: 210  },
+  { origen: "CONTECON",        destino: "Monterrey",     km: 1450, peajeBase: 1150 },
+  { origen: "CONTECON",        destino: "Querétaro",     km: 880,  peajeBase: 680  },
+  { origen: "CONTECON",        destino: "Puebla",        km: 1100, peajeBase: 900  },
+  { origen: "CONTECON",        destino: "Tijuana",       km: 2980, peajeBase: 1800 },
+  { origen: "CONTECON",        destino: "Veracruz",      km: 1380, peajeBase: 1100 },
+  // Origen: TIMSA
+  { origen: "TIMSA",           destino: "CDMX",          km: 1025, peajeBase: 825  },
+  { origen: "TIMSA",           destino: "Guadalajara",   km: 335,  peajeBase: 215  },
+  { origen: "TIMSA",           destino: "Monterrey",     km: 1455, peajeBase: 1155 },
+  { origen: "TIMSA",           destino: "Querétaro",     km: 885,  peajeBase: 685  },
+  // Origen: SSA
+  { origen: "SSA",             destino: "CDMX",          km: 1018, peajeBase: 818  },
+  { origen: "SSA",             destino: "Guadalajara",   km: 328,  peajeBase: 208  },
+  { origen: "SSA",             destino: "Monterrey",     km: 1448, peajeBase: 1148 },
+  // Origen: Patio Regulador
+  { origen: "Patio Regulador", destino: "CDMX",          km: 1030, peajeBase: 830  },
+  { origen: "Patio Regulador", destino: "Guadalajara",   km: 340,  peajeBase: 220  },
+  { origen: "Patio Regulador", destino: "Monterrey",     km: 1460, peajeBase: 1160 },
+  { origen: "Patio Regulador", destino: "Querétaro",     km: 895,  peajeBase: 695  },
+  { origen: "Patio Regulador", destino: "Puebla",        km: 1108, peajeBase: 908  },
+  { origen: "Patio Regulador", destino: "Veracruz",      km: 1390, peajeBase: 1110 },
 ];
 
-const TIPO_CARGA = [
-  { id: "general",    label: "Carga General",    factor: 1.0 },
-  { id: "peligrosa",  label: "Carga Peligrosa",  factor: 1.35 },
-  { id: "refrigerada",label: "Refrigerada",       factor: 1.25 },
-  { id: "sobredim",   label: "Sobredimensionada", factor: 1.45 },
-  { id: "contenedor", label: "Contenedor ISO",    factor: 1.0 },
+const ORIGENES_FLETE  = [...new Set(RUTAS_FLETE.map(r => r.origen))];
+const DESTINOS_FLETE  = [...new Set(RUTAS_FLETE.map(r => r.destino))];
+
+// ── Catálogo de vehículos ─────────────────────────────────────────────────────
+const VEHICULOS_FLETE = [
+  { id: "rabon",               label: "Rabón",                   icon: "🚚", cap: "7 ton · 2 ejes",  color: "#38bdf8" },
+  { id: "torton",              label: "Tórtón",                  icon: "🚛", cap: "14 ton · 3 ejes", color: "#4ade80" },
+  { id: "sencillo_caja",       label: "Sencillo\nCaja Seca",     icon: "📦", cap: "22 ton · 5 ejes", color: "#fbbf24" },
+  { id: "sencillo_contenedor", label: "Sencillo\nPortacontenedor",icon:"🏗️", cap: "20 ton · 5 ejes", color: "#a78bfa" },
+  { id: "full",                label: "Full",                    icon: "🚜", cap: "27 ton · 9 ejes", color: "#fb923c" },
 ];
 
+// ── Tipos de carga ─────────────────────────────────────────────────────────────
+const TIPOS_CARGA_FLETE = [
+  { id: "general",     label: "General",         factor: 1.00 },
+  { id: "peligrosa",   label: "Peligrosa",        factor: 1.35 },
+  { id: "refrigerada", label: "Refrigerada",      factor: 1.25 },
+  { id: "sobredim",    label: "Sobredimensionada",factor: 1.45 },
+  { id: "contenedor",  label: "Contenedor ISO",   factor: 1.00 },
+];
+
+// ── Motor de Cálculo ───────────────────────────────────────────────────────────
+/**
+ * calcularFlete(datosRuta, tipoVehiculo, opcionesExtra)
+ *
+ * datosRuta      = { km, peajeBase }
+ * tipoVehiculo   = clave de VEHICULOS_FLETE (ej: "full")
+ * opcionesExtra  = {
+ *   pesoKg, numTarimasContenedores, valorDeclarado,
+ *   maniobras, seguro, maniobrasDobles, tipoCarga (factor)
+ * }
+ */
+function calcularFlete(datosRuta, tipoVehiculo, opcionesExtra) {
+  const p  = parametrosFlete;
+  const vk = tipoVehiculo; // clave
+  const { km, peajeBase } = datosRuta;
+
+  // 1. Combustible
+  const litros       = km / p.rendimientoKmLitro[vk];
+  const cCombustible = litros * p.precioDiesel;
+
+  // 2. Peajes (base × multiplicador por ejes)
+  const cPeajes      = peajeBase * p.multiplicadorPeaje[vk];
+
+  // 3. Sueldo operador
+  const cSueldo      = p.sueldoOperadorKm[vk] * km;
+
+  // 4. Mantenimiento / desgaste
+  const cMantenimiento = p.costoMantenimientoKm[vk] * km;
+
+  // 5. Viáticos (1 día por cada 400 km, mínimo 1)
+  const dias         = Math.max(1, Math.ceil(km / 400));
+  const cViaticos    = p.viaticosPorDia * dias;
+
+  // 6. Costo operativo base
+  const cOperativoBase = (cCombustible + cPeajes + cSueldo + cMantenimiento + cViaticos)
+                          * opcionesExtra.tipoCargaFactor;
+
+  // 7. Cargos extra
+  let cManiobras = 0;
+  if (opcionesExtra.maniobras) {
+    cManiobras = (opcionesExtra.maniobrasDobles && vk === "full")
+      ? p.costoManiobrasDobles
+      : p.costoManiobraBase;
+  }
+
+  const cSeguro = opcionesExtra.seguro
+    ? opcionesExtra.valorDeclarado * p.tasaSeguroCarga
+    : 0;
+
+  const cExtras = cManiobras + cSeguro;
+
+  // 8. Subtotal operativo
+  const subtotal = cOperativoBase + cExtras;
+
+  // 9. Margen de ganancia
+  const margen   = subtotal * p.margenGanancia;
+
+  // 10. Total al cliente
+  const total    = subtotal + margen;
+
+  // 11. Indicadores derivados
+  const porKm        = km > 0 ? total / km : 0;
+  const pesoTon      = opcionesExtra.pesoKg / 1000;
+  const porTonelada  = pesoTon > 0 ? total / pesoTon : 0;
+
+  return {
+    // Desglose
+    cCombustible, litros, cPeajes, cSueldo, cMantenimiento, cViaticos, dias,
+    cOperativoBase, cManiobras, cSeguro, cExtras,
+    subtotal, margen, total,
+    // Indicadores
+    porKm, porTonelada,
+    // Meta
+    km, tipoVehiculo: vk,
+  };
+}
+
+// ── Componente UI ─────────────────────────────────────────────────────────────
 function SliderField({ label, value, min, max, step, unit, color, onChange, getFont, theme }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
@@ -13117,124 +13274,161 @@ function SliderField({ label, value, min, max, step, unit, color, onChange, getF
 }
 
 function CalculadoraFlete({ theme, getFont }) {
-  const [rutaIdx, setRutaIdx]           = React.useState(0);
-  const [kmCustom, setKmCustom]         = React.useState(500);
-  const [caseCustom, setCaseCustom]     = React.useState(400);
-  const [pesoBruto, setPesoBruto]       = React.useState(20000);
-  const [rendimiento, setRendimiento]   = React.useState(3.2);   // km/litro
-  const [precioDiesel, setPrecioDiesel] = React.useState(24.5);  // MXN/litro
-  const [comidaOp, setComidaOp]         = React.useState(350);   // MXN/dia
-  const [diasViaje, setDiasViaje]       = React.useState(2);
-  const [tipoCargaId, setTipoCargaId]   = React.useState("general");
-  const [margen, setMargen]             = React.useState(20);    // %
-  const [resultado, setResultado]       = React.useState(null);
+  // ── Estado del formulario ─────────────────────────────────────────────────
+  const [origen,       setOrigen]       = React.useState(ORIGENES_FLETE[0]);
+  const [destino,      setDestino]      = React.useState(DESTINOS_FLETE[0]);
+  const [vehiculoId,   setVehiculoId]   = React.useState("sencillo_caja");
+  const [tipoCargaId,  setTipoCargaId]  = React.useState("general");
+  const [pesoKg,       setPesoKg]       = React.useState(18000);
+  const [numUnidades,  setNumUnidades]  = React.useState(1);
+  const [valorDeclarado, setValorDeclarado] = React.useState(200000);
+  const [maniobras,    setManiobras]    = React.useState(false);
+  const [seguro,       setSeguro]       = React.useState(false);
+  const [maniobrasDobles, setManiobrasDobles] = React.useState(false);
+  const [resultado,    setResultado]    = React.useState(null);
 
-  const ruta    = RUTAS_PRESET[rutaIdx];
-  const km      = rutaIdx === RUTAS_PRESET.length - 1 ? kmCustom : ruta.km;
-  const casetas = rutaIdx === RUTAS_PRESET.length - 1 ? caseCustom : ruta.casetas;
-  const tipoCarga = TIPO_CARGA.find(t => t.id === tipoCargaId) || TIPO_CARGA[0];
+  // ── Ruta activa ───────────────────────────────────────────────────────────
+  const rutaActiva = React.useMemo(() =>
+    RUTAS_FLETE.find(r => r.origen === origen && r.destino === destino) || null
+  , [origen, destino]);
 
+  // destinos disponibles para el origen seleccionado
+  const destinosDisp = React.useMemo(() =>
+    [...new Set(RUTAS_FLETE.filter(r => r.origen === origen).map(r => r.destino))]
+  , [origen]);
+
+  // Si el destino actual no está en los disponibles, resetear
+  React.useEffect(() => {
+    if (!destinosDisp.includes(destino)) setDestino(destinosDisp[0] || "");
+  }, [destinosDisp]);
+
+  const vehiculo      = VEHICULOS_FLETE.find(v => v.id === vehiculoId) || VEHICULOS_FLETE[0];
+  const tipoCargaObj  = TIPOS_CARGA_FLETE.find(t => t.id === tipoCargaId) || TIPOS_CARGA_FLETE[0];
+
+  // ── Calcular ──────────────────────────────────────────────────────────────
   const calcular = () => {
-    const litros     = km / rendimiento;
-    const cDiesel    = litros * precioDiesel;
-    const cCasetas   = casetas;
-    const cComida    = comidaOp * diasViaje;
-    const cDesgaste  = km * 1.8;            // desgaste llantas/mantenimiento ~$1.80/km
-    const cSeguro    = pesoBruto * 0.0008;  // ~0.08% del valor del flete como seguro estimado
-    const subtotal   = (cDiesel + cCasetas + cComida + cDesgaste + cSeguro) * tipoCarga.factor;
-    const gananciaBruta = subtotal * (margen / 100);
-    const total      = subtotal + gananciaBruta;
-    const porTonelada = pesoBruto > 0 ? total / (pesoBruto / 1000) : 0;
-    const porKm      = km > 0 ? total / km : 0;
-
-    setResultado({
-      cDiesel, cCasetas, cComida, cDesgaste, cSeguro,
-      subtotal, gananciaBruta, total, porTonelada, porKm, litros
-    });
+    if (!rutaActiva) return;
+    const res = calcularFlete(
+      { km: rutaActiva.km, peajeBase: rutaActiva.peajeBase },
+      vehiculoId,
+      {
+        pesoKg, numTarimasContenedores: numUnidades, valorDeclarado,
+        maniobras, seguro, maniobrasDobles,
+        tipoCargaFactor: tipoCargaObj.factor,
+      }
+    );
+    setResultado(res);
   };
 
-  const cardSty = {
-    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "14px", padding: "16px"
+  // ── Estilos base ──────────────────────────────────────────────────────────
+  const card = { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "16px" };
+  const lbl  = { fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", fontWeight: "800", marginBottom: "10px" };
+  const selectStyle = {
+    width: "100%", background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px",
+    padding: "9px 12px", color: "#fff",
+    fontFamily: getFont(theme, "secondary"), fontSize: "12px",
+    outline: "none", cursor: "pointer", appearance: "none",
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.3)'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center",
+    paddingRight: "32px"
   };
-  const lblSty = {
-    fontFamily: getFont(theme, "secondary"), fontSize: "8px",
-    color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", fontWeight: "800", marginBottom: "10px"
-  };
+  const checkStyle = (checked, color) => ({
+    display: "flex", alignItems: "center", gap: "10px",
+    padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
+    background: checked ? `${color}15` : "rgba(255,255,255,0.03)",
+    border: `1px solid ${checked ? color + "44" : "rgba(255,255,255,0.08)"}`,
+    transition: "all 0.18s", marginBottom: "6px"
+  });
 
+  // ── JSX ───────────────────────────────────────────────────────────────────
   return (
     <div>
-      {/* Header calculadora */}
-      <div style={{ ...cardSty, marginBottom: "12px", background: "linear-gradient(135deg, rgba(251,146,60,0.1) 0%, rgba(251,146,60,0.03) 100%)", borderColor: "rgba(251,146,60,0.25)" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <div style={{ fontSize: "28px" }}>🧮</div>
+      {/* ── Header ── */}
+      <div style={{ ...card, marginBottom: "14px", background: "linear-gradient(135deg, rgba(251,146,60,0.12) 0%, rgba(251,146,60,0.03) 100%)", borderColor: "rgba(251,146,60,0.3)" }}>
+        <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+          <div style={{ fontSize: "30px" }}>🧮</div>
           <div>
-            <div style={{ fontFamily: getFont(theme, "title"), fontSize: "16px", fontWeight: "800", color: "#fb923c" }}>Calculadora de Flete</div>
-            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
-              Estima el costo total del viaje incluyendo combustible, casetas, comida, desgaste y margen de ganancia.
+            <div style={{ fontFamily: getFont(theme, "title"), fontSize: "17px", fontWeight: "900", color: "#fb923c" }}>
+              Módulo de Cotización de Fletes
+            </div>
+            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "3px" }}>
+              Puerto Manzanillo · Lázaro Cárdenas — Motor de cálculo completo por tipo de vehículo, carga y ruta
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
 
-        {/* Panel izquierdo: Ruta + Carga */}
+        {/* ── COLUMNA IZQUIERDA ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {/* Ruta */}
-          <div style={cardSty}>
-            <div style={lblSty}>📍 RUTA</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
-              {RUTAS_PRESET.map((r, i) => (
-                <button key={i} onClick={() => setRutaIdx(i)} style={{
-                  background: rutaIdx === i ? "rgba(251,146,60,0.2)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${rutaIdx === i ? "rgba(251,146,60,0.6)" : "rgba(255,255,255,0.1)"}`,
-                  borderRadius: "6px", padding: "4px 10px",
-                  color: rutaIdx === i ? "#fb923c" : "rgba(255,255,255,0.45)",
-                  fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700",
-                  cursor: "pointer", transition: "all 0.15s"
-                }}>{r.nombre}</button>
-              ))}
-            </div>
-            {rutaIdx === RUTAS_PRESET.length - 1 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                <div>
-                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "4px" }}>DISTANCIA (km)</div>
-                  <input type="number" value={kmCustom} onChange={e => setKmCustom(Number(e.target.value))} min={1} style={{
-                    width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "8px", padding: "8px 10px", color: "#fff",
-                    fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box"
-                  }} />
-                </div>
-                <div>
-                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "4px" }}>CASETAS (MXN)</div>
-                  <input type="number" value={caseCustom} onChange={e => setCaseCustom(Number(e.target.value))} min={0} style={{
-                    width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: "8px", padding: "8px 10px", color: "#fff",
-                    fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box"
-                  }} />
-                </div>
+
+          {/* Ruta: Origen → Destino */}
+          <div style={card}>
+            <div style={lbl}>📍 RUTA DE TRANSPORTE</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>ORIGEN</div>
+                <select value={origen} onChange={e => setOrigen(e.target.value)} style={selectStyle}>
+                  {ORIGENES_FLETE.map(o => <option key={o} value={o} style={{ background: "#0a1628" }}>{o}</option>)}
+                </select>
               </div>
-            )}
-            {rutaIdx !== RUTAS_PRESET.length - 1 && (
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>DESTINO</div>
+                <select value={destino} onChange={e => setDestino(e.target.value)} style={selectStyle}>
+                  {destinosDisp.map(d => <option key={d} value={d} style={{ background: "#0a1628" }}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            {rutaActiva ? (
+              <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
                 <div style={{ flex: 1, background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.2)", borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#38bdf8" }}>{km.toLocaleString("es-MX")}</div>
+                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#38bdf8" }}>{rutaActiva.km.toLocaleString("es-MX")}</div>
                   <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>KILÓMETROS</div>
                 </div>
                 <div style={{ flex: 1, background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "8px", padding: "8px 12px", textAlign: "center" }}>
-                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#fbbf24" }}>${casetas.toLocaleString("es-MX")}</div>
-                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>CASETAS</div>
+                  <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color: "#fbbf24" }}>${rutaActiva.peajeBase.toLocaleString("es-MX")}</div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>CASETAS BASE</div>
                 </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#f87171" }}>
+                ⚠️ Ruta no disponible. Selecciona otra combinación.
               </div>
             )}
           </div>
 
+          {/* Tipo de vehículo */}
+          <div style={card}>
+            <div style={lbl}>🚛 TIPO DE VEHÍCULO</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {VEHICULOS_FLETE.map(v => (
+                <div key={v.id} onClick={() => setVehiculoId(v.id)} style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+                  background: vehiculoId === v.id ? `${v.color}15` : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${vehiculoId === v.id ? v.color + "55" : "rgba(255,255,255,0.07)"}`,
+                  transition: "all 0.18s"
+                }}>
+                  <span style={{ fontSize: "20px", flexShrink: 0 }}>{v.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", color: vehiculoId === v.id ? v.color : "rgba(255,255,255,0.8)", whiteSpace: "pre-line", lineHeight: 1.3 }}>{v.label}</div>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>{v.cap}</div>
+                  </div>
+                  {vehiculoId === v.id && (
+                    <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: v.color, boxShadow: `0 0 8px ${v.color}` }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Tipo de carga */}
-          <div style={cardSty}>
-            <div style={lblSty}>📦 TIPO DE CARGA</div>
+          <div style={card}>
+            <div style={lbl}>📦 TIPO DE MERCANCÍA</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {TIPO_CARGA.map(t => (
+              {TIPOS_CARGA_FLETE.map(t => (
                 <button key={t.id} onClick={() => setTipoCargaId(t.id)} style={{
                   background: tipoCargaId === t.id ? "rgba(167,139,250,0.2)" : "rgba(255,255,255,0.04)",
                   border: `1px solid ${tipoCargaId === t.id ? "rgba(167,139,250,0.6)" : "rgba(255,255,255,0.1)"}`,
@@ -13249,133 +13443,196 @@ function CalculadoraFlete({ theme, getFont }) {
               ))}
             </div>
           </div>
-
-          {/* Peso */}
-          <div style={cardSty}>
-            <div style={lblSty}>⚖️ CARGA</div>
-            <SliderField label="Peso bruto" value={pesoBruto} min={1000} max={50000} step={500} unit="kg" color="#4ade80" onChange={setPesoBruto} getFont={getFont} theme={theme} />
-          </div>
         </div>
 
-        {/* Panel derecho: Variables de costo */}
+        {/* ── COLUMNA DERECHA ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {/* Combustible */}
-          <div style={cardSty}>
-            <div style={lblSty}>⛽ COMBUSTIBLE</div>
-            <SliderField label="Rendimiento" value={rendimiento} min={1.5} max={6} step={0.1} unit="km/L" color="#fb923c" onChange={setRendimiento} getFont={getFont} theme={theme} />
-            <SliderField label="Precio diésel" value={precioDiesel} min={18} max={35} step={0.5} unit="MXN/L" color="#fbbf24" onChange={setPrecioDiesel} getFont={getFont} theme={theme} />
+
+          {/* Campos de carga */}
+          <div style={card}>
+            <div style={lbl}>⚖️ DATOS DE CARGA</div>
+            <SliderField label="Peso bruto" value={pesoKg} min={500} max={27000} step={500} unit="kg" color="#4ade80" onChange={setPesoKg} getFont={getFont} theme={theme} />
+            <SliderField label="Tarimas / Contenedores" value={numUnidades} min={1} max={30} step={1} unit="uds" color="#38bdf8" onChange={setNumUnidades} getFont={getFont} theme={theme} />
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.55)", fontWeight: "600" }}>Valor declarado mercancía</span>
+                <span style={{ fontFamily: "monospace", fontSize: "12px", color: "#a78bfa", fontWeight: "700" }}>${Number(valorDeclarado).toLocaleString("es-MX")}</span>
+              </div>
+              <input
+                type="number" value={valorDeclarado} min={0} step={10000}
+                onChange={e => setValorDeclarado(Number(e.target.value))}
+                style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "9px 12px", color: "#fff", fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+              />
+              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.25)", marginTop: "4px" }}>Necesario para calcular seguro de carga (1%)</div>
+            </div>
           </div>
 
-          {/* Operador */}
-          <div style={cardSty}>
-            <div style={lblSty}>👤 OPERADOR</div>
-            <SliderField label="Viáticos / día" value={comidaOp} min={100} max={800} step={50} unit="MXN" color="#38bdf8" onChange={setComidaOp} getFont={getFont} theme={theme} />
-            <SliderField label="Días de viaje" value={diasViaje} min={1} max={10} step={1} unit="días" color="#a78bfa" onChange={setDiasViaje} getFont={getFont} theme={theme} />
+          {/* Opciones adicionales */}
+          <div style={card}>
+            <div style={lbl}>⚙️ OPCIONES ADICIONALES</div>
+
+            <div onClick={() => setManiobras(!maniobras)} style={checkStyle(maniobras, "#fbbf24")}>
+              <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${maniobras ? "#fbbf24" : "rgba(255,255,255,0.2)"}`, background: maniobras ? "#fbbf24" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                {maniobras && <span style={{ color: "#000", fontSize: "11px", fontWeight: "900" }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", color: maniobras ? "#fbbf24" : "rgba(255,255,255,0.7)" }}>Maniobras de carga/descarga</div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>+${parametrosFlete.costoManiobraBase.toLocaleString("es-MX")} MXN base</div>
+              </div>
+            </div>
+
+            {/* Maniobras dobles — solo si vehículo es Full */}
+            {vehiculoId === "full" && maniobras && (
+              <div onClick={() => setManiobrasDobles(!maniobrasDobles)} style={checkStyle(maniobrasDobles, "#fb923c")}>
+                <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${maniobrasDobles ? "#fb923c" : "rgba(255,255,255,0.2)"}`, background: maniobrasDobles ? "#fb923c" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                  {maniobrasDobles && <span style={{ color: "#000", fontSize: "11px", fontWeight: "900" }}>✓</span>}
+                </div>
+                <div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", color: maniobrasDobles ? "#fb923c" : "rgba(255,255,255,0.7)" }}>Maniobras dobles (Full)</div>
+                  <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>+${parametrosFlete.costoManiobrasDobles.toLocaleString("es-MX")} MXN · requiere 2 equipos</div>
+                </div>
+              </div>
+            )}
+
+            <div onClick={() => setSeguro(!seguro)} style={checkStyle(seguro, "#4ade80")}>
+              <div style={{ width: "18px", height: "18px", borderRadius: "5px", border: `2px solid ${seguro ? "#4ade80" : "rgba(255,255,255,0.2)"}`, background: seguro ? "#4ade80" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                {seguro && <span style={{ color: "#000", fontSize: "11px", fontWeight: "900" }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", color: seguro ? "#4ade80" : "rgba(255,255,255,0.7)" }}>Seguro de carga</div>
+                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "1px" }}>
+                  1% s/ valor declarado = ${Math.round(valorDeclarado * 0.01).toLocaleString("es-MX")} MXN
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Margen */}
-          <div style={cardSty}>
-            <div style={lblSty}>📈 MARGEN DE GANANCIA</div>
-            <SliderField label="Margen deseado" value={margen} min={0} max={60} step={1} unit="%" color="#4ade80" onChange={setMargen} getFont={getFont} theme={theme} />
+          {/* Parámetros diesel */}
+          <div style={card}>
+            <div style={lbl}>⛽ PARÁMETROS OPERATIVOS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[
+                { label: "Precio diésel", val: `$${parametrosFlete.precioDiesel}/L`, color: "#fb923c" },
+                { label: "Viáticos/día", val: `$${parametrosFlete.viaticosPorDia}`, color: "#38bdf8" },
+                { label: "Margen ganancia", val: `${parametrosFlete.margenGanancia * 100}%`, color: "#4ade80" },
+                { label: `Rendimiento (${vehiculo.label.replace(/\n.*/,"")})`, val: `${parametrosFlete.rendimientoKmLitro[vehiculoId]} km/L`, color: "#a78bfa" },
+                { label: "Sueldo operador", val: `$${parametrosFlete.sueldoOperadorKm[vehiculoId]}/km`, color: "#fbbf24" },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)" }}>{label}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: "10px", color, fontWeight: "700" }}>{val}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Botón calcular */}
-          <button onClick={calcular} style={{
-            width: "100%", padding: "14px",
-            background: "linear-gradient(135deg, #fb923c 0%, #f97316 100%)",
+          <button onClick={calcular} disabled={!rutaActiva} style={{
+            width: "100%", padding: "15px",
+            background: rutaActiva ? "linear-gradient(135deg, #fb923c 0%, #f97316 100%)" : "rgba(255,255,255,0.07)",
             border: "none", borderRadius: "12px",
-            color: "#fff", fontFamily: getFont(theme, "title"),
-            fontSize: "14px", fontWeight: "800", cursor: "pointer",
-            boxShadow: "0 4px 20px rgba(251,146,60,0.4)",
+            color: rutaActiva ? "#fff" : "rgba(255,255,255,0.25)",
+            fontFamily: getFont(theme, "title"), fontSize: "14px", fontWeight: "800",
+            cursor: rutaActiva ? "pointer" : "not-allowed",
+            boxShadow: rutaActiva ? "0 4px 20px rgba(251,146,60,0.4)" : "none",
             transition: "all 0.2s", letterSpacing: "0.5px"
           }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(251,146,60,0.5)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(251,146,60,0.4)"; }}
+            onMouseEnter={e => { if (rutaActiva) { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(251,146,60,0.5)"; }}}
+            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = rutaActiva ? "0 4px 20px rgba(251,146,60,0.4)" : "none"; }}
           >
-            🧮 Calcular Flete
+            🧮 Calcular Cotización
           </button>
         </div>
       </div>
 
-      {/* Resultado */}
+      {/* ── RESULTADO ── */}
       {resultado && (
         <div style={{ marginTop: "14px" }}>
-          {/* Total destacado */}
+          {/* Banner total */}
           <div style={{
-            background: "linear-gradient(135deg, rgba(251,146,60,0.15) 0%, rgba(249,115,22,0.08) 100%)",
-            border: "1px solid rgba(251,146,60,0.4)",
-            borderRadius: "16px", padding: "20px 24px", marginBottom: "12px",
-            display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px"
+            background: "linear-gradient(135deg, rgba(251,146,60,0.18) 0%, rgba(249,115,22,0.06) 100%)",
+            border: "1px solid rgba(251,146,60,0.45)", borderRadius: "16px",
+            padding: "20px 24px", marginBottom: "12px",
+            display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px"
           }}>
             <div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(251,146,60,0.7)", letterSpacing: "1.5px", fontWeight: "800" }}>COSTO TOTAL DEL FLETE</div>
-              <div style={{ fontFamily: getFont(theme, "title"), fontSize: "36px", fontWeight: "900", color: "#fb923c", lineHeight: 1, marginTop: "4px" }}>
+              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(251,146,60,0.7)", letterSpacing: "2px", fontWeight: "800" }}>TARIFA FINAL AL CLIENTE</div>
+              <div style={{ fontFamily: getFont(theme, "title"), fontSize: "38px", fontWeight: "900", color: "#fb923c", lineHeight: 1, marginTop: "4px" }}>
                 ${Math.round(resultado.total).toLocaleString("es-MX")}
               </div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "4px" }}>MXN · incluye {margen}% de margen</div>
+              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", marginTop: "5px" }}>
+                MXN · {origen} → {destino} · {resultado.km} km · {resultado.dias} día(s) · {vehiculo.label.replace(/\n.*/,"")}
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#38bdf8" }}>
-                  ${Math.round(resultado.porKm).toLocaleString("es-MX")}
-                </div>
-                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>MXN/KM</div>
-              </div>
-              <div style={{ width: "1px", background: "rgba(255,255,255,0.08)" }} />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#4ade80" }}>
-                  ${Math.round(resultado.porTonelada).toLocaleString("es-MX")}
-                </div>
-                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>MXN/TON</div>
-              </div>
-              <div style={{ width: "1px", background: "rgba(255,255,255,0.08)" }} />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: "800", color: "#fbbf24" }}>
-                  {Math.round(resultado.litros).toLocaleString("es-MX")} L
-                </div>
-                <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px" }}>DIÉSEL</div>
-              </div>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              {[
+                { val: `$${Math.round(resultado.porKm).toLocaleString("es-MX")}`, lbl: "MXN/KM",       color: "#38bdf8" },
+                { val: `$${Math.round(resultado.porTonelada).toLocaleString("es-MX")}`, lbl: "MXN/TON", color: "#4ade80" },
+                { val: `${Math.round(resultado.litros)} L`,                             lbl: "DIÉSEL",   color: "#fbbf24" },
+                { val: `$${Math.round(resultado.margen).toLocaleString("es-MX")}`,      lbl: "GANANCIA", color: "#a78bfa" },
+              ].map(({ val, lbl, color }, i, arr) => (
+                <React.Fragment key={lbl}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: "16px", fontWeight: "800", color }}>{val}</div>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.3)", letterSpacing: "1px", marginTop: "3px" }}>{lbl}</div>
+                  </div>
+                  {i < arr.length - 1 && <div style={{ width: "1px", background: "rgba(255,255,255,0.08)" }} />}
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
-          {/* Desglose */}
-          <div style={{
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "14px", padding: "16px"
-          }}>
+          {/* Desglose paso a paso */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "16px" }}>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", fontWeight: "800", marginBottom: "12px" }}>
-              📊 DESGLOSE DE COSTOS
+              📊 DESGLOSE DE COSTOS (paso a paso)
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px", marginBottom: "10px" }}>
               {[
-                { label: "⛽ Combustible",    value: resultado.cDiesel,     color: "#fb923c" },
-                { label: "🛣️ Casetas",        value: resultado.cCasetas,    color: "#fbbf24" },
-                { label: "🍽️ Viáticos op.",   value: resultado.cComida,     color: "#38bdf8" },
-                { label: "🔧 Desgaste/Mant.", value: resultado.cDesgaste,   color: "#a78bfa" },
-                { label: "🛡️ Seguro est.",    value: resultado.cSeguro,     color: "#4ade80" },
-                { label: "📈 Ganancia bruta", value: resultado.gananciaBruta, color: "#fb923c" },
-              ].map(({ label, value, color }) => {
+                { label: "⛽ Combustible",        value: resultado.cCombustible,   color: "#fb923c", sub: `${Math.round(resultado.litros)} L × $${parametrosFlete.precioDiesel}` },
+                { label: "🛣️ Peajes",             value: resultado.cPeajes,        color: "#fbbf24", sub: `Base $${rutaActiva?.peajeBase} × ${parametrosFlete.multiplicadorPeaje[vehiculoId]}x` },
+                { label: "👤 Sueldo operador",    value: resultado.cSueldo,        color: "#38bdf8", sub: `$${parametrosFlete.sueldoOperadorKm[vehiculoId]}/km × ${resultado.km} km` },
+                { label: "🔧 Mantenimiento",      value: resultado.cMantenimiento, color: "#a78bfa", sub: `$${parametrosFlete.costoMantenimientoKm[vehiculoId]}/km × ${resultado.km} km` },
+                { label: "🍽️ Viáticos",           value: resultado.cViaticos,      color: "#4ade80", sub: `${resultado.dias} día(s) × $${parametrosFlete.viaticosPorDia}` },
+                ...(resultado.cManiobras > 0 ? [{ label: "🏗️ Maniobras",  value: resultado.cManiobras, color: "#fbbf24", sub: maniobrasDobles && vehiculoId === "full" ? "Maniobras dobles (Full)" : "Maniobra base" }] : []),
+                ...(resultado.cSeguro   > 0 ? [{ label: "🛡️ Seguro carga",value: resultado.cSeguro,   color: "#4ade80", sub: `1% × $${valorDeclarado.toLocaleString("es-MX")}` }] : []),
+              ].map(({ label, value, color, sub }) => {
                 const pct = resultado.total > 0 ? Math.round((value / resultado.total) * 100) : 0;
                 return (
-                  <div key={label} style={{
-                    background: `${color}08`, border: `1px solid ${color}22`,
-                    borderRadius: "10px", padding: "10px 12px",
-                    display: "flex", justifyContent: "space-between", alignItems: "center"
-                  }}>
-                    <div>
-                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.5)", marginBottom: "2px" }}>{label}</div>
-                      <div style={{ fontFamily: "monospace", fontSize: "13px", fontWeight: "700", color }}>${Math.round(value).toLocaleString("es-MX")}</div>
+                  <div key={label} style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: "10px", padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
+                      <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.5)" }}>{label}</span>
+                      <span style={{ background: `${color}22`, borderRadius: "4px", padding: "1px 5px", fontFamily: "monospace", fontSize: "9px", color, fontWeight: "700" }}>{pct}%</span>
                     </div>
-                    <div style={{
-                      background: `${color}22`, borderRadius: "6px", padding: "2px 7px",
-                      fontFamily: "monospace", fontSize: "10px", color, fontWeight: "700"
-                    }}>{pct}%</div>
+                    <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: "700", color, marginBottom: "4px" }}>${Math.round(value).toLocaleString("es-MX")}</div>
+                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.25)" }}>{sub}</div>
+                    <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", marginTop: "8px" }}>
+                      <div style={{ height: "3px", width: `${pct}%`, background: color, borderRadius: "2px", transition: "width 0.5s" }} />
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", lineHeight: 1.6 }}>
-              ⚠️ Estimación referencial. El desgaste considera ~$1.80/km (llantas, aceite, mantenimiento preventivo). El seguro es aproximado. Verifica precios actuales de diésel en tu zona.
+
+            {/* Línea subtotal + margen = total */}
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[
+                { label: "Subtotal operativo", value: resultado.subtotal,       color: "rgba(255,255,255,0.6)" },
+                { label: `Margen de ganancia (${parametrosFlete.margenGanancia * 100}%)`, value: resultado.margen, color: "#4ade80" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)" }}>{label}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: "11px", color, fontWeight: "700" }}>${Math.round(value).toLocaleString("es-MX")}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px dashed rgba(251,146,60,0.3)", marginTop: "4px" }}>
+                <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", color: "#fb923c", fontWeight: "800" }}>TOTAL AL CLIENTE</span>
+                <span style={{ fontFamily: "monospace", fontSize: "16px", color: "#fb923c", fontWeight: "900" }}>${Math.round(resultado.total).toLocaleString("es-MX")}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(56,189,248,0.05)", border: "1px solid rgba(56,189,248,0.15)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", lineHeight: 1.7 }}>
+              ℹ️ <strong style={{ color: "rgba(255,255,255,0.5)" }}>Nota técnica:</strong> Las distancias y casetas son estimadas. Para producción, conecta la variable <code style={{ color: "#38bdf8" }}>km</code> y <code style={{ color: "#38bdf8" }}>peajeBase</code> de cada ruta con tu API de mapas (Google Maps Distance Matrix o similar). Los parámetros operativos se centralizan en el objeto <code style={{ color: "#a78bfa" }}>parametrosFlete</code>.
             </div>
           </div>
         </div>
@@ -13383,6 +13640,7 @@ function CalculadoraFlete({ theme, getFont }) {
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚓ SISTEMA DE CONTROL PORTUARIO — Tab oculta solo para admins/privilegiados
