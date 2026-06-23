@@ -1359,6 +1359,132 @@ const notifyIfBlocked = async (action, notify = alert) => {
   return true;
 };
 
+
+const getWinnerFromVotes = (rows = [], defaultStatus = "libre") => {
+  const conteo = {};
+  (rows || []).forEach(v => { if (v?.status) conteo[v.status] = (conteo[v.status] || 0) + 1; });
+  const ganadora = Object.entries(conteo).sort((a,b) => b[1] - a[1])[0];
+  return { status: ganadora ? ganadora[0] : defaultStatus, count: ganadora ? ganadora[1] : 0, conteo };
+};
+
+const recalcStoredVoteEntity = async ({ table, entityColumn, entityId, tipo, defaultStatus = "libre" }) => {
+  if (!entityId) return null;
+  const { data } = await sb.from("votos").select("status").eq(entityColumn, entityId).eq("tipo", tipo);
+  const winner = getWinnerFromVotes(data || [], defaultStatus);
+  await sb.from(table).upsert({
+    id: entityId,
+    status: winner.status,
+    pending_voters: winner.conteo,
+    last_update: Date.now(),
+    updated_by: winner.count ? `${winner.count} votos` : "Voto anulado por admin"
+  });
+  return winner;
+};
+
+const revokeIncidentVotesByDevice = async (deviceId, incidentId = null) => {
+  const q = sb.from("incidents").select("id,votes,false_votes,resolve_votes");
+  const { data } = incidentId ? await q.eq("id", incidentId) : await q;
+  let changed = 0;
+  for (const inc of data || []) {
+    const votes = { ...(inc.votes || {}) };
+    const falseVotes = { ...(inc.false_votes || {}) };
+    const resolveVotes = { ...(inc.resolve_votes || {}) };
+    const had = votes[deviceId] !== undefined || falseVotes[deviceId] !== undefined || resolveVotes[deviceId] !== undefined;
+    if (!had) continue;
+    delete votes[deviceId];
+    delete falseVotes[deviceId];
+    delete resolveVotes[deviceId];
+    const confirmCount = Object.values(votes).filter(v => v === 1).length;
+    const resolveCount = Object.values(resolveVotes).filter(v => v === 1).length;
+    await sb.from("incidents").update({
+      votes,
+      false_votes: falseVotes,
+      resolve_votes: resolveVotes,
+      visible: confirmCount >= 3,
+      resolved: resolveCount >= 3
+    }).eq("id", inc.id);
+    changed += 1;
+  }
+  return changed;
+};
+
+const restoreDirectVoteFromLog = async (log) => {
+  if (!log?.entity_id || !log?.before_value) return false;
+  const before = log.before_value || {};
+  const ts = Date.now();
+  const updatedBy = "Voto anulado por admin";
+  if (log.action === "votar_acceso" || log.action === "actualizar_acceso") {
+    await sb.from("accesos").upsert({ id: log.entity_id, status: before.status || "libre", retornos: before.retornos || "none", last_update: ts, updated_by: updatedBy, pending_voters: {} });
+    return true;
+  }
+  if (log.action === "votar_vialidad" || log.action === "actualizar_vialidad") {
+    await sb.from("vialidades").upsert({ id: log.entity_id, status: before.status || "libre", last_update: ts, updated_by: updatedBy, pending_voters: {} });
+    return true;
+  }
+  if (log.action === "actualizar_ruta_fiscal" || log.action === "votar_ruta_fiscal") {
+    await sb.from("rutas_fiscales").upsert({ id: log.entity_id, status: before.status || "libre", last_update: ts, updated_by: updatedBy });
+    return true;
+  }
+  return false;
+};
+
+const revokeDeviceVotes = async ({ deviceId, log = null, mode = "selected", actor = "Admin" }) => {
+  const target = String(deviceId || "").trim();
+  if (!target) throw new Error("Falta device_id.");
+  const result = { votosTabla: 0, terminales: 0, patios: 0, incidentes: 0, directos: 0 };
+
+  if (mode === "selected" && log) {
+    const action = log.action || "";
+    const section = log.section || "";
+    const entityId = log.entity_id;
+    if (section === "terminales" || action.includes("terminal")) {
+      const { count } = await sb.from("votos").delete({ count:"exact" }).eq("user_id", target).eq("terminal_id", entityId).eq("tipo", "terminal");
+      result.votosTabla += count || 0;
+      await recalcStoredVoteEntity({ table:"terminals", entityColumn:"terminal_id", entityId, tipo:"terminal" });
+      result.terminales += 1;
+    } else if (section === "patios" || action.includes("patio")) {
+      const { count } = await sb.from("votos").delete({ count:"exact" }).eq("user_id", target).eq("patio_id", entityId).eq("tipo", "patio");
+      result.votosTabla += count || 0;
+      await recalcStoredVoteEntity({ table:"patios", entityColumn:"patio_id", entityId, tipo:"patio" });
+      result.patios += 1;
+    } else if (section === "reporte_eventos" || action.includes("reporte") || action.includes("evento")) {
+      result.incidentes += await revokeIncidentVotesByDevice(target, entityId);
+    } else {
+      result.directos += await restoreDirectVoteFromLog(log) ? 1 : 0;
+    }
+  } else {
+    const { data: storedVotes } = await sb.from("votos").select("terminal_id,patio_id,tipo").eq("user_id", target);
+    const terminalIds = Array.from(new Set((storedVotes || []).filter(v => v.tipo === "terminal" && v.terminal_id).map(v => v.terminal_id)));
+    const patioIds = Array.from(new Set((storedVotes || []).filter(v => v.tipo === "patio" && v.patio_id).map(v => v.patio_id)));
+    const { count } = await sb.from("votos").delete({ count:"exact" }).eq("user_id", target);
+    result.votosTabla += count || 0;
+    for (const id of terminalIds) { await recalcStoredVoteEntity({ table:"terminals", entityColumn:"terminal_id", entityId:id, tipo:"terminal" }); result.terminales += 1; }
+    for (const id of patioIds) { await recalcStoredVoteEntity({ table:"patios", entityColumn:"patio_id", entityId:id, tipo:"patio" }); result.patios += 1; }
+    result.incidentes += await revokeIncidentVotesByDevice(target, null);
+
+    const { data: directLogs } = await sb.from("admin_audit_logs")
+      .select("*").eq("device_id", target)
+      .in("action", ["votar_acceso", "votar_vialidad", "votar_ruta_fiscal", "actualizar_ruta_fiscal"])
+      .order("created_at", { ascending:false }).limit(100);
+    const touched = new Set();
+    for (const dl of directLogs || []) {
+      const k = `${dl.action}:${dl.entity_id}`;
+      if (touched.has(k)) continue;
+      if (await restoreDirectVoteFromLog(dl)) result.directos += 1;
+      touched.add(k);
+    }
+  }
+
+  await auditLog({
+    action: mode === "selected" ? "anular_voto_usuario" : "anular_todos_votos_usuario",
+    section: "admin_registros",
+    entityId: target,
+    after: { ...result, target_device_id: target, selected_log_id: log?.id || null, selected_action: log?.action || null, subsection: mode === "selected" ? "anulacion_voto" : "anulacion_total" },
+    actor
+  });
+  return result;
+};
+
 // ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
 const getContentBoxStyle = (theme) => {
   // ✅ FIX: Validación robusta - si no hay theme o contentBox, usar valores por defecto
@@ -2767,6 +2893,7 @@ function AdminRegistrosPanel() {
   const [subFilter, setSubFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [onlyDevice, setOnlyDevice] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
   const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
   const chipBtn = (active, color="#38bdf8") => ({ padding:"7px 10px", borderRadius:999, border:`1px solid ${active ? color : "rgba(255,255,255,.13)"}`, background:active ? color+"22" : "rgba(255,255,255,.04)", color:active ? color : "rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:800, cursor:"pointer" });
   const norm = (v) => String(v || "").toLowerCase();
@@ -2789,16 +2916,37 @@ function AdminRegistrosPanel() {
   const selectedActions = () => Object.entries(actions).filter(([,v])=>v).map(([k])=>k);
   const sendMessage = async (type="mensaje") => {
     if (!deviceId.trim() || !message.trim()) return alert("Escribe device_id y mensaje.");
+    let revokeResult = null;
+    if (type === "warning") {
+      revokeResult = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:selectedLog, mode:selectedLog ? "selected" : "all", actor:"Admin" });
+    }
     await sb.from("admin_user_messages").insert({ device_id:deviceId.trim(), message, type, read:false, created_at:new Date().toISOString() });
-    await auditLog({ action:type === "warning" ? "advertencia" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type, subsection:type }, actor:"Admin" });
-    setMessage(""); alert("Mensaje enviado.");
+    await auditLog({ action:type === "warning" ? "advertencia_anula_voto" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type, revokeResult, subsection:type }, actor:"Admin" });
+    setMessage(""); alert(type === "warning" ? "Advertencia enviada y voto(s) anulado(s)." : "Mensaje enviado.");
+    load();
   };
   const sanction = async (type) => {
     if (!deviceId.trim()) return alert("Escribe el device_id del usuario.");
+    const revokeResult = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:null, mode:"all", actor:"Admin" });
     const until = type === "temp_block" ? new Date(Date.now() + Number(hours || 1) * 3600000).toISOString() : null;
     await sb.from("admin_user_sanctions").insert({ device_id:deviceId.trim(), type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
-    await auditLog({ action:type, section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until, subsection:type }, actor:"Admin" });
-    alert(type === "ban" ? "Usuario baneado indefinidamente." : "Bloqueo temporal aplicado.");
+    await auditLog({ action:type === "ban" ? "ban_anula_votos" : "bloqueo_anula_votos", section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until, revokeResult, subsection:type }, actor:"Admin" });
+    alert(type === "ban" ? "Usuario baneado y votos anulados." : "Bloqueo temporal aplicado y votos anulados.");
+    load();
+  };
+  const revokeSelected = async () => {
+    if (!deviceId.trim()) return alert("Escribe o selecciona un device_id.");
+    if (!selectedLog) return alert("Selecciona primero un registro con el botón Usar ID.");
+    const res = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:selectedLog, mode:"selected", actor:"Admin" });
+    alert(`Voto seleccionado anulado. Detalle: ${JSON.stringify(res)}`);
+    load();
+  };
+  const revokeAll = async () => {
+    if (!deviceId.trim()) return alert("Escribe o selecciona un device_id.");
+    if (!confirm("Esto eliminará/anulará todos los votos detectados de este dispositivo. ¿Continuar?")) return;
+    const res = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:null, mode:"all", actor:"Admin" });
+    alert(`Votos anulados. Detalle: ${JSON.stringify(res)}`);
+    load();
   };
   const sections = Array.from(new Set((logs || []).map(l => l.section || "sin_seccion"))).sort();
   const sectionLogs = sectionFilter === "all" ? logs : logs.filter(l => (l.section || "sin_seccion") === sectionFilter);
@@ -2823,6 +2971,7 @@ function AdminRegistrosPanel() {
     <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
     <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} />
     <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
+    {selectedLog && <div style={{ background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.35)", borderRadius:10, color:"#fbbf24", padding:"8px 10px", fontSize:11, fontWeight:800, marginBottom:10, fontFamily:getFont(theme,"secondary"), wordBreak:"break-word" }}>Voto seleccionado para anular con advertencia: {selectedLog.action} · {selectedLog.section} · {selectedLog.entity_id || "sin elemento"}</div>}
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
       <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
       <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>⚠️ Advertencia</button>
@@ -2832,9 +2981,13 @@ function AdminRegistrosPanel() {
     <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, color:"rgba(255,255,255,.75)", fontFamily:getFont(theme,"secondary"), fontSize:12 }}>
       {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:e.target.checked}))}/> {l}</label>)}
     </div>
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+      <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>⏳ Bloquear por tiempo + anular votos</button>
+      <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido + anular votos</button>
+    </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
-      <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>⏳ Bloquear por tiempo</button>
-      <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido</button>
+      <button onClick={revokeSelected} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>↩️ Anular voto seleccionado</button>
+      <button onClick={revokeAll} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>🧹 Anular todos sus votos</button>
     </div>
 
     <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
@@ -2859,7 +3012,7 @@ function AdminRegistrosPanel() {
         {items.map(l => { const summary = getLogSummary(l); return <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginTop:8 }}>
           <div style={{ display:"flex", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
             <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
-            <button onClick={()=>setDeviceId(l.device_id || "")} style={{ background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.35)", borderRadius:8, color:"#38bdf8", fontSize:10, cursor:"pointer", padding:"3px 7px" }}>Usar ID</button>
+            <button onClick={()=>{ setDeviceId(l.device_id || ""); setSelectedLog(l); }} style={{ background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.35)", borderRadius:8, color:"#38bdf8", fontSize:10, cursor:"pointer", padding:"3px 7px" }}>Usar ID / seleccionar voto</button>
           </div>
           <div style={{ color:"rgba(255,255,255,.58)", fontSize:10, marginTop:3, wordBreak:"break-word" }}><b>ID:</b> {l.device_id || "sin id"} · <b>Actor:</b> {l.actor || ""} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
           {summary && <div style={{ color:"#d8b4fe", fontSize:11, marginTop:6, wordBreak:"break-word", fontWeight:700 }}>{summary}</div>}
@@ -5882,7 +6035,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     setRutasFiscales(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: actor } }));
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
-    await auditLog({ action:"actualizar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
+    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
     notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "🛣️", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
@@ -14644,20 +14797,73 @@ function App() {
   const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo', 'admin_msg'
   const [adminMessages, setAdminMessages] = useState([]);
   const [deviceBlock, setDeviceBlock] = useState(null);
+  const lastAdminMsgIdsRef = useRef("");
+  const lastDeviceBlockRef = useRef(null);
   useEffect(() => {
-    const loadAdminMessages = async () => {
+    let alive = true;
+    let pollingTimer = null;
+
+    const loadAdminMessages = async ({ forceOpen = false } = {}) => {
       try {
-        const { data } = await sb.from("admin_user_messages").select("*").eq("device_id", myId).eq("read", false).order("created_at", { ascending:false }).limit(10);
+        const { data } = await sb
+          .from("admin_user_messages")
+          .select("*")
+          .eq("device_id", myId)
+          .eq("read", false)
+          .order("created_at", { ascending:false })
+          .limit(10);
+        if (!alive) return;
         const unread = data || [];
+        const ids = unread.map(m => m.id).join("|");
+        const hasNew = ids && ids !== lastAdminMsgIdsRef.current;
+        lastAdminMsgIdsRef.current = ids;
         setAdminMessages(unread);
-        // Si hay mensaje nuevo, mostrarlo de inmediato sin obligar al usuario a abrir la burbuja.
-        if (unread.length > 0) setShowQRPanel("admin_msg");
+        // Apertura inmediata por Realtime o por respaldo de polling.
+        if (unread.length > 0 && (forceOpen || hasNew || showQRPanel !== "admin_msg")) {
+          setShowQRPanel("admin_msg");
+          setSupportExpanded(false);
+        }
       } catch {}
     };
-    loadAdminMessages();
-    isDeviceBlocked("web").then(blocked => { setDeviceBlock(blocked); if (blocked) setShowQRPanel("admin_msg"); });
-    const ch = sb.channel("admin-msg-" + myId).on("postgres_changes", { event:"INSERT", schema:"public", table:"admin_user_messages", filter:`device_id=eq.${myId}` }, loadAdminMessages).subscribe();
-    return () => sb.removeChannel(ch);
+
+    const loadDeviceBlock = async () => {
+      try {
+        const blocked = await isDeviceBlocked("web");
+        if (!alive) return;
+        const blockKey = blocked ? `${blocked.id || "block"}-${blocked.type || ""}-${blocked.until_at || ""}` : "";
+        const isNewBlock = blockKey && blockKey !== lastDeviceBlockRef.current;
+        lastDeviceBlockRef.current = blockKey;
+        setDeviceBlock(blocked);
+        if (blocked && (isNewBlock || showQRPanel !== "admin_msg")) {
+          setShowQRPanel("admin_msg");
+          setSupportExpanded(false);
+        }
+      } catch {}
+    };
+
+    const refreshAdminNotifications = (opts) => {
+      loadAdminMessages(opts);
+      loadDeviceBlock();
+    };
+
+    refreshAdminNotifications({ forceOpen: true });
+
+    // Realtime: llega al instante cuando Supabase Realtime está habilitado para estas tablas.
+    const ch = sb
+      .channel("admin-live-" + myId)
+      .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_messages", filter:`device_id=eq.${myId}` }, () => refreshAdminNotifications({ forceOpen:true }))
+      .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_sanctions", filter:`device_id=eq.${myId}` }, () => refreshAdminNotifications({ forceOpen:true }))
+      .subscribe();
+
+    // Respaldo: si la tabla no está habilitada en Realtime o el celular pierde conexión websocket,
+    // consultamos cada 5 segundos para que no requiera recargar la web.
+    pollingTimer = setInterval(() => refreshAdminNotifications({ forceOpen:false }), 5000);
+
+    return () => {
+      alive = false;
+      if (pollingTimer) clearInterval(pollingTimer);
+      sb.removeChannel(ch);
+    };
   }, [myId]);
 
   const hasUnreadAdminMessages = adminMessages.length > 0;
