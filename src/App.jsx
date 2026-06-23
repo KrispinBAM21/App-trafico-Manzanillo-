@@ -6496,6 +6496,10 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
+  const cleanPdfText = (text) => String(text ?? "")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -6527,11 +6531,10 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       groups.push({
         id: "accesos",
         title: "Accesos",
-        icon: "⚓",
         items: ACCESOS_PRINCIPALES.map(a => {
-          const st = accesos?.[a.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          const status = optLabel(ACCESO_STATUS_OPTIONS, st.status, st.status || "Sin dato");
-          return { tipo: "Acceso", nombre: a.label, zona: a.zona || "General", estatus: status, detalle: `Retornos: ${optLabel(RETORNO_OPTIONS, st.retornos || "none", "Sin dato")}`, actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: optColor(ACCESO_STATUS_OPTIONS, st.status) };
+          const st = accesos?.[a.id] || { status: "libre", retornos: "none" };
+          const retornos = optLabel(RETORNO_OPTIONS, st.retornos || "none", "Sin dato");
+          return { tipo: "Acceso", nombre: a.label, zona: a.zona || "General", estatus: optLabel(ACCESO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: retornos !== "Sin Retornos" ? retornos : "", color: optColor(ACCESO_STATUS_OPTIONS, st.status) };
         })
       });
     }
@@ -6539,10 +6542,9 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       groups.push({
         id: "vialidades",
         title: "Vialidades",
-        icon: "🛣️",
         items: VIALIDADES.map(v => {
-          const st = vialidades?.[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          return { tipo: "Vialidad", nombre: v.name, zona: "Puerto / ciudad", estatus: optLabel(VIALIDAD_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: v.fullName || "", actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: optColor(VIALIDAD_STATUS_OPTIONS, st.status) };
+          const st = vialidades?.[v.id] || { status: "libre" };
+          return { tipo: "Vialidad", nombre: v.name, zona: "", estatus: optLabel(VIALIDAD_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: "", color: optColor(VIALIDAD_STATUS_OPTIONS, st.status) };
         })
       });
     }
@@ -6550,10 +6552,9 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       groups.push({
         id: "rutas_fiscales",
         title: "Rutas fiscales",
-        icon: "🚛",
         items: RUTAS_FISCALES.map(r => {
-          const st = rutasFiscales?.[r.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          return { tipo: "Ruta fiscal", nombre: r.name, zona: r.zona || "Fiscal", estatus: optLabel(RUTA_FISCAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: `Zona ${r.zona || "-"}`, actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: optColor(RUTA_FISCAL_STATUS_OPTIONS, st.status) };
+          const st = rutasFiscales?.[r.id] || { status: "libre" };
+          return { tipo: "Ruta fiscal", nombre: r.name, zona: r.zona || "", estatus: optLabel(RUTA_FISCAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: r.zona ? `Zona ${r.zona}` : "", color: optColor(RUTA_FISCAL_STATUS_OPTIONS, st.status) };
         })
       });
     }
@@ -6562,10 +6563,9 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       groups.push({
         id: "terminales",
         title: "Terminales",
-        icon: "🏭",
         items: all.map(t => {
-          const st = terminalMap[t.id] || { status: "libre", last_update: Date.now(), updated_by: "Sistema" };
-          return { tipo: "Terminal", nombre: t.name, zona: t.zona, estatus: optLabel(TERMINAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: t.fullName || "", actualizado: `${timeAgo(st.last_update)} · ${st.updated_by || "Sistema"}`, color: optColor(TERMINAL_STATUS_OPTIONS, st.status) };
+          const st = terminalMap[t.id] || { status: "libre" };
+          return { tipo: "Terminal", nombre: t.name, zona: t.zona, estatus: optLabel(TERMINAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: "", color: optColor(TERMINAL_STATUS_OPTIONS, st.status) };
         })
       });
     }
@@ -6573,10 +6573,9 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       groups.push({
         id: "patios",
         title: "Patios reguladores",
-        icon: "📦",
         items: PATIOS_REGULADORES.map(p => {
-          const st = patioMap[p.id] || { status: "libre", last_update: Date.now(), updated_by: "Sistema" };
-          return { tipo: "Patio", nombre: p.name, zona: "Patio regulador", estatus: optLabel(PATIO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: p.fullName || "", actualizado: `${timeAgo(st.last_update)} · ${st.updated_by || "Sistema"}`, color: optColor(PATIO_STATUS_OPTIONS, st.status) };
+          const st = patioMap[p.id] || { status: "libre" };
+          return { tipo: "Patio", nombre: p.name, zona: "", estatus: optLabel(PATIO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detalle: "", color: optColor(PATIO_STATUS_OPTIONS, st.status) };
         })
       });
     }
@@ -6584,10 +6583,10 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       const state = remote.carrilesExpo || mkCarrilesState();
       const items = [];
       ACCESOS_CARRILES.forEach(acc => acc.carriles.forEach(c => {
-        const st = state[c.id] || { abierto: true, lastUpdate: Date.now(), updatedBy: "Sistema" };
-        items.push({ tipo: "Carril", nombre: `${acc.label} · ${c.label}`, zona: c.tipo === "expo" ? "Exportación" : "Importación", estatus: st.abierto === false ? "Cerrado" : "Abierto", detalle: c.flujo || acc.label, actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: st.abierto === false ? "#ef4444" : "#22c55e" });
+        const st = state[c.id] || { abierto: true };
+        items.push({ tipo: "Carril", nombre: `${acc.label} · ${c.label}`, zona: c.tipo === "expo" ? "Exportación" : "Importación", estatus: st.abierto === false ? "Cerrado" : "Abierto", detalle: c.flujo || "", color: st.abierto === false ? "#ef4444" : "#22c55e" });
       }));
-      groups.push({ id: "carriles", title: "Carriles Expo / Impo", icon: "🚦", items });
+      groups.push({ id: "carriles", title: "Carriles Expo / Impo", items });
     }
     if (include.confinados) {
       const segundo = { ...mkSegundoIngreso(), ...(remote.segundo || {}) };
@@ -6597,24 +6596,22 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
         const st = segundo[c.id] || {};
         const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
         const flags = [];
-        if (st.saturado) flags.push("Saturado");
         if (st.retornos) flags.push("Con retornos");
-        if (st.expo) flags.push(`Expo: ${st.expo}`);
-        if (st.impo) flags.push(`Impo: ${st.impo}`);
-        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: st.saturado ? "Saturado" : "Fluido", detalle: `${terminal}${flags.length ? " · " + flags.join(" · ") : ""}`, actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: st.saturado ? "#ef4444" : "#22c55e" });
+        if (st.expo) flags.push(`Expo ${st.expo}`);
+        if (st.impo) flags.push(`Impo ${st.impo}`);
+        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: st.saturado ? "Saturado" : "Fluido", detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: st.saturado ? "#ef4444" : "#22c55e" });
       }));
       CONFINADA_CARRILES.forEach(c => {
         const st = conf[c.id] || {};
         const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
         const flags = [];
-        if (st.saturado) flags.push("Saturado");
         if (st.retornos) flags.push("Con retornos");
         if (st.transferencia) flags.push("Transferencia");
-        if (st.expo) flags.push(`Expo: ${st.expo}`);
-        if (st.impo) flags.push(`Impo: ${st.impo}`);
-        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: st.saturado ? "Saturado" : "Fluido", detalle: `${terminal}${flags.length ? " · " + flags.join(" · ") : ""}`, actualizado: `${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`, color: st.saturado ? "#ef4444" : "#22c55e" });
+        if (st.expo) flags.push(`Expo ${st.expo}`);
+        if (st.impo) flags.push(`Impo ${st.impo}`);
+        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: st.saturado ? "Saturado" : "Fluido", detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: st.saturado ? "#ef4444" : "#22c55e" });
       });
-      groups.push({ id: "confinados", title: "Confinados / 2° Acceso", icon: "🔒", items });
+      groups.push({ id: "confinados", title: "Confinados / 2° Acceso", items });
     }
     return groups;
   }, [include, accesos, vialidades, rutasFiscales, remote]);
@@ -6639,8 +6636,8 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
 
   const drawWatermark = (doc) => {
     try {
-      if (doc.GState && doc.setGState) doc.setGState(new doc.GState({ opacity: 0.07 }));
-      doc.addImage(CM_REPORT_WATERMARK, "PNG", 35, 85, 140, 140, undefined, "FAST");
+      if (doc.GState && doc.setGState) doc.setGState(new doc.GState({ opacity: 0.055 }));
+      doc.addImage(CM_REPORT_WATERMARK, "PNG", 42, 92, 128, 128, undefined, "FAST");
       if (doc.GState && doc.setGState) doc.setGState(new doc.GState({ opacity: 1 }));
     } catch {}
   };
@@ -6653,86 +6650,83 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
-      const left = 14;
+      const left = 16;
+      const right = pageW - 16;
       const now = new Date();
       const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
       let y = 18;
+
       const addPageHeader = () => {
         drawWatermark(doc);
         doc.setFillColor(7, 20, 38);
-        doc.roundedRect(10, 8, pageW - 20, 28, 3, 3, "F");
+        doc.rect(0, 0, pageW, 30, "F");
         doc.setTextColor(255,255,255);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(15);
-        doc.text("Reporte operativo · Conect Manzanillo", left, 20);
+        doc.text("Reporte operativo", left, 15);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8.5);
-        doc.setTextColor(196, 211, 229);
-        doc.text(`Generado: ${stamp}`, left, 27);
-        doc.text(`Secciones seleccionadas: ${selectedCount} · Registros: ${totalItems}`, left, 32);
-        y = 45;
+        doc.setTextColor(203, 213, 225);
+        doc.text("Conect Manzanillo", left, 22);
+        doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
+        doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
+        y = 42;
       };
-      const checkPage = (needed = 12) => {
-        if (y + needed > pageH - 16) {
+      const checkPage = (needed = 8) => {
+        if (y + needed > pageH - 15) {
           doc.addPage();
           addPageHeader();
         }
       };
+      const statusX = pageW - 48;
       addPageHeader();
-      doc.setTextColor(15, 23, 42);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Resumen por tipo", left, y);
-      y += 7;
+
       reportGroups.forEach(g => {
-        checkPage(8);
-        doc.setFillColor(239, 246, 255);
-        doc.setDrawColor(191, 219, 254);
-        doc.roundedRect(left, y - 4.5, pageW - 28, 7, 2, 2, "FD");
-        doc.setTextColor(30, 64, 175);
+        checkPage(12);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.25);
+        doc.line(left, y, right, y);
+        y += 5;
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9.5);
-        doc.text(`${g.icon} ${g.title}`, left + 3, y);
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42);
+        doc.text(cleanPdfText(g.title), left, y);
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(71, 85, 105);
-        doc.text(`${g.items.length} registros`, pageW - 45, y);
-        y += 9;
+        doc.setFontSize(8.3);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`${g.items.length} registros`, right, y, { align:"right" });
+        y += 5;
+
         g.items.forEach(item => {
-          checkPage(17);
+          checkPage(7);
           const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
-          doc.setDrawColor(226, 232, 240);
-          doc.setFillColor(255, 255, 255);
-          doc.roundedRect(left, y - 4, pageW - 28, 15, 2, 2, "FD");
-          doc.setFillColor(rgb.r, rgb.g, rgb.b);
-          doc.roundedRect(left + 2, y - 1, 2.2, 6, 1, 1, "F");
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(8.6);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9.2);
           doc.setTextColor(15, 23, 42);
-          doc.text(String(item.nombre).slice(0, 62), left + 7, y);
+          const detail = cleanPdfText(item.detalle || item.zona || "");
+          const name = cleanPdfText(detail ? `${item.nombre} · ${detail}` : item.nombre);
+          doc.text(name.slice(0, 82), left + 2, y);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(rgb.r, rgb.g, rgb.b);
-          doc.text(String(item.estatus).slice(0, 27), pageW - 55, y);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(71, 85, 105);
-          const detail = `${item.tipo} · ${item.zona} · ${item.detalle || ""}`;
-          doc.text(String(detail).slice(0, 95), left + 7, y + 5);
-          doc.setTextColor(100, 116, 139);
-          doc.text(String(item.actualizado || "").slice(0, 75), left + 7, y + 10);
-          y += 18;
+          doc.text(cleanPdfText(item.estatus).slice(0, 28), statusX, y);
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.12);
+          doc.line(left + 2, y + 2.1, right, y + 2.1);
+          y += 5.8;
         });
-        y += 2;
+        y += 3;
       });
+
       const pages = doc.internal.getNumberOfPages();
       for (let i=1;i<=pages;i++) {
         doc.setPage(i);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Página ${i} de ${pages}`, pageW - 35, pageH - 9);
+        doc.text(`Página ${i} de ${pages}`, right, pageH - 9, { align:"right" });
         doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - 9);
       }
-      const fname = `reporte-conect-manzanillo-${now.toISOString().slice(0,10)}.pdf`;
-      doc.save(fname);
+      doc.save(`reporte-conect-manzanillo-${now.toISOString().slice(0,10)}.pdf`);
       notify("PDF generado correctamente", "#22c55e");
     } catch (e) {
       console.error(e);
@@ -6747,7 +6741,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
   return (
     <div style={{ padding:"16px" }}>
       <style>{`
-        @media(max-width:760px){.traffic-report-grid{grid-template-columns:1fr!important}.traffic-report-actions{grid-template-columns:1fr!important}}
+        @media(max-width:760px){.traffic-report-grid{grid-template-columns:1fr!important}.traffic-report-actions{grid-template-columns:1fr!important}.traffic-report-row{grid-template-columns:1fr auto!important;}}
       `}</style>
       <div style={{ background:"linear-gradient(135deg,rgba(56,189,248,0.14),rgba(15,23,42,0.96))", border:"1px solid rgba(56,189,248,0.28)", borderRadius:"18px", padding:"16px", marginBottom:"14px", boxShadow:"0 16px 42px rgba(0,0,0,.28)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", justifyContent:"space-between", flexWrap:"wrap" }}>
@@ -6789,24 +6783,28 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       <SectionLabel text={`VISTA PREVIA · ${totalItems} REGISTROS`} />
       {reportGroups.length === 0 ? (
         <div style={{ textAlign:"center", padding:"26px", border:"1px dashed rgba(255,255,255,.16)", borderRadius:"14px", color:"rgba(226,232,240,.55)", fontFamily:getFont(theme,"secondary") }}>Selecciona una o más secciones para generar la vista previa.</div>
-      ) : reportGroups.map(g => (
-        <div key={g.id} style={{ marginBottom:"14px", background:"rgba(255,255,255,.045)", border:"1px solid rgba(255,255,255,.1)", borderRadius:"16px", overflow:"hidden" }}>
-          <div style={{ padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(15,23,42,.68)", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
-            <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontSize:"15px", fontWeight:"800" }}>{g.icon} {g.title}</div>
-            <Badge color="#38bdf8" small>{g.items.length} registros</Badge>
-          </div>
-          <div style={{ padding:"10px" }}>
-            {g.items.slice(0, 8).map((it, idx) => (
-              <div key={idx} style={{ display:"grid", gridTemplateColumns:"1.2fr .75fr .9fr", gap:"8px", alignItems:"center", padding:"9px 8px", borderBottom:idx===Math.min(g.items.length,8)-1 ? "none" : "1px solid rgba(255,255,255,.06)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
-                <div style={{ color:"#fff", fontWeight:"800" }}>{it.nombre}<div style={{ color:"rgba(226,232,240,.45)", fontWeight:"500", marginTop:"2px" }}>{it.tipo} · {it.zona}</div></div>
-                <div style={{ color:it.color, fontWeight:"900" }}>{it.estatus}</div>
-                <div style={{ color:"rgba(226,232,240,.58)" }}>{it.actualizado}</div>
+      ) : (
+        <div style={{ background:"rgba(2,8,23,.36)", border:"1px solid rgba(255,255,255,.08)", borderRadius:"14px", padding:"12px" }}>
+          {reportGroups.map(g => (
+            <div key={g.id} style={{ marginBottom:"14px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"1px solid rgba(56,189,248,.22)", marginBottom:"4px" }}>
+                <div style={{ color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".7px" }}>{g.title}</div>
+                <div style={{ color:"rgba(226,232,240,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{g.items.length} registros</div>
               </div>
-            ))}
-            {g.items.length > 8 && <div style={{ color:"rgba(226,232,240,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", padding:"8px" }}>+ {g.items.length - 8} registros más en el PDF</div>}
-          </div>
+              {g.items.slice(0, 10).map((it, idx) => (
+                <div className="traffic-report-row" key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 130px", gap:"10px", alignItems:"baseline", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,.045)", fontFamily:getFont(theme,"secondary") }}>
+                  <div style={{ minWidth:0 }}>
+                    <span style={{ color:"#fff", fontSize:"12.5px", fontWeight:"800" }}>{it.nombre}</span>
+                    {it.detalle && <span style={{ color:"rgba(226,232,240,.42)", fontSize:"11px", marginLeft:"8px" }}>{it.detalle}</span>}
+                  </div>
+                  <div style={{ color:it.color, fontSize:"12.5px", fontWeight:"900", textAlign:"right", whiteSpace:"nowrap" }}>{it.estatus}</div>
+                </div>
+              ))}
+              {g.items.length > 10 && <div style={{ color:"rgba(226,232,240,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", padding:"6px 0" }}>+ {g.items.length - 10} registros más en el PDF</div>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
       <ToastBox toast={toast} />
     </div>
   );
