@@ -64,6 +64,21 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
+// ─── GOOGLE ADSENSE ──────────────────────────────────────────────────────────
+// Se inyecta una sola vez para evitar duplicados durante hot reload / remounts.
+(function injectGoogleAdSense() {
+  try {
+    const id = "google-adsense-script-ca-pub-6574016310382297";
+    if (document.getElementById(id)) return;
+    const s = document.createElement("script");
+    s.id = id;
+    s.async = true;
+    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6574016310382297";
+    s.crossOrigin = "anonymous";
+    document.head.appendChild(s);
+  } catch {}
+})();
+
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
@@ -3344,6 +3359,20 @@ function AnunciosBanner({ isAdmin }) {
         </span>
       </div>
       {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
+      <AdminAdTemplates onUseTemplate={(tpl) => {
+        setForm(f => ({
+          ...f,
+          titulo: tpl.titulo || f.titulo || "Invita a anunciarse con nosotros",
+          empresa: tpl.empresa || f.empresa || "Conect Manzanillo",
+          texto: tpl.mensaje || tpl.texto || f.texto || "",
+          imagen_url: tpl.imagen_url || f.imagen_url || "",
+          enlace: tpl.enlace || f.enlace || "",
+          whatsapp: tpl.whatsapp || f.whatsapp || "",
+          _imgTab: tpl.imagen_url ? "url" : (f._imgTab || "subir"),
+          _imgPreview: tpl.imagen_url || f._imgPreview || null,
+        }));
+        setMsg({ type:"ok", text:"Plantilla cargada en el formulario. Ajusta fechas y publica cuando quieras." });
+      }} />
       <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
       <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
       <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
@@ -3546,6 +3575,186 @@ function AnunciosBanner({ isAdmin }) {
         </div>
       )}
       <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
+    </div>
+  );
+}
+
+function AdminAdTemplates({ onUseTemplate }) {
+  const theme = React.useContext(ThemeContext);
+  const vw = useWindowWidth();
+  const isMobile = vw < 650;
+  const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [form, setForm] = useState({
+    nombre: "Promoción publicitaria",
+    titulo: "Anúnciate en Conect Manzanillo",
+    empresa: "Conect Manzanillo",
+    mensaje: "Llega a operadores, transportistas, empresas y usuarios del puerto. Promociona tu negocio dentro de nuestra web.",
+    imagen_url: "",
+    enlace: "",
+    whatsapp: "",
+    activo: true,
+  });
+
+  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"9px 11px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", boxSizing:"border-box", outline:"none", marginBottom:"8px" };
+
+  const cargar = useCallback(async () => {
+    const { data, error } = await sb.from("anuncio_plantillas").select("*").order("created_at", { ascending:false });
+    if (!error && data) setTemplates(data);
+  }, []);
+
+  useEffect(() => {
+    cargar();
+    const chan = sb.channel("anuncio-plantillas-rt")
+      .on("postgres_changes", { event:"*", schema:"public", table:"anuncio_plantillas" }, cargar)
+      .subscribe();
+    return () => { try { sb.removeChannel(chan); } catch {} };
+  }, [cargar]);
+
+  const limpiar = () => setForm({
+    nombre: "Promoción publicitaria",
+    titulo: "Anúnciate en Conect Manzanillo",
+    empresa: "Conect Manzanillo",
+    mensaje: "Llega a operadores, transportistas, empresas y usuarios del puerto. Promociona tu negocio dentro de nuestra web.",
+    imagen_url: "",
+    enlace: "",
+    whatsapp: "",
+    activo: true,
+  });
+
+  const guardar = async () => {
+    if (!form.nombre.trim() || !form.titulo.trim() || !form.mensaje.trim()) {
+      setMsg({ type:"err", text:"Completa nombre, título y mensaje de la plantilla." });
+      return;
+    }
+    setSaving(true); setMsg(null);
+    const payload = {
+      nombre: sanitize(form.nombre).trim(),
+      titulo: sanitize(form.titulo).trim(),
+      empresa: sanitize(form.empresa || "Conect Manzanillo").trim(),
+      mensaje: sanitize(form.mensaje).trim(),
+      imagen_url: form.imagen_url.trim() || null,
+      enlace: form.enlace.trim() || null,
+      whatsapp: form.whatsapp.replace(/\D/g, "") || null,
+      activo: form.activo,
+    };
+    const { error } = form.id
+      ? await sb.from("anuncio_plantillas").update(payload).eq("id", form.id)
+      : await sb.from("anuncio_plantillas").insert(payload);
+    setSaving(false);
+    if (error) {
+      setMsg({ type:"err", text:"Error al guardar plantilla: " + error.message });
+      return;
+    }
+    setMsg({ type:"ok", text: form.id ? "Plantilla actualizada." : "Plantilla guardada." });
+    limpiar();
+    cargar();
+  };
+
+  const editar = (tpl) => {
+    setForm({
+      id: tpl.id,
+      nombre: tpl.nombre || "",
+      titulo: tpl.titulo || "",
+      empresa: tpl.empresa || "",
+      mensaje: tpl.mensaje || "",
+      imagen_url: tpl.imagen_url || "",
+      enlace: tpl.enlace || "",
+      whatsapp: tpl.whatsapp || "",
+      activo: tpl.activo ?? true,
+      _preview: tpl.imagen_url || null,
+    });
+    setOpen(true);
+  };
+
+  const eliminar = async (id) => {
+    if (!window.confirm("¿Eliminar esta plantilla?")) return;
+    await sb.from("anuncio_plantillas").delete().eq("id", id);
+    cargar();
+  };
+
+  const usar = (tpl) => {
+    onUseTemplate?.(tpl);
+  };
+
+  return (
+    <div style={{ border:"1px solid rgba(251,191,36,0.22)", background:"rgba(251,191,36,0.05)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", marginBottom:"10px", flexWrap:"wrap" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", color:"#fbbf24", letterSpacing:".8px" }}>🧩 PLANTILLAS DE ANUNCIOS</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.48)", marginTop:"2px" }}>Guarda mensajes e imágenes para promocionar espacios publicitarios en la web.</div>
+        </div>
+        <button onClick={()=>setOpen(v=>!v)} style={{ padding:"8px 12px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:open ? "rgba(251,191,36,.22)" : "rgba(255,255,255,.06)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>
+          {open ? "Ocultar creador" : "＋ Crear plantilla"}
+        </button>
+      </div>
+
+      {msg && <div style={{ padding:"7px 10px", borderRadius:"8px", marginBottom:"10px", fontSize:"10px", fontFamily:getFont(theme,"secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
+
+      {open && (
+        <div style={{ border:"1px solid rgba(255,255,255,.10)", borderRadius:"11px", padding:"10px", marginBottom:"12px", background:"rgba(0,0,0,.12)" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
+            <input style={inp} placeholder="Nombre interno de plantilla" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} />
+            <input style={inp} placeholder="Empresa / organización" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
+          </div>
+          <input style={inp} placeholder="Título que usará el anuncio" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
+          <textarea style={{...inp, minHeight:"72px", resize:"vertical"}} placeholder="Mensaje de invitación o promoción" value={form.mensaje} onChange={e=>setForm(f=>({...f,mensaje:e.target.value}))} />
+          <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
+            <input style={inp} placeholder="WhatsApp opcional" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
+            <input style={inp} placeholder="Enlace opcional" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+          </div>
+          <div style={{ marginBottom:"8px" }}>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,.42)", marginBottom:"6px" }}>IMAGEN DE PLANTILLA</div>
+            <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr auto", gap:"8px", alignItems:"stretch" }}>
+              <input style={{...inp, marginBottom:0}} placeholder="URL de imagen o sube archivo" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value,_preview:e.target.value}))} />
+              <label style={{ padding:"9px 12px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", whiteSpace:"nowrap" }}>
+                📁 Subir
+                <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setMsg({ type:"ok", text:"Subiendo imagen de plantilla..." });
+                  const ext = file.name.split(".").pop();
+                  const nombre = `plantilla_${Date.now()}.${ext}`;
+                  const { data, error } = await sb.storage.from("anuncios-imagenes").upload(nombre, file, { upsert:true });
+                  if (error) { setMsg({ type:"err", text:"Error al subir imagen: "+error.message }); return; }
+                  const { data: urlData } = sb.storage.from("anuncios-imagenes").getPublicUrl(data.path);
+                  setForm(f=>({...f, imagen_url:urlData.publicUrl, _preview:urlData.publicUrl }));
+                  setMsg({ type:"ok", text:"Imagen cargada en la plantilla." });
+                }} />
+              </label>
+            </div>
+            {form._preview && <img src={form._preview} alt="Vista previa plantilla" style={{ marginTop:"8px", width:"100%", maxHeight:"130px", objectFit:"cover", borderRadius:"9px", border:"1px solid rgba(255,255,255,.12)" }} onError={e=>{e.currentTarget.style.display="none"}} />}
+          </div>
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+            <button onClick={guardar} disabled={saving} style={{ flex:"1 1 180px", padding:"10px", borderRadius:"9px", border:"none", background:"linear-gradient(135deg,#fbbf24,#f59e0b)", color:"#08111f", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", opacity:saving?0.7:1 }}>{saving ? "Guardando..." : (form.id ? "💾 Actualizar plantilla" : "💾 Guardar plantilla")}</button>
+            {form.id && <button onClick={limpiar} style={{ padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.05)", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>Nueva</button>}
+          </div>
+        </div>
+      )}
+
+      {templates.length === 0 ? (
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.38)", padding:"8px 0" }}>Sin plantillas guardadas todavía.</div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"8px" }}>
+          {templates.map(t => (
+            <div key={t.id} style={{ border:"1px solid rgba(255,255,255,.10)", background:"rgba(255,255,255,.04)", borderRadius:"10px", overflow:"hidden" }}>
+              {t.imagen_url && <img src={t.imagen_url} alt={t.nombre} style={{ width:"100%", height:"78px", objectFit:"cover", display:"block" }} onError={e=>e.currentTarget.style.display="none"} />}
+              <div style={{ padding:"9px" }}>
+                <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#fff", fontWeight:"900", marginBottom:"3px" }}>{t.nombre}</div>
+                <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#fbbf24", fontWeight:"800", marginBottom:"4px" }}>{t.titulo}</div>
+                <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.52)", lineHeight:"1.4", maxHeight:"42px", overflow:"hidden" }}>{t.mensaje}</div>
+                <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"8px" }}>
+                  <button onClick={()=>usar(t)} style={{ flex:1, padding:"7px", borderRadius:"7px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.12)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", cursor:"pointer" }}>Usar</button>
+                  <button onClick={()=>editar(t)} style={{ padding:"7px 9px", borderRadius:"7px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>Editar</button>
+                  <button onClick={()=>eliminar(t.id)} style={{ padding:"7px 9px", borderRadius:"7px", border:"1px solid rgba(239,68,68,.35)", background:"rgba(239,68,68,.10)", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>Eliminar</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
