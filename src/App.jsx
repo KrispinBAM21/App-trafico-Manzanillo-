@@ -2763,9 +2763,26 @@ function AdminRegistrosPanel() {
   const [reason, setReason] = useState("");
   const [hours, setHours] = useState(24);
   const [actions, setActions] = useState({ web:true, vote:true, report:true });
+  const [sectionFilter, setSectionFilter] = useState("all");
+  const [subFilter, setSubFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [onlyDevice, setOnlyDevice] = useState(false);
   const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+  const chipBtn = (active, color="#38bdf8") => ({ padding:"7px 10px", borderRadius:999, border:`1px solid ${active ? color : "rgba(255,255,255,.13)"}`, background:active ? color+"22" : "rgba(255,255,255,.04)", color:active ? color : "rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:800, cursor:"pointer" });
+  const norm = (v) => String(v || "").toLowerCase();
+  const getSubsection = (log) => {
+    const a = log?.after_value || {};
+    if (a.subsection) return a.subsection;
+    if (a.carril) return a.carril;
+    if (a.subcategory_label || a.subcategory) return a.subcategory_label || a.subcategory;
+    if (a.vote) return `voto_${a.vote}`;
+    if (a.status) return a.status;
+    if (log?.entity_id) return log.entity_id;
+    return "general";
+  };
   const load = async () => {
-    const { data } = await sb.from("admin_audit_logs").select("*").order("created_at", { ascending:false }).limit(80);
+    const { data, error } = await sb.from("admin_audit_logs").select("*").order("created_at", { ascending:false }).limit(300);
+    if (error) { console.warn("No se pudieron cargar registros", error.message); setLogs([]); return; }
     setLogs(data || []);
   };
   useEffect(() => { load(); const ch = sb.channel("admin-audit-rt").on("postgres_changes", { event:"*", schema:"public", table:"admin_audit_logs" }, load).subscribe(); return () => sb.removeChannel(ch); }, []);
@@ -2773,20 +2790,38 @@ function AdminRegistrosPanel() {
   const sendMessage = async (type="mensaje") => {
     if (!deviceId.trim() || !message.trim()) return alert("Escribe device_id y mensaje.");
     await sb.from("admin_user_messages").insert({ device_id:deviceId.trim(), message, type, read:false, created_at:new Date().toISOString() });
-    await auditLog({ action:type === "warning" ? "advertencia" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type }, actor:"Admin" });
+    await auditLog({ action:type === "warning" ? "advertencia" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type, subsection:type }, actor:"Admin" });
     setMessage(""); alert("Mensaje enviado.");
   };
   const sanction = async (type) => {
     if (!deviceId.trim()) return alert("Escribe el device_id del usuario.");
     const until = type === "temp_block" ? new Date(Date.now() + Number(hours || 1) * 3600000).toISOString() : null;
     await sb.from("admin_user_sanctions").insert({ device_id:deviceId.trim(), type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
-    await auditLog({ action:type, section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until }, actor:"Admin" });
+    await auditLog({ action:type, section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until, subsection:type }, actor:"Admin" });
     alert(type === "ban" ? "Usuario baneado indefinidamente." : "Bloqueo temporal aplicado.");
   };
+  const sections = Array.from(new Set((logs || []).map(l => l.section || "sin_seccion"))).sort();
+  const sectionLogs = sectionFilter === "all" ? logs : logs.filter(l => (l.section || "sin_seccion") === sectionFilter);
+  const subsections = Array.from(new Set(sectionLogs.map(getSubsection))).sort();
+  const filtered = (sectionLogs || []).filter(l => {
+    const sub = getSubsection(l);
+    if (subFilter !== "all" && sub !== subFilter) return false;
+    if (onlyDevice && deviceId.trim() && l.device_id !== deviceId.trim()) return false;
+    const hay = [l.action, l.section, sub, l.entity_id, l.actor, l.device_id, getLogSummary(l), JSON.stringify(l.after_value || {})].join(" ").toLowerCase();
+    return !query.trim() || hay.includes(query.trim().toLowerCase());
+  });
+  const grouped = filtered.reduce((acc, log) => {
+    const sec = log.section || "sin_seccion";
+    const sub = getSubsection(log);
+    acc[sec] ||= {};
+    acc[sec][sub] ||= [];
+    acc[sec][sub].push(log);
+    return acc;
+  }, {});
   return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
     <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
-    <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Solo visible en modo admin dentro de Noticias. Usa el device_id para advertir, enviar mensaje, bloquear temporalmente o banear aunque el usuario no tenga sesión.</div>
-    <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value)} />
+    <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
+    <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} />
     <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
       <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
@@ -2801,17 +2836,38 @@ function AdminRegistrosPanel() {
       <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>⏳ Bloquear por tiempo</button>
       <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido</button>
     </div>
-    <div style={{ color:"#22c55e", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:getFont(theme,"secondary") }}>Últimas modificaciones</div>
-    {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.35)", fontSize:12 }}>Sin registros todavía. Si aparece vacío, crea las tablas admin_audit_logs/admin_user_messages/admin_user_sanctions en Supabase.</div> : logs.map(l => { const summary = getLogSummary(l); return <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginBottom:8 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
-        <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
-        <button onClick={()=>setDeviceId(l.device_id || "")} style={{ background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.35)", borderRadius:8, color:"#38bdf8", fontSize:10, cursor:"pointer", padding:"3px 7px" }}>Usar ID</button>
+
+    <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
+      <div style={{ color:"#22c55e", fontWeight:900, fontSize:13, marginBottom:10, fontFamily:getFont(theme,"secondary") }}>🔎 Búsqueda rápida de registros</div>
+      <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(e.target.value)} />
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+        <button onClick={()=>{setSectionFilter("all");setSubFilter("all");}} style={chipBtn(sectionFilter === "all")}>Todas las secciones</button>
+        {sections.map(sec => <button key={sec} onClick={()=>{setSectionFilter(sec);setSubFilter("all");}} style={chipBtn(sectionFilter === sec)}>{sec} ({logs.filter(l => (l.section || "sin_seccion") === sec).length})</button>)}
       </div>
-      <div style={{ color:"rgba(255,255,255,.55)", fontSize:10, marginTop:3 }}><b>ID:</b> {l.device_id || "sin id"} · <b>Actor:</b> {l.actor || ""} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
-      {summary && <div style={{ color:"#d8b4fe", fontSize:11, marginTop:6, wordBreak:"break-word", fontWeight:700 }}>{summary}</div>}
-      <div style={{ color:"rgba(255,255,255,.35)", fontSize:10, marginTop:4, wordBreak:"break-word" }}>Elemento: {l.entity_id || ""}</div>
-      {l.after_value && <details style={{ marginTop:6 }}><summary style={{ color:"rgba(255,255,255,.45)", fontSize:10, cursor:"pointer" }}>Ver detalle</summary><pre style={{ whiteSpace:"pre-wrap", wordBreak:"break-word", color:"rgba(255,255,255,.42)", fontSize:10 }}>{JSON.stringify(l.after_value, null, 2)}</pre></details>}
-    </div>})}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+        <button onClick={()=>setSubFilter("all")} style={chipBtn(subFilter === "all", "#a78bfa")}>Todas las subsecciones</button>
+        {subsections.map(sub => <button key={sub} onClick={()=>setSubFilter(sub)} style={chipBtn(subFilter === sub, "#a78bfa")}>{sub}</button>)}
+      </div>
+      <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(e.target.checked)} /> Ver solo el device_id escrito arriba</label>
+    </div>
+
+    <div style={{ color:"#22c55e", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:getFont(theme,"secondary") }}>Últimas modificaciones ({filtered.length})</div>
+    {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.45)", fontSize:12, lineHeight:1.5 }}>Sin registros todavía. El SQL solo crea las tablas; los registros empiezan a aparecer desde las acciones nuevas hechas después de subir esta versión. Prueba votar, reportar o modificar un carril y vuelve a esta pantalla.</div> : filtered.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:12 }}>No hay registros con esos filtros.</div> : Object.entries(grouped).map(([sec, subs]) => <div key={sec} style={{ marginBottom:12 }}>
+      <div style={{ color:"#38bdf8", fontWeight:900, fontSize:12, fontFamily:getFont(theme,"secondary"), margin:"10px 0 6px" }}>SECCIÓN · {sec}</div>
+      {Object.entries(subs).map(([sub, items]) => <details key={sub} open style={{ background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.08)", borderRadius:12, padding:8, marginBottom:8 }}>
+        <summary style={{ color:"#d8b4fe", cursor:"pointer", fontSize:12, fontWeight:900, fontFamily:getFont(theme,"secondary") }}>Subsección: {sub} · {items.length} registro(s)</summary>
+        {items.map(l => { const summary = getLogSummary(l); return <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginTop:8 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+            <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
+            <button onClick={()=>setDeviceId(l.device_id || "")} style={{ background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.35)", borderRadius:8, color:"#38bdf8", fontSize:10, cursor:"pointer", padding:"3px 7px" }}>Usar ID</button>
+          </div>
+          <div style={{ color:"rgba(255,255,255,.58)", fontSize:10, marginTop:3, wordBreak:"break-word" }}><b>ID:</b> {l.device_id || "sin id"} · <b>Actor:</b> {l.actor || ""} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
+          {summary && <div style={{ color:"#d8b4fe", fontSize:11, marginTop:6, wordBreak:"break-word", fontWeight:700 }}>{summary}</div>}
+          <div style={{ color:"rgba(255,255,255,.35)", fontSize:10, marginTop:4, wordBreak:"break-word" }}>Elemento: {l.entity_id || ""}</div>
+          {l.after_value && <details style={{ marginTop:6 }}><summary style={{ color:"rgba(255,255,255,.45)", fontSize:10, cursor:"pointer" }}>Ver detalle</summary><pre style={{ whiteSpace:"pre-wrap", wordBreak:"break-word", color:"rgba(255,255,255,.42)", fontSize:10 }}>{JSON.stringify(l.after_value, null, 2)}</pre></details>}
+        </div>})}
+      </details>)}
+    </div>)}
   </div>;
 }
 
@@ -7478,7 +7534,7 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
   </div>;
 }
 
-function ReportStatsDashboard({ incidents, customIncidentTypes = [] }) {
+function ReportStatsDashboard({ incidents, customIncidentTypes = [], compactTitle = "📊 Estadística" }) {
   const theme = React.useContext(ThemeContext);
   const [period, setPeriod] = useState("monthly");
   const now = new Date();
@@ -7498,23 +7554,46 @@ function ReportStatsDashboard({ incidents, customIncidentTypes = [] }) {
   const visible = filtered.filter(i => i.visible && !i.resolved).length;
   const pending = filtered.filter(i => !i.visible && !i.resolved).length;
   const resolved = filtered.filter(i => i.resolved).length;
-  const card = { background:"linear-gradient(135deg,rgba(56,189,248,.10),rgba(168,85,247,.08))", border:"1px solid rgba(255,255,255,.10)", borderRadius:14, padding:12 };
-  const BarList = ({ title, data }) => {
-    const entries = Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const card = { background:"linear-gradient(135deg,rgba(56,189,248,.10),rgba(168,85,247,.08))", border:"1px solid rgba(255,255,255,.10)", borderRadius:14, padding:12, overflow:"hidden" };
+  const colors = ["#38bdf8", "#a78bfa", "#fb923c", "#22c55e", "#ef4444", "#fbbf24", "#06b6d4", "#ec4899"];
+  const entriesOf = (data, limit=8) => Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,limit);
+  const PieChart = ({ title, data }) => {
+    const entries = entriesOf(data, 6);
+    const sum = Math.max(1, entries.reduce((a,[,v])=>a+v,0));
+    let cursor = 0;
+    const gradient = entries.length ? entries.map(([k,v], idx) => {
+      const start = cursor;
+      const end = cursor + (v / sum) * 100;
+      cursor = end;
+      return `${colors[idx % colors.length]} ${start}% ${end}%`;
+    }).join(", ") : "rgba(255,255,255,.10) 0% 100%";
+    return <div style={card}>
+      <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:900, marginBottom:10 }}>{title}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"120px 1fr", gap:14, alignItems:"center" }}>
+        <div style={{ width:118, height:118, borderRadius:"50%", background:`conic-gradient(${gradient})`, boxShadow:"inset 0 0 0 18px rgba(5,13,28,.85), 0 10px 30px rgba(0,0,0,.25)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:22 }}>{sum}</div>
+        <div>{entries.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:11 }}>Sin datos.</div> : entries.map(([k,v], idx) => <div key={k} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:7, fontFamily:getFont(theme,"secondary"), fontSize:11, color:"rgba(255,255,255,.72)" }}><span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}><i style={{ width:9, height:9, borderRadius:999, background:colors[idx % colors.length], display:"inline-block", flexShrink:0 }} /> <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{k}</span></span><b>{v}</b></div>)}</div>
+      </div>
+    </div>;
+  };
+  const VerticalBars = ({ title, data }) => {
+    const entries = entriesOf(data, 8);
     const max = Math.max(1, ...entries.map(([,v])=>v));
     return <div style={card}>
       <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:900, marginBottom:10 }}>{title}</div>
-      {entries.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:11 }}>Sin datos en este periodo.</div> : entries.map(([k,v]) => <div key={k} style={{ marginBottom:8 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", gap:8, color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}><span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{k}</span><b>{v}</b></div>
-        <div style={{ height:8, borderRadius:999, background:"rgba(255,255,255,.08)", overflow:"hidden", marginTop:4 }}><div style={{ width:`${Math.round((v/max)*100)}%`, height:"100%", borderRadius:999, background:"linear-gradient(90deg,#38bdf8,#a78bfa)" }} /></div>
-      </div>)}
+      {entries.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:11 }}>Sin datos en este periodo.</div> : <div style={{ height:190, display:"flex", alignItems:"end", gap:8, borderBottom:"1px solid rgba(255,255,255,.14)", padding:"8px 2px 0" }}>
+        {entries.map(([k,v], idx) => <div key={k} title={`${k}: ${v}`} style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"end", height:"100%" }}>
+          <div style={{ color:"rgba(255,255,255,.8)", fontSize:10, fontWeight:900, marginBottom:4 }}>{v}</div>
+          <div style={{ width:"70%", minWidth:14, height:`${Math.max(8, Math.round((v/max)*140))}px`, borderRadius:"8px 8px 0 0", background:`linear-gradient(180deg, ${colors[idx % colors.length]}, rgba(255,255,255,.12))`, boxShadow:"0 8px 22px rgba(0,0,0,.25)" }} />
+          <div style={{ color:"rgba(255,255,255,.48)", fontSize:9, marginTop:6, maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", writingMode:entries.length>5?"vertical-rl":"horizontal-tb", height:entries.length>5?46:"auto" }}>{k}</div>
+        </div>)}
+      </div>}
     </div>;
   };
-  return <div>
+  return <div style={{ marginTop:18, background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.09)", borderRadius:16, padding:14 }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap" }}>
       <div>
-        <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontSize:18, fontWeight:900 }}>📊 Estadística de reportes</div>
-        <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>Dashboard dinámico por periodo, tipo, zona y ubicación.</div>
+        <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontSize:18, fontWeight:900 }}>{compactTitle}</div>
+        <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>Gráficas circulares y verticales por periodo, tipo, zona y ubicación.</div>
       </div>
       <div style={{ display:"flex", gap:8 }}>
         {[ ["monthly","Mensual"], ["annual","Anual"] ].map(([id,label]) => <button key={id} onClick={()=>setPeriod(id)} style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${period===id?"#38bdf8":"rgba(255,255,255,.14)"}`, background:period===id?"rgba(56,189,248,.14)":"rgba(255,255,255,.04)", color:period===id?"#38bdf8":"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:12, cursor:"pointer", fontWeight:800 }}>{label}</button>)}
@@ -7525,11 +7604,11 @@ function ReportStatsDashboard({ incidents, customIncidentTypes = [] }) {
         <div style={{ fontSize:22 }}>{ico}</div><div style={{ color:"#fff", fontSize:24, fontWeight:900 }}>{v}</div><div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>{k}</div>
       </div>)}
     </div>
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:12 }}>
-      <BarList title="Por categoría" data={byType} />
-      <BarList title="Por tipo específico" data={bySubtype} />
-      <BarList title="Por zona" data={byZone} />
-      <BarList title="Por ubicación" data={byLocation} />
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:12 }}>
+      <PieChart title="Circular · categoría" data={byType} />
+      <VerticalBars title="Vertical · tipo específico" data={bySubtype} />
+      <PieChart title="Circular · zona" data={byZone} />
+      <VerticalBars title="Vertical · ubicación" data={byLocation} />
     </div>
   </div>;
 }
@@ -7700,7 +7779,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         {[
           { id:"reportar", label:"Reportar",  icon:"📢", color:"#0ea5e9" },
           { id:"eventos",  label:"Eventos",   icon:"🗺️", color:"#f97316" },
-          { id:"estadistica", label:"Estadística", icon:"📊", color:"#a78bfa" },
         ].map(tab => {
           const active = reporteView === tab.id;
           const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
@@ -8033,13 +8111,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           })}
         </>
       )}
+      <ReportStatsDashboard incidents={incidents} customIncidentTypes={customIncidentTypes} compactTitle="📊 Estadística de Reportar" />
       <ToastBox toast={toast} />
       </>)}
-
-      {/* ══ VISTA: ESTADÍSTICA ═══════════════════════════════════════════════ */}
-      {reporteView === "estadistica" && (
-        <ReportStatsDashboard incidents={incidents} customIncidentTypes={customIncidentTypes} />
-      )}
 
       {/* ══ VISTA: EVENTOS ═══════════════════════════════════════════════════ */}
       {reporteView === "eventos" && (
@@ -8126,6 +8200,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           const newConf  = Object.values(newVotes).filter(v => v === 1).length;
                           await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
                           setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
+                          await auditLog({ action:"votar_evento_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, subsection:"eventos_confirmados", summary:`${getDeviceId()} confirmó evento ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
                           notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                         }}
                           style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
@@ -8194,6 +8269,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               </>
             );
           })()}
+          <ReportStatsDashboard incidents={incidents} customIncidentTypes={customIncidentTypes} compactTitle="📊 Estadística de Eventos" />
           <ToastBox toast={toast} />
         </div>
       )}
