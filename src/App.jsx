@@ -1294,6 +1294,51 @@ const timeAgo = (ts) => {
 };
 const uid = () => "u_" + Math.random().toString(36).substr(2, 6);
 
+
+// ─── ADMIN · REGISTROS, MENSAJES Y SANCIONES POR DISPOSITIVO ───────────────
+const DEVICE_SANCTION_KEY = "cm_device_sanction_cache";
+const getDeviceId = () => {
+  try { return localStorage.getItem("puerto_trafico_uid") || "anon"; } catch { return "anon"; }
+};
+const auditLog = async ({ action, section, entityId = null, before = null, after = null, actor = null }) => {
+  try {
+    await sb.from("admin_audit_logs").insert({
+      action, section, entity_id: entityId, before_value: before, after_value: after,
+      actor: actor || getDeviceId(), device_id: getDeviceId(), user_agent: navigator.userAgent, created_at: new Date().toISOString()
+    });
+  } catch (e) { console.warn("auditLog pendiente: crea tabla admin_audit_logs", e?.message || e); }
+};
+const isDeviceBlocked = async (action = "web") => {
+  const deviceId = getDeviceId();
+  try {
+    const cached = JSON.parse(localStorage.getItem(DEVICE_SANCTION_KEY) || "null");
+    if (cached && (cached.type === "ban" || (cached.until && new Date(cached.until).getTime() > Date.now()))) return cached;
+  } catch {}
+  try {
+    const { data } = await sb.from("admin_user_sanctions")
+      .select("*").eq("device_id", deviceId).eq("active", true).order("created_at", { ascending:false }).limit(20);
+    const hit = (data || []).find(s => {
+      const acts = s.actions || ["web", "vote", "report"];
+      const applies = acts.includes(action) || acts.includes("web");
+      const still = s.type === "ban" || !s.until_at || new Date(s.until_at).getTime() > Date.now();
+      return applies && still;
+    });
+    if (hit) {
+      const normalized = { type: hit.type, reason: hit.reason || "Acción restringida por administración.", until: hit.until_at || null };
+      try { localStorage.setItem(DEVICE_SANCTION_KEY, JSON.stringify(normalized)); } catch {}
+      return normalized;
+    }
+  } catch {}
+  return null;
+};
+const notifyIfBlocked = async (action, notify = alert) => {
+  const blocked = await isDeviceBlocked(action);
+  if (!blocked) return false;
+  const until = blocked.until ? ` hasta ${new Date(blocked.until).toLocaleString("es-MX")}` : " indefinidamente";
+  notify(`Tu dispositivo tiene acciones bloqueadas${until}. ${blocked.reason || ""}`, "#ef4444");
+  return true;
+};
+
 // ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
 const getContentBoxStyle = (theme) => {
   // ✅ FIX: Validación robusta - si no hay theme o contentBox, usar valores por defecto
@@ -1717,6 +1762,46 @@ const LUGARES_CONOCIDOS = [
   "Aeropuerto de Manzanillo",
 ];
 
+
+// Estados de México con ciudades/localidades sugeridas para origen y destino.
+// Puedes ampliar cada arreglo sin tocar la lógica del mapa.
+const MX_STATES_CITIES = {
+  "Aguascalientes": ["Aguascalientes", "Calvillo", "Jesús María", "Pabellón de Arteaga", "Rincón de Romos"],
+  "Baja California": ["Mexicali", "Tijuana", "Ensenada", "Tecate", "Rosarito", "San Quintín"],
+  "Baja California Sur": ["La Paz", "Los Cabos", "San José del Cabo", "Cabo San Lucas", "Loreto", "Comondú"],
+  "Campeche": ["Campeche", "Ciudad del Carmen", "Champotón", "Escárcega", "Calkiní"],
+  "Chiapas": ["Tuxtla Gutiérrez", "Tapachula", "San Cristóbal de las Casas", "Comitán", "Palenque"],
+  "Chihuahua": ["Chihuahua", "Ciudad Juárez", "Delicias", "Cuauhtémoc", "Parral", "Nuevo Casas Grandes"],
+  "Ciudad de México": ["Centro Histórico", "Coyoacán", "Iztapalapa", "Gustavo A. Madero", "Benito Juárez", "Miguel Hidalgo"],
+  "Coahuila": ["Saltillo", "Torreón", "Monclova", "Piedras Negras", "Acuña", "Sabinas"],
+  "Colima": ["Manzanillo", "Colima", "Villa de Álvarez", "Tecomán", "Armería"],
+  "Durango": ["Durango", "Gómez Palacio", "Lerdo", "Santiago Papasquiaro", "Canatlán"],
+  "Estado de México": ["Toluca", "Ecatepec", "Naucalpan", "Tlalnepantla", "Nezahualcóyotl", "Metepec"],
+  "Guanajuato": ["León", "Irapuato", "Celaya", "Guanajuato", "Salamanca", "Silao"],
+  "Guerrero": ["Acapulco", "Chilpancingo", "Iguala", "Zihuatanejo", "Taxco"],
+  "Hidalgo": ["Pachuca", "Tulancingo", "Tula de Allende", "Actopan", "Ixmiquilpan"],
+  "Jalisco": ["Guadalajara", "Zapopan", "Tlaquepaque", "Tonalá", "Puerto Vallarta", "Lagos de Moreno"],
+  "Michoacán": ["Morelia", "Uruapan", "Zamora", "Lázaro Cárdenas", "Apatzingán"],
+  "Morelos": ["Cuernavaca", "Jiutepec", "Cuautla", "Temixco", "Yautepec"],
+  "Nayarit": ["Tepic", "Bahía de Banderas", "Compostela", "Santiago Ixcuintla", "Ixtlán del Río"],
+  "Nuevo León": ["Monterrey", "San Nicolás de los Garza", "Guadalupe", "Apodaca", "Santa Catarina", "San Pedro Garza García"],
+  "Oaxaca": ["Oaxaca de Juárez", "Salina Cruz", "Juchitán", "Tuxtepec", "Puerto Escondido", "Huatulco"],
+  "Puebla": ["Puebla", "Tehuacán", "San Martín Texmelucan", "Atlixco", "Cholula"],
+  "Querétaro": ["Querétaro", "San Juan del Río", "El Marqués", "Corregidora", "Tequisquiapan"],
+  "Quintana Roo": ["Cancún", "Chetumal", "Playa del Carmen", "Tulum", "Cozumel", "Felipe Carrillo Puerto"],
+  "San Luis Potosí": ["San Luis Potosí", "Soledad de Graciano Sánchez", "Ciudad Valles", "Matehuala", "Rioverde"],
+  "Sinaloa": ["Culiacán", "Mazatlán", "Los Mochis", "Guasave", "Navolato"],
+  "Sonora": ["Hermosillo", "Ciudad Obregón", "Nogales", "Guaymas", "Navojoa", "San Luis Río Colorado"],
+  "Tabasco": ["Villahermosa", "Cárdenas", "Comalcalco", "Paraíso", "Macuspana"],
+  "Tamaulipas": ["Ciudad Victoria", "Tampico", "Reynosa", "Matamoros", "Nuevo Laredo", "Altamira"],
+  "Tlaxcala": ["Tlaxcala", "Apizaco", "Huamantla", "Chiautempan", "Zacatelco"],
+  "Veracruz": ["Veracruz", "Xalapa", "Coatzacoalcos", "Córdoba", "Orizaba", "Poza Rica"],
+  "Yucatán": ["Mérida", "Valladolid", "Tizimín", "Progreso", "Umán"],
+  "Zacatecas": ["Zacatecas", "Guadalupe", "Fresnillo", "Jerez", "Río Grande"]
+};
+const MX_STATE_NAMES = Object.keys(MX_STATES_CITIES);
+const formatMxPlace = (city, state) => [city, state, "México"].filter(Boolean).join(", ");
+
 /* ── Verifica si una coordenada está dentro de Manzanillo ───── */
 function dentroManzanillo(lat, lng) {
   return (
@@ -1784,8 +1869,12 @@ function RutaCostoAdmin() {
   const originRef   = useRef(null);
   const destRef     = useRef(null);
 
-  const [origin,      setOrigin]      = useState("");
-  const [destination, setDestination] = useState("");
+  const [originState, setOriginState] = useState("Colima");
+  const [originCity, setOriginCity] = useState("Manzanillo");
+  const [origin,      setOrigin]      = useState("Manzanillo, Colima, México");
+  const [destState, setDestState] = useState("Jalisco");
+  const [destCity, setDestCity] = useState("Guadalajara");
+  const [destination, setDestination] = useState("Guadalajara, Jalisco, México");
   const [gasPrice,    setGasPrice]    = useState(24);
   const [dieselPrice, setDieselPrice] = useState(25);
   const [fuelType, setFuelType] = useState("gasolina");
@@ -1796,6 +1885,17 @@ function RutaCostoAdmin() {
   const [maxSpeed, setMaxSpeed] = useState(60);
   const [profit,      setProfit]      = useState(40);
   const [showProfit,  setShowProfit]  = useState(true);
+
+  useEffect(() => {
+    const cities = MX_STATES_CITIES[originState] || [];
+    if (!cities.includes(originCity)) setOriginCity(cities[0] || "");
+  }, [originState]);
+  useEffect(() => { setOrigin(formatMxPlace(originCity, originState)); }, [originCity, originState]);
+  useEffect(() => {
+    const cities = MX_STATES_CITIES[destState] || [];
+    if (!cities.includes(destCity)) setDestCity(cities[0] || "");
+  }, [destState]);
+  useEffect(() => { setDestination(formatMxPlace(destCity, destState)); }, [destCity, destState]);
 
   const [routes,   setRoutes]   = useState([]);
   const [loading,  setLoading]  = useState(false);
@@ -1824,7 +1924,7 @@ function RutaCostoAdmin() {
   })();
 
   const addCity = useCallback((s) =>
-    String(s || "").toLowerCase().includes("manzanillo") ? s : `${s}, Manzanillo, Colima`, []);
+    String(s || "").toLowerCase().includes("méxico") || String(s || "").toLowerCase().includes("mexico") ? s : `${s}, México`, []);
 
   const cleanStops = stops.map(s => String(s || "").trim()).filter(Boolean);
 
@@ -1873,10 +1973,9 @@ function RutaCostoAdmin() {
         );
 
         gmap.current = new window.google.maps.Map(mapRef.current, {
-          center: MANZANILLO_CENTER,
-          zoom: 13,
+          center: { lat: 23.6345, lng: -102.5528 },
+          zoom: 5,
           styles: DARK_STYLES,
-          restriction: { latLngBounds: bounds, strictBounds: false },
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -1954,14 +2053,10 @@ function RutaCostoAdmin() {
   /* ── Calcular rutas ── */
   const calcular = useCallback(() => {
     if (!origin.trim() || !destination.trim()) {
-      setError("Ingresa el origen y el destino dentro de Manzanillo.");
+      setError("Selecciona el origen y el destino dentro de México.");
       return;
     }
     if (!mapReady) { setError("El mapa está cargando, espera un momento."); return; }
-
-    /* Añadimos "Manzanillo, Colima" si no está en el texto */
-    const addCity = (s) =>
-      s.toLowerCase().includes("manzanillo") ? s : `${s}, Manzanillo, Colima`;
 
     setError("");
     setLoading(true);
@@ -2069,8 +2164,8 @@ function RutaCostoAdmin() {
           <div>
             <h1 style={sx.h1}>Ruta<span style={{ color: "#f97316" }}>Costo</span></h1>
             <div style={sx.tagline}>
-              <span style={sx.cityPill}>📍 Manzanillo, Colima</span>
-              <span style={sx.tagSub}>Calculadora de tarifa por combustible</span>
+              <span style={sx.cityPill}>📍 México</span>
+              <span style={sx.tagSub}>Ruta, distancia, tiempo y costo estimado con Google Maps</span>
             </div>
           </div>
         </header>
@@ -2086,19 +2181,32 @@ function RutaCostoAdmin() {
           <SLabel>Origen y Destino</SLabel>
 
           {/* Origen */}
+          <div style={sx.twoCol}>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Estado de origen</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>🟢</span>
+                <select value={originState} onChange={e => setOriginState(e.target.value)} style={sx.input}>
+                  {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Ciudad/localidad de origen</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>📍</span>
+                <select ref={originRef} value={originCity} onChange={e => setOriginCity(e.target.value)} style={sx.input}>
+                  {(MX_STATES_CITIES[originState] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div style={sx.fieldWrap}>
-            <label style={sx.lbl}>Punto de origen</label>
+            <label style={sx.lbl}>Origen exacto opcional</label>
             <div style={sx.inputWrap}>
-              <span style={sx.inputIcon}>🟢</span>
-              <input
-                ref={originRef}
-                type="text"
-                value={origin}
-                onChange={e => setOrigin(e.target.value)}
-                placeholder="Ej: Plaza Manzanillo, Centro, Santiago..."
-                style={sx.input}
-                onKeyDown={e => e.key === "Enter" && destRef.current?.focus()}
-              />
+              <span style={sx.inputIcon}>✏️</span>
+              <input ref={originRef} type="text" value={origin} onChange={e => setOrigin(e.target.value)} placeholder="Puedes ajustar colonia, calle o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && destRef.current?.focus()} />
             </div>
           </div>
 
@@ -2110,19 +2218,32 @@ function RutaCostoAdmin() {
           </div>
 
           {/* Destino */}
+          <div style={sx.twoCol}>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Estado de destino</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>🔴</span>
+                <select value={destState} onChange={e => setDestState(e.target.value)} style={sx.input}>
+                  {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={sx.fieldWrap}>
+              <label style={sx.lbl}>Ciudad/localidad de destino</label>
+              <div style={sx.inputWrap}>
+                <span style={sx.inputIcon}>📍</span>
+                <select value={destCity} onChange={e => setDestCity(e.target.value)} style={sx.input}>
+                  {(MX_STATES_CITIES[destState] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div style={sx.fieldWrap}>
-            <label style={sx.lbl}>Punto de destino</label>
+            <label style={sx.lbl}>Destino exacto opcional</label>
             <div style={sx.inputWrap}>
-              <span style={sx.inputIcon}>🔴</span>
-              <input
-                ref={destRef}
-                type="text"
-                value={destination}
-                onChange={e => setDestination(e.target.value)}
-                placeholder="Ej: La Punta, Salagua, Las Brisas..."
-                style={sx.input}
-                onKeyDown={e => e.key === "Enter" && calcular()}
-              />
+              <span style={sx.inputIcon}>✏️</span>
+              <input ref={destRef} type="text" value={destination} onChange={e => setDestination(e.target.value)} placeholder="Puedes ajustar colonia, calle, caseta o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && calcular()} />
             </div>
           </div>
 
@@ -2315,7 +2436,7 @@ function RutaCostoAdmin() {
           <button style={{ ...sx.calcBtn, opacity: loading ? 0.65 : 1 }}
             disabled={loading} onClick={calcular}>
             {loading
-              ? <><Spin /> Buscando rutas en Manzanillo...</>
+              ? <><Spin /> Calculando ruta en México...</>
               : <><span>Calcular Rutas</span><span style={{ marginLeft: 6 }}>→</span></>}
           </button>
         </div>
@@ -2406,7 +2527,7 @@ function RutaCostoAdmin() {
             })}
 
             <p style={sx.foot}>
-              🗺 Rutas calculadas por Google Maps Directions API · Mapa de Manzanillo y referencias editables<br />
+              🗺 Rutas calculadas por Google Maps Directions API · línea de ruta, marcadores, distancia y tiempo estimado<br />
               El costo real puede variar según tráfico, tipo de camino y estilo de conducción.
             </p>
           </>
@@ -2612,6 +2733,62 @@ if (typeof document !== "undefined" && !document.getElementById("rc-global")) {
   document.head.appendChild(st);
 }
 
+
+
+function AdminRegistrosPanel() {
+  const theme = React.useContext(ThemeContext);
+  const [logs, setLogs] = useState([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [message, setMessage] = useState("");
+  const [reason, setReason] = useState("");
+  const [hours, setHours] = useState(24);
+  const [actions, setActions] = useState({ web:true, vote:true, report:true });
+  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+  const load = async () => {
+    const { data } = await sb.from("admin_audit_logs").select("*").order("created_at", { ascending:false }).limit(80);
+    setLogs(data || []);
+  };
+  useEffect(() => { load(); const ch = sb.channel("admin-audit-rt").on("postgres_changes", { event:"*", schema:"public", table:"admin_audit_logs" }, load).subscribe(); return () => sb.removeChannel(ch); }, []);
+  const selectedActions = () => Object.entries(actions).filter(([,v])=>v).map(([k])=>k);
+  const sendMessage = async (type="mensaje") => {
+    if (!deviceId.trim() || !message.trim()) return alert("Escribe device_id y mensaje.");
+    await sb.from("admin_user_messages").insert({ device_id:deviceId.trim(), message, type, read:false, created_at:new Date().toISOString() });
+    await auditLog({ action:type === "warning" ? "advertencia" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type }, actor:"Admin" });
+    setMessage(""); alert("Mensaje enviado.");
+  };
+  const sanction = async (type) => {
+    if (!deviceId.trim()) return alert("Escribe el device_id del usuario.");
+    const until = type === "temp_block" ? new Date(Date.now() + Number(hours || 1) * 3600000).toISOString() : null;
+    await sb.from("admin_user_sanctions").insert({ device_id:deviceId.trim(), type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
+    await auditLog({ action:type, section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until }, actor:"Admin" });
+    alert(type === "ban" ? "Usuario baneado indefinidamente." : "Bloqueo temporal aplicado.");
+  };
+  return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
+    <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Solo visible en modo admin dentro de Noticias. Usa el device_id para advertir, enviar mensaje, bloquear temporalmente o banear aunque el usuario no tenga sesión.</div>
+    <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value)} />
+    <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+      <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
+      <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>⚠️ Advertencia</button>
+    </div>
+    <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(e.target.value)} />
+    <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(e.target.value)} />
+    <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, color:"rgba(255,255,255,.75)", fontFamily:getFont(theme,"secondary"), fontSize:12 }}>
+      {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:e.target.checked}))}/> {l}</label>)}
+    </div>
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
+      <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>⏳ Bloquear por tiempo</button>
+      <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido</button>
+    </div>
+    <div style={{ color:"#22c55e", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:getFont(theme,"secondary") }}>Últimas modificaciones</div>
+    {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.35)", fontSize:12 }}>Sin registros todavía. Si aparece vacío, crea las tablas admin_audit_logs/admin_user_messages/admin_user_sanctions en Supabase.</div> : logs.map(l => <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginBottom:8 }}>
+      <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
+      <div style={{ color:"rgba(255,255,255,.45)", fontSize:10 }}>{l.actor || l.device_id} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
+      <div style={{ color:"rgba(255,255,255,.35)", fontSize:10, marginTop:4, wordBreak:"break-word" }}>{l.entity_id || ""}</div>
+    </div>)}
+  </div>;
+}
 
 function AdminCalculadoraPanel() {
   const theme = React.useContext(ThemeContext);
@@ -2908,6 +3085,7 @@ function AnunciosBanner({ isAdmin }) {
           { id:"anuncios", label:"📢 Anuncios", color:"#fbbf24" },
           { id:"usuarios", label:"👥 Usuarios", color:"#818cf8" },
           { id:"calculadora", label:"⛽ Calculadora", color:"#f97316" },
+          { id:"registros", label:"🧾 Registros", color:"#22c55e" },
         ].map(t => (
           <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ flex:1, padding:"12px 16px", background: adminTab===t.id ? "rgba(255,255,255,0.05)" : "transparent", border:"none", borderBottom: adminTab===t.id ? `2px solid ${t.color}` : "2px solid transparent", color: adminTab===t.id ? t.color : "rgba(255,255,255,0.4)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", marginBottom:"-1px" }}>
             {t.label}
@@ -2921,6 +3099,8 @@ function AnunciosBanner({ isAdmin }) {
 
       {/* Tab: Calculadora — solo admin principal */}
       {adminTab === "calculadora" && <AdminCalculadoraPanel />}
+
+      {adminTab === "registros" && <AdminRegistrosPanel />}
 
       {/* Tab: Anuncios */}
       {adminTab === "anuncios" && <div style={{ padding:"16px", background:"rgba(251,191,36,0.04)" }}>
@@ -5561,12 +5741,14 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   }, []);
 
   const voteAcceso = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const acc = accesos?.[id];
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
       setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
@@ -5578,17 +5760,20 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     // Optimistic update — refleja el cambio al instante
     setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
   };
 
   const voteVialidad = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const v = vialidades?.[id];
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
       setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
     }
@@ -5599,11 +5784,13 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     // Optimistic update
     setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
+    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
     if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
@@ -5614,6 +5801,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     setRutasFiscales(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: actor } }));
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    await auditLog({ action:"actualizar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
     notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "🛣️", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
@@ -6679,7 +6867,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
           <div class="cm-inc-pulse" style="width:32px;height:32px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
             <span style="transform:rotate(45deg);font-size:14px;line-height:1;">${cfg.emoji}</span>
           </div>
-          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${inc.location ? inc.location.slice(0,28) + (inc.location.length > 28 ? "…" : "") : cfg.label}</div>
+          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${(inc.description || cfg.label).replace(/^[^A-Za-zÁÉÍÓÚáéíóúÑñ]*\s*/, "").slice(0,32) + ((inc.description || cfg.label).length > 32 ? "…" : "")}</div>
         </div>`,
         className: "", iconSize: [80, 60], iconAnchor: [16, 32],
       });
@@ -7159,7 +7347,7 @@ function MapaEventos({ incidents }) {
           <div class="cm-inc-pulse" style="width:34px;height:34px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
             <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${cfg.emoji}</span>
           </div>
-          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${inc.location ? inc.location.slice(0,28)+(inc.location.length>28?"…":"") : cfg.label}</div>
+          <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${(inc.description || cfg.label).replace(/^[^A-Za-zÁÉÍÓÚáéíóúÑñ]*\s*/, "").slice(0,32)+((inc.description || cfg.label).length>32?"…":"")}</div>
         </div>`,
         className: "", iconSize: [80, 60], iconAnchor: [17, 34],
       });
@@ -7306,6 +7494,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   }, [incidents]);
 
   const submit = async () => {
+    if (await notifyIfBlocked("report", notify)) return;
     if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
     if (!location.trim()) return notify("Selecciona o escribe la ubicación", "#ef4444");
     if (!coords)          return notify("Pega un enlace de Google Maps válido con coordenadas", "#ef4444");
@@ -7340,6 +7529,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         coords: r.coords || null,
       }, ...prev]);
     }
+    await auditLog({ action:"crear_reporte", section:"reporte", entityId: insertedRows?.[0]?.id || null, after: newIncident, actor:`Usuario_${myId.slice(-4)}` });
     await publicarNoticia({
       tipo: categoria,
       icono: catObj?.icon || (categoria === "accidente" ? "🚨" : "⚠️"),
@@ -7425,22 +7615,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         </div>
       </div>
 
-      {/* Paso 3: Zona */}
+      {/* Paso 3: Ubicación */}
       <div style={{ marginBottom:"14px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 3 · ZONA / ACCESO (opcional)</div>
-        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-          {["", "Acceso Pez Vela", "Acceso Zona Norte", "Blvd. Miguel de la Madrid", "Segundo Acceso"].map(a => (
-            <button key={a} onClick={() => setAcceso(a)}
-              style={{ padding:"6px 10px", background: acceso===a ? "#0369a122" : "#0a1628", border:`1px solid ${acceso===a ? "#0ea5e9" : "#1e3a5f"}`, borderRadius:"6px", color: acceso===a ? "#38bdf8" : "#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s" }}>
-              {a === "" ? "Sin zona" : a}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 4: Ubicación */}
-      <div style={{ marginBottom:"14px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>PASO 4 · UBICACIÓN *</div>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>PASO 3 · UBICACIÓN *</div>
 
         {/* Selector predefinido */}
         <button onClick={() => setShowUbic(p => !p)}
@@ -8356,6 +8533,7 @@ function TerminalesTab({ myId }) {
   }, []);
 
   const vote = async (termId, newStatus, forceChange = false) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
     const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
@@ -8380,6 +8558,7 @@ function TerminalesTab({ myId }) {
     const setSt2 = zona === "norte" ? setStN : setStS;
     setSt2(prev => ({ ...(prev || {}), [termId]: { ...(prev?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` } }));
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
@@ -11617,6 +11796,7 @@ function PatioReguladorTab({ myId }) {
   }, []);
 
   const vote = async (patioId, newStatus, forceChange = false) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`patio_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
     const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio");
@@ -11640,6 +11820,7 @@ function PatioReguladorTab({ myId }) {
     // Optimistic update
     setPatios(prev => ({ ...prev, [patioId]: { ...prev[patioId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo } }));
     await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    await auditLog({ action:"votar_patio", section:"patios", entityId:patioId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const patioNombre = PATIOS_REGULADORES.find(p => p.id === patioId)?.name || patioId.toUpperCase();
@@ -14222,7 +14403,21 @@ function App() {
   
   // ── Widget de Soporte WhatsApp ──
   const [supportExpanded, setSupportExpanded] = useState(false);
-  const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo'
+  const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo', 'admin_msg'
+  const [adminMessages, setAdminMessages] = useState([]);
+  const [deviceBlock, setDeviceBlock] = useState(null);
+  useEffect(() => {
+    const loadAdminMessages = async () => {
+      try {
+        const { data } = await sb.from("admin_user_messages").select("*").eq("device_id", myId).eq("read", false).order("created_at", { ascending:false }).limit(10);
+        setAdminMessages(data || []);
+      } catch {}
+    };
+    loadAdminMessages();
+    isDeviceBlocked("web").then(blocked => { setDeviceBlock(blocked); if (blocked) setShowQRPanel("admin_msg"); });
+    const ch = sb.channel("admin-msg-" + myId).on("postgres_changes", { event:"INSERT", schema:"public", table:"admin_user_messages", filter:`device_id=eq.${myId}` }, loadAdminMessages).subscribe();
+    return () => sb.removeChannel(ch);
+  }, [myId]);
   const handleSignOut = async () => {
     try {
       await sb.auth.signOut();
@@ -14531,6 +14726,19 @@ function App() {
         </div>
       )}
 
+      {deviceBlock && (
+        <div style={{ position:"fixed", inset:0, zIndex:99997, background:"rgba(4,12,24,.88)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ maxWidth:420, width:"100%", background:"rgba(13,31,60,.98)", border:"1px solid rgba(239,68,68,.45)", borderRadius:18, padding:20, textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,.75)" }}>
+            <div style={{ fontSize:38, marginBottom:8 }}>⛔</div>
+            <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:16, marginBottom:8 }}>Acceso restringido</div>
+            <div style={{ color:"rgba(255,255,255,.68)", fontFamily:getFont(theme,"secondary"), fontSize:12, lineHeight:1.5, whiteSpace:"pre-wrap" }}>
+              {deviceBlock.reason || "Tu dispositivo fue bloqueado por administración."}
+              {deviceBlock.until ? `\nHasta: ${new Date(deviceBlock.until).toLocaleString("es-MX")}` : "\nBloqueo indefinido"}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Widget de Contacto y Redes - FAB Expandible */}
       <div 
         style={{
@@ -14551,6 +14759,13 @@ function App() {
             gap: "12px",
             alignItems: "flex-end"
           }}>
+            {adminMessages.length > 0 && (
+              <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
+                <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"700", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Mensaje del administrador</div>
+                <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#fbbf24,#f97316)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(251,191,36,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px", position:"relative" }}>🔔<span style={{ position:"absolute", top:"-4px", right:"-4px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"18px", height:"18px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800 }}>{adminMessages.length}</span></div>
+              </div>
+            )}
+
             {/* Burbuja: Soporte WhatsApp */}
             <div
               onClick={() => setShowQRPanel(showQRPanel === 'whatsapp' ? null : 'whatsapp')}
@@ -14817,6 +15032,14 @@ function App() {
             {supportExpanded ? "✕" : "💬"}
           </span>
         </div>
+
+        {showQRPanel === 'admin_msg' && (
+          <div style={{ position:"absolute", bottom:"72px", right:"0", width:"320px", maxWidth:"calc(100vw - 40px)", background:"rgba(13,31,60,.97)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"18px", padding:"16px", boxShadow:"0 12px 40px rgba(0,0,0,.7)", animation:"slideUp .25s ease-out" }}>
+            <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", marginBottom:"10px" }}>🔔 Mensaje del administrador</div>
+            {adminMessages.map(m => <div key={m.id} style={{ color:"rgba(255,255,255,.85)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.45, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.1)", borderRadius:"10px", padding:"10px", marginBottom:"8px", whiteSpace:"pre-wrap" }}>{m.message}</div>)}
+            <button onClick={async()=>{ try { await Promise.all(adminMessages.map(m => sb.from("admin_user_messages").update({ read:true }).eq("id", m.id))); } catch {} setAdminMessages([]); setShowQRPanel(null); }} style={{ width:"100%", padding:"10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.4)", background:"rgba(251,191,36,.14)", color:"#fbbf24", fontWeight:800, cursor:"pointer" }}>Entendido</button>
+          </div>
+        )}
 
         {/* Panel QR WhatsApp Soporte */}
         {showQRPanel === 'whatsapp' && (
