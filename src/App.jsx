@@ -1426,19 +1426,48 @@ const revokeIncidentVotesByDevice = async (deviceId, incidentId = null) => {
 const restoreDirectVoteFromLog = async (log) => {
   if (!log?.entity_id || !log?.before_value) return false;
   const before = log.before_value || {};
+  const action = log.action || "";
+  const section = log.section || "";
+  const entityId = log.entity_id;
   const ts = Date.now();
   const updatedBy = "Voto anulado por admin";
-  if (log.action === "votar_acceso" || log.action === "actualizar_acceso") {
-    await sb.from("accesos").upsert({ id: log.entity_id, status: before.status || "libre", retornos: before.retornos || "none", last_update: ts, updated_by: updatedBy, pending_voters: {} });
+
+  const restoreCarrilesRow = async (rowId, defaultsFactory) => {
+    const { data } = await sb.from("carriles").select("data").eq("id", rowId).maybeSingle();
+    const base = data?.data || defaultsFactory();
+    const restored = {
+      ...base,
+      [entityId]: {
+        ...base?.[entityId],
+        ...before,
+        lastUpdate: ts,
+        updatedBy
+      }
+    };
+    await sb.from("carriles").upsert({ id: rowId, data: restored });
+    return true;
+  };
+
+  if (action === "votar_acceso" || action === "actualizar_acceso") {
+    await sb.from("accesos").upsert({ id: entityId, status: before.status || "libre", retornos: before.retornos || "none", last_update: ts, updated_by: updatedBy, pending_voters: {} });
     return true;
   }
-  if (log.action === "votar_vialidad" || log.action === "actualizar_vialidad") {
-    await sb.from("vialidades").upsert({ id: log.entity_id, status: before.status || "libre", last_update: ts, updated_by: updatedBy, pending_voters: {} });
+  if (action === "votar_vialidad" || action === "actualizar_vialidad") {
+    await sb.from("vialidades").upsert({ id: entityId, status: before.status || "libre", last_update: ts, updated_by: updatedBy, pending_voters: {} });
     return true;
   }
-  if (log.action === "actualizar_ruta_fiscal" || log.action === "votar_ruta_fiscal") {
-    await sb.from("rutas_fiscales").upsert({ id: log.entity_id, status: before.status || "libre", last_update: ts, updated_by: updatedBy });
+  if (action === "actualizar_ruta_fiscal" || action === "votar_ruta_fiscal") {
+    await sb.from("rutas_fiscales").upsert({ id: entityId, status: before.status || "libre", last_update: ts, updated_by: updatedBy });
     return true;
+  }
+  if (section === "segundo" && (action === "modificar_carril_segundo" || action === "modificar_carril_salida")) {
+    return await restoreCarrilesRow("segundo_acceso", mkSegundoIngreso);
+  }
+  if (section === "segundo" && action === "modificar_carril_confinada") {
+    return await restoreCarrilesRow("confinada_acceso", mkConfinadaState);
+  }
+  if (section === "carriles" && action === "modificar_carril_expo_impo") {
+    return await restoreCarrilesRow("expo_impo", mkCarrilesState);
   }
   return false;
 };
@@ -1479,11 +1508,18 @@ const revokeDeviceVotes = async ({ deviceId, log = null, mode = "selected", acto
 
     const { data: directLogs } = await sb.from("admin_audit_logs")
       .select("*").eq("device_id", target)
-      .in("action", ["votar_acceso", "votar_vialidad", "votar_ruta_fiscal", "actualizar_ruta_fiscal"])
-      .order("created_at", { ascending:false }).limit(100);
+      .in("action", [
+        "votar_acceso", "actualizar_acceso",
+        "votar_vialidad", "actualizar_vialidad",
+        "votar_ruta_fiscal", "actualizar_ruta_fiscal",
+        "modificar_carril_segundo", "modificar_carril_salida", "modificar_carril_confinada",
+        "modificar_carril_expo_impo"
+      ])
+      .order("created_at", { ascending:true }).limit(300);
     const touched = new Set();
     for (const dl of directLogs || []) {
-      const k = `${dl.action}:${dl.entity_id}`;
+      const field = dl?.after_value?.campo || "estado";
+      const k = `${dl.section}:${dl.action}:${dl.entity_id}:${field}`;
       if (touched.has(k)) continue;
       if (await restoreDirectVoteFromLog(dl)) result.directos += 1;
       touched.add(k);
