@@ -1301,12 +1301,32 @@ const getDeviceId = () => {
   try { return localStorage.getItem("puerto_trafico_uid") || "anon"; } catch { return "anon"; }
 };
 const auditLog = async ({ action, section, entityId = null, before = null, after = null, actor = null }) => {
+  const deviceId = getDeviceId();
   try {
     await sb.from("admin_audit_logs").insert({
-      action, section, entity_id: entityId, before_value: before, after_value: after,
-      actor: actor || getDeviceId(), device_id: getDeviceId(), user_agent: navigator.userAgent, created_at: new Date().toISOString()
+      action,
+      section,
+      entity_id: entityId,
+      before_value: before,
+      after_value: { ...(after || {}), device_id: deviceId, user_id: deviceId },
+      actor: actor || `Usuario_${deviceId.slice(-4)}`,
+      device_id: deviceId,
+      user_agent: navigator.userAgent,
+      created_at: new Date().toISOString()
     });
   } catch (e) { console.warn("auditLog pendiente: crea tabla admin_audit_logs", e?.message || e); }
+};
+const getLogSummary = (log) => {
+  const a = log?.after_value || {};
+  if (a.summary) return a.summary;
+  if (log?.action?.includes("carril") || log?.section?.includes("carril") || log?.section === "segundo") {
+    return `${a.user_id || log.device_id || log.actor || "Usuario"} modificó ${a.carril || log.entity_id || "carril"}${a.campo ? ` · ${a.campo}` : ""}${a.valor_label ? `: ${a.valor_label}` : a.value !== undefined ? `: ${String(a.value)}` : ""}`;
+  }
+  if (log?.action?.startsWith("votar") || log?.action?.includes("voto")) {
+    return `${a.user_id || log.device_id || log.actor || "Usuario"} votó/modificó ${log.entity_id || "elemento"}${a.status ? `: ${a.status}` : ""}`;
+  }
+  if (log?.action === "crear_reporte") return `${a.user_id || log.device_id || log.actor || "Usuario"} creó reporte ${a.subcategory_label || a.subcategory || ""} en ${a.location || "ubicación sin nombre"}`;
+  return "";
 };
 const isDeviceBlocked = async (action = "web") => {
   const deviceId = getDeviceId();
@@ -2782,11 +2802,16 @@ function AdminRegistrosPanel() {
       <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido</button>
     </div>
     <div style={{ color:"#22c55e", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:getFont(theme,"secondary") }}>Últimas modificaciones</div>
-    {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.35)", fontSize:12 }}>Sin registros todavía. Si aparece vacío, crea las tablas admin_audit_logs/admin_user_messages/admin_user_sanctions en Supabase.</div> : logs.map(l => <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginBottom:8 }}>
-      <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
-      <div style={{ color:"rgba(255,255,255,.45)", fontSize:10 }}>{l.actor || l.device_id} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
-      <div style={{ color:"rgba(255,255,255,.35)", fontSize:10, marginTop:4, wordBreak:"break-word" }}>{l.entity_id || ""}</div>
-    </div>)}
+    {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.35)", fontSize:12 }}>Sin registros todavía. Si aparece vacío, crea las tablas admin_audit_logs/admin_user_messages/admin_user_sanctions en Supabase.</div> : logs.map(l => { const summary = getLogSummary(l); return <div key={l.id || `${l.created_at}-${l.action}`} style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", borderRadius:10, padding:10, marginBottom:8 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+        <div style={{ color:"#fff", fontSize:12, fontWeight:800 }}>{l.action} · {l.section}</div>
+        <button onClick={()=>setDeviceId(l.device_id || "")} style={{ background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.35)", borderRadius:8, color:"#38bdf8", fontSize:10, cursor:"pointer", padding:"3px 7px" }}>Usar ID</button>
+      </div>
+      <div style={{ color:"rgba(255,255,255,.55)", fontSize:10, marginTop:3 }}><b>ID:</b> {l.device_id || "sin id"} · <b>Actor:</b> {l.actor || ""} · {l.created_at ? new Date(l.created_at).toLocaleString("es-MX") : ""}</div>
+      {summary && <div style={{ color:"#d8b4fe", fontSize:11, marginTop:6, wordBreak:"break-word", fontWeight:700 }}>{summary}</div>}
+      <div style={{ color:"rgba(255,255,255,.35)", fontSize:10, marginTop:4, wordBreak:"break-word" }}>Elemento: {l.entity_id || ""}</div>
+      {l.after_value && <details style={{ marginTop:6 }}><summary style={{ color:"rgba(255,255,255,.45)", fontSize:10, cursor:"pointer" }}>Ver detalle</summary><pre style={{ whiteSpace:"pre-wrap", wordBreak:"break-word", color:"rgba(255,255,255,.42)", fontSize:10 }}>{JSON.stringify(l.after_value, null, 2)}</pre></details>}
+    </div>})}
   </div>;
 }
 
@@ -7187,25 +7212,30 @@ const UBICACIONES_REPORTE = [
 //  1. Coordenadas directas: "19.092788, -104.276555"  o  "19.092788,-104.276555"
 //  2. URL de Google Maps con @lat,lng o ?q=lat,lng
 //  3. Short link maps.app.goo.gl (intenta resolver, con fallback a pedir coords)
+function normalizeCoordsInput(text) {
+  return String(text || "").replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+}
+
 function parseCoordsFromText(text) {
   if (!text) return null;
-  // Formato: "lat, lng" o "lat,lng"
-  const plain = text.trim().match(/^(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})$/);
+  const cleanText = normalizeCoordsInput(text);
+  // Formato: "lat, lng", "(lat, lng)" o "lat,lng"
+  const plain = cleanText.match(/^(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})$/);
   if (plain) {
     const lat = parseFloat(plain[1]), lng = parseFloat(plain[2]);
     if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return [lat, lng];
   }
   // URL con @lat,lng
-  const atMatch = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const atMatch = cleanText.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (atMatch) return [parseFloat(atMatch[1]), parseFloat(atMatch[2])];
   // URL con ?q=lat,lng
-  const qMatch = text.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const qMatch = cleanText.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (qMatch) return [parseFloat(qMatch[1]), parseFloat(qMatch[2])];
   // URL con ll=lat,lng
-  const llMatch = text.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const llMatch = cleanText.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (llMatch) return [parseFloat(llMatch[1]), parseFloat(llMatch[2])];
   // !3d{lat}!4d{lng} (formato interno de Google)
-  const d3Match = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const d3Match = cleanText.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (d3Match) return [parseFloat(d3Match[1]), parseFloat(d3Match[2])];
   return null;
 }
@@ -7406,6 +7436,104 @@ function MapaEventos({ incidents }) {
   );
 }
 
+function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
+  const theme = React.useContext(ThemeContext);
+  const [category, setCategory] = useState("incidente");
+  const [label, setLabel] = useState("");
+  const [icon, setIcon] = useState("⚠️");
+  const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.14)", borderRadius:10, padding:"9px 10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, outline:"none" };
+  const addType = async () => {
+    const cleanLabel = sanitize(label).trim();
+    if (!cleanLabel) return alert("Escribe el nombre del tipo.");
+    const id = `${category}_${cleanLabel.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${Date.now().toString(36)}`;
+    const row = { id, category, label: cleanLabel, icon: icon || (category === "accidente" ? "🚨" : "⚠️"), active:true, created_at:new Date().toISOString() };
+    const { error } = await sb.from("admin_incident_types").insert(row);
+    if (error) return alert("Error al guardar tipo: " + error.message);
+    await auditLog({ action:"crear_tipo_reporte", section:"reporte_admin", entityId:id, after:{ ...row, summary:`Admin añadió tipo ${cleanLabel} en ${category}` }, actor:"Admin" });
+    setLabel("");
+    reload && reload();
+  };
+  const deactivate = async (id, name) => {
+    const { error } = await sb.from("admin_incident_types").update({ active:false }).eq("id", id);
+    if (error) return alert("Error al desactivar: " + error.message);
+    await auditLog({ action:"desactivar_tipo_reporte", section:"reporte_admin", entityId:id, after:{ summary:`Admin desactivó tipo ${name}` }, actor:"Admin" });
+    reload && reload();
+  };
+  return <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.28)", borderRadius:12, padding:12, marginBottom:14 }}>
+    <div style={{ color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:800, marginBottom:8 }}>⚙️ Admin · Tipos de incidentes y accidentes</div>
+    <div style={{ display:"grid", gridTemplateColumns:"130px 70px 1fr auto", gap:8, alignItems:"center" }}>
+      <select value={category} onChange={e=>{ setCategory(e.target.value); setIcon(e.target.value === "accidente" ? "🚨" : "⚠️"); }} style={inp}>
+        <option value="incidente">Incidente</option>
+        <option value="accidente">Accidente</option>
+      </select>
+      <input value={icon} onChange={e=>setIcon(e.target.value)} placeholder="Icono" style={inp} />
+      <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="Nuevo tipo, ej. Derrame de diesel" style={inp} />
+      <button onClick={addType} style={{...inp,cursor:"pointer",color:"#22c55e",fontWeight:800}}>＋ Añadir</button>
+    </div>
+    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+      {(customIncidentTypes || []).map(t => <span key={t.id} style={{ border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", borderRadius:999, padding:"5px 8px", color:"rgba(255,255,255,.75)", fontSize:11, fontFamily:getFont(theme,"secondary") }}>
+        {t.icon} {t.label} · {t.category} <button onClick={()=>deactivate(t.id,t.label)} style={{ marginLeft:6, background:"transparent", border:"none", color:"#ef4444", cursor:"pointer" }}>×</button>
+      </span>)}
+    </div>
+  </div>;
+}
+
+function ReportStatsDashboard({ incidents, customIncidentTypes = [] }) {
+  const theme = React.useContext(ThemeContext);
+  const [period, setPeriod] = useState("monthly");
+  const now = new Date();
+  const filtered = (incidents || []).filter(i => {
+    const d = new Date(i.ts || i.created_at || Date.now());
+    return period === "monthly" ? (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) : d.getFullYear() === now.getFullYear();
+  });
+  const allSubcatLabels = {};
+  Object.values(INCIDENT_SUBCATEGORIAS).flat().forEach(x => allSubcatLabels[x.id] = x.label);
+  customIncidentTypes.forEach(x => allSubcatLabels[x.id] = x.label);
+  const countBy = (fn) => filtered.reduce((acc, item) => { const k = fn(item) || "Sin dato"; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const byType = countBy(i => i.type === "accidente" ? "Accidentes" : i.type === "incidente" ? "Incidentes" : i.type || "Otros");
+  const bySubtype = countBy(i => allSubcatLabels[i.subcategory] || i.subcategory || "Sin tipo");
+  const byZone = countBy(i => i.acceso || i.zone || i.zona || "Sin zona");
+  const byLocation = countBy(i => i.location || "Sin ubicación");
+  const total = filtered.length;
+  const visible = filtered.filter(i => i.visible && !i.resolved).length;
+  const pending = filtered.filter(i => !i.visible && !i.resolved).length;
+  const resolved = filtered.filter(i => i.resolved).length;
+  const card = { background:"linear-gradient(135deg,rgba(56,189,248,.10),rgba(168,85,247,.08))", border:"1px solid rgba(255,255,255,.10)", borderRadius:14, padding:12 };
+  const BarList = ({ title, data }) => {
+    const entries = Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const max = Math.max(1, ...entries.map(([,v])=>v));
+    return <div style={card}>
+      <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:900, marginBottom:10 }}>{title}</div>
+      {entries.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:11 }}>Sin datos en este periodo.</div> : entries.map(([k,v]) => <div key={k} style={{ marginBottom:8 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:8, color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}><span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{k}</span><b>{v}</b></div>
+        <div style={{ height:8, borderRadius:999, background:"rgba(255,255,255,.08)", overflow:"hidden", marginTop:4 }}><div style={{ width:`${Math.round((v/max)*100)}%`, height:"100%", borderRadius:999, background:"linear-gradient(90deg,#38bdf8,#a78bfa)" }} /></div>
+      </div>)}
+    </div>;
+  };
+  return <div>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap" }}>
+      <div>
+        <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontSize:18, fontWeight:900 }}>📊 Estadística de reportes</div>
+        <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>Dashboard dinámico por periodo, tipo, zona y ubicación.</div>
+      </div>
+      <div style={{ display:"flex", gap:8 }}>
+        {[ ["monthly","Mensual"], ["annual","Anual"] ].map(([id,label]) => <button key={id} onClick={()=>setPeriod(id)} style={{ padding:"8px 12px", borderRadius:10, border:`1px solid ${period===id?"#38bdf8":"rgba(255,255,255,.14)"}`, background:period===id?"rgba(56,189,248,.14)":"rgba(255,255,255,.04)", color:period===id?"#38bdf8":"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:12, cursor:"pointer", fontWeight:800 }}>{label}</button>)}
+      </div>
+    </div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10, marginBottom:12 }}>
+      {[ ["Total",total,"📍"], ["Activos",visible,"🟢"], ["Pendientes",pending,"⏳"], ["Resueltos",resolved,"🏁"] ].map(([k,v,ico]) => <div key={k} style={card}>
+        <div style={{ fontSize:22 }}>{ico}</div><div style={{ color:"#fff", fontSize:24, fontWeight:900 }}>{v}</div><div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>{k}</div>
+      </div>)}
+    </div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:12 }}>
+      <BarList title="Por categoría" data={byType} />
+      <BarList title="Por tipo específico" data={bySubtype} />
+      <BarList title="Por zona" data={byZone} />
+      <BarList title="Por ubicación" data={byLocation} />
+    </div>
+  </div>;
+}
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [reporteViewRaw, setReporteViewRaw] = useState(() => {
@@ -7415,7 +7543,15 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     try { localStorage.setItem("puerto_reporte_view", view); } catch {}
     setReporteViewRaw(view);
   };
-  const reporteView = reporteViewRaw
+  const reporteView = reporteViewRaw;
+  const [customIncidentTypes, setCustomIncidentTypes] = useState([]);
+  const loadCustomIncidentTypes = useCallback(async () => {
+    try {
+      const { data } = await sb.from("admin_incident_types").select("*").eq("active", true).order("created_at", { ascending:true });
+      setCustomIncidentTypes(data || []);
+    } catch (e) { setCustomIncidentTypes([]); }
+  }, []);
+  useEffect(() => { loadCustomIncidentTypes(); const ch = sb.channel("admin-incident-types-rt").on("postgres_changes", { event:"*", schema:"public", table:"admin_incident_types" }, loadCustomIncidentTypes).subscribe(); return () => sb.removeChannel(ch); }, [loadCustomIncidentTypes]);
   const [categoriaRaw, setCategoriaRaw] = useState(() => {
     try { return localStorage.getItem("puerto_reporte_categoria") || "incidente"; } catch { return "incidente"; }
   });
@@ -7437,32 +7573,37 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const [confirmDelete,  setConfirmDelete]  = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
-  const subcats   = INCIDENT_SUBCATEGORIAS[categoria] || [];
+  const allIncidentSubcats = {
+    incidente: [...(INCIDENT_SUBCATEGORIAS.incidente || []), ...customIncidentTypes.filter(t => t.category === "incidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "⚠️" }))],
+    accidente: [...(INCIDENT_SUBCATEGORIAS.accidente || []), ...customIncidentTypes.filter(t => t.category === "accidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "🚨" }))],
+  };
+  const subcats   = allIncidentSubcats[categoria] || [];
   const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
   const subcatObj = subcats.find(s => s.id === subcat);
 
   // Procesar link de Google Maps o coordenadas directas
   const handleGmapsInput = async (val) => {
-    setGmapsLink(val);
+    const cleanVal = normalizeCoordsInput(val);
+    setGmapsLink(cleanVal);
     setCoords(null);
     setCoordsError("");
-    if (!val.trim()) return;
+    if (!cleanVal.trim()) return;
 
     // Intentar parsear directamente primero (rápido, sin red)
-    const directCoords = parseCoordsFromText(val.trim());
+    const directCoords = parseCoordsFromText(cleanVal.trim());
     if (directCoords) {
       setCoords(directCoords);
       return;
     }
 
-    if (!isValidInput(val.trim())) {
+    if (!isValidInput(cleanVal.trim())) {
       setCoordsError("Pega un enlace de Google Maps o las coordenadas directas (ej: 19.0927, -104.2765)");
       return;
     }
 
     setCoordsLoading(true);
     try {
-      const c = await extractCoordsFromGMapsLink(val.trim());
+      const c = await extractCoordsFromGMapsLink(cleanVal.trim());
       if (c) {
         setCoords(c);
         setCoordsError("");
@@ -7529,7 +7670,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         coords: r.coords || null,
       }, ...prev]);
     }
-    await auditLog({ action:"crear_reporte", section:"reporte", entityId: insertedRows?.[0]?.id || null, after: newIncident, actor:`Usuario_${myId.slice(-4)}` });
+    await auditLog({ action:"crear_reporte", section:"reporte", entityId: insertedRows?.[0]?.id || null, after: { ...newIncident, subcategory_label: subcatObj?.label, summary:`${getDeviceId()} reportó ${subcatObj?.label || subcat} en ${location}` }, actor:`Usuario_${myId.slice(-4)}` });
     await publicarNoticia({
       tipo: categoria,
       icono: catObj?.icon || (categoria === "accidente" ? "🚨" : "⚠️"),
@@ -7559,6 +7700,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         {[
           { id:"reportar", label:"Reportar",  icon:"📢", color:"#0ea5e9" },
           { id:"eventos",  label:"Eventos",   icon:"🗺️", color:"#f97316" },
+          { id:"estadistica", label:"Estadística", icon:"📊", color:"#a78bfa" },
         ].map(tab => {
           const active = reporteView === tab.id;
           const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
@@ -7577,6 +7719,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
       {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
       {reporteView === "reportar" && (<>
+      {isAdmin && <AdminIncidentTypesManager customIncidentTypes={customIncidentTypes} reload={loadCustomIncidentTypes} />}
 
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
@@ -7659,10 +7802,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         )}
       </div>
 
-      {/* Paso 5: Link de Google Maps (obligatorio) */}
+      {/* Paso 4: Link de Google Maps (obligatorio) */}
       <div style={{ marginBottom:"18px" }}>
         <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>
-          PASO 5 · ENLACE DE GOOGLE MAPS *
+          PASO 4 · ENLACE DE GOOGLE MAPS *
         </div>
         <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"10px", padding:"10px 12px", marginBottom:"8px", display:"flex", alignItems:"flex-start", gap:"8px" }}>
           <span style={{ fontSize:"16px", flexShrink:0 }}>ℹ️</span>
@@ -7815,6 +7958,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     const { error } = await sb.from("incidents").update({ votes: newVotes, visible }).eq("id", inc.id);
                     if (error) return notify("Error al votar: " + error.message, "#ef4444");
                     setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes, visible } : i));
+                    await auditLog({ action:"votar_reporte_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, visible, summary:`${getDeviceId()} confirmó reporte ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
                     if (visible) notify("✅ ¡Reporte verificado y publicado!", "#22c55e");
                     else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                   }}
@@ -7833,11 +7977,13 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       const { error } = await sb.from("incidents").delete().eq("id", inc.id);
                       if (error) return notify("Error al eliminar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.filter(i => i.id !== inc.id));
+                      await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, eliminado:true, summary:`${getDeviceId()} marcó falso y eliminó reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify("❌ Reporte eliminado — 3 votos falsos", "#ef4444");
                     } else {
                       const { error } = await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
+                      await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, summary:`${getDeviceId()} marcó falso reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
                     }
                   }}
@@ -7856,11 +8002,13 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       const { error } = await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
+                      await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, resolved:true, summary:`${getDeviceId()} cerró como resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify("🏁 Incidente cerrado como resuelto", "#6b7280");
                     } else {
                       const { error } = await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
+                      await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, summary:`${getDeviceId()} votó resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
                     }
                   }}
@@ -7887,6 +8035,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       )}
       <ToastBox toast={toast} />
       </>)}
+
+      {/* ══ VISTA: ESTADÍSTICA ═══════════════════════════════════════════════ */}
+      {reporteView === "estadistica" && (
+        <ReportStatsDashboard incidents={incidents} customIncidentTypes={customIncidentTypes} />
+      )}
 
       {/* ══ VISTA: EVENTOS ═══════════════════════════════════════════════════ */}
       {reporteView === "eventos" && (
@@ -7993,7 +8146,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           } else {
                             await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
-                            notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                            await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, summary:`${getDeviceId()} marcó falso reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
+                      notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
                           }
                         }}
                           style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
@@ -8014,7 +8168,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           } else {
                             await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
-                            notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                            await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, summary:`${getDeviceId()} votó resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
+                      notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
                           }
                         }}
                           style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
@@ -9087,6 +9242,9 @@ function SegundoAccesoTab({ myId }) {
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next);
     await saveToSupa(next);
+    const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
+    await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("✓ Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
@@ -9096,6 +9254,7 @@ function SegundoAccesoTab({ myId }) {
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next);
     await saveToSupa(next);
+    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:carriles.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("✓ Carril de salida actualizado", "#22c55e");
     const fieldLabel =
       field === "saturado" ? (value ? "Saturado" : "Libre") :
@@ -9126,6 +9285,9 @@ function SegundoAccesoTab({ myId }) {
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setConfinada(next);
     await saveConfinada(next);
+    const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
+    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("✓ Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
@@ -9702,6 +9864,7 @@ function CarrilesTab() {
     const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setEstado(next);
     await saveToSupa(next);
+    await auditLog({ action:"modificar_carril_expo_impo", section:"carriles", entityId:cid, before:estado[cid], after:{ carril:cid, campo:"abierto", value, valor_label:value ? "Abierto" : "Cerrado", summary:`${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}` }, actor:`Usuario_${getDeviceId().slice(-4)}` });
     notify(value ? "✓ Carril abierto" : "⛔ Carril cerrado", value ? "#22c55e" : "#6b7280");
     await publicarNoticia({ tipo: "carril", icono: "🚦", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
   };
@@ -12083,8 +12246,7 @@ function TutorialTab({ setActive, isAdmin }) {
     { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
       { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
       { label: "Paso 2 · Tipo específico", desc: "Selecciona el tipo exacto de la lista predefinida: falla mecánica, camión atravesado, choque, volcadura, zona de asalto, etc." },
-      { label: "Paso 3 · Zona (opcional)", desc: "Indica en qué acceso o zona ocurrió el incidente para mayor contexto." },
-      { label: "Paso 4 · Ubicación", desc: "Selecciona una ubicación predefinida del menú desplegable (carreteras, avenidas, calles, sitios de referencia) o escribe manualmente el punto exacto con detalle adicional como km, carril o referencia visual." },
+      { label: "Paso 3 · Ubicación", desc: "Selecciona una ubicación predefinida del menú desplegable (carreteras, avenidas, calles, sitios de referencia) o escribe manualmente el punto exacto con detalle adicional como km, carril o referencia visual." },
       { label: "Enviar Reporte", desc: "Tu reporte aparece como PENDIENTE y necesita votos de la comunidad para ser visible en el mapa." },
     ]},
     { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
