@@ -14648,7 +14648,10 @@ function App() {
     const loadAdminMessages = async () => {
       try {
         const { data } = await sb.from("admin_user_messages").select("*").eq("device_id", myId).eq("read", false).order("created_at", { ascending:false }).limit(10);
-        setAdminMessages(data || []);
+        const unread = data || [];
+        setAdminMessages(unread);
+        // Si hay mensaje nuevo, mostrarlo de inmediato sin obligar al usuario a abrir la burbuja.
+        if (unread.length > 0) setShowQRPanel("admin_msg");
       } catch {}
     };
     loadAdminMessages();
@@ -14656,6 +14659,8 @@ function App() {
     const ch = sb.channel("admin-msg-" + myId).on("postgres_changes", { event:"INSERT", schema:"public", table:"admin_user_messages", filter:`device_id=eq.${myId}` }, loadAdminMessages).subscribe();
     return () => sb.removeChannel(ch);
   }, [myId]);
+
+  const hasUnreadAdminMessages = adminMessages.length > 0;
   const handleSignOut = async () => {
     try {
       await sb.auth.signOut();
@@ -15042,7 +15047,7 @@ function App() {
                 alignItems: "center",
                 justifyContent: "center",
                 boxShadow: "0 4px 16px rgba(37, 211, 102, 0.4)",
-                border: "2px solid rgba(255, 255, 255, 0.2)",
+                border: hasUnreadAdminMessages && !supportExpanded ? "2px solid rgba(255,255,255,.55)" : "2px solid rgba(255, 255, 255, 0.2)",
                 fontSize: "24px",
                 transition: "transform 0.2s"
               }}
@@ -15226,11 +15231,55 @@ function App() {
               transform: translateY(0);
             }
           }
+          @keyframes adminBubblePulse {
+            0%, 100% {
+              transform: scale(1);
+              box-shadow: 0 0 0 0 rgba(251,191,36,.65), 0 4px 22px rgba(251,191,36,.55), 0 8px 16px rgba(0,0,0,.3);
+            }
+            50% {
+              transform: scale(1.08);
+              box-shadow: 0 0 0 14px rgba(251,191,36,0), 0 8px 34px rgba(251,191,36,.75), 0 8px 16px rgba(0,0,0,.3);
+            }
+          }
+          @keyframes adminNoticeNudge {
+            0%, 100% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(-4px); opacity: .9; }
+          }
         `}</style>
+
+        {hasUnreadAdminMessages && showQRPanel !== 'admin_msg' && (
+          <div
+            onClick={() => setShowQRPanel('admin_msg')}
+            style={{
+              position: "absolute",
+              bottom: "70px",
+              right: "0",
+              background: "rgba(13,31,60,.97)",
+              border: "1px solid rgba(251,191,36,.65)",
+              borderRadius: "18px",
+              padding: "9px 14px",
+              color: "#fbbf24",
+              fontFamily: getFont(theme,"secondary"),
+              fontSize: "12px",
+              fontWeight: 900,
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              boxShadow: "0 10px 30px rgba(0,0,0,.5), 0 0 24px rgba(251,191,36,.25)",
+              animation: "adminNoticeNudge 1.2s ease-in-out infinite"
+            }}
+          >
+            🔔 Tienes mensaje del administrador
+          </div>
+        )}
 
         {/* Botón principal FAB */}
         <div
           onClick={() => {
+            if (hasUnreadAdminMessages) {
+              setSupportExpanded(false);
+              setShowQRPanel("admin_msg");
+              return;
+            }
             setSupportExpanded(!supportExpanded);
             setShowQRPanel(null);
           }}
@@ -15239,7 +15288,9 @@ function App() {
             height: "56px",
             background: supportExpanded 
               ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
-              : "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
+              : hasUnreadAdminMessages
+                ? "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)"
+                : "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
@@ -15247,18 +15298,21 @@ function App() {
             cursor: "pointer",
             boxShadow: supportExpanded
               ? "0 4px 20px rgba(239, 68, 68, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)"
-              : "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
+              : hasUnreadAdminMessages
+                ? "0 4px 22px rgba(251,191,36,.55), 0 8px 16px rgba(0,0,0,.3)"
+                : "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border: "2px solid rgba(255, 255, 255, 0.2)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
-            transform: supportExpanded ? "rotate(45deg)" : "rotate(0deg)"
+            transform: supportExpanded ? "rotate(45deg)" : "rotate(0deg)",
+            animation: hasUnreadAdminMessages && !supportExpanded ? "adminBubblePulse 1.15s ease-in-out infinite" : "none"
           }}
           onMouseEnter={(e) => {
-            if (!supportExpanded) e.currentTarget.style.transform = "scale(1.1)";
+            if (!supportExpanded && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1.1)";
           }}
           onMouseLeave={(e) => {
-            if (!supportExpanded) e.currentTarget.style.transform = "scale(1)";
+            if (!supportExpanded && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1)";
           }}
         >
           <span style={{ 
@@ -15267,8 +15321,11 @@ function App() {
             transform: supportExpanded ? "rotate(-45deg)" : "rotate(0deg)",
             transition: "transform 0.3s"
           }}>
-            {supportExpanded ? "✕" : "💬"}
+            {supportExpanded ? "✕" : hasUnreadAdminMessages ? "🔔" : "💬"}
           </span>
+          {hasUnreadAdminMessages && !supportExpanded && (
+            <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
+          )}
         </div>
 
         {showQRPanel === 'admin_msg' && (
