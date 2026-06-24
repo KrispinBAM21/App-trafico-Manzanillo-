@@ -1367,13 +1367,20 @@ const getLogSummary = (log) => {
 };
 const isDeviceBlocked = async (action = "web") => {
   const deviceId = getDeviceId();
+  let accountId = null;
+  try { accountId = localStorage.getItem("cm_auth_user_id") || null; } catch {}
   try {
     const cached = JSON.parse(localStorage.getItem(DEVICE_SANCTION_KEY) || "null");
     if (cached && (cached.type === "ban" || (cached.until && new Date(cached.until).getTime() > Date.now()))) return cached;
   } catch {}
   try {
-    const { data } = await sb.from("admin_user_sanctions")
-      .select("*").eq("device_id", deviceId).eq("active", true).order("created_at", { ascending:false }).limit(20);
+    let query = sb.from("admin_user_sanctions")
+      .select("*").eq("active", true).order("created_at", { ascending:false }).limit(30);
+    query = accountId
+      ? query.or(`device_id.eq.${deviceId},user_id.eq.${accountId}`)
+      : query.eq("device_id", deviceId);
+    const { data, error } = await query;
+    if (error) throw error;
     const hit = (data || []).find(s => {
       const acts = s.actions || ["web", "vote", "report"];
       const applies = acts.includes(action) || acts.includes("web");
@@ -11917,6 +11924,66 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   };
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
 
+  const adminTargetLabel = (row, type) => type === "trabajador" ? (row.nombre_completo || "Trabajador") : (row.razon_social || "Empresa");
+  const adminDeleteProfile = async (row, type) => {
+    if (!isAdmin) return;
+    const name = adminTargetLabel(row, type);
+    if (!confirm(`¿Borrar/ocultar el perfil de ${name}?`)) return;
+    const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
+    const { error } = await sb.from(table).update({ activo:false, updated_at:new Date().toISOString() }).eq("id", row.id);
+    if (error) setMsg({type:"err", text:error.message});
+    else {
+      setMsg({type:"ok", text:`Perfil de ${name} borrado/oculto.`});
+      auditLog({ action:"posturas_borrar_perfil", section:`posturas_${type}`, entityId:row.id, before:row, after:{ summary:`Admin borró perfil ${name}`, profile_type:type, target_device_id:row.device_id || null, target_user_id:row.user_id || null }, actor:"Admin" });
+      loadPosturas();
+    }
+  };
+  const adminWarnProfile = async (row, type) => {
+    if (!isAdmin) return;
+    const name = adminTargetLabel(row, type);
+    const message = prompt(`Mensaje de advertencia para ${name}:`, `Tu perfil de ${type === "trabajador" ? "trabajador" : "empresa"} requiere revisión. Actualiza o corrige tu información.`);
+    if (!message || !message.trim()) return;
+    if (!row.device_id && !row.user_id) { setMsg({type:"err", text:"Este perfil no tiene device_id ni cuenta asociada para enviar advertencia."}); return; }
+    const payload = { device_id:row.device_id || myId, user_id:row.user_id || null, message:message.trim(), type:"advertencia", read:false, created_at:new Date().toISOString() };
+    const { error } = await sb.from("admin_user_messages").insert(payload);
+    if (error) setMsg({type:"err", text:error.message});
+    else {
+      setMsg({type:"ok", text:`Advertencia enviada a ${name}.`});
+      auditLog({ action:"posturas_advertencia", section:`posturas_${type}`, entityId:row.id, after:{ summary:`Admin envió advertencia a ${name}`, profile_type:type, target_device_id:row.device_id || null, target_user_id:row.user_id || null }, actor:"Admin" });
+    }
+  };
+  const adminSanctionProfile = async (row, type, sanctionType) => {
+    if (!isAdmin) return;
+    const name = adminTargetLabel(row, type);
+    const reason = prompt(`${sanctionType === "ban" ? "Motivo de baneo" : "Motivo de bloqueo"} para ${name}:`, sanctionType === "ban" ? "Baneo indefinido por administración." : "Bloqueo temporal por administración.");
+    if (reason === null) return;
+    let until_at = null;
+    if (sanctionType === "temp_block") {
+      const hours = Number(prompt("Horas de bloqueo:", "24") || "24");
+      until_at = new Date(Date.now() + Math.max(1, hours) * 60 * 60 * 1000).toISOString();
+    }
+    if (!row.device_id && !row.user_id) { setMsg({type:"err", text:"Este perfil no tiene device_id ni cuenta asociada para sancionar."}); return; }
+    const payload = { device_id:row.device_id || myId, user_id:row.user_id || null, type:sanctionType, reason:reason || (sanctionType === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:["web","vote","report"], until_at, active:true, created_at:new Date().toISOString() };
+    const { error } = await sb.from("admin_user_sanctions").insert(payload);
+    if (error) setMsg({type:"err", text:error.message});
+    else {
+      setMsg({type:"ok", text:`${sanctionType === "ban" ? "Baneo" : "Bloqueo"} aplicado a ${name}.`});
+      auditLog({ action:sanctionType === "ban" ? "posturas_baneo" : "posturas_bloqueo", section:`posturas_${type}`, entityId:row.id, after:{ summary:`Admin aplicó ${sanctionType === "ban" ? "baneo" : "bloqueo"} a ${name}`, profile_type:type, target_device_id:row.device_id || null, target_user_id:row.user_id || null, until_at }, actor:"Admin" });
+    }
+  };
+  const AdminProfileActions = ({ row, type }) => !isAdmin ? null : <div style={{ marginTop:"12px", padding:"10px", border:"1px solid rgba(251,191,36,0.28)", background:"rgba(251,191,36,0.06)", borderRadius:"12px" }}>
+    <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:"1px", marginBottom:"7px" }}>ADMIN · GESTIÓN DEL PERFIL</div>
+    <div style={{ color:"rgba(255,255,255,0.48)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", lineHeight:1.5, marginBottom:"8px" }}>
+      ID perfil: {row.id}<br/>Cuenta: {row.user_id || "Sin cuenta"}<br/>Dispositivo: {row.device_id || "Sin device_id"}
+    </div>
+    <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
+      <button onClick={()=>adminWarnProfile(row, type)} style={btn("#fbbf24")}>⚠️ Advertencia</button>
+      <button onClick={()=>adminSanctionProfile(row, type, "temp_block")} style={btn("#f97316")}>⏳ Bloquear</button>
+      <button onClick={()=>adminSanctionProfile(row, type, "ban")} style={btn("#ef4444")}>⛔ Baneo</button>
+      <button onClick={()=>adminDeleteProfile(row, type)} style={btn("#94a3b8")}>🗑️ Borrar perfil</button>
+    </div>
+  </div>;
+
   const filterRows = (rows, type) => {
     const term = q.trim().toLowerCase();
     return rows.filter(row => {
@@ -11964,6 +12031,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.maniobra} · {row.alcance}<br/>📞 {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}{row.correo ? <><br/>✉️ {row.correo}</> : null}</div>
       <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
       {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar mi perfil</button>}
+      <AdminProfileActions row={row} type="trabajador" />
       <div style={{ marginTop:"12px", paddingTop:"10px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"10px", fontWeight:"800", marginBottom:"6px" }}>Calificar trabajo</div>
         <StarRating value={myStars} onRate={setMyStars} />
@@ -11986,6 +12054,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.ubicacion} · {row.alcance}<br/>Representante: {row.representante}<br/>Contacto técnico: {row.contacto_tecnico || "No especificado"}<br/>✉️ {row.correo}{row.telefono ? ` · 📞 ${row.telefono}` : ""}</div>
       <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
       {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar empresa</button>}
+      <AdminProfileActions row={row} type="empresa" />
       <div style={{ marginTop:"12px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"10px" }}><span style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", fontWeight:"800" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>⚠️ Queja</button></div>
       {aprobadas.slice(0,2).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", borderRadius:"8px", padding:"8px" }}>Queja aprobada: {c.comentario}</div>)}
     </div>;
@@ -15838,13 +15907,14 @@ function App() {
 
     const loadAdminMessages = async ({ forceOpen = false } = {}) => {
       try {
-        const { data } = await sb
+        let msgQuery = sb
           .from("admin_user_messages")
           .select("*")
-          .eq("device_id", myId)
           .eq("read", false)
           .order("created_at", { ascending:false })
           .limit(10);
+        msgQuery = authUser?.id ? msgQuery.or(`device_id.eq.${myId},user_id.eq.${authUser.id}`) : msgQuery.eq("device_id", myId);
+        const { data } = await msgQuery;
         if (!alive) return;
         const unread = data || [];
         const ids = unread.map(m => m.id).join("|");
@@ -15883,9 +15953,11 @@ function App() {
 
     // Realtime: llega al instante cuando Supabase Realtime está habilitado para estas tablas.
     const ch = sb
-      .channel("admin-live-" + myId)
+      .channel("admin-live-" + myId + "-" + (authUser?.id || "anon"))
       .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_messages", filter:`device_id=eq.${myId}` }, () => refreshAdminNotifications({ forceOpen:true }))
       .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_sanctions", filter:`device_id=eq.${myId}` }, () => refreshAdminNotifications({ forceOpen:true }))
+      .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_messages", filter:`user_id=eq.${authUser?.id || "__none__"}` }, () => refreshAdminNotifications({ forceOpen:true }))
+      .on("postgres_changes", { event:"*", schema:"public", table:"admin_user_sanctions", filter:`user_id=eq.${authUser?.id || "__none__"}` }, () => refreshAdminNotifications({ forceOpen:true }))
       .subscribe();
 
     // Respaldo: si la tabla no está habilitada en Realtime o el celular pierde conexión websocket,
@@ -15897,7 +15969,7 @@ function App() {
       if (pollingTimer) clearInterval(pollingTimer);
       sb.removeChannel(ch);
     };
-  }, [myId]);
+  }, [myId, authUser?.id]);
 
   const hasUnreadAdminMessages = adminMessages.length > 0;
   const handleSignOut = async () => {
@@ -15907,15 +15979,23 @@ function App() {
       console.error("signOut error:", e);
     }
     setAuthUser(null);
+    try { localStorage.removeItem("cm_auth_user_id"); } catch {}
     setShowSessionMenu(false);
   };
 
   useEffect(() => {
+    const rememberAuthUser = (user) => {
+      setAuthUser(user ?? null);
+      try {
+        if (user?.id) localStorage.setItem("cm_auth_user_id", user.id);
+        else localStorage.removeItem("cm_auth_user_id");
+      } catch {}
+    };
     sb.auth.getSession().then(({ data }) => {
-      setAuthUser(data?.session?.user ?? null);
+      rememberAuthUser(data?.session?.user ?? null);
     });
     const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user ?? null);
+      rememberAuthUser(session?.user ?? null);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
