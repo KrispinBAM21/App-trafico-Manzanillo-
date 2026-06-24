@@ -3287,6 +3287,62 @@ function HorizontalAdSenseSection({ sectionKey = "global" }) {
   );
 }
 
+function FluidAdSenseSection({ sectionKey = "fluid" }) {
+  const adRef = useRef(null);
+  const pushedRef = useRef(false);
+
+  useEffect(() => {
+    pushedRef.current = false;
+    const t = setTimeout(() => {
+      try {
+        if (!adRef.current || pushedRef.current) return;
+        if (!window.adsbygoogle) window.adsbygoogle = [];
+        window.adsbygoogle.push({});
+        pushedRef.current = true;
+      } catch (err) {
+        console.warn("AdSense fluid no pudo inicializarse aún:", err?.message || err);
+      }
+    }, 650);
+    return () => clearTimeout(t);
+  }, [sectionKey]);
+
+  return (
+    <div
+      className="cm-adsense-fluid-wrap"
+      style={{
+        width: "100%",
+        maxWidth: "980px",
+        margin: "10px auto 16px",
+        padding: "0 10px",
+        position: "relative",
+        zIndex: 2,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          minHeight: "120px",
+          borderRadius: "12px",
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.025)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <ins
+          key={sectionKey}
+          ref={adRef}
+          className="adsbygoogle"
+          style={{ display: "block", width: "100%", minHeight: "120px" }}
+          data-ad-format="fluid"
+          data-ad-layout-key="-fb+5w+4e-db+86"
+          data-ad-client="ca-pub-6574016310382297"
+          data-ad-slot="2581358469"
+        />
+      </div>
+    </div>
+  );
+}
+
 function AnunciosBanner({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const vw = useWindowWidth();
@@ -15812,6 +15868,7 @@ function App() {
 
         <AnunciosBanner isAdmin={isAdmin} />
         <HorizontalAdSenseSection sectionKey={active} />
+        {["inicio", "donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
