@@ -3228,6 +3228,65 @@ function useWindowWidth() {
   return w;
 }
 
+
+function HorizontalAdSenseSection({ sectionKey = "global" }) {
+  const adRef = useRef(null);
+  const pushedRef = useRef(false);
+
+  useEffect(() => {
+    pushedRef.current = false;
+    const t = setTimeout(() => {
+      try {
+        if (!adRef.current || pushedRef.current) return;
+        if (!window.adsbygoogle) window.adsbygoogle = [];
+        window.adsbygoogle.push({});
+        pushedRef.current = true;
+      } catch (err) {
+        // Google puede lanzar error si el slot todavía no está listo o ya fue procesado.
+        // No rompemos la app; AdSense reintentará al cambiar de sección o recargar.
+        console.warn("AdSense horizontal no pudo inicializarse aún:", err?.message || err);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [sectionKey]);
+
+  return (
+    <div
+      className="cm-adsense-horizontal-wrap"
+      style={{
+        width: "100%",
+        maxWidth: "980px",
+        margin: "12px auto 14px",
+        padding: "0 10px",
+        position: "relative",
+        zIndex: 2,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          minHeight: "90px",
+          borderRadius: "12px",
+          overflow: "hidden",
+          background: "rgba(255,255,255,0.025)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <ins
+          key={sectionKey}
+          ref={adRef}
+          className="adsbygoogle"
+          style={{ display: "block", width: "100%", minHeight: "90px" }}
+          data-ad-client="ca-pub-6574016310382297"
+          data-ad-slot="4217873760"
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        />
+      </div>
+    </div>
+  );
+}
+
 function AnunciosBanner({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const vw = useWindowWidth();
@@ -15752,6 +15811,7 @@ function App() {
         <NavBar active={active} set={setActive} />
 
         <AnunciosBanner isAdmin={isAdmin} />
+        <HorizontalAdSenseSection sectionKey={active} />
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
