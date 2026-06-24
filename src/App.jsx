@@ -130,7 +130,7 @@ const TABS = [
   { key: "segundo",     label: "2° Acceso",   icon: "🛣️" },
   { key: "carriles",    label: "Carriles",    icon: "🚦" },
   { key: "noticias",    label: "Noticias",    icon: "📰" },
-  { key: "donativos",   label: "Donativos",   icon: "💝" },
+  { key: "donativos",   label: "Posturas",    icon: "🤝" },
   { key: "tutorial",    label: "Tutorial",    icon: "🎓" }
 ];
 
@@ -241,7 +241,7 @@ const DEFAULT_THEME = {
     segundo: { type: "emoji", value: "🛣️", size: 20 },
     carriles: { type: "emoji", value: "🚦", size: 20 },
     noticias: { type: "emoji", value: "📰", size: 20 },
-    donativos: { type: "emoji", value: "💝", size: 20 },
+    donativos: { type: "emoji", value: "🤝", size: 20 },
     tutorial: { type: "emoji", value: "🎓", size: 20 }
   },
   
@@ -5976,7 +5976,7 @@ function NavBar({ active, set }) {
     { id: "segundo",    label: "Confinados", icon: "access"  },
     { id: "carriles",   label: "Carriles",   icon: "lanes"  },
     { id: "noticias",   label: "Noticias",   icon: "news"  },
-    { id: "donativos",  label: "Donativos",  icon: "donate"  },
+    { id: "donativos",  label: "Posturas",   icon: "donate"  },
     { id: "tutorial",   label: "Más Info",   icon: "info"  },
   ];
 
@@ -11809,6 +11809,249 @@ function NoticiasTab({ isAdmin }) {
   );
 }
 
+
+// ─── TAB: POSTURAS ───────────────────────────────────────────────────────────
+const POSTURAS_LICENCIAS = [
+  "Federal tipo B - Carga general", "Federal tipo C - Carga de 2 o 3 ejes", "Federal tipo D - Turismo",
+  "Federal tipo E - Materiales/residuos peligrosos", "Estatal chofer", "Licencia de operador portuario", "Otra"
+];
+const POSTURAS_MANIOBRAS = ["Full", "Sencillo", "Caja seca", "Rabón", "Torton", "Plataforma", "Portacontenedor", "Lowboy", "Dolly", "Refrigerado", "Material peligroso", "Maniobra local", "Otro"];
+const POSTURAS_ALCANCE = ["Local", "Foráneo", "Ambos"];
+const POSTURAS_TIPO_EMPRESA = ["Transportista", "Agencia aduanal", "Patio", "Terminal", "Operador logístico", "Maniobrista", "Taller", "Refacciones", "Otro"];
+
+function StarRating({ value=0, onRate=null, small=false }) {
+  const theme = React.useContext(ThemeContext);
+  const rounded = Math.round(Number(value || 0));
+  return <div style={{ display:"inline-flex", gap: small ? "1px" : "3px", alignItems:"center" }}>
+    {[1,2,3,4,5].map(n => (
+      <button key={n} onClick={() => onRate && onRate(n)} disabled={!onRate} style={{ background:"transparent", border:"none", padding: small ? "0 1px" : "1px 2px", cursor:onRate?"pointer":"default", color:n<=rounded?"#fbbf24":"rgba(255,255,255,0.22)", fontSize:small?"13px":"18px", lineHeight:1, fontFamily:getFont(theme,"secondary") }}>★</button>
+    ))}
+  </div>;
+}
+
+function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
+  const theme = React.useContext(ThemeContext);
+  const [sub, setSub] = useState("posturas");
+  const [vista, setVista] = useState("postular");
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [empresas, setEmpresas] = useState([]);
+  const [ratings, setRatings] = useState([]);
+  const [quejas, setQuejas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [filtroEstatus, setFiltroEstatus] = useState("todos");
+  const [filtroAlcance, setFiltroAlcance] = useState("todos");
+  const [filtroEstrellas, setFiltroEstrellas] = useState("todos");
+  const [pageTrab, setPageTrab] = useState(1);
+  const [pageEmp, setPageEmp] = useState(1);
+  const [msg, setMsg] = useState(null);
+  const [showReminder, setShowReminder] = useState(false);
+  const PAGE_SIZE = 8;
+
+  const emptyTrab = { nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local", telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true };
+  const emptyEmp = { razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local" };
+  const [trabForm, setTrabForm] = useState(emptyTrab);
+  const [empForm, setEmpForm] = useState(emptyEmp);
+  const [editingTrabId, setEditingTrabId] = useState(null);
+  const [editingEmpId, setEditingEmpId] = useState(null);
+
+  const card = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"15px", padding:"16px", boxShadow:"0 10px 26px rgba(0,0,0,0.18)" };
+  const input = { width:"100%", boxSizing:"border-box", background:"rgba(3,10,22,0.72)", border:"1px solid rgba(56,189,248,0.22)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,0.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
+  const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", textTransform:"uppercase", marginBottom:"5px" };
+  const btn = (color="#38bdf8") => ({ border:`1px solid ${color}66`, background:`${color}18`, color, borderRadius:"10px", padding:"10px 13px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" });
+
+  const avgFor = (type, id) => {
+    const rows = ratings.filter(r => r.profile_type === type && String(r.profile_id) === String(id));
+    if (!rows.length) return { avg:0, count:0 };
+    return { avg: rows.reduce((a,r)=>a+Number(r.stars||0),0)/rows.length, count: rows.length };
+  };
+  const commentsFor = (id) => ratings.filter(r => r.profile_type === "trabajador" && String(r.profile_id) === String(id) && (r.comment || "").trim());
+
+  const loadPosturas = async () => {
+    setLoading(true);
+    try {
+      const [{ data:t }, { data:e }, { data:r }, { data:qj }] = await Promise.all([
+        sb.from("posturas_trabajadores").select("*").eq("activo", true).order("updated_at", { ascending:false }),
+        sb.from("posturas_empresas").select("*").eq("activo", true).order("updated_at", { ascending:false }),
+        sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
+        sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
+      ]);
+      setTrabajadores(t || []); setEmpresas(e || []); setRatings(r || []); setQuejas(qj || []);
+      const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId);
+      const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
+      setShowReminder(!!authUser && stale);
+    } catch (e) {
+      setMsg({ type:"err", text:"No se pudieron cargar posturas. Verifica que las tablas existan en Supabase." });
+    }
+    setLoading(false);
+  };
+  useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+
+  const canEdit = (row) => !!authUser && row.user_id === authUser.id;
+  const requireLogin = () => { setMsg({ type:"err", text:"Para guardar y editar tu perfil, primero crea o inicia sesión en Más info." }); return false; };
+
+  const saveTrab = async () => {
+    if (!authUser) return requireLogin();
+    if (!trabForm.nombre_completo.trim() || !trabForm.edad || !trabForm.telefono_llamadas.trim() || !trabForm.telefono_whatsapp.trim()) { setMsg({type:"err", text:"Completa nombre, edad, teléfono de llamadas y WhatsApp."}); return; }
+    const payload = { ...trabForm, edad:Number(trabForm.edad), user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
+    const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
+    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de trabajador guardado."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
+  };
+  const saveEmp = async () => {
+    if (!authUser) return requireLogin();
+    if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
+    const payload = { ...empForm, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
+    const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
+    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de empresa guardado."}); setEmpForm(emptyEmp); setEditingEmpId(null); loadPosturas(); }
+  };
+  const rate = async (type, id, stars, comment="") => {
+    const payload = { profile_type:type, profile_id:id, user_id:authUser?.id || null, device_id:myId, stars, comment: type === "trabajador" ? comment.trim() : null };
+    const { error } = await sb.from("posturas_ratings").insert(payload);
+    if (error) setMsg({type:"err", text:error.message}); else { setMsg({type:"ok", text:"Calificación registrada."}); loadPosturas(); }
+  };
+  const sendQueja = async (empresa) => {
+    const texto = prompt(`Escribe tu queja sobre ${empresa.razon_social}. El admin la revisará antes de publicarla.`);
+    if (!texto || !texto.trim()) return;
+    const { error } = await sb.from("posturas_quejas").insert({ empresa_id:empresa.id, device_id:myId, user_id:authUser?.id || null, comentario:texto.trim(), aprobado:false });
+    if (error) setMsg({type:"err", text:error.message}); else setMsg({type:"ok", text:"Queja enviada a revisión del administrador."});
+  };
+  const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
+
+  const filterRows = (rows, type) => {
+    const term = q.trim().toLowerCase();
+    return rows.filter(row => {
+      const rating = avgFor(type, row.id).avg;
+      const statusTxt = type === "trabajador" ? (row.disponible ? "disponible" : "no disponible") : (row.estatus === "tiene_trabajo" ? "tiene trabajo" : "lleno");
+      const hay = !term || JSON.stringify(row).toLowerCase().includes(term) || statusTxt.includes(term);
+      const okStatus = filtroEstatus === "todos" || (type === "trabajador" ? String(row.disponible) === filtroEstatus : row.estatus === filtroEstatus);
+      const okAlcance = filtroAlcance === "todos" || row.alcance === filtroAlcance;
+      const okStars = filtroEstrellas === "todos" || rating >= Number(filtroEstrellas);
+      return hay && okStatus && okAlcance && okStars;
+    });
+  };
+  const trabFiltrados = filterRows(trabajadores, "trabajador");
+  const empFiltradas = filterRows(empresas, "empresa");
+  const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+
+  const ProfileHeader = () => (
+    <div style={{ ...card, marginBottom:"14px", display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"center", flexWrap:"wrap" }}>
+      <div>
+        <div style={{ fontFamily:getFont(theme,"title"), fontSize:"20px", color:"#fff", fontWeight:"900" }}>🤝 Posturas</div>
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.52)", marginTop:"3px" }}>Perfiles de trabajadores y empresas visibles para la comunidad.</div>
+      </div>
+      <button onClick={() => setActive && setActive("tutorial")} style={btn(authUser ? "#22c55e" : "#fbbf24")}>{authUser ? "👤 Cuenta activa" : "👤 Crear cuenta / iniciar sesión"}</button>
+    </div>
+  );
+
+  const Filters = () => <div style={{ ...card, marginBottom:"14px" }}>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px" }}>
+      <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, RFC, licencia, ciudad..." style={input} />
+      <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+      <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+      <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+    </div>
+  </div>;
+
+  const TrabCard = ({ row }) => {
+    const r = avgFor("trabajador", row.id);
+    const [myStars, setMyStars] = useState(0);
+    const [comment, setComment] = useState("");
+    return <div style={card}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}>
+        <div><div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"14px" }}>{row.nombre_completo}</div><div style={{ color:"rgba(255,255,255,0.45)", fontSize:"11px", marginTop:"4px" }}>{row.edad} años · {row.licencia}</div></div>
+        <span style={{ padding:"5px 9px", borderRadius:"999px", background:row.disponible?"#22c55e18":"#ef444418", color:row.disponible?"#22c55e":"#ef4444", fontSize:"10px", fontWeight:"900" }}>{row.disponible?"Disponible":"No disponible"}</span>
+      </div>
+      <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.maniobra} · {row.alcance}<br/>📞 {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}{row.correo ? <><br/>✉️ {row.correo}</> : null}</div>
+      <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
+      {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar mi perfil</button>}
+      <div style={{ marginTop:"12px", paddingTop:"10px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"10px", fontWeight:"800", marginBottom:"6px" }}>Calificar trabajo</div>
+        <StarRating value={myStars} onRate={setMyStars} />
+        <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"7px", minHeight:"54px"}} />
+        <button disabled={!myStars} onClick={()=>rate("trabajador", row.id, myStars, comment)} style={{...btn("#fbbf24"), opacity:myStars?1:.45, marginTop:"7px"}}>Guardar calificación</button>
+      </div>
+      {commentsFor(row.id).slice(0,3).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(255,255,255,0.04)", borderRadius:"8px", padding:"8px" }}>★ {c.stars} · {c.comment}</div>)}
+    </div>;
+  };
+
+  const EmpresaCard = ({ row }) => {
+    const r = avgFor("empresa", row.id);
+    const [myStars, setMyStars] = useState(0);
+    const aprobadas = quejas.filter(q => q.empresa_id === row.id && q.aprobado);
+    return <div style={card}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}>
+        <div><div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"14px" }}>{row.razon_social}</div><div style={{ color:"rgba(255,255,255,0.45)", fontSize:"11px", marginTop:"4px" }}>{row.tipo_empresa} · RFC {row.rfc}</div></div>
+        <span style={{ padding:"5px 9px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"#22c55e18":"#ef444418", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", fontSize:"10px", fontWeight:"900" }}>{row.estatus==="tiene_trabajo"?"Tiene trabajo":"Lleno"}</span>
+      </div>
+      <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.ubicacion} · {row.alcance}<br/>Representante: {row.representante}<br/>Contacto técnico: {row.contacto_tecnico || "No especificado"}<br/>✉️ {row.correo}{row.telefono ? ` · 📞 ${row.telefono}` : ""}</div>
+      <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
+      {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar empresa</button>}
+      <div style={{ marginTop:"12px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"10px" }}><span style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", fontWeight:"800" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>⚠️ Queja</button></div>
+      {aprobadas.slice(0,2).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", borderRadius:"8px", padding:"8px" }}>Queja aprobada: {c.comentario}</div>)}
+    </div>;
+  };
+
+  const WorkerForm = () => <div style={card}>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Postular como trabajador</div>
+    <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Para guardar y editar tu perfil necesitas crear usuario en Más info. Todos podrán ver tu perfil público.</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+      <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
+      <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:e.target.value}))}/></div>
+      <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
+      <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
+      <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
+      <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
+    </div>
+    <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn("#22c55e")}>{editingTrabId?"Actualizar perfil":"Guardar perfil"}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+  </div>;
+
+  const CompanyForm = () => <div style={card}>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Empresario</div>
+    <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Registra empresa, contactos y disponibilidad de trabajo. Las quejas requieren aprobación admin antes de mostrarse.</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+      <div><div style={label}>Razón social / nombre</div><input style={input} value={empForm.razon_social} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))}/></div>
+      <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
+      <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Ubicación</div><input style={input} value={empForm.ubicacion} onChange={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))}/></div>
+      <div><div style={label}>Contacto técnico</div><input style={input} value={empForm.contacto_tecnico||""} onChange={e=>setEmpForm(f=>({...f,contacto_tecnico:e.target.value}))}/></div>
+      <div><div style={label}>Representante</div><input style={input} value={empForm.representante} onChange={e=>setEmpForm(f=>({...f,representante:e.target.value}))}/></div>
+      <div><div style={label}>Correo obligatorio</div><input style={input} value={empForm.correo} onChange={e=>setEmpForm(f=>({...f,correo:e.target.value}))}/></div>
+      <div><div style={label}>Teléfono</div><input style={input} value={empForm.telefono||""} onChange={e=>setEmpForm(f=>({...f,telefono:e.target.value}))}/></div>
+      <div><div style={label}>WhatsApp</div><input style={input} value={empForm.whatsapp||""} onChange={e=>setEmpForm(f=>({...f,whatsapp:e.target.value}))}/></div>
+      <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
+      <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+    </div>
+    <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn("#22c55e")}>{editingEmpId?"Actualizar empresa":"Guardar empresa"}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+  </div>;
+
+  const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
+
+  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1120px", margin:"0 auto" }}>
+    <ProfileHeader />
+    {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
+    {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"💙"},{id:"posturas", label:"Posturas Conect", icon:"🤝"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}>{t.icon} {t.label}</button>)}</div>
+    {sub === "donativos" && <DonativosTab embedded />}
+    {sub === "posturas" && <>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"🚛"},{id:"empresario", label:"Empresario", icon:"🏢"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}>{t.icon} {t.label}</button>)}</div>
+      {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
+      <Filters />
+      {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
+      {vista === "postular" && <><div style={{ color:"#38bdf8", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary") }}>Trabajadores ({trabFiltrados.length})</div><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px" }}>{paginate(trabFiltrados, pageTrab).map(row => <TrabCard key={row.id} row={row}/>)}</div><Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} /></>}
+      {vista === "empresario" && <><div style={{ color:"#38bdf8", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary") }}>Empresas ({empFiltradas.length})</div><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px" }}>{paginate(empFiltradas, pageEmp).map(row => <EmpresaCard key={row.id} row={row}/>)}</div><Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} /><AdminQuejas /></>}
+    </>}
+  </div>;
+}
+
+function Pagination({ total, page, setPage, pageSize }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pages <= 1) return null;
+  return <div style={{ display:"flex", justifyContent:"center", gap:"8px", marginTop:"14px" }}><button onClick={()=>setPage(Math.max(1,page-1))} disabled={page<=1} style={{padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(255,255,255,.15)", background:"rgba(255,255,255,.05)", color:"#fff"}}>←</button><span style={{ color:"rgba(255,255,255,.55)", fontSize:"12px", padding:"8px" }}>Hoja {page} de {pages}</span><button onClick={()=>setPage(Math.min(pages,page+1))} disabled={page>=pages} style={{padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(255,255,255,.15)", background:"rgba(255,255,255,.05)", color:"#fff"}}>→</button></div>;
+}
+
 // ─── TAB: DONATIVOS ───────────────────────────────────────────────────────────
 function DonativosTab() {
   const theme = React.useContext(ThemeContext);
@@ -13085,6 +13328,7 @@ function TutorialTab({ setActive, isAdmin }) {
   const [regFecha, setRegFecha]     = useState("");
   const [regPais, setRegPais]       = useState("");
   const [regCiudad, setRegCiudad]   = useState("");
+  const [regTipoUsuario, setRegTipoUsuario] = useState("visualizador_votante");
   const [regTel, setRegTel]         = useState("");
   const [regOtp, setRegOtp]         = useState("");
   const [otpEnviado, setOtpEnviado] = useState(false);
@@ -13197,6 +13441,7 @@ function TutorialTab({ setActive, isAdmin }) {
             pais: regPais.trim(),
             ciudad: regCiudad.trim(),
             telefono: regTel.trim(),
+            tipo_usuario: regTipoUsuario,
           }
         }
       });
@@ -13379,6 +13624,11 @@ function TutorialTab({ setActive, isAdmin }) {
                 <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} style={{...inputStyle, colorScheme:"dark"}} />
                 <input value={regPais} onChange={e=>setRegPais(e.target.value)} placeholder="País *" style={inputStyle} />
                 <input value={regCiudad} onChange={e=>setRegCiudad(e.target.value)} placeholder="Ciudad *" style={inputStyle} />
+                <select value={regTipoUsuario} onChange={e=>setRegTipoUsuario(e.target.value)} style={inputStyle}>
+                  <option value="visualizador_votante">Visualizador-votante</option>
+                  <option value="trabajador_votante">Trabajador-votante</option>
+                  <option value="empresa_votante">Empresa-votante</option>
+                </select>
               </>
             )}
 
@@ -15883,7 +16133,7 @@ function App() {
         {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
-        {active === "donativos"  && <DonativosTab />}
+        {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} />}
 
         {/* ⚓ CONTROL PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
