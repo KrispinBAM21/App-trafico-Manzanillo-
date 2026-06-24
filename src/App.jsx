@@ -3229,117 +3229,119 @@ function useWindowWidth() {
 }
 
 
-function HorizontalAdSenseSection({ sectionKey = "global" }) {
+function AdSenseUnit({
+  sectionKey = "global",
+  slot,
+  variant = "horizontal",
+  format = "auto",
+  layoutKey = null,
+  responsive = true,
+}) {
   const adRef = useRef(null);
+  const wrapRef = useRef(null);
   const pushedRef = useRef(false);
+  const [adStatus, setAdStatus] = useState("loading");
 
   useEffect(() => {
     pushedRef.current = false;
-    const t = setTimeout(() => {
+    setAdStatus("loading");
+    const el = adRef.current;
+    if (!el) return;
+
+    const readStatus = () => {
+      const status = el.getAttribute("data-ad-status");
+      if (status === "filled" || status === "unfilled") setAdStatus(status);
+    };
+
+    const obs = new MutationObserver(readStatus);
+    obs.observe(el, { attributes: true, attributeFilter: ["data-ad-status", "style"] });
+
+    const pushTimer = setTimeout(() => {
       try {
         if (!adRef.current || pushedRef.current) return;
         if (!window.adsbygoogle) window.adsbygoogle = [];
         window.adsbygoogle.push({});
         pushedRef.current = true;
       } catch (err) {
-        // Google puede lanzar error si el slot todavía no está listo o ya fue procesado.
-        // No rompemos la app; AdSense reintentará al cambiar de sección o recargar.
-        console.warn("AdSense horizontal no pudo inicializarse aún:", err?.message || err);
+        console.warn("AdSense no pudo inicializarse aún:", err?.message || err);
       }
-    }, 450);
-    return () => clearTimeout(t);
-  }, [sectionKey]);
+    }, 600);
+
+    // Si Google no llena el bloque después de unos segundos, no dejamos el hueco transparente.
+    const hideTimer = setTimeout(() => {
+      const status = el.getAttribute("data-ad-status");
+      const hasIframe = !!el.querySelector("iframe");
+      const h = el.offsetHeight || 0;
+      if (status === "unfilled" || (!hasIframe && h < 12)) setAdStatus("unfilled");
+    }, 6500);
+
+    return () => {
+      clearTimeout(pushTimer);
+      clearTimeout(hideTimer);
+      obs.disconnect();
+    };
+  }, [sectionKey, slot, variant]);
+
+  const isFilled = adStatus === "filled";
+  const isHidden = adStatus === "unfilled";
 
   return (
     <div
-      className="cm-adsense-horizontal-wrap"
+      ref={wrapRef}
+      className={`cm-adsense-wrap cm-adsense-${variant} ${isFilled ? "cm-ad-filled" : ""} ${isHidden ? "cm-ad-hidden" : ""}`}
       style={{
         width: "100%",
         maxWidth: "980px",
-        margin: "12px auto 14px",
-        padding: "0 10px",
+        margin: isHidden ? 0 : "10px auto 12px",
+        padding: isHidden ? 0 : "0 10px",
         position: "relative",
         zIndex: 2,
         overflow: "hidden",
+        height: isHidden ? 0 : "auto",
+        minHeight: 0,
+        opacity: isHidden ? 0 : 1,
+        pointerEvents: isHidden ? "none" : "auto",
+        transition: "opacity .25s ease",
       }}
+      aria-hidden={isHidden ? "true" : undefined}
     >
-      <div
-        style={{
-          minHeight: "90px",
-          borderRadius: "12px",
-          overflow: "hidden",
-          background: "rgba(255,255,255,0.025)",
-          border: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
-        <ins
-          key={sectionKey}
-          ref={adRef}
-          className="adsbygoogle"
-          style={{ display: "block", width: "100%", minHeight: "90px" }}
-          data-ad-client="ca-pub-6574016310382297"
-          data-ad-slot="4217873760"
-          data-ad-format="auto"
-          data-full-width-responsive="true"
-        />
-      </div>
+      <ins
+        key={`${variant}-${sectionKey}-${slot}`}
+        ref={adRef}
+        className="adsbygoogle"
+        style={{ display: "block", width: "100%" }}
+        data-ad-client="ca-pub-6574016310382297"
+        data-ad-slot={slot}
+        data-ad-format={format}
+        data-full-width-responsive={responsive ? "true" : undefined}
+        data-ad-layout-key={layoutKey || undefined}
+      />
     </div>
   );
 }
 
-function FluidAdSenseSection({ sectionKey = "fluid" }) {
-  const adRef = useRef(null);
-  const pushedRef = useRef(false);
-
-  useEffect(() => {
-    pushedRef.current = false;
-    const t = setTimeout(() => {
-      try {
-        if (!adRef.current || pushedRef.current) return;
-        if (!window.adsbygoogle) window.adsbygoogle = [];
-        window.adsbygoogle.push({});
-        pushedRef.current = true;
-      } catch (err) {
-        console.warn("AdSense fluid no pudo inicializarse aún:", err?.message || err);
-      }
-    }, 650);
-    return () => clearTimeout(t);
-  }, [sectionKey]);
-
+function HorizontalAdSenseSection({ sectionKey = "global" }) {
   return (
-    <div
-      className="cm-adsense-fluid-wrap"
-      style={{
-        width: "100%",
-        maxWidth: "980px",
-        margin: "10px auto 16px",
-        padding: "0 10px",
-        position: "relative",
-        zIndex: 2,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          minHeight: "120px",
-          borderRadius: "12px",
-          overflow: "hidden",
-          background: "rgba(255,255,255,0.025)",
-          border: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
-        <ins
-          key={sectionKey}
-          ref={adRef}
-          className="adsbygoogle"
-          style={{ display: "block", width: "100%", minHeight: "120px" }}
-          data-ad-format="fluid"
-          data-ad-layout-key="-fb+5w+4e-db+86"
-          data-ad-client="ca-pub-6574016310382297"
-          data-ad-slot="2581358469"
-        />
-      </div>
-    </div>
+    <AdSenseUnit
+      sectionKey={sectionKey}
+      slot="4217873760"
+      variant="horizontal"
+      format="auto"
+      responsive={true}
+    />
+  );
+}
+
+function FluidAdSenseSection({ sectionKey = "fluid" }) {
+  return (
+    <AdSenseUnit
+      sectionKey={sectionKey}
+      slot="2581358469"
+      variant="fluid"
+      format="fluid"
+      layoutKey="-fb+5w+4e-db+86"
+      responsive={false}
+    />
   );
 }
 
@@ -15822,7 +15824,10 @@ function App() {
           input::placeholder,textarea::placeholder{color:#334155;}
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
           html, body, #root{min-height:100%;overflow-x:hidden!important;}
-          .adsbygoogle{max-width:100vw!important;}
+           .adsbygoogle{max-width:100vw!important;background:transparent!important;border:0!important;outline:0!important;}
+          .adsbygoogle[data-ad-status="unfilled"]{display:none!important;height:0!important;min-height:0!important;}
+          .cm-adsense-wrap{background:transparent!important;border:0!important;box-shadow:none!important;}
+          .cm-adsense-wrap.cm-ad-hidden{display:none!important;}
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
         `}</style>
 
