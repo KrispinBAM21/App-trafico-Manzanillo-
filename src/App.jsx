@@ -14148,7 +14148,7 @@ function CookieBanner({ onAccept, onReject }) {
   const theme = React.useContext(ThemeContext);
   return (
     <div style={{
-      position: "fixed", bottom: "var(--cm-adsense-bottom-offset, 0px)", left: 0, right: 0, zIndex: 9998,
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998,
       background: "rgba(10,15,30,0.97)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
       borderTop: "1px solid rgba(255,255,255,0.15)", padding: "16px 20px",
     }}>
@@ -15386,8 +15386,10 @@ function App() {
   }, [theme.customSecondaryFontData, theme.secondaryFont]);
 
 
-  // Ajuste para AdSense en móvil: evita que el FAB/burbuja o elementos fijos cubran
-  // los anuncios ancla inferiores y corrige z-index cuando Auto Ads monta iframes fuera de React.
+  // Ajuste para AdSense en móvil.
+  // IMPORTANTE: no agregamos padding al body ni forzamos z-index de iframes de Google,
+  // porque eso puede crear una franja azul/placeholder visible al hacer scroll en iOS.
+  // Solo detectamos si hay anuncio ancla inferior para subir la burbuja de soporte.
   useEffect(() => {
     const tuneAdSenseMobile = () => {
       try {
@@ -15402,38 +15404,28 @@ function App() {
           if (!isGoogleAd) return;
 
           const r = el.getBoundingClientRect?.();
-          if (!r) return;
+          if (!r || r.width < 120 || r.height < 20) return;
           const cs = window.getComputedStyle(el);
-          const nearBottom = r.height > 20 && r.bottom > window.innerHeight - 130;
+          const nearBottom = r.top >= window.innerHeight - 150 || r.bottom >= window.innerHeight - 8;
           const fixedish = cs.position === 'fixed' || cs.position === 'sticky' || nearBottom;
 
-          if (fixedish) {
-            anchorHeight = Math.max(anchorHeight, Math.min(110, Math.ceil(r.height + 12)));
-            let node = el;
-            for (let i = 0; node && i < 4; i += 1) {
-              if (node.style) {
-                node.style.zIndex = '2147483647';
-                node.style.maxWidth = '100vw';
-              }
-              node = node.parentElement;
-            }
-          }
+          if (fixedish) anchorHeight = Math.max(anchorHeight, Math.min(96, Math.ceil(r.height + 10)));
         });
 
-        document.documentElement.style.setProperty('--cm-adsense-bottom-offset', anchorHeight ? `${anchorHeight}px` : '0px');
+        document.documentElement.style.setProperty('--cm-floating-bottom-offset', anchorHeight ? `${anchorHeight}px` : '0px');
         document.documentElement.classList.toggle('cm-adsense-anchor-visible', !!anchorHeight);
       } catch {}
     };
 
     tuneAdSenseMobile();
-    const timer = setInterval(tuneAdSenseMobile, 1500);
+    const timer = setInterval(tuneAdSenseMobile, 2000);
     window.addEventListener('resize', tuneAdSenseMobile);
     window.addEventListener('scroll', tuneAdSenseMobile, { passive:true });
     return () => {
       clearInterval(timer);
       window.removeEventListener('resize', tuneAdSenseMobile);
       window.removeEventListener('scroll', tuneAdSenseMobile);
-      document.documentElement.style.removeProperty('--cm-adsense-bottom-offset');
+      document.documentElement.style.removeProperty('--cm-floating-bottom-offset');
       document.documentElement.classList.remove('cm-adsense-anchor-visible');
     };
   }, []);
@@ -15748,9 +15740,8 @@ function App() {
           input::placeholder,textarea::placeholder{color:#334155;}
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
           html, body, #root{min-height:100%;overflow-x:hidden!important;}
-          .adsbygoogle{display:block!important;max-width:100vw!important;}
+          .adsbygoogle{max-width:100vw!important;}
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
-          .cm-adsense-anchor-visible body{padding-bottom:var(--cm-adsense-bottom-offset,0px);}
         `}</style>
 
         {/* Header */}
@@ -15881,7 +15872,7 @@ function App() {
       <div 
         style={{
           position: "fixed",
-          bottom: "calc(20px + var(--cm-adsense-bottom-offset, 0px))",
+          bottom: "calc(20px + var(--cm-floating-bottom-offset, 0px))",
           right: "20px",
           zIndex: 9998
         }}
