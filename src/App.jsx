@@ -83,13 +83,20 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
     const existingScript = Array.from(document.scripts || []).find(sc =>
       (sc.src || "").includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js")
     );
-    if (existingScript) return;
+    if (existingScript) {
+      // Importante para móvil: evita el formato ancla expansible que en iOS/Brave
+      // puede verse como una franja azul a medio montar. Para que tenga efecto real,
+      // pon también data-overlays="collapsed-bottom" en /index.html.
+      existingScript.setAttribute("data-overlays", "collapsed-bottom");
+      return;
+    }
 
     const s = document.createElement("script");
     s.id = "google-adsense-script-" + ADSENSE_CLIENT_ID;
     s.async = true;
     s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT_ID;
     s.crossOrigin = "anonymous";
+    s.setAttribute("data-overlays", "collapsed-bottom");
     document.head.appendChild(s);
   } catch {}
 })();
@@ -15386,49 +15393,9 @@ function App() {
   }, [theme.customSecondaryFontData, theme.secondaryFont]);
 
 
-  // Ajuste para AdSense en móvil.
-  // IMPORTANTE: no agregamos padding al body ni forzamos z-index de iframes de Google,
-  // porque eso puede crear una franja azul/placeholder visible al hacer scroll en iOS.
-  // Solo detectamos si hay anuncio ancla inferior para subir la burbuja de soporte.
-  useEffect(() => {
-    const tuneAdSenseMobile = () => {
-      try {
-        const candidates = Array.from(document.querySelectorAll('iframe, ins.adsbygoogle, [id^="google_ads_iframe"]'));
-        let anchorHeight = 0;
-
-        candidates.forEach((el) => {
-          const src = el.getAttribute?.('src') || '';
-          const id = el.getAttribute?.('id') || '';
-          const cls = el.getAttribute?.('class') || '';
-          const isGoogleAd = src.includes('googlesyndication') || src.includes('doubleclick') || id.includes('google_ads_iframe') || cls.includes('adsbygoogle');
-          if (!isGoogleAd) return;
-
-          const r = el.getBoundingClientRect?.();
-          if (!r || r.width < 120 || r.height < 20) return;
-          const cs = window.getComputedStyle(el);
-          const nearBottom = r.top >= window.innerHeight - 150 || r.bottom >= window.innerHeight - 8;
-          const fixedish = cs.position === 'fixed' || cs.position === 'sticky' || nearBottom;
-
-          if (fixedish) anchorHeight = Math.max(anchorHeight, Math.min(96, Math.ceil(r.height + 10)));
-        });
-
-        document.documentElement.style.setProperty('--cm-floating-bottom-offset', anchorHeight ? `${anchorHeight}px` : '0px');
-        document.documentElement.classList.toggle('cm-adsense-anchor-visible', !!anchorHeight);
-      } catch {}
-    };
-
-    tuneAdSenseMobile();
-    const timer = setInterval(tuneAdSenseMobile, 2000);
-    window.addEventListener('resize', tuneAdSenseMobile);
-    window.addEventListener('scroll', tuneAdSenseMobile, { passive:true });
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('resize', tuneAdSenseMobile);
-      window.removeEventListener('scroll', tuneAdSenseMobile);
-      document.documentElement.style.removeProperty('--cm-floating-bottom-offset');
-      document.documentElement.classList.remove('cm-adsense-anchor-visible');
-    };
-  }, []);
+  // AdSense móvil: no movemos ni forzamos los iframes de Google desde React.
+  // El anuncio ancla lo controla AdSense. Para evitar la franja azul expansible en iOS,
+  // usa data-overlays="collapsed-bottom" directamente en /index.html.
 
   // Contador de visitas unicas (una por dispositivo)
   useEffect(() => {
@@ -15872,7 +15839,7 @@ function App() {
       <div 
         style={{
           position: "fixed",
-          bottom: "calc(20px + var(--cm-floating-bottom-offset, 0px))",
+          bottom: "20px",
           right: "20px",
           zIndex: 9998
         }}
