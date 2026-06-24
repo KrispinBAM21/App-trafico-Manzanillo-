@@ -13304,6 +13304,24 @@ function PatioReguladorTab({ myId }) {
   );
 }
 
+
+const WORLD_COUNTRIES = [
+  "Afganistán", "Albania", "Alemania", "Andorra", "Angola", "Antigua y Barbuda", "Arabia Saudita", "Argelia", "Argentina", "Armenia", "Australia", "Austria", "Azerbaiyán",
+  "Bahamas", "Bangladés", "Barbados", "Baréin", "Bélgica", "Belice", "Benín", "Bielorrusia", "Birmania / Myanmar", "Bolivia", "Bosnia y Herzegovina", "Botsuana", "Brasil", "Brunéi", "Bulgaria", "Burkina Faso", "Burundi", "Bután",
+  "Cabo Verde", "Camboya", "Camerún", "Canadá", "Catar", "Chad", "Chile", "China", "Chipre", "Ciudad del Vaticano", "Colombia", "Comoras", "Corea del Norte", "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Cuba",
+  "Dinamarca", "Dominica", "Ecuador", "Egipto", "El Salvador", "Emiratos Árabes Unidos", "Eritrea", "Eslovaquia", "Eslovenia", "España", "Estados Unidos", "Estonia", "Esuatini", "Etiopía",
+  "Filipinas", "Finlandia", "Fiyi", "Francia", "Gabón", "Gambia", "Georgia", "Ghana", "Granada", "Grecia", "Guatemala", "Guyana", "Guinea", "Guinea-Bisáu", "Guinea Ecuatorial",
+  "Haití", "Honduras", "Hungría", "India", "Indonesia", "Irak", "Irán", "Irlanda", "Islandia", "Islas Marshall", "Islas Salomón", "Israel", "Italia",
+  "Jamaica", "Japón", "Jordania", "Kazajistán", "Kenia", "Kirguistán", "Kiribati", "Kuwait",
+  "Laos", "Lesoto", "Letonia", "Líbano", "Liberia", "Libia", "Liechtenstein", "Lituania", "Luxemburgo",
+  "Macedonia del Norte", "Madagascar", "Malasia", "Malaui", "Maldivas", "Malí", "Malta", "Marruecos", "Mauricio", "Mauritania", "México", "Micronesia", "Moldavia", "Mónaco", "Mongolia", "Montenegro", "Mozambique",
+  "Namibia", "Nauru", "Nepal", "Nicaragua", "Níger", "Nigeria", "Noruega", "Nueva Zelanda", "Omán", "Países Bajos", "Pakistán", "Palaos", "Palestina", "Panamá", "Papúa Nueva Guinea", "Paraguay", "Perú", "Polonia", "Portugal",
+  "Reino Unido", "República Centroafricana", "República Checa", "República del Congo", "República Democrática del Congo", "República Dominicana", "Ruanda", "Rumania", "Rusia",
+  "Samoa", "San Cristóbal y Nieves", "San Marino", "San Vicente y las Granadinas", "Santa Lucía", "Santo Tomé y Príncipe", "Senegal", "Serbia", "Seychelles", "Sierra Leona", "Singapur", "Siria", "Somalia", "Sri Lanka", "Sudáfrica", "Sudán", "Sudán del Sur", "Suecia", "Suiza", "Surinam",
+  "Tailandia", "Tanzania", "Tayikistán", "Timor Oriental", "Togo", "Tonga", "Trinidad y Tobago", "Túnez", "Turkmenistán", "Turquía", "Tuvalu",
+  "Ucrania", "Uganda", "Uruguay", "Uzbekistán", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Yibuti", "Zambia", "Zimbabue"
+];
+
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
 function TutorialTab({ setActive, isAdmin }) {
   const theme = React.useContext(ThemeContext);
@@ -13621,8 +13639,12 @@ function TutorialTab({ setActive, isAdmin }) {
                 <input value={regNombre} onChange={e=>setRegNombre(e.target.value)} placeholder="Nombre *" style={inputStyle} />
                 <input value={regApellidos} onChange={e=>setRegApellidos(e.target.value)} placeholder="Apellidos *" style={inputStyle} />
                 <input value={regUsername} onChange={e=>setRegUsername(e.target.value)} placeholder="Nombre de usuario único *" style={inputStyle} />
-                <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} style={{...inputStyle, colorScheme:"dark"}} />
-                <input value={regPais} onChange={e=>setRegPais(e.target.value)} placeholder="País *" style={inputStyle} />
+                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", margin:"2px 0 6px", letterSpacing:"0.7px", fontWeight:"700" }}>FECHA DE NACIMIENTO *</div>
+                <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} aria-label="Fecha de nacimiento" style={{...inputStyle, colorScheme:"dark"}} />
+                <select value={regPais} onChange={e=>setRegPais(e.target.value)} style={inputStyle} aria-label="País">
+                  <option value="">País *</option>
+                  {WORLD_COUNTRIES.map(pais => <option key={pais} value={pais}>{pais}</option>)}
+                </select>
                 <input value={regCiudad} onChange={e=>setRegCiudad(e.target.value)} placeholder="Ciudad *" style={inputStyle} />
                 <select value={regTipoUsuario} onChange={e=>setRegTipoUsuario(e.target.value)} style={inputStyle}>
                   <option value="visualizador_votante">Visualizador-votante</option>
