@@ -16071,7 +16071,26 @@ function App() {
           ::-webkit-scrollbar-track{background:#060e1a;}
           ::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px;}
           button:active{transform:scale(0.97);}
-          input::placeholder,textarea::placeholder{color:#334155;}
+          input::placeholder,textarea::placeholder{color:#6b7f99;}
+          select{
+            background-color:rgba(15,35,58,0.96)!important;
+            color:#e5f3ff!important;
+            border-color:rgba(56,189,248,0.32)!important;
+            color-scheme:dark!important;
+          }
+          select option, select optgroup{
+            background-color:#0f233a!important;
+            color:#e5f3ff!important;
+            font-family:'DM Sans',sans-serif!important;
+            padding:10px!important;
+          }
+          select option:checked, select option:hover{
+            background-color:#16456b!important;
+            color:#ffffff!important;
+          }
+          input, textarea, select{
+            caret-color:#38bdf8;
+          }
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
           html, body, #root{min-height:100%;overflow-x:hidden!important;}
            .adsbygoogle{max-width:100vw!important;background:transparent!important;border:0!important;outline:0!important;}
