@@ -65,15 +65,30 @@ fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
 // ─── GOOGLE ADSENSE ──────────────────────────────────────────────────────────
-// Se inyecta una sola vez para evitar duplicados durante hot reload / remounts.
+// Recomendado: mantener también este script pegado directamente en /index.html.
+// Aquí solo reforzamos que exista UNA vez y agregamos el meta de cuenta.
+const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 (function injectGoogleAdSense() {
   try {
-    const id = "google-adsense-script-ca-pub-6574016310382297";
-    if (document.getElementById(id)) return;
+    const existingMeta = document.querySelector('meta[name="google-adsense-account"]');
+    if (!existingMeta) {
+      const m = document.createElement("meta");
+      m.name = "google-adsense-account";
+      m.content = ADSENSE_CLIENT_ID;
+      document.head.appendChild(m);
+    }
+
+    // Evita duplicar el loader si ya viene desde index.html. Duplicarlo puede provocar
+    // comportamiento raro en móviles: anuncios que se alcanzan a ver pero no terminan de montar.
+    const existingScript = Array.from(document.scripts || []).find(sc =>
+      (sc.src || "").includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js")
+    );
+    if (existingScript) return;
+
     const s = document.createElement("script");
-    s.id = id;
+    s.id = "google-adsense-script-" + ADSENSE_CLIENT_ID;
     s.async = true;
-    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6574016310382297";
+    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT_ID;
     s.crossOrigin = "anonymous";
     document.head.appendChild(s);
   } catch {}
@@ -14133,7 +14148,7 @@ function CookieBanner({ onAccept, onReject }) {
   const theme = React.useContext(ThemeContext);
   return (
     <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999,
+      position: "fixed", bottom: "var(--cm-adsense-bottom-offset, 0px)", left: 0, right: 0, zIndex: 9998,
       background: "rgba(10,15,30,0.97)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
       borderTop: "1px solid rgba(255,255,255,0.15)", padding: "16px 20px",
     }}>
@@ -14143,7 +14158,7 @@ function CookieBanner({ onAccept, onReject }) {
           <div>
             <div style={{ fontFamily: getFont(theme, "title"), color: "#fff", fontSize: "14px", fontWeight: "700", marginBottom: "4px" }}>Cookies y privacidad</div>
             <div style={{ fontFamily: getFont(theme, "secondary"), color: "rgba(255,255,255,0.6)", fontSize: "11px", lineHeight: "1.6" }}>
-              Conect Manzanillo usa <strong style={{ color: "rgba(255,255,255,0.85)" }}>cookies esenciales</strong> para recordar tu ID de dispositivo y preferencias de votación. No compartimos datos con terceros ni mostramos publicidad. Tu participación es anónima.
+              Conect Manzanillo usa <strong style={{ color: "rgba(255,255,255,0.85)" }}>cookies esenciales</strong> para recordar tu ID de dispositivo y preferencias de votación. Usamos cookies esenciales y podemos mostrar anuncios de Google AdSense. Tu participación es anónima.
             </div>
           </div>
         </div>
@@ -15370,6 +15385,59 @@ function App() {
     }
   }, [theme.customSecondaryFontData, theme.secondaryFont]);
 
+
+  // Ajuste para AdSense en móvil: evita que el FAB/burbuja o elementos fijos cubran
+  // los anuncios ancla inferiores y corrige z-index cuando Auto Ads monta iframes fuera de React.
+  useEffect(() => {
+    const tuneAdSenseMobile = () => {
+      try {
+        const candidates = Array.from(document.querySelectorAll('iframe, ins.adsbygoogle, [id^="google_ads_iframe"]'));
+        let anchorHeight = 0;
+
+        candidates.forEach((el) => {
+          const src = el.getAttribute?.('src') || '';
+          const id = el.getAttribute?.('id') || '';
+          const cls = el.getAttribute?.('class') || '';
+          const isGoogleAd = src.includes('googlesyndication') || src.includes('doubleclick') || id.includes('google_ads_iframe') || cls.includes('adsbygoogle');
+          if (!isGoogleAd) return;
+
+          const r = el.getBoundingClientRect?.();
+          if (!r) return;
+          const cs = window.getComputedStyle(el);
+          const nearBottom = r.height > 20 && r.bottom > window.innerHeight - 130;
+          const fixedish = cs.position === 'fixed' || cs.position === 'sticky' || nearBottom;
+
+          if (fixedish) {
+            anchorHeight = Math.max(anchorHeight, Math.min(110, Math.ceil(r.height + 12)));
+            let node = el;
+            for (let i = 0; node && i < 4; i += 1) {
+              if (node.style) {
+                node.style.zIndex = '2147483647';
+                node.style.maxWidth = '100vw';
+              }
+              node = node.parentElement;
+            }
+          }
+        });
+
+        document.documentElement.style.setProperty('--cm-adsense-bottom-offset', anchorHeight ? `${anchorHeight}px` : '0px');
+        document.documentElement.classList.toggle('cm-adsense-anchor-visible', !!anchorHeight);
+      } catch {}
+    };
+
+    tuneAdSenseMobile();
+    const timer = setInterval(tuneAdSenseMobile, 1500);
+    window.addEventListener('resize', tuneAdSenseMobile);
+    window.addEventListener('scroll', tuneAdSenseMobile, { passive:true });
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('resize', tuneAdSenseMobile);
+      window.removeEventListener('scroll', tuneAdSenseMobile);
+      document.documentElement.style.removeProperty('--cm-adsense-bottom-offset');
+      document.documentElement.classList.remove('cm-adsense-anchor-visible');
+    };
+  }, []);
+
   // Contador de visitas unicas (una por dispositivo)
   useEffect(() => {
     const TABLA_V = "visitas";
@@ -15679,6 +15747,10 @@ function App() {
           button:active{transform:scale(0.97);}
           input::placeholder,textarea::placeholder{color:#334155;}
           @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+          html, body, #root{min-height:100%;overflow-x:hidden!important;}
+          .adsbygoogle{display:block!important;max-width:100vw!important;}
+          iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
+          .cm-adsense-anchor-visible body{padding-bottom:var(--cm-adsense-bottom-offset,0px);}
         `}</style>
 
         {/* Header */}
@@ -15809,9 +15881,9 @@ function App() {
       <div 
         style={{
           position: "fixed",
-          bottom: "20px",
+          bottom: "calc(20px + var(--cm-adsense-bottom-offset, 0px))",
           right: "20px",
-          zIndex: 99998
+          zIndex: 9998
         }}
       >
         {/* Burbujas expandibles */}
