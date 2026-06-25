@@ -3291,26 +3291,27 @@ function AdSenseUnit({
 
   const isFilled = adStatus === "filled";
   const isHidden = adStatus === "unfilled";
+  const isLoading = adStatus === "loading";
 
   return (
     <div
       ref={wrapRef}
-      className={`cm-adsense-wrap cm-adsense-${variant} ${isFilled ? "cm-ad-filled" : ""} ${isHidden ? "cm-ad-hidden" : ""}`}
+      className={`cm-adsense-wrap cm-adsense-${variant} ${isFilled ? "cm-ad-filled" : ""} ${isHidden ? "cm-ad-hidden" : ""} ${isLoading ? "cm-ad-loading" : ""}`}
       style={{
         width: "100%",
         maxWidth: "980px",
-        margin: isHidden ? 0 : "10px auto 12px",
-        padding: isHidden ? 0 : "0 10px",
+        margin: isHidden || isLoading ? 0 : "10px auto 12px",
+        padding: isHidden || isLoading ? 0 : "0 10px",
         position: "relative",
         zIndex: 2,
         overflow: "hidden",
-        height: isHidden ? 0 : "auto",
+        height: isHidden || isLoading ? 0 : "auto",
         minHeight: 0,
-        opacity: isHidden ? 0 : 1,
-        pointerEvents: isHidden ? "none" : "auto",
+        opacity: isHidden || isLoading ? 0 : 1,
+        pointerEvents: isHidden || isLoading ? "none" : "auto",
         transition: "opacity .25s ease",
       }}
-      aria-hidden={isHidden ? "true" : undefined}
+      aria-hidden={isHidden || isLoading ? "true" : undefined}
     >
       <ins
         key={`${variant}-${sectionKey}-${slot}`}
@@ -16198,6 +16199,7 @@ function App() {
            .adsbygoogle{max-width:100vw!important;background:transparent!important;border:0!important;outline:0!important;}
           .adsbygoogle[data-ad-status="unfilled"]{display:none!important;height:0!important;min-height:0!important;}
           .cm-adsense-wrap{background:transparent!important;border:0!important;box-shadow:none!important;}
+          .cm-adsense-wrap.cm-ad-loading{height:0!important;max-height:0!important;min-height:0!important;overflow:hidden!important;opacity:0!important;margin:0!important;padding:0!important;}
           .cm-adsense-wrap.cm-ad-hidden{display:none!important;}
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
         `}</style>
