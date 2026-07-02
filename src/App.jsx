@@ -6471,7 +6471,7 @@ function NavBar({ active, set }) {
           letterSpacing: "clamp(0px, 0.08vw, 0.5px)",
           whiteSpace: "normal",
           minWidth: "0",
-          minHeight: "clamp(58px, 10vw, 82px)",
+          minHeight: isActive ? "clamp(62px, 11vw, 84px)" : "clamp(70px, 12vw, 92px)",
           WebkitTapHighlightColor: "transparent",
           MozTapHighlightColor: "transparent",
           outline: "none",
@@ -6493,13 +6493,22 @@ function NavBar({ active, set }) {
             display:"flex",
             alignItems:"center",
             justifyContent:"center",
-            width: isActive ? "clamp(24px, 5.4vw, 32px)" : "clamp(34px, 7.2vw, 44px)",
-            height: isActive ? "clamp(24px, 5.4vw, 32px)" : "clamp(34px, 7.2vw, 44px)",
-            transform: isActive ? "scale(1)" : "scale(1.08)",
+            width: isActive ? "clamp(26px, 5.6vw, 34px)" : "clamp(46px, 9vw, 58px)",
+            height: isActive ? "clamp(26px, 5.6vw, 34px)" : "clamp(46px, 9vw, 58px)",
+            maxWidth: "92%",
+            maxHeight: "92%",
+            overflow: "hidden",
+            borderRadius: "14px",
+            transform: isActive ? "scale(1)" : "scale(1.03)",
             transition:"all 0.22s ease"
           }}
         >
-          <AppIcon name={t.icon} size={isActive ? 30 : 40} active={isActive || isHovered} />
+          <AppIcon
+            name={t.icon}
+            size={isActive ? 32 : 54}
+            active={isActive || isHovered}
+            style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain" }}
+          />
         </span>
         {isActive && (
           <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>
@@ -6513,16 +6522,17 @@ function NavBar({ active, set }) {
   return (
     <>
       <style>{`
-        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{display:block;object-fit:contain;transition:all .22s ease;}
-        .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(24px,5.4vw,32px)!important;height:clamp(24px,5.4vw,32px)!important;}
-        .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(34px,7.2vw,44px)!important;height:clamp(34px,7.2vw,44px)!important;}
+        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{display:block;object-fit:contain;transition:all .22s ease;max-width:100%!important;max-height:100%!important;}
+        .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(26px,5.6vw,34px)!important;height:clamp(26px,5.6vw,34px)!important;}
+        .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(46px,9vw,58px)!important;height:clamp(46px,9vw,58px)!important;}
         .cm-nav-label{font-size:clamp(9px,2.35vw,14px);}
         @media (max-width: 520px){
-          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(30px,8.4vw,38px)!important;height:clamp(30px,8.4vw,38px)!important;}
-          .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(22px,6.2vw,28px)!important;height:clamp(22px,6.2vw,28px)!important;}
+          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(40px,11vw,50px)!important;height:clamp(40px,11vw,50px)!important;}
+          .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(24px,6.6vw,30px)!important;height:clamp(24px,6.6vw,30px)!important;}
         }
         @media (max-width: 420px){
           .cm-nav-label{font-size:9px!important;letter-spacing:0!important;}
+          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(36px,10.5vw,46px)!important;height:clamp(36px,10.5vw,46px)!important;}
         }
         @media (max-width: 360px){
           .cm-nav-label{font-size:8.3px!important;}
