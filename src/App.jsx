@@ -129,7 +129,7 @@ const toMs = (v) => {
 // En Vite/React, los archivos dentro de public se referencian desde la raíz.
 const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
-  trafico: "/tráfico.png",
+  trafico: "/trafico.png",
   reporte: "/reportar.png",
   terminales: "/terminales.png",
   patio: "/patios.png",
@@ -140,7 +140,7 @@ const TABS = [
   { key: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
   { key: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte },
   { key: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales },
-  { key: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patios },
+  { key: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio },
   { key: "segundo",     label: "2° Acceso",   icon: "access-gate" },
   { key: "carriles",    label: "Carriles",    icon: "lane-control" },
   { key: "noticias",    label: "Noticias",    icon: "dispatch-news" },
@@ -258,8 +258,8 @@ const DEFAULT_THEME = {
     inicio: { type: "image", value: TAB_PUBLIC_ICONS.inicio, size: 24 },
     trafico: { type: "image", value: TAB_PUBLIC_ICONS.trafico, size: 24 },
     reporte: { type: "image", value: TAB_PUBLIC_ICONS.reporte, size: 24 },
-    terminales: { type: "builtin", value: "port-terminal", size: 20 },
-    patio: { type: "builtin", value: "container-yard", size: 20 },
+    terminales: { type: "image", value: TAB_PUBLIC_ICONS.terminales, size: 24 },
+    patio: { type: "image", value: TAB_PUBLIC_ICONS.patio, size: 24 },
     segundo: { type: "builtin", value: "access-gate", size: 20 },
     carriles: { type: "builtin", value: "lane-control", size: 20 },
     noticias: { type: "builtin", value: "dispatch-news", size: 20 },
@@ -6418,8 +6418,8 @@ function NavBar({ active, set }) {
     { id: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio  },
     { id: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
     { id: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte  },
-    { id: "terminales",  label: "Terminales",  icon: "port-terminal"  },
-    { id: "patio",       label: "Patios",      icon: "container-yard"  },
+    { id: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales  },
+    { id: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio  },
   ];
   const row2 = [
     { id: "segundo",    label: "Confinados", icon: "access-gate"  },
