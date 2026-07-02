@@ -215,12 +215,17 @@ const DEFAULT_THEME = {
   // ✨ NUEVO: Configuración de ventanas de contenido
   contentBox: {
     enabled: true,
+    // Si el fondo es un color sólido, las ventanas pueden tomar automáticamente
+    // una variante armónica del color elegido para mantener contraste y estética.
+    autoAdjustWithSolidBackground: true,
     background: "rgba(255, 255, 255, 0.05)",
     backdropBlur: 12,
     borderColor: "rgba(255, 255, 255, 0.1)",
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
+    minHeight: 0,
+    maxWidth: 0,
     gradientOverlay: {
       enabled: true,
       gradient: "linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)"
@@ -234,6 +239,9 @@ const DEFAULT_THEME = {
     }
   },
   
+  // Auto-ajuste visual de header, tabs, ventanas e iconos cuando el fondo es sólido
+  uiAutoAdjust: true,
+
   // Iconos de tabs
   tabIcons: {
     inicio: { type: "emoji", value: "🏠", size: 20 },
@@ -265,8 +273,8 @@ const ThemeContext = React.createContext(DEFAULT_THEME);
 function AppIcon({ name, size = 20, active = false, style = {} }) {
   const glow = active ? "drop-shadow(0 0 6px rgba(56,189,248,0.55))" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))";
   const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", style:{ display:"block", filter:glow, ...style } };
-  const stroke = active ? "#f8fafc" : "#94a3b8";
-  const accent = active ? "#38bdf8" : "#64748b";
+  const stroke = active ? "var(--cm-icon-active,#f8fafc)" : "var(--cm-icon-muted,#94a3b8)";
+  const accent = active ? "var(--cm-accent,#38bdf8)" : "var(--cm-icon-muted-2,#64748b)";
   const green = "#25D366";
   switch (name) {
     case "home": return <svg {...common}><path d="M3 11.2 12 4l9 7.2" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M5.5 10.5V20h13v-9.5" fill="rgba(56,189,248,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M9.5 20v-6h5v6" stroke={accent} strokeWidth="1.8"/></svg>;
@@ -1570,36 +1578,43 @@ const revokeDeviceVotes = async ({ deviceId, log = null, mode = "selected", acto
 
 // ✨ NUEVO: Helper para generar estilos de ContentBox basado en theme
 const getContentBoxStyle = (theme) => {
-  // ✅ FIX: Validación robusta - si no hay theme o contentBox, usar valores por defecto
+  const ui = getAutoUIColors(theme || DEFAULT_THEME);
   if (!theme || !theme.contentBox || !theme.contentBox.enabled) {
     return {
-      background: "rgba(255, 255, 255, 0.03)",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
+      background: ui.panelBg,
+      border: `1px solid ${ui.border}`,
       borderRadius: "12px",
-      padding: "16px"
+      padding: "16px",
+      color: ui.primary
     };
   }
   
   const box = theme.contentBox;
-  let background = box.background || "rgba(255, 255, 255, 0.03)";
+  const useAuto = theme.backgroundType === "color" && box.autoAdjustWithSolidBackground !== false;
+  let background = useAuto ? ui.panelBg : (box.background || "rgba(255, 255, 255, 0.03)");
   
-  if (box.gradientOverlay && box.gradientOverlay.enabled) {
+  if (!useAuto && box.gradientOverlay && box.gradientOverlay.enabled) {
     background = `${box.gradientOverlay.gradient}, ${box.background}`;
   }
   
   let boxShadow = "none";
   if (box.shadow && box.shadow.enabled) {
     boxShadow = `${box.shadow.offsetX || 0}px ${box.shadow.offsetY || 0}px ${box.shadow.blur || 0}px ${box.shadow.color || "rgba(0,0,0,0.3)"}`;
+  } else if (useAuto) {
+    boxShadow = ui.shadow;
   }
   
   return {
     background,
     backdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
     WebkitBackdropFilter: box.backdropBlur ? `blur(${box.backdropBlur}px)` : "none",
-    border: `${box.borderWidth || 1}px solid ${box.borderColor || "rgba(255, 255, 255, 0.1)"}`,
+    border: `${box.borderWidth || 1}px solid ${useAuto ? ui.border : (box.borderColor || "rgba(255, 255, 255, 0.1)")}`,
     borderRadius: `${box.borderRadius || 12}px`,
     padding: `${box.padding || 16}px`,
-    boxShadow
+    minHeight: box.minHeight ? `${box.minHeight}px` : undefined,
+    maxWidth: box.maxWidth ? `${box.maxWidth}px` : undefined,
+    boxShadow,
+    color: ui.primary
   };
 };
 
@@ -1630,6 +1645,94 @@ const withAlpha = (hex, alpha = 1) => {
   const n = parseInt(full, 16);
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   return `rgba(${r},${g},${b},${alpha})`;
+};
+
+const clamp255 = (n) => Math.max(0, Math.min(255, Math.round(n)));
+const cmHexToRgb = (hex, fallback = { r: 10, g: 22, b: 40 }) => {
+  if (!hex || typeof hex !== "string") return fallback;
+  const clean = hex.replace("#", "").trim();
+  if (![3, 6].includes(clean.length)) return fallback;
+  const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return fallback;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+};
+const rgbToHex = ({ r, g, b }) => `#${[r,g,b].map(v => clamp255(v).toString(16).padStart(2,"0")).join("")}`;
+const rgbToRgba = ({ r, g, b }, a = 1) => `rgba(${clamp255(r)},${clamp255(g)},${clamp255(b)},${a})`;
+const mixRgb = (a, b, weight = 0.5) => ({
+  r: a.r * (1 - weight) + b.r * weight,
+  g: a.g * (1 - weight) + b.g * weight,
+  b: a.b * (1 - weight) + b.b * weight,
+});
+const relLuminance = ({ r, g, b }) => {
+  const f = (v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+
+// Genera una paleta armónica a partir del fondo sólido. Se usa para tabs, header,
+// ventanas e iconos sin que el admin tenga que configurar cada color manualmente.
+const getAutoUIColors = (theme = DEFAULT_THEME) => {
+  const fallbackAccent = theme?.textColors?.accent || DEFAULT_THEME.textColors.accent;
+  if (theme?.backgroundType !== "color" || theme?.uiAutoAdjust === false) {
+    return {
+      isDark: true,
+      primary: theme?.textColors?.primary || "#ffffff",
+      secondary: theme?.textColors?.secondary || "#e2e8f0",
+      muted: theme?.textColors?.muted || "#94a3b8",
+      accent: fallbackAccent,
+      headerBg: "rgba(255,255,255,0.08)",
+      navBg: "rgba(255,255,255,0.07)",
+      tabBg: "transparent",
+      tabHoverBg: "rgba(255,255,255,0.05)",
+      tabActiveBg: "rgba(255,255,255,0.15)",
+      border: "rgba(255,255,255,0.12)",
+      subtleBorder: "rgba(255,255,255,0.06)",
+      panelBg: "rgba(255,255,255,0.06)",
+      panelStrongBg: "rgba(255,255,255,0.10)",
+      iconActive: "#f8fafc",
+      iconMuted: "#94a3b8",
+      iconMuted2: "#64748b",
+      shadow: "0 18px 44px rgba(0,0,0,0.25)",
+    };
+  }
+
+  const base = cmHexToRgb(theme.backgroundColor || DEFAULT_THEME.backgroundColor);
+  const lum = relLuminance(base);
+  const isDark = lum < 0.45;
+  const white = { r:255, g:255, b:255 };
+  const black = { r:0, g:0, b:0 };
+  const sky = cmHexToRgb(fallbackAccent, { r:56, g:189, b:248 });
+  const text = isDark ? white : { r:15, g:23, b:42 };
+  const text2 = isDark ? mixRgb(base, white, 0.78) : mixRgb(base, black, 0.72);
+  const muted = isDark ? mixRgb(base, white, 0.55) : mixRgb(base, black, 0.48);
+  const accent = isDark ? mixRgb(base, sky, 0.72) : mixRgb(base, sky, 0.58);
+  const panelTint = isDark ? mixRgb(base, white, 0.12) : mixRgb(base, white, 0.68);
+  const panelStrong = isDark ? mixRgb(base, white, 0.20) : mixRgb(base, white, 0.78);
+  const borderTint = isDark ? mixRgb(base, white, 0.34) : mixRgb(base, black, 0.26);
+
+  return {
+    isDark,
+    primary: rgbToHex(text),
+    secondary: rgbToHex(text2),
+    muted: rgbToHex(muted),
+    accent: rgbToHex(accent),
+    headerBg: rgbToRgba(panelTint, isDark ? 0.86 : 0.82),
+    navBg: rgbToRgba(panelTint, isDark ? 0.72 : 0.76),
+    tabBg: "transparent",
+    tabHoverBg: rgbToRgba(panelStrong, isDark ? 0.28 : 0.50),
+    tabActiveBg: rgbToRgba(panelStrong, isDark ? 0.42 : 0.72),
+    border: rgbToRgba(borderTint, isDark ? 0.42 : 0.34),
+    subtleBorder: rgbToRgba(borderTint, isDark ? 0.24 : 0.20),
+    panelBg: rgbToRgba(panelTint, isDark ? 0.62 : 0.70),
+    panelStrongBg: rgbToRgba(panelStrong, isDark ? 0.72 : 0.82),
+    iconActive: rgbToHex(text),
+    iconMuted: rgbToHex(muted),
+    iconMuted2: rgbToHex(mixRgb(muted, accent, 0.35)),
+    shadow: isDark ? "0 18px 44px rgba(0,0,0,0.28)" : "0 18px 44px rgba(15,23,42,0.16)",
+  };
 };
 
 const mkTerminals = (list) =>
@@ -4886,6 +4989,15 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               <h3 style={{ margin:"0 0 16px", fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", fontWeight:"600" }}>
                 Configuración de Fondo
               </h3>
+
+              <label style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px", padding:"12px", borderRadius:"10px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.22)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.72)", cursor:"pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={config.uiAutoAdjust !== false}
+                  onChange={(e) => setConfig(prev => ({ ...prev, uiAutoAdjust: e.target.checked }))}
+                />
+                Auto-ajustar header, tabs, ventanas e iconos cuando el fondo sea un color sólido
+              </label>
               
               <div style={{ display:"flex", gap:"12px", marginBottom:"20px" }}>
                 {["color", "gradient", "image"].map(type => (
@@ -5463,6 +5575,18 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               <h3 style={{ margin:"0 0 16px", fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", fontWeight:"600" }}>
                 Ventanas de Contenido
               </h3>
+
+              <label style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px", padding:"12px", borderRadius:"10px", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.22)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.72)", cursor:"pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={config.contentBox?.autoAdjustWithSolidBackground !== false}
+                  onChange={(e) => setConfig(prev => ({
+                    ...prev,
+                    contentBox: { ...prev.contentBox, autoAdjustWithSolidBackground: e.target.checked }
+                  }))}
+                />
+                Ajustar automáticamente el color de ventanas según el fondo sólido
+              </label>
               
               <div style={{ display:"flex", flexDirection:"column", gap:"20px" }}>
                 {/* Habilitar/Deshabilitar */}
@@ -5651,6 +5775,45 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
+                      </div>
+                    </div>
+
+                    {/* Tamaño de ventanas */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Alto mínimo: {config.contentBox?.minHeight || 0}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="420"
+                          step="10"
+                          value={config.contentBox?.minHeight || 0}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, minHeight: parseInt(e.target.value) }
+                          }))}
+                          style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
+                          Ancho máximo: {config.contentBox?.maxWidth || 0}px
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1200"
+                          step="20"
+                          value={config.contentBox?.maxWidth || 0}
+                          onChange={(e) => setConfig(prev => ({
+                            ...prev,
+                            contentBox: { ...prev.contentBox, maxWidth: parseInt(e.target.value) }
+                          }))}
+                          style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
+                        />
+                        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.38)", marginTop:"4px" }}>0 = sin límite</div>
                       </div>
                     </div>
                     
@@ -5990,6 +6153,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
 
 function NavBar({ active, set }) {
   const theme = React.useContext(ThemeContext);
+  const ui = getAutoUIColors(theme);
   const row1 = [
     { id: "inicio",      label: "Inicio",      icon: "home"  },
     { id: "trafico",     label: "Tráfico",     icon: "traffic" },
@@ -6022,10 +6186,10 @@ function NavBar({ active, set }) {
         style={{
           flex: 1, 
           padding: "9px 4px",
-          background: isActive ? "rgba(255,255,255,0.15)" : (isHovered ? "rgba(255,255,255,0.05)" : "transparent"),
+          background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
           border: "none",
-          borderBottom: isActive ? "2px solid rgba(255,255,255,0.9)" : "2px solid transparent",
-          color: isActive ? "#ffffff" : (isHovered ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.4)"),
+          borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
+          color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
           fontSize: "9px", 
           fontFamily: getFont(theme, "secondary"), 
           fontWeight: isActive ? "600" : "400",
@@ -6061,13 +6225,13 @@ function NavBar({ active, set }) {
 
   return (
     <nav style={{
-      background: "rgba(255,255,255,0.07)",
+      background: ui.navBg,
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
-      borderBottom: "1px solid rgba(255,255,255,0.12)",
+      borderBottom: `1px solid ${ui.border}`,
       position: "sticky", top: 0, zIndex: 100,
     }}>
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${ui.subtleBorder}` }}>
         {row1.map(TabBtn)}
       </div>
       <div style={{ display: "flex" }}>
@@ -14295,7 +14459,13 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
 
-  const colors = {
+  const autoUI = getAutoUIColors(theme);
+  const colors = (theme?.backgroundType === "color" && theme?.uiAutoAdjust !== false) ? {
+    primary: autoUI.primary,
+    secondary: autoUI.secondary,
+    muted: autoUI.muted,
+    accent: autoUI.accent,
+  } : {
     primary: getTextColor(theme, "primary", "#ffffff"),
     secondary: getTextColor(theme, "secondary", "#e2e8f0"),
     muted: getTextColor(theme, "muted", "#94a3b8"),
@@ -14337,14 +14507,14 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
     <div style={{ padding:"24px 16px", paddingBottom:"100px" }}>
       <section style={{
         marginBottom:"28px",
-        background:"linear-gradient(135deg, rgba(56,189,248,0.10), rgba(167,139,250,0.08))",
-        border:`1px solid ${withAlpha(colors.accent, 0.32)}`,
+        background: theme?.backgroundType === "color" && theme?.contentBox?.autoAdjustWithSolidBackground !== false ? autoUI.panelBg : "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(167,139,250,0.08))",
+        border:`1px solid ${theme?.backgroundType === "color" && theme?.contentBox?.autoAdjustWithSolidBackground !== false ? autoUI.border : withAlpha(colors.accent, 0.32)}`,
         borderRadius:"22px",
         padding:"30px 22px",
         textAlign:"center",
         position:"relative",
         overflow:"hidden",
-        boxShadow:"0 18px 44px rgba(0,0,0,0.25)"
+        boxShadow:autoUI.shadow
       }}>
         <div style={{ position:"absolute", top:"-55px", right:"-55px", width:"180px", height:"180px", background:`radial-gradient(circle, ${withAlpha(colors.accent,0.20)} 0%, transparent 70%)`, pointerEvents:"none" }} />
         <div
@@ -14418,7 +14588,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
         ))}
       </div>
 
-      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)" }}>
+      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:autoUI.panelBg, backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:`1px solid ${autoUI.border}` }}>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, lineHeight:1.9 }}>
           Comunidad Conect Manzanillo · <span style={{ color:"#25D366", fontWeight:800 }}>WhatsApp</span> · <span style={{ color:"#1877F2", fontWeight:800 }}>Facebook</span> · <span style={{ color:"#f472b6", fontWeight:800 }}>Instagram</span>
         </div>
@@ -15920,6 +16090,7 @@ function App() {
 
   // ✅ CORRECCIÓN: Estilos completos del contenedor principal (fondo + tipografía + color)
   const getMainContainerStyle = () => {
+    const ui = getAutoUIColors(theme);
     return {
       minHeight: "100vh",
       width: "100vw",
@@ -15929,7 +16100,13 @@ function App() {
       // ✅ Aplicar tipografía del tema
       fontFamily: theme.secondaryFont || "'DM Sans', sans-serif",
       fontSize: `${theme.baseFontSize || 14}px`,
-      color: theme.textColors?.primary || "#ffffff",
+      color: ui.primary || theme.textColors?.primary || "#ffffff",
+      "--cm-accent": ui.accent,
+      "--cm-icon-active": ui.iconActive,
+      "--cm-icon-muted": ui.iconMuted,
+      "--cm-icon-muted-2": ui.iconMuted2,
+      "--cm-panel-bg": ui.panelBg,
+      "--cm-border": ui.border,
       // ✅ Aplicar fondo del tema
       ...getBackgroundStyle()
     };
@@ -16024,11 +16201,11 @@ function App() {
         `}</style>
 
         {/* Header */}
-        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.12)", display:"flex", alignItems:"center", gap:"12px" }}>
+        <div style={{ background:getAutoUIColors(theme).headerBg, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"16px 20px", borderBottom:`1px solid ${getAutoUIColors(theme).border}`, display:"flex", alignItems:"center", gap:"12px" }}>
           <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" onClick={handleLogoTap} title="Modo admin: 5 clics" style={{ width:"52px", height:"52px", objectFit:"contain", flexShrink:0, cursor:"pointer", filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.35))" }} />
           <div>
-            <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:"#ffffff" }}>Conect Manzanillo</div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>COMUNIDAD EN VIVO · PUERTO</div>
+            <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:getAutoUIColors(theme).primary }}>Conect Manzanillo</div>
+            <div style={{ fontSize:"10px", color:getAutoUIColors(theme).muted, fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>COMUNIDAD EN VIVO · PUERTO</div>
           </div>
           <div style={{ marginLeft:"auto", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px", flexShrink:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
