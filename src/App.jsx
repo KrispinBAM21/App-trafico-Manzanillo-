@@ -110,7 +110,7 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 const CONECT_LOGO_SRC = "/logo.png";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-// ❌ DEPRECATED - Usar getFont(theme, "secondary") en su lugar
+// Error DEPRECATED - Usar getFont(theme, "secondary") en su lugar
 // const MN    = "'DM Sans', sans-serif";
 
 // Parseo robusto de fechas: acepta ms numérico, string numérico o ISO string
@@ -121,20 +121,20 @@ const toMs = (v) => {
   if (!isNaN(n) && n > 1e12) return n;   // string "1741826400000"
   return new Date(v).getTime();           // ISO string "2026-03-12T..."
 };
-// ❌ DEPRECATED - Usar getFont(theme, "title") en su lugar
+// Error DEPRECATED - Usar getFont(theme, "title") en su lugar
 // const TITLE = "'Playfair Display', serif";
 
 const TABS = [
-  { key: "inicio",      label: "Inicio",      icon: "🏠" },
-  { key: "trafico",     label: "Tráfico",     icon: "🚗" },
-  { key: "reporte",     label: "Reportar",    icon: "📢" },
-  { key: "terminales",  label: "Terminales",  icon: "🏭" },
-  { key: "patio",       label: "Patios",      icon: "📦" },
-  { key: "segundo",     label: "2° Acceso",   icon: "🛣️" },
-  { key: "carriles",    label: "Carriles",    icon: "🚦" },
-  { key: "noticias",    label: "Noticias",    icon: "📰" },
-  { key: "donativos",   label: "Posturas",    icon: "🤝" },
-  { key: "tutorial",    label: "Tutorial",    icon: "🎓" }
+  { key: "inicio",      label: "Inicio",      icon: "hub" },
+  { key: "trafico",     label: "Tráfico",     icon: "traffic-control" },
+  { key: "reporte",     label: "Reportar",    icon: "incident-pin" },
+  { key: "terminales",  label: "Terminales",  icon: "port-terminal" },
+  { key: "patio",       label: "Patios",      icon: "container-yard" },
+  { key: "segundo",     label: "2° Acceso",   icon: "access-gate" },
+  { key: "carriles",    label: "Carriles",    icon: "lane-control" },
+  { key: "noticias",    label: "Noticias",    icon: "dispatch-news" },
+  { key: "donativos",   label: "Posturas",    icon: "logistics-handshake" },
+  { key: "tutorial",    label: "Más Info",    icon: "info-beacon" }
 ];
 
 // ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
@@ -244,29 +244,29 @@ const DEFAULT_THEME = {
 
   // Iconos de tabs
   tabIcons: {
-    inicio: { type: "emoji", value: "🏠", size: 20 },
-    trafico: { type: "emoji", value: "🚗", size: 20 },
-    reporte: { type: "emoji", value: "📢", size: 20 },
-    terminales: { type: "emoji", value: "🏭", size: 20 },
-    patio: { type: "emoji", value: "📦", size: 20 },
-    segundo: { type: "emoji", value: "🛣️", size: 20 },
-    carriles: { type: "emoji", value: "🚦", size: 20 },
-    noticias: { type: "emoji", value: "📰", size: 20 },
-    donativos: { type: "emoji", value: "🤝", size: 20 },
-    tutorial: { type: "emoji", value: "🎓", size: 20 }
+    inicio: { type: "builtin", value: "hub", size: 20 },
+    trafico: { type: "builtin", value: "traffic-control", size: 20 },
+    reporte: { type: "builtin", value: "incident-pin", size: 20 },
+    terminales: { type: "builtin", value: "port-terminal", size: 20 },
+    patio: { type: "builtin", value: "container-yard", size: 20 },
+    segundo: { type: "builtin", value: "access-gate", size: 20 },
+    carriles: { type: "builtin", value: "lane-control", size: 20 },
+    noticias: { type: "builtin", value: "dispatch-news", size: 20 },
+    donativos: { type: "builtin", value: "logistics-handshake", size: 20 },
+    tutorial: { type: "builtin", value: "info-beacon", size: 20 }
   },
   
   // Otros iconos
   otherIcons: {
-    live: { type: "emoji", value: "👁", size: 14 },
-    admin: { type: "emoji", value: "🔑", size: 11 },
-    session: { type: "emoji", value: "👤", size: 11 },
-    logout: { type: "emoji", value: "🚪", size: 14 }
+    live: { type: "builtin", value: "status-live", size: 14 },
+    admin: { type: "builtin", value: "key", size: 11 },
+    session: { type: "builtin", value: "user", size: 11 },
+    logout: { type: "builtin", value: "logout", size: 14 }
   }
 };
 
 // ✨✨✨ CONTEXTO DE TEMA PARA COMPARTIR GLOBALMENTE ✨✨✨
-// ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
+// Validado FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
 const ThemeContext = React.createContext(DEFAULT_THEME);
 
 // ─── ICONOS REALISTAS SVG (sin dependencias externas) ───────────────────────
@@ -304,10 +304,78 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "window": return <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M4 9h16M8 5v14" stroke={accent} strokeWidth="1.4"/><circle cx="6.5" cy="7" r=".7" fill="#ef4444"/><circle cx="9" cy="7" r=".7" fill="#fbbf24"/></svg>;
     case "tag": return <svg {...common}><path d="M4 12.5 12.5 4H20v7.5L11.5 20 4 12.5Z" fill="rgba(139,92,246,.14)" stroke={stroke} strokeWidth="1.6"/><circle cx="16.5" cy="7.5" r="1.2" fill={accent}/></svg>;
     case "spark": return <svg {...common}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" fill="rgba(56,189,248,.18)" stroke={accent} strokeWidth="1.5"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z" fill="rgba(251,191,36,.2)" stroke="#f59e0b" strokeWidth="1.2"/></svg>;
+
+    case "hub": return <svg {...common}><path d="M4 15.5 12 5l8 10.5" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.2 14.5V20h11.6v-5.5" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M9 20v-4h6v4" stroke={accent} strokeWidth="1.6"/><path d="M7 12.5h10" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "traffic-control": return <svg {...common}><path d="M4 19c2.8-5.2 13.2-5.2 16 0" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="M7 15l1.6-5.2h6.8L17 15" fill="rgba(56,189,248,.16)" stroke={stroke} strokeWidth="1.7" strokeLinejoin="round"/><circle cx="8.7" cy="15.5" r="1.35" fill="#38bdf8"/><circle cx="15.3" cy="15.5" r="1.35" fill="#38bdf8"/><path d="M11 9V5.5h2V9" stroke="#fbbf24" strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case "incident-pin": return <svg {...common}><path d="M12 21s6.8-5 6.8-10.8a6.8 6.8 0 1 0-13.6 0C5.2 16 12 21 12 21Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M12 7v4.2" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="14.2" r="1" fill="#f97316"/></svg>;
+    case "port-terminal": return <svg {...common}><path d="M3.5 19.5h17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M5 18.5V9l7-3.5L19 9v9.5" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.6"/><path d="M7.5 18.5v-5.2h9v5.2" fill="rgba(15,23,42,.35)" stroke={accent} strokeWidth="1.5"/><path d="M8.2 10.2h2M11.2 10.2h2M14.2 10.2h2" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "container-yard": return <svg {...common}><path d="M4 9h16v9H4z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.7"/><path d="M7 9V6h10v3M8 12h8M8 15h8" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/><path d="M4 18h16" stroke="#f59e0b" strokeWidth="1.7"/></svg>;
+    case "access-gate": return <svg {...common}><path d="M5 20V8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5V20" stroke={stroke} strokeWidth="1.8"/><path d="M7 12h10M9 20v-8M15 20v-8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="m10 8 2-2 2 2" stroke="#fbbf24" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "lane-control": return <svg {...common}><path d="M6 21 9 3M18 21 15 3" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><path d="M4 21h16" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
+    case "dispatch-news": return <svg {...common}><path d="M5 5h12a2 2 0 0 1 2 2v12H7a2 2 0 0 1-2-2V5Z" fill="rgba(148,163,184,.18)" stroke={stroke} strokeWidth="1.7"/><path d="M8 9h6M8 12h8M8 15h5" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="M19 8h1v9a2 2 0 0 1-2 2" stroke={stroke} strokeWidth="1.5"/></svg>;
+    case "logistics-handshake": return <svg {...common}><path d="M7 12.2 4.5 9.7l3.2-3.2 3.4 3.4" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="M17 12.2l2.5-2.5-3.2-3.2-3.4 3.4" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/><path d="m8.5 13.5 2.2 2.2a2 2 0 0 0 2.8 0l2-2" fill="rgba(59,130,246,.14)" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/><path d="M9.8 10.9 12 8.7l2.2 2.2" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "info-beacon": return <svg {...common}><circle cx="12" cy="12" r="8.6" fill="rgba(56,189,248,.14)" stroke={stroke} strokeWidth="1.7"/><path d="M12 10.5v5" stroke={accent} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="7.8" r="1.2" fill="#38bdf8"/></svg>;
+    case "warning-triangle": return <svg {...common}><path d="M12 3.8 21 19H3L12 3.8Z" fill="rgba(251,191,36,.16)" stroke="#f59e0b" strokeWidth="1.7"/><path d="M12 9v4M12 16h.01" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "emergency": return <svg {...common}><path d="M6 13a6 6 0 0 1 12 0v5H6v-5Z" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="1.7"/><path d="M12 4V2.5M5.8 6.5 4.6 5.3M18.2 6.5l1.2-1.2" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round"/><path d="M8 18h8" stroke={stroke} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case "blockade": return <svg {...common}><path d="M4 15h16v4H4z" fill="rgba(251,191,36,.18)" stroke="#f59e0b" strokeWidth="1.6"/><path d="M7 15 11 5h6l-4 10" stroke={stroke} strokeWidth="1.6" strokeLinecap="round"/><path d="M6.5 17h11" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="2 2"/></svg>;
+    case "construction": return <svg {...common}><path d="M5 19h14" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M7 19V8l5-3 5 3v11" fill="rgba(251,146,60,.14)" stroke="#f97316" strokeWidth="1.6"/><path d="M9 11h6M9 14h6" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "mechanic": return <svg {...common}><path d="M15.8 4.2a4.2 4.2 0 0 0 4 5.6L10.2 19.4a2.2 2.2 0 0 1-3.1-3.1l9.6-9.6a4.2 4.2 0 0 0-.9-2.5Z" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><circle cx="8.6" cy="17.1" r="1" fill={accent}/></svg>;
+    case "freight-truck": case "truck": return <svg {...common}><path d="M3.5 9h10v7h-10z" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.6"/><path d="M13.5 11h3.5l3 3v2h-6.5" fill="rgba(239,68,68,.14)" stroke={stroke} strokeWidth="1.6"/><circle cx="7" cy="17" r="1.7" fill={accent}/><circle cx="17" cy="17" r="1.7" fill={accent}/></svg>;
+    case "fuel": return <svg {...common}><path d="M7 4h7v16H7z" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M9 7h3M14 8l3 3v6a1.5 1.5 0 0 0 3 0v-4" stroke={accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M17 11h2" stroke="#fbbf24" strokeWidth="1.5"/></svg>;
+    case "container": return <svg {...common}><rect x="4" y="8" width="16" height="9" rx="1.2" fill="rgba(251,146,60,.15)" stroke={stroke} strokeWidth="1.6"/><path d="M7 8v9M10 8v9M13 8v9M16 8v9" stroke={accent} strokeWidth="1.3"/></svg>;
+    case "trailer": return <svg {...common}><rect x="4" y="9" width="14" height="6" rx="1" fill="rgba(148,163,184,.16)" stroke={stroke} strokeWidth="1.6"/><path d="M18 15h2" stroke={accent} strokeWidth="1.5"/><circle cx="8" cy="16.5" r="1.4" fill={accent}/><circle cx="15" cy="16.5" r="1.4" fill={accent}/></svg>;
+    case "cargo-mail": return <svg {...common}><rect x="4" y="7" width="16" height="11" rx="2" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M5 8l7 5 7-5" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "parking": return <svg {...common}><rect x="5" y="4" width="14" height="16" rx="3" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.7"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3" stroke={accent} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "pedestrian": return <svg {...common}><circle cx="12" cy="5.5" r="1.8" fill={accent}/><path d="M12 8v4l-2.5 7M12 12l3 7M10 10l-3 2M13 10l4 2" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "collision": return <svg {...common}><path d="m12 3 1.9 5 5.1-1.5-2.6 4.6 4.5 2.9-5.3.8.4 5.2-4-3.5-4 3.5.4-5.2-5.3-.8 4.5-2.9L5 6.5 10.1 8 12 3Z" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="1.4"/><path d="M9 12h6" stroke="#fff" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "medical": return <svg {...common}><rect x="5" y="6" width="14" height="12" rx="2" fill="rgba(239,68,68,.14)" stroke={stroke} strokeWidth="1.6"/><path d="M12 9v6M9 12h6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "falling-cargo": return <svg {...common}><path d="M7 6h8v6H7z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.5"/><path d="M16 14l3 3M18 13l2 2M6 16h8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="M8 3l6 3" stroke="#fbbf24" strokeWidth="1.4"/></svg>;
+    case "turnover": return <svg {...common}><path d="M6 16h11l2-4H8l-2 4Z" fill="rgba(239,68,68,.14)" stroke={stroke} strokeWidth="1.6" transform="rotate(-18 12 14)"/><path d="M7 6c3-2 7-1.5 9 1.2M16 7.2h-3" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><circle cx="8" cy="18" r="1.3" fill={accent}/><circle cx="16" cy="18" r="1.3" fill={accent}/></svg>;
+    case "security": return <svg {...common}><path d="M12 3.5 19 6v5c0 4.6-3 7.4-7 9-4-1.6-7-4.4-7-9V6l7-2.5Z" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M9 12l2 2 4-5" stroke={accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "security-alert": return <svg {...common}><path d="M12 3.5 19 6v5c0 4.6-3 7.4-7 9-4-1.6-7-4.4-7-9V6l7-2.5Z" fill="rgba(251,191,36,.14)" stroke="#f59e0b" strokeWidth="1.6"/><path d="M12 8v4M12 15h.01" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "check": return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(34,197,94,.15)" stroke="#22c55e" strokeWidth="1.6"/><path d="M8.3 12.1 11 14.8l5-5.6" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "xmark": return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(239,68,68,.14)" stroke="#ef4444" strokeWidth="1.6"/><path d="M9 9l6 6M15 9l-6 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "return-route": return <svg {...common}><path d="M18 7H9a4 4 0 0 0 0 8h7" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="m12 11-4 4 4 4" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "anchor-port": return <svg {...common}><circle cx="12" cy="5" r="2" fill="rgba(56,189,248,.16)" stroke={accent} strokeWidth="1.5"/><path d="M12 7v11M8 10h8M6 15c1.2 3 3.2 4 6 4s4.8-1 6-4" stroke={stroke} strokeWidth="1.7" strokeLinecap="round"/><path d="m6 15-2 1M18 15l2 1" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "slow-traffic": return <svg {...common}><path d="M5 17h14" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><path d="M8 13h8l-1.5-4h-5L8 13Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.5"/><path d="M7 6h10" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2 2"/></svg>;
+    case "closed-gate": case "stop-sign": return <svg {...common}><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8l4-4Z" fill="rgba(239,68,68,.16)" stroke="#ef4444" strokeWidth="1.6"/><path d="M8 12h8" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "north-arrow": return <svg {...common}><path d="M12 4v16" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="m7 9 5-5 5 5" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "south-arrow": return <svg {...common}><path d="M12 4v16" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="m7 15 5 5 5-5" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "clipboard": return <svg {...common}><path d="M7 5h10v15H7z" fill="rgba(148,163,184,.16)" stroke={stroke} strokeWidth="1.6"/><path d="M9.5 4h5l.7 2H8.8l.7-2ZM9.5 10h5M9.5 13h5M9.5 16h3" stroke={accent} strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "megaphone": return <svg {...common}><path d="M4 13h3l9-5v10l-9-5H4z" fill="rgba(56,189,248,.14)" stroke={stroke} strokeWidth="1.6"/><path d="M7 13l1.5 5H11l-1.2-4" stroke={accent} strokeWidth="1.5"/><path d="M18 10c1 .8 1.5 1.8 1.5 3S19 15.2 18 16" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "pin": return <svg {...common}><path d="M12 21s6-4.5 6-10a6 6 0 1 0-12 0c0 5.5 6 10 6 10Z" fill="rgba(56,189,248,.14)" stroke={stroke} strokeWidth="1.7"/><circle cx="12" cy="11" r="2" fill={accent}/></svg>;
+    case "support-heart": return <svg {...common}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="rgba(59,130,246,.22)" stroke={stroke} strokeWidth="1.6"/><path d="M9 12h6" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round"/></svg>;
+    case "user": return <svg {...common}><circle cx="12" cy="8" r="3" fill="rgba(56,189,248,.14)" stroke={stroke} strokeWidth="1.6"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
+    case "key": return <svg {...common}><circle cx="8" cy="12" r="3.3" fill="rgba(251,191,36,.14)" stroke="#fbbf24" strokeWidth="1.6"/><path d="M11.3 12H21M17 12v3M14 12v2" stroke={stroke} strokeWidth="1.7" strokeLinecap="round"/></svg>;
+    case "lock": return <svg {...common}><rect x="5" y="10" width="14" height="10" rx="2" fill="rgba(249,115,22,.14)" stroke={stroke} strokeWidth="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
+    case "office": return <svg {...common}><rect x="5" y="5" width="14" height="15" rx="1.5" fill="rgba(148,163,184,.14)" stroke={stroke} strokeWidth="1.6"/><path d="M8 8h2M14 8h2M8 11h2M14 11h2M8 14h2M14 14h2M11 20v-3h2v3" stroke={accent} strokeWidth="1.3" strokeLinecap="round"/></svg>;
+    case "world": return <svg {...common}><circle cx="12" cy="12" r="8.5" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.7"/><path d="M3.8 12h16.4M12 3.5c2.2 2.4 3.2 5.2 3.2 8.5S14.2 18.1 12 20.5C9.8 18.1 8.8 15.3 8.8 12S9.8 5.9 12 3.5Z" stroke={accent} strokeWidth="1.5"/></svg>;
+    case "city": return <svg {...common}><path d="M4 20h16" stroke={stroke} strokeWidth="1.8"/><path d="M6 20V8h5v12M13 20V5h5v15" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.5"/><path d="M8 11h1M8 14h1M15 8h1M15 11h1M15 14h1" stroke={accent} strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "yard-tractor": return <svg {...common}><path d="M6 14h7l2-5h3l2 5v3H6z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.6"/><circle cx="9" cy="18" r="1.6" fill={accent}/><circle cx="17" cy="18" r="1.6" fill={accent}/><path d="M6 11H4" stroke="#fbbf24" strokeWidth="1.5"/></svg>;
+    case "stats": return <svg {...common}><path d="M4 19h16" stroke={stroke} strokeWidth="1.7" strokeLinecap="round"/><path d="M7 16v-4M12 16V7M17 16v-7" stroke={accent} strokeWidth="2" strokeLinecap="round"/></svg>;
+
+    case "route-road": return <svg {...common}><path d="M8 21 11 3h2l3 18" fill="rgba(56,189,248,.10)" stroke={stroke} strokeWidth="1.7"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="1.8" strokeLinecap="round"/><path d="M5 21h14" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case "status-live": return <svg {...common}><circle cx="12" cy="12" r="5" fill="rgba(34,197,94,.22)" stroke="#22c55e" strokeWidth="1.7"/><circle cx="12" cy="12" r="2" fill="#22c55e"/><path d="M4.5 12a7.5 7.5 0 0 1 15 0" stroke="#22c55e" strokeWidth="1.4" strokeLinecap="round" opacity=".65"/></svg>;
+    case "logout": return <svg {...common}><path d="M10 5H5v14h5" stroke={stroke} strokeWidth="1.7" strokeLinecap="round"/><path d="M12 12h8M17 8l4 4-4 4" stroke={accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+    case "green-dot": return <svg {...common}><circle cx="12" cy="12" r="7" fill="rgba(34,197,94,.18)" stroke="#22c55e" strokeWidth="1.7"/><circle cx="12" cy="12" r="3" fill="#22c55e"/></svg>;
+    case "orange-dot": return <svg {...common}><circle cx="12" cy="12" r="7" fill="rgba(249,115,22,.18)" stroke="#f97316" strokeWidth="1.7"/><circle cx="12" cy="12" r="3" fill="#f97316"/></svg>;
+    case "red-dot": return <svg {...common}><circle cx="12" cy="12" r="7" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="1.7"/><circle cx="12" cy="12" r="3" fill="#ef4444"/></svg>;
+    case "purple-dot": return <svg {...common}><circle cx="12" cy="12" r="7" fill="rgba(168,85,247,.18)" stroke="#a855f7" strokeWidth="1.7"/><circle cx="12" cy="12" r="3" fill="#a855f7"/></svg>;
     default: return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M8 12h8M12 8v8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/></svg>;
   }
 }
 
+
+function leafletIconMarkup(name = "pin", color = "#38bdf8", size = 16) {
+  const safeColor = String(color || "#38bdf8").replace(/[^#a-zA-Z0-9(),.%\s-]/g, "");
+  const stroke = "#ffffff";
+  const common = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="display:block"`;
+  const type = String(name || "pin");
+  if (["emergency", "collision", "accidente"].includes(type)) return `<svg ${common}><path d="M6 13a6 6 0 0 1 12 0v5H6v-5Z" fill="${safeColor}" stroke="${stroke}" stroke-width="1.7"/><path d="M12 4V2.5M5.8 6.5 4.6 5.3M18.2 6.5l1.2-1.2" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if (["blockade", "bloqueo"].includes(type)) return `<svg ${common}><path d="M4 15h16v4H4z" fill="${safeColor}" stroke="${stroke}" stroke-width="1.5"/><path d="M7 15 11 5h6l-4 10" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if (["construction", "obra"].includes(type)) return `<svg ${common}><path d="M5 19h14" stroke="${stroke}" stroke-width="1.8" stroke-linecap="round"/><path d="M7 19V8l5-3 5 3v11" fill="${safeColor}" stroke="${stroke}" stroke-width="1.5"/></svg>`;
+  return `<svg ${common}><path d="M12 3.8 21 19H3L12 3.8Z" fill="${safeColor}" stroke="${stroke}" stroke-width="1.7"/><path d="M12 9v4M12 16h.01" stroke="${stroke}" stroke-width="2" stroke-linecap="round"/></svg>`;
+}
 
 const TERMINALS_NORTE = [
   { id: "contecon", name: "CONTECON", fullName: "Contecon Manzanillo S.A." },
@@ -325,44 +393,44 @@ const TERMINALS_SUR = [
   { id: "asipona",    name: "ASIPONA",    fullName: "Recinto ASIPONA" },
 ];
 const TERMINAL_STATUS_OPTIONS = [
-  { id: "libre",            label: "Terminal Libre",   color: "#22c55e", icon: "✓" },
-  { id: "llena",            label: "Terminal Llena",   color: "#ef4444", icon: "✗" },
-  { id: "retorno_terminal", label: "Retorno Terminal", color: "#f97316", icon: "↩" },
-  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#a855f7", icon: "⚓" },
+  { id: "libre",            label: "Terminal Libre",   color: "#22c55e", icon: "check" },
+  { id: "llena",            label: "Terminal Llena",   color: "#ef4444", icon: "xmark" },
+  { id: "retorno_terminal", label: "Retorno Terminal", color: "#f97316", icon: "return-route" },
+  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#a855f7", icon: "anchor-port" },
 ];
 
 const INCIDENT_CATEGORIAS = [
-  { id: "incidente", label: "Incidente", icon: "⚠️", color: "#f97316" },
-  { id: "accidente", label: "Accidente", icon: "🚨", color: "#ef4444" },
+  { id: "incidente", label: "Incidente", icon: "warning-triangle", color: "#f97316" },
+  { id: "accidente", label: "Accidente", icon: "emergency", color: "#ef4444" },
 ];
 
 const INCIDENT_SUBCATEGORIAS = {
   incidente: [
-    { id: "falla_mecanica",     label: "Camión con falla mecánica",      icon: "🔧" },
-    { id: "camion_atravesado",  label: "Camión obstruyendo (atravesado)", icon: "🚛" },
-    { id: "falta_diesel",       label: "Camión con falta de diesel",      icon: "⛽" },
-    { id: "contenedor_ladeado", label: "Camión con contenedor ladeado",   icon: "📦" },
-    { id: "plataforma_abandonada", label: "Plataforma abandonada",        icon: "🚚" },
-    { id: "carga_abandonada",   label: "Carga abandonada",                icon: "📫" },
-    { id: "camion_abandonado",  label: "Camión abandonado",               icon: "🅿️" },
+    { id: "falla_mecanica",     label: "Camión con falla mecánica",      icon: "mechanic" },
+    { id: "camion_atravesado",  label: "Camión obstruyendo (atravesado)", icon: "freight-truck" },
+    { id: "falta_diesel",       label: "Camión con falta de diesel",      icon: "fuel" },
+    { id: "contenedor_ladeado", label: "Camión con contenedor ladeado",   icon: "container" },
+    { id: "plataforma_abandonada", label: "Plataforma abandonada",        icon: "truck" },
+    { id: "carga_abandonada",   label: "Carga abandonada",                icon: "cargo-mail" },
+    { id: "camion_abandonado",  label: "Camión abandonado",               icon: "parking" },
   ],
   accidente: [
-    { id: "atropellado",        label: "Atropellado",                     icon: "🚶" },
-    { id: "choque",             label: "Choque entre vehículos",          icon: "💥" },
-    { id: "volcadura_contenedor", label: "Volcadura de contenedor",       icon: "📦" },
-    { id: "herido",             label: "Herido",                          icon: "🏥" },
-    { id: "caida_material",     label: "Caída de material",               icon: "⬇️" },
-    { id: "camion_volcado",     label: "Camión volcado",                  icon: "🔄" },
-    { id: "zona_asalto",        label: "Zona de asalto",                  icon: "🚔" },
-    { id: "zona_robo",          label: "Zona de robo",                    icon: "⚡" },
+    { id: "atropellado",        label: "Atropellado",                     icon: "pedestrian" },
+    { id: "choque",             label: "Choque entre vehículos",          icon: "collision" },
+    { id: "volcadura_contenedor", label: "Volcadura de contenedor",       icon: "container" },
+    { id: "herido",             label: "Herido",                          icon: "medical" },
+    { id: "caida_material",     label: "Caída de material",               icon: "south-arrow" },
+    { id: "camion_volcado",     label: "Camión volcado",                  icon: "turnover" },
+    { id: "zona_asalto",        label: "Zona de asalto",                  icon: "security" },
+    { id: "zona_robo",          label: "Zona de robo",                    icon: "security-alert" },
   ],
 };
 
 const INCIDENT_TYPES = [
-  { id: "incidente", label: "Incidente",      icon: "⚠️", color: "#f97316" },
-  { id: "accidente", label: "Accidente",      icon: "🚨", color: "#ef4444" },
-  { id: "bloqueo",   label: "Bloqueo / Corte",icon: "🚧", color: "#eab308" },
-  { id: "obra",      label: "Obra / Desvío",  icon: "🏗️", color: "#3b82f6" },
+  { id: "incidente", label: "Incidente",      icon: "warning-triangle", color: "#f97316" },
+  { id: "accidente", label: "Accidente",      icon: "emergency", color: "#ef4444" },
+  { id: "bloqueo",   label: "Bloqueo / Corte",icon: "blockade", color: "#eab308" },
+  { id: "obra",      label: "Obra / Desvío",  icon: "construction", color: "#3b82f6" },
 ];
 
 const VIALIDADES = [
@@ -377,10 +445,10 @@ const VIALIDADES = [
 ];
 
 const VIALIDAD_STATUS_OPTIONS = [
-  { id: "libre",    label: "Libre",             color: "#22c55e", icon: "✓" },
-  { id: "lento",    label: "Tráfico Lento",     color: "#eab308", icon: "⚠" },
-  { id: "saturado", label: "Saturado",           color: "#f97316", icon: "🔶" },
-  { id: "detenido", label: "Tráfico Detenido",   color: "#ef4444", icon: "✗" },
+  { id: "libre",    label: "Libre",             color: "#22c55e", icon: "check" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#eab308", icon: "warning-triangle" },
+  { id: "saturado", label: "Saturado",           color: "#f97316", icon: "slow-traffic" },
+  { id: "detenido", label: "Tráfico Detenido",   color: "#ef4444", icon: "xmark" },
 ];
 
 const ACCESOS_PRINCIPALES = [
@@ -390,15 +458,15 @@ const ACCESOS_PRINCIPALES = [
   { id: "patio",     label: "Acceso Patio Regulador", color: "#06eb7a", zona: "Zona Sur" },
 ];
 const ACCESO_STATUS_OPTIONS = [
-  { id: "libre",    label: "Libre / Fluido", color: "#22c55e", icon: "✓" },
-  { id: "lento",    label: "Tráfico Lento",  color: "#eab308", icon: "⚠" },
-  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "✗" },
-  { id: "cerrado",  label: "Cerrado / Corte", color: "#6b7280", icon: "⛔" },
+  { id: "libre",    label: "Libre / Fluido", color: "#22c55e", icon: "check" },
+  { id: "lento",    label: "Tráfico Lento",  color: "#eab308", icon: "warning-triangle" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "xmark" },
+  { id: "cerrado",  label: "Cerrado / Corte", color: "#6b7280", icon: "closed-gate" },
 ];
 const RETORNO_OPTIONS = [
-  { id: "none",     label: "Sin Retornos",     color: "#22c55e", icon: "✓" },
-  { id: "terminal", label: "Retorno Terminal",  color: "#f97316", icon: "↩" },
-  { id: "asipona",  label: "Retorno ASIPONA",   color: "#a855f7", icon: "⚓" },
+  { id: "none",     label: "Sin Retornos",     color: "#22c55e", icon: "check" },
+  { id: "terminal", label: "Retorno Terminal",  color: "#f97316", icon: "return-route" },
+  { id: "asipona",  label: "Retorno ASIPONA",   color: "#a855f7", icon: "anchor-port" },
 ];
 
 const RUTAS_FISCALES = [
@@ -992,9 +1060,9 @@ const RUTAS_FISCALES = [
 ];
 
 const RUTA_FISCAL_STATUS_OPTIONS = [
-  { id: "libre", label: "Libre", color: "#22c55e", icon: "✓" },
-  { id: "moderado", label: "Tráfico Moderado", color: "#f97316", icon: "⚠" },
-  { id: "detenido", label: "Tráfico Detenido", color: "#ef4444", icon: "■" },
+  { id: "libre", label: "Libre", color: "#22c55e", icon: "check" },
+  { id: "moderado", label: "Tráfico Moderado", color: "#f97316", icon: "warning-triangle" },
+  { id: "detenido", label: "Tráfico Detenido", color: "#ef4444", icon: "stop-sign" },
 ];
 
 const mkRutasFiscales = () =>
@@ -1003,23 +1071,23 @@ const mkRutasFiscales = () =>
 const RUTA_FISCAL_REFERENCIAS = [
   // Coordenadas alineadas con la sección MAPA / KML_POINTS para que las referencias caigan en el mismo punto.
   // Zona Norte
-  { id:"ref_contecon", zona:"Norte", tipo:"terminal", name:"Terminal CONTECON", short:"CONTECON", coords:[19.08418178396766,-104.3020765405659], icon:"🏭" },
-  { id:"ref_hazesa", zona:"Norte", tipo:"terminal", name:"Terminal HAZESA", short:"HAZESA", coords:[19.08389836997078,-104.295058165122], icon:"🏭" },
-  { id:"ref_acceso_norte", zona:"Norte", tipo:"acceso", name:"Acceso Zona Norte", short:"Acceso Norte", coords:[19.08656881040979,-104.2970097872907], icon:"🚪" },
+  { id:"ref_contecon", zona:"Norte", tipo:"terminal", name:"Terminal CONTECON", short:"CONTECON", coords:[19.08418178396766,-104.3020765405659], icon:"port-terminal" },
+  { id:"ref_hazesa", zona:"Norte", tipo:"terminal", name:"Terminal HAZESA", short:"HAZESA", coords:[19.08389836997078,-104.295058165122], icon:"port-terminal" },
+  { id:"ref_acceso_norte", zona:"Norte", tipo:"acceso", name:"Acceso Zona Norte", short:"Acceso Norte", coords:[19.08656881040979,-104.2970097872907], icon:"access-gate" },
 
   // Zona Sur
-  { id:"ref_ssa", zona:"Sur", tipo:"terminal", name:"Terminal SSA", short:"SSA", coords:[19.07463139813982,-104.2891322457856], icon:"🏭" },
-  { id:"ref_granelera", zona:"Sur", tipo:"terminal", name:"Granelera", short:"Granelera", coords:[19.06434906950253,-104.2907952693104], icon:"🏭" },
-  { id:"ref_lajunta", zona:"Sur", tipo:"terminal", name:"La Junta", short:"La Junta", coords:[19.06322612268734,-104.2910153355142], icon:"🏭" },
-  { id:"ref_timsa", zona:"Sur", tipo:"terminal", name:"Terminal TIMSA", short:"TIMSA", coords:[19.06126633877015,-104.2909711781655], icon:"🏭" },
-  { id:"ref_multimodal", zona:"Sur", tipo:"terminal", name:"Terminal MULTIMODAL", short:"MULTIMODAL", coords:[19.05724964895184,-104.2942608658049], icon:"🏭" },
-  { id:"ref_friman", zona:"Sur", tipo:"terminal", name:"Terminal FRIMAN", short:"FRIMAN", coords:[19.05698919310202,-104.2954019724908], icon:"🏭" },
-  { id:"ref_ocupa", zona:"Sur", tipo:"terminal", name:"Terminal OCUPA", short:"OCUPA", coords:[19.05651848457071,-104.3003288440099], icon:"🏭" },
-  { id:"ref_cemex", zona:"Sur", tipo:"terminal", name:"Terminal CEMEX", short:"CEMEX", coords:[19.05780874594614,-104.2997456907227], icon:"🏭" },
-  { id:"ref_asipona", zona:"Sur", tipo:"terminal", name:"Recinto ASIPONA", short:"ASIPONA", coords:[19.05604853655314,-104.3034885062604], icon:"⚓" },
-  { id:"ref_pezvela", zona:"Sur", tipo:"acceso", name:"Acceso Pez Vela", short:"Pez Vela", coords:[19.07634709752751,-104.2873039903065], icon:"🚪" },
-  { id:"ref_puerta15", zona:"Sur", tipo:"acceso", name:"Acceso Puerta 15", short:"Puerta 15", coords:[19.07789046237833,-104.2884816132865], icon:"🚪" },
-  { id:"ref_patio", zona:"Sur", tipo:"acceso", name:"Acceso Patio Regulador", short:"Patio Regulador", coords:[19.10354265164766,-104.2702980795862], icon:"🚪" },
+  { id:"ref_ssa", zona:"Sur", tipo:"terminal", name:"Terminal SSA", short:"SSA", coords:[19.07463139813982,-104.2891322457856], icon:"port-terminal" },
+  { id:"ref_granelera", zona:"Sur", tipo:"terminal", name:"Granelera", short:"Granelera", coords:[19.06434906950253,-104.2907952693104], icon:"port-terminal" },
+  { id:"ref_lajunta", zona:"Sur", tipo:"terminal", name:"La Junta", short:"La Junta", coords:[19.06322612268734,-104.2910153355142], icon:"port-terminal" },
+  { id:"ref_timsa", zona:"Sur", tipo:"terminal", name:"Terminal TIMSA", short:"TIMSA", coords:[19.06126633877015,-104.2909711781655], icon:"port-terminal" },
+  { id:"ref_multimodal", zona:"Sur", tipo:"terminal", name:"Terminal MULTIMODAL", short:"MULTIMODAL", coords:[19.05724964895184,-104.2942608658049], icon:"port-terminal" },
+  { id:"ref_friman", zona:"Sur", tipo:"terminal", name:"Terminal FRIMAN", short:"FRIMAN", coords:[19.05698919310202,-104.2954019724908], icon:"port-terminal" },
+  { id:"ref_ocupa", zona:"Sur", tipo:"terminal", name:"Terminal OCUPA", short:"OCUPA", coords:[19.05651848457071,-104.3003288440099], icon:"port-terminal" },
+  { id:"ref_cemex", zona:"Sur", tipo:"terminal", name:"Terminal CEMEX", short:"CEMEX", coords:[19.05780874594614,-104.2997456907227], icon:"port-terminal" },
+  { id:"ref_asipona", zona:"Sur", tipo:"terminal", name:"Recinto ASIPONA", short:"ASIPONA", coords:[19.05604853655314,-104.3034885062604], icon:"anchor-port" },
+  { id:"ref_pezvela", zona:"Sur", tipo:"acceso", name:"Acceso Pez Vela", short:"Pez Vela", coords:[19.07634709752751,-104.2873039903065], icon:"access-gate" },
+  { id:"ref_puerta15", zona:"Sur", tipo:"acceso", name:"Acceso Puerta 15", short:"Puerta 15", coords:[19.07789046237833,-104.2884816132865], icon:"access-gate" },
+  { id:"ref_patio", zona:"Sur", tipo:"acceso", name:"Acceso Patio Regulador", short:"Patio Regulador", coords:[19.10354265164766,-104.2702980795862], icon:"access-gate" },
 ];
 
 function FiscalZoneMap({ zona, rutas }) {
@@ -1134,7 +1202,7 @@ function FiscalZoneMap({ zona, rutas }) {
       const marker = L.marker(ref.coords, {
         icon: L.divIcon({
           className: "cm-ref-marker",
-          html: `<div class="cm-ref-dot" style="border-color:${color};box-shadow:0 0 0 4px ${color}22,0 6px 18px rgba(0,0,0,.45)"><span>${ref.icon}</span></div><div class="cm-ref-label" style="border-color:${color}66;color:${color}">${ref.short}</div>`,
+          html: `<div class="cm-ref-dot" style="border-color:${color};box-shadow:0 0 0 4px ${color}22,0 6px 18px rgba(0,0,0,.45)">${leafletIconMarkup(ref.icon, color, 18)}</div><div class="cm-ref-label" style="border-color:${color}66;color:${color}">${ref.short}</div>`,
           iconSize: [96, 42],
           iconAnchor: [18, 18],
         })
@@ -1204,7 +1272,7 @@ function MapaRutasFiscales({ rutas, zona = "Norte" }) {
         }
       `}</style>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"8px", flexWrap:"wrap" }}>
-        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}>🛣️ Mapa Ruta Fiscal · Zona {zona}</div>
+        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"14px", fontWeight:"700" }}><AppIcon name="route-road" size={16} active={true} /> Mapa Ruta Fiscal · Zona {zona}</div>
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
           {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
             <span key={o.id} style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:o.color, background:o.color+"18", border:`1px solid ${o.color}44`, borderRadius:"999px", padding:"3px 7px" }}>{o.label}</span>
@@ -1220,8 +1288,8 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
   const theme = React.useContext(ThemeContext);
   const [zonaActiva, setZonaActiva] = useState("Norte");
   const zonas = [
-    { id:"Norte", label:"Zona Norte", icon:"⬆️" },
-    { id:"Sur", label:"Zona Sur", icon:"⬇️" },
+    { id:"Norte", label:"Zona Norte", icon:"north-arrow" },
+    { id:"Sur", label:"Zona Sur", icon:"south-arrow" },
   ];
 
   if (!rutasFiscales) return <SkeletonCard n={3}/>;
@@ -1231,7 +1299,7 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
       <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"14px", padding:"8px", marginBottom:"14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
         {zonas.map(z => (
           <button key={z.id} onClick={() => setZonaActiva(z.id)} style={{ padding:"12px 10px", borderRadius:"11px", border:`1px solid ${zonaActiva===z.id ? "rgba(56,189,248,0.65)" : "rgba(255,255,255,0.08)"}`, background: zonaActiva===z.id ? "linear-gradient(135deg,rgba(56,189,248,0.20),rgba(129,140,248,0.12))" : "rgba(255,255,255,0.04)", color: zonaActiva===z.id ? "#38bdf8" : "rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer", letterSpacing:"0.5px" }}>
-            {z.icon} {z.label}
+            <AppIcon name={z.icon} size={16} active={zonaActiva===z.id} /> {z.label}
           </button>
         ))}
       </div>
@@ -1295,10 +1363,10 @@ const PATIOS_REGULADORES = [
 ];
 
 const PATIO_STATUS_OPTIONS = [
-  { id: "libre",    label: "Patio Libre",    color: "#22c55e", icon: "✓" },
-  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "✗" },
-  { id: "cerrado",  label: "Cerrado",         color: "#6b7280", icon: "⛔" },
-  { id: "lleno",    label: "Patio Lleno",     color: "#f97316", icon: "⚠" },
+  { id: "libre",    label: "Patio Libre",    color: "#22c55e", icon: "check" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "xmark" },
+  { id: "cerrado",  label: "Cerrado",         color: "#6b7280", icon: "closed-gate" },
+  { id: "lleno",    label: "Patio Lleno",     color: "#f97316", icon: "warning-triangle" },
 ];
 
 const ACCESOS_SEGUNDO = [
@@ -1633,21 +1701,21 @@ const getContentBoxStyle = (theme) => {
 };
 
 // ✨ Helper para obtener fuentes dinámicas del theme
-// ✅ FIX: Validación robusta con fallbacks seguros
+// Validado FIX: Validación robusta con fallbacks seguros
 const getFont = (theme, type) => {
   if (!theme) return "'DM Sans', sans-serif"; // fallback si theme es undefined/null
   if (type === "title") return theme.primaryFont || "'Playfair Display', serif";
   return theme.secondaryFont || "'DM Sans', sans-serif";
 };
 
-// ✅ FIX: Validación robusta con fallbacks seguros
+// Validado FIX: Validación robusta con fallbacks seguros
 const getFontSize = (theme, type) => {
   if (!theme) return "14px"; // fallback si theme es undefined/null
   if (type === "title") return `${theme.titleFontSize || 17}px`;
   return `${theme.baseFontSize || 14}px`;
 };
 
-// ✅ Helpers de color de texto: conectan el panel Admin con la UI
+// Validado Helpers de color de texto: conectan el panel Admin con la UI
 const getTextColor = (theme, type = "primary", fallback = "#ffffff") => {
   return theme?.textColors?.[type] || DEFAULT_THEME.textColors?.[type] || fallback;
 };
@@ -1890,16 +1958,16 @@ const SEGUNDO_CARRILES_INGRESO = [
   { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
 ];
 const SEGUNDO_TRAFICO_OPTS = [
-  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "✓" },
-  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "✗" },
-  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "🐢" },
-  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "🛑" },
+  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "check" },
+  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "xmark" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "slow-traffic" },
+  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
 ];
 const SEGUNDO_CONTENEDOR_OPTS = [
-  { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "📦" },
-  { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "🔓" },
-  { id: "ambos",            label: "Ambos (Abierto/Cerrado)", color: "#f97316", icon: "📦🔓" },
-  { id: "no_horario",       label: "No es Horario",           color: "#6b7280", icon: "🕐" },
+  { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
+  { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
+  { id: "ambos",            label: "Ambos (Abierto/Cerrado)", color: "#f97316", icon: "container-open" },
+  { id: "no_horario",       label: "No es Horario",           color: "#6b7280", icon: "clock" },
 ];
 
 const mkSegundoIngreso = () => ({
@@ -2959,9 +3027,9 @@ function RutaCostoAdmin() {
                   <div style={sx.routeName}>Vía {item.summary}</div>
 
                   <div style={sx.metaRow}>
-                    <Chip icon="📍" val={item.distText}                       sub="distancia" />
-                    <Chip icon="⏱️" val={item.duration}                       sub="aprox." />
-                    <Chip icon="🛢️" val={`${item.liters.toFixed(2)} L`}       sub="gasolina" />
+                    <Chip icon="ruta" val={item.distText}                       sub="distancia" />
+                    <Chip icon="tiempo" val={item.duration}                       sub="aprox." />
+                    <Chip icon="combustible" val={`${item.liters.toFixed(2)} L`}       sub="gasolina" />
                   </div>
 
                   {/* Costo combustible */}
@@ -3316,7 +3384,7 @@ function AdminRegistrosPanel() {
       {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:e.target.checked}))}/> {l}</label>)}
     </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
-      <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>⏳ Bloquear por tiempo + anular votos</button>
+      <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>Procesando Bloquear por tiempo + anular votos</button>
       <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido + anular votos</button>
     </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
@@ -3834,7 +3902,7 @@ function AnunciosBanner({ isAdmin }) {
               style={{ padding:"5px 14px", borderRadius:"7px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", border:"none",
                 background: (form._imgTab||"subir")===opt ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)",
                 color: (form._imgTab||"subir")===opt ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
-              {opt==="subir" ? "📁 Subir archivo" : "🔗 Pegar URL"}
+              {opt==="subir" ? "📁 Subir archivo" : "Enlace Pegar URL"}
             </button>
           ))}
         </div>
@@ -3861,7 +3929,7 @@ function AnunciosBanner({ isAdmin }) {
                 </>
               )}
               {form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#fbbf24" }}>Subiendo...</span>}
-              {form.imagen_url && !form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#22c55e" }}>✅ Imagen subida</span>}
+              {form.imagen_url && !form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#22c55e" }}>Validado Imagen subida</span>}
             </label>
           </div>
         ) : (
@@ -4421,7 +4489,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
                   cursor:"pointer"
                 }}
               >
-                🗑
+                Eliminar
               </button>
             </div>
           )}
@@ -4440,7 +4508,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
           color:"rgba(255,255,255,0.5)",
           textAlign:"center"
         }}>
-          💡 Arrastra los anuncios para cambiar su orden. El primero será el principal.
+          Tip: Arrastra los anuncios para cambiar su orden. El primero será el principal.
         </div>
       )}
     </div>
@@ -4462,14 +4530,14 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 //   );
 // ─────────────────────────────────────────────────────────────────────────────
 const PERMISOS_DISPONIBLES = [
-  { id: "publicar_anuncios",    label: "Publicar anuncios",        icon: "📢", desc: "Crear y gestionar anuncios publicitarios" },
-  { id: "publicar_comunicados", label: "Publicar comunicados",     icon: "📋", desc: "Crear noticias y comunicados oficiales" },
-  { id: "actualizar_trafico",   label: "Actualizar tráfico",       icon: "🚗", desc: "Modificar estado de vialidades y accesos" },
-  { id: "actualizar_terminales",label: "Actualizar terminales",    icon: "🏭", desc: "Modificar estado de terminales" },
-  { id: "actualizar_patios",    label: "Actualizar patios",        icon: "📦", desc: "Modificar estado de patios reguladores" },
-  { id: "actualizar_carriles",  label: "Actualizar carriles",      icon: "🚦", desc: "Modificar estado de carriles" },
-  { id: "moderar_reportes",     label: "Moderar reportes",         icon: "📌", desc: "Resolver y eliminar reportes de usuarios" },
-  { id: "ver_control_portuario",label: "Control portuario",        icon: "⚓", desc: "Acceso al sistema de control de citas y carga portuaria" },
+  { id: "publicar_anuncios",    label: "Publicar anuncios",        icon: "megaphone", desc: "Crear y gestionar anuncios publicitarios" },
+  { id: "publicar_comunicados", label: "Publicar comunicados",     icon: "clipboard", desc: "Crear noticias y comunicados oficiales" },
+  { id: "actualizar_trafico",   label: "Actualizar tráfico",       icon: "traffic-control", desc: "Modificar estado de vialidades y accesos" },
+  { id: "actualizar_terminales",label: "Actualizar terminales",    icon: "port-terminal", desc: "Modificar estado de terminales" },
+  { id: "actualizar_patios",    label: "Actualizar patios",        icon: "container", desc: "Modificar estado de patios reguladores" },
+  { id: "actualizar_carriles",  label: "Actualizar carriles",      icon: "lane-control", desc: "Modificar estado de carriles" },
+  { id: "moderar_reportes",     label: "Moderar reportes",         icon: "pin", desc: "Resolver y eliminar reportes de usuarios" },
+  { id: "ver_control_portuario",label: "Control portuario",        icon: "anchor-port", desc: "Acceso al sistema de control de citas y carga portuaria" },
 ];
 
 const hashPassword = async (pass) => {
@@ -4623,7 +4691,7 @@ function AdminUsuariosPanel() {
                   {form.permisos[p.id] && <span style={{ color:"#fff", fontSize:"9px", fontWeight:"900", lineHeight:1 }}>✓</span>}
                 </div>
                 <div>
-                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", color: form.permisos[p.id] ? "#c7d2fe" : "rgba(255,255,255,0.6)" }}>{p.icon} {p.label}</div>
+                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", color: form.permisos[p.id] ? "#c7d2fe" : "rgba(255,255,255,0.6)" }}><AppIcon name={p.icon} size={14} active={!!form.permisos[p.id]} /> {p.label}</div>
                   <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"rgba(255,255,255,0.3)", lineHeight:1.3 }}>{p.desc}</div>
                 </div>
               </div>
@@ -4665,13 +4733,13 @@ function AdminUsuariosPanel() {
                     <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", background:"rgba(255,255,255,0.06)", borderRadius:"4px", padding:"1px 5px" }}>@{u.username}</span>
                   </div>
                   <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color: u.expires_at && new Date(u.expires_at) < new Date() ? "#ef4444" : "rgba(255,255,255,0.35)", marginBottom:"5px" }}>
-                    {u.expires_at ? (new Date(u.expires_at) < new Date() ? "⛔ Vencido: " : "⏳ Vigente hasta: ") + new Date(u.expires_at).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "⏳ Sin vencimiento"}
+                    {u.expires_at ? (new Date(u.expires_at) < new Date() ? "⛔ Vencido: " : "Procesando Vigente hasta: ") + new Date(u.expires_at).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "Procesando Sin vencimiento"}
                   </div>
                   {/* Permisos activos */}
                   <div style={{ display:"flex", flexWrap:"wrap", gap:"4px" }}>
                     {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).map(p => (
                       <span key={p.id} style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"#c7d2fe", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:"3px", padding:"1px 6px" }}>
-                        {p.icon} {p.label}
+                        <AppIcon name={p.icon} size={14} active={!!form.permisos[p.id]} /> {p.label}
                       </span>
                     ))}
                     {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).length === 0 && (
@@ -4688,7 +4756,7 @@ function AdminUsuariosPanel() {
                       <button onClick={() => setConfirmDelete(null)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"6px", padding:"5px 9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>✕</button>
                     </>
                   ) : (
-                    <button onClick={() => setConfirmDelete(u.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>🗑</button>
+                    <button onClick={() => setConfirmDelete(u.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>Eliminar</button>
                   )}
                 </div>
               </div>
@@ -4760,7 +4828,7 @@ function useSubAdminSession() {
 // Permite que TODOS los usuarios vean los cambios de tema instantáneamente
 // ─────────────────────────────────────────────────────────────────────────────
 function useGlobalTheme(isAdmin) {
-  // ✅ FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de null
+  // Validado FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de null
   const [supabaseTheme, setSupabaseTheme] = React.useState(DEFAULT_THEME);
   const [loadingTheme, setLoadingTheme] = React.useState(true);
   const [previewMode, setPreviewMode] = React.useState(false);
@@ -4846,7 +4914,7 @@ function useGlobalTheme(isAdmin) {
       localStorage.setItem("admin_theme_preview", JSON.stringify(newTheme));
       setSupabaseTheme({ ...DEFAULT_THEME, ...newTheme });
       setPreviewMode(true);
-      console.log("✅ Preview guardado localmente para admin");
+      console.log("Validado Preview guardado localmente para admin");
       return true;
     } catch (err) {
       console.error("Error guardando preview:", err);
@@ -4878,7 +4946,7 @@ function useGlobalTheme(isAdmin) {
       localStorage.removeItem("admin_theme_preview");
       setPreviewMode(false);
       
-      console.log("✅ Tema aplicado GLOBALMENTE a todos los usuarios");
+      console.log("Validado Tema aplicado GLOBALMENTE a todos los usuarios");
       return { success: true, data };
     } catch (err) {
       console.error("Excepción aplicando tema:", err);
@@ -4886,7 +4954,7 @@ function useGlobalTheme(isAdmin) {
     }
   };
 
-  // ❌ CANCELAR PREVIEW y volver al tema global
+  // Error CANCELAR PREVIEW y volver al tema global
   const cancelPreview = async () => {
     if (!isAdmin) return;
     
@@ -4906,7 +4974,7 @@ function useGlobalTheme(isAdmin) {
       } else {
         setSupabaseTheme(DEFAULT_THEME);
       }
-      console.log("✅ Preview cancelado, tema global restaurado");
+      console.log("Validado Preview cancelado, tema global restaurado");
     } catch (err) {
       console.error("Error cancelando preview:", err);
       setSupabaseTheme(DEFAULT_THEME);
@@ -4944,7 +5012,7 @@ async function saveThemeToDatabase(newTheme) {
       return { success: false, error };
     }
 
-    console.log("✅ Tema guardado en Supabase exitosamente:", data);
+    console.log("Validado Tema guardado en Supabase exitosamente:", data);
     return { success: true, data };
   } catch (err) {
     console.error("Error guardando tema:", err);
@@ -4965,7 +5033,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
   const fileInputRefs = useRef({});
   const initialRender = useRef(true);
   
-  // ✅ PREVIEW EN TIEMPO REAL — Aplicar cambios localmente mientras se configura
+  // Validado PREVIEW EN TIEMPO REAL — Aplicar cambios localmente mientras se configura
   useEffect(() => {
     if (initialRender.current) {
       initialRender.current = false;
@@ -5033,10 +5101,10 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
     setSaving(false);
     
     if (success) {
-      alert("✅ Tema aplicado exitosamente a todos los usuarios");
+      alert("Validado Tema aplicado exitosamente a todos los usuarios");
       onClose();
     } else {
-      alert("❌ Error al aplicar el tema. Revisa la consola.");
+      alert("Error Error al aplicar el tema. Revisa la consola.");
     }
   };
   
@@ -6264,7 +6332,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 onClick={handleCancel}
                 style={{ padding:"12px 20px", borderRadius:"8px", border:"1px solid rgba(251,191,36,0.4)", background:"rgba(251,191,36,0.15)", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"600", cursor:"pointer" }}
               >
-                ❌ Cancelar Preview
+                Error Cancelar Preview
               </button>
             )}
             <button
@@ -6285,7 +6353,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 gap:"8px"
               }}
             >
-              {saving ? "⏳ Aplicando..." : "🌍 Aplicar a Todos"}
+              {saving ? "Procesando Aplicando..." : "🌍 Aplicar a Todos"}
             </button>
           </div>
         </div>
@@ -6333,9 +6401,9 @@ function NavBar({ active, set }) {
           border: "none",
           borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
           color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
-          fontSize: "12px", 
+          fontSize: "14px", 
           fontFamily: getFont(theme, "secondary"), 
-          fontWeight: isActive ? "600" : "400",
+          fontWeight: isActive ? "800" : "600",
           cursor: "pointer", 
           display: "flex", 
           flexDirection: "column",
@@ -6776,7 +6844,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
         <VoteBar count={conf} needed={15} color={t.color} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
-          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>✅ CONFIRMAR</button>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>Validado CONFIRMAR</button>
           <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
         </div>
       </div>
@@ -6790,7 +6858,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const conf = Object.values(votes).filter(v => v === 1).length;
     const visible = conf >= 15;
     await sb.from("incidents").update({ votes, visible }).eq("id", id);
-    notify(visible ? "✅ Verificado" : `✓ ${conf}/15`, "#22c55e");
+    notify(visible ? "Validado Verificado" : `✓ ${conf}/15`, "#22c55e");
   };
   const voteResolve = async (id) => {
     const inc = incidents.find(i => i.id === id);
@@ -6942,7 +7010,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           <div style={{ marginTop: "16px" }}>
             {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
               <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
                 Sin incidentes activos en este momento
               </div>
             ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
@@ -6960,7 +7028,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           <div style={{ marginTop: "16px" }}>
             {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
               <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
                 Sin accidentes activos en este momento
               </div>
             ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
@@ -7282,7 +7350,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       </div>
 
       <div className="traffic-report-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px", marginBottom:"14px" }}>
-        <button onClick={() => toggleAll(true)} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #22c55e55", background:"#22c55e18", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:"800", cursor:"pointer" }}>✅ Seleccionar todo</button>
+        <button onClick={() => toggleAll(true)} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #22c55e55", background:"#22c55e18", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:"800", cursor:"pointer" }}>Validado Seleccionar todo</button>
         <button onClick={() => toggleAll(false)} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #64748b55", background:"rgba(100,116,139,.16)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:"800", cursor:"pointer" }}>☐ Limpiar</button>
         <button onClick={generatePdf} disabled={busyPdf || !totalItems} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #f59e0b66", background:busyPdf ? "rgba(100,116,139,.22)" : "linear-gradient(135deg,#f59e0b,#f97316)", color:"#07111f", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:busyPdf ? "wait" : "pointer", boxShadow:"0 10px 24px rgba(249,115,22,.22)" }}>{busyPdf ? "Generando PDF…" : "⬇️ Generar PDF"}</button>
       </div>
@@ -8174,10 +8242,10 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     Object.values(incMarkersRef.current).forEach(m => { try { map.removeLayer(m); } catch {} });
     incMarkersRef.current = {};
     const PIN_CFG = {
-      incidente: { color: "#f97316", emoji: "⚠️", label: "Incidente" },
-      accidente: { color: "#ef4444", emoji: "🚨", label: "Accidente" },
-      bloqueo:   { color: "#eab308", emoji: "🚧", label: "Bloqueo" },
-      obra:      { color: "#3b82f6", emoji: "🏗️", label: "Obra" },
+      incidente: { color: "#f97316", icon: "warning-triangle", label: "Incidente" },
+      accidente: { color: "#ef4444", icon: "emergency", label: "Accidente" },
+      bloqueo:   { color: "#eab308", icon: "blockade", label: "Bloqueo" },
+      obra:      { color: "#3b82f6", icon: "construction", label: "Obra" },
     };
     const visibles = incidents.filter(shouldShowIncidentOnMap);
     visibles.forEach(inc => {
@@ -8187,14 +8255,14 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       const icon = L.divIcon({
         html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
           <div class="cm-inc-pulse" style="width:32px;height:32px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
-            <span style="transform:rotate(45deg);font-size:14px;line-height:1;">${cfg.emoji}</span>
+            <span style="transform:rotate(45deg);font-size:14px;line-height:1;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)}</span>
           </div>
           <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:DM Sans,sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${(inc.description || cfg.label).replace(/^[^A-Za-zÁÉÍÓÚáéíóúÑñ]*\s*/, "").slice(0,32) + ((inc.description || cfg.label).length > 32 ? "…" : "")}</div>
         </div>`,
         className: "", iconSize: [80, 60], iconAnchor: [16, 32],
       });
       const marker = L.marker([pos.lat, pos.lng], { icon, zIndexOffset: 1000 }).addTo(map);
-      marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${cfg.emoji} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
+      marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
       incMarkersRef.current[inc.id] = marker;
     });
 
@@ -8222,18 +8290,18 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     }
     if (!coords) return;
     const PIN_CFG = {
-      incidente: { color: "#f97316", emoji: "⚠️" },
-      accidente: { color: "#ef4444", emoji: "🚨" },
-      bloqueo:   { color: "#eab308", emoji: "🚧" },
-      obra:      { color: "#3b82f6", emoji: "🏗️" },
+      incidente: { color: "#f97316", icon: "warning-triangle" },
+      accidente: { color: "#ef4444", icon: "emergency" },
+      bloqueo:   { color: "#eab308", icon: "blockade" },
+      obra:      { color: "#3b82f6", icon: "construction" },
     };
     const cfg = PIN_CFG[type] || PIN_CFG.incidente;
     const icon = L.divIcon({
       html: `<div style="display:flex;flex-direction:column;align-items:center;">
         <div class="cm-inc-pulse" style="width:34px;height:34px;background:${cfg.color};border:3.5px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 16px ${cfg.color}bb,0 2px 8px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;">
-          <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${cfg.emoji}</span>
+          <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)}</span>
         </div>
-        <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:0.5px;">📍 Aquí</div>
+        <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1.5px solid ${cfg.color};border-radius:5px;padding:3px 7px;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:0.5px;">Aquí</div>
       </div>`,
       className: "", iconSize: [70, 55], iconAnchor: [17, 34],
     });
@@ -8390,7 +8458,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 const UBICACIONES_REPORTE = [
   {
     grupo: "Vialidades de acceso al puerto",
-    icon: "🛣️",
+    icon: "route-road",
     opciones: [
       "Jalipa → Puerto",
       "Puerto → Jalipa",
@@ -8408,7 +8476,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Calles aledañas al puerto",
-    icon: "🚛",
+    icon: "freight-truck",
     opciones: [
       "Calle Algodones",
       "Av. del Trabajo",
@@ -8428,7 +8496,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Avenidas y bulevares",
-    icon: "🏙️",
+    icon: "city",
     opciones: [
       "Blvd. Miguel de la Madrid",
       "Av. Teniente Azueta",
@@ -8439,7 +8507,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Accesos al recinto portuario",
-    icon: "⚓",
+    icon: "anchor-port",
     opciones: [
       "Acceso Pez Vela",
       "Acceso Puerta 15",
@@ -8454,7 +8522,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Zonas industriales y patios",
-    icon: "📦",
+    icon: "container",
     opciones: [
       "Zona Industrial Fondeport",
       "Parque Industrial Fondeport",
@@ -8470,7 +8538,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Terminales",
-    icon: "🏭",
+    icon: "port-terminal",
     opciones: [
       "Terminal CONTECON",
       "Terminal HAZESA",
@@ -8486,7 +8554,7 @@ const UBICACIONES_REPORTE = [
   },
   {
     grupo: "Colonias y zonas urbanas afectadas",
-    icon: "📍",
+    icon: "incident-pin",
     opciones: [
       "Colonia Tapeixtles",
       "Colonia Fondeport",
@@ -8580,10 +8648,10 @@ function MapaEventos({ incidents }) {
   const [tileMode, setTileMode] = useState("dark");
 
   const PIN_CFG = {
-    incidente: { color: "#f97316", emoji: "⚠️", label: "Incidente" },
-    accidente: { color: "#ef4444", emoji: "🚨", label: "Accidente" },
-    bloqueo:   { color: "#eab308", emoji: "🚧", label: "Bloqueo"   },
-    obra:      { color: "#3b82f6", emoji: "🏗️", label: "Obra"      },
+    incidente: { color: "#f97316", icon: "warning-triangle", label: "Incidente" },
+    accidente: { color: "#ef4444", icon: "emergency", label: "Accidente" },
+    bloqueo:   { color: "#eab308", icon: "blockade", label: "Bloqueo"   },
+    obra:      { color: "#3b82f6", icon: "construction", label: "Obra"      },
   };
 
   // Centro por defecto: Manzanillo
@@ -8672,7 +8740,7 @@ function MapaEventos({ incidents }) {
       const icon = L.divIcon({
         html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
           <div class="cm-inc-pulse" style="width:34px;height:34px;background:${cfg.color};border:3px solid rgba(255,255,255,0.95);border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 0 14px ${cfg.color}cc,0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">
-            <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${cfg.emoji}</span>
+            <span style="transform:rotate(45deg);font-size:15px;line-height:1;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)}</span>
           </div>
           <div style="margin-top:4px;background:rgba(4,12,24,0.92);border:1px solid ${cfg.color}88;border-radius:4px;padding:2px 5px;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;color:${cfg.color};white-space:nowrap;pointer-events:none;">${(inc.description || cfg.label).replace(/^[^A-Za-zÁÉÍÓÚáéíóúÑñ]*\s*/, "").slice(0,32)+((inc.description || cfg.label).length>32?"…":"")}</div>
         </div>`,
@@ -8681,10 +8749,10 @@ function MapaEventos({ incidents }) {
       const marker = L.marker([inc.coords.lat, inc.coords.lng], { icon, zIndexOffset: 1000 }).addTo(map);
       marker.bindPopup(
         `<div style="font-family:'DM Sans',sans-serif;min-width:190px;padding:4px;">
-          <div style="font-size:15px;font-weight:700;color:${cfg.color};margin-bottom:6px;">${cfg.emoji} ${cfg.label}</div>
+          <div style="font-size:15px;font-weight:700;color:${cfg.color};margin-bottom:6px;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)} ${cfg.label}</div>
           <div style="font-size:12px;color:#fff;margin-bottom:4px;line-height:1.4;">${inc.location || ""}</div>
           ${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:4px;">${inc.description}</div>` : ""}
-          <div style="font-size:10px;color:rgba(255,255,255,0.4);">📍 ${inc.coords.lat.toFixed(5)}, ${inc.coords.lng.toFixed(5)}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.4);">GPS ${inc.coords.lat.toFixed(5)}, ${inc.coords.lng.toFixed(5)}</div>
         </div>`,
         { className: "cm-popup" }
       );
@@ -8841,7 +8909,7 @@ function ReportStatsDashboard({ incidents, customIncidentTypes = [], compactTitl
       </div>
     </div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10, marginBottom:12 }}>
-      {[ ["Total",total,"📍"], ["Activos",visible,"🟢"], ["Pendientes",pending,"⏳"], ["Resueltos",resolved,"🏁"] ].map(([k,v,ico]) => <div key={k} style={card}>
+      {[ ["Total",total,"📍"], ["Activos",visible,"🟢"], ["Pendientes",pending,"Procesando"], ["Resueltos",resolved,"🏁"] ].map(([k,v,ico]) => <div key={k} style={card}>
         <div style={{ fontSize:22 }}>{ico}</div><div style={{ color:"#fff", fontSize:24, fontWeight:900 }}>{v}</div><div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:11 }}>{k}</div>
       </div>)}
     </div>
@@ -8976,7 +9044,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       .insert(newIncident)
       .select();
     if (insertError) {
-      return notify("❌ Error al enviar el reporte: " + insertError.message, "#ef4444");
+      return notify("Error Error al enviar el reporte: " + insertError.message, "#ef4444");
     }
     if (insertedRows && insertedRows[0]) {
       const r = insertedRows[0];
@@ -9018,15 +9086,15 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       {/* ── Navegación sub-tabs: Reportar / Eventos ── */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"20px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px" }}>
         {[
-          { id:"reportar", label:"Reportar",  icon:"📢", color:"#0ea5e9" },
-          { id:"eventos",  label:"Eventos",   icon:"🗺️", color:"#f97316" },
+          { id:"reportar", label:"Reportar",  icon:"megaphone", color:"#0ea5e9" },
+          { id:"eventos",  label:"Eventos",   icon:"map", color:"#f97316" },
         ].map(tab => {
           const active = reporteView === tab.id;
           const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
           return (
             <button key={tab.id} onClick={() => setReporteView(tab.id)}
               style={{ flex:1, padding:"11px 8px", border:`1.5px solid ${active ? tab.color : "rgba(255,255,255,0.1)"}`, background: active ? tab.color+"22" : "transparent", borderRadius:"9px", color: active ? tab.color : "rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight: active ? "700" : "500", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-              <span style={{ fontSize:"16px" }}>{tab.icon}</span>
+              <AppIcon name={tab.icon} size={18} active={active} />
               {tab.label}
               {tab.id === "eventos" && evCount > 0 && (
                 <span style={{ background: active ? tab.color : "rgba(249,115,22,0.3)", color: active ? "#0a1628" : "#f97316", borderRadius:"10px", padding:"1px 7px", fontSize:"9px", fontWeight:"700", minWidth:"18px", textAlign:"center" }}>{evCount}</span>
@@ -9058,7 +9126,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           {INCIDENT_CATEGORIAS.map(cat => (
             <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }}
               style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
-              <span style={{ fontSize:"26px" }}>{cat.icon}</span>{cat.label}
+              <AppIcon name={cat.icon} size={28} active={categoria===cat.id} />{cat.label}
             </button>
           ))}
         </div>
@@ -9071,7 +9139,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           {subcats.map(s => (
             <button key={s.id} onClick={() => setSubcat(s.id)}
               style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
-              <span style={{ fontSize:"18px", flexShrink:0 }}>{s.icon}</span>{s.label}
+              <AppIcon name={s.icon} size={20} active={subcat===s.id} />{s.label}
             </button>
           ))}
         </div>
@@ -9094,7 +9162,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             display:"flex", justifyContent:"space-between", alignItems:"center",
             marginBottom:"0", boxSizing:"border-box", transition:"all 0.2s"
           }}>
-          <span>{location ? `📍 ${location}` : "📍 Seleccionar ubicación predefinida"}</span>
+          <span>{location ? `Ubicación: ${location}` : "Seleccionar ubicación predefinida"}</span>
           <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
         </button>
 
@@ -9104,7 +9172,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               <div key={grupo.grupo}>
                 <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)}
                   style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
-                  <span>{grupo.icon}</span>
+                  <AppIcon name={grupo.icon} size={16} active={grupoOpen===grupo.grupo} />
                   <span style={{ flex:1 }}>{grupo.grupo}</span>
                   <span style={{ fontSize:"9px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
                 </button>
@@ -9127,7 +9195,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           PASO 4 · ENLACE DE GOOGLE MAPS *
         </div>
         <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"10px", padding:"10px 12px", marginBottom:"8px", display:"flex", alignItems:"flex-start", gap:"8px" }}>
-          <span style={{ fontSize:"16px", flexShrink:0 }}>ℹ️</span>
+          <span style={{ fontSize:"16px", flexShrink:0 }}>Info</span>
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)", lineHeight:1.7 }}>
             <b style={{ color:"rgba(255,255,255,0.85)" }}>Opción A (recomendada):</b> En Google Maps mantén presionado el lugar → aparecen las coordenadas abajo → cópialas y pégalas aquí.<br/>
             <span style={{ color:"#22c55e" }}>Ej: 19.092788, -104.276555</span><br/>
@@ -9153,27 +9221,27 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             }}
           />
           <span style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"16px", pointerEvents:"none" }}>
-            {coordsLoading ? "⏳" : coords ? "✅" : coordsError ? "❌" : "🔗"}
+            {coordsLoading ? "Procesando" : coords ? "Validado" : coordsError ? "Error" : "Enlace"}
           </span>
         </div>
 
         {/* Feedback */}
         {coordsLoading && (
           <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#38bdf8" }}>
-            ⏳ Obteniendo coordenadas...
+            Procesando Obteniendo coordenadas...
           </div>
         )}
         {coords && !coordsLoading && (
           <div style={{ marginTop:"6px", display:"flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e" }}>
-            ✅ Coordenadas obtenidas: {coords[0].toFixed(5)}, {coords[1].toFixed(5)}
+            Validado Coordenadas obtenidas: {coords[0].toFixed(5)}, {coords[1].toFixed(5)}
             <span style={{ color:"rgba(255,255,255,0.4)" }}>— pin visible en el mapa ↑</span>
           </div>
         )}
         {coordsError && !coordsLoading && (
           <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#f97316", lineHeight:1.5 }}>
-            ❌ {coordsError}
+            Error {coordsError}
             <div style={{ marginTop:"5px", color:"rgba(255,255,255,0.5)", fontSize:"10px" }}>
-              💡 Tip rápido: en Google Maps mantén presionado el punto → copia los números que aparecen abajo (ej: 19.0927, -104.2765) y pégalos aquí.
+              Tip: Tip rápido: en Google Maps mantén presionado el punto → copia los números que aparecen abajo (ej: 19.0927, -104.2765) y pégalos aquí.
             </div>
           </div>
         )}
@@ -9184,11 +9252,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${catObj.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
           <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>VISTA PREVIA</div>
           <div style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
-            <span style={{ fontSize:"20px" }}>{subcatObj?.icon}</span>
+            <AppIcon name={subcatObj?.icon || "incident-pin"} size={22} active={true} />
             <div>
               <div style={{ color:catObj.color, fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
               <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
-              {coords && <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"3px" }}>📍 Pin en mapa: {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>}
+              {coords && <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"3px" }}>Pin en mapa: {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>}
             </div>
           </div>
         </div>
@@ -9223,7 +9291,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                 {/* Header */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
                   <div style={{ display:"flex", gap:"8px", flex:1 }}>
-                    <span style={{ fontSize:"20px" }}>{t.icon}</span>
+                    <AppIcon name={t.icon} size={22} active={true} />
                     <div>
                       <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700" }}>{inc.location}</div>
                       {inc.description && <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"11px", marginTop:"2px" }}>{inc.description}</div>}
@@ -9237,7 +9305,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     {isAdmin && confirmDelete !== inc.id && (
                       <button onClick={() => setConfirmDelete(inc.id)}
                         style={{ padding:"3px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700", letterSpacing:"0.5px" }}>
-                        🗑 BORRAR
+                        Eliminar BORRAR
                       </button>
                     )}
                     {isAdmin && confirmDelete === inc.id && (
@@ -9248,7 +9316,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           if (error) { notify("Error al eliminar: " + error.message, "#ef4444"); return; }
                           setIncidents(prev => prev.filter(i => i.id !== inc.id));
                           setConfirmDelete(null);
-                          notify("🗑 Reporte eliminado", "#f97316");
+                          notify("Eliminar Reporte eliminado", "#f97316");
                         }}
                           style={{ padding:"3px 8px", background:"#ef4444", border:"none", borderRadius:"6px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"9px", cursor:"pointer", fontWeight:"700" }}>
                           SÍ
@@ -9278,11 +9346,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     if (error) return notify("Error al votar: " + error.message, "#ef4444");
                     setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes, visible } : i));
                     await auditLog({ action:"votar_reporte_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, visible, summary:`${getDeviceId()} confirmó reporte ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
-                    if (visible) notify("✅ ¡Reporte verificado y publicado!", "#22c55e");
+                    if (visible) notify("Validado ¡Reporte verificado y publicado!", "#22c55e");
                     else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                   }}
                     style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>✅</span>
+                    <span style={{ fontSize:"16px" }}>Validado</span>
                     <span>CONFIRMO</span>
                     <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
                   </button>
@@ -9297,7 +9365,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       if (error) return notify("Error al eliminar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.filter(i => i.id !== inc.id));
                       await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, eliminado:true, summary:`${getDeviceId()} marcó falso y eliminó reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
-                      notify("❌ Reporte eliminado — 3 votos falsos", "#ef4444");
+                      notify("Error Reporte eliminado — 3 votos falsos", "#ef4444");
                     } else {
                       const { error } = await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
@@ -9307,7 +9375,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     }
                   }}
                     style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                    <span style={{ fontSize:"16px" }}>❌</span>
+                    <span style={{ fontSize:"16px" }}>Error</span>
                     <span>FALSO</span>
                     <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
                   </button>
@@ -9368,15 +9436,15 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           {(() => {
             const visibles = incidents.filter(i => i.visible && !i.resolved);
             const PIN_CFG_EV = {
-              incidente: { color:"#f97316", emoji:"⚠️", label:"Incidente" },
-              accidente: { color:"#ef4444", emoji:"🚨", label:"Accidente" },
-              bloqueo:   { color:"#eab308", emoji:"🚧", label:"Bloqueo"  },
-              obra:      { color:"#3b82f6", emoji:"🏗️", label:"Obra"     },
+              incidente: { color:"#f97316", icon:"warning-triangle", label:"Incidente" },
+              accidente: { color:"#ef4444", icon:"emergency", label:"Accidente" },
+              bloqueo:   { color:"#eab308", icon:"blockade", label:"Bloqueo"  },
+              obra:      { color:"#3b82f6", icon:"construction", label:"Obra"     },
             };
             if (visibles.length === 0) {
               return (
                 <div style={{ textAlign:"center", padding:"32px 16px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"12px" }}>
-                  <div style={{ fontSize:"36px", marginBottom:"10px" }}>✅</div>
+                  <div style={{ fontSize:"36px", marginBottom:"10px" }}>Validado</div>
                   <div style={{ color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"600" }}>Sin eventos activos</div>
                   <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"6px" }}>No hay incidentes ni accidentes reportados en este momento</div>
                 </div>
@@ -9404,7 +9472,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       {/* Cabecera */}
                       <div style={{ display:"flex", gap:"10px", alignItems:"flex-start", marginBottom:"10px" }}>
                         <div style={{ width:"40px", height:"40px", background:cfg.color+"22", border:`1.5px solid ${cfg.color}66`, borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", flexShrink:0 }}>
-                          {cfg.emoji}
+                          <AppIcon name={cfg.icon || "warning-triangle"} size={22} active={true} />
                         </div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"3px", flexWrap:"wrap" }}>
@@ -9420,10 +9488,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                             const { error } = await sb.from("incidents").delete().eq("id", inc.id);
                             if (error) { notify("Error: " + error.message, "#ef4444"); return; }
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
-                            notify("🗑 Evento eliminado", "#f97316");
+                            notify("Eliminar Evento eliminado", "#f97316");
                           }}
                             style={{ padding:"4px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", flexShrink:0 }}>
-                            🗑
+                            Eliminar
                           </button>
                         )}
                       </div>
@@ -9445,7 +9513,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                         }}
                           style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                          <span style={{ fontSize:"16px" }}>✅</span>
+                          <span style={{ fontSize:"16px" }}>Validado</span>
                           <span>CONFIRMO</span>
                           <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
                         </button>
@@ -9458,7 +9526,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           if (count >= 3) {
                             await sb.from("incidents").delete().eq("id", inc.id);
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
-                            notify("❌ Evento eliminado — 3 votos falsos", "#ef4444");
+                            notify("Error Evento eliminado — 3 votos falsos", "#ef4444");
                           } else {
                             await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
@@ -9467,7 +9535,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           }
                         }}
                           style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
-                          <span style={{ fontSize:"16px" }}>❌</span>
+                          <span style={{ fontSize:"16px" }}>Error</span>
                           <span>FALSO</span>
                           <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
                         </button>
@@ -9683,7 +9751,7 @@ function MapaTerminales({ zona, stMap }) {
   const polyRefs  = useRef({});
   const tileRef   = useRef(null);
   const labelRef  = useRef(null);
-  const zonaRef   = useRef(zona); // ✅ FIX: ref para acceder a zona actual en callbacks
+  const zonaRef   = useRef(zona); // Validado FIX: ref para acceder a zona actual en callbacks
   const stMapRef  = useRef(stMap);
   const [tileMode, setTileMode] = useState("dark");
 
@@ -9701,7 +9769,7 @@ function MapaTerminales({ zona, stMap }) {
     return opt ? opt.color : "#22c55e";
   };
 
-  // ✅ FIX: Helper para cargar polígonos de una zona en el mapa existente
+  // Validado FIX: Helper para cargar polígonos de una zona en el mapa existente
   const loadZonePolygons = (z, sm) => {
     if (!leafRef.current || !window.L) return;
     const L = window.L;
@@ -9735,7 +9803,7 @@ function MapaTerminales({ zona, stMap }) {
     });
   };
 
-  // ✅ FIX PRINCIPAL: Init solo una vez con []
+  // Validado FIX PRINCIPAL: Init solo una vez con []
   useEffect(() => {
     const init = () => {
       if (leafRef.current || !mapRef.current || !window.L) return;
@@ -9786,9 +9854,9 @@ function MapaTerminales({ zona, stMap }) {
       }
     }
     return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
-  }, []); // ✅ Solo [] — el mapa se crea una sola vez
+  }, []); // Validado Solo [] — el mapa se crea una sola vez
 
-  // ✅ FIX: Effect separado que reacciona al cambio de zona SIN recrear el mapa
+  // Validado FIX: Effect separado que reacciona al cambio de zona SIN recrear el mapa
   useEffect(() => {
     zonaRef.current = zona;
     stMapRef.current = stMap;
@@ -9811,7 +9879,7 @@ function MapaTerminales({ zona, stMap }) {
     }
   }, [tileMode]);
 
-  // ✅ FIX: Effect para actualizar colores cuando cambia stMap (sin recrear nada)
+  // Validado FIX: Effect para actualizar colores cuando cambia stMap (sin recrear nada)
   useEffect(() => {
     stMapRef.current = stMap;
     if (!leafRef.current || !stMap) return;
@@ -10032,7 +10100,7 @@ function TerminalesTab({ myId }) {
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
     await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
@@ -10220,10 +10288,10 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:   { color: "#22c55e", label: "Fluido",   emoji: "🟢", bg: "#dcfce7", text: "#15803d" },
-  moderado: { color: "#f97316", label: "Moderado", emoji: "🟠", bg: "#ffedd5", text: "#c2410c" },
-  detenido: { color: "#ef4444", label: "Detenido", emoji: "🔴", bg: "#fee2e2", text: "#b91c1c" },
-  sinuso:   { color: "#a855f7", label: "Sin Uso",  emoji: "🟣", bg: "#f3e8ff", text: "#7e22ce" },
+  fluido:   { color: "#22c55e", label: "Fluido",   icon: "green-dot", bg: "#dcfce7", text: "#15803d" },
+  moderado: { color: "#f97316", label: "Moderado", icon: "orange-dot", bg: "#ffedd5", text: "#c2410c" },
+  detenido: { color: "#ef4444", label: "Detenido", icon: "red-dot", bg: "#fee2e2", text: "#b91c1c" },
+  sinuso:   { color: "#a855f7", label: "Sin Uso",  icon: "purple-dot", bg: "#f3e8ff", text: "#7e22ce" },
 };
 
 const TRAFICO_MAP_STYLES = {
@@ -10641,8 +10709,8 @@ function SegundoAccesoTab({ myId }) {
       {/* ── Sub-tab selector ── */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
         {[
-          { id:"segundo",   label:"2DO ACCESO",   icon:"🛣️",  color:"#34d399" },
-          { id:"confinada", label:"CONFINADA",    icon:"🔒", color:"#a78bfa" },
+          { id:"segundo",   label:"2DO ACCESO",   icon:"route-road",  color:"#34d399" },
+          { id:"confinada", label:"CONFINADA",    icon:"lock", color:"#a78bfa" },
         ].map(tab => (
           <button
             key={tab.id}
@@ -10659,7 +10727,7 @@ function SegundoAccesoTab({ myId }) {
               display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
             }}
           >
-            <span>{tab.icon}</span>{tab.label}
+            <AppIcon name={tab.icon} size={18} active={subTab===tab.id} />{tab.label}
           </button>
         ))}
       </div>
@@ -11344,7 +11412,7 @@ function VisorFullscreen({ item, onClose }) {
         {/* Acciones */}
         <div style={{ display:"flex", gap:"8px", justifyContent:"center", flexShrink:0 }}>
           <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"8px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
-            🔗 Abrir en nueva pestaña
+            Enlace Abrir en nueva pestaña
           </a>
           <a href={item.archivo_url} download style={{ padding:"8px 16px", background:"#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
             ⬇️ Descargar
@@ -11550,7 +11618,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       
       {!isAdmin && (
         <div style={{ background: "#fbbf2411", border: "1px solid #fbbf2433", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px", fontSize: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6" }}>
-          ℹ️ Tu comunicado será enviado a revisión y aparecerá después de ser aprobado por un administrador.
+          Info Tu comunicado será enviado a revisión y aparecerá después de ser aprobado por un administrador.
         </div>
       )}
       
@@ -11561,7 +11629,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       )}
       {exito && (
         <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#22c55e", marginBottom: "8px", padding: "8px 12px", background: "#22c55e11", borderRadius: "7px" }}>
-          ✅ {isAdmin ? "Comunicado publicado correctamente" : "Comunicado enviado a revisión"}
+          Validado {isAdmin ? "Comunicado publicado correctamente" : "Comunicado enviado a revisión"}
         </div>
       )}
       
@@ -11570,7 +11638,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         disabled={subiendo}
         style={{ width: "100%", padding: "11px", background: subiendo ? "#0a1628" : "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: "9px", color: subiendo ? "rgba(255,255,255,0.4)" : "#0a1628", fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.5px" }}
       >
-        {subiendo ? "⏳ Subiendo..." : isAdmin ? "📤 PUBLICAR COMUNICADO" : "📤 ENVIAR A REVISIÓN"}
+        {subiendo ? "Procesando Subiendo..." : isAdmin ? "📤 PUBLICAR COMUNICADO" : "📤 ENVIAR A REVISIÓN"}
       </button>
     </div>
   );
@@ -11773,7 +11841,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
           style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.80)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
         >
           <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
-            <div style={{ fontSize: "40px", marginBottom: "12px" }}>{eliminando ? "⏳" : "🗑️"}</div>
+            <div style={{ fontSize: "40px", marginBottom: "12px" }}>{eliminando ? "Procesando" : "Eliminar️"}</div>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>
               {eliminando ? "Eliminando comunicado..." : "¿Eliminar comunicado?"}
             </div>
@@ -11862,7 +11930,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
                         onClick={(e) => { e.stopPropagation(); pedirEliminar(c.id); }}
                         style={{ position: "absolute", top: "6px", right: "6px", width: "28px", height: "28px", background: "rgba(239,68,68,0.85)", border: "1px solid rgba(239,68,68,0.6)", borderRadius: "50%", color: "#fff", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
                         title="Eliminar comunicado"
-                      >🗑</button>
+                      >Eliminar</button>
                     )}
                   </div>
                 ))}
@@ -11901,7 +11969,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <div style={{ flex: 1, height: "1px", background: "#1e3a5f" }} />
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#f97316", fontWeight: "700", letterSpacing: "1px", whiteSpace: "nowrap" }}>
-                  ⏳ SOLICITUDES PENDIENTES
+                  Procesando SOLICITUDES PENDIENTES
                   {pendientes.length > 0 && (
                     <span style={{ background: "#f97316", color: "#fff", borderRadius: "8px", padding: "1px 7px", fontSize: "10px" }}>{pendientes.length}</span>
                   )}
@@ -11953,7 +12021,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
                         disabled={procesando !== null}
                         style={{ flex: 1, padding: "8px 4px", background: procesando === p.id ? "rgba(34,197,94,0.3)" : "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.5)", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: procesando !== null ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: procesando !== null && procesando !== p.id ? 0.5 : 1 }}
                       >
-                        {procesando === p.id ? "⏳" : "✓"} APROBAR
+                        {procesando === p.id ? "Procesando" : "✓"} APROBAR
                       </button>
                       <button
                         onClick={() => rechazar(p.id)}
@@ -12062,7 +12130,7 @@ function NoticiasTab({ isAdmin }) {
 
       {/* Header */}
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
-        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📰</div>
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:"8px" }}><AppIcon name="dispatch-news" size={34} active={true} /></div>
         <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>NOTICIAS DEL PUERTO</div>
         <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary") }}>Actualizaciones en tiempo real de toda la operación</div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"16px", marginTop:"8px" }}>
@@ -12105,7 +12173,7 @@ function NoticiasTab({ isAdmin }) {
             ))}
           </div>
           {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Cargando noticias...</div>}
-          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>📭 Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
+          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
           {filtered.map((n) => (
             <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
               <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
@@ -12303,9 +12371,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     </div>
     <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
       <button onClick={()=>adminWarnProfile(row, type)} style={btn("#fbbf24")}>⚠️ Advertencia</button>
-      <button onClick={()=>adminSanctionProfile(row, type, "temp_block")} style={btn("#f97316")}>⏳ Bloquear</button>
+      <button onClick={()=>adminSanctionProfile(row, type, "temp_block")} style={btn("#f97316")}>Procesando Bloquear</button>
       <button onClick={()=>adminSanctionProfile(row, type, "ban")} style={btn("#ef4444")}>⛔ Baneo</button>
-      <button onClick={()=>adminDeleteProfile(row, type)} style={btn("#94a3b8")}>🗑️ Borrar perfil</button>
+      <button onClick={()=>adminDeleteProfile(row, type)} style={btn("#94a3b8")}>Eliminar️ Borrar perfil</button>
     </div>
   </div>;
 
@@ -12427,10 +12495,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"💙"},{id:"posturas", label:"Posturas Conect", icon:"🤝"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
     {sub === "posturas" && <>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"🚛"},{id:"empresario", label:"Empresario", icon:"🏢"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
       {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
       <Filters />
       {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
@@ -12950,7 +13018,7 @@ function PatioIdentificaMap({ myId }) {
     {
       id: "satellite",
       label: "Satélite",
-      icon: "🌎",
+      icon: "world",
       url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       subdomains: "",
     },
@@ -13607,7 +13675,7 @@ function PatioReguladorTab({ myId }) {
     await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     await auditLog({ action:"votar_patio", section:"patios", entityId:patioId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const patioNombre = PATIOS_REGULADORES.find(p => p.id === patioId)?.name || patioId.toUpperCase();
     await publicarNoticia({ tipo: "patio", icono: "🏭", color: "#fb923c", titulo: `Patio ${patioNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
@@ -13761,7 +13829,7 @@ function TutorialTab({ setActive, isAdmin }) {
   const btnSecondary = { background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", padding:"4px 0" };
   const MsgBox = ({ msg }) => msg ? (
     <div style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok" ? "#22c55e55" : "#ef444455"}`, color: msg.type==="ok" ? "#22c55e" : "#ef4444" }}>
-      {msg.type==="ok" ? "✅ " : "⚠️ "}{msg.text}
+      {msg.type==="ok" ? "Validado " : "⚠️ "}{msg.text}
     </div>
   ) : null;
 
@@ -13808,7 +13876,7 @@ function TutorialTab({ setActive, isAdmin }) {
     const { error } = await sb.auth.signInWithOtp({ phone: tel });
     setLoading(false);
     if (error) { setRegMsg({type:"err", text:"Error al enviar SMS: " + error.message}); }
-    else { setOtpEnviado(true); setRegMsg({type:"ok", text:"✅ Código enviado por SMS. Revisa tu teléfono."}); }
+    else { setOtpEnviado(true); setRegMsg({type:"ok", text:"Validado Código enviado por SMS. Revisa tu teléfono."}); }
   };
 
   // ── VERIFICAR OTP ──
@@ -13818,7 +13886,7 @@ function TutorialTab({ setActive, isAdmin }) {
     const { error } = await sb.auth.verifyOtp({ phone: regTel.trim(), token: regOtp, type: "sms" });
     setLoading(false);
     if (error) { setRegMsg({type:"err", text:"Código incorrecto o expirado. Inténtalo de nuevo."}); }
-    else { setRegMsg({type:"ok", text:"✅ Teléfono verificado correctamente."}); setRegStep(3); }
+    else { setRegMsg({type:"ok", text:"Validado Teléfono verificado correctamente."}); setRegStep(3); }
   };
 
   // ── REGISTRO completo con Supabase ──
@@ -13859,7 +13927,7 @@ function TutorialTab({ setActive, isAdmin }) {
       });
       setLoading(false);
       if (error) { setRegMsg({type:"err", text: error.message.includes("already registered") ? "Este correo ya está registrado" : error.message }); }
-      else { setRegMsg({type:"ok", text:"✅ ¡Cuenta creada! Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); }
+      else { setRegMsg({type:"ok", text:"Validado ¡Cuenta creada! Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); }
     }
   };
 
@@ -13872,7 +13940,7 @@ function TutorialTab({ setActive, isAdmin }) {
     });
     setLoading(false);
     if (error) { setForgotMsg({type:"err", text:"Error: " + error.message}); }
-    else { setForgotMsg({type:"ok", text:"✅ Si el correo existe, recibirás el enlace de recuperación en minutos. Revisa también tu carpeta de spam."}); }
+    else { setForgotMsg({type:"ok", text:"Validado Si el correo existe, recibirás el enlace de recuperación en minutos. Revisa también tu carpeta de spam."}); }
   };
 
   const stepLabels = ["Datos básicos","Teléfono","Correo","Contraseña"];
@@ -13885,46 +13953,46 @@ function TutorialTab({ setActive, isAdmin }) {
       { label: "Incidentes Pendientes", desc: "Reportes que aún no tienen votos suficientes. Puedes confirmar o marcar como falso." },
       { label: "Incidentes Activos", desc: "Reportes verificados por la comunidad. Puedes votar para marcarlos como resueltos." },
     ]},
-    { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
+    { id: "reporte", icon: "incident-pin", color: "#f97316", title: "REPORTAR", subtitle: "Envía un nuevo incidente al mapa", items: [
       { label: "Paso 1 · Categoría", desc: "Elige entre Incidente (problemas mecánicos, camiones varados) o Accidente (choques, heridos, zonas de riesgo)." },
       { label: "Paso 2 · Tipo específico", desc: "Selecciona el tipo exacto de la lista predefinida: falla mecánica, camión atravesado, choque, volcadura, zona de asalto, etc." },
       { label: "Paso 3 · Ubicación", desc: "Selecciona una ubicación predefinida del menú desplegable (carreteras, avenidas, calles, sitios de referencia) o escribe manualmente el punto exacto con detalle adicional como km, carril o referencia visual." },
       { label: "Enviar Reporte", desc: "Tu reporte aparece como PENDIENTE y necesita votos de la comunidad para ser visible en el mapa." },
     ]},
-    { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
+    { id: "terminales", icon: "anchor-port", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de las 9 terminales del puerto", items: [
       { label: "Zona Norte", desc: "CONTECON y HAZESA. Cada terminal puede estar: Libre, Llena, Retorno Terminal o Retorno ASIPONA." },
       { label: "Zona Sur", desc: "TIMSA, SSA, OCUPA, MULTIMODAL, FRIMAN, LA JUNTA y CEMEX. Mismos estados que Zona Norte." },
       { label: "Actualizar estatus", desc: "Toca el estatus deseado. El sistema contabiliza los votos de la comunidad y muestra el que tenga más consenso." },
       { label: "Votos cada 15 minutos", desc: "Los votos se limpian automáticamente cada 15 minutos para mantener el estatus actualizado. Tu selección se guarda en tu dispositivo y se re-envía automáticamente — no necesitas volver a votar en cada ciclo." },
       { label: "TODO NORMAL", desc: "Restablece todas las terminales a Libre de una sola vez." },
     ]},
-    { id: "segundo", icon: "🛣️", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
+    { id: "segundo", icon: "route-road", color: "#34d399", title: "2DO ACCESO", subtitle: "Carriles de ingreso con terminal asignada", items: [
       { label: "Accesos disponibles", desc: "Acceso Pez Vela (Zona Sur), Puerta 15 y Acceso Zona Norte." },
       { label: "Carriles de Ingreso", desc: "Cada carril tiene asignada una terminal de destino. Puedes cambiarla, indicar saturación o retornos." },
       { label: "Carril Salida", desc: "Exclusivo de salida. Solo muestra si está saturado o con retornos." },
     ]},
-    { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Carriles de Exportación e Importación", items: [
+    { id: "carriles", icon: "lane-control", color: "#eab308", title: "CARRILES", subtitle: "Carriles de Exportación e Importación", items: [
       { label: "Exportación 📤", desc: "Carriles para camiones que llevan carga al barco. Se marcan como ABIERTO o CERRADO." },
       { label: "Importación 📥", desc: "Carriles para retiro de mercancía del buque. Misma lógica que exportación." },
       { label: "TODO ABIERTO", desc: "Restablece todos los carriles del acceso seleccionado de una sola vez." },
     ]},
-    { id: "vialidades", icon: "🛣️", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
+    { id: "vialidades", icon: "route-road", color: "#38bdf8", title: "VIALIDADES", subtitle: "Estado del tráfico en vialidades principales", items: [
       { label: "¿Qué son las Vialidades?", desc: "Son las carreteras y calles principales de acceso a Manzanillo: Jalipa-Puerto, Puerto-Jalipa, Libramiento Cihuatlán-Manzanillo, Carretera Manzanillo-Colima, Carretera Colima-Manzanillo y Calle Algodones." },
       { label: "Estados disponibles", desc: "Libre (verde): tráfico fluido. Tráfico Lento (amarillo): demoras moderadas. Saturado (naranja): alta congestión. Tráfico Detenido (rojo): sin avance." },
       { label: "Cómo votar", desc: "Toca el estado que observas en la vialidad. El sistema muestra el estatus con mayor consenso entre todos los votos." },
       { label: "Renovación cada 15 min", desc: "Los votos se limpian automáticamente para mantener la información actualizada. Tu voto se guarda y se reenvía sin que tengas que votar de nuevo." },
     ]},
-    { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los 8 patios del puerto", items: [
+    { id: "patio", icon: "port-terminal", color: "#fb923c", title: "PATIO REGULADOR", subtitle: "Estatus de los 8 patios del puerto", items: [
       { label: "¿Qué es el Patio Regulador?", desc: "Son las áreas de espera y almacenaje externas al puerto donde los camiones aguardan instrucciones antes de ingresar a una terminal. Hay 8 patios: CIMA 1, CIMA 2, ISL, ALMAN, SIA, TIMSA, ALMACONT y SSA." },
       { label: "Estados posibles", desc: "Patio Libre (verde): hay espacio disponible. Saturado (rojo): sin espacio, alta demanda. Cerrado (gris): patio fuera de servicio. Patio Lleno (naranja): capacidad máxima alcanzada." },
       { label: "Cómo votar", desc: "Toca el estado que observas en el patio. El sistema contabiliza todos los votos y muestra el estatus con más consenso." },
       { label: "TODO NORMAL", desc: "El botón 'TODOS LIBRES' restablece todos los patios de una sola vez, útil al inicio del turno." },
     ]},
-    { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
+    { id: "donativos", icon: "support-heart", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoya el proyecto de la comunidad", items: [
       { label: "¿Para qué sirven?", desc: "Cubren costos de servidor, desarrollo y mejoras continuas para que la app siga funcionando." },
       { label: "Cómo donar", desc: "Realiza una transferencia SPEI al banco MIFEL usando la CLABE que aparece en la sección." },
     ]},
-    { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
+    { id: "registro", icon: "user", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro seguro — no es obligatorio", items: [
       { label: "¿Es obligatorio registrarse?", desc: "No. Puedes usar toda la app sin crear una cuenta. El registro es opcional y te permite participar con identidad verificada en la comunidad." },
       { label: "Información básica", desc: "Nombre, apellidos, nombre de usuario (único), fecha de nacimiento, país y ciudad. Esto permite identificar al usuario y detectar cuentas duplicadas o sospechosas." },
       { label: "Verificación por teléfono (obligatoria)", desc: "Introduce tu número de teléfono y recibirás un código SMS (OTP). Solo si el código es correcto podrás continuar. Esto evita que bots creen cuentas falsas, ya que no pueden verificar teléfonos reales." },
@@ -13935,13 +14003,13 @@ function TutorialTab({ setActive, isAdmin }) {
       { label: "Confirmaciones obligatorias", desc: "Deberás aceptar los Términos y Condiciones y la Política de Privacidad antes de completar el registro." },
       { label: "Reglas contra perfiles falsos", desc: "Solo se permite 1 cuenta por número de teléfono. Se bloquean teléfonos temporales, correos desechables, registros masivos desde la misma IP y dispositivos con múltiples cuentas detectadas." },
     ]},
-    { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Accede a tu cuenta de forma segura", items: [
+    { id: "login", icon: "key", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Accede a tu cuenta de forma segura", items: [
       { label: "¿Cómo iniciar sesión?", desc: "Puedes ingresar con tu correo electrónico o nombre de usuario junto con tu contraseña. También puedes optar por un acceso rápido vía código SMS si tienes tu teléfono verificado." },
       { label: "Sesión activa", desc: "Tu sesión se mantiene activa en el dispositivo para que no tengas que ingresar tus datos cada vez. Puedes cerrar sesión manualmente desde tu perfil." },
       { label: "Intentos fallidos", desc: "Después de varios intentos fallidos, la cuenta se bloquea temporalmente como medida de seguridad. Recibirás un aviso con las instrucciones para desbloquearla." },
       { label: "Sin cuenta", desc: "Si no tienes cuenta o prefieres no crearla, puedes seguir usando la app normalmente. El inicio de sesión no es obligatorio para acceder a la información del puerto." },
     ]},
-    { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recupera el acceso a tu cuenta", items: [
+    { id: "password", icon: "lock", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recupera el acceso a tu cuenta", items: [
       { label: "Paso 1 · Ingresa tu correo", desc: "En la pantalla de inicio de sesión, toca '¿Olvidaste tu contraseña?' e introduce el correo electrónico con el que te registraste." },
       { label: "Paso 2 · Revisa tu bandeja", desc: "Recibirás un correo con un enlace de recuperación. Revisa también la carpeta de spam si no lo encuentras en los primeros minutos." },
       { label: "Paso 3 · Crea una nueva contraseña", desc: "El enlace te llevará a una pantalla donde puedes establecer una contraseña nueva. Recuerda que debe cumplir los requisitos: mínimo 10 caracteres, 1 mayúscula, 1 número y 1 símbolo." },
@@ -14153,7 +14221,7 @@ function TutorialTab({ setActive, isAdmin }) {
         <div style={{ width:"40px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"12px auto 0" }} />
       </div>
       {[
-        { id: "inicio", icon: "🏠", color: "#38bdf8", title: "INICIO", subtitle: "Panel general y accesos rápidos", items: [
+        { id: "inicio", icon: "hub", color: "#38bdf8", title: "INICIO", subtitle: "Panel general y accesos rápidos", items: [
           { label: "Resumen general", desc: "Vista rápida del estado del puerto: tráfico, terminales, patios, accesos, confinados, carriles, anuncios e incidentes activos." },
           { label: "Accesos rápidos", desc: "Desde Inicio se orienta al usuario hacia Reportar, Tráfico, Terminales, Patios, Confinados/2° Acceso, Noticias y Más Info." },
           { label: "Tiempo real", desc: "La información se alimenta con votos comunitarios y actualizaciones realtime desde Supabase." },
@@ -14166,7 +14234,7 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Retornos", desc: "Indica Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
           { label: "Eventos validados", desc: "El mapa general mantiene la vista operativa y muestra reportes visibles; los reportes pendientes se revisan desde Eventos y Reportar." },
         ]},
-        { id: "reporte", icon: "📍", color: "#f97316", title: "REPORTAR", subtitle: "Reportes por categoría con mapas limpios", items: [
+        { id: "reporte", icon: "incident-pin", color: "#f97316", title: "REPORTAR", subtitle: "Reportes por categoría con mapas limpios", items: [
           { label: "Categorías separadas", desc: "Reporta Incidente o Accidente desde su propia subsección." },
           { label: "Subcategorías", desc: "Incidente incluye fallas, falta de diésel, contenedor ladeado, plataforma/carga/camión abandonado; Accidente incluye choque, volcadura, herido, robo o zona de riesgo." },
           { label: "Mapa de Incidente", desc: "Solo muestra pins de incidentes no resueltos con GPS. No muestra accidentes, rutas, terminales ni accesos del KML." },
@@ -14176,68 +14244,68 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Al enviar", desc: "Después de enviar un reporte, la app permanece en la misma sección/subsección; ya no cambia automáticamente a Tráfico." },
           { label: "Recarga", desc: "Si recargas en Reportar, conserva la subsección y categoría donde estabas." },
         ]},
-        { id: "eventos", icon: "⚠️", color: "#f97316", title: "EVENTOS", subtitle: "Validación de incidentes y accidentes", items: [
+        { id: "eventos", icon: "warning-triangle", color: "#f97316", title: "EVENTOS", subtitle: "Validación de incidentes y accidentes", items: [
           { label: "Lista de eventos", desc: "Muestra reportes activos, pendientes o recientes con tipo, ubicación, descripción, hora, GPS y estado de verificación." },
           { label: "Confirmo", desc: "Úsalo cuando el evento sí existe. Al llegar al mínimo de votos, el reporte queda validado." },
           { label: "Falso", desc: "Úsalo cuando el reporte no corresponde o ya no existe." },
           { label: "Resuelto", desc: "Úsalo cuando el evento ya fue atendido o liberado. El conteo usa resolve_votes y se sincroniza con Supabase." },
           { label: "Conteos estables", desc: "Los votos de Confirmo, Falso y Resuelto se mantienen al actualizarse realtime; no deben volver a 0 después de votar." },
         ]},
-        { id: "terminales", icon: "⚓", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de terminales del puerto", items: [
+        { id: "terminales", icon: "anchor-port", color: "#a78bfa", title: "TERMINALES", subtitle: "Estatus de terminales del puerto", items: [
           { label: "Terminales", desc: "Consulta Zona Norte y Zona Sur: CONTECON, HAZESA, TIMSA, SSA, OCUPA, MULTIMODAL, FRIMAN, LA JUNTA, CEMEX, GRANELERA y ASIPONA cuando aplique." },
           { label: "Estados", desc: "Terminal Libre, Terminal Llena, Retorno Terminal y Retorno ASIPONA." },
           { label: "Votación", desc: "Cada usuario puede votar el estado que observa y el sistema refleja el mayor consenso." },
         ]},
-        { id: "patio", icon: "🏭", color: "#fb923c", title: "PATIOS", subtitle: "Patios reguladores y disponibilidad", items: [
+        { id: "patio", icon: "port-terminal", color: "#fb923c", title: "PATIOS", subtitle: "Patios reguladores y disponibilidad", items: [
           { label: "Patios", desc: "Consulta CIMA 1, CIMA 2, ISL, ALMAN, SIA, ALMACONT y SSA." },
           { label: "Estados", desc: "Patio Libre, Saturado, Cerrado o Patio Lleno." },
           { label: "Votación", desc: "Marca el estado real del patio; la información queda visible para quienes vienen en ruta." },
           { label: "Uso operativo", desc: "Ayuda a decidir a qué patio dirigirse antes de intentar ingresar a terminales o accesos." },
         ]},
-        { id: "segundo", icon: "🛣️", color: "#22c55e", title: "CONFINADOS / 2° ACCESO", subtitle: "Carriles, zona confinada y fases", items: [
+        { id: "segundo", icon: "route-road", color: "#22c55e", title: "CONFINADOS / 2° ACCESO", subtitle: "Carriles, zona confinada y fases", items: [
           { label: "2DO ACCESO", desc: "Muestra carriles de ingreso y salida; cada carril puede actualizar terminal asignada, saturación, retornos y flujo Expo/Impo." },
           { label: "Carril de salida C4", desc: "Permite reportar si la salida general está fluida o saturada, si hay retornos y el estado de exportación/importación." },
           { label: "Segundo Acceso por fases", desc: "Divide la vialidad en Fase 1, Fase 2 y Fase 3; ahora se actualiza con un toque, igual que los carriles del Segundo Acceso." },
           { label: "Confinada", desc: "Permite indicar terminal, libre/saturado, retornos, tráfico Expo/Impo, contenedor Expo y si opera como Segundo Acceso." },
           { label: "Sin uso", desc: "Cuando un carril no opera, puede marcarse como Sin uso para que no se interprete como disponible." },
         ]},
-        { id: "carriles", icon: "🚦", color: "#eab308", title: "CARRILES", subtitle: "Control rápido de carriles por acceso", items: [
+        { id: "carriles", icon: "lane-control", color: "#eab308", title: "CARRILES", subtitle: "Control rápido de carriles por acceso", items: [
           { label: "Carriles por acceso", desc: "Consulta carriles de Pez Vela, Puerta 15 y Zona Norte con estado abierto o cerrado." },
           { label: "Actualización simple", desc: "El estado cambia con un toque y queda registrado con hora y usuario/sistema." },
         ]},
-        { id: "noticias", icon: "📰", color: "#06b6d4", title: "NOTICIAS", subtitle: "Avisos, comunicados y anuncios", items: [
+        { id: "noticias", icon: "dispatch-news", color: "#06b6d4", title: "NOTICIAS", subtitle: "Avisos, comunicados y anuncios", items: [
           { label: "Noticias operativas", desc: "Publica y consulta avisos sobre cierres, horarios, afectaciones, seguridad o comunicados." },
           { label: "Anuncios", desc: "Los administradores pueden crear anuncios con texto, imagen, enlace, WhatsApp, fecha de inicio y fecha de fin." },
           { label: "Vigencia", desc: "Cada anuncio puede tener inicio y fin para mostrarse solo durante el periodo necesario." },
           { label: "Limpieza automática", desc: "Anuncios vencidos dejan de mostrarse para mantener la sección actualizada." },
         ]},
-        { id: "donativos", icon: "💙", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoyo voluntario al proyecto", items: [
+        { id: "donativos", icon: "support-heart", color: "#ec4899", title: "DONATIVOS", subtitle: "Apoyo voluntario al proyecto", items: [
           { label: "Uso", desc: "Ayudan a cubrir Supabase, almacenamiento, dominio, mantenimiento y desarrollo continuo." },
           { label: "Opcional", desc: "La app sigue siendo gratuita; donar es voluntario." },
         ]},
-        { id: "tutorial", icon: "🎓", color: "#8b5cf6", title: "MÁS INFO", subtitle: "Guía rápida de uso", items: [
+        { id: "tutorial", icon: "info-beacon", color: "#8b5cf6", title: "MÁS INFO", subtitle: "Guía rápida de uso", items: [
           { label: "Cómo participar", desc: "Vota solo lo que puedas confirmar y reporta con ubicación precisa." },
           { label: "Subapartados", desc: "Incluye guía de Tráfico, Reportar, Eventos, Terminales, Patios, Confinados/2° Acceso, Carriles, Noticias, Donativos y cuenta de usuario." },
           { label: "Buenas prácticas", desc: "Evita duplicados, describe con claridad, usa GPS y marca como resuelto cuando el problema ya no exista." },
           { label: "Privacidad", desc: "Los reportes y votos operativos se usan para informar a la comunidad; evita publicar datos personales innecesarios." },
         ]},
-        { id: "registro", icon: "👤", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro opcional y seguro", items: [
+        { id: "registro", icon: "user", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro opcional y seguro", items: [
           { label: "Registro opcional", desc: "Puedes usar la app sin cuenta; crear cuenta permite participación más confiable." },
           { label: "Seguridad", desc: "Usa correo, contraseña segura y verificaciones para reducir abuso." },
         ]},
-        { id: "login", icon: "🔑", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Acceso seguro", items: [
+        { id: "login", icon: "key", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Acceso seguro", items: [
           { label: "Correo y contraseña", desc: "Inicia sesión con Supabase Auth." },
           { label: "Google", desc: "Cuando está disponible, permite entrar con Google OAuth." },
           { label: "Recuperación", desc: "Si olvidaste tu contraseña, solicita un enlace por correo." },
         ]},
-        { id: "password", icon: "🔒", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recuperación por correo", items: [
+        { id: "password", icon: "lock", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recuperación por correo", items: [
           { label: "Solicitar enlace", desc: "Ingresa el correo registrado y revisa tu bandeja o spam." },
           { label: "Nueva contraseña", desc: "Define una contraseña nueva que cumpla los requisitos de seguridad." },
         ]},
       ].map(sec => (
         <div key={sec.id} style={{ marginBottom:"10px" }}>
           <button onClick={() => toggle(sec.id)} style={{ width:"100%", background: open===sec.id ? sec.color+"22" : "#0d1b2e", border:`1px solid ${open===sec.id ? sec.color+"88" : "#1e3a5f"}`, borderRadius: open===sec.id ? "12px 12px 0 0" : "12px", padding:"14px 16px", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", transition:"all 0.2s", textAlign:"left" }}>
-            <span style={{ fontSize:"20px" }}>{sec.icon}</span>
+            <AppIcon name={sec.icon} size={22} active={open===sec.id} />
             <div style={{ flex:1 }}>
               <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", color: open===sec.id ? sec.color : "#e2e8f0", letterSpacing:"1px" }}>{sec.title}</div>
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginTop:"2px" }}>{sec.subtitle}</div>
@@ -14531,7 +14599,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>✨ ¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
               <textarea value={agregarDesc} onChange={e=>setAgregarDesc(e.target.value)} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🗑️ ¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>Eliminar️ ¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
               <textarea value={quitarDesc} onChange={e=>setQuitarDesc(e.target.value)} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>💬 COMENTARIO LIBRE</div>
@@ -14741,7 +14809,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
 }
 
 // ─── COOKIE BANNER ────────────────────────────────────────────────────────────
-// ✅ FIX: Botones con estilos completos y handlers correctos
+// Validado FIX: Botones con estilos completos y handlers correctos
 function CookieBanner({ onAccept, onReject }) {
   const theme = React.useContext(ThemeContext);
   return (
@@ -14953,11 +15021,11 @@ const DESTINOS_FLETE  = [...new Set(RUTAS_FLETE.map(r => r.destino))];
 
 // ── Catálogo de vehículos ─────────────────────────────────────────────────────
 const VEHICULOS_FLETE = [
-  { id: "rabon",               label: "Rabón",                   icon: "🚚", cap: "7 ton · 2 ejes",  color: "#38bdf8" },
-  { id: "torton",              label: "Tórtón",                  icon: "🚛", cap: "14 ton · 3 ejes", color: "#4ade80" },
-  { id: "sencillo_caja",       label: "Sencillo\nCaja Seca",     icon: "📦", cap: "22 ton · 5 ejes", color: "#fbbf24" },
-  { id: "sencillo_contenedor", label: "Sencillo\nPortacontenedor",icon:"🏗️", cap: "20 ton · 5 ejes", color: "#a78bfa" },
-  { id: "full",                label: "Full",                    icon: "🚜", cap: "27 ton · 9 ejes", color: "#fb923c" },
+  { id: "rabon",               label: "Rabón",                   icon: "truck", cap: "7 ton · 2 ejes",  color: "#38bdf8" },
+  { id: "torton",              label: "Tórtón",                  icon: "freight-truck", cap: "14 ton · 3 ejes", color: "#4ade80" },
+  { id: "sencillo_caja",       label: "Sencillo\nCaja Seca",     icon: "container", cap: "22 ton · 5 ejes", color: "#fbbf24" },
+  { id: "sencillo_contenedor", label: "Sencillo\nPortacontenedor",icon:"construction", cap: "20 ton · 5 ejes", color: "#a78bfa" },
+  { id: "full",                label: "Full",                    icon: "yard-tractor", cap: "27 ton · 9 ejes", color: "#fb923c" },
 ];
 
 // ── Tipos de carga ─────────────────────────────────────────────────────────────
@@ -15149,7 +15217,7 @@ function CalculadoraFlete({ theme, getFont }) {
       {/* ── Header ── */}
       <div style={{ ...card, marginBottom: "14px", background: "linear-gradient(135deg, rgba(251,146,60,0.12) 0%, rgba(251,146,60,0.03) 100%)", borderColor: "rgba(251,146,60,0.3)" }}>
         <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
-          <div style={{ fontSize: "30px" }}>🧮</div>
+          <AppIcon name="stats" size={32} active={true} />
           <div>
             <div style={{ fontFamily: getFont(theme, "title"), fontSize: "17px", fontWeight: "900", color: "#fb923c" }}>
               Módulo de Cotización de Fletes
@@ -15168,7 +15236,7 @@ function CalculadoraFlete({ theme, getFont }) {
 
           {/* Ruta: Origen → Destino */}
           <div style={card}>
-            <div style={lbl}>📍 RUTA DE TRANSPORTE</div>
+            <div style={lbl}>RUTA DE TRANSPORTE</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <div>
                 <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>ORIGEN</div>
@@ -15196,14 +15264,14 @@ function CalculadoraFlete({ theme, getFont }) {
               </div>
             ) : (
               <div style={{ marginTop: "10px", padding: "8px 12px", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#f87171" }}>
-                ⚠️ Ruta no disponible. Selecciona otra combinación.
+                Ruta no disponible. Selecciona otra combinación.
               </div>
             )}
           </div>
 
           {/* Tipo de vehículo */}
           <div style={card}>
-            <div style={lbl}>🚛 TIPO DE VEHÍCULO</div>
+            <div style={lbl}>TIPO DE VEHÍCULO</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {VEHICULOS_FLETE.map(v => (
                 <div key={v.id} onClick={() => setVehiculoId(v.id)} style={{
@@ -15213,7 +15281,7 @@ function CalculadoraFlete({ theme, getFont }) {
                   border: `1px solid ${vehiculoId === v.id ? v.color + "55" : "rgba(255,255,255,0.07)"}`,
                   transition: "all 0.18s"
                 }}>
-                  <span style={{ fontSize: "20px", flexShrink: 0 }}>{v.icon}</span>
+                  <AppIcon name={v.icon} size={22} active={vehiculoId === v.id} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", color: vehiculoId === v.id ? v.color : "rgba(255,255,255,0.8)", whiteSpace: "pre-line", lineHeight: 1.3 }}>{v.label}</div>
                     <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", marginTop: "2px" }}>{v.cap}</div>
@@ -15228,7 +15296,7 @@ function CalculadoraFlete({ theme, getFont }) {
 
           {/* Tipo de carga */}
           <div style={card}>
-            <div style={lbl}>📦 TIPO DE MERCANCÍA</div>
+            <div style={lbl}>TIPO DE MERCANCÍA</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
               {TIPOS_CARGA_FLETE.map(t => (
                 <button key={t.id} onClick={() => setTipoCargaId(t.id)} style={{
@@ -15434,7 +15502,7 @@ function CalculadoraFlete({ theme, getFont }) {
             </div>
 
             <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(56,189,248,0.05)", border: "1px solid rgba(56,189,248,0.15)", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", lineHeight: 1.7 }}>
-              ℹ️ <strong style={{ color: "rgba(255,255,255,0.5)" }}>Nota técnica:</strong> Las distancias y casetas son estimadas. Para producción, conecta la variable <code style={{ color: "#38bdf8" }}>km</code> y <code style={{ color: "#38bdf8" }}>peajeBase</code> de cada ruta con tu API de mapas (Google Maps Distance Matrix o similar). Los parámetros operativos se centralizan en el objeto <code style={{ color: "#a78bfa" }}>parametrosFlete</code>.
+              Info <strong style={{ color: "rgba(255,255,255,0.5)" }}>Nota técnica:</strong> Las distancias y casetas son estimadas. Para producción, conecta la variable <code style={{ color: "#38bdf8" }}>km</code> y <code style={{ color: "#38bdf8" }}>peajeBase</code> de cada ruta con tu API de mapas (Google Maps Distance Matrix o similar). Los parámetros operativos se centralizan en el objeto <code style={{ color: "#a78bfa" }}>parametrosFlete</code>.
             </div>
           </div>
         </div>
@@ -15611,11 +15679,11 @@ function SistemaControlPortuario() {
               {/* KPIs mejorados */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "16px" }}>
                 {[
-                  { label: "CITAS HOY",    value: stats.deHoy,      icon: "🚛", color: "#fbbf24", sub: "programadas" },
-                  { label: "VALIDADOS",    value: stats.validados,  icon: "✅", color: "#4ade80", sub: "confirmados" },
-                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "🔄", color: "#38bdf8", sub: "en movimiento" },
-                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "📈", color: "#a78bfa", sub: "tasa validación" },
-                  { label: "TOTAL",        value: stats.total,      icon: "📦", color: "#fb923c", sub: "en sistema" },
+                  { label: "CITAS HOY",    value: stats.deHoy,      icon: "freight-truck", color: "#fbbf24", sub: "programadas" },
+                  { label: "VALIDADOS",    value: stats.validados,  icon: "check", color: "#4ade80", sub: "confirmados" },
+                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "turnover", color: "#38bdf8", sub: "en movimiento" },
+                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "stats", color: "#a78bfa", sub: "tasa validación" },
+                  { label: "TOTAL",        value: stats.total,      icon: "container", color: "#fb923c", sub: "en sistema" },
                 ].map(k => (
                   <div key={k.label} style={{
                     background: `linear-gradient(135deg, ${k.color}10 0%, rgba(255,255,255,0.03) 100%)`,
@@ -15853,7 +15921,7 @@ function SistemaControlPortuario() {
               {/* Aviso de limitación */}
               <div style={{ ...cardStyle, marginTop: "12px", background: "rgba(251,191,36,0.05)", borderColor: "rgba(251,191,36,0.2)" }}>
                 <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                  <span style={{ fontSize: "18px" }}>ℹ️</span>
+                  <span style={{ fontSize: "18px" }}>Info</span>
                   <div>
                     <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700", marginBottom: "3px" }}>
                       PERFILES DE OPERADOR
@@ -15874,7 +15942,7 @@ function SistemaControlPortuario() {
 }
 
 // ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
-// ✅ FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
+// Validado FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
 
 function App() {
@@ -15914,7 +15982,7 @@ function App() {
   const [dbReady,   setDbReady]   = useState(false);
   const [visitas,   setVisitas]   = useState(null);
   
-  // ✅ TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
+  // Validado TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
     supabaseTheme, 
     loadingTheme, 
@@ -15924,7 +15992,7 @@ function App() {
     cancelPreview
   } = useGlobalTheme(isAdmin);
   
-  // ✅ El tema activo: usa supabaseTheme (que ahora se inicializa con DEFAULT_THEME)
+  // Validado El tema activo: usa supabaseTheme (que ahora se inicializa con DEFAULT_THEME)
   // El fallback || DEFAULT_THEME es redundante pero mantiene seguridad adicional
   const theme = supabaseTheme || DEFAULT_THEME;
   
@@ -15945,7 +16013,7 @@ function App() {
     return result.success;
   };
   
-  // ❌ Cancelar preview
+  // Error Cancelar preview
   const handleCancelPreview = () => {
     if (isAdmin) {
       cancelPreview();
@@ -16133,7 +16201,7 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ✅ FIX: handlers correctamente definidos dentro del componente
+  // Validado FIX: handlers correctamente definidos dentro del componente
   const handleAccept = () => {
     saveCookieConsent("accepted");
     setConsent("accepted");
@@ -16208,7 +16276,7 @@ function App() {
     return () => sb.removeChannel(chan);
   }, []);
   
-  // ✅ Aplicar fondo según configuración
+  // Validado Aplicar fondo según configuración
   const getBackgroundStyle = () => {
     switch (theme.backgroundType) {
       case "color":
@@ -16231,7 +16299,7 @@ function App() {
     }
   };
 
-  // ✅ CORRECCIÓN: Estilos completos del contenedor principal (fondo + tipografía + color)
+  // Validado CORRECCIÓN: Estilos completos del contenedor principal (fondo + tipografía + color)
   const getMainContainerStyle = () => {
     const ui = getAutoUIColors(theme);
     return {
@@ -16240,7 +16308,7 @@ function App() {
       maxWidth: "100vw",
       overflowX: "hidden",
       position: "relative",
-      // ✅ Aplicar tipografía del tema
+      // Validado Aplicar tipografía del tema
       fontFamily: theme.secondaryFont || "'DM Sans', sans-serif",
       fontSize: `${theme.baseFontSize || 14}px`,
       color: ui.primary || theme.textColors?.primary || "#ffffff",
@@ -16259,7 +16327,7 @@ function App() {
       "--cm-border": ui.border,
       "--cm-subtle-border": ui.subtleBorder,
       "--cm-shadow": ui.shadow,
-      // ✅ Aplicar fondo del tema
+      // Validado Aplicar fondo del tema
       ...getBackgroundStyle()
     };
   };
@@ -16302,7 +16370,7 @@ function App() {
         }
       `}</style>
     <div data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
-      {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
+      {/* Validado FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
           position: "fixed", 
@@ -16425,7 +16493,7 @@ function App() {
             )
         )}
 
-        {/* ✅ FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
+        {/* Validado FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
