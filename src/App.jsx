@@ -1615,6 +1615,20 @@ const getFontSize = (theme, type) => {
   return `${theme.baseFontSize || 14}px`;
 };
 
+// ✅ Helpers de color de texto: conectan el panel Admin con la UI
+const getTextColor = (theme, type = "primary", fallback = "#ffffff") => {
+  return theme?.textColors?.[type] || DEFAULT_THEME.textColors?.[type] || fallback;
+};
+const withAlpha = (hex, alpha = 1) => {
+  if (!hex || typeof hex !== "string") return `rgba(255,255,255,${alpha})`;
+  const clean = hex.replace("#", "").trim();
+  if (![3, 6].includes(clean.length)) return hex;
+  const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean;
+  const n = parseInt(full, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
 const mkTerminals = (list) =>
   Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
 
@@ -5186,8 +5200,8 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   {/* Preview en vivo */}
                   <div style={{ padding:"14px 16px", borderRadius:"8px", background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", marginBottom:"10px" }}>
                     <div style={{ fontFamily:"'DM Sans',sans-serif", fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>PREVIEW</div>
-                    <div style={{ fontFamily:config.secondaryFont, fontSize:"13px", color:"rgba(255,255,255,0.9)", marginBottom:"4px", fontWeight:"600" }}>Estado del tráfico en tiempo real</div>
-                    <div style={{ fontFamily:config.secondaryFont, fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.5" }}>Terminales · Patios · Carriles · Vialidades · Reportes</div>
+                    <div style={{ fontFamily:config.secondaryFont, fontSize:"13px", color:config.textColors?.primary || "#ffffff", marginBottom:"4px", fontWeight:"600" }}>Estado del tráfico en tiempo real</div>
+                    <div style={{ fontFamily:config.secondaryFont, fontSize:"11px", color:config.textColors?.secondary || "#e2e8f0", lineHeight:"1.5" }}>Terminales · Patios · Carriles · Vialidades · Reportes</div>
                   </div>
                   <div style={{ marginTop:"8px" }}>
                     <input
@@ -5231,7 +5245,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   <input
                     type="range"
                     min="12"
-                    max="18"
+                    max="32"
                     step="1"
                     value={config.baseFontSize}
                     onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(e.target.value) }))}
@@ -5239,7 +5253,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       width:"100%", 
                       height:"6px",
                       borderRadius:"3px",
-                      background:"linear-gradient(to right, #38bdf8 0%, #38bdf8 " + ((config.baseFontSize - 12) / 6 * 100) + "%, rgba(255,255,255,0.1) " + ((config.baseFontSize - 12) / 6 * 100) + "%, rgba(255,255,255,0.1) 100%)",
+                      background:"linear-gradient(to right, #38bdf8 0%, #38bdf8 " + ((config.baseFontSize - 12) / 20 * 100) + "%, rgba(255,255,255,0.1) " + ((config.baseFontSize - 12) / 20 * 100) + "%, rgba(255,255,255,0.1) 100%)",
                       outline:"none",
                       cursor:"pointer",
                       WebkitAppearance:"none",
@@ -5276,8 +5290,8 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   </label>
                   <input
                     type="range"
-                    min="15"
-                    max="24"
+                    min="18"
+                    max="48"
                     step="1"
                     value={config.titleFontSize}
                     onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(e.target.value) }))}
@@ -5285,7 +5299,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       width:"100%", 
                       height:"6px",
                       borderRadius:"3px",
-                      background:"linear-gradient(to right, #a78bfa 0%, #a78bfa " + ((config.titleFontSize - 15) / 9 * 100) + "%, rgba(255,255,255,0.1) " + ((config.titleFontSize - 15) / 9 * 100) + "%, rgba(255,255,255,0.1) 100%)",
+                      background:"linear-gradient(to right, #a78bfa 0%, #a78bfa " + ((config.titleFontSize - 18) / 30 * 100) + "%, rgba(255,255,255,0.1) " + ((config.titleFontSize - 18) / 30 * 100) + "%, rgba(255,255,255,0.1) 100%)",
                       outline:"none",
                       cursor:"pointer",
                       WebkitAppearance:"none",
@@ -14252,12 +14266,10 @@ function EncuestaSatisfaccion({ isAdmin }) {
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
 function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSetActive }) {
   const theme = React.useContext(ThemeContext);
-  const [showQR, setShowQR] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
   const clickTimeoutRef = useRef(null);
 
-  // Auto-toggle QR: show for 5 seconds, hide for 3, repeat
   useEffect(() => {
     let showTimer, hideTimer;
     function cycle() {
@@ -14271,12 +14283,9 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
     return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
   }, []);
 
-  // Admin trigger: tap logo 7 times → abre el modal seguro del hook useAdminMode
   const handleLogoClick = () => {
     if (isAdmin) return;
-
     if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
-
     setClickCount(prev => {
       const next = prev + 1;
       if (next >= 7) {
@@ -14285,10 +14294,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
       }
       return next;
     });
-
-    clickTimeoutRef.current = setTimeout(() => {
-      setClickCount(0);
-    }, 3000);
+    clickTimeoutRef.current = setTimeout(() => setClickCount(0), 3000);
   };
 
   const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
@@ -14296,312 +14302,136 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
 
-  // WhatsApp SVG icon
+  const colors = {
+    primary: getTextColor(theme, "primary", "#ffffff"),
+    secondary: getTextColor(theme, "secondary", "#e2e8f0"),
+    muted: getTextColor(theme, "muted", "#94a3b8"),
+    accent: getTextColor(theme, "accent", "#38bdf8"),
+  };
+  const titleSize = Math.max(Number(theme?.titleFontSize) || 17, 28);
+  const bodySize = Math.max(Number(theme?.baseFontSize) || 14, 17);
+
   const IconWA = ({ size = 22 }) => (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
       <circle cx="16" cy="16" r="16" fill="#25D366"/>
       <path d="M22.7 9.3A9.5 9.5 0 0 0 7.1 21.7L6 26l4.4-1.2a9.5 9.5 0 0 0 12.3-14.5zm-6.7 14.6a7.9 7.9 0 0 1-4-1.1l-.3-.2-2.6.7.7-2.5-.2-.3a7.9 7.9 0 1 1 6.4 3.4zm4.3-5.9c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.7c-.1-.2 0-.4.1-.5l.4-.5c.1-.1.1-.2.2-.4 0-.1 0-.3-.1-.4l-.7-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.1 5 5 0 0 0 1.1 2.7 11.5 11.5 0 0 0 4.4 3.9c.6.3 1.1.4 1.5.3a2.6 2.6 0 0 0 1.7-1.2c.2-.4.2-.8 0-.9z" fill="white"/>
     </svg>
   );
-
-  // Facebook SVG icon
   const IconFB = ({ size = 22 }) => (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
       <circle cx="16" cy="16" r="16" fill="#1877F2"/>
       <path d="M21 16h-3v10h-4V16h-2v-4h2v-2.3C14 7.6 15.3 6 18.1 6H21v4h-1.8c-.8 0-1.2.4-1.2 1.2V12H21l-.5 4z" fill="white"/>
     </svg>
   );
+  const IconIG = ({ size = 42 }) => (
+    <svg width={size} height={size} viewBox="0 0 42 42" fill="none">
+      <defs><radialGradient id="ig_grad_inicio" cx="30%" cy="107%" r="150%"><stop offset="0%" stopColor="#fdf497"/><stop offset="45%" stopColor="#fd5949"/><stop offset="65%" stopColor="#d6249f"/><stop offset="100%" stopColor="#285AEB"/></radialGradient></defs>
+      <rect width="42" height="42" rx="12" fill="url(#ig_grad_inicio)"/>
+      <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
+    </svg>
+  );
+
+  const socialCards = [
+    { key:"wa", title:"Canal de Noticias", desc:"Recibe actualizaciones del puerto directamente en WhatsApp.", href:WA_CHANNEL, cta:"UNIRME AL CANAL", color:"#25D366", icon:<IconWA size={42}/>, qr:true },
+    { key:"fbGroup", title:"Grupo Conect Manzanillo", desc:"Participa con la comunidad logística y comparte información útil.", href:FB_GROUP, cta:"IR AL GRUPO", color:"#1877F2", icon:<IconFB size={42}/> },
+    { key:"fbPage", title:"Página Oficial", desc:"Sigue comunicados, publicaciones y novedades de Conect Manzanillo.", href:FB_PAGE, cta:"SEGUIR PÁGINA", color:"#1877F2", icon:<IconFB size={42}/> },
+    { key:"ig", title:"@conectmanzanillo", desc:"Fotos, videos y noticias del puerto en Instagram.", href:IG_PAGE, cta:"SEGUIR EN INSTAGRAM", color:"#f472b6", icon:<IconIG size={42}/> },
+  ];
 
   return (
-    <div style={{ padding: "20px 16px", paddingBottom: "100px" }}>
-
-      {/* ─── SPEECH ──────────────────────────────────────────────────────────── */}
-      <div style={{
-        marginBottom: "28px",
-        background: "linear-gradient(135deg, rgba(56,189,248,0.07) 0%, rgba(167,139,250,0.07) 100%)",
-        border: "1px solid rgba(56,189,248,0.2)",
-        borderRadius: "16px",
-        padding: "22px 18px",
-        position: "relative",
-        overflow: "hidden",
+    <div style={{ padding:"24px 16px", paddingBottom:"100px" }}>
+      <section style={{
+        marginBottom:"28px",
+        background:"linear-gradient(135deg, rgba(56,189,248,0.10), rgba(167,139,250,0.08))",
+        border:`1px solid ${withAlpha(colors.accent, 0.32)}`,
+        borderRadius:"22px",
+        padding:"30px 22px",
+        textAlign:"center",
+        position:"relative",
+        overflow:"hidden",
+        boxShadow:"0 18px 44px rgba(0,0,0,0.25)"
       }}>
-        <div style={{ position:"absolute", top:"-30px", right:"-30px", width:"110px", height:"110px", background:"radial-gradient(circle, rgba(56,189,248,0.13) 0%, transparent 70%)", pointerEvents:"none" }} />
-        <div style={{ position:"absolute", bottom:"-20px", left:"-20px", width:"90px", height:"90px", background:"radial-gradient(circle, rgba(167,139,250,0.10) 0%, transparent 70%)", pointerEvents:"none" }} />
-
-        {/* Logo / título app */}
-        <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"18px" }}>
-          <div 
-            onClick={handleLogoClick}
-            style={{ 
-              width:"46px", 
-              height:"46px", 
-              background:"linear-gradient(135deg,rgba(56,189,248,0.2),rgba(167,139,250,0.2))", 
-              border:"1px solid rgba(56,189,248,0.35)", 
-              borderRadius:"12px", 
-              display:"flex", 
-              alignItems:"center", 
-              justifyContent:"center", 
-              fontSize:"24px", 
-              flexShrink:0,
-              cursor: isAdmin ? "default" : "pointer",
-              userSelect: "none"
-            }}
-          >⚓</div>
-          <div>
-            <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"900", fontSize:"16px", color:"#ffffff", letterSpacing:"0.5px" }}>Conect Manzanillo</div>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(56,189,248,0.8)", fontWeight:"600", letterSpacing:"1.5px", marginTop:"3px" }}>COMUNIDAD EN VIVO · PUERTO</div>
-          {isAdmin && (
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginTop:"8px", flexWrap:"wrap" }}>
-              <span style={{ background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"700" }}>⚡ ADMIN</span>
-              <button 
-                onClick={onOpenThemeConfig}
-                style={{ background:"rgba(139,92,246,0.15)", border:"1px solid rgba(139,92,246,0.4)", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#a78bfa", fontWeight:"700", cursor:"pointer" }}
-              >🎨 TEMA</button>
-              <button
-                onClick={() => { if (onSetActive) onSetActive("portuario"); }}
-                style={{ background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.35)", borderRadius:"20px", padding:"2px 10px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"700", cursor:"pointer" }}
-              >⚓ CONTROL</button>
-              <button onClick={logout} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", padding:"2px 4px" }}>✕</button>
-            </div>
-          )}
-          </div>
+        <div style={{ position:"absolute", top:"-55px", right:"-55px", width:"180px", height:"180px", background:`radial-gradient(circle, ${withAlpha(colors.accent,0.20)} 0%, transparent 70%)`, pointerEvents:"none" }} />
+        <div
+          onClick={handleLogoClick}
+          style={{
+            width:"92px", height:"92px", margin:"0 auto 20px",
+            borderRadius:"24px", display:"flex", alignItems:"center", justifyContent:"center",
+            background:`linear-gradient(135deg, ${withAlpha(colors.accent,0.18)}, rgba(167,139,250,0.14))`,
+            border:`1px solid ${withAlpha(colors.accent,0.45)}`,
+            cursor: isAdmin ? "default" : "pointer", userSelect:"none",
+            boxShadow:`0 14px 34px ${withAlpha(colors.accent,0.18)}`
+          }}
+          title="Conect Manzanillo"
+        >
+          <AppIcon name="web" size={54} active={true} />
         </div>
 
-        <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.78)", lineHeight:"1.8", margin:"0 0 16px 0" }}>
-          Esta aplicación nació para que <span style={{ color:"#38bdf8", fontWeight:"700" }}>operadores, transportistas y cualquier persona en el puerto</span> puedan compartir en tiempo real el estado de las operaciones. La información que ves la genera <span style={{ color:"#a78bfa", fontWeight:"700" }}>la propia comunidad</span> — no un sistema centralizado.
+        <h1 style={{ margin:"0 0 14px", fontFamily:getFont(theme,"title"), fontSize:`clamp(30px, 7vw, ${titleSize + 16}px)`, lineHeight:1.05, color:colors.primary, fontWeight:900, letterSpacing:"0.4px" }}>
+          CONECT MANZANILLO
+        </h1>
+        <div style={{ fontFamily:getFont(theme,"secondary"), color:colors.accent, fontSize:`${Math.max(bodySize - 2, 15)}px`, fontWeight:800, letterSpacing:"2px", marginBottom:"20px" }}>
+          INFORMACIÓN PORTUARIA EN TIEMPO REAL
+        </div>
+        <p style={{ margin:"0 auto 18px", maxWidth:"720px", fontFamily:getFont(theme,"secondary"), fontSize:`clamp(17px, 4vw, ${bodySize + 4}px)`, lineHeight:1.75, color:colors.secondary, fontWeight:500 }}>
+          CONECT MANZANILLO es una plataforma digital diseñada para consultar, monitorear y reportar información operativa del puerto de Manzanillo en tiempo real. Desde un solo lugar, los usuarios pueden conocer el estatus de terminales, rutas fiscales, accesos, vialidades, comunicados oficiales e incidencias relevantes para la logística portuaria.
+        </p>
+        <p style={{ margin:"0 auto", maxWidth:"720px", fontFamily:getFont(theme,"secondary"), fontSize:`clamp(17px, 4vw, ${bodySize + 3}px)`, lineHeight:1.75, color:colors.secondary }}>
+          Nuestro objetivo es facilitar la toma de decisiones, mejorar la coordinación operativa y brindar información clara, actualizada y confiable para transportistas, operadores logísticos, terminales y usuarios del puerto.
         </p>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:"9px", marginBottom:"18px" }}>
-          {[
-            { icon:"📡", color:"#38bdf8", text:"Reporta lo que ves en ruta: un acceso saturado, un retorno activo, un camión varado. Tu reporte llega al instante a todos los usuarios." },
-            { icon:"🗳️", color:"#a78bfa", text:"Cualquier usuario puede votar. Con 15 confirmaciones, un reporte se valida y se vuelve visible como incidente activo en el mapa." },
-            { icon:"🏁", color:"#22c55e", text:"Cuando la situación se resuelve, la comunidad lo cierra. Así el mapa siempre refleja la realidad del momento." },
-          ].map((item, i) => (
-            <div key={i} style={{ display:"flex", gap:"10px", alignItems:"flex-start", background:"rgba(255,255,255,0.04)", border:`1px solid ${item.color}22`, borderRadius:"10px", padding:"10px 12px" }}>
-              <span style={{ fontSize:"16px", flexShrink:0, marginTop:"1px" }}>{item.icon}</span>
-              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6" }}>{item.text}</span>
-            </div>
-          ))}
-        </div>
+        {isAdmin && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", marginTop:"22px", flexWrap:"wrap" }}>
+            <span style={{ background:withAlpha(colors.accent,0.16), border:`1px solid ${withAlpha(colors.accent,0.38)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800 }}>⚡ ADMIN</span>
+            <button onClick={onOpenThemeConfig} style={{ background:"rgba(139,92,246,0.16)", border:"1px solid rgba(139,92,246,0.42)", borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"#c4b5fd", fontWeight:800, cursor:"pointer" }}>🎨 TEMA</button>
+            <button onClick={() => { if (onSetActive) onSetActive("portuario"); }} style={{ background:withAlpha(colors.accent,0.12), border:`1px solid ${withAlpha(colors.accent,0.35)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800, cursor:"pointer" }}>⚓ CONTROL</button>
+            <button onClick={logout} style={{ background:"none", border:"none", color:colors.muted, fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", padding:"6px" }}>✕ Salir</button>
+          </div>
+        )}
+      </section>
 
-        <div style={{ background:"rgba(15,23,42,0.45)", border:"1px solid rgba(56,189,248,0.16)", borderRadius:"12px", padding:"12px", marginBottom:"18px" }}>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#38bdf8", fontWeight:"800", letterSpacing:"1.4px", marginBottom:"10px" }}>CÓMO FUNCIONA LA APP</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px" }}>
-            {[
-              { icon:"🚗", title:"Tráfico", desc:"Consulta accesos, vialidades y mapa; el color indica si está libre, lento, saturado o detenido." },
-              { icon:"📢", title:"Reportes", desc:"Selecciona categoría, ubicación y detalle. La comunidad confirma, marca falso o resuelve el evento." },
-              { icon:"🏭", title:"Terminales y patios", desc:"Vota el estado operativo para ayudar a decidir rutas antes de llegar a la zona portuaria." },
-              { icon:"🛣️", title:"Confinados", desc:"Revisa carriles, retornos, flujos Expo/Impo y Segundo Acceso por fases en tiempo real." },
-              { icon:"📰", title:"Noticias", desc:"Recibe avisos operativos, comunicados y anuncios activos con fechas de vigencia." },
-              { icon:"🎓", title:"Más info", desc:"Encuentra la guía completa, registro, inicio de sesión, recuperación y buenas prácticas." },
-            ].map((item, i) => (
-              <div key={i} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"10px" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"7px", marginBottom:"5px" }}>
-                  <span style={{ fontSize:"15px" }}>{item.icon}</span>
-                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#ffffff", fontWeight:"800" }}>{item.title}</span>
+      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, letterSpacing:"2px", fontWeight:800, marginBottom:"14px", paddingLeft:"2px" }}>
+        SÍGUENOS · COMUNIDAD
+      </div>
+
+      <div style={{ display:"grid", gap:"14px" }}>
+        {socialCards.map(card => (
+          <div key={card.key} style={{ background:withAlpha(card.color,0.08), border:`1px solid ${withAlpha(card.color,0.30)}`, borderRadius:"18px", overflow:"hidden" }}>
+            <div style={{ background:withAlpha(card.color,0.14), padding:"10px 16px", display:"flex", alignItems:"center", gap:"8px", borderBottom:`1px solid ${withAlpha(card.color,0.15)}` }}>
+              <div style={{ width:"8px", height:"8px", background:card.color, borderRadius:"50%", boxShadow:`0 0 8px ${card.color}` }} />
+              <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 5, 11)}px`, fontWeight:800, color:card.color, letterSpacing:"1.3px" }}>{card.title.toUpperCase()}</span>
+            </div>
+            <div style={{ padding:"18px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"14px" }}>
+                {card.icon}
+                <div>
+                  <div style={{ fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:`${Math.max(bodySize, 16)}px`, color:colors.primary }}>{card.title}</div>
+                  <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 3, 13)}px`, color:colors.muted, marginTop:"4px", lineHeight:1.5 }}>{card.desc}</div>
                 </div>
-                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.58)", lineHeight:"1.6" }}>{item.desc}</div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", paddingTop:"14px", display:"flex", alignItems:"center", gap:"10px" }}>
-          <div style={{ width:"3px", height:"38px", background:"linear-gradient(to bottom, #38bdf8, #a78bfa)", borderRadius:"2px", flexShrink:0 }} />
-          <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7", margin:0, fontStyle:"italic" }}>
-            "La operación del puerto nos afecta a todos. Compartir lo que sabes es ayudar a quien viene detrás. <span style={{ color:"rgba(56,189,248,0.85)", fontStyle:"normal", fontWeight:"600" }}>Juntos hacemos la diferencia.</span>"
-          </p>
-        </div>
-      </div>
-
-      {/* ─── ANIMACIÓN CONVOY ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: "28px" }}>
-        <ConvoyScene accentColor="#38bdf8" />
-      </div>
-
-      {/* ─── REDES SOCIALES ──────────────────────────────────────────────────── */}
-      <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", letterSpacing:"2px", fontWeight:"600", marginBottom:"14px", paddingLeft:"2px" }}>SÍGUENOS · COMUNIDAD</div>
-
-      {/* ── WhatsApp Channel ─────────────────────────────────── */}
-      <div style={{ marginBottom: "14px", background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "16px", overflow: "hidden" }}>
-        {/* Badge */}
-        <div style={{ background: "rgba(37,211,102,0.15)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(37,211,102,0.15)" }}>
-          <div style={{ width: "8px", height: "8px", background: "#25D366", borderRadius: "50%", boxShadow: "0 0 8px #25D366", animation: "pulse 2s infinite" }} />
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", color: "#25D366", letterSpacing: "1.5px" }}>CANAL DE NOTICIAS · WHATSAPP</span>
-        </div>
-
-        <div style={{ padding: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
-            <IconWA size={42} />
-            <div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "13px", color: "#ffffff" }}>Únete al Canal de Noticias</div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>Recibe las últimas noticias del puerto directamente en WhatsApp</div>
+              {card.qr && (
+                <div style={{ overflow:"hidden", maxHeight:qrVisible ? "220px" : "0px", transition:"max-height 0.7s ease", marginBottom:qrVisible ? "14px" : 0 }}>
+                  <div style={{ background:"white", borderRadius:"14px", padding:"12px", width:"180px", margin:"0 auto", boxShadow:"0 8px 24px rgba(0,0,0,0.25)" }}>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(WA_CHANNEL)}`} alt="QR Canal WhatsApp" style={{ width:"100%", display:"block", borderRadius:"8px" }} />
+                  </div>
+                  <div style={{ textAlign:"center", fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 5, 11)}px`, color:colors.muted, marginTop:"8px" }}>Escanea para unirte al canal</div>
+                </div>
+              )}
+              <a href={card.href} target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none" }}>
+                <button style={{ width:"100%", padding:"14px 16px", background:card.key === "ig" ? "linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)" : `linear-gradient(135deg, ${card.color}, ${card.color}cc)`, border:"none", borderRadius:"13px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 2, 13)}px`, fontWeight:900, cursor:"pointer", letterSpacing:"0.5px", boxShadow:`0 8px 22px ${withAlpha(card.color,0.32)}` }}>
+                  {card.cta}
+                </button>
+              </a>
             </div>
           </div>
-
-          {/* QR auto-toggle */}
-          <div style={{
-            overflow: "hidden",
-            maxHeight: qrVisible ? "200px" : "0px",
-            transition: "max-height 0.7s ease",
-            marginBottom: qrVisible ? "12px" : "0",
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "14px", background: "rgba(255,255,255,0.95)", borderRadius: "12px" }}>
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(WA_CHANNEL)}&color=075E54&bgcolor=ffffff`}
-                alt="QR Canal WhatsApp"
-                style={{ width: "140px", height: "140px", borderRadius: "8px" }}
-              />
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "#075E54", marginTop: "8px", fontWeight: "700", letterSpacing: "1px" }}>ESCANEA PARA UNIRTE</div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "8px" }}>
-            <a href={WA_CHANNEL} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textDecoration: "none" }}>
-              <button style={{
-                width: "100%", padding: "13px 16px", background: "linear-gradient(135deg,#25D366,#128C7E)",
-                border: "none", borderRadius: "12px", color: "#ffffff",
-                fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                boxShadow: "0 4px 20px rgba(37,211,102,0.4)", letterSpacing: "0.5px",
-              }}>
-                <IconWA size={18} />
-                UNIRME AL CANAL
-              </button>
-            </a>
-            <button
-              onClick={() => setQrVisible(v => !v)}
-              style={{
-                padding: "13px 14px", background: "rgba(37,211,102,0.15)", border: "1px solid rgba(37,211,102,0.4)",
-                borderRadius: "12px", color: "#25D366", cursor: "pointer", fontFamily: getFont(theme, "secondary"), fontSize: "18px",
-              }}
-              title="Ver QR"
-            >
-              {qrVisible ? "✕" : "⊞"}
-            </button>
-          </div>
-          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: "8px" }}>
-            El QR se muestra automáticamente · también puedes escanearlo aquí
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ── Facebook Group ───────────────────────────────────── */}
-      <div style={{ marginBottom: "14px", background: "rgba(24,119,242,0.08)", border: "1px solid rgba(24,119,242,0.3)", borderRadius: "16px", overflow: "hidden" }}>
-        <div style={{ background: "rgba(24,119,242,0.15)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(24,119,242,0.15)" }}>
-          <span style={{ fontSize: "14px" }}>👥</span>
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", color: "#60a5fa", letterSpacing: "1.5px" }}>GRUPO COMUNITARIO · FACEBOOK</span>
-        </div>
-
-        <div style={{ padding: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-            <IconFB size={42} />
-            <div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "13px", color: "#ffffff" }}>Grupo Conect Manzanillo</div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>Comunidad de transportistas, empresas y ciudadanos del puerto</div>
-            </div>
-          </div>
-
-          <a href={FB_GROUP} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{
-              width: "100%", padding: "13px 16px", background: "linear-gradient(135deg,#1877F2,#0a5dc7)",
-              border: "none", borderRadius: "12px", color: "#ffffff",
-              fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              boxShadow: "0 4px 20px rgba(24,119,242,0.4)", letterSpacing: "0.5px",
-            }}>
-              <IconFB size={18} />
-              UNIRME AL GRUPO
-            </button>
-          </a>
-        </div>
-      </div>
-
-      {/* ── Facebook Page ────────────────────────────────────── */}
-      <div style={{ marginBottom: "14px", background: "rgba(24,119,242,0.05)", border: "1px solid rgba(24,119,242,0.25)", borderRadius: "16px", overflow: "hidden" }}>
-        <div style={{ background: "rgba(24,119,242,0.12)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(24,119,242,0.12)" }}>
-          <span style={{ fontSize: "14px" }}>📣</span>
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", color: "#93c5fd", letterSpacing: "1.5px" }}>PÁGINA OFICIAL · FACEBOOK</span>
-        </div>
-
-        <div style={{ padding: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-            <IconFB size={42} />
-            <div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "13px", color: "#ffffff" }}>Conect Manzanillo Oficial</div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>Síguenos para noticias, actualizaciones y avisos oficiales del puerto</div>
-            </div>
-          </div>
-
-          <a href={FB_PAGE} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{
-              width: "100%", padding: "13px 16px", background: "linear-gradient(135deg,#1877F2,#0a5dc7)",
-              border: "none", borderRadius: "12px", color: "#ffffff",
-              fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              boxShadow: "0 4px 20px rgba(24,119,242,0.35)", letterSpacing: "0.5px",
-            }}>
-              <IconFB size={18} />
-              SEGUIR PÁGINA
-            </button>
-          </a>
-        </div>
-      </div>
-
-      {/* ── Instagram ──────────────────────────────────────── */}
-      <div style={{ marginBottom: "14px", background: "rgba(225,48,108,0.06)", border: "1px solid rgba(225,48,108,0.28)", borderRadius: "16px", overflow: "hidden" }}>
-        <div style={{ background: "rgba(225,48,108,0.13)", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid rgba(225,48,108,0.13)" }}>
-          <span style={{ fontSize: "14px" }}>📸</span>
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", color: "#f472b6", letterSpacing: "1.5px" }}>PERFIL OFICIAL · INSTAGRAM</span>
-        </div>
-        <div style={{ padding: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px" }}>
-            <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
-              <defs>
-                <radialGradient id="ig_grad" cx="30%" cy="107%" r="150%">
-                  <stop offset="0%" stopColor="#fdf497"/>
-                  <stop offset="10%" stopColor="#fdf497"/>
-                  <stop offset="50%" stopColor="#fd5949"/>
-                  <stop offset="68%" stopColor="#d6249f"/>
-                  <stop offset="100%" stopColor="#285AEB"/>
-                </radialGradient>
-              </defs>
-              <rect width="42" height="42" rx="12" fill="url(#ig_grad)"/>
-              <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2" fill="none"/>
-              <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2" fill="none"/>
-              <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
-            </svg>
-            <div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "13px", color: "#ffffff" }}>@conectmanzanillo</div>
-              <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.5)", marginTop: "3px" }}>Fotos, videos y noticias del puerto en Instagram</div>
-            </div>
-          </div>
-          <a href={IG_PAGE} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{
-              width: "100%", padding: "13px 16px",
-              background: "linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)",
-              border: "none", borderRadius: "12px", color: "#ffffff",
-              fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-              boxShadow: "0 4px 20px rgba(225,48,108,0.4)", letterSpacing: "0.5px",
-            }}>
-              <svg width="18" height="18" viewBox="0 0 42 42" fill="none">
-                <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2.5" fill="none"/>
-                <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2.5" fill="none"/>
-                <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
-              </svg>
-              SEGUIR EN INSTAGRAM
-            </button>
-          </a>
-        </div>
-      </div>
-
-      {/* Footer info */}
-      <div style={{ textAlign: "center", marginTop: "24px", padding: "16px", background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
-        <div style={{ fontSize: "20px", marginBottom: "8px" }}>⚓</div>
-        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.3)", lineHeight: "1.9" }}>
-          Únete a la comunidad de Conect Manzanillo<br/>
-          <span style={{ color: "#25D366" }}>WhatsApp</span> · <span style={{ color: "#1877F2" }}>Facebook</span> · <span style={{ color: "#f472b6" }}>Instagram</span> · información en tiempo real
+      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, lineHeight:1.9 }}>
+          Comunidad Conect Manzanillo · <span style={{ color:"#25D366", fontWeight:800 }}>WhatsApp</span> · <span style={{ color:"#1877F2", fontWeight:800 }}>Facebook</span> · <span style={{ color:"#f472b6", fontWeight:800 }}>Instagram</span>
         </div>
       </div>
     </div>
