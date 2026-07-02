@@ -271,6 +271,15 @@ const ThemeContext = React.createContext(DEFAULT_THEME);
 
 // ─── ICONOS REALISTAS SVG (sin dependencias externas) ───────────────────────
 function AppIcon({ name, size = 20, active = false, style = {} }) {
+  const iconAliases = {
+    "🏠":"hub", "🚗":"traffic-control", "📢":"incident-pin", "🏭":"port-terminal", "📦":"container-yard",
+    "🛣️":"access-gate", "🚦":"lane-control", "📰":"dispatch-news", "🤝":"logistics-handshake", "🎓":"info-beacon",
+    "👁":"status-live", "🔑":"key", "👤":"user", "🚪":"logout", "⚠️":"warning-triangle", "⚠":"warning-triangle",
+    "🚨":"emergency", "🚧":"blockade", "🏗️":"construction", "🔧":"mechanic", "🚛":"freight-truck", "🚚":"freight-truck",
+    "⛽":"fuel", "📫":"cargo-mail", "🅿️":"parking", "🚶":"pedestrian", "💥":"collision", "🏥":"medical",
+    "⬇️":"cargo-drop", "🔄":"turnover", "🚔":"security", "⚡":"spark", "✓":"check", "✗":"close", "↩":"return-route", "⚓":"anchor"
+  };
+  name = iconAliases[name] || name;
   const glow = active ? "drop-shadow(0 0 6px rgba(56,189,248,0.55))" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))";
   const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", style:{ display:"block", filter:glow, ...style } };
   const stroke = active ? "var(--cm-icon-active,#f8fafc)" : "var(--cm-icon-muted,#94a3b8)";
@@ -8805,7 +8814,7 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
   const theme = React.useContext(ThemeContext);
   const [category, setCategory] = useState("incidente");
   const [label, setLabel] = useState("");
-  const [icon, setIcon] = useState("⚠️");
+  const [icon, setIcon] = useState("warning-triangle");
   const inp = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.14)", borderRadius:10, padding:"9px 10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, outline:"none" };
   const addType = async () => {
     const cleanLabel = sanitize(label).trim();
@@ -8827,7 +8836,7 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
   return <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.28)", borderRadius:12, padding:12, marginBottom:14 }}>
     <div style={{ color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:800, marginBottom:8 }}>⚙️ Admin · Tipos de incidentes y accidentes</div>
     <div style={{ display:"grid", gridTemplateColumns:"130px 70px 1fr auto", gap:8, alignItems:"center" }}>
-      <select value={category} onChange={e=>{ setCategory(e.target.value); setIcon(e.target.value === "accidente" ? "🚨" : "⚠️"); }} style={inp}>
+      <select value={category} onChange={e=>{ setCategory(e.target.value); setIcon(e.target.value === "accidente" ? "emergency" : "warning-triangle"); }} style={inp}>
         <option value="incidente">Incidente</option>
         <option value="accidente">Accidente</option>
       </select>
@@ -8837,7 +8846,7 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
     </div>
     <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
       {(customIncidentTypes || []).map(t => <span key={t.id} style={{ border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", borderRadius:999, padding:"5px 8px", color:"rgba(255,255,255,.75)", fontSize:11, fontFamily:getFont(theme,"secondary") }}>
-        <AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label} · {t.category} <button onClick={()=>deactivate(t.id,t.label)} style={{ marginLeft:6, background:"transparent", border:"none", color:"#ef4444", cursor:"pointer" }}>×</button>
+        <AppIcon name={t.icon} size={14} active={false} /> {t.label} · {t.category} <button onClick={()=>deactivate(t.id,t.label)} style={{ marginLeft:6, background:"transparent", border:"none", color:"#ef4444", cursor:"pointer" }}>×</button>
       </span>)}
     </div>
   </div>;
@@ -8962,8 +8971,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
 
   const allIncidentSubcats = {
-    incidente: [...(INCIDENT_SUBCATEGORIAS.incidente || []), ...customIncidentTypes.filter(t => t.category === "incidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "⚠️" }))],
-    accidente: [...(INCIDENT_SUBCATEGORIAS.accidente || []), ...customIncidentTypes.filter(t => t.category === "accidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "🚨" }))],
+    incidente: [...(INCIDENT_SUBCATEGORIAS.incidente || []), ...customIncidentTypes.filter(t => t.category === "incidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "warning-triangle" }))],
+    accidente: [...(INCIDENT_SUBCATEGORIAS.accidente || []), ...customIncidentTypes.filter(t => t.category === "accidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "emergency" }))],
   };
   const subcats   = allIncidentSubcats[categoria] || [];
   const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
@@ -12495,7 +12504,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
     {sub === "posturas" && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
