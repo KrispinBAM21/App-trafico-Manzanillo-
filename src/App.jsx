@@ -6415,22 +6415,22 @@ function NavBar({ active, set }) {
         }}
         style={{
           flex: 1, 
-          padding: "13px 6px",
+          padding: "clamp(8px, 2.2vw, 13px) clamp(2px, 1vw, 6px)",
           background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
           border: "none",
           borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
           color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
-          fontSize: "14px", 
+          fontSize: "clamp(9px, 2.35vw, 14px)", 
           fontFamily: getFont(theme, "secondary"), 
           fontWeight: isActive ? "800" : "600",
           cursor: "pointer", 
           display: "flex", 
           flexDirection: "column",
           alignItems: "center", 
-          gap: "5px", 
+          gap: "clamp(3px, 1vw, 5px)", 
           transition: "all 0.2s",
-          letterSpacing: "0.5px", 
-          whiteSpace: "nowrap", 
+          letterSpacing: "clamp(0px, 0.08vw, 0.5px)", 
+          whiteSpace: "normal", 
           minWidth: "0",
           WebkitTapHighlightColor: "transparent",
           MozTapHighlightColor: "transparent",
@@ -6447,13 +6447,24 @@ function NavBar({ active, set }) {
           setIsHovered(false);
         }}
       >
-        <AppIcon name={t.icon} size={24} active={isActive} />
-        {t.label.toUpperCase()}
+        <span className="cm-nav-icon-wrap" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"clamp(18px, 5vw, 24px)", height:"clamp(18px, 5vw, 24px)" }}><AppIcon name={t.icon} size={24} active={isActive} /></span>
+        <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>{t.label.toUpperCase()}</span>
       </button>
     );
   };
 
   return (
+    <>
+      <style>{`
+        .cm-nav-icon-wrap svg{width:clamp(18px,5vw,24px)!important;height:clamp(18px,5vw,24px)!important;}
+        .cm-nav-label{font-size:clamp(9px,2.35vw,14px);}
+        @media (max-width: 420px){
+          .cm-nav-label{font-size:9px!important;letter-spacing:0!important;}
+        }
+        @media (max-width: 360px){
+          .cm-nav-label{font-size:8.3px!important;}
+        }
+      `}</style>
     <nav style={{
       background: ui.navBg,
       backdropFilter: "blur(20px)",
@@ -6468,6 +6479,7 @@ function NavBar({ active, set }) {
         {row2.map(TabBtn)}
       </div>
     </nav>
+    </>
   );
 }
 
