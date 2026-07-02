@@ -375,6 +375,16 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
 }
 
 
+function IconText({ icon, label, size = 16, active = true, gap = 6, style = {} }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:`${gap}px`, verticalAlign:"middle", ...style }}>
+      <AppIcon name={icon} size={size} active={active} />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+
 function leafletIconMarkup(name = "pin", color = "#38bdf8", size = 16) {
   const safeColor = String(color || "#38bdf8").replace(/[^#a-zA-Z0-9(),.%\s-]/g, "");
   const stroke = "#ffffff";
@@ -1197,7 +1207,7 @@ function FiscalZoneMap({ zona, rutas }) {
         weight: 4,
         lineJoin: "round",
       })
-        .bindTooltip(`<b>${route.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, {
+        .bindTooltip(`<b>${route.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`, {
           permanent: false,
           sticky: true,
           className: "cm-tooltip",
@@ -1328,12 +1338,12 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
                   <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"700" }}>{r.name}</div>
                   <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
-                <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}>{curOpt.icon} {curOpt.label}</div>
+                <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
               </div>
               <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
                 {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
                   <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
-                    {o.icon} {o.label}
+                    <IconText icon={o.icon} label={o.label} size={15} />
                   </button>
                 ))}
               </div>
@@ -3385,7 +3395,7 @@ function AdminRegistrosPanel() {
     {selectedLog && <div style={{ background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.35)", borderRadius:10, color:"#fbbf24", padding:"8px 10px", fontSize:11, fontWeight:800, marginBottom:10, fontFamily:getFont(theme,"secondary"), wordBreak:"break-word" }}>Voto seleccionado para anular con advertencia: {selectedLog.action} · {selectedLog.section} · {selectedLog.entity_id || "sin elemento"}</div>}
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
       <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
-      <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>⚠️ Advertencia</button>
+      <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>Advertencia</button>
     </div>
     <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(e.target.value)} />
     <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(e.target.value)} />
@@ -3397,7 +3407,7 @@ function AdminRegistrosPanel() {
       <button onClick={()=>sanction("ban")} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>⛔ Baneo indefinido + anular votos</button>
     </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
-      <button onClick={revokeSelected} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>↩️ Anular voto seleccionado</button>
+      <button onClick={revokeSelected} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>Anular voto seleccionado</button>
       <button onClick={revokeAll} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>🧹 Anular todos sus votos</button>
     </div>
 
@@ -3507,7 +3517,7 @@ function DonateBanner({ active }) {
         gap: "12px",
         boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.1)",
       }}>
-        <div style={{ fontSize: "22px", flexShrink: 0 }}>⚓</div>
+        <AppIcon name="anchor-port" size={24} active={true} style={{ flexShrink:0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "#e2e8f0", marginBottom: "2px" }}>
             ¿Te está siendo útil esta app?
@@ -6178,10 +6188,10 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   return (
                     <div key={tab.key} style={{ padding:"16px", borderRadius:"8px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                        {icon.type === "emoji" ? (
-                          <span style={{ fontSize:`${icon.size}px` }}>{icon.value}</span>
-                        ) : (
+                        {icon.type === "image" ? (
                           <img src={icon.value} alt={tab.label} style={{ width:`${icon.size}px`, height:`${icon.size}px`, objectFit:"contain" }} />
+                        ) : (
+                          <AppIcon name={icon.value || tab.key} size={icon.size || 20} active={true} />
                         )}
                         <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"#fff", fontWeight:"600" }}>{tab.label}</span>
                       </div>
@@ -6189,15 +6199,15 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       <div style={{ marginBottom:"8px" }}>
                         <input
                           type="text"
-                          value={icon.type === "emoji" ? icon.value : ""}
+                          value={icon.type === "image" ? "" : icon.value}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             tabIcons: {
                               ...prev.tabIcons,
-                              [tab.key]: { ...prev.tabIcons[tab.key], type: "emoji", value: e.target.value }
+                              [tab.key]: { ...prev.tabIcons[tab.key], type: "builtin", value: e.target.value }
                             }
                           }))}
-                          placeholder="Emoji"
+                          placeholder="Nombre del icono SVG"
                           style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}
                         />
                       </div>
@@ -6272,15 +6282,15 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       <div style={{ marginBottom:"8px" }}>
                         <input
                           type="text"
-                          value={icon.type === "emoji" ? icon.value : ""}
+                          value={icon.type === "image" ? "" : icon.value}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
                             otherIcons: {
                               ...prev.otherIcons,
-                              [key]: { ...prev.otherIcons[key], type: "emoji", value: e.target.value }
+                              [key]: { ...prev.otherIcons[key], type: "builtin", value: e.target.value }
                             }
                           }))}
-                          placeholder="Emoji"
+                          placeholder="Nombre del icono SVG"
                           style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}
                         />
                       </div>
@@ -6362,7 +6372,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 gap:"8px"
               }}
             >
-              {saving ? "Procesando Aplicando..." : "🌍 Aplicar a Todos"}
+              {saving ? "Aplicando..." : "Aplicar a todos"}
             </button>
           </div>
         </div>
@@ -6375,18 +6385,18 @@ function NavBar({ active, set }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
   const row1 = [
-    { id: "inicio",      label: "Inicio",      icon: "home"  },
-    { id: "trafico",     label: "Tráfico",     icon: "traffic" },
-    { id: "reporte",     label: "Reportar",    icon: "report"  },
-    { id: "terminales",  label: "Terminales",  icon: "terminal"  },
-    { id: "patio",       label: "Patios",      icon: "yard"  },
+    { id: "inicio",      label: "Inicio",      icon: "hub"  },
+    { id: "trafico",     label: "Tráfico",     icon: "traffic-control" },
+    { id: "reporte",     label: "Reportar",    icon: "incident-pin"  },
+    { id: "terminales",  label: "Terminales",  icon: "port-terminal"  },
+    { id: "patio",       label: "Patios",      icon: "container-yard"  },
   ];
   const row2 = [
-    { id: "segundo",    label: "Confinados", icon: "access"  },
-    { id: "carriles",   label: "Carriles",   icon: "lanes"  },
-    { id: "noticias",   label: "Noticias",   icon: "news"  },
-    { id: "donativos",  label: "Posturas",   icon: "donate"  },
-    { id: "tutorial",   label: "Más Info",   icon: "info"  },
+    { id: "segundo",    label: "Confinados", icon: "access-gate"  },
+    { id: "carriles",   label: "Carriles",   icon: "lane-control"  },
+    { id: "noticias",   label: "Noticias",   icon: "dispatch-news"  },
+    { id: "donativos",  label: "Posturas",   icon: "logistics-handshake"  },
+    { id: "tutorial",   label: "Más Info",   icon: "info-beacon"  },
   ];
 
   const TabBtn = (t) => {
@@ -6842,7 +6852,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     return (
       <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
         <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
-          <span style={{ fontSize: "22px" }}>{t.icon}</span>
+          <AppIcon name={t.icon} size={24} active={true} />
           <div style={{ flex: 1 }}>
             <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
             <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
@@ -6853,8 +6863,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
         </div>
         <VoteBar count={conf} needed={15} color={t.color} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
-          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>Validado CONFIRMAR</button>
-          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>🏁 RESUELTO</button>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>CONFIRMAR</button>
+          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>RESUELTO</button>
         </div>
       </div>
     );
@@ -6867,7 +6877,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const conf = Object.values(votes).filter(v => v === 1).length;
     const visible = conf >= 15;
     await sb.from("incidents").update({ votes, visible }).eq("id", id);
-    notify(visible ? "Validado Verificado" : `✓ ${conf}/15`, "#22c55e");
+    notify(visible ? "Verificado" : `✓ ${conf}/15`, "#22c55e");
   };
   const voteResolve = async (id) => {
     const inc = incidents.find(i => i.id === id);
@@ -6936,13 +6946,13 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
                     <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
                     <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
                 </div>
                 <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
                 <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   {ACCESO_STATUS_OPTIONS.map(o => (
                     <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
-                      <span style={{ fontSize: "15px" }}>{o.icon}</span>{o.label}
+                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
                     </button>
                   ))}
                 </div>
@@ -6974,12 +6984,12 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
                     <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
                     <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>{curOpt.icon} {curOpt.label}</div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
                 </div>
                 <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
                   {VIALIDAD_STATUS_OPTIONS.map(o => (
                     <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
-                      <span style={{ fontSize: "14px" }}>{o.icon}</span>{o.label}
+                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
                     </button>
                   ))}
                 </div>
@@ -7503,7 +7513,7 @@ function MapaAccesos({ accesos }) {
         }).addTo(map);
         const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
         layer.bindTooltip(
-          `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+          `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
           { sticky: true, className: "cm-tooltip", direction: "center" }
         );
         polyRefs.current[poly.id] = layer;
@@ -7558,7 +7568,7 @@ function MapaAccesos({ accesos }) {
       layer.setStyle({ color, fillColor: color, fillOpacity: 0.45, weight: 3, opacity: 1 });
       const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
       layer.bindTooltip(
-        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
         { sticky: true, className: "cm-tooltip", direction: "center" }
       );
     });
@@ -7590,7 +7600,7 @@ function MapaAccesos({ accesos }) {
         {ACCESO_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display:"flex", alignItems:"center", gap:"5px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#e2e8f0" }}>
             <span style={{ width:"14px", height:"14px", borderRadius:"3px", background:o.color+"55", border:`2px solid ${o.color}`, display:"inline-block", boxShadow:`0 0 6px ${o.color}70` }} />
-            {o.icon} {o.label}
+            <IconText icon={o.icon} label={o.label} size={15} />
           </span>
         ))}
       </div>
@@ -7731,7 +7741,7 @@ function MapaVialidades({ vialidades }) {
           lineCap: "round", lineJoin: "round",
         }).addTo(map);
         const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades?.[line.id]?.status) || VIALIDAD_STATUS_OPTIONS[0];
-        poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+        poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
         layersRef.current[line.id] = { poly, shadow };
       });
 
@@ -7790,7 +7800,7 @@ function MapaVialidades({ vialidades }) {
       const color = getVialColor(line.id);
       entry.poly.setStyle({ color, weight: line.weight, opacity: 0.92 });
       const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === vialidades?.[line.id]?.status) || VIALIDAD_STATUS_OPTIONS[0];
-      entry.poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+      entry.poly.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
     });
   }, [JSON.stringify(vialidades)]);
 
@@ -8195,7 +8205,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         layer.setStyle({ color: opt.color, weight: 6, opacity: 0.9, dashArray: null });
       }
       // Actualizar el tooltip para mostrar el estado
-      layer.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
+      layer.bindTooltip(`<b>${line.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`, { sticky: true, className: "cm-tooltip", direction: "center" });
     });
   }, [JSON.stringify(vialidades)]);
 
@@ -9805,7 +9815,7 @@ function MapaTerminales({ zona, stMap }) {
       }).addTo(map);
       const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === sm?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
       layer.bindTooltip(
-        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
         { sticky: true, className: "cm-tooltip", direction: "center" }
       );
       polyRefs.current[poly.id] = layer;
@@ -9900,7 +9910,7 @@ function MapaTerminales({ zona, stMap }) {
       layer.setStyle({ color, fillColor: color, fillOpacity: 0.35, weight: 2.5, opacity: 1 });
       const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
       layer.bindTooltip(
-        `<b>${poly.name}</b><br><span style="color:${opt.color}">${opt.icon} ${opt.label}</span>`,
+        `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
         { sticky: true, className: "cm-tooltip", direction: "center" }
       );
     });
@@ -9939,7 +9949,7 @@ function MapaTerminales({ zona, stMap }) {
         {TERMINAL_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
             <span style={{ width: "14px", height: "14px", borderRadius: "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
-            {o.icon} {o.label}
+            <IconText icon={o.icon} label={o.label} size={15} />
           </span>
         ))}
       </div>
@@ -10157,8 +10167,8 @@ function TerminalesTab({ myId }) {
                 <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
-                {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+                {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>TODO NORMAL</button>}
               </div>
             </div>
             <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS: <span style={{ color:"#475569", fontSize:"9px", letterSpacing:"0px", fontWeight:"normal" }}>(doble click para cambiar)</span></div>
@@ -10167,7 +10177,7 @@ function TerminalesTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    {o.icon} {o.label}
+                    <IconText icon={o.icon} label={o.label} size={15} />
                   </button>
                 );
               })}
@@ -10562,7 +10572,7 @@ function TrafficMapSegundo({ theme, myId }) {
                       onMouseEnter={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = `${tr.color}20`; }}
                       onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
-                      <span style={{ fontSize: "14px" }}>{tr.emoji}</span>
+                      <AppIcon name={tr.emoji} size={16} active={true} />
                       <span>{tr.label}{st === tipo ? " · activo" : ""}</span>
                     </button>
                   );
@@ -10870,12 +10880,12 @@ function SegundoAccesoTab({ myId }) {
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
                     <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
-                    {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.icon}</Badge>}
-                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.icon}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.icon}</Badge>}
+                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
+                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
+                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
+                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
                   </div>
-                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
+                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
                 </div>
               </div>
               <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -10909,29 +10919,29 @@ function SegundoAccesoTab({ myId }) {
               </div>
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-                <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
-                <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
+                <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
+                <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-                <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
-                <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+                <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
+                <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={st.expo_contenedor || ""} onChange={e => updateIngreso(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
                     <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
@@ -10959,12 +10969,12 @@ function SegundoAccesoTab({ myId }) {
             </div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-            <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>✓ FLUIDO</button>
-            <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>✗ SATURADO</button>
+            <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>FLUIDO</button>
+            <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>SATURADO</button>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-            <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
-            <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+            <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>SIN RETORNOS</button>
+            <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>CON RETORNOS</button>
           </div>
           {(() => {
             const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
@@ -10975,18 +10985,18 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={carriles.c4.expo_contenedor || ""} onChange={e => updateSalida("expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
                     <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
@@ -11127,12 +11137,12 @@ function SegundoAccesoTab({ myId }) {
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
                     <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
-                    {st.retornos && <Badge color="#f97316" small>↩ RETORNOS</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.icon}</Badge>}
-                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.icon}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.icon}</Badge>}
+                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
+                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
+                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
+                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
                   </div>
-                  {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"3px 8px", background:"#a78bfa15", border:"1px solid #a78bfa44", borderRadius:"5px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ NORMAL</button>}
+                  {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"3px 8px", background:"#a78bfa15", border:"1px solid #a78bfa44", borderRadius:"5px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
                 </div>
               </div>
 
@@ -11174,12 +11184,12 @@ function SegundoAccesoTab({ myId }) {
               {/* Estado del carril */}
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-                <button onClick={() => updateConfinada(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>✓ LIBRE</button>
-                <button onClick={() => updateConfinada(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>✗ SATURADO</button>
+                <button onClick={() => updateConfinada(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
+                <button onClick={() => updateConfinada(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-                <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>✓ SIN RETORNOS</button>
-                <button onClick={() => updateConfinada(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>↩ CON RETORNOS</button>
+                <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
+                <button onClick={() => updateConfinada(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
               </div>
 
               {/* Tráfico expo/impo */}
@@ -11187,18 +11197,18 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={st.expo || "libre"} onChange={e => updateConfinada(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>📦 CONTENEDOR EXPO</div>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={st.expo_contenedor || ""} onChange={e => updateConfinada(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
                     <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={st.impo || "libre"} onChange={e => updateConfinada(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}>{o.icon} {o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
@@ -11208,7 +11218,7 @@ function SegundoAccesoTab({ myId }) {
                 <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 SEGUNDO ACCESO</div>
                 <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), marginBottom:"8px" }}>Indica si este carril opera como Segundo Acceso.</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>✓ NORMAL</button>
+                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>NORMAL</button>
                   <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
                 </div>
               </div>
@@ -12379,7 +12389,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       ID perfil: {row.id}<br/>Cuenta: {row.user_id || "Sin cuenta"}<br/>Dispositivo: {row.device_id || "Sin device_id"}
     </div>
     <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
-      <button onClick={()=>adminWarnProfile(row, type)} style={btn("#fbbf24")}>⚠️ Advertencia</button>
+      <button onClick={()=>adminWarnProfile(row, type)} style={btn("#fbbf24")}>Advertencia</button>
       <button onClick={()=>adminSanctionProfile(row, type, "temp_block")} style={btn("#f97316")}>Procesando Bloquear</button>
       <button onClick={()=>adminSanctionProfile(row, type, "ban")} style={btn("#ef4444")}>⛔ Baneo</button>
       <button onClick={()=>adminDeleteProfile(row, type)} style={btn("#94a3b8")}>Eliminar️ Borrar perfil</button>
@@ -12457,7 +12467,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
       {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar empresa</button>}
       <AdminProfileActions row={row} type="empresa" />
-      <div style={{ marginTop:"12px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"10px" }}><span style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", fontWeight:"800" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>⚠️ Queja</button></div>
+      <div style={{ marginTop:"12px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"10px" }}><span style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", fontWeight:"800" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>Queja</button></div>
       {aprobadas.slice(0,2).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", borderRadius:"8px", padding:"8px" }}>Queja aprobada: {c.comentario}</div>)}
     </div>;
   };
@@ -12545,7 +12555,7 @@ function DonativosTab() {
   return (
     <div style={{ padding:"20px 24px", paddingBottom:"80px", maxWidth:"960px", margin:"0 auto" }}>
       <div style={{ textAlign:"center", marginBottom:"32px" }}>
-        <div style={{ fontSize:"48px", marginBottom:"12px" }}>⚓</div>
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:"12px" }}><AppIcon name="anchor-port" size={48} active={true} /></div>
         <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"16px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"8px" }}>JUNTOS SOMOS MÁS FUERTES</div>
         <div style={{ width:"48px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"0 auto 16px" }} />
       </div>
@@ -13736,9 +13746,9 @@ function PatioReguladorTab({ myId }) {
                 <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>{opt.icon} {opt.label}</div>
+                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
                 {totalVotes > 0 && <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{totalVotes} voto(s)</span>}
-                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ TODO NORMAL</button>}
+                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>TODO NORMAL</button>}
               </div>
             </div>
             <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
@@ -13747,7 +13757,7 @@ function PatioReguladorTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    {o.icon} {o.label}
+                    <IconText icon={o.icon} label={o.label} size={15} />
                   </button>
                 );
               })}
@@ -14343,7 +14353,7 @@ function TutorialTab({ setActive, isAdmin }) {
       <EncuestaSatisfaccion isAdmin={isAdmin} />
 
       <div style={{ textAlign:"center", marginTop:"24px", padding:"14px", background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.15)" }}>
-        <div style={{ fontSize:"20px", marginBottom:"6px" }}>⚓</div>
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:"6px" }}><AppIcon name="anchor-port" size={20} active={true} /></div>
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.3)", lineHeight:"1.8" }}>Puerto Tráfico es una herramienta colaborativa.<br/><span style={{ color:"#38bdf8" }}>Tu información hace la diferencia.</span></div>
       </div>
     </div>
@@ -14765,7 +14775,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", marginTop:"22px", flexWrap:"wrap" }}>
             <span style={{ background:withAlpha(colors.accent,0.16), border:`1px solid ${withAlpha(colors.accent,0.38)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800 }}>⚡ ADMIN</span>
             <button onClick={onOpenThemeConfig} style={{ background:"rgba(139,92,246,0.16)", border:"1px solid rgba(139,92,246,0.42)", borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"#c4b5fd", fontWeight:800, cursor:"pointer" }}>🎨 TEMA</button>
-            <button onClick={() => { if (onSetActive) onSetActive("portuario"); }} style={{ background:withAlpha(colors.accent,0.12), border:`1px solid ${withAlpha(colors.accent,0.35)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800, cursor:"pointer" }}>⚓ CONTROL</button>
+            <button onClick={() => { if (onSetActive) onSetActive("portuario"); }} style={{ background:withAlpha(colors.accent,0.12), border:`1px solid ${withAlpha(colors.accent,0.35)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800, cursor:"pointer" }}>CONTROL PORTUARIO</button>
             <button onClick={logout} style={{ background:"none", border:"none", color:colors.muted, fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", padding:"6px" }}>✕ Salir</button>
           </div>
         )}
@@ -15626,7 +15636,7 @@ function SistemaControlPortuario() {
   // ── Vista de datos no disponibles ────────────────────────────────────────────
   if (error) return (
     <div style={{ padding: "24px", textAlign: "center" }}>
-      <div style={{ fontSize: "36px", marginBottom: "10px" }}>⚓</div>
+      <div style={{ display:"flex", justifyContent:"center", marginBottom:"10px" }}><AppIcon name="anchor-port" size={36} active={true} /></div>
       <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>
         Tabla <code>citas</code> no encontrada en Supabase.
       </div>
@@ -15749,7 +15759,7 @@ function SistemaControlPortuario() {
 
                 {/* Patios */}
                 <div style={{ ...cardStyle }}>
-                  <div style={{ ...labelStyle, marginBottom: "10px" }}>🏭 PATIOS DESTINO</div>
+                  <div style={{ ...labelStyle, marginBottom: "10px" }}>PATIOS DESTINO</div>
                   {patioData.length > 0 ? patioData.sort((a,b) => b.total - a.total).map(({ patio, total }, i) => {
                     const pct = stats.total ? Math.round((total / stats.total) * 100) : 0;
                     const colors = ["#38bdf8","#a78bfa","#4ade80","#fbbf24","#fb923c","#f87171"];
@@ -16485,7 +16495,7 @@ function App() {
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} />}
 
-        {/* ⚓ CONTROL PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
+        {/* CONTROL PORTUARIO PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
         {active === "portuario" && (
           isAdmin || subAdmin?.permisos?.ver_control_portuario
             ? <SistemaControlPortuario />
