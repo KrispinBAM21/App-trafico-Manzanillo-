@@ -131,14 +131,16 @@ const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
   trafico: "/tráfico.png",
   reporte: "/reportar.png",
+  terminales: "/terminales.png",
+  patio: "/patios.png",
 };
 
 const TABS = [
   { key: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio },
   { key: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
   { key: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte },
-  { key: "terminales",  label: "Terminales",  icon: "port-terminal" },
-  { key: "patio",       label: "Patios",      icon: "container-yard" },
+  { key: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales },
+  { key: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patios },
   { key: "segundo",     label: "2° Acceso",   icon: "access-gate" },
   { key: "carriles",    label: "Carriles",    icon: "lane-control" },
   { key: "noticias",    label: "Noticias",    icon: "dispatch-news" },
