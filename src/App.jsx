@@ -129,10 +129,15 @@ const toMs = (v) => {
 // En Vite/React, los archivos dentro de public se referencian desde la raíz.
 const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
-  trafico: "/tráfico.png",
+  trafico: "/trafico.png",
   reporte: "/reportar.png",
   terminales: "/terminales.png",
   patio: "/patios.png",
+  segundo: "/confinados.png",
+  carriles: "/carriles.png",
+  noticias: "/noticias.png",
+  donativos: "/posturas.png",
+  tutorial: "/mas info.png",
 };
 
 const TABS = [
@@ -141,11 +146,11 @@ const TABS = [
   { key: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte },
   { key: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales },
   { key: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio },
-  { key: "segundo",     label: "2° Acceso",   icon: "access-gate" },
-  { key: "carriles",    label: "Carriles",    icon: "lane-control" },
-  { key: "noticias",    label: "Noticias",    icon: "dispatch-news" },
-  { key: "donativos",   label: "Posturas",    icon: "logistics-handshake" },
-  { key: "tutorial",    label: "Más Info",    icon: "info-beacon" }
+  { key: "segundo",     label: "Confinados",  icon: TAB_PUBLIC_ICONS.segundo },
+  { key: "carriles",    label: "Carriles",    icon: TAB_PUBLIC_ICONS.carriles },
+  { key: "noticias",    label: "Noticias",    icon: TAB_PUBLIC_ICONS.noticias },
+  { key: "donativos",   label: "Posturas",    icon: TAB_PUBLIC_ICONS.donativos },
+  { key: "tutorial",    label: "Más Info",    icon: TAB_PUBLIC_ICONS.tutorial }
 ];
 
 // ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
@@ -260,11 +265,11 @@ const DEFAULT_THEME = {
     reporte: { type: "image", value: TAB_PUBLIC_ICONS.reporte, size: 24 },
     terminales: { type: "image", value: TAB_PUBLIC_ICONS.terminales, size: 24 },
     patio: { type: "image", value: TAB_PUBLIC_ICONS.patio, size: 24 },
-    segundo: { type: "builtin", value: "access-gate", size: 20 },
-    carriles: { type: "builtin", value: "lane-control", size: 20 },
-    noticias: { type: "builtin", value: "dispatch-news", size: 20 },
-    donativos: { type: "builtin", value: "logistics-handshake", size: 20 },
-    tutorial: { type: "builtin", value: "info-beacon", size: 20 }
+    segundo: { type: "image", value: TAB_PUBLIC_ICONS.segundo, size: 24 },
+    carriles: { type: "image", value: TAB_PUBLIC_ICONS.carriles, size: 24 },
+    noticias: { type: "image", value: TAB_PUBLIC_ICONS.noticias, size: 24 },
+    donativos: { type: "image", value: TAB_PUBLIC_ICONS.donativos, size: 24 },
+    tutorial: { type: "image", value: TAB_PUBLIC_ICONS.tutorial, size: 24 }
   },
   
   // Otros iconos
@@ -299,6 +304,7 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
         alt=""
         aria-hidden="true"
         draggable={false}
+        onError={(e) => { e.currentTarget.style.opacity = "0.35"; }}
         style={{
           width: size,
           height: size,
@@ -6422,11 +6428,11 @@ function NavBar({ active, set }) {
     { id: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio  },
   ];
   const row2 = [
-    { id: "segundo",    label: "Confinados", icon: "access-gate"  },
-    { id: "carriles",   label: "Carriles",   icon: "lane-control"  },
-    { id: "noticias",   label: "Noticias",   icon: "dispatch-news"  },
-    { id: "donativos",  label: "Posturas",   icon: "logistics-handshake"  },
-    { id: "tutorial",   label: "Más Info",   icon: "info-beacon"  },
+    { id: "segundo",    label: "Confinados", icon: TAB_PUBLIC_ICONS.segundo  },
+    { id: "carriles",   label: "Carriles",   icon: TAB_PUBLIC_ICONS.carriles  },
+    { id: "noticias",   label: "Noticias",   icon: TAB_PUBLIC_ICONS.noticias  },
+    { id: "donativos",  label: "Posturas",   icon: TAB_PUBLIC_ICONS.donativos  },
+    { id: "tutorial",   label: "Más Info",   icon: TAB_PUBLIC_ICONS.tutorial  },
   ];
 
   const TabBtn = (t) => {
