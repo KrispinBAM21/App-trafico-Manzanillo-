@@ -6442,24 +6442,28 @@ function NavBar({ active, set }) {
           set(t.id);
         }}
         style={{
-          flex: 1, 
-          padding: "clamp(8px, 2.2vw, 13px) clamp(2px, 1vw, 6px)",
+          flex: isActive ? 1.35 : 1,
+          padding: isActive
+            ? "clamp(8px, 2.2vw, 13px) clamp(3px, 1vw, 8px)"
+            : "clamp(9px, 2.4vw, 15px) clamp(2px, 1vw, 6px)",
           background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
           border: "none",
           borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
           color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
-          fontSize: "clamp(9px, 2.35vw, 14px)", 
-          fontFamily: getFont(theme, "secondary"), 
+          fontSize: "clamp(9px, 2.35vw, 14px)",
+          fontFamily: getFont(theme, "secondary"),
           fontWeight: isActive ? "800" : "600",
-          cursor: "pointer", 
-          display: "flex", 
+          cursor: "pointer",
+          display: "flex",
           flexDirection: "column",
-          alignItems: "center", 
-          gap: "clamp(3px, 1vw, 5px)", 
-          transition: "all 0.2s",
-          letterSpacing: "clamp(0px, 0.08vw, 0.5px)", 
-          whiteSpace: "normal", 
+          alignItems: "center",
+          justifyContent: "center",
+          gap: isActive ? "clamp(3px, 1vw, 5px)" : "0",
+          transition: "all 0.22s ease",
+          letterSpacing: "clamp(0px, 0.08vw, 0.5px)",
+          whiteSpace: "normal",
           minWidth: "0",
+          minHeight: "clamp(58px, 10vw, 82px)",
           WebkitTapHighlightColor: "transparent",
           MozTapHighlightColor: "transparent",
           outline: "none",
@@ -6475,8 +6479,25 @@ function NavBar({ active, set }) {
           setIsHovered(false);
         }}
       >
-        <span className="cm-nav-icon-wrap" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"clamp(22px, 5.6vw, 30px)", height:"clamp(22px, 5.6vw, 30px)" }}><AppIcon name={t.icon} size={28} active={isActive} /></span>
-        <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>{t.label.toUpperCase()}</span>
+        <span
+          className={`cm-nav-icon-wrap ${isActive ? "cm-nav-icon-active" : "cm-nav-icon-inactive"}`}
+          style={{
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            width: isActive ? "clamp(24px, 5.4vw, 32px)" : "clamp(34px, 7.2vw, 44px)",
+            height: isActive ? "clamp(24px, 5.4vw, 32px)" : "clamp(34px, 7.2vw, 44px)",
+            transform: isActive ? "scale(1)" : "scale(1.08)",
+            transition:"all 0.22s ease"
+          }}
+        >
+          <AppIcon name={t.icon} size={isActive ? 30 : 40} active={isActive || isHovered} />
+        </span>
+        {isActive && (
+          <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>
+            {t.label.toUpperCase()}
+          </span>
+        )}
       </button>
     );
   };
@@ -6484,8 +6505,14 @@ function NavBar({ active, set }) {
   return (
     <>
       <style>{`
-        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{width:clamp(22px,5.6vw,30px)!important;height:clamp(22px,5.6vw,30px)!important;}
+        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{display:block;object-fit:contain;transition:all .22s ease;}
+        .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(24px,5.4vw,32px)!important;height:clamp(24px,5.4vw,32px)!important;}
+        .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(34px,7.2vw,44px)!important;height:clamp(34px,7.2vw,44px)!important;}
         .cm-nav-label{font-size:clamp(9px,2.35vw,14px);}
+        @media (max-width: 520px){
+          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(30px,8.4vw,38px)!important;height:clamp(30px,8.4vw,38px)!important;}
+          .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(22px,6.2vw,28px)!important;height:clamp(22px,6.2vw,28px)!important;}
+        }
         @media (max-width: 420px){
           .cm-nav-label{font-size:9px!important;letter-spacing:0!important;}
         }
