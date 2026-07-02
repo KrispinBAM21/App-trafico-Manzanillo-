@@ -124,10 +124,19 @@ const toMs = (v) => {
 // Error DEPRECATED - Usar getFont(theme, "title") en su lugar
 // const TITLE = "'Playfair Display', serif";
 
+
+// Iconos personalizados de tabs ubicados en /public
+// En Vite/React, los archivos dentro de public se referencian desde la raíz.
+const TAB_PUBLIC_ICONS = {
+  inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
+  trafico: "/trafico.png",
+  reporte: "/reportar.png",
+};
+
 const TABS = [
-  { key: "inicio",      label: "Inicio",      icon: "hub" },
-  { key: "trafico",     label: "Tráfico",     icon: "traffic-control" },
-  { key: "reporte",     label: "Reportar",    icon: "incident-pin" },
+  { key: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio },
+  { key: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
+  { key: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte },
   { key: "terminales",  label: "Terminales",  icon: "port-terminal" },
   { key: "patio",       label: "Patios",      icon: "container-yard" },
   { key: "segundo",     label: "2° Acceso",   icon: "access-gate" },
@@ -244,9 +253,9 @@ const DEFAULT_THEME = {
 
   // Iconos de tabs
   tabIcons: {
-    inicio: { type: "builtin", value: "hub", size: 20 },
-    trafico: { type: "builtin", value: "traffic-control", size: 20 },
-    reporte: { type: "builtin", value: "incident-pin", size: 20 },
+    inicio: { type: "image", value: TAB_PUBLIC_ICONS.inicio, size: 24 },
+    trafico: { type: "image", value: TAB_PUBLIC_ICONS.trafico, size: 24 },
+    reporte: { type: "image", value: TAB_PUBLIC_ICONS.reporte, size: 24 },
     terminales: { type: "builtin", value: "port-terminal", size: 20 },
     patio: { type: "builtin", value: "container-yard", size: 20 },
     segundo: { type: "builtin", value: "access-gate", size: 20 },
@@ -280,6 +289,25 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     "⬇️":"cargo-drop", "🔄":"turnover", "🚔":"security", "⚡":"spark", "✓":"check", "✗":"close", "↩":"return-route", "⚓":"anchor"
   };
   name = iconAliases[name] || name;
+  const isImageIcon = typeof name === "string" && (name.startsWith("/") || /\.(png|jpg|jpeg|webp|svg)(\?.*)?$/i.test(name));
+  if (isImageIcon) {
+    return (
+      <img
+        src={name}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        style={{
+          width: size,
+          height: size,
+          objectFit: "contain",
+          display: "block",
+          filter: active ? "drop-shadow(0 0 6px rgba(56,189,248,0.55))" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))",
+          ...style
+        }}
+      />
+    );
+  }
   const glow = active ? "drop-shadow(0 0 6px rgba(56,189,248,0.55))" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))";
   const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", style:{ display:"block", filter:glow, ...style } };
   const stroke = active ? "var(--cm-icon-active,#f8fafc)" : "var(--cm-icon-muted,#94a3b8)";
@@ -6385,9 +6413,9 @@ function NavBar({ active, set }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
   const row1 = [
-    { id: "inicio",      label: "Inicio",      icon: "hub"  },
-    { id: "trafico",     label: "Tráfico",     icon: "traffic-control" },
-    { id: "reporte",     label: "Reportar",    icon: "incident-pin"  },
+    { id: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio  },
+    { id: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
+    { id: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte  },
     { id: "terminales",  label: "Terminales",  icon: "port-terminal"  },
     { id: "patio",       label: "Patios",      icon: "container-yard"  },
   ];
@@ -6447,7 +6475,7 @@ function NavBar({ active, set }) {
           setIsHovered(false);
         }}
       >
-        <span className="cm-nav-icon-wrap" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"clamp(18px, 5vw, 24px)", height:"clamp(18px, 5vw, 24px)" }}><AppIcon name={t.icon} size={24} active={isActive} /></span>
+        <span className="cm-nav-icon-wrap" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"clamp(22px, 5.6vw, 30px)", height:"clamp(22px, 5.6vw, 30px)" }}><AppIcon name={t.icon} size={28} active={isActive} /></span>
         <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>{t.label.toUpperCase()}</span>
       </button>
     );
@@ -6456,7 +6484,7 @@ function NavBar({ active, set }) {
   return (
     <>
       <style>{`
-        .cm-nav-icon-wrap svg{width:clamp(18px,5vw,24px)!important;height:clamp(18px,5vw,24px)!important;}
+        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{width:clamp(22px,5.6vw,30px)!important;height:clamp(22px,5.6vw,30px)!important;}
         .cm-nav-label{font-size:clamp(9px,2.35vw,14px);}
         @media (max-width: 420px){
           .cm-nav-label{font-size:9px!important;letter-spacing:0!important;}
