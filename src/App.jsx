@@ -1709,9 +1709,11 @@ const getAutoUIColors = (theme = DEFAULT_THEME) => {
   const text2 = isDark ? mixRgb(base, white, 0.78) : mixRgb(base, black, 0.72);
   const muted = isDark ? mixRgb(base, white, 0.55) : mixRgb(base, black, 0.48);
   const accent = isDark ? mixRgb(base, sky, 0.72) : mixRgb(base, sky, 0.58);
-  const panelTint = isDark ? mixRgb(base, white, 0.12) : mixRgb(base, white, 0.68);
-  const panelStrong = isDark ? mixRgb(base, white, 0.20) : mixRgb(base, white, 0.78);
-  const borderTint = isDark ? mixRgb(base, white, 0.34) : mixRgb(base, black, 0.26);
+  const panelTint = isDark ? mixRgb(base, white, 0.12) : mixRgb(base, black, 0.035);
+  const panelStrong = isDark ? mixRgb(base, white, 0.20) : mixRgb(base, white, 0.96);
+  const navTint = isDark ? panelTint : mixRgb(base, white, 0.92);
+  const borderTint = isDark ? mixRgb(base, white, 0.34) : mixRgb(base, black, 0.34);
+  const activeTint = isDark ? panelStrong : mixRgb(base, accent, 0.16);
 
   return {
     isDark,
@@ -1719,20 +1721,134 @@ const getAutoUIColors = (theme = DEFAULT_THEME) => {
     secondary: rgbToHex(text2),
     muted: rgbToHex(muted),
     accent: rgbToHex(accent),
-    headerBg: rgbToRgba(panelTint, isDark ? 0.86 : 0.82),
-    navBg: rgbToRgba(panelTint, isDark ? 0.72 : 0.76),
+    headerBg: rgbToRgba(navTint, isDark ? 0.86 : 0.96),
+    navBg: rgbToRgba(navTint, isDark ? 0.72 : 0.96),
     tabBg: "transparent",
-    tabHoverBg: rgbToRgba(panelStrong, isDark ? 0.28 : 0.50),
-    tabActiveBg: rgbToRgba(panelStrong, isDark ? 0.42 : 0.72),
-    border: rgbToRgba(borderTint, isDark ? 0.42 : 0.34),
-    subtleBorder: rgbToRgba(borderTint, isDark ? 0.24 : 0.20),
-    panelBg: rgbToRgba(panelTint, isDark ? 0.62 : 0.70),
-    panelStrongBg: rgbToRgba(panelStrong, isDark ? 0.72 : 0.82),
+    tabHoverBg: rgbToRgba(activeTint, isDark ? 0.28 : 0.36),
+    tabActiveBg: rgbToRgba(activeTint, isDark ? 0.42 : 0.62),
+    border: rgbToRgba(borderTint, isDark ? 0.42 : 0.22),
+    subtleBorder: rgbToRgba(borderTint, isDark ? 0.24 : 0.14),
+    panelBg: rgbToRgba(panelTint, isDark ? 0.62 : 0.98),
+    panelStrongBg: rgbToRgba(panelStrong, isDark ? 0.72 : 0.98),
     iconActive: rgbToHex(text),
     iconMuted: rgbToHex(muted),
     iconMuted2: rgbToHex(mixRgb(muted, accent, 0.35)),
-    shadow: isDark ? "0 18px 44px rgba(0,0,0,0.28)" : "0 18px 44px rgba(15,23,42,0.16)",
+    shadow: isDark ? "0 18px 44px rgba(0,0,0,0.28)" : "0 14px 34px rgba(15,23,42,0.10)",
   };
+};
+
+const getGlobalAutoThemeCss = (theme = DEFAULT_THEME) => {
+  const ui = getAutoUIColors(theme);
+  const enabled = theme?.backgroundType === "color" && theme?.uiAutoAdjust !== false;
+  if (!enabled) return "";
+  return `
+    [data-cm-auto-theme="1"]{
+      color:${ui.primary}!important;
+      color-scheme:${ui.isDark ? "dark" : "light"};
+    }
+    [data-cm-auto-theme="1"] h1,
+    [data-cm-auto-theme="1"] h2,
+    [data-cm-auto-theme="1"] h3,
+    [data-cm-auto-theme="1"] h4,
+    [data-cm-auto-theme="1"] p,
+    [data-cm-auto-theme="1"] label,
+    [data-cm-auto-theme="1"] small,
+    [data-cm-auto-theme="1"] div[style*="color: rgb(255, 255, 255"],
+    [data-cm-auto-theme="1"] div[style*="color: rgba(255, 255, 255"],
+    [data-cm-auto-theme="1"] span[style*="color: rgb(255, 255, 255"],
+    [data-cm-auto-theme="1"] span[style*="color: rgba(255, 255, 255"]{
+      color:${ui.primary}!important;
+      text-shadow:none!important;
+    }
+    [data-cm-auto-theme="1"] div[style*="color: rgb(148, 163, 184"],
+    [data-cm-auto-theme="1"] div[style*="color: rgba(255, 255, 255, 0.3"],
+    [data-cm-auto-theme="1"] div[style*="color: rgba(255, 255, 255, 0.4"],
+    [data-cm-auto-theme="1"] div[style*="color: rgba(255, 255, 255, 0.5"],
+    [data-cm-auto-theme="1"] span[style*="color: rgba(255, 255, 255, 0.3"],
+    [data-cm-auto-theme="1"] span[style*="color: rgba(255, 255, 255, 0.4"],
+    [data-cm-auto-theme="1"] span[style*="color: rgba(255, 255, 255, 0.5"]{
+      color:${ui.muted}!important;
+      text-shadow:none!important;
+    }
+    [data-cm-auto-theme="1"] input,
+    [data-cm-auto-theme="1"] textarea,
+    [data-cm-auto-theme="1"] select{
+      background:${ui.panelStrongBg}!important;
+      color:${ui.primary}!important;
+      border-color:${ui.border}!important;
+      box-shadow:none!important;
+    }
+    [data-cm-auto-theme="1"] option{
+      background:${ui.panelStrongBg}!important;
+      color:${ui.primary}!important;
+    }
+    [data-cm-auto-theme="1"] button:not([style*="background: rgb(34, 197, 94"]):not([style*="background: rgb(239, 68, 68"]):not([style*="background: rgb(251, 191, 36"]):not([style*="background: rgb(56, 189, 248"]){
+      color:${ui.primary}!important;
+    }
+    [data-cm-auto-theme="1"] [style*="background: rgb(10, 22, 40"],
+    [data-cm-auto-theme="1"] [style*="background: rgb(6, 20, 40"],
+    [data-cm-auto-theme="1"] [style*="background: rgb(4, 12, 24"],
+    [data-cm-auto-theme="1"] [style*="background: rgb(13, 27, 46"],
+    [data-cm-auto-theme="1"] [style*="background: rgb(15, 20, 32"],
+    [data-cm-auto-theme="1"] [style*="background: rgb(22, 28, 40"],
+    [data-cm-auto-theme="1"] [style*="background: #0a1628"],
+    [data-cm-auto-theme="1"] [style*="background: #061428"],
+    [data-cm-auto-theme="1"] [style*="background: #040c18"],
+    [data-cm-auto-theme="1"] [style*="background: #0d1b2e"],
+    [data-cm-auto-theme="1"] [style*="background: #0f1420"],
+    [data-cm-auto-theme="1"] [style*="background: #161c28"],
+    [data-cm-auto-theme="1"] [style*="background: linear-gradient(180deg, rgb(6, 20, 40"],
+    [data-cm-auto-theme="1"] [style*="background: linear-gradient(180deg,#061428"],
+    [data-cm-auto-theme="1"] [style*="background: linear-gradient(135deg, rgb(10, 22, 40"]{
+      background:${ui.panelBg}!important;
+      color:${ui.primary}!important;
+      border-color:${ui.border}!important;
+      box-shadow:${ui.shadow}!important;
+    }
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.03"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.04"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.05"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.06"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.07"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.08"],
+    [data-cm-auto-theme="1"] [style*="rgba(255, 255, 255, 0.1"],
+    [data-cm-auto-theme="1"] [style*="rgba(0, 0, 0, 0.12"]{
+      background:${ui.panelBg}!important;
+      border-color:${ui.border}!important;
+    }
+    [data-cm-auto-theme="1"] nav,
+    [data-cm-auto-theme="1"] header,
+    [data-cm-auto-theme="1"] [style*="backdrop-filter: blur"]{
+      border-color:${ui.border}!important;
+    }
+    [data-cm-auto-theme="1"] svg [stroke]{stroke:var(--cm-icon-muted, ${ui.iconMuted})!important;}
+    [data-cm-auto-theme="1"] button[style*="border-bottom: 2px solid"] svg [stroke]{stroke:var(--cm-icon-active, ${ui.iconActive})!important;}
+    [data-cm-auto-theme="1"] .cm-tooltip{
+      background:${ui.panelStrongBg}!important;
+      border-color:${ui.border}!important;
+      color:${ui.primary}!important;
+      text-shadow:none!important;
+    }
+    [data-cm-auto-theme="1"] .cm-ref-dot,
+    [data-cm-auto-theme="1"] .cm-ref-label,
+    [data-cm-auto-theme="1"] .leaflet-control-zoom a{
+      background:${ui.panelStrongBg}!important;
+      color:${ui.primary}!important;
+      border-color:${ui.border}!important;
+      text-shadow:none!important;
+    }
+    [data-cm-auto-theme="1"] .leaflet-container{
+      background:${ui.panelBg}!important;
+      border-color:${ui.border}!important;
+    }
+    [data-cm-auto-theme="1"] .ruta-fiscal-btn-grid button,
+    [data-cm-auto-theme="1"] .noticias-tab button,
+    [data-cm-auto-theme="1"] .cm-auto-btn{
+      background:${ui.panelStrongBg}!important;
+      border-color:${ui.border}!important;
+      color:${ui.primary}!important;
+    }
+  `;
 };
 
 const mkTerminals = (list) =>
@@ -16101,12 +16217,21 @@ function App() {
       fontFamily: theme.secondaryFont || "'DM Sans', sans-serif",
       fontSize: `${theme.baseFontSize || 14}px`,
       color: ui.primary || theme.textColors?.primary || "#ffffff",
+      "--cm-primary": ui.primary,
+      "--cm-secondary": ui.secondary,
+      "--cm-muted": ui.muted,
       "--cm-accent": ui.accent,
       "--cm-icon-active": ui.iconActive,
       "--cm-icon-muted": ui.iconMuted,
       "--cm-icon-muted-2": ui.iconMuted2,
       "--cm-panel-bg": ui.panelBg,
+      "--cm-panel-strong-bg": ui.panelStrongBg,
+      "--cm-header-bg": ui.headerBg,
+      "--cm-nav-bg": ui.navBg,
+      "--cm-tab-active-bg": ui.tabActiveBg,
       "--cm-border": ui.border,
+      "--cm-subtle-border": ui.subtleBorder,
+      "--cm-shadow": ui.shadow,
       // ✅ Aplicar fondo del tema
       ...getBackgroundStyle()
     };
@@ -16117,6 +16242,7 @@ function App() {
     <>
       {/* Global styles to prevent gray highlight on tap/click */}
       <style>{`
+        ${getGlobalAutoThemeCss(theme)}
         * {
           -webkit-tap-highlight-color: transparent !important;
           -webkit-touch-callout: none;
@@ -16148,7 +16274,7 @@ function App() {
           user-select: text;
         }
       `}</style>
-    <div style={getMainContainerStyle()}>
+    <div data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
       {/* ✅ FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
