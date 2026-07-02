@@ -290,7 +290,21 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "whatsapp": return <svg {...common} viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill={green}/><path d="M22.7 9.4A9.4 9.4 0 0 0 7.2 21.6L6.1 26l4.5-1.2A9.4 9.4 0 0 0 22.7 9.4Z" fill="rgba(255,255,255,.16)" stroke="white" strokeWidth="1.5"/><path d="M20.4 18.3c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.5.1a7 7 0 0 1-3.4-3c-.1-.2 0-.4.1-.5l.5-.6c.1-.2.2-.3.2-.5s0-.3-.1-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.3s1 2.7 1.1 2.9c.1.2 2 3.1 4.9 4.3 2.4 1 2.9.7 3.5.6.5-.1 1.6-.7 1.9-1.4.2-.6.2-1.2.1-1.3-.1-.2-.3-.2-.5-.3Z" fill="white"/></svg>;
     case "web": return <svg {...common}><circle cx="12" cy="12" r="8.5" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.7"/><path d="M3.8 12h16.4M12 3.5c2.2 2.4 3.2 5.2 3.2 8.5S14.2 18.1 12 20.5C9.8 18.1 8.8 15.3 8.8 12S9.8 5.9 12 3.5Z" stroke={accent} strokeWidth="1.5"/></svg>;
     case "phone": return <svg {...common}><rect x="7" y="3" width="10" height="18" rx="2.3" fill="rgba(37,211,102,.14)" stroke={stroke} strokeWidth="1.7"/><path d="M10 6h4M11.2 18h1.6" stroke={green} strokeWidth="1.6" strokeLinecap="round"/></svg>;
-    default: return <span style={{fontSize:size, lineHeight:1}}>{name}</span>;
+    case "map": return <svg {...common}><path d="M4 6.5 9 4l6 2.5 5-2.5v13.5l-5 2.5-6-2.5-5 2.5V6.5Z" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.5"/><path d="M9 4v13.5M15 6.5V20" stroke={accent} strokeWidth="1.4"/><path d="M6.5 9.5c3-1.6 6-1.6 9 0" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "road": return <svg {...common}><path d="M8 21 11 3h2l3 18" fill="rgba(56,189,248,.10)" stroke={stroke} strokeWidth="1.7"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="1.8" strokeLinecap="round"/><path d="M5 21h14" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case "route": return <svg {...common}><circle cx="6" cy="6" r="2.2" fill="#22c55e"/><circle cx="18" cy="18" r="2.2" fill="#ef4444"/><path d="M7.8 7.5c6 1 8.4 3.5 8.4 8.8" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeDasharray="2 3"/></svg>;
+    case "document": return <svg {...common}><path d="M6 3.8h8l4 4V20H6V3.8Z" fill="rgba(148,163,184,.16)" stroke={stroke} strokeWidth="1.6"/><path d="M14 4v4h4M8.5 11h7M8.5 14h7M8.5 17h4" stroke={accent} strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "alert": return <svg {...common}><path d="M12 3.8 21 19H3L12 3.8Z" fill="rgba(251,191,36,.16)" stroke="#f59e0b" strokeWidth="1.7"/><path d="M12 9v4M12 16h.01" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "crash": return <svg {...common}><path d="m12 3 1.9 5 5.1-1.5-2.6 4.6 4.5 2.9-5.3.8.4 5.2-4-3.5-4 3.5.4-5.2-5.3-.8 4.5-2.9L5 6.5 10.1 8 12 3Z" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="1.4"/><path d="M9 12h6" stroke="#fff" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "moon": return <svg {...common}><path d="M18.5 15.3A7.3 7.3 0 0 1 8.7 5.5 8 8 0 1 0 18.5 15.3Z" fill="rgba(56,189,248,.18)" stroke={accent} strokeWidth="1.8"/></svg>;
+    case "sun": return <svg {...common}><circle cx="12" cy="12" r="3.5" fill="rgba(251,191,36,.25)" stroke="#f59e0b" strokeWidth="1.7"/><path d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M18.5 5.5l-1.4 1.4M6.9 17.1l-1.4 1.4" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "satellite": return <svg {...common}><path d="m10 14 4-4 5 5-4 4-5-5Z" fill="rgba(56,189,248,.15)" stroke={stroke} strokeWidth="1.5"/><path d="m5 5 5 5M3.5 8.5l5-5M15 3l6 6M17 3l4 4M3 17c1.8 2.2 4 3.5 7 4" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/></svg>;
+    case "palette": return <svg {...common}><path d="M12 4a8 8 0 0 0 0 16h1.2c1.2 0 1.7-1.4.9-2.2-.6-.6-.2-1.8.8-1.8H16a4 4 0 0 0 4-4c0-4.4-3.6-8-8-8Z" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><circle cx="8.5" cy="10" r="1" fill="#38bdf8"/><circle cx="11.5" cy="8" r="1" fill="#fbbf24"/><circle cx="15" cy="10.5" r="1" fill="#22c55e"/></svg>;
+    case "type": return <svg {...common}><path d="M4 6V4h16v2M12 4v16M8 20h8" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M7 10h10" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/></svg>;
+    case "window": return <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M4 9h16M8 5v14" stroke={accent} strokeWidth="1.4"/><circle cx="6.5" cy="7" r=".7" fill="#ef4444"/><circle cx="9" cy="7" r=".7" fill="#fbbf24"/></svg>;
+    case "tag": return <svg {...common}><path d="M4 12.5 12.5 4H20v7.5L11.5 20 4 12.5Z" fill="rgba(139,92,246,.14)" stroke={stroke} strokeWidth="1.6"/><circle cx="16.5" cy="7.5" r="1.2" fill={accent}/></svg>;
+    case "spark": return <svg {...common}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" fill="rgba(56,189,248,.18)" stroke={accent} strokeWidth="1.5"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z" fill="rgba(251,191,36,.2)" stroke="#f59e0b" strokeWidth="1.2"/></svg>;
+    default: return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(56,189,248,.12)" stroke={stroke} strokeWidth="1.6"/><path d="M8 12h8M12 8v8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/></svg>;
   }
 }
 
@@ -1023,10 +1037,10 @@ function FiscalZoneMap({ zona, rutas }) {
   const filtered = RUTAS_FISCALES.filter(r => r.zona === zona);
   const filteredRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zona);
   const TILE_OPTIONS = [
-    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
-    { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
-    { id: "streets", label: "Calles", icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "dark", label: "Oscuro", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
+    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
   ];
 
   const getRutaColor = (routeId) => {
@@ -1155,7 +1169,7 @@ function FiscalZoneMap({ zona, rutas }) {
         <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.48)", fontWeight:"700" }}>Vista:</span>
         {TILE_OPTIONS.map(t => (
           <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 10px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.16)"}`, background:tileMode===t.id ? "rgba(56,189,248,0.16)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.75)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer" }}>
-            {t.icon} {t.label}
+            <AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}
           </button>
         ))}
       </div>
@@ -1829,24 +1843,28 @@ const getGlobalAutoThemeCss = (theme = DEFAULT_THEME) => {
       color:${ui.primary}!important;
       text-shadow:none!important;
     }
+    [data-cm-auto-theme="1"] .leaflet-container{
+      background:#061428!important;
+      border-color:${ui.border}!important;
+    }
     [data-cm-auto-theme="1"] .cm-ref-dot,
     [data-cm-auto-theme="1"] .cm-ref-label,
     [data-cm-auto-theme="1"] .leaflet-control-zoom a{
-      background:${ui.panelStrongBg}!important;
-      color:${ui.primary}!important;
-      border-color:${ui.border}!important;
-      text-shadow:none!important;
-    }
-    [data-cm-auto-theme="1"] .leaflet-container{
-      background:${ui.panelBg}!important;
-      border-color:${ui.border}!important;
+      background:rgba(4,12,24,.96)!important;
+      color:#f8fafc!important;
+      border-color:rgba(56,189,248,.45)!important;
+      text-shadow:0 1px 2px rgba(0,0,0,.55)!important;
     }
     [data-cm-auto-theme="1"] .ruta-fiscal-btn-grid button,
+    [data-cm-auto-theme="1"] .cm-map-preserve button,
+    [data-cm-auto-theme="1"] .cm-map-preserve span{
+      filter:none!important;
+      opacity:1!important;
+    }
     [data-cm-auto-theme="1"] .noticias-tab button,
     [data-cm-auto-theme="1"] .cm-auto-btn{
-      background:${ui.panelStrongBg}!important;
       border-color:${ui.border}!important;
-      color:${ui.primary}!important;
+      color:inherit;
     }
   `;
 };
@@ -5038,11 +5056,11 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
   };
   
   const sections = [
-    { key: "background", label: "Fondo", icon: "🎨" },
-    { key: "typography", label: "Tipografía", icon: "📝" },
-    { key: "contentBox", label: "Ventanas", icon: "🪟" },
-    { key: "tabIcons", label: "Iconos Tabs", icon: "🏷️" },
-    { key: "otherIcons", label: "Otros Iconos", icon: "✨" }
+    { key: "background", label: "Fondo", icon: "palette" },
+    { key: "typography", label: "Tipografía", icon: "type" },
+    { key: "contentBox", label: "Ventanas", icon: "window" },
+    { key: "tabIcons", label: "Iconos Tabs", icon: "tag" },
+    { key: "otherIcons", label: "Otros Iconos", icon: "spark" }
   ];
   
   return (
@@ -5091,7 +5109,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 transition:"all 0.2s"
               }}
             >
-              <span>{sec.icon}</span>
+              <AppIcon name={sec.icon} size={16} active={activeSection === sec.key} />
               {sec.label}
             </button>
           ))}
@@ -5167,17 +5185,26 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   <label style={{ display:"block", marginBottom:"8px", fontFamily:getFont(theme, "secondary"), fontSize:"13px", color:"rgba(255,255,255,0.7)", fontWeight:"500" }}>
                     Paletas Predefinidas
                   </label>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px", marginBottom:"16px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:"10px", marginBottom:"16px" }}>
                     {[
-                      { label:"Puerto Noche",   gradient:"linear-gradient(135deg, #0a1628 0%, #1a2942 100%)" },
-                      { label:"Océano Profundo",gradient:"linear-gradient(135deg, #0c1445 0%, #0d3b6e 100%)" },
-                      { label:"Medianoche",     gradient:"linear-gradient(135deg, #0f0c29 0%, #302b63 100%)" },
-                      { label:"Mar Oscuro",     gradient:"linear-gradient(180deg, #000428 0%, #004e92 100%)" },
-                      { label:"Carbón",         gradient:"linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" },
-                      { label:"Noche Tropical", gradient:"linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" },
-                      { label:"Puerto Azul",    gradient:"linear-gradient(135deg, #051937 0%, #004d7a 50%, #008793 100%)" },
-                      { label:"Marino Índigo",  gradient:"linear-gradient(135deg, #141e30 0%, #243b55 100%)" },
-                      { label:"Zafiro",         gradient:"linear-gradient(135deg, #0d1b2e 0%, #1b3a6b 100%)" },
+                      { label:"Puerto Noche",    gradient:"linear-gradient(135deg, #0a1628 0%, #1a2942 100%)" },
+                      { label:"Océano Profundo", gradient:"linear-gradient(135deg, #0c1445 0%, #0d3b6e 100%)" },
+                      { label:"Blanco → Azul",   gradient:"linear-gradient(180deg, #ffffff 0%, #eaf7ff 42%, #0ea5e9 100%)" },
+                      { label:"Niebla Marina",   gradient:"linear-gradient(180deg, #f8fafc 0%, #dbeafe 48%, #1d4ed8 100%)" },
+                      { label:"Cielo Puerto",    gradient:"linear-gradient(160deg, #ffffff 0%, #bfdbfe 45%, #0369a1 100%)" },
+                      { label:"Arena → Mar",     gradient:"linear-gradient(180deg, #fff7ed 0%, #e0f2fe 48%, #0284c7 100%)" },
+                      { label:"Aqua Claro",      gradient:"linear-gradient(135deg, #ecfeff 0%, #67e8f9 45%, #0e7490 100%)" },
+                      { label:"Perla Índigo",    gradient:"linear-gradient(180deg, #ffffff 0%, #eef2ff 46%, #4338ca 100%)" },
+                      { label:"Día Ejecutivo",   gradient:"linear-gradient(135deg, #ffffff 0%, #e2e8f0 45%, #334155 100%)" },
+                      { label:"Aurora Azul",     gradient:"linear-gradient(135deg, #f0f9ff 0%, #7dd3fc 42%, #1e3a8a 100%)" },
+                      { label:"Verde Puerto",    gradient:"linear-gradient(160deg, #f0fdf4 0%, #99f6e4 45%, #047857 100%)" },
+                      { label:"Dorado Marino",   gradient:"linear-gradient(150deg, #fffbeb 0%, #bae6fd 45%, #075985 100%)" },
+                      { label:"Medianoche",      gradient:"linear-gradient(135deg, #0f0c29 0%, #302b63 100%)" },
+                      { label:"Mar Oscuro",      gradient:"linear-gradient(180deg, #000428 0%, #004e92 100%)" },
+                      { label:"Carbón",          gradient:"linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" },
+                      { label:"Noche Tropical",  gradient:"linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" },
+                      { label:"Puerto Azul",     gradient:"linear-gradient(135deg, #051937 0%, #004d7a 50%, #008793 100%)" },
+                      { label:"Marino Índigo",   gradient:"linear-gradient(135deg, #141e30 0%, #243b55 100%)" },
                     ].map(p => {
                       const isActive = config.backgroundGradient === p.gradient;
                       return (
@@ -6301,19 +6328,19 @@ function NavBar({ active, set }) {
         }}
         style={{
           flex: 1, 
-          padding: "9px 4px",
+          padding: "13px 6px",
           background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
           border: "none",
           borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
           color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
-          fontSize: "9px", 
+          fontSize: "12px", 
           fontFamily: getFont(theme, "secondary"), 
           fontWeight: isActive ? "600" : "400",
           cursor: "pointer", 
           display: "flex", 
           flexDirection: "column",
           alignItems: "center", 
-          gap: "3px", 
+          gap: "5px", 
           transition: "all 0.2s",
           letterSpacing: "0.5px", 
           whiteSpace: "nowrap", 
@@ -6333,7 +6360,7 @@ function NavBar({ active, set }) {
           setIsHovered(false);
         }}
       >
-        <AppIcon name={t.icon} size={18} active={isActive} />
+        <AppIcon name={t.icon} size={24} active={isActive} />
         {t.label.toUpperCase()}
       </button>
     );
@@ -6673,7 +6700,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
-      await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
+      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
     }
     const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
@@ -6685,7 +6712,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "acceso", icono: "⚓", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
+    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
   };
 
   const voteVialidad = async (id, newStatus) => {
@@ -6709,7 +6736,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "vialidad", icono: "🛣️", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
+    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
@@ -6726,7 +6753,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
     await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
     notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
-    await publicarNoticia({ tipo: "ruta_fiscal", icono: "🛣️", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
   const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
@@ -6775,11 +6802,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   };
 
   const sections = [
-    { id: "mapa",        label: "Mapa",        icon: "🗺️" },
-    { id: "accesos",     label: "Accesos",     icon: "⚓" },
-    { id: "vialidades",  label: "Vialidades",  icon: "🛣️" },
-    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: "🚛" },
-    { id: "reporte",     label: "Reporte",     icon: "📄" },
+    { id: "mapa",        label: "Mapa",        icon: "map" },
+    { id: "accesos",     label: "Accesos",     icon: "access" },
+    { id: "vialidades",  label: "Vialidades",  icon: "road" },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: "route" },
+    { id: "reporte",     label: "Reporte",     icon: "document" },
   ];
 
   return (
@@ -6793,9 +6820,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
             color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
             fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
-            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px",
+            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
           }}>
-            <span style={{ fontSize: "16px" }}>{s.icon}</span>
+            <AppIcon name={s.icon} size={22} active={activeSection === s.id} />
             {s.label.toUpperCase()}
           </button>
         ))}
@@ -7366,10 +7393,10 @@ function MapaAccesos({ accesos }) {
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                   subdomains: "abcd", labels: null },
-    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                              subdomains: "abc",  labels: null },
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                   subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                  subdomains: "abcd", labels: null },
+    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                   subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                              subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                   subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                  subdomains: "abcd", labels: null },
   ];
 
   const getColor = (id) => {
@@ -7474,7 +7501,7 @@ function MapaAccesos({ accesos }) {
                 background: tileMode===t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
                 color: tileMode===t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
                 fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight: tileMode===t.id ? "700" : "400",
-              }}>{t.icon} {t.label}</button>
+              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
             ))}
           </div>
         </div>
@@ -7592,10 +7619,10 @@ function MapaVialidades({ vialidades }) {
   ];
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
-    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                                       subdomains: "abc",  labels: null },
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                                            subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
+    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                                       subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                                            subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
   ];
 
   const getVialColor = (id) => {
@@ -7705,7 +7732,7 @@ function MapaVialidades({ vialidades }) {
                 background: tileMode === t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
                 color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
                 fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
-              }}>{t.icon} {t.label}</button>
+              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
             ))}
           </div>
         </div>
@@ -7729,13 +7756,13 @@ function MapaVialidades({ vialidades }) {
 
 // ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
 const MAP_TILES = [
-  { id: "dark",      label: "Noche",    icon: "🌙",
+  { id: "dark",      label: "Noche",    icon: "moon",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     labels: null },
-  { id: "satellite", label: "Satélite", icon: "🛰️",
+  { id: "satellite", label: "Satélite", icon: "satellite",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-  { id: "light",     label: "Claro",    icon: "☀️",
+  { id: "light",     label: "Claro",    icon: "sun",
     url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     labels: null },
 ];
@@ -8269,7 +8296,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
                 background: tileMode === t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
                 color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
                 fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
-              }}>{t.icon} {t.label}</button>
+              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
             ))}
             {activeIncidents.length > 0 && (
               <span style={{ background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "2px 9px", fontSize: "11px", color: "#ef4444", fontFamily: getFont(theme, "secondary"), fontWeight: "700", marginLeft: "4px" }}>
@@ -8742,7 +8769,7 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
     </div>
     <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
       {(customIncidentTypes || []).map(t => <span key={t.id} style={{ border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", borderRadius:999, padding:"5px 8px", color:"rgba(255,255,255,.75)", fontSize:11, fontFamily:getFont(theme,"secondary") }}>
-        {t.icon} {t.label} · {t.category} <button onClick={()=>deactivate(t.id,t.label)} style={{ marginLeft:6, background:"transparent", border:"none", color:"#ef4444", cursor:"pointer" }}>×</button>
+        <AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label} · {t.category} <button onClick={()=>deactivate(t.id,t.label)} style={{ marginLeft:6, background:"transparent", border:"none", color:"#ef4444", cursor:"pointer" }}>×</button>
       </span>)}
     </div>
   </div>;
@@ -9661,10 +9688,10 @@ function MapaTerminales({ zona, stMap }) {
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                              subdomains: "abcd", labels: null },
-    { id: "streets",   label: "Calles",   icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                         subdomains: "abc",  labels: null },
-    { id: "satellite", label: "Satélite", icon: "🛰️", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                              subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                             subdomains: "abcd", labels: null },
+    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                              subdomains: "abcd", labels: null },
+    { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                         subdomains: "abc",  labels: null },
+    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                              subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                             subdomains: "abcd", labels: null },
   ];
 
   const getPolyColor = (id, sm) => {
@@ -9821,7 +9848,7 @@ function MapaTerminales({ zona, stMap }) {
                 background: tileMode === t.id ? zonaColor : "rgba(255,255,255,0.08)",
                 color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
                 fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
-              }}>{t.icon} {t.label}</button>
+              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
             ))}
           </div>
         </div>
@@ -10007,7 +10034,7 @@ function TerminalesTab({ myId }) {
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
     notify(`✅ ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
-    await publicarNoticia({ tipo: "terminal", icono: "⚓", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+    await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const resetAll = async () => {
@@ -10538,7 +10565,7 @@ function SegundoAccesoTab({ myId }) {
     notify("✓ Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
-    await publicarNoticia({ tipo: "segundo", icono: "🛣️", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -10553,7 +10580,7 @@ function SegundoAccesoTab({ myId }) {
       field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
       field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
       "Actualizado";
-    await publicarNoticia({ tipo: "segundo", icono: "🛣️", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
   const resetAll = async () => {
     const next = mkSegundoIngreso();
@@ -12006,14 +12033,14 @@ function NoticiasTab({ isAdmin }) {
 
 
   const FILTROS = [
-    { id: "todos",     label: "Todos",      icon: "📰" },
-    { id: "acceso",    label: "Accesos",    icon: "📍" },
-    { id: "terminal",  label: "Terminales", icon: "⚓" },
-    { id: "incidente", label: "Incidentes", icon: "⚠️" },
-    { id: "accidente", label: "Accidentes", icon: "🚨" },
-    { id: "segundo",   label: "2do Acceso", icon: "🛣️" },
-    { id: "patio",     label: "Patios",     icon: "🏭" },
-    { id: "carril",    label: "Carriles",   icon: "🚦" },
+    { id: "todos",     label: "Todos",      icon: "news" },
+    { id: "acceso",    label: "Accesos",    icon: "access" },
+    { id: "terminal",  label: "Terminales", icon: "terminal" },
+    { id: "incidente", label: "Incidentes", icon: "alert" },
+    { id: "accidente", label: "Accidentes", icon: "crash" },
+    { id: "segundo",   label: "2do Acceso", icon: "road" },
+    { id: "patio",     label: "Patios",     icon: "yard" },
+    { id: "carril",    label: "Carriles",   icon: "lanes" },
   ];
 
   const filtered = filtro === "todos" ? noticias : noticias.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
@@ -12059,11 +12086,11 @@ function NoticiasTab({ isAdmin }) {
 
       {/* Selector de sección */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
-        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
-          📰 NOTICIAS
+        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+          <AppIcon name="news" size={16} active={seccion==="noticias"} /> NOTICIAS
         </button>
-        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
-          📎 COMUNICADOS
+        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+          <AppIcon name="document" size={16} active={seccion==="comunicados"} /> COMUNICADOS
         </button>
       </div>
 
@@ -12073,7 +12100,7 @@ function NoticiasTab({ isAdmin }) {
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
               <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
-                <span>{f.icon}</span> {f.label}
+                <AppIcon name={f.icon} size={15} active={filtro === f.id} /> {f.label}
               </button>
             ))}
           </div>
@@ -12082,7 +12109,7 @@ function NoticiasTab({ isAdmin }) {
           {filtered.map((n) => (
             <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
               <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-                <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>{n.icono || "📰"}</div>
+                <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name={n.icono || "news"} size={18} active={true} /></div>
                 <div style={{ flex:1 }}>
                   <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", marginBottom:"3px" }}>{n.titulo}</div>
                   {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"5px" }}>{n.detalle}</div>}
@@ -12400,10 +12427,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"💙"},{id:"posturas", label:"Posturas Conect", icon:"🤝"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}>{t.icon} {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"💙"},{id:"posturas", label:"Posturas Conect", icon:"🤝"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
     {sub === "posturas" && <>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"🚛"},{id:"empresario", label:"Empresario", icon:"🏢"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}>{t.icon} {t.label}</button>)}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"🚛"},{id:"empresario", label:"Empresario", icon:"🏢"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>)}</div>
       {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
       <Filters />
       {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
@@ -12914,7 +12941,7 @@ function PatioIdentificaMap({ myId }) {
     {
       id: "satellite_labels",
       label: "Satélite + calles",
-      icon: "🛰️",
+      icon: "satellite",
       url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       subdomains: "",
       labelsUrl: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
@@ -12927,9 +12954,9 @@ function PatioIdentificaMap({ myId }) {
       url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       subdomains: "",
     },
-    { id: "streets", label: "Calles", icon: "🗺️", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
-    { id: "light", label: "Claro", icon: "☀️", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
-    { id: "dark", label: "Oscuro", icon: "🌙", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
+    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "dark", label: "Oscuro", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
   ];
 
   const notify = (text, color = "#38bdf8") => {
@@ -13474,7 +13501,7 @@ function PatioIdentificaMap({ myId }) {
             {dbStatus.ok ? "🟢 Global activo" : "🔴 Sin global"}
           </span>
           {TILE_OPTIONS.map(t => (
-            <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>{t.icon} {t.label}</button>
+            <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
           ))}
         </div>
       </div>
@@ -13851,7 +13878,7 @@ function TutorialTab({ setActive, isAdmin }) {
   const stepLabels = ["Datos básicos","Teléfono","Correo","Contraseña"];
 
   const sections = [
-    { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
+    { id: "trafico", icon: "map", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa en vivo + Accesos + Incidentes", items: [
       { label: "Mapa en vivo", desc: "Muestra visualmente los accesos principales con su estatus actual, además de los pins de incidentes activos reportados por la comunidad." },
       { label: "Accesos Principales", desc: "Cada acceso muestra su estatus en tiempo real. Puedes votar el estado actual: Libre/Fluido, Tráfico Lento, Saturado o Cerrado." },
       { label: "Tipo de Retorno", desc: "Indica si hay retornos activos: Sin Retornos, Retorno Terminal o Retorno ASIPONA." },
@@ -14132,7 +14159,7 @@ function TutorialTab({ setActive, isAdmin }) {
           { label: "Tiempo real", desc: "La información se alimenta con votos comunitarios y actualizaciones realtime desde Supabase." },
           { label: "Persistencia de sección", desc: "La app recuerda la sección donde estabas. Si recargas, vuelve a abrir esa misma sección o subsección cuando aplique." },
         ]},
-        { id: "trafico", icon: "🗺️", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa general + accesos + eventos validados", items: [
+        { id: "trafico", icon: "map", color: "#38bdf8", title: "TRÁFICO", subtitle: "Mapa general + accesos + eventos validados", items: [
           { label: "Mapa general", desc: "Muestra accesos, puntos importantes, rutas, referencias de terminales y eventos visibles/validados por la comunidad." },
           { label: "Accesos principales", desc: "Consulta y vota Acceso Pez Vela, Puerta 15, Zona Norte y Patio Regulador: Libre/Fluido, Lento, Saturado o Cerrado." },
           { label: "Vialidades", desc: "Consulta vialidades como Jalipa-Puerto, Puerto-Jalipa, libramiento y carretera Manzanillo-Colima para anticipar tiempos." },
