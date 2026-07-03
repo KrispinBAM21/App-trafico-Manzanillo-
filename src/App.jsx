@@ -140,6 +140,14 @@ const TAB_PUBLIC_ICONS = {
   tutorial: "/mas info.png",
 };
 
+
+const TRAFICO_SUBTAB_PUBLIC_ICONS = {
+  accesos: "/accesos.png",
+  vialidades: "/vialidades.png",
+  rutas_fiscales: "/rutas fiscales.png",
+  reporte: "/reporte. png",
+};
+
 const TABS = [
   { key: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio },
   { key: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
@@ -6975,16 +6983,27 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   const sections = [
     { id: "mapa",        label: "Mapa",        icon: "map" },
-    { id: "accesos",     label: "Accesos",     icon: "access" },
-    { id: "vialidades",  label: "Vialidades",  icon: "road" },
-    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: "route" },
-    { id: "reporte",     label: "Reporte",     icon: "document" },
+    { id: "accesos",     label: "Accesos",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
+    { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+    { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
   ];
 
   return (
     <div style={{ paddingBottom: "80px" }}>
 
       {/* ── Sub-tabs ── */}
+      <style>{`
+        .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{
+          width:30px!important;
+          height:30px!important;
+          object-fit:contain!important;
+          display:block!important;
+        }
+        @media (max-width: 480px){
+          .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
+        }
+      `}</style>
       <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
@@ -6994,7 +7013,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
             cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
           }}>
-            <AppIcon name={s.icon} size={22} active={activeSection === s.id} />
+            <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
+              <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
+            </span>
             {s.label.toUpperCase()}
           </button>
         ))}
@@ -9214,7 +9235,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR EVENTO</div>
+        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
         <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Necesita 3 confirmaciones · expira en 1h si no se verifica</div>
       </div>
 
