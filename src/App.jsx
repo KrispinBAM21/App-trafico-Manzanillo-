@@ -145,7 +145,7 @@ const TRAFICO_SUBTAB_PUBLIC_ICONS = {
   accesos: "/accesos.png",
   vialidades: "/vialidades.png",
   rutas_fiscales: "/rutas fiscales.png",
-  reporte: "/reporte. png",
+  reporte: "/reporte.png",
 };
 
 const TABS = [
