@@ -129,7 +129,7 @@ const toMs = (v) => {
 // En Vite/React, los archivos dentro de public se referencian desde la raíz.
 const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
-  trafico: "/trafico.png",
+  trafico: "/tráfico.png",
   reporte: "/reportar.png",
   terminales: "/terminales.png",
   patio: "/patios.png",
