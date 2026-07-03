@@ -129,7 +129,7 @@ const toMs = (v) => {
 // En Vite/React, los archivos dentro de public se referencian desde la raíz.
 const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
-  trafico: "/tráfico.png",
+  trafico: "/trafico.png",
   reporte: "/reportar.png",
   terminales: "/terminales.png",
   patio: "/patios.png",
@@ -145,7 +145,7 @@ const TRAFICO_SUBTAB_PUBLIC_ICONS = {
   accesos: "/accesos.png",
   vialidades: "/vialidades.png",
   rutas_fiscales: "/rutas fiscales.png",
-  reporte: "/reporte.png",
+  reporte: "/reporte. png",
 };
 
 const TABS = [
@@ -14908,9 +14908,9 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
 
       <div style={{ display:"grid", gap:"14px" }}>
         {socialCards.map(card => (
-          <div key={card.key} style={{ background:withAlpha(card.color,0.08), border:`1px solid ${withAlpha(card.color,0.30)}`, borderRadius:"18px", overflow:"hidden" }}>
-            <div style={{ background:withAlpha(card.color,0.14), padding:"10px 16px", display:"flex", alignItems:"center", gap:"8px", borderBottom:`1px solid ${withAlpha(card.color,0.15)}` }}>
-              <div style={{ width:"8px", height:"8px", background:card.color, borderRadius:"50%", boxShadow:`0 0 8px ${card.color}` }} />
+          <div key={card.key} style={{ background:withAlpha(card.color,0.06), border:`1px solid ${withAlpha(card.color,0.22)}`, borderRadius:"18px", overflow:"hidden", boxShadow:"0 10px 26px rgba(0,0,0,0.18)" }}>
+            <div style={{ background:withAlpha(card.color,0.12), padding:"10px 16px", display:"flex", alignItems:"center", gap:"8px", borderBottom:`1px solid ${withAlpha(card.color,0.15)}` }}>
+              <div style={{ width:"8px", height:"8px", background:card.color, borderRadius:"50%" }} />
               <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 5, 11)}px`, fontWeight:800, color:card.color, letterSpacing:"1.3px" }}>{card.title.toUpperCase()}</span>
             </div>
             <div style={{ padding:"18px" }}>
@@ -14939,7 +14939,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
         ))}
       </div>
 
-      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:autoUI.panelBg, backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:`1px solid ${autoUI.border}` }}>
+      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:autoUI.panelBg, backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:`1px solid ${autoUI.border}`, boxShadow:"0 8px 22px rgba(0,0,0,0.14)" }}>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, lineHeight:1.9 }}>
           Comunidad Conect Manzanillo · <span style={{ color:"#25D366", fontWeight:800 }}>WhatsApp</span> · <span style={{ color:"#1877F2", fontWeight:800 }}>Facebook</span> · <span style={{ color:"#f472b6", fontWeight:800 }}>Instagram</span>
         </div>
