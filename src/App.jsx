@@ -217,8 +217,8 @@ const updateUrlForTab = (tab, replace = false) => {
 const DEFAULT_THEME = {
   // Fondo
   backgroundType: "gradient", // "color" | "gradient" | "image"
-  backgroundColor: "#f6f8fb",
-  backgroundGradient: "linear-gradient(180deg, #f8fafc 0%, #e8f1fb 54%, #dbeafe 100%)",
+  backgroundColor: "#0a1628",
+  backgroundGradient: "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)",
   backgroundImage: "",
   backgroundImageOverlayOpacity: 0.65, // ✨ NUEVO: Opacidad de la capa oscura sobre imagen de fondo (0-1)
   
@@ -230,10 +230,10 @@ const DEFAULT_THEME = {
   
   // ✨ Colores de texto
   textColors: {
-    primary: "#1f2937",        // Color principal del texto
-    secondary: "#475569",      // Color de texto secundario
-    muted: "#64748b",          // Color de texto atenuado/hints
-    accent: "#1d4ed8"          // Color de acentos/links
+    primary: "#ffffff",        // Color principal del texto
+    secondary: "#e2e8f0",      // Color de texto secundario
+    muted: "#94a3b8",          // Color de texto atenuado/hints
+    accent: "#38bdf8"          // Color de acentos/links
   },
   
   // ✨ NUEVO: Configuración de ventanas de contenido
@@ -242,9 +242,9 @@ const DEFAULT_THEME = {
     // Si el fondo es un color sólido, las ventanas pueden tomar automáticamente
     // una variante armónica del color elegido para mantener contraste y estética.
     autoAdjustWithSolidBackground: true,
-    background: "rgba(255, 255, 255, 0.92)",
+    background: "rgba(255, 255, 255, 0.05)",
     backdropBlur: 12,
-    borderColor: "rgba(15, 42, 67, 0.12)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
@@ -256,8 +256,8 @@ const DEFAULT_THEME = {
     },
     shadow: {
       enabled: true,
-      color: "rgba(15, 23, 42, 0.12)",
-      blur: 18,
+      color: "rgba(0, 0, 0, 0.3)",
+      blur: 20,
       offsetX: 0,
       offsetY: 4
     }
@@ -1999,174 +1999,6 @@ const getGlobalAutoThemeCss = (theme = DEFAULT_THEME) => {
     }
   `;
 };
-
-
-const getCorporateThemeCss = () => `
-  [data-cm-corporativo="1"]{
-    --cm-corp-page:#f6f8fb;
-    --cm-corp-card:#ffffff;
-    --cm-corp-card-soft:#f8fafc;
-    --cm-corp-header:rgba(255,255,255,0.96);
-    --cm-corp-navy:#102a43;
-    --cm-corp-navy-2:#17324d;
-    --cm-corp-text:#1f2937;
-    --cm-corp-text-2:#475569;
-    --cm-corp-muted:#64748b;
-    --cm-corp-border:rgba(15,42,67,0.13);
-    --cm-corp-border-strong:rgba(15,42,67,0.22);
-    --cm-corp-blue:#1d4ed8;
-    --cm-corp-blue-2:#2563eb;
-    --cm-corp-red:#dc2626;
-    --cm-corp-shadow:0 12px 28px rgba(15,23,42,0.10);
-    --cm-corp-shadow-soft:0 6px 18px rgba(15,23,42,0.08);
-    color:var(--cm-corp-text)!important;
-    color-scheme:light;
-  }
-
-  [data-cm-corporativo="1"] *{
-    text-shadow:none!important;
-  }
-
-  [data-cm-corporativo="1"] h1,
-  [data-cm-corporativo="1"] h2,
-  [data-cm-corporativo="1"] h3,
-  [data-cm-corporativo="1"] h4,
-  [data-cm-corporativo="1"] h5,
-  [data-cm-corporativo="1"] p,
-  [data-cm-corporativo="1"] label,
-  [data-cm-corporativo="1"] summary,
-  [data-cm-corporativo="1"] div[style*="color:#fff"],
-  [data-cm-corporativo="1"] div[style*="color: #fff"],
-  [data-cm-corporativo="1"] div[style*="color:\"#fff"],
-  [data-cm-corporativo="1"] div[style*="color: rgb(255, 255, 255"],
-  [data-cm-corporativo="1"] div[style*="color: rgba(255, 255, 255"],
-  [data-cm-corporativo="1"] span[style*="color:#fff"],
-  [data-cm-corporativo="1"] span[style*="color: #fff"],
-  [data-cm-corporativo="1"] span[style*="color: rgb(255, 255, 255"],
-  [data-cm-corporativo="1"] span[style*="color: rgba(255, 255, 255"]{
-    color:var(--cm-corp-text)!important;
-  }
-
-  [data-cm-corporativo="1"] div[style*="color:#94a3b8"],
-  [data-cm-corporativo="1"] div[style*="color: #94a3b8"],
-  [data-cm-corporativo="1"] div[style*="color:#64748b"],
-  [data-cm-corporativo="1"] div[style*="color: #64748b"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,0.3"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,.3"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,0.4"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,.4"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,0.5"],
-  [data-cm-corporativo="1"] div[style*="rgba(255,255,255,.5"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,0.3"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,.3"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,0.4"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,.4"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,0.5"],
-  [data-cm-corporativo="1"] span[style*="rgba(255,255,255,.5"]{
-    color:var(--cm-corp-muted)!important;
-  }
-
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.03"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.04"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.05"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.06"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.07"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.08"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:rgba(255,255,255,0.1"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.03"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.04"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.05"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.06"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.07"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.08"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: rgba(255,255,255,0.1"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:#0a1628"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: #0a1628"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:#061428"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: #061428"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:#040c18"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: #040c18"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background:#0d1b2e"],
-  [data-cm-corporativo="1"] :not(.leaflet-container):not(.leaflet-container *):not(.cm-ref-dot):not(.cm-ref-label)[style*="background: #0d1b2e"]{
-    background:var(--cm-corp-card)!important;
-    border-color:var(--cm-corp-border)!important;
-    box-shadow:var(--cm-corp-shadow-soft)!important;
-  }
-
-  [data-cm-corporativo="1"] input,
-  [data-cm-corporativo="1"] textarea,
-  [data-cm-corporativo="1"] select{
-    background:#ffffff!important;
-    color:var(--cm-corp-text)!important;
-    border:1px solid var(--cm-corp-border-strong)!important;
-    border-radius:10px!important;
-    box-shadow:0 1px 2px rgba(15,23,42,0.04)!important;
-  }
-  [data-cm-corporativo="1"] input::placeholder,
-  [data-cm-corporativo="1"] textarea::placeholder{color:#94a3b8!important;}
-  [data-cm-corporativo="1"] select option,
-  [data-cm-corporativo="1"] select optgroup{background:#ffffff!important;color:var(--cm-corp-text)!important;}
-
-  [data-cm-corporativo="1"] button{
-    border-radius:10px!important;
-    box-shadow:0 2px 8px rgba(15,23,42,0.06)!important;
-    transition:transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease!important;
-  }
-  [data-cm-corporativo="1"] button:hover{box-shadow:0 6px 16px rgba(15,23,42,0.10)!important;}
-
-  [data-cm-corporativo="1"] .cm-corporate-header{
-    background:var(--cm-corp-header)!important;
-    border-bottom:1px solid var(--cm-corp-border)!important;
-    box-shadow:0 8px 24px rgba(15,23,42,0.08)!important;
-  }
-  [data-cm-corporativo="1"] .cm-auth-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
-  [data-cm-corporativo="1"] .cm-auth-btn{
-    min-height:38px;
-    padding:9px 14px!important;
-    border-radius:10px!important;
-    font-family:'DM Sans',sans-serif!important;
-    font-size:12px!important;
-    font-weight:800!important;
-    letter-spacing:.2px!important;
-    cursor:pointer!important;
-    white-space:nowrap!important;
-  }
-  [data-cm-corporativo="1"] .cm-auth-btn-primary{
-    background:var(--cm-corp-blue)!important;
-    border:1px solid var(--cm-corp-blue)!important;
-    color:#ffffff!important;
-  }
-  [data-cm-corporativo="1"] .cm-auth-btn-secondary{
-    background:#ffffff!important;
-    border:1px solid var(--cm-corp-border-strong)!important;
-    color:var(--cm-corp-navy)!important;
-  }
-  [data-cm-corporativo="1"] .cm-auth-btn-danger{
-    background:#fff!important;
-    border:1px solid rgba(220,38,38,.28)!important;
-    color:var(--cm-corp-red)!important;
-  }
-
-  [data-cm-corporativo="1"] .leaflet-container,
-  [data-cm-corporativo="1"] .leaflet-container *{
-    box-shadow:none!important;
-    text-shadow:initial!important;
-  }
-  [data-cm-corporativo="1"] .cm-tooltip{
-    background:#ffffff!important;
-    color:var(--cm-corp-text)!important;
-    border:1px solid var(--cm-corp-border-strong)!important;
-    box-shadow:0 10px 24px rgba(15,23,42,.14)!important;
-  }
-
-  @media (max-width: 640px){
-    [data-cm-corporativo="1"] .cm-corporate-header{padding:12px 12px!important;gap:10px!important;align-items:center!important;}
-    [data-cm-corporativo="1"] .cm-corporate-title{font-size:15px!important;}
-    [data-cm-corporativo="1"] .cm-corporate-subtitle{font-size:9px!important;letter-spacing:.6px!important;}
-    [data-cm-corporativo="1"] .cm-auth-actions{gap:6px;}
-    [data-cm-corporativo="1"] .cm-auth-btn{min-height:34px;padding:8px 9px!important;font-size:10.5px!important;}
-  }
-`;
 
 const mkTerminals = (list) =>
   Object.fromEntries(list.map(t => [t.id, { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" }]));
@@ -14078,24 +13910,25 @@ const WORLD_COUNTRIES = [
 ];
 
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
-function TutorialTab({ setActive, isAdmin }) {
+function TutorialTab({ setActive, isAdmin, authIntent }) {
   const theme = React.useContext(ThemeContext);
   const [open, setOpen] = useState(null);
   const toggle = (id) => setOpen(prev => prev === id ? null : id);
 
   // ── Auth panel state ──
-  const [authMode, setAuthMode] = useState(() => { try { return localStorage.getItem("cm_auth_mode_request") || "login"; } catch { return "login"; } }); // "login" | "registro" | "forgot"
-  useEffect(() => {
-    const handler = (event) => {
-      const nextMode = event?.detail === "registro" ? "registro" : "login";
-      setAuthMode(nextMode);
+  const [authMode, setAuthMode] = useState("login"); // "login" | "registro" | "forgot"
+
+  // Si el usuario llegó aquí desde los botones "Iniciar sesión" / "Crear cuenta" del header,
+  // preseleccionamos la pestaña correspondiente del panel de autenticación.
+  React.useEffect(() => {
+    if (authIntent === "login" || authIntent === "registro") {
+      setAuthMode(authIntent);
       setLoginMsg(null);
       setRegMsg(null);
       setRegStep(1);
-    };
-    window.addEventListener("cm-auth-mode", handler);
-    return () => window.removeEventListener("cm-auth-mode", handler);
-  }, []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authIntent]);
   // Login
   const [loginUser, setLoginUser]   = useState(() => { try { return localStorage.getItem("cm_remember_email") || ""; } catch { return ""; } });
   const [loginPass, setLoginPass]   = useState(() => { try { return localStorage.getItem("cm_remember_pass") || ""; } catch { return ""; } });
@@ -14328,7 +14161,7 @@ function TutorialTab({ setActive, isAdmin }) {
       {/* ══════════════════════════════════════════════════════
           PANEL DE AUTENTICACIÓN
       ══════════════════════════════════════════════════════ */}
-      <div id="cm-auth-panel" style={{ scrollMarginTop:"90px", background:"#ffffff", border:"1px solid rgba(15,42,67,0.13)", borderRadius:"18px", padding:"24px 20px", marginBottom:"28px", boxShadow:"0 12px 28px rgba(15,23,42,0.10)" }}>
+      <div style={{ background:"linear-gradient(160deg,#0d1b2e,#0a2540)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"20px", padding:"24px 20px", marginBottom:"28px" }}>
 
         {/* Avatar */}
         <div style={{ textAlign:"center", marginBottom:"20px" }}>
@@ -16284,7 +16117,8 @@ function App() {
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
-  const [visitas,   setVisitas]   = useState(null);
+  // Intención de autenticación disparada desde el header (login/registro)
+  const [authIntent, setAuthIntent] = useState(null);
   
   // Validado TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
@@ -16359,28 +16193,6 @@ function App() {
   // AdSense móvil: no movemos ni forzamos los iframes de Google desde React.
   // El anuncio ancla lo controla AdSense. Para evitar la franja azul expansible en iOS,
   // usa data-overlays="collapsed-bottom" directamente en /index.html.
-
-  // Contador de visitas unicas (una por dispositivo)
-  useEffect(() => {
-    const TABLA_V = "visitas";
-    const registrar = async () => {
-      try {
-        const uid_local = (() => { try { return localStorage.getItem("puerto_trafico_uid"); } catch { return null; } })();
-        if (uid_local) {
-          await sb.from(TABLA_V).upsert({ id: uid_local, last_seen: new Date().toISOString() }, { onConflict: "id" });
-        }
-        const { count } = await sb.from(TABLA_V).select("id", { count: "exact", head: true });
-        setVisitas(count || 0);
-      } catch { setVisitas(null); }
-    };
-    registrar();
-    const chan = sb.channel("visitas-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: TABLA_V }, async () => {
-        const { count } = await sb.from(TABLA_V).select("id", { count: "exact", head: true });
-        setVisitas(count || 0);
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
 
   // ID permanente por dispositivo
   const [myId] = useState(() => {
@@ -16631,27 +16443,9 @@ function App() {
       "--cm-border": ui.border,
       "--cm-subtle-border": ui.subtleBorder,
       "--cm-shadow": ui.shadow,
-      "--cm-corp-page": "#f6f8fb",
-      "--cm-corp-card": "#ffffff",
-      "--cm-corp-text": "#1f2937",
-      "--cm-corp-muted": "#64748b",
-      "--cm-corp-blue": "#1d4ed8",
-      "--cm-corp-red": "#dc2626",
       // Validado Aplicar fondo del tema
       ...getBackgroundStyle()
     };
-  };
-
-  const openAuthPanel = (mode = "login") => {
-    try { localStorage.setItem("cm_auth_mode_request", mode); } catch {}
-    setShowSessionMenu(false);
-    setActive("tutorial");
-    setTimeout(() => {
-      try {
-        window.dispatchEvent(new CustomEvent("cm-auth-mode", { detail: mode }));
-        document.getElementById("cm-auth-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } catch {}
-    }, 150);
   };
 
   return (
@@ -16660,7 +16454,6 @@ function App() {
       {/* Global styles to prevent gray highlight on tap/click */}
       <style>{`
         ${getGlobalAutoThemeCss(theme)}
-        ${getCorporateThemeCss()}
         * {
           -webkit-tap-highlight-color: transparent !important;
           -webkit-touch-callout: none;
@@ -16692,7 +16485,7 @@ function App() {
           user-select: text;
         }
       `}</style>
-    <div data-cm-corporativo="1" data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
+    <div data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
       {/* Validado FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
@@ -16745,33 +16538,47 @@ function App() {
         `}</style>
 
         {/* Header */}
-        <div className="cm-corporate-header" style={{ background:"rgba(255,255,255,0.96)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", padding:"14px 20px", borderBottom:"1px solid rgba(15,42,67,0.13)", display:"flex", alignItems:"center", gap:"12px" }}>
-          <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" onClick={handleLogoTap} title="Modo admin: 5 clics" style={{ width:"52px", height:"52px", objectFit:"contain", flexShrink:0, cursor:"pointer", filter:"drop-shadow(0 2px 5px rgba(15,23,42,0.18))" }} />
-          <div style={{ minWidth:0 }}>
-            <div className="cm-corporate-title" style={{ fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"0.2px", color:"#102a43", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>CONECT MANZANILLO</div>
-            <div className="cm-corporate-subtitle" style={{ fontSize:"10px", color:"#64748b", fontFamily:"'DM Sans',sans-serif", letterSpacing:"0.8px", fontWeight:"700", textTransform:"uppercase" }}>Hub operativo portuario</div>
+        <div style={{ background:getAutoUIColors(theme).headerBg, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"16px 20px", borderBottom:`1px solid ${getAutoUIColors(theme).border}`, display:"flex", alignItems:"center", gap:"12px" }}>
+          <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" onClick={handleLogoTap} title="Modo admin: 5 clics" style={{ width:"52px", height:"52px", objectFit:"contain", flexShrink:0, cursor:"pointer", filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.35))" }} />
+          <div>
+            <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:getAutoUIColors(theme).primary }}>Conect Manzanillo</div>
+            <div style={{ fontSize:"10px", color:getAutoUIColors(theme).muted, fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>INFORMACIÓN PORTUARIA EN TIEMPO REAL</div>
           </div>
-          <div className="cm-auth-actions" style={{ marginLeft:"auto", flexShrink:0 }}>
+          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             {isAdmin && (
-              <button type="button" onClick={openModal} className="cm-auth-btn cm-auth-btn-secondary" title="Panel administrador">
-                Admin
-              </button>
+              <div title="Sesión admin activa" style={{ display:"flex", alignItems:"center", gap:"4px", background:"rgba(148,163,184,0.14)", border:"1px solid rgba(148,163,184,0.32)", borderRadius:"7px", padding:"5px 9px" }}>
+                <span style={{ fontSize:"12px" }}>🔑</span>
+                <span style={{ fontSize:"10px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>ADMIN</span>
+              </div>
             )}
-            {!isAdmin && authUser ? (
+
+            {!isAdmin && authUser && (
+              <div
+                onClick={() => setShowSessionMenu(v => !v)}
+                style={{ display:"flex", alignItems:"center", gap:"5px", background: showSessionMenu ? "rgba(148,163,184,0.18)" : "rgba(148,163,184,0.10)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"8px", padding:"7px 11px", cursor:"pointer", userSelect:"none", transition:"background 0.2s", boxShadow:"0 2px 6px rgba(0,0,0,0.18)" }}
+              >
+                <span style={{ fontSize:"12px" }}>👤</span>
+                <span style={{ fontSize:"10px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontWeight:"600", letterSpacing:"0.3px" }}>Mi cuenta</span>
+                <span style={{ fontSize:"8px", color:"#94a3b8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
+              </div>
+            )}
+
+            {!isAdmin && !authUser && (
               <>
-                <button type="button" onClick={() => setShowSessionMenu(v => !v)} className="cm-auth-btn cm-auth-btn-secondary">
-                  Mi cuenta
-                </button>
-                <button type="button" onClick={handleSignOut} className="cm-auth-btn cm-auth-btn-danger">
-                  Cerrar sesión
-                </button>
-              </>
-            ) : !isAdmin && (
-              <>
-                <button type="button" onClick={() => openAuthPanel("login")} className="cm-auth-btn cm-auth-btn-secondary">
+                <button
+                  onClick={() => { setAuthIntent("login"); setActive("tutorial"); }}
+                  style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(148,163,184,0.35)", borderRadius:"8px", padding:"8px 14px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"600", letterSpacing:"0.3px", cursor:"pointer", transition:"background 0.2s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                >
                   Iniciar sesión
                 </button>
-                <button type="button" onClick={() => openAuthPanel("registro")} className="cm-auth-btn cm-auth-btn-primary">
+                <button
+                  onClick={() => { setAuthIntent("registro"); setActive("tutorial"); }}
+                  style={{ background:"#1e40af", border:"1px solid #1e40af", borderRadius:"8px", padding:"8px 14px", color:"#ffffff", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"700", letterSpacing:"0.3px", cursor:"pointer", boxShadow:"0 3px 10px rgba(30,64,175,0.35)", transition:"filter 0.2s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.filter = "brightness(1)"; }}
+                >
                   Crear cuenta
                 </button>
               </>
@@ -16794,7 +16601,7 @@ function App() {
         {active === "carriles"   && <CarrilesTab />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} />}
-        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} />}
+        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
 
         {/* CONTROL PORTUARIO PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
         {active === "portuario" && (
@@ -16840,9 +16647,9 @@ function App() {
       {/* Session menu — fuera de cualquier stacking context */}
       {!isAdmin && authUser && showSessionMenu && (
         <div
-          style={{ position:"fixed", top:"62px", right:"12px", background:"#ffffff", border:"1px solid rgba(15,42,67,0.14)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:99999, boxShadow:"0 12px 30px rgba(15,23,42,0.16)" }}
+          style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:99999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}
         >
-          <div style={{ fontSize:"10px", color:"#64748b", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(15,42,67,0.10)", marginBottom:"8px", wordBreak:"break-all" }}>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
             {authUser.email}
           </div>
           <button
@@ -17682,4 +17489,3 @@ function App() {
 
 export default App;
 const CM_REPORT_WATERMARK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZgAAAG3CAYAAACJwUO2AAAYvklEQVR42u3dQZLjMI5A0SyH97WsPZd1//PwLLPq6ZqcTKdkkRRAvB/REdM9WTZFAviEJEu/fv/5+wEMon36792UAHV5mgJMEMvn/51ogII8TAEWCaiZBoBggBHdy9W/BUAwwDQhASAYgGQAEAzmi6Jf+LcACAZ4CckABAPc3gURDUAwwJDORTcDEAywvJsBQDAgA5IBQDAgLwAEg8T0gZIgGYBgoMPQyQAgGJAZAIJBsoLfb/hOAAQDEiIZgGCAWuICQDAIXOB7gDEAIBjoMkgGIBggVvfyeTxEAxAMinQlLfDYABAMEtGDjINkAIKB7oVkAIIBXhftnmy8AAgGCeXSkowbAMEgUZFuyccPgGAQpDj3TY4DAMFgYUE+K5eW4JgAEAwCiyWjXEgGIBgEF0tmuZAMcCNPU7CtPEaRXS4AdDBY3JVUkwsxAjoY6FqmzlEXKgDBYL1cKpwOIxmAYLCQatdZSAYgGCwSSgWpkAxAMBgokfaiuIJkgKm4i2yPIvlKMl0RfXv+ABAMTnQ1IBmAYDBcJE1HQzIAwWBmISUakgEIBtMK4r+iqd7ZkQxAMJgkqSo3AxwVKskABIODu/QjBbOd2OWTDACC2bxQziq6FU6buf4ETMYPLfGdsPrGO/kzXQwRAToY3cvFYthf/N994znsb841AIIho5O7+v5CQLvu5kkGIBgskNFPxbQXnhsABFOy0I18QvJPoukbzqlrLQDBIAi7nDJrJySjiwEIRveysBjudG2GZACCIZegHU32bqyTDEAwWNO9tJOf1TeYv37wWEgGIBjdy+KuJNsps5ZwXQCCwfQCOPvay5W7qzJI5icZurMMIBgkLeAZuhenygCC0b1MKnYjPjN7J0AyAMGQS+IiTTIAwSCgXLKIIdopsz7470kGIJi0ctmlsPUbv/ff25AJASAYcnlRmNvNY8okmc+/6+kTxk1aAMGEE0tEuezYyYw4TUcyAMFs0bXsKpeRBf+sGFbcGUcyKM+v33/+moW4Yokolx5gTiKNv9JrDQAdDLmklMuqgtwCrjNAMBhScI6eEqsml5+OPSpOlQEEk0IsrwpWC3AMOwitJxorQDAYIpaPF11LhF1wv2Esu3QyuhgQDG4VS/Q7xdrH/30pV0bJ9JvnDyAYXJLK2UIS9ZTYV+NrNxXqHuQzrn4HyaAUT1Nw2440uliiii7DQz1b0HVxrQgEs6FMMoplhwIe8XljR1/idterF0gIw/BDy3XFfSex9GRr1oONryeLAdIBwQSUy653FvUka9c3ji0xgPBUP0XWFiee02Dj57oZX4jcIRwQzKRi77rK/Tvpq4/hx/h8sg7FqXyK7Erx3/npxkd34j3omvbNYm3nTQF0MPhip1ytYLRvhNMDrlFUyYwoxrvcGq/b1MGUbuntOO0+K3UxVR+sCh1MuWTPMHcKwPvdVaZ8uOt2atdzCAbFC6WE338z0z6OXX+788kF4pBgyhTeCh2S7q/WHL16/ty/D0C9aw6Ih2BKFpVdhSNxa8r3q/juJ+KkBcpHEEz6wrmjcCSpru6rYz7yW6RowhHTBLNlQmZ498t3iejaS22pfBcTH2/ERsRbpslnMBVvUz6yk2kLEjNTASOX4zFU4fljq2OhBZ0HEEwowbxbqJvkChU/391ZVaGryfKgU3lBMGEC867zwz1ZYlVOovZR507BMxulSJ1txLfAlsY1mPw7SNcC7pn3Ck996C86tozd1cpbp0mmYAcT6RfLfeHx2Z3V2DmPFst3stmtiDa5ooPZrVjMSNAZu2pCObaOmXb6Z9e7fyGZXR8o6swAwWyzy5j1VNnR1wq0/HU6mfaDRKvEw4jbqMvnzVPylxJouzBvES/qRpvnCk9s6B9ucFBfDvIwBSECti/+rv5mUpHLPgX36AXxSk82bh/vve+JXL6hykX+aI8j/wiUtC3RWHXK8+T4WZRf/XecW+vyc6aDybGbvKur6ZJm6x1se3EMbZNjtOY34iJ/nF1kDzKWf5OnkcrpDULmaxT9izVvN8ZpxCcitzdioiwVTpE5PXZ97lzcfy/eosrm6DW12Td2ZHrCcdsgn3UwxYtStMCs8Gv1mV1A5Fck929E8u+690FxmflR+cSigxkS2HcXg55oTiXS2MIUdTNx5aGsvdAaygcdjC5mQiGSWHvF39l3Ff30UrEKmwM5ULSDydS9CFqdTJR4q/zmR2LRwWyPC+rksloo3l9PLjqYQcGS4XH3TkPlj7/vrml4eRyx6GA27g7sfrG6C41wN57i+H6OmTuC2bYw62Jyb2b6gULVBnyX01zEQjDBdnAt+HjJRWz+9G/+vYYiVsZtPs3lAHa7BpP5zrFXBUSwK4if45hUdC06GCzZbaFWTOz2RkliIRjdi+4FN8aBIjhvg2ZeCabUbn/H957jWscCYknHY/OAyti9/DtOp8kUSkWQXHQwAIaiABKLDkb3Ei6BUKNQ4tycOeWsg5m6+2ubHQ90LcRiXgkmQIC15McpQQBiScdjwyDbIai6JAHelovTYQSzTC4t6TFKEOC/+eAHkwl5Jgy03eXyeexkAx0LsRAMhiNpQC5yJC2PTQJut+7lu1MDbmNFBbGQiw6GXG7oYiQUdC3ygGDIBQCxEAy55OhegKpikQsEc2vwkQugawHBDAm8vrlc/j0mCQZdCwjmpp39ztdcJBh0LSCYRQG4u1y6zgXEAoK5dzffCiRik4goIhYxTTDkIimQtJj3YOORQwQTJiD7AqkIcuzcHax8nh2xIGUH0y78W6CaVFZLxukwhBbMdxI5khgCFqQSf4zytBiZHnbZBS3IJdznkQtSdDDvdjlNEINYwo5PThbm1+8/f7ME79E7yQQ0KsmlX8ijmeOTh0j9wrEVd5cBWbuC0fmha8FpHknH/Z/kefVEZfLBbnLpNxTvFnx8IJhpLX8bsNsCosvlrsJNLLiEU2RAfLlElModY4MOZmoX8+pv+4CEAaIU8tVdQfsgF+hgvu1i2sfrH2tKCmSSS7RuhViwTQdzNiH6N///dnGXBkTu3q90KuQCHcybwf9VNyM5EL176cHzCjhFxB9a/pSM392aLBFALue+k1iggwE2pxsLdiTjDy3b4L8DIsXtXcLwWxboYF4kx+fTZJIFGeTSF+UHoIMBABAMgPjdC0AwEhDFENsgGAkLAKgkGE9RRuY4tRkCwQAAQDCA7gUgGAAAwQAAQDBAEJweAzYUjAQGAIIBABBMHvwOBlFjUHcNggEAgGAAAAQDYGvah1PU+IRXJgPz2fX6Szvwv7n2RDDbJKxgBtZL5ejfy0+CAbCo+FY7LrIhGABEufw7CIdgQgd6E6RA2u5Ld0MwAEjlW/qgzyQbggFAKl9KZuT3NaIhmJW4gwyIIZOVwiEagrk1kQQeEP9Otn5xrJ71RjAlEgW40nFnzpU+6Lv7wGNopEMwmZMYqLz56pPPGPQJx+dWaIIhEiCBUNoXY+qTv7tNnkf1pKhgnB4Dody7eWsn/37G8fbJc0E4OhggvSz6wb+7u0uJJtB2w1oRzeaCcZcIdClrhHLXmYL+EfssBdHoYABCSSKUIxvGFnjNiKagYPz2BeSSr2gflSHREMyyROwH/zegEpmFklE2NrVFOhgLDVKpcbdlD3asak9SwRztXiwwKncorfhcRDh+NWjjDsbCInJstoFx7fdgcUXjukwiweheoEMhlGiiObJhUJOSdjAu7INQMLNrfHfjiw0Eo3VF9oL3eZetYOWTjJqzqWDeXbRu4REshrG/ZL5a7/J155kwSfvJoCMaAHeIrHzdeSTdFZ69XbOTC1Ci+EfsSst2ss9AgXFl4cgD2Je2yTGUq1OROph+cfEq/wgN2L0z2aE4l6tPz4CBdHUx2uKWGRjVkeO9TeiKnG8nxmftgwpmlmyIBsi30z+atyuE3g+MuR08tjL1KMvvYK7+QI1ogPydSrYxt+r16JE4AN85L+s6DRRJ8x1lTNvXoscmgUU0ADKydR16bHQs74oGAEiGYE6Jpp9YXKLBrFiEGCgrmUeBxSUaoE4xb4HH5oeWREMyThPoYsSPeCCYue0q0SgOIHKSIRjdDABCIZh8otHNrOtenCaDuSaYsqIBkGvTAoJJs/PRzSgEdtYAwehmSIdkAILJ280AAAhmSjdDMnM6FV0Mrs5x2ywnCKZoQXBdBgAIZuquk2TG7tR0MaiaG9tsWgmGZJwyIBmQzRSe1vCtovDT9QPFA3i/qPZBuXpXYe6B54VgkoiGZHIVnIxxhPkbwkydd7pXLTtFNm+XonCYl7t2u+bj/3/m5/9kz6EUeUQwJBNpLnvReSSZ++Its3DC5wXBkAxIBnmFE7q+EAzJRJu/XngOSYZwtpIMwZCMUwLAOeHYfBCMIDCPjt24t5HNT3dThtx8EczaRKu+A29BPkOx1l2Olo05/gK/g5kXdO3NnQjM4U/Hj9ibgjZow9De+PtQeUEwCqQ5jF+0WqKxYtycpL/hxSmy+wLM7hSKt7zYGh3Mvbtw6GJmxZGbBfbO+RR1hWDu3605tUAymYqvzRIIRoE0hyAHEIwCqUDqBuN0QG3T2MjUJW6Di/zxEhzvz58duu7o6rjax2ZvldTBoMoOfMSFSe/imXvMOzzKfubndTmtg8m6C7dj0snojK+JYPa7X3Q2BKMgFJ9b8yunvoqJkXERVTShxkQw8RKi4u7IjhBZNyDfiabLJ4KBzhA1NxszRGPTRjC6GMAmYcr3rT5tFn5DRTB2cqSKarky6mnHEXI39E1DBFNvxwZUz6E+WDKz71xLW0MIBgApXSvULcDYQ3YxBBN7B+Y0GZCjG7grdkP/Lscv+WMFtgKLikS7zbcn2fR4XD+GBJEXTpkrXQPS4RQZdisqukBAB+N0gJ05kGIj1A78TYRNWrjN1a/ff/4KoRw76G6+ys8V8G4+3ZITOpg4AtHFmDdY960gmLhCqUJftIb9xdoqROIKBEMoGF5oFCKAYLaRioJml4v1+d0Df97omA6zSX4WDjiFC7CReEcc8ptglghFoAFAUcGMFAuZALlrgetxBBNGKoINOxdT2FQTzMKJlZDYBbEMgiEVDF5/6wkEqnNZBdMyTjaWJA7pADqYpWJRZOzWIC6qdfQEQyoIFGNiBuRSRDDvTJgCgVGbEXdi5S20ffONQ7sY26UFQyyIKp2v4lPsxVu3/0jG2uhgLslFACGKeBBPMtXX6/ZjjyKYJsEB2AgMq5Uhjv9pwgAAuwmGWFCFJr6xsGZ+97fLY+3X7z9/o06UxAPZAOflcpTp8bZaMLoWgHAQRzJTY26lYHQtANmgkHBWCYZcADmD3MI5HW8rBNMkCUA22EI4p+JstmDIBSAb7CeeQzE2UzDkAsQoFHINM6TzY1zNEkwUubSki60g4Eqsix+E2LzcIZi+6MArorAAWC2avlIwI+RCIiQEII9ovqwrKx8V098YNIIECgAb0xf148v3J60UDJkQEID8ojlcy0efImsbTyppvj9PyLOR8C4VXI2fKYK5u9j2ogtKOgAi1aP/zfnngi9TmGLMRwsUiNYWyF+PfqwpVzuYNmCQ0CWJBWCvmtGvdDDvFiJFJG+X1BYHqli5v3BYA1zinQ7mbKERpDofHQ5QK//f6mA8+wh3dT4ehQIk64CfbyY4qUDnAeAlD3IBAMzYRB4RDLkAAKZ1MOQCADjFT9dgDj0OAACAz/54vCEXAAB+5PGGXHQvAIAfvfAc8SF3tV+Jx+64ATmwPc8Ti9eTBdVP/75vmkxRj3vUKdcefJz9pnm5bZcqB9Ku5/S1fgY/yLbos7vjTrV77ZsUB9c55cDWeXZUMH3zpIvygqU7C1yvFvwoJZXoub8lz0A7qhYowHvRY5dkqJr/RDOBIz+07AWC667xtGDH3j7ynLZxemkfsTRxtb9gmuBaOrYWPOlJBlXXr4mtNR2Muy3qHrskgxzAVMFYuPFjbQqBIlBcLE38E4wFGz/mlrgoAOIIbwmmCbDpY8+eXK4ZgRgRtoNphQOtSTQo0sZPMP/F/eACM9PxKABiBkU7mCaxYL6tiWMhGIsiyMwBxAku80wcYD14kFc+9ruLmtO7+3NXDoivk4JpmwbW579vhZJqxbFLtJwxkX2D9U4OtITr0XaIi0eyAOtBJrwlPPZKMnBqZk+R9iDxL74CCCbiziDjgztHJkcPfqwkQ/Az41bHTTDTAyNTkPUknwlkygEkF0zbNMD6xx6nm6qcLtDF5J5zGyyCSbl76Sf/9qhUmkQgGZTYYImrAzxNQcjC3hd9x8iHeBIiKnUa4v0mwbRkCyhQanQx1lm3qDboYMoHT1/8XVp9yE0yIRi7N+hiQCgEY/FzJVoVOe4omSYnEZVH0mC3q9LBASgmGCC6gIkw9gZDp0QwAAAQDHQxuhiAYJC4aBsvAIIBdDEAwQAzuxiSAQgG0MkABAPk6mIAEAzs4qdJRhcDEAxAsgDBALm6GAAEYxcNkDwy4HH92KXAVH23zY5PhyYrHczUYLeT1zUptgDBgFwBgGBA9NBVg2BKB1kzxyRj3pGd56Qgy1K4msRQWGAjJ5bzCGZ0APQFwTUq0EbKdfbdNLt3iFXvKtup+N8R/80mqo5gVgRa5N3NrGNXeJFB7JHivxHOeR4TgyxyQWwX/l374d9HD7wWfK2rjA25N0M2aTcKJvKCtoQJFvXYMxRwksk/5y3oZ+FGwUQ8tdOSJlimYwc+gsZ/C57j2/FMHGh9YXBGCa4Ix54xwVzw30sy/c1/h80EMzOx2w/F7u6gqnzsJJNnZz9rY7Fz/OteAnUwKxK7BUywXQuMBEPV3MdJPCpGIbYegBhKLZheOLi6BIOCDIIRaLPGX1mwjgHin2As0ORxd8nlWEjG+AnGQjl2awZxJP4TCibbgvXiwbprcika5l2cbCqYDAvXJ46xSy6QjHESTM0F7MWDtxdJLgXE3IuNiTwDLWQrGFSRjr1qYnmMjNwnlo0FEyXYevFEk1gQ/9hWMHcFWy+eaBJLF1NdNHKgkGC+WvRq7zGZnWgSimSqi0YOLODX7z9/d3gHdaXXmTbJhMKI/0Rr89zkwCoFkGSB7gYp8DRlAADBAAAIBgBAMAAAEAwAgGAAAAQDAADBAAAIBgBAMAAAEAwAgGAAAMNpHwme/v1cMAln6Ym+78r390Tf2S5+9h2J0BOv6ZnvvWtNR42x3TC3Eb571BhDPw3/cePERNoJ3PE5LfGxVlnXliCWmnjZtjtpN39GaMGsDmrJAGAHsWT53JSCgS4G1tQabhAnBKPrgjVFnQ3C0vh8WCABDWuKUuu27DsfJt2xwpqiXJws+W6nyOoWk92LYLemsFb3juFpocoHed/wuLo1RbGNU8g6+JQojjVBwW/WFMW7l37w/98ixalTZPMDpW8Y7NVlZk0RNaZDxSbBYKfdno4Bu3Uv78R0mDx4JF+M6Du1bse77W6yB59Xa1q7G+8RYkUHEyeBFQTdC7AVBIOogov+ZGpriqjdS5hN1yNxkrRkAdITzzWsKZBSMD3Z585MWsXgvu5FgUflWJgyNqfItNzRkiD6C76sKbJuukt2MEcmtBVKGMUAJYsR9ouPh0mdIoAetBhE3/FG7l6urGmJ504BVQSDfDtetyTrYkAwdmJFjtGO15oC2wimB/ucnRM02o73zu6l2pqSDHQwiROjDyoEVeY8w6mxndYUOmeCsfuafqx2vNYU6lwpwfSb/72kjJtIugRkp1wMP615aRH1j3q3JL8zBmsK8nsjRx52hgKLhK0pttyo3p5nj42SowsyxdKaAnHwQ0tFYXURj3LdxZpi57oTIr4JBgDiiv8dUax4LfOhz30ENaDd1/p16MGOpVtTeYTT8RKqM9/lLjKnUvYrqm1iXFjTelLugb67X8iHPnh8UzchTpHZ8a4INgVdF4Mx69K++E9YnheMumIB2s0J1BYkcdZ5VwCsKerG+KF418FA5wDkLvBhv/shGRXGYIFvTa0pyWzynQ+Lczn5u8SX9EnWVKxZl77yex7Bg09CmPusHQNwNt96wpxuVzsYSQnYOCDv+vS71v1hIVKNoRWc492xgcN3QuiDPue2uvjr95+/RwNesQGAmBuSHnEs3gcDALm6mzTje5w4AK08AOCwD/zQEgAwhbOC0cUAgO7lK/pRwbigDwC41GS86mBciwEAHKGfFcwwiwEAanUvRwTTSQYAyOUdTxzpYEgGAMjlrB/cpgwAGC+XM4LRxQAAuRyWy9kO5ifJEA0A7C+Xw5w9RdZXDAoAcJtYfqrjh38n+c41mD5ggACAfF3LqR/hv3uRvw8aLAAgR9dy+gkvV+4i64MGDgCIKZbTXcu/XH0fTD/YrbQRgwUAXJbK6EZimmD+HUR78wAJBwBiCGVoXR75Rsv+5gG1WQcHAERyj1xGC+aqaGZNFgBgkVRmC2akaAAAycSyQjBEAwAFxbJSMN8dEOEAwCYyuVswZw6afAAggURe8T8aq+5fdqDmQAAAAABJRU5ErkJggg==";
-
