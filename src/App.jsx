@@ -9214,7 +9214,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
         <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
+        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR EVENTO</div>
         <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Necesita 3 confirmaciones · expira en 1h si no se verifica</div>
       </div>
 
