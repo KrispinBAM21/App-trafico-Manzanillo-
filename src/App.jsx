@@ -233,7 +233,7 @@ const DEFAULT_THEME = {
     primary: "#ffffff",        // Color principal del texto
     secondary: "#e2e8f0",      // Color de texto secundario
     muted: "#94a3b8",          // Color de texto atenuado/hints
-    accent: "#38bdf8"          // Color de acentos/links
+    accent: "#2563eb"          // Color de acentos/links (azul corporativo, sin neón)
   },
   
   // ✨ NUEVO: Configuración de ventanas de contenido
@@ -6464,7 +6464,9 @@ function NavBar({ active, set }) {
             : "clamp(9px, 2.4vw, 15px) clamp(2px, 1vw, 6px)",
           background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
           border: "none",
+          borderRadius: isActive ? "10px 10px 0 0" : "0",
           borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
+          boxShadow: isActive ? "0 -2px 10px rgba(0,0,0,0.10)" : "none",
           color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
           fontSize: "clamp(9px, 2.35vw, 14px)",
           fontFamily: getFont(theme, "secondary"),
@@ -6551,6 +6553,7 @@ function NavBar({ active, set }) {
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
       borderBottom: `1px solid ${ui.border}`,
+      boxShadow: "0 6px 16px rgba(0,0,0,0.16)",
       position: "sticky", top: 0, zIndex: 100,
     }}>
       <div style={{ display: "flex", borderBottom: `1px solid ${ui.subtleBorder}` }}>
