@@ -10715,9 +10715,165 @@ function TrafficMapSegundo({ theme, myId }) {
   );
 }
 
+// ─── UI: Toggle tipo iOS (segmented switch de 2 opciones) ─────────────────────
+// Reemplaza pares de botones mutuamente excluyentes (ej. LIBRE/SATURADO) por
+// un solo control deslizante con animación, más rápido de leer y de tocar.
+function SegmentedToggle({ value, onChange, leftLabel, rightLabel, leftColor = "#22c55e", rightColor = "#ef4444", pending = false, theme }) {
+  const activeColor = value ? rightColor : leftColor;
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      role="button"
+      aria-pressed={value}
+      style={{
+        position: "relative",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        width: "100%",
+        height: "38px",
+        background: "#0a1628",
+        border: `1px solid ${activeColor}55`,
+        borderRadius: "10px",
+        padding: "3px",
+        cursor: "pointer",
+        userSelect: "none",
+        opacity: pending ? 0.65 : 1,
+        transition: "opacity 0.15s, border-color 0.25s",
+        boxSizing: "border-box"
+      }}
+    >
+      {/* Thumb deslizante */}
+      <div style={{
+        position: "absolute",
+        top: "3px",
+        bottom: "3px",
+        left: value ? "calc(50% + 1.5px)" : "3px",
+        width: "calc(50% - 4.5px)",
+        background: activeColor + "26",
+        border: `1px solid ${activeColor}`,
+        borderRadius: "7px",
+        transition: "left 0.22s cubic-bezier(.4,0,.2,1), background 0.22s, border-color 0.22s",
+        boxShadow: pending ? "none" : `0 0 10px ${activeColor}33`
+      }} />
+      <div style={{ position:"relative", zIndex:1, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight: !value ? "700" : "400", color: !value ? leftColor : "#64748b", transition:"color 0.22s" }}>
+        {leftLabel}
+      </div>
+      <div style={{ position:"relative", zIndex:1, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight: value ? "700" : "400", color: value ? rightColor : "#64748b", transition:"color 0.22s" }}>
+        {rightLabel}
+      </div>
+    </div>
+  );
+}
+
+// ─── UI: Dropdown de selección rápida (reemplaza <select> ambiguos) ───────────
+// Muestra claramente que es un control de selección (chevron + panel flotante
+// con opciones), evitando que el usuario dude si el campo es texto libre.
+function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin especificar —", allowClear = false, pending = false, theme }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  const current = options.find(o => o.id === value) || null;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const color = current?.color || "#64748b";
+
+  return (
+    <div ref={ref} style={{ position:"relative", opacity: pending ? 0.65 : 1, transition:"opacity 0.15s" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width:"100%", padding:"9px 10px", background:"#0a1628",
+          border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"8px",
+          color: current ? color : "#64748b", fontFamily:getFont(theme, "secondary"),
+          fontSize:"11px", cursor:"pointer", fontWeight: current ? "700" : "400",
+          display:"flex", alignItems:"center", justifyContent:"space-between", gap:"6px",
+          transition:"border-color 0.2s, color 0.2s"
+        }}
+      >
+        <span style={{ display:"flex", alignItems:"center", gap:"6px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {current ? <IconText icon={current.icon} label={current.label} size={14} /> : placeholder}
+        </span>
+        <svg width="11" height="11" viewBox="0 0 24 24" style={{ flexShrink:0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition:"transform 0.18s" }}>
+          <path d="M6 9l6 6 6-6" stroke={current ? color : "#64748b"} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:50,
+          background:"#0f233a", border:"1px solid #1e3a5f", borderRadius:"8px",
+          boxShadow:"0 12px 28px rgba(0,0,0,0.45)", overflow:"hidden", maxHeight:"220px", overflowY:"auto"
+        }}>
+          {allowClear && (
+            <div
+              onClick={() => { onChange(null); setOpen(false); }}
+              style={{ padding:"9px 10px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#64748b", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.06)" }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              {placeholder}
+            </div>
+          )}
+          {options.map(o => (
+            <div
+              key={o.id}
+              onClick={() => { onChange(o.id); setOpen(false); }}
+              style={{ padding:"9px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", background: o.id === value ? o.color + "18" : "transparent" }}
+              onMouseEnter={e => e.currentTarget.style.background = o.color + "22"}
+              onMouseLeave={e => e.currentTarget.style.background = o.id === value ? o.color + "18" : "transparent"}
+            >
+              <IconText icon={o.icon} label={o.label} size={14} style={{ color: o.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight: o.id === value ? "700" : "500" }} />
+              {o.id === value && <span style={{ color:o.color, fontSize:"12px" }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── UI: Buscador de terminal (filtro en vivo sobre los botones existentes) ───
+function TerminalSearchBox({ value, onChange, theme }) {
+  return (
+    <div style={{ position:"relative", marginBottom:"10px" }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
+        <circle cx="10.5" cy="10.5" r="6.5" stroke="#64748b" strokeWidth="2" fill="none"/>
+        <path d="M15.5 15.5L20 20" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder="Buscar terminal (ej. CONTECON)…"
+        style={{
+          width:"100%", padding:"8px 10px 8px 30px", background:"#0a1628",
+          border:"1px solid #1e3a5f", borderRadius:"8px", color:"#e2e8f0",
+          fontFamily:getFont(theme, "secondary"), fontSize:"11px", outline:"none", boxSizing:"border-box"
+        }}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          style={{ position:"absolute", right:"8px", top:"50%", transform:"translateY(-50%)", background:"transparent", border:"none", color:"#64748b", fontSize:"14px", cursor:"pointer", lineHeight:1, padding:"2px 4px" }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
 function SegundoAccesoTab({ myId }) {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
+  const [terminalSearch, setTerminalSearch] = useState({}); // { [carrilId]: string } — filtro en vivo del buscador de terminal
+  const [pendingKeys, setPendingKeys] = useState({}); // { "carrilId:field": true } — feedback optimista mientras confirma el servidor
 
   // ── Estado 2DO ACCESO ──
   const [carriles, setCarriles] = useState(mkSegundoIngreso);
@@ -10731,8 +10887,15 @@ function SegundoAccesoTab({ myId }) {
   const ROW_ID = "segundo_acceso";
   const ROW_ID_CF = "confinada_acceso";
 
-  const saveToSupa = async (newState) => { await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); };
+  const saveToSupa = async (newState) => { const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); return error; };
   const saveConfinada = async (newState) => { await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); };
+
+  // ── Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
+  const setPending = (key, on) => setPendingKeys(prev => {
+    if (on) return { ...prev, [key]: true };
+    const { [key]: _omit, ...rest } = prev;
+    return rest;
+  });
 
   useEffect(() => {
     sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
@@ -10752,9 +10915,18 @@ function SegundoAccesoTab({ myId }) {
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
     if (!carriles) return;
+    const prev = carriles;
+    const key = `${id}:${field}`;
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next);
-    await saveToSupa(next);
+    setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
+    setPending(key, true);
+    const error = await saveToSupa(next);
+    setPending(key, false);
+    if (error) {
+      setCarriles(prev); // ↩ revertir si el guardado falló
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      return;
+    }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
     await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -10764,10 +10936,19 @@ function SegundoAccesoTab({ myId }) {
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
+    const prev = carriles;
+    const key = `c4:${field}`;
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next);
-    await saveToSupa(next);
-    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:carriles.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
+    setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
+    setPending(key, true);
+    const error = await saveToSupa(next);
+    setPending(key, false);
+    if (error) {
+      setCarriles(prev); // ↩ revertir si el guardado falló
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      return;
+    }
+    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("✓ Carril de salida actualizado", "#22c55e");
     const fieldLabel =
       field === "saturado" ? (value ? "Saturado" : "Libre") :
@@ -11008,50 +11189,105 @@ function SegundoAccesoTab({ myId }) {
                 <span style={{ fontSize:"22px" }}>🚛</span>
               </div>
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
+
+              {/* Buscador de terminal — atajo adicional, no reemplaza los botones */}
+              <TerminalSearchBox
+                value={terminalSearch[carril.id] || ""}
+                onChange={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
+                theme={theme}
+              />
+
+              {(() => {
+                const q = (terminalSearch[carril.id] || "").trim().toLowerCase();
+                const matches = (name) => !q || name.toLowerCase().includes(q);
+                const showGeneral = matches("general");
+                const filteredNorte = termsNorte.filter(t => matches(t.name));
+                const filteredSur = termsSur.filter(t => matches(t.name));
+                const nada = q && !showGeneral && filteredNorte.length === 0 && filteredSur.length === 0;
+                return (
+                  <>
+                    {showGeneral && (
+                      <div style={{ marginBottom:"8px" }}>
+                        <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
+                        </div>
+                      </div>
+                    )}
+                    {filteredNorte.length > 0 && (
+                      <div style={{ marginBottom:"8px" }}>
+                        <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          {filteredNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                        </div>
+                      </div>
+                    )}
+                    {filteredSur.length > 0 && (
+                      <div style={{ marginBottom:"10px" }}>
+                        <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          {filteredSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                        </div>
+                      </div>
+                    )}
+                    {nada && (
+                      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:getFont(theme, "secondary"), padding:"6px 2px", marginBottom:"8px" }}>Sin coincidencias para "{terminalSearch[carril.id]}"</div>
+                    )}
+                  </>
+                );
+              })()}
+
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
               <div style={{ marginBottom:"8px" }}>
-                <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
-                </div>
-              </div>
-              <div style={{ marginBottom:"8px" }}>
-                <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  {termsNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                </div>
+                <SegmentedToggle
+                  value={!!st.saturado}
+                  onChange={(v) => updateIngreso(carril.id,"saturado",v)}
+                  leftLabel="LIBRE" rightLabel="SATURADO"
+                  leftColor="#22c55e" rightColor="#ef4444"
+                  pending={!!pendingKeys[`${carril.id}:saturado`]}
+                  theme={theme}
+                />
               </div>
               <div style={{ marginBottom:"10px" }}>
-                <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  {termsSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                </div>
-              </div>
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-                <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
-                <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-                <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
-                <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
+                <SegmentedToggle
+                  value={!!st.retornos}
+                  onChange={(v) => updateIngreso(carril.id,"retornos",v)}
+                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+                  leftColor="#22c55e" rightColor="#f97316"
+                  pending={!!pendingKeys[`${carril.id}:retornos`]}
+                  theme={theme}
+                />
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.expo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"expo",v)}
+                    pending={!!pendingKeys[`${carril.id}:expo`]}
+                    theme={theme}
+                  />
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <select value={st.expo_contenedor || ""} onChange={e => updateIngreso(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.expo_contenedor}
+                    options={SEGUNDO_CONTENEDOR_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
+                    placeholder="— Sin especificar —"
+                    allowClear
+                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+                    theme={theme}
+                  />
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.impo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"impo",v)}
+                    pending={!!pendingKeys[`${carril.id}:impo`]}
+                    theme={theme}
+                  />
                 </div>
               </div>
             </div>
@@ -11077,40 +11313,58 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
             </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-            <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>FLUIDO</button>
-            <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>SATURADO</button>
+          <div style={{ marginBottom:"8px" }}>
+            <SegmentedToggle
+              value={!!carriles.c4.saturado}
+              onChange={(v) => updateSalida("saturado",v)}
+              leftLabel="FLUIDO" rightLabel="SATURADO"
+              leftColor="#22c55e" rightColor="#ef4444"
+              pending={!!pendingKeys["c4:saturado"]}
+              theme={theme}
+            />
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-            <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>SIN RETORNOS</button>
-            <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>CON RETORNOS</button>
+          <div style={{ marginBottom:"10px" }}>
+            <SegmentedToggle
+              value={!!carriles.c4.retornos}
+              onChange={(v) => updateSalida("retornos",v)}
+              leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+              leftColor="#22c55e" rightColor="#f97316"
+              pending={!!pendingKeys["c4:retornos"]}
+              theme={theme}
+            />
           </div>
-          {(() => {
-            const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
-            const c4ExpoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === carriles.c4.expo_contenedor);
-            const c4ImpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.impo || "libre"));
-            return (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <select value={carriles.c4.expo_contenedor || ""} onChange={e => updateSalida("expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
-                </div>
-              </div>
-            );
-          })()}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+            <div>
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.expo || "libre"}
+                options={SEGUNDO_TRAFICO_OPTS}
+                onChange={(v) => updateSalida("expo",v)}
+                pending={!!pendingKeys["c4:expo"]}
+                theme={theme}
+              />
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.expo_contenedor}
+                options={SEGUNDO_CONTENEDOR_OPTS}
+                onChange={(v) => updateSalida("expo_contenedor", v)}
+                placeholder="— Sin especificar —"
+                allowClear
+                pending={!!pendingKeys["c4:expo_contenedor"]}
+                theme={theme}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.impo || "libre"}
+                options={SEGUNDO_TRAFICO_OPTS}
+                onChange={(v) => updateSalida("impo",v)}
+                pending={!!pendingKeys["c4:impo"]}
+                theme={theme}
+              />
+            </div>
+          </div>
         </div>
 
         {/* ── Segundo Acceso Por Fases ── */}
