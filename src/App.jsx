@@ -2027,19 +2027,35 @@ const SEGUNDO_TRAFICO_OPTS = [
   { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
 ];
 const SEGUNDO_CONTENEDOR_OPTS = [
-  { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
-  { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
-  { id: "ambos",            label: "Ambos (Abierto/Cerrado)", color: "#f97316", icon: "container-open" },
-  { id: "no_horario",       label: "No es Horario",           color: "#6b7280", icon: "clock" },
+  { id: "puertas_abiertas", label: "Abiertas",    color: "#22c55e", icon: "open-lock" },
+  { id: "puertas_cerradas", label: "Cerradas",    color: "#ef4444", icon: "container" },
+  { id: "ambos",            label: "Ambas",       color: "#f59e0b", icon: "container-open" },
+  { id: "no_horario",       label: "Sin iniciar", color: "#64748b", icon: "clock" },
 ];
+
+const SEGUNDO_LANE_STATUS_OPTS = [
+  { id: "libre",    label: "Libre",    color: "#22c55e" },
+  { id: "moderado", label: "Moderado", color: "#f59e0b" },
+  { id: "saturado", label: "Saturado", color: "#ef4444" },
+  { id: "sin_uso",  label: "Sin uso",  color: "#64748b" },
+];
+
+const SEGUNDO_RETORNO_OPTS = [
+  { id: "sin", label: "Sin retornos", color: "#22c55e" },
+  { id: "con", label: "Con retornos", color: "#f59e0b" },
+];
+
+const getSegundoLaneStatus = (st = {}) => st.estado_carril || (st.saturado ? "saturado" : "libre");
+const getSegundoLaneOpt = (st = {}) => SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === getSegundoLaneStatus(st)) || SEGUNDO_LANE_STATUS_OPTS[0];
+const getPuertasExpoValue = (st = {}) => st.expo_contenedor || "no_horario";
 
 const mkSegundoIngreso = () => ({
   ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
-    terminal: c.defaultTerminal, saturado: false, retornos: false,
-    expo: "libre", expo_contenedor: null, impo: "libre",
+    terminal: c.defaultTerminal, estado_carril: "libre", saturado: false, retornos: false,
+    expo: "libre", expo_contenedor: "no_horario", impo: "libre",
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: "no_horario", impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 // ─── CONFINADA ────────────────────────────────────────────────────────────────
@@ -2052,6 +2068,7 @@ const CONFINADA_CARRILES = [
 const mkConfinadaState = () => ({
   ...Object.fromEntries(CONFINADA_CARRILES.map(c => [c.id, {
     terminal: c.defaultTerminal,
+    estado_carril: "libre",
     saturado: false,
     retornos: false,
     transferencia: false,
@@ -10850,7 +10867,7 @@ function TerminalSearchBox({ value, onChange, theme }) {
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder="Buscar terminal (ej. CONTECON)…"
+        placeholder="Buscar terminal…"
         style={{
           width:"100%", padding:"8px 10px 8px 30px", background:"#0a1628",
           border:"1px solid #1e3a5f", borderRadius:"8px", color:"#e2e8f0",
@@ -10865,6 +10882,196 @@ function TerminalSearchBox({ value, onChange, theme }) {
           ✕
         </button>
       )}
+    </div>
+  );
+}
+
+
+
+// ─── UI: Slider con posiciones fijas para 2DO Acceso ─────────────────────────
+function SnapSlider({ value, options, onChange, pending = false, theme, compact = false }) {
+  const safeOptions = options && options.length ? options : [];
+  const currentIndex = Math.max(0, safeOptions.findIndex(o => o.id === value));
+  const idx = currentIndex === -1 ? 0 : currentIndex;
+  const active = safeOptions[idx] || safeOptions[0] || { color: "#64748b", label: "—" };
+  const percent = safeOptions.length <= 1 ? 0 : (idx / (safeOptions.length - 1)) * 100;
+  const commit = (raw) => {
+    const nextIdx = Math.max(0, Math.min(safeOptions.length - 1, Number(raw)));
+    const next = safeOptions[nextIdx];
+    if (next && next.id !== value) onChange(next.id);
+  };
+
+  return (
+    <div style={{ opacity: pending ? 0.66 : 1, transition:"opacity 0.18s" }}>
+      <div style={{
+        position:"relative",
+        height: compact ? "42px" : "46px",
+        borderRadius:"12px",
+        background:"rgba(15,23,42,0.72)",
+        border:`1px solid ${active.color}55`,
+        boxShadow:"inset 0 1px 2px rgba(0,0,0,0.18)",
+        padding:"5px",
+        boxSizing:"border-box",
+        overflow:"hidden"
+      }}>
+        <div style={{
+          position:"absolute",
+          top:"5px",
+          bottom:"5px",
+          left:`calc(${percent}% + ${idx === 0 ? 5 : idx === safeOptions.length - 1 ? -5 : 0}px)`,
+          width:`calc(${100 / Math.max(1, safeOptions.length)}% - 8px)`,
+          transform:`translateX(-${percent}%)`,
+          background: active.color,
+          borderRadius:"9px",
+          transition:"left 0.24s cubic-bezier(.4,0,.2,1), transform 0.24s cubic-bezier(.4,0,.2,1), background 0.2s",
+          boxShadow:"0 4px 10px rgba(15,23,42,0.22)"
+        }} />
+        <div style={{ position:"relative", zIndex:1, display:"grid", gridTemplateColumns:`repeat(${safeOptions.length}, 1fr)`, height:"100%" }}>
+          {safeOptions.map((o, i) => {
+            const selected = i === idx;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => commit(i)}
+                style={{
+                  border:0,
+                  background:"transparent",
+                  color:selected ? "#ffffff" : "rgba(226,232,240,0.68)",
+                  fontFamily:getFont(theme,"secondary"),
+                  fontSize: compact ? "10px" : "11px",
+                  fontWeight:selected ? 800 : 500,
+                  cursor:"pointer",
+                  textTransform:"none",
+                  letterSpacing:selected ? "0.2px" : 0,
+                  transition:"color 0.2s, font-weight 0.2s",
+                  padding:"0 4px",
+                  whiteSpace:"nowrap",
+                  overflow:"hidden",
+                  textOverflow:"ellipsis"
+                }}
+              >{o.label}</button>
+            );
+          })}
+        </div>
+        <input
+          aria-label="Control deslizable con posiciones fijas"
+          type="range"
+          min="0"
+          max={Math.max(0, safeOptions.length - 1)}
+          step="1"
+          value={idx}
+          onChange={e => commit(e.target.value)}
+          style={{ position:"absolute", inset:0, opacity:0, cursor:"pointer", zIndex:2 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TerminalAccordionSelector({ carrilId, value, onChange, search, onSearch, theme }) {
+  const [openGroups, setOpenGroups] = useState({});
+  const q = (search || "").trim().toLowerCase();
+  const selected = TODAS_TERMINALES.find(t => t.id === value) || null;
+  const groups = [
+    { id:"general", label:"General", color:"#f59e0b", items:TODAS_TERMINALES.filter(t => t.id === "general" || t.zona === "Todas") },
+    { id:"norte", label:"Zona Norte", color:"#2563eb", items:TODAS_TERMINALES.filter(t => t.zona === "Norte") },
+    { id:"sur", label:"Zona Sur", color:"#0f766e", items:TODAS_TERMINALES.filter(t => t.zona === "Sur") },
+  ].map(g => ({ ...g, items: g.items.filter(t => !q || t.name.toLowerCase().includes(q) || (t.fullName || "").toLowerCase().includes(q)) }));
+  const hasMatches = groups.some(g => g.items.length);
+
+  const choose = (id) => {
+    onChange(id);
+    onSearch("");
+    setOpenGroups({});
+  };
+
+  return (
+    <div style={{ marginBottom:"14px" }}>
+      <div style={{ fontSize:"11px", color:"rgba(226,232,240,0.72)", fontFamily:getFont(theme,"secondary"), marginBottom:"7px" }}>Terminal</div>
+      <TerminalSearchBox value={search || ""} onChange={onSearch} theme={theme} />
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px",
+        background:"rgba(15,23,42,0.56)", border:"1px solid rgba(148,163,184,0.18)",
+        borderRadius:"10px", padding:"9px 10px", marginBottom:"8px"
+      }}>
+        <div>
+          <div style={{ color:"rgba(226,232,240,0.58)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Seleccionada</div>
+          <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700 }}>{selected?.name || "Sin uso"}</div>
+        </div>
+        <Badge color={selected?.zona === "Norte" ? "#2563eb" : selected?.zona === "Sur" ? "#0f766e" : "#f59e0b"} small>
+          {selected?.zona === "Todas" ? "General" : selected?.zona || "Sin uso"}
+        </Badge>
+      </div>
+
+      {groups.map(group => {
+        const isOpen = !!q || !!openGroups[group.id];
+        return (
+          <div key={group.id} style={{ marginBottom:"7px", border:"1px solid rgba(148,163,184,0.14)", borderRadius:"10px", overflow:"hidden", background:"rgba(15,23,42,0.38)" }}>
+            <button
+              type="button"
+              onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+              style={{
+                width:"100%", border:0, background:isOpen ? "rgba(255,255,255,0.06)" : "transparent",
+                color:"rgba(241,245,249,0.88)", padding:"10px 11px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:600
+              }}
+            >
+              <span style={{ display:"flex", alignItems:"center", gap:"8px" }}><span style={{ width:8, height:8, borderRadius:3, background:group.color, display:"inline-block" }} />{group.label}</span>
+              <span style={{ color:"rgba(226,232,240,0.48)", fontSize:"11px" }}>{isOpen ? "Ocultar" : "Ver"}</span>
+            </button>
+            {isOpen && (
+              <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", padding:"9px 10px 10px" }}>
+                {group.items.length ? group.items.map(t => {
+                  const selectedTerm = value === t.id;
+                  return (
+                    <button
+                      key={`${carrilId}-${t.id}`}
+                      type="button"
+                      onClick={() => choose(t.id)}
+                      style={{
+                        padding:"7px 10px", borderRadius:"8px",
+                        background:selectedTerm ? group.color : "rgba(255,255,255,0.04)",
+                        border:`1px solid ${selectedTerm ? group.color : "rgba(148,163,184,0.18)"}`,
+                        color:selectedTerm ? "#ffffff" : "rgba(226,232,240,0.72)",
+                        fontFamily:getFont(theme,"secondary"), fontSize:"11px",
+                        fontWeight:selectedTerm ? 800 : 500, cursor:"pointer",
+                        boxShadow:selectedTerm ? "0 5px 12px rgba(15,23,42,0.22)" : "none"
+                      }}
+                    >{t.name}</button>
+                  );
+                }) : <div style={{ color:"rgba(226,232,240,0.48)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>Sin coincidencias</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {q && !hasMatches && <div style={{ color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", padding:"6px 2px" }}>Sin coincidencias para “{search}”.</div>}
+    </div>
+  );
+}
+
+function ExportacionBlock({ st, onTraffic, onPuertas, pendingTraffic, pendingPuertas, theme }) {
+  return (
+    <div style={{ background:"rgba(15,23,42,0.42)", border:"1px solid rgba(245,158,11,0.22)", borderRadius:"12px", padding:"12px", minWidth:0 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"10px" }}>
+        <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700 }}>Exportación</div>
+      </div>
+      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Tráfico</div>
+      <QuickSelectDropdown value={st.expo || "libre"} options={SEGUNDO_TRAFICO_OPTS} onChange={onTraffic} pending={pendingTraffic} theme={theme} />
+      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", margin:"12px 0 6px" }}>Estado de puertas</div>
+      <SnapSlider value={getPuertasExpoValue(st)} options={SEGUNDO_CONTENEDOR_OPTS} onChange={onPuertas} pending={pendingPuertas} theme={theme} compact />
+    </div>
+  );
+}
+
+function ImportacionBlock({ st, onTraffic, pendingTraffic, theme }) {
+  return (
+    <div style={{ background:"rgba(15,23,42,0.42)", border:"1px solid rgba(37,99,235,0.20)", borderRadius:"12px", padding:"12px", minWidth:0 }}>
+      <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700, marginBottom:"10px" }}>Importación</div>
+      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Tráfico</div>
+      <QuickSelectDropdown value={st.impo || "libre"} options={SEGUNDO_TRAFICO_OPTS} onChange={onTraffic} pending={pendingTraffic} theme={theme} />
     </div>
   );
 }
@@ -10917,45 +11124,53 @@ function SegundoAccesoTab({ myId }) {
     if (!carriles) return;
     const prev = carriles;
     const key = `${id}:${field}`;
-    const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    const patch = { [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" };
+    if (field === "estado_carril") patch.saturado = value === "saturado";
+    if (field === "saturado") patch.estado_carril = value ? "saturado" : "libre";
+    const next = { ...carriles, [id]: { ...carriles[id], ...patch } };
     setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
       setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("No se pudo guardar, se revirtió el cambio", "#ef4444");
       return;
     }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "estado_carril" ? (SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === value)?.label || value) : field === "expo_contenedor" ? (SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || value) : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
     await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Carril actualizado", "#22c55e");
+    notify("Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
+    const fieldLabel = field === "estado_carril" ? `Estado: ${valorLabelAudit}` : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "expo_contenedor" ? `Puertas: ${valorLabelAudit}` : (value ? "Con retornos" : "Sin retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
     const prev = carriles;
     const key = `c4:${field}`;
-    const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    const patch = { [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" };
+    if (field === "estado_carril") patch.saturado = value === "saturado";
+    if (field === "saturado") patch.estado_carril = value ? "saturado" : "libre";
+    const next = { ...carriles, c4: { ...carriles.c4, ...patch } };
     setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
       setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("No se pudo guardar, se revirtió el cambio", "#ef4444");
       return;
     }
-    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Carril de salida actualizado", "#22c55e");
+    const valorLabel = field === "estado_carril" ? (SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === value)?.label || value) : field === "expo_contenedor" ? (SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || value) : String(value);
+    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:valorLabel, summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${valorLabel}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("Carril de salida actualizado", "#22c55e");
     const fieldLabel =
+      field === "estado_carril" ? `Estado: ${valorLabel}` :
       field === "saturado" ? (value ? "Saturado" : "Libre") :
       field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
       field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
       field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-      field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
+      field === "expo_contenedor" ? `Puertas: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
       "Actualizado";
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
@@ -10967,7 +11182,7 @@ function SegundoAccesoTab({ myId }) {
   };
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: "no_horario", impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril restablecido", "#22c55e");
@@ -11062,8 +11277,8 @@ function SegundoAccesoTab({ myId }) {
 
   {/* C4 — SALIDA (ciudad, verde/rojo) */}
   {(() => {
-    const c4sat = carriles?.c4?.saturado;
-    const c4col = c4sat ? "#ef4444" : "#22c55e";
+    const c4Opt = getSegundoLaneOpt(carriles?.c4 || {});
+    const c4col = c4Opt.color;
     return (
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
         
@@ -11082,7 +11297,7 @@ function SegundoAccesoTab({ myId }) {
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
           <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>
-            {c4sat ? "SATURADO" : "LIBRE"}
+            {c4Opt.label.toUpperCase()}
           </div>
         </div>
       </div>
@@ -11091,9 +11306,9 @@ function SegundoAccesoTab({ myId }) {
 
   {/* C1, C2, C3 — INGRESO (puerto) */}
   {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
-    const st  = carriles?.[c.id];
-    const sat = st?.saturado;
-    const col = sat ? "#ef4444" : "#14b8a6";
+    const st  = carriles?.[c.id] || {};
+    const laneOpt = getSegundoLaneOpt(st);
+    const col = laneOpt.color;
     const tz  = getTermZona(st?.terminal);
     const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
 
@@ -11150,222 +11365,179 @@ function SegundoAccesoTab({ myId }) {
 
         <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
         {SEGUNDO_CARRILES_INGRESO.map(carril => {
-          const st        = carriles[carril.id];
-          const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+          const st = carriles[carril.id] || {};
+          const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
+          const zonaColor = termObj?.zona === "Todas" ? "#f59e0b" : termObj?.zona === "Norte" ? "#2563eb" : "#0f766e";
+          const laneOpt = getSegundoLaneOpt(st);
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
+          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === getPuertasExpoValue(st));
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+          const isChanged = getSegundoLaneStatus(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || getPuertasExpoValue(st) !== "no_horario";
           return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
+            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.color}44`, borderRadius:"14px", padding:"14px", marginBottom:"14px", boxShadow:"0 10px 24px rgba(15,23,42,0.12)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px", gap:"10px" }}>
                 <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                    <div style={{ background:"#38bdf822", border:"1px solid #38bdf844", borderRadius:"6px", padding:"3px 10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    <Badge color="#22c55e" small>INGRESO</Badge>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+                    <div style={{ background:"rgba(37,99,235,0.16)", border:"1px solid rgba(37,99,235,0.28)", borderRadius:"8px", padding:"4px 10px", color:"#dbeafe", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
+                    <Badge color="#22c55e" small>Ingreso</Badge>
                   </div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
-                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
-                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
+                    <Badge color={laneOpt.color} small>{laneOpt.label}</Badge>
+                    {st.retornos && <Badge color="#f59e0b" small>Retornos</Badge>}
+                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>Expo {expoOpt.label}</Badge>}
+                    {expoContOpt && expoContOpt.id !== "no_horario" && <Badge color={expoContOpt.color} small>Puertas {expoContOpt.label}</Badge>}
+                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>Impo {impoOpt.label}</Badge>}
                   </div>
-                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
+                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"4px 9px", background:"rgba(34,197,94,0.14)", border:"1px solid rgba(34,197,94,0.34)", borderRadius:"7px", color:"#86efac", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>Restablecer</button>}
                 </div>
               </div>
-              <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
-                    {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
-                  </div>
-                </div>
-                <span style={{ fontSize:"22px" }}>🚛</span>
-              </div>
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
 
-              {/* Buscador de terminal — atajo adicional, no reemplaza los botones */}
-              <TerminalSearchBox
-                value={terminalSearch[carril.id] || ""}
-                onChange={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
+              <div style={{ background:zonaColor+"18", border:`1px solid ${zonaColor}44`, borderRadius:"10px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px" }}>
+                <div>
+                  <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.56)", fontFamily:getFont(theme, "secondary"), marginBottom:"2px" }}>Terminal asignada hoy</div>
+                  <div style={{ color:"#f8fafc", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name || "Sin uso"}</div>
+                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", marginTop:"1px" }}>{termObj?.zona === "Todas" ? "Todas las terminales" : termObj?.zona ? `Zona ${termObj.zona}` : "Sin terminal asignada"}</div>
+                </div>
+                <AppIcon name="freight-truck" size={28} active />
+              </div>
+
+              <TerminalAccordionSelector
+                carrilId={carril.id}
+                value={st.terminal}
+                onChange={(v) => updateIngreso(carril.id,"terminal",v)}
+                search={terminalSearch[carril.id] || ""}
+                onSearch={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
                 theme={theme}
               />
 
-              {(() => {
-                const q = (terminalSearch[carril.id] || "").trim().toLowerCase();
-                const matches = (name) => !q || name.toLowerCase().includes(q);
-                const showGeneral = matches("general");
-                const filteredNorte = termsNorte.filter(t => matches(t.name));
-                const filteredSur = termsSur.filter(t => matches(t.name));
-                const nada = q && !showGeneral && filteredNorte.length === 0 && filteredSur.length === 0;
-                return (
-                  <>
-                    {showGeneral && (
-                      <div style={{ marginBottom:"8px" }}>
-                        <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
-                        </div>
-                      </div>
-                    )}
-                    {filteredNorte.length > 0 && (
-                      <div style={{ marginBottom:"8px" }}>
-                        <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          {filteredNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                        </div>
-                      </div>
-                    )}
-                    {filteredSur.length > 0 && (
-                      <div style={{ marginBottom:"10px" }}>
-                        <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          {filteredSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                        </div>
-                      </div>
-                    )}
-                    {nada && (
-                      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:getFont(theme, "secondary"), padding:"6px 2px", marginBottom:"8px" }}>Sin coincidencias para "{terminalSearch[carril.id]}"</div>
-                    )}
-                  </>
-                );
-              })()}
-
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
-              <div style={{ marginBottom:"8px" }}>
-                <SegmentedToggle
-                  value={!!st.saturado}
-                  onChange={(v) => updateIngreso(carril.id,"saturado",v)}
-                  leftLabel="LIBRE" rightLabel="SATURADO"
-                  leftColor="#22c55e" rightColor="#ef4444"
-                  pending={!!pendingKeys[`${carril.id}:saturado`]}
+              <div style={{ marginBottom:"12px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"7px" }}>
+                  <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600 }}>Estado del carril</div>
+                  <span style={{ color:laneOpt.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{laneOpt.label}</span>
+                </div>
+                <SnapSlider
+                  value={getSegundoLaneStatus(st)}
+                  options={SEGUNDO_LANE_STATUS_OPTS}
+                  onChange={(v) => updateIngreso(carril.id,"estado_carril",v)}
+                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
                   theme={theme}
                 />
               </div>
-              <div style={{ marginBottom:"10px" }}>
-                <SegmentedToggle
-                  value={!!st.retornos}
-                  onChange={(v) => updateIngreso(carril.id,"retornos",v)}
-                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
-                  leftColor="#22c55e" rightColor="#f97316"
+
+              <div style={{ marginBottom:"12px" }}>
+                <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600, marginBottom:"7px" }}>Retornos</div>
+                <SnapSlider
+                  value={st.retornos ? "con" : "sin"}
+                  options={SEGUNDO_RETORNO_OPTS}
+                  onChange={(v) => updateIngreso(carril.id,"retornos",v === "con")}
                   pending={!!pendingKeys[`${carril.id}:retornos`]}
                   theme={theme}
+                  compact
                 />
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
-                    value={st.expo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"expo",v)}
-                    pending={!!pendingKeys[`${carril.id}:expo`]}
-                    theme={theme}
-                  />
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <QuickSelectDropdown
-                    value={st.expo_contenedor}
-                    options={SEGUNDO_CONTENEDOR_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
-                    placeholder="— Sin especificar —"
-                    allowClear
-                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
-                    theme={theme}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
-                    value={st.impo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"impo",v)}
-                    pending={!!pendingKeys[`${carril.id}:impo`]}
-                    theme={theme}
-                  />
-                </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+                <ExportacionBlock
+                  st={st}
+                  onTraffic={(v) => updateIngreso(carril.id,"expo",v)}
+                  onPuertas={(v) => updateIngreso(carril.id,"expo_contenedor",v)}
+                  pendingTraffic={!!pendingKeys[`${carril.id}:expo`]}
+                  pendingPuertas={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+                  theme={theme}
+                />
+                <ImportacionBlock
+                  st={st}
+                  onTraffic={(v) => updateIngreso(carril.id,"impo",v)}
+                  pendingTraffic={!!pendingKeys[`${carril.id}:impo`]}
+                  theme={theme}
+                />
               </div>
             </div>
           );
         })}
 
         <SectionLabel text="CARRIL DE SALIDA (C4)" />
-        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${carriles.c4.saturado?"#ef444466":"#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <div style={{ background:"#f9731622", border:"1px solid #f9731644", borderRadius:"6px", padding:"3px 10px", color:"#f97316", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
-                <Badge color="#f97316" small>SALIDA</Badge>
+        {(() => {
+          const st = carriles.c4 || {};
+          const laneOpt = getSegundoLaneOpt(st);
+          const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === getPuertasExpoValue(st));
+          const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+          return (
+            <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.color}44`, borderRadius:"14px", padding:"14px", marginBottom:"14px", boxShadow:"0 10px 24px rgba(15,23,42,0.12)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px", gap:"10px" }}>
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+                    <div style={{ background:"rgba(249,115,22,0.16)", border:"1px solid rgba(249,115,22,0.30)", borderRadius:"8px", padding:"4px 10px", color:"#fed7aa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
+                    <Badge color="#f59e0b" small>Salida</Badge>
+                    <Badge color={laneOpt.color} small>{laneOpt.label}</Badge>
+                  </div>
+                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                </div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+                  {st.retornos && <Badge color="#f59e0b" small>Retornos</Badge>}
+                  {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>Expo {expoOpt.label}</Badge>}
+                  {expoContOpt && expoContOpt.id !== "no_horario" && <Badge color={expoContOpt.color} small>Puertas {expoContOpt.label}</Badge>}
+                  {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>Impo {impoOpt.label}</Badge>}
+                </div>
               </div>
-              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
+
+              <div style={{ background:"rgba(249,115,22,0.10)", border:"1px solid rgba(249,115,22,0.22)", borderRadius:"10px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
+                <AppIcon name="freight-truck" size={28} active />
+                <div>
+                  <div style={{ color:"#fed7aa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px" }}>Salida general del puerto</div>
+                  <div style={{ color:"rgba(255,255,255,0.44)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom:"12px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"7px" }}>
+                  <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600 }}>Estado del carril</div>
+                  <span style={{ color:laneOpt.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{laneOpt.label}</span>
+                </div>
+                <SnapSlider
+                  value={getSegundoLaneStatus(st)}
+                  options={SEGUNDO_LANE_STATUS_OPTS}
+                  onChange={(v) => updateSalida("estado_carril",v)}
+                  pending={!!pendingKeys["c4:estado_carril"]}
+                  theme={theme}
+                />
+              </div>
+
+              <div style={{ marginBottom:"12px" }}>
+                <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600, marginBottom:"7px" }}>Retornos</div>
+                <SnapSlider
+                  value={st.retornos ? "con" : "sin"}
+                  options={SEGUNDO_RETORNO_OPTS}
+                  onChange={(v) => updateSalida("retornos",v === "con")}
+                  pending={!!pendingKeys["c4:retornos"]}
+                  theme={theme}
+                  compact
+                />
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+                <ExportacionBlock
+                  st={st}
+                  onTraffic={(v) => updateSalida("expo",v)}
+                  onPuertas={(v) => updateSalida("expo_contenedor",v)}
+                  pendingTraffic={!!pendingKeys["c4:expo"]}
+                  pendingPuertas={!!pendingKeys["c4:expo_contenedor"]}
+                  theme={theme}
+                />
+                <ImportacionBlock
+                  st={st}
+                  onTraffic={(v) => updateSalida("impo",v)}
+                  pendingTraffic={!!pendingKeys["c4:impo"]}
+                  theme={theme}
+                />
+              </div>
             </div>
-            <Badge color={carriles.c4.saturado?"#ef4444":"#22c55e"} small>{carriles.c4.saturado?"SATURADO":"FLUIDO"}</Badge>
-          </div>
-          <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
-            <span style={{ fontSize:"22px" }}>🚚</span>
-            <div>
-              <div style={{ color:"#f97316", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px" }}>Salida General del Puerto</div>
-              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
-            </div>
-          </div>
-          <div style={{ marginBottom:"8px" }}>
-            <SegmentedToggle
-              value={!!carriles.c4.saturado}
-              onChange={(v) => updateSalida("saturado",v)}
-              leftLabel="FLUIDO" rightLabel="SATURADO"
-              leftColor="#22c55e" rightColor="#ef4444"
-              pending={!!pendingKeys["c4:saturado"]}
-              theme={theme}
-            />
-          </div>
-          <div style={{ marginBottom:"10px" }}>
-            <SegmentedToggle
-              value={!!carriles.c4.retornos}
-              onChange={(v) => updateSalida("retornos",v)}
-              leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
-              leftColor="#22c55e" rightColor="#f97316"
-              pending={!!pendingKeys["c4:retornos"]}
-              theme={theme}
-            />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-            <div>
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-              <QuickSelectDropdown
-                value={carriles.c4.expo || "libre"}
-                options={SEGUNDO_TRAFICO_OPTS}
-                onChange={(v) => updateSalida("expo",v)}
-                pending={!!pendingKeys["c4:expo"]}
-                theme={theme}
-              />
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-              <QuickSelectDropdown
-                value={carriles.c4.expo_contenedor}
-                options={SEGUNDO_CONTENEDOR_OPTS}
-                onChange={(v) => updateSalida("expo_contenedor", v)}
-                placeholder="— Sin especificar —"
-                allowClear
-                pending={!!pendingKeys["c4:expo_contenedor"]}
-                theme={theme}
-              />
-            </div>
-            <div>
-              <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-              <QuickSelectDropdown
-                value={carriles.c4.impo || "libre"}
-                options={SEGUNDO_TRAFICO_OPTS}
-                onChange={(v) => updateSalida("impo",v)}
-                pending={!!pendingKeys["c4:impo"]}
-                theme={theme}
-              />
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* ── Segundo Acceso Por Fases ── */}
         <div style={{ marginTop:"8px" }}>
