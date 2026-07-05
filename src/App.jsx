@@ -129,7 +129,7 @@ const toMs = (v) => {
 // En Vite/React, los archivos dentro de public se referencian desde la raíz.
 const TAB_PUBLIC_ICONS = {
   inicio: "/ChatGPT Image 2 jul 2026, 04_38_31 p.m..png",
-  trafico: "/tráfico.png",
+  trafico: "/trafico.png",
   reporte: "/reportar.png",
   terminales: "/terminales.png",
   patio: "/patios.png",
@@ -145,7 +145,7 @@ const TRAFICO_SUBTAB_PUBLIC_ICONS = {
   accesos: "/accesos.png",
   vialidades: "/vialidades.png",
   rutas_fiscales: "/rutas fiscales.png",
-  reporte: "/reporte.png",
+  reporte: "/reporte. png",
 };
 
 const TABS = [
@@ -2501,63 +2501,6 @@ function NormalBtn({ onClick, label = "TODO NORMAL" }) {
       borderRadius: "6px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "10px",
       cursor: "pointer", fontWeight: "700", letterSpacing: "0.5px",
     }}>✓ {label}</button>
-  );
-}
-
-
-function SegmentedControl({ value, onChange, options = [] }) {
-  const theme = React.useContext(ThemeContext);
-  const selectedIndex = Math.max(0, options.findIndex(o => o.value === value));
-  const active = options[selectedIndex] || options[0] || {};
-  const widthPct = options.length ? (100 / options.length) : 100;
-  return (
-    <div style={{
-      position:"relative", display:"grid", gridTemplateColumns:`repeat(${options.length || 1}, 1fr)`,
-      gap:0, padding:"3px", borderRadius:"12px", background:"rgba(15,23,42,0.08)",
-      border:"1px solid rgba(15,23,42,0.14)", overflow:"hidden", minHeight:"38px",
-      boxShadow:"inset 0 1px 2px rgba(15,23,42,0.08)",
-    }}>
-      <div style={{
-        position:"absolute", top:"3px", bottom:"3px", left:`calc(${selectedIndex} * ${widthPct}%)`,
-        width:`calc(${widthPct}% - 3px)`, borderRadius:"9px", background:active.color || "#0f766e",
-        transition:"left 220ms ease, background 220ms ease, box-shadow 220ms ease",
-        boxShadow:"0 2px 8px rgba(15,23,42,0.18)",
-      }} />
-      {options.map((o) => {
-        const isActive = o.value === value;
-        return (
-          <button key={String(o.value)} type="button" onClick={() => onChange(o.value)} style={{
-            position:"relative", zIndex:1, border:0, background:"transparent", minHeight:"32px",
-            color:isActive ? "#ffffff" : "#475569", fontFamily:getFont(theme,"secondary"),
-            fontSize:"11px", fontWeight:800, letterSpacing:"0.35px", cursor:"pointer",
-            transition:"color 180ms ease, transform 180ms ease", transform:isActive ? "scale(1)" : "scale(0.98)",
-          }}>{o.label}</button>
-        );
-      })}
-    </div>
-  );
-}
-
-function QuickSelectField({ label, value, onChange, options = [], emptyLabel, emptyValue = "", accent = "#0f766e" }) {
-  const theme = React.useContext(ThemeContext);
-  const selected = options.find(o => o.id === value) || null;
-  const borderColor = selected?.color || accent;
-  return (
-    <div>
-      <div style={{ fontSize:"9px", color:accent, fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"800" }}>{label}</div>
-      <div style={{ position:"relative" }}>
-        <select value={value ?? emptyValue} onChange={e => onChange(e.target.value === emptyValue ? null : e.target.value)} style={{
-          width:"100%", padding:"10px 34px 10px 10px", background:"rgba(255,255,255,0.96)",
-          border:`1.5px solid ${borderColor}`, borderRadius:"10px", color:selected?.color || "#334155",
-          fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800",
-          outline:"none", appearance:"none", WebkitAppearance:"none", boxShadow:"0 2px 8px rgba(15,23,42,0.08)",
-        }}>
-          {emptyLabel && <option value={emptyValue}>{emptyLabel}</option>}
-          {options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </select>
-        <span style={{ position:"absolute", right:"11px", top:"50%", transform:"translateY(-50%)", color:borderColor, pointerEvents:"none", fontSize:"11px", fontWeight:900 }}>⌄</span>
-      </div>
-    </div>
   );
 }
 
@@ -10381,14 +10324,9 @@ function TerminalesTab({ myId }) {
   const [stS,         setStS]         = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
-  const [terminalSearch, setTerminalSearch] = useState("");
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
-  const searchTerm = terminalSearch.trim().toLowerCase();
-  const visibleTerminals = !searchTerm ? terminals : terminals.filter(t =>
-    `${t.name} ${t.fullName}`.toLowerCase().includes(searchTerm)
-  );
   const stMap     = zona === "norte" ? (stN || {}) : (stS || {});
   const setSt     = zona === "norte" ? setStN : setStS;
 
@@ -10476,18 +10414,9 @@ function TerminalesTab({ myId }) {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
       <TypewriterTicker items={tickerItems} />
-      <div style={{ background:"rgba(255,255,255,0.72)", border:"1px solid rgba(15,23,42,0.10)", borderRadius:"12px", padding:"10px", marginBottom:"12px", boxShadow:"0 3px 12px rgba(15,23,42,0.06)" }}>
-        <div style={{ fontSize:"10px", color:"#475569", fontFamily:getFont(theme,"secondary"), fontWeight:800, letterSpacing:"0.8px", marginBottom:"6px" }}>BUSCAR TERMINAL</div>
-        <input
-          value={terminalSearch}
-          onChange={e => setTerminalSearch(e.target.value)}
-          placeholder="Ej. CONTECON, SSA, TIMSA..."
-          style={{ width:"100%", boxSizing:"border-box", padding:"11px 12px", borderRadius:"10px", border:"1px solid rgba(15,23,42,0.16)", background:"#ffffff", color:"#1f2937", fontFamily:getFont(theme,"secondary"), fontSize:"13px", outline:"none", boxShadow:"inset 0 1px 2px rgba(15,23,42,0.05)" }}
-        />
-      </div>
-      <div style={{ display:"flex", background:"rgba(255,255,255,0.65)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(15,23,42,0.12)", boxShadow:"0 2px 10px rgba(15,23,42,0.05)" }}>
+      <div style={{ display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(255,255,255,0.15)" }}>
         {["norte","sur"].map(z => (
-          <button key={z} onClick={() => setZonaPersist(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0f3d56,#2563eb)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#475569", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
+          <button key={z} onClick={() => setZonaPersist(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
         ))}
       </div>
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
@@ -10500,11 +10429,7 @@ function TerminalesTab({ myId }) {
       </div>
       <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
       <MapaTerminales zona={zona} stMap={stMap} />
-      {(!stN || !stS) ? <SkeletonCard n={4}/> : visibleTerminals.length === 0 ? (
-        <div style={{ padding:"18px", borderRadius:"12px", background:"rgba(255,255,255,0.72)", border:"1px solid rgba(15,23,42,0.10)", color:"#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"13px", textAlign:"center", marginBottom:"14px" }}>
-          No se encontraron terminales con “{terminalSearch}”.
-        </div>
-      ) : visibleTerminals.map(terminal => {
+      {(!stN || !stS) ? <SkeletonCard n={4}/> : terminals.map(terminal => {
         const st  = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"..." };
         const opt = getOpt(st.status);
         return (
@@ -10992,43 +10917,31 @@ function SegundoAccesoTab({ myId }) {
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
     if (!carriles) return;
-    const prev = carriles;
-    const next = { ...prev, [id]: { ...prev[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // Optimistic UI: cambia inmediatamente
-    try {
-      await saveToSupa(next);
-      const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-      const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
-      await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-      notify("✓ Carril actualizado", "#22c55e");
-      const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-      const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "retornos" ? (value ? "Con Retornos" : "Sin Retornos") : String(value);
-      await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
-    } catch (e) {
-      setCarriles(prev);
-      notify("No se pudo guardar. Se revirtió el cambio.", "#ef4444");
-    }
+    const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setCarriles(next);
+    await saveToSupa(next);
+    const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
+    await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Carril actualizado", "#22c55e");
+    const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
-    const prev = carriles;
-    const next = { ...prev, c4: { ...prev.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // Optimistic UI
-    try {
-      await saveToSupa(next);
-      await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
-      notify("✓ Carril de salida actualizado", "#22c55e");
-      const fieldLabel =
-        field === "saturado" ? (value ? "Saturado" : "Libre") :
-        field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
-        field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-        field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-        field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
-        "Actualizado";
-      await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
-    } catch (e) {
-      setCarriles(prev);
-      notify("No se pudo guardar. Se revirtió el cambio.", "#ef4444");
-    }
+    const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setCarriles(next);
+    await saveToSupa(next);
+    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:carriles.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Carril de salida actualizado", "#22c55e");
+    const fieldLabel =
+      field === "saturado" ? (value ? "Saturado" : "Libre") :
+      field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
+      field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
+      field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
+      field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
+      "Actualizado";
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
   const resetAll = async () => {
     const next = mkSegundoIngreso();
@@ -11047,22 +10960,16 @@ function SegundoAccesoTab({ myId }) {
   // ── Handlers CONFINADA ──
   const updateConfinada = async (id, field, value) => {
     if (!confinada) return;
-    const prev = confinada;
-    const next = { ...prev, [id]: { ...prev[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setConfinada(next); // Optimistic UI
-    try {
-      await saveConfinada(next);
-      const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
-      const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
-      await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-      notify("✓ Carril Confinada actualizado", "#a78bfa");
-      const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
-      const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : field === "retornos" ? (value ? "Con Retornos" : "Sin Retornos") : String(value);
-      await publicarNoticia({ tipo: "segundo", icono: "lock", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
-    } catch (e) {
-      setConfinada(prev);
-      notify("No se pudo guardar. Se revirtió el cambio.", "#ef4444");
-    }
+    const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setConfinada(next);
+    await saveConfinada(next);
+    const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
+    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Carril Confinada actualizado", "#a78bfa");
+    const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
+    await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const resetAllConfinada = async () => {
     const next = mkConfinadaState();
@@ -11284,35 +11191,31 @@ function SegundoAccesoTab({ myId }) {
                   {termsSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
                 </div>
               </div>
-              <div style={{ fontSize:"10px", color:"rgba(15,23,42,0.58)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px", fontWeight:800 }}>ESTADO DEL CARRIL:</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"8px", marginBottom:"10px" }}>
-                <SegmentedControl
-                  value={!!st.saturado}
-                  onChange={(val) => updateIngreso(carril.id,"saturado",val)}
-                  options={[{ value:false, label:"LIBRE", color:"#22c55e" }, { value:true, label:"SATURADO", color:"#ef4444" }]}
-                />
-                <SegmentedControl
-                  value={!!st.retornos}
-                  onChange={(val) => updateIngreso(carril.id,"retornos",val)}
-                  options={[{ value:false, label:"SIN RETORNOS", color:"#22c55e" }, { value:true, label:"CON RETORNOS", color:"#f97316" }]}
-                />
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+                <button onClick={() => updateIngreso(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
+                <button onClick={() => updateIngreso(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+                <button onClick={() => updateIngreso(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
+                <button onClick={() => updateIngreso(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={st.expo || "libre"} onChange={e => updateIngreso(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={st.expo_contenedor || ""} onChange={e => updateIngreso(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="">— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={st.impo || "libre"} onChange={e => updateIngreso(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
@@ -11339,17 +11242,13 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
             </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"8px", marginBottom:"10px" }}>
-            <SegmentedControl
-              value={!!carriles.c4.saturado}
-              onChange={(val) => updateSalida("saturado",val)}
-              options={[{ value:false, label:"FLUIDO", color:"#22c55e" }, { value:true, label:"SATURADO", color:"#ef4444" }]}
-            />
-            <SegmentedControl
-              value={!!carriles.c4.retornos}
-              onChange={(val) => updateSalida("retornos",val)}
-              options={[{ value:false, label:"SIN RETORNOS", color:"#22c55e" }, { value:true, label:"CON RETORNOS", color:"#f97316" }]}
-            />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+            <button onClick={() => updateSalida("saturado",false)} style={{ padding:"10px", background: !carriles.c4.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.saturado?"700":"400" }}>FLUIDO</button>
+            <button onClick={() => updateSalida("saturado",true)}  style={{ padding:"10px", background: carriles.c4.saturado?"#ef444422":"#0a1628",  border:`1px solid ${carriles.c4.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.saturado?"700":"400"  }}>SATURADO</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+            <button onClick={() => updateSalida("retornos",false)} style={{ padding:"10px", background: !carriles.c4.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!carriles.c4.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !carriles.c4.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !carriles.c4.retornos?"700":"400" }}>SIN RETORNOS</button>
+            <button onClick={() => updateSalida("retornos",true)}  style={{ padding:"10px", background: carriles.c4.retornos?"#f9731622":"#0a1628",  border:`1px solid ${carriles.c4.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: carriles.c4.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: carriles.c4.retornos?"700":"400"  }}>CON RETORNOS</button>
           </div>
           {(() => {
             const c4ExpoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (carriles.c4.expo || "libre"));
@@ -11360,18 +11259,18 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={carriles.c4.expo || "libre"} onChange={e => updateSalida("expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={carriles.c4.expo_contenedor || ""} onChange={e => updateSalida("expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ExpoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ExpoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="">— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={carriles.c4.impo || "libre"} onChange={e => updateSalida("impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${c4ImpoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: c4ImpoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
@@ -11557,18 +11456,14 @@ function SegundoAccesoTab({ myId }) {
               </div>
 
               {/* Estado del carril */}
-              <div style={{ fontSize:"10px", color:"rgba(15,23,42,0.58)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", fontWeight:800 }}>ESTADO DEL CARRIL:</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"8px", marginBottom:"10px" }}>
-                <SegmentedControl
-                  value={!!st.saturado}
-                  onChange={(val) => updateConfinada(carril.id,"saturado",val)}
-                  options={[{ value:false, label:"LIBRE", color:"#22c55e" }, { value:true, label:"SATURADO", color:"#ef4444" }]}
-                />
-                <SegmentedControl
-                  value={!!st.retornos}
-                  onChange={(val) => updateConfinada(carril.id,"retornos",val)}
-                  options={[{ value:false, label:"SIN RETORNOS", color:"#22c55e" }, { value:true, label:"CON RETORNOS", color:"#f97316" }]}
-                />
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+                <button onClick={() => updateConfinada(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
+                <button onClick={() => updateConfinada(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+                <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
+                <button onClick={() => updateConfinada(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
               </div>
 
               {/* Tráfico expo/impo */}
@@ -11576,18 +11471,18 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
                   <select value={st.expo || "libre"} onChange={e => updateConfinada(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
                   <select value={st.expo_contenedor || ""} onChange={e => updateConfinada(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="">— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
                   <select value={st.impo || "libre"} onChange={e => updateConfinada(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
                   </select>
                 </div>
               </div>
