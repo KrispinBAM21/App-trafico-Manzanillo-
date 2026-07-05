@@ -2027,40 +2027,19 @@ const SEGUNDO_TRAFICO_OPTS = [
   { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
 ];
 const SEGUNDO_CONTENEDOR_OPTS = [
-  { id: "puertas_abiertas", label: "Abiertas",    color: "#22c55e", icon: "open-lock" },
-  { id: "puertas_cerradas", label: "Cerradas",    color: "#ef4444", icon: "container" },
-  { id: "ambos",            label: "Ambas",       color: "#f59e0b", icon: "container-open" },
-  { id: "no_horario",       label: "Sin iniciar", color: "#64748b", icon: "clock" },
+  { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
+  { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
+  { id: "ambos",            label: "Ambos (Abierto/Cerrado)", color: "#f97316", icon: "container-open" },
+  { id: "no_horario",       label: "No es Horario",           color: "#6b7280", icon: "clock" },
 ];
-
-const SEGUNDO_LANE_STATUS_OPTS = [
-  { id: "libre",    label: "Libre",    color: "#22c55e" },
-  { id: "moderado", label: "Moderado", color: "#f59e0b" },
-  { id: "saturado", label: "Saturado", color: "#ef4444" },
-  { id: "sin_uso",  label: "Sin uso",  color: "#64748b" },
-];
-
-const SEGUNDO_RETORNO_OPTS = [
-  { id: "sin", label: "Sin retornos", color: "#22c55e" },
-  { id: "con", label: "Con retornos", color: "#f59e0b" },
-];
-
-const CONFINADA_TRANSFERENCIA_OPTS = [
-  { id: "sin_transferencia", label: "Sin transferencia", color: "#2563eb" },
-  { id: "transferencia", label: "Transferencia", color: "#f59e0b" },
-];
-
-const getSegundoLaneStatus = (st = {}) => st.estado_carril || (st.saturado ? "saturado" : "libre");
-const getSegundoLaneOpt = (st = {}) => SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === getSegundoLaneStatus(st)) || SEGUNDO_LANE_STATUS_OPTS[0];
-const getPuertasExpoValue = (st = {}) => st.expo_contenedor || "no_horario";
 
 const mkSegundoIngreso = () => ({
   ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
-    terminal: c.defaultTerminal, estado_carril: "libre", saturado: false, retornos: false,
-    expo: "libre", expo_contenedor: "no_horario", impo: "libre",
+    terminal: c.defaultTerminal, saturado: false, retornos: false,
+    expo: "libre", expo_contenedor: null, impo: "libre",
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: "no_horario", impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 // ─── CONFINADA ────────────────────────────────────────────────────────────────
@@ -2073,12 +2052,11 @@ const CONFINADA_CARRILES = [
 const mkConfinadaState = () => ({
   ...Object.fromEntries(CONFINADA_CARRILES.map(c => [c.id, {
     terminal: c.defaultTerminal,
-    estado_carril: "libre",
     saturado: false,
     retornos: false,
     transferencia: false,
     expo: "libre",
-    expo_contenedor: "no_horario",
+    expo_contenedor: null,
     impo: "libre",
     lastUpdate: Date.now(),
     updatedBy: "Sistema",
@@ -2271,9 +2249,135 @@ function useAdminMode() {
   return { isAdmin, handleLogoTap, openModal, logout, Modal };
 }
 
-// ─── HELPER: publicar noticia ────────────────────────────────────────────────
-const publicarNoticia = async ({ tipo, titulo, detalle, icono, color }) => {
-  await sb.from("noticias").insert({ tipo, titulo, detalle, icono, color });
+// ─── HELPERS: noticias, comunicados y archivos operativos ───────────────────
+const NOTICIAS_TIPOS_VISIBLES = ["acceso", "terminal", "incidente", "accidente", "resuelto", "patio", "carril", "vialidad", "ruta_fiscal", "comunicado", "admin"];
+const NOTICIAS_TIPOS_AUTO_OCULTOS = ["segundo", "estado_segundo", "voto_segundo", "confinada_estado"];
+
+const isNoticiaVisibleEnFeed = (n) => {
+  if (!n) return false;
+  if (n.ocultar_en_feed === true || n.ocultar_en_feed === "true" || n.ocultar_en_feed === 1) return false;
+  const tipo = String(n.tipo || "").toLowerCase();
+  const origen = String(n.origen || n.source || n.event_source || "").toLowerCase();
+  const titulo = String(n.titulo || "").toLowerCase();
+  if (NOTICIAS_TIPOS_AUTO_OCULTOS.includes(tipo)) return false;
+  if (origen.includes("auto_estado_carril") || origen.includes("voto_carril") || origen.includes("segundo")) return false;
+  // Oculta los eventos automáticos antiguos de 2do Acceso/Confinada aunque no tengan flag.
+  if ((titulo.includes("2do acceso") || titulo.includes("confinada")) && (tipo === "segundo" || titulo.includes("carril"))) return false;
+  return true;
+};
+
+const parseJsonArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") {
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch { return value ? [value] : []; }
+  }
+  return [];
+};
+
+const sanitizeStorageName = (name = "archivo") => String(name)
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^a-zA-Z0-9._-]+/g, "-")
+  .replace(/-+/g, "-")
+  .replace(/^-|-$/g, "")
+  .slice(0, 90) || "archivo";
+
+const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPath }) => {
+  try {
+    const res = await fetch("/api/media/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, source_url: sourceUrl, file_type: fileType, title, bucket_path: bucketPath, lang: "es" })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn("Procesamiento OCR/PDF no disponible en frontend. Configura /api/media/process.", e?.message || e);
+    return { ok: false, text: "", image_urls: [] };
+  }
+};
+
+const procesarMediaComunicado = async (comunicado) => {
+  const isPdf = (comunicado?.archivo_tipo || "").includes("pdf") || String(comunicado?.archivo_url || "").toLowerCase().endsWith(".pdf");
+  const isImage = (comunicado?.archivo_tipo || "").startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(String(comunicado?.archivo_url || ""));
+  if (!comunicado?.archivo_url || (!isPdf && !isImage)) return { textoExtraido: "", imagenes: [] };
+  const result = await callMediaProcessor({
+    action: isPdf ? "pdf_to_images_ocr" : "image_ocr",
+    sourceUrl: comunicado.archivo_url,
+    fileType: comunicado.archivo_tipo,
+    title: comunicado.titulo,
+    bucketPath: `comunicados/${comunicado.id || Date.now()}`
+  });
+  const imagenes = parseJsonArray(result?.image_urls);
+  return {
+    textoExtraido: String(result?.text || "").trim(),
+    imagenes: imagenes.length ? imagenes : (isImage ? [comunicado.archivo_url] : []),
+  };
+};
+
+const syncComunicadoToNoticia = async (comunicado, { processMedia = true } = {}) => {
+  if (!comunicado) return null;
+  const aprobado = comunicado.aprobado === true || comunicado.aprobado === "true" || comunicado.aprobado === 1 || comunicado.aprobado === "1";
+  if (!aprobado) return null;
+
+  // Requiere columna noticias.comunicado_id para evitar duplicados. Si no existe, el SQL incluido la crea.
+  try {
+    const { data: existing, error: findErr } = await sb
+      .from("noticias")
+      .select("id, comunicado_id")
+      .eq("comunicado_id", comunicado.id)
+      .maybeSingle();
+    if (!findErr && existing?.id) return existing;
+  } catch {}
+
+  const media = processMedia ? await procesarMediaComunicado(comunicado) : { textoExtraido: comunicado.texto_extraido || "", imagenes: parseJsonArray(comunicado.media_urls) };
+  const detalleBase = [comunicado.detalle, media.textoExtraido].filter(Boolean).join("\n\n").trim();
+  const payload = {
+    tipo: "comunicado",
+    titulo: comunicado.titulo || "Comunicado oficial",
+    detalle: detalleBase || "Comunicado oficial publicado por administración.",
+    icono: "document",
+    color: "#2563eb",
+    origen: "comunicados",
+    comunicado_id: comunicado.id,
+    archivo_url: comunicado.archivo_url || null,
+    archivo_tipo: comunicado.archivo_tipo || null,
+    media_urls: media.imagenes || [],
+    texto_extraido: media.textoExtraido || null,
+    ocultar_en_feed: false,
+    created_at: comunicado.created_at || new Date().toISOString(),
+  };
+
+  const { data, error } = await sb.from("noticias").insert(payload).select("*").single();
+  if (!error) return data;
+
+  // Compatibilidad si aún no aplicaste la migración de columnas extendidas.
+  console.warn("Insert extendido de comunicado→noticia falló; usando formato básico:", error.message);
+  const fallback = {
+    tipo: "comunicado",
+    titulo: payload.titulo,
+    detalle: `${payload.detalle}\n\nOrigen: Comunicados${comunicado.id ? ` · Ref: ${comunicado.id}` : ""}`,
+    icono: "document",
+    color: "#2563eb",
+  };
+  const { data: fb } = await sb.from("noticias").insert(fallback).select("*").single();
+  return fb || null;
+};
+
+const publicarNoticia = async ({ tipo, titulo, detalle, icono, color, origen, ocultar_en_feed, ...extra }) => {
+  const tipoNorm = String(tipo || "").toLowerCase();
+  const autoOculta = NOTICIAS_TIPOS_AUTO_OCULTOS.includes(tipoNorm);
+  const payload = {
+    tipo, titulo, detalle, icono, color,
+    origen: origen || (autoOculta ? "auto_estado_carril" : "sistema"),
+    ocultar_en_feed: ocultar_en_feed ?? autoOculta,
+    ...extra,
+  };
+  const { error } = await sb.from("noticias").insert(payload);
+  if (error) {
+    // Compatibilidad con tabla antigua sin columnas origen/ocultar_en_feed.
+    await sb.from("noticias").insert({ tipo, titulo, detalle, icono, color });
+  }
 };
 
 // ─── SHARED UI ────────────────────────────────────────────────────────────────
@@ -9072,6 +9176,93 @@ function ReportStatsDashboard({ incidents, customIncidentTypes = [], compactTitl
   </div>;
 }
 
+
+// ─── REPORTE AUTOMÁTICO: visor y descarga de consolidado ─────────────────────
+function ReporteAutomaticoPanel({ incidents = [] }) {
+  const theme = React.useContext(ThemeContext);
+  const [latest, setLatest] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [lastCheck, setLastCheck] = useState(null);
+
+  const notice = (text, color = "#2563eb") => { setMsg({ text, color }); setTimeout(() => setMsg(null), 4200); };
+  const images = parseJsonArray(latest?.image_urls || latest?.imagenes_url || latest?.jpeg_urls);
+  const pdfUrl = latest?.pdf_url || latest?.archivo_pdf || latest?.url_pdf;
+
+  const cargarUltimo = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await sb.from("reportes_operativos").select("*").order("created_at", { ascending:false }).limit(1).maybeSingle();
+      if (error) throw error;
+      setLatest(data || null);
+      setLastCheck(new Date());
+    } catch (e) {
+      console.warn("No se pudo leer reportes_operativos", e?.message || e);
+      notice("No se pudo leer la tabla reportes_operativos. Aplica la migración SQL incluida.", "#f97316");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const solicitarGeneracion = useCallback(async ({ silent = false } = {}) => {
+    try {
+      const res = await fetch("/api/reportes/generar", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ source:"web", requested_at:new Date().toISOString() }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data?.reporte) setLatest(data.reporte);
+      await cargarUltimo();
+      if (!silent) notice("Reporte actualizado.", "#22c55e");
+    } catch (e) {
+      console.warn("Generador automático no disponible", e?.message || e);
+      if (!silent) notice("El job/API de reporte automático no está configurado todavía. El SQL y worker incluidos lo preparan.", "#f97316");
+    }
+  }, [cargarUltimo]);
+
+  useEffect(() => { cargarUltimo(); }, [cargarUltimo]);
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await cargarUltimo();
+      const ts = latest?.created_at ? new Date(latest.created_at).getTime() : 0;
+      if (!ts || Date.now() - ts > 10 * 60 * 1000) solicitarGeneracion({ silent:true });
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [cargarUltimo, solicitarGeneracion, latest?.created_at]);
+
+  return (
+    <div style={{ paddingBottom:"8px" }}>
+      <div style={{ background:"linear-gradient(135deg,rgba(37,99,235,.16),rgba(15,23,42,.94))", border:"1px solid rgba(37,99,235,.28)", borderRadius:"16px", padding:"16px", marginBottom:"14px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"15px", fontWeight:800 }}>Reporte operativo automático</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(226,232,240,.68)", fontSize:"11px", marginTop:"4px" }}>Consolidado generado cada 10 minutos por el scheduler: PDF + imagen JPEG para visualización y descarga.</div>
+          </div>
+          <button onClick={()=>solicitarGeneracion()} disabled={loading} style={{ padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.48)", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:loading?"wait":"pointer" }}>{loading ? "Cargando…" : "Actualizar reporte"}</button>
+        </div>
+        {msg && <div style={{ marginTop:"10px", padding:"9px 10px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{msg.text}</div>}
+      </div>
+
+      {!latest && !loading && <div style={{ textAlign:"center", padding:"28px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"14px", color:"rgba(255,255,255,.46)", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>Aún no hay reporte generado. El worker debe crear el primer reporte o puedes solicitarlo manualmente.</div>}
+
+      {latest && <div style={{ background:"rgba(255,255,255,.07)", border:"1px solid rgba(148,163,184,.24)", borderRadius:"14px", padding:"14px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.92)", fontSize:"13px", fontWeight:800 }}>{latest.titulo || "Estatus consolidado de operación"}</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.45)", fontSize:"10px", marginTop:"3px" }}>Generado: {new Date(latest.created_at || latest.generated_at || Date.now()).toLocaleString("es-MX")}</div>
+          </div>
+          <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+            {pdfUrl && <a href={pdfUrl} download target="_blank" rel="noreferrer" style={{ padding:"8px 10px", borderRadius:"9px", background:"rgba(37,99,235,.16)", border:"1px solid rgba(37,99,235,.38)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, textDecoration:"none" }}>Descargar PDF</a>}
+            {images.map((u,i)=><a key={u+i} href={u} download target="_blank" rel="noreferrer" style={{ padding:"8px 10px", borderRadius:"9px", background:"rgba(34,197,94,.12)", border:"1px solid rgba(34,197,94,.32)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, textDecoration:"none" }}>JPEG {i+1}</a>)}
+          </div>
+        </div>
+        {images.length > 0 ? <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"12px" }}>
+          {images.map((u,i)=><img key={u+i} src={u} alt={`Reporte página ${i+1}`} style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.12)", background:"#fff" }} />)}
+        </div> : <div style={{ padding:"18px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>El reporte existe, pero no trae imágenes JPEG. Verifica la conversión PDF→JPEG del worker.</div>}
+        {lastCheck && <div style={{ marginTop:"10px", color:"rgba(255,255,255,.32)", fontFamily:getFont(theme,"secondary"), fontSize:"9px" }}>Última revisión del visor: {lastCheck.toLocaleTimeString("es-MX")}</div>}
+      </div>}
+    </div>
+  );
+}
+
 function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [reporteViewRaw, setReporteViewRaw] = useState(() => {
@@ -9238,6 +9429,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
         {[
           { id:"reportar", label:"Reportar",  icon:"megaphone", color:"#0ea5e9" },
           { id:"eventos",  label:"Eventos",   icon:"map", color:"#f97316" },
+          { id:"consolidado", label:"Reporte", icon:"document", color:"#2563eb" },
         ].map(tab => {
           const active = reporteView === tab.id;
           const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
@@ -9255,6 +9447,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       </div>
 
       {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
+      {reporteView === "consolidado" && <ReporteAutomaticoPanel incidents={incidents} />}
+
       {reporteView === "reportar" && (<>
       {isAdmin && <AdminIncidentTypesManager customIncidentTypes={customIncidentTypes} reload={loadCustomIncidentTypes} />}
 
@@ -10872,7 +11066,7 @@ function TerminalSearchBox({ value, onChange, theme }) {
         type="text"
         value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder="Buscar terminal…"
+        placeholder="Buscar terminal (ej. CONTECON)…"
         style={{
           width:"100%", padding:"8px 10px 8px 30px", background:"#0a1628",
           border:"1px solid #1e3a5f", borderRadius:"8px", color:"#e2e8f0",
@@ -10887,196 +11081,6 @@ function TerminalSearchBox({ value, onChange, theme }) {
           ✕
         </button>
       )}
-    </div>
-  );
-}
-
-
-
-// ─── UI: Slider con posiciones fijas para 2DO Acceso ─────────────────────────
-function SnapSlider({ value, options, onChange, pending = false, theme, compact = false }) {
-  const safeOptions = options && options.length ? options : [];
-  const currentIndex = Math.max(0, safeOptions.findIndex(o => o.id === value));
-  const idx = currentIndex === -1 ? 0 : currentIndex;
-  const active = safeOptions[idx] || safeOptions[0] || { color: "#64748b", label: "—" };
-  const percent = safeOptions.length <= 1 ? 0 : (idx / (safeOptions.length - 1)) * 100;
-  const commit = (raw) => {
-    const nextIdx = Math.max(0, Math.min(safeOptions.length - 1, Number(raw)));
-    const next = safeOptions[nextIdx];
-    if (next && next.id !== value) onChange(next.id);
-  };
-
-  return (
-    <div style={{ opacity: pending ? 0.66 : 1, transition:"opacity 0.18s" }}>
-      <div style={{
-        position:"relative",
-        height: compact ? "42px" : "46px",
-        borderRadius:"12px",
-        background:"rgba(15,23,42,0.72)",
-        border:`1px solid ${active.color}55`,
-        boxShadow:"inset 0 1px 2px rgba(0,0,0,0.18)",
-        padding:"5px",
-        boxSizing:"border-box",
-        overflow:"hidden"
-      }}>
-        <div style={{
-          position:"absolute",
-          top:"5px",
-          bottom:"5px",
-          left:`calc(${percent}% + ${idx === 0 ? 5 : idx === safeOptions.length - 1 ? -5 : 0}px)`,
-          width:`calc(${100 / Math.max(1, safeOptions.length)}% - 8px)`,
-          transform:`translateX(-${percent}%)`,
-          background: active.color,
-          borderRadius:"9px",
-          transition:"left 0.24s cubic-bezier(.4,0,.2,1), transform 0.24s cubic-bezier(.4,0,.2,1), background 0.2s",
-          boxShadow:"0 4px 10px rgba(15,23,42,0.22)"
-        }} />
-        <div style={{ position:"relative", zIndex:1, display:"grid", gridTemplateColumns:`repeat(${safeOptions.length}, 1fr)`, height:"100%" }}>
-          {safeOptions.map((o, i) => {
-            const selected = i === idx;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => commit(i)}
-                style={{
-                  border:0,
-                  background:"transparent",
-                  color:selected ? "#ffffff" : "rgba(226,232,240,0.68)",
-                  fontFamily:getFont(theme,"secondary"),
-                  fontSize: compact ? "10px" : "11px",
-                  fontWeight:selected ? 800 : 500,
-                  cursor:"pointer",
-                  textTransform:"none",
-                  letterSpacing:selected ? "0.2px" : 0,
-                  transition:"color 0.2s, font-weight 0.2s",
-                  padding:"0 4px",
-                  whiteSpace:"nowrap",
-                  overflow:"hidden",
-                  textOverflow:"ellipsis"
-                }}
-              >{o.label}</button>
-            );
-          })}
-        </div>
-        <input
-          aria-label="Control deslizable con posiciones fijas"
-          type="range"
-          min="0"
-          max={Math.max(0, safeOptions.length - 1)}
-          step="1"
-          value={idx}
-          onChange={e => commit(e.target.value)}
-          style={{ position:"absolute", inset:0, opacity:0, cursor:"pointer", zIndex:2 }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function TerminalAccordionSelector({ carrilId, value, onChange, search, onSearch, theme }) {
-  const [openGroups, setOpenGroups] = useState({});
-  const q = (search || "").trim().toLowerCase();
-  const selected = TODAS_TERMINALES.find(t => t.id === value) || null;
-  const groups = [
-    { id:"general", label:"General", color:"#f59e0b", items:TODAS_TERMINALES.filter(t => t.id === "general" || t.zona === "Todas") },
-    { id:"norte", label:"Zona Norte", color:"#2563eb", items:TODAS_TERMINALES.filter(t => t.zona === "Norte") },
-    { id:"sur", label:"Zona Sur", color:"#0f766e", items:TODAS_TERMINALES.filter(t => t.zona === "Sur") },
-  ].map(g => ({ ...g, items: g.items.filter(t => !q || t.name.toLowerCase().includes(q) || (t.fullName || "").toLowerCase().includes(q)) }));
-  const hasMatches = groups.some(g => g.items.length);
-
-  const choose = (id) => {
-    onChange(id);
-    onSearch("");
-    setOpenGroups({});
-  };
-
-  return (
-    <div style={{ marginBottom:"14px" }}>
-      <div style={{ fontSize:"11px", color:"rgba(226,232,240,0.72)", fontFamily:getFont(theme,"secondary"), marginBottom:"7px" }}>Terminal</div>
-      <TerminalSearchBox value={search || ""} onChange={onSearch} theme={theme} />
-      <div style={{
-        display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px",
-        background:"rgba(15,23,42,0.56)", border:"1px solid rgba(148,163,184,0.18)",
-        borderRadius:"10px", padding:"9px 10px", marginBottom:"8px"
-      }}>
-        <div>
-          <div style={{ color:"rgba(226,232,240,0.58)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Seleccionada</div>
-          <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700 }}>{selected?.name || "Sin uso"}</div>
-        </div>
-        <Badge color={selected?.zona === "Norte" ? "#2563eb" : selected?.zona === "Sur" ? "#0f766e" : "#f59e0b"} small>
-          {selected?.zona === "Todas" ? "General" : selected?.zona || "Sin uso"}
-        </Badge>
-      </div>
-
-      {groups.map(group => {
-        const isOpen = !!q || !!openGroups[group.id];
-        return (
-          <div key={group.id} style={{ marginBottom:"7px", border:"1px solid rgba(148,163,184,0.14)", borderRadius:"10px", overflow:"hidden", background:"rgba(15,23,42,0.38)" }}>
-            <button
-              type="button"
-              onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-              style={{
-                width:"100%", border:0, background:isOpen ? "rgba(255,255,255,0.06)" : "transparent",
-                color:"rgba(241,245,249,0.88)", padding:"10px 11px", cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-                fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:600
-              }}
-            >
-              <span style={{ display:"flex", alignItems:"center", gap:"8px" }}><span style={{ width:8, height:8, borderRadius:3, background:group.color, display:"inline-block" }} />{group.label}</span>
-              <span style={{ color:"rgba(226,232,240,0.48)", fontSize:"11px" }}>{isOpen ? "Ocultar" : "Ver"}</span>
-            </button>
-            {isOpen && (
-              <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", padding:"9px 10px 10px" }}>
-                {group.items.length ? group.items.map(t => {
-                  const selectedTerm = value === t.id;
-                  return (
-                    <button
-                      key={`${carrilId}-${t.id}`}
-                      type="button"
-                      onClick={() => choose(t.id)}
-                      style={{
-                        padding:"7px 10px", borderRadius:"8px",
-                        background:selectedTerm ? group.color : "rgba(255,255,255,0.04)",
-                        border:`1px solid ${selectedTerm ? group.color : "rgba(148,163,184,0.18)"}`,
-                        color:selectedTerm ? "#ffffff" : "rgba(226,232,240,0.72)",
-                        fontFamily:getFont(theme,"secondary"), fontSize:"11px",
-                        fontWeight:selectedTerm ? 800 : 500, cursor:"pointer",
-                        boxShadow:selectedTerm ? "0 5px 12px rgba(15,23,42,0.22)" : "none"
-                      }}
-                    >{t.name}</button>
-                  );
-                }) : <div style={{ color:"rgba(226,232,240,0.48)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>Sin coincidencias</div>}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {q && !hasMatches && <div style={{ color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", padding:"6px 2px" }}>Sin coincidencias para “{search}”.</div>}
-    </div>
-  );
-}
-
-function ExportacionBlock({ st, onTraffic, onPuertas, pendingTraffic, pendingPuertas, theme }) {
-  return (
-    <div style={{ background:"rgba(15,23,42,0.42)", border:"1px solid rgba(245,158,11,0.22)", borderRadius:"12px", padding:"12px", minWidth:0 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"10px" }}>
-        <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700 }}>Exportación</div>
-      </div>
-      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Tráfico</div>
-      <QuickSelectDropdown value={st.expo || "libre"} options={SEGUNDO_TRAFICO_OPTS} onChange={onTraffic} pending={pendingTraffic} theme={theme} />
-      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", margin:"12px 0 6px" }}>Estado de puertas</div>
-      <SnapSlider value={getPuertasExpoValue(st)} options={SEGUNDO_CONTENEDOR_OPTS} onChange={onPuertas} pending={pendingPuertas} theme={theme} compact />
-    </div>
-  );
-}
-
-function ImportacionBlock({ st, onTraffic, pendingTraffic, theme }) {
-  return (
-    <div style={{ background:"rgba(15,23,42,0.42)", border:"1px solid rgba(37,99,235,0.20)", borderRadius:"12px", padding:"12px", minWidth:0 }}>
-      <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700, marginBottom:"10px" }}>Importación</div>
-      <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Tráfico</div>
-      <QuickSelectDropdown value={st.impo || "libre"} options={SEGUNDO_TRAFICO_OPTS} onChange={onTraffic} pending={pendingTraffic} theme={theme} />
     </div>
   );
 }
@@ -11100,7 +11104,7 @@ function SegundoAccesoTab({ myId }) {
   const ROW_ID_CF = "confinada_acceso";
 
   const saveToSupa = async (newState) => { const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); return error; };
-  const saveConfinada = async (newState) => { const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); return error; };
+  const saveConfinada = async (newState) => { await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); };
 
   // ── Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
   const setPending = (key, on) => setPendingKeys(prev => {
@@ -11129,53 +11133,45 @@ function SegundoAccesoTab({ myId }) {
     if (!carriles) return;
     const prev = carriles;
     const key = `${id}:${field}`;
-    const patch = { [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" };
-    if (field === "estado_carril") patch.saturado = value === "saturado";
-    if (field === "saturado") patch.estado_carril = value ? "saturado" : "libre";
-    const next = { ...carriles, [id]: { ...carriles[id], ...patch } };
+    const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
       setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
       return;
     }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "estado_carril" ? (SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === value)?.label || value) : field === "expo_contenedor" ? (SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || value) : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
     await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril actualizado", "#22c55e");
+    notify("✓ Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const fieldLabel = field === "estado_carril" ? `Estado: ${valorLabelAudit}` : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "expo_contenedor" ? `Puertas: ${valorLabelAudit}` : (value ? "Con retornos" : "Sin retornos");
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
     const prev = carriles;
     const key = `c4:${field}`;
-    const patch = { [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" };
-    if (field === "estado_carril") patch.saturado = value === "saturado";
-    if (field === "saturado") patch.estado_carril = value ? "saturado" : "libre";
-    const next = { ...carriles, c4: { ...carriles.c4, ...patch } };
+    const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
       setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
       return;
     }
-    const valorLabel = field === "estado_carril" ? (SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === value)?.label || value) : field === "expo_contenedor" ? (SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || value) : String(value);
-    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:valorLabel, summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${valorLabel}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril de salida actualizado", "#22c55e");
+    await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Carril de salida actualizado", "#22c55e");
     const fieldLabel =
-      field === "estado_carril" ? `Estado: ${valorLabel}` :
       field === "saturado" ? (value ? "Saturado" : "Libre") :
       field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
       field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
       field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-      field === "expo_contenedor" ? `Puertas: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
+      field === "expo_contenedor" ? `Contenedor: ${SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || "sin selección"}` :
       "Actualizado";
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
@@ -11187,7 +11183,7 @@ function SegundoAccesoTab({ myId }) {
   };
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: "no_horario", impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril restablecido", "#22c55e");
@@ -11196,43 +11192,16 @@ function SegundoAccesoTab({ myId }) {
   // ── Handlers CONFINADA ──
   const updateConfinada = async (id, field, value) => {
     if (!confinada) return;
-    const prev = confinada;
-    const key = `${id}:${field}`;
-    const patch = { [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" };
-    if (field === "estado_carril") patch.saturado = value === "saturado";
-    if (field === "saturado") patch.estado_carril = value ? "saturado" : "libre";
-    if (field === "expo_contenedor" && !value) patch.expo_contenedor = "no_horario";
-    const next = { ...confinada, [id]: { ...confinada[id], ...patch } };
+    const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setConfinada(next);
-    setPending(key, true);
-    const error = await saveConfinada(next);
-    setPending(key, false);
-    if (error) {
-      setConfinada(prev);
-      notify("No se pudo guardar, se revirtió el cambio", "#ef4444");
-      return;
-    }
+    await saveConfinada(next);
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
-    const valorLabelAudit =
-      field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
-      field === "estado_carril" ? (SEGUNDO_LANE_STATUS_OPTS.find(o => o.id === value)?.label || value) :
-      field === "expo_contenedor" ? (SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === value)?.label || value) :
-      field === "transferencia" ? (value ? "Transferencia" : "Sin transferencia") :
-      field === "saturado" ? (value ? "Saturado" : "Libre") :
-      String(value);
-    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril Confinada actualizado", "#a78bfa");
+    const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
+    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
-    const fieldLabel =
-      field === "estado_carril" ? `Estado: ${valorLabelAudit}` :
-      field === "transferencia" ? valorLabelAudit :
-      field === "expo_contenedor" ? `Puertas: ${valorLabelAudit}` :
-      field === "expo" ? `Exportación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-      field === "impo" ? `Importación: ${SEGUNDO_TRAFICO_OPTS.find(o => o.id === value)?.label || value}` :
-      field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
-      field === "saturado" ? (value ? "Saturado" : "Libre") :
-      "Actualizado";
-    await publicarNoticia({ tipo: "segundo", icono: "lock", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
+    const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
+    await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const resetAllConfinada = async () => {
     const next = mkConfinadaState();
@@ -11242,7 +11211,7 @@ function SegundoAccesoTab({ myId }) {
   };
   const resetOneConfinada = async (id) => {
     const def = CONFINADA_CARRILES.find(c => c.id === id);
-    const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: "no_horario", impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
     await saveConfinada(next);
     notify("✓ Carril restablecido", "#a78bfa");
@@ -11309,8 +11278,8 @@ function SegundoAccesoTab({ myId }) {
 
   {/* C4 — SALIDA (ciudad, verde/rojo) */}
   {(() => {
-    const c4Opt = getSegundoLaneOpt(carriles?.c4 || {});
-    const c4col = c4Opt.color;
+    const c4sat = carriles?.c4?.saturado;
+    const c4col = c4sat ? "#ef4444" : "#22c55e";
     return (
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
         
@@ -11329,7 +11298,7 @@ function SegundoAccesoTab({ myId }) {
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
           <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>
-            {c4Opt.label.toUpperCase()}
+            {c4sat ? "SATURADO" : "LIBRE"}
           </div>
         </div>
       </div>
@@ -11338,9 +11307,9 @@ function SegundoAccesoTab({ myId }) {
 
   {/* C1, C2, C3 — INGRESO (puerto) */}
   {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
-    const st  = carriles?.[c.id] || {};
-    const laneOpt = getSegundoLaneOpt(st);
-    const col = laneOpt.color;
+    const st  = carriles?.[c.id];
+    const sat = st?.saturado;
+    const col = sat ? "#ef4444" : "#14b8a6";
     const tz  = getTermZona(st?.terminal);
     const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
 
@@ -11397,179 +11366,222 @@ function SegundoAccesoTab({ myId }) {
 
         <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
         {SEGUNDO_CARRILES_INGRESO.map(carril => {
-          const st = carriles[carril.id] || {};
-          const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = termObj?.zona === "Todas" ? "#f59e0b" : termObj?.zona === "Norte" ? "#2563eb" : "#0f766e";
-          const laneOpt = getSegundoLaneOpt(st);
+          const st        = carriles[carril.id];
+          const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
+          const zonaColor = termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === getPuertasExpoValue(st));
+          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const isChanged = getSegundoLaneStatus(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || getPuertasExpoValue(st) !== "no_horario";
+          const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.color}44`, borderRadius:"14px", padding:"14px", marginBottom:"14px", boxShadow:"0 10px 24px rgba(15,23,42,0.12)" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px", gap:"10px" }}>
+            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
                 <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
-                    <div style={{ background:"rgba(37,99,235,0.16)", border:"1px solid rgba(37,99,235,0.28)", borderRadius:"8px", padding:"4px 10px", color:"#dbeafe", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    <Badge color="#22c55e" small>Ingreso</Badge>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                    <div style={{ background:"#38bdf822", border:"1px solid #38bdf844", borderRadius:"6px", padding:"3px 10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
+                    <Badge color="#22c55e" small>INGRESO</Badge>
                   </div>
-                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={laneOpt.color} small>{laneOpt.label}</Badge>
-                    {st.retornos && <Badge color="#f59e0b" small>Retornos</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>Expo {expoOpt.label}</Badge>}
-                    {expoContOpt && expoContOpt.id !== "no_horario" && <Badge color={expoContOpt.color} small>Puertas {expoContOpt.label}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>Impo {impoOpt.label}</Badge>}
+                    <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
+                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
+                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
+                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
+                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
                   </div>
-                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"4px 9px", background:"rgba(34,197,94,0.14)", border:"1px solid rgba(34,197,94,0.34)", borderRadius:"7px", color:"#86efac", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>Restablecer</button>}
+                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
                 </div>
               </div>
-
-              <div style={{ background:zonaColor+"18", border:`1px solid ${zonaColor}44`, borderRadius:"10px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px" }}>
+              <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
-                  <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.56)", fontFamily:getFont(theme, "secondary"), marginBottom:"2px" }}>Terminal asignada hoy</div>
-                  <div style={{ color:"#f8fafc", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name || "Sin uso"}</div>
-                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", marginTop:"1px" }}>{termObj?.zona === "Todas" ? "Todas las terminales" : termObj?.zona ? `Zona ${termObj.zona}` : "Sin terminal asignada"}</div>
+                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
+                  <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
+                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
+                    {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
+                  </div>
                 </div>
-                <AppIcon name="freight-truck" size={28} active />
+                <span style={{ fontSize:"22px" }}>🚛</span>
               </div>
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
 
-              <TerminalAccordionSelector
-                carrilId={carril.id}
-                value={st.terminal}
-                onChange={(v) => updateIngreso(carril.id,"terminal",v)}
-                search={terminalSearch[carril.id] || ""}
-                onSearch={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
+              {/* Buscador de terminal — atajo adicional, no reemplaza los botones */}
+              <TerminalSearchBox
+                value={terminalSearch[carril.id] || ""}
+                onChange={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
                 theme={theme}
               />
 
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"7px" }}>
-                  <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600 }}>Estado del carril</div>
-                  <span style={{ color:laneOpt.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{laneOpt.label}</span>
-                </div>
-                <SnapSlider
-                  value={getSegundoLaneStatus(st)}
-                  options={SEGUNDO_LANE_STATUS_OPTS}
-                  onChange={(v) => updateIngreso(carril.id,"estado_carril",v)}
-                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
+              {(() => {
+                const q = (terminalSearch[carril.id] || "").trim().toLowerCase();
+                const matches = (name) => !q || name.toLowerCase().includes(q);
+                const showGeneral = matches("general");
+                const filteredNorte = termsNorte.filter(t => matches(t.name));
+                const filteredSur = termsSur.filter(t => matches(t.name));
+                const nada = q && !showGeneral && filteredNorte.length === 0 && filteredSur.length === 0;
+                return (
+                  <>
+                    {showGeneral && (
+                      <div style={{ marginBottom:"8px" }}>
+                        <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
+                        </div>
+                      </div>
+                    )}
+                    {filteredNorte.length > 0 && (
+                      <div style={{ marginBottom:"8px" }}>
+                        <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          {filteredNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                        </div>
+                      </div>
+                    )}
+                    {filteredSur.length > 0 && (
+                      <div style={{ marginBottom:"10px" }}>
+                        <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
+                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                          {filteredSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                        </div>
+                      </div>
+                    )}
+                    {nada && (
+                      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:getFont(theme, "secondary"), padding:"6px 2px", marginBottom:"8px" }}>Sin coincidencias para "{terminalSearch[carril.id]}"</div>
+                    )}
+                  </>
+                );
+              })()}
+
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
+              <div style={{ marginBottom:"8px" }}>
+                <SegmentedToggle
+                  value={!!st.saturado}
+                  onChange={(v) => updateIngreso(carril.id,"saturado",v)}
+                  leftLabel="LIBRE" rightLabel="SATURADO"
+                  leftColor="#22c55e" rightColor="#ef4444"
+                  pending={!!pendingKeys[`${carril.id}:saturado`]}
                   theme={theme}
                 />
               </div>
-
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600, marginBottom:"7px" }}>Retornos</div>
-                <SnapSlider
-                  value={st.retornos ? "con" : "sin"}
-                  options={SEGUNDO_RETORNO_OPTS}
-                  onChange={(v) => updateIngreso(carril.id,"retornos",v === "con")}
+              <div style={{ marginBottom:"10px" }}>
+                <SegmentedToggle
+                  value={!!st.retornos}
+                  onChange={(v) => updateIngreso(carril.id,"retornos",v)}
+                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+                  leftColor="#22c55e" rightColor="#f97316"
                   pending={!!pendingKeys[`${carril.id}:retornos`]}
                   theme={theme}
-                  compact
                 />
               </div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-                <ExportacionBlock
-                  st={st}
-                  onTraffic={(v) => updateIngreso(carril.id,"expo",v)}
-                  onPuertas={(v) => updateIngreso(carril.id,"expo_contenedor",v)}
-                  pendingTraffic={!!pendingKeys[`${carril.id}:expo`]}
-                  pendingPuertas={!!pendingKeys[`${carril.id}:expo_contenedor`]}
-                  theme={theme}
-                />
-                <ImportacionBlock
-                  st={st}
-                  onTraffic={(v) => updateIngreso(carril.id,"impo",v)}
-                  pendingTraffic={!!pendingKeys[`${carril.id}:impo`]}
-                  theme={theme}
-                />
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                <div>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+                  <QuickSelectDropdown
+                    value={st.expo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"expo",v)}
+                    pending={!!pendingKeys[`${carril.id}:expo`]}
+                    theme={theme}
+                  />
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
+                  <QuickSelectDropdown
+                    value={st.expo_contenedor}
+                    options={SEGUNDO_CONTENEDOR_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
+                    placeholder="— Sin especificar —"
+                    allowClear
+                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+                    theme={theme}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+                  <QuickSelectDropdown
+                    value={st.impo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateIngreso(carril.id,"impo",v)}
+                    pending={!!pendingKeys[`${carril.id}:impo`]}
+                    theme={theme}
+                  />
+                </div>
               </div>
             </div>
           );
         })}
 
         <SectionLabel text="CARRIL DE SALIDA (C4)" />
-        {(() => {
-          const st = carriles.c4 || {};
-          const laneOpt = getSegundoLaneOpt(st);
-          const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === getPuertasExpoValue(st));
-          const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          return (
-            <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.color}44`, borderRadius:"14px", padding:"14px", marginBottom:"14px", boxShadow:"0 10px 24px rgba(15,23,42,0.12)" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px", gap:"10px" }}>
-                <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
-                    <div style={{ background:"rgba(249,115,22,0.16)", border:"1px solid rgba(249,115,22,0.30)", borderRadius:"8px", padding:"4px 10px", color:"#fed7aa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
-                    <Badge color="#f59e0b" small>Salida</Badge>
-                    <Badge color={laneOpt.color} small>{laneOpt.label}</Badge>
-                  </div>
-                  <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                </div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                  {st.retornos && <Badge color="#f59e0b" small>Retornos</Badge>}
-                  {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>Expo {expoOpt.label}</Badge>}
-                  {expoContOpt && expoContOpt.id !== "no_horario" && <Badge color={expoContOpt.color} small>Puertas {expoContOpt.label}</Badge>}
-                  {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>Impo {impoOpt.label}</Badge>}
-                </div>
+        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${carriles.c4.saturado?"#ef444466":"#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                <div style={{ background:"#f9731622", border:"1px solid #f9731644", borderRadius:"6px", padding:"3px 10px", color:"#f97316", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
+                <Badge color="#f97316" small>SALIDA</Badge>
               </div>
-
-              <div style={{ background:"rgba(249,115,22,0.10)", border:"1px solid rgba(249,115,22,0.22)", borderRadius:"10px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
-                <AppIcon name="freight-truck" size={28} active />
-                <div>
-                  <div style={{ color:"#fed7aa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px" }}>Salida general del puerto</div>
-                  <div style={{ color:"rgba(255,255,255,0.44)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
-                </div>
-              </div>
-
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"7px" }}>
-                  <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600 }}>Estado del carril</div>
-                  <span style={{ color:laneOpt.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{laneOpt.label}</span>
-                </div>
-                <SnapSlider
-                  value={getSegundoLaneStatus(st)}
-                  options={SEGUNDO_LANE_STATUS_OPTS}
-                  onChange={(v) => updateSalida("estado_carril",v)}
-                  pending={!!pendingKeys["c4:estado_carril"]}
-                  theme={theme}
-                />
-              </div>
-
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.78)", fontFamily:getFont(theme, "secondary"), fontWeight:600, marginBottom:"7px" }}>Retornos</div>
-                <SnapSlider
-                  value={st.retornos ? "con" : "sin"}
-                  options={SEGUNDO_RETORNO_OPTS}
-                  onChange={(v) => updateSalida("retornos",v === "con")}
-                  pending={!!pendingKeys["c4:retornos"]}
-                  theme={theme}
-                  compact
-                />
-              </div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-                <ExportacionBlock
-                  st={st}
-                  onTraffic={(v) => updateSalida("expo",v)}
-                  onPuertas={(v) => updateSalida("expo_contenedor",v)}
-                  pendingTraffic={!!pendingKeys["c4:expo"]}
-                  pendingPuertas={!!pendingKeys["c4:expo_contenedor"]}
-                  theme={theme}
-                />
-                <ImportacionBlock
-                  st={st}
-                  onTraffic={(v) => updateSalida("impo",v)}
-                  pendingTraffic={!!pendingKeys["c4:impo"]}
-                  theme={theme}
-                />
-              </div>
+              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
             </div>
-          );
-        })()}
+            <Badge color={carriles.c4.saturado?"#ef4444":"#22c55e"} small>{carriles.c4.saturado?"SATURADO":"FLUIDO"}</Badge>
+          </div>
+          <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
+            <span style={{ fontSize:"22px" }}>🚚</span>
+            <div>
+              <div style={{ color:"#f97316", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px" }}>Salida General del Puerto</div>
+              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
+            </div>
+          </div>
+          <div style={{ marginBottom:"8px" }}>
+            <SegmentedToggle
+              value={!!carriles.c4.saturado}
+              onChange={(v) => updateSalida("saturado",v)}
+              leftLabel="FLUIDO" rightLabel="SATURADO"
+              leftColor="#22c55e" rightColor="#ef4444"
+              pending={!!pendingKeys["c4:saturado"]}
+              theme={theme}
+            />
+          </div>
+          <div style={{ marginBottom:"10px" }}>
+            <SegmentedToggle
+              value={!!carriles.c4.retornos}
+              onChange={(v) => updateSalida("retornos",v)}
+              leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+              leftColor="#22c55e" rightColor="#f97316"
+              pending={!!pendingKeys["c4:retornos"]}
+              theme={theme}
+            />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+            <div>
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.expo || "libre"}
+                options={SEGUNDO_TRAFICO_OPTS}
+                onChange={(v) => updateSalida("expo",v)}
+                pending={!!pendingKeys["c4:expo"]}
+                theme={theme}
+              />
+              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.expo_contenedor}
+                options={SEGUNDO_CONTENEDOR_OPTS}
+                onChange={(v) => updateSalida("expo_contenedor", v)}
+                placeholder="— Sin especificar —"
+                allowClear
+                pending={!!pendingKeys["c4:expo_contenedor"]}
+                theme={theme}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+              <QuickSelectDropdown
+                value={carriles.c4.impo || "libre"}
+                options={SEGUNDO_TRAFICO_OPTS}
+                onChange={(v) => updateSalida("impo",v)}
+                pending={!!pendingKeys["c4:impo"]}
+                theme={theme}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* ── Segundo Acceso Por Fases ── */}
         <div style={{ marginTop:"8px" }}>
@@ -11593,11 +11605,9 @@ function SegundoAccesoTab({ myId }) {
         {(() => {
           const getCarrilColor = (id) => {
             const st = confinada[id];
-            const laneStatus = getSegundoLaneStatus(st);
-            if (!st || st.terminal === "sin_uso" || laneStatus === "sin_uso") return "#64748b";
-            if (laneStatus === "saturado" || st.saturado) return "#ef4444";
-            if (st.transferencia) return "#f59e0b";
-            if (laneStatus === "moderado") return "#f59e0b";
+            if (!st || st.terminal === "sin_uso") return "#6b7280";
+            if (st.saturado) return "#ef4444";
+            if (st.transferencia) return "#fbbf24";
             return "#22c55e";
           };
           const c1 = getCarrilColor("cf_c1");
@@ -11607,10 +11617,10 @@ function SegundoAccesoTab({ myId }) {
           const getTermShort = (id) => {
             const st = confinada[id];
             if (!st) return "—";
-            if (st.terminal === "sin_uso" || getSegundoLaneStatus(st) === "sin_uso") return "SIN USO";
+            if (st.terminal === "sin_uso") return "SIN USO";
             if (st.terminal === "general") return "GENERAL";
             const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
-            return found ? found.name : st.terminal?.toUpperCase?.() || "—";
+            return found ? found.name : st.terminal.toUpperCase();
           };
           const t1 = getTermShort("cf_c1");
           const t2 = getTermShort("cf_c2");
@@ -11618,34 +11628,56 @@ function SegundoAccesoTab({ myId }) {
 
           return (
             <div style={{ background:"rgba(4,10,22,0.95)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"10px 12px", marginBottom:"16px" }}>
+              {/* Header */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
-                <span style={{ fontSize:"9px", color:"rgba(167,139,250,0.7)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>Zona confinada · vista vial</span>
+                <span style={{ fontSize:"9px", color:"rgba(167,139,250,0.7)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>ZONA CONFINADA · VISTA VIAL</span>
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.25)", fontFamily:getFont(theme, "secondary") }}>→ entrada puerto</span>
               </div>
 
+              {/* SVG compacto */}
               <svg viewBox="0 0 300 72" style={{ width:"100%", height:"auto", display:"block" }} xmlns="http://www.w3.org/2000/svg">
+                {/* Fondo carretera */}
                 <rect width="300" height="72" fill="#0a0f1a" rx="6"/>
+
+                {/* Zona entrada (derecha) */}
                 <rect x="268" y="0" width="32" height="72" fill="#071828" rx="0"/>
                 <line x1="268" y1="0" x2="268" y2="72" stroke="rgba(56,189,248,0.35)" strokeWidth="1" strokeDasharray="4,3"/>
                 <text x="284" y="40" textAnchor="middle" fill="rgba(56,189,248,0.5)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,284,40)">PUERTO</text>
+
+                {/* Zona salida (izquierda) */}
                 <rect x="0" y="0" width="28" height="72" fill="#071a09" rx="0"/>
                 <line x1="28" y1="0" x2="28" y2="72" stroke="rgba(34,197,94,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
                 <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">2° ACCESO</text>
 
-                {[{id:"cf_c1",y:2,c:c1,t:t1,label:"C1"},{id:"cf_c2",y:26,c:c2,t:t2,label:"C2"},{id:"cf_c3",y:50,c:c3,t:t3,label:"C3"}].map(row => (
-                  <g key={row.id}>
-                    <rect x="28" y={row.y} width="240" height="20" fill={row.c + "20"} rx="2"/>
-                    <line x1="28" y1={row.y} x2="268" y2={row.y} stroke={row.c} strokeWidth="1.5" opacity="0.6"/>
-                    <line x1="28" y1={row.y + 20} x2="268" y2={row.y + 20} stroke={row.id === "cf_c3" ? row.c : "rgba(255,255,255,0.08)"} strokeWidth="1" strokeDasharray={row.id === "cf_c3" ? "" : "6,5"} opacity="0.8"/>
-                    <rect x="28" y={row.y} width="3" height="20" fill={row.c} opacity="0.9"/>
-                    <text x="32" y={row.y + 13} fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">{row.label}</text>
-                    <text x="148" y={row.y + 13} textAnchor="middle" fill={row.c} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{row.t}</text>
-                  </g>
-                ))}
+                {/* ── Carril 1 — franja superior ── */}
+                <rect x="28" y="2" width="240" height="20" fill={c1 + "20"} rx="2"/>
+                <line x1="28" y1="2"  x2="268" y2="2"  stroke={c1} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="22" x2="268" y2="22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
+                <rect x="28" y="2" width="3" height="20" fill={c1} opacity="0.9"/>
+                <text x="32" y="15" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C1</text>
+                {/* Terminal en centro */}
+                <text x="148" y="15" textAnchor="middle" fill={c1} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t1}</text>
+
+                {/* ── Carril 2 — franja media ── */}
+                <rect x="28" y="26" width="240" height="20" fill={c2 + "20"} rx="2"/>
+                <line x1="28" y1="26" x2="268" y2="26" stroke={c2} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="46" x2="268" y2="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
+                <rect x="28" y="26" width="3" height="20" fill={c2} opacity="0.9"/>
+                <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
+                <text x="148" y="39" textAnchor="middle" fill={c2} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t2}</text>
+
+                {/* ── Carril 3 — franja inferior ── */}
+                <rect x="28" y="50" width="240" height="20" fill={c3 + "20"} rx="2"/>
+                <line x1="28" y1="50" x2="268" y2="50" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
+                <line x1="28" y1="70" x2="268" y2="70" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
+                <rect x="28" y="50" width="3" height="20" fill={c3} opacity="0.9"/>
+                <text x="32" y="63" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C3</text>
+                <text x="148" y="63" textAnchor="middle" fill={c3} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t3}</text>
               </svg>
 
+              {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#f59e0b","Moderado / transferencia"],["#ef4444","Saturado"],["#64748b","Sin uso"]].map(([c,l]) => (
+                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","2° Acceso"],["#6b7280","Sin uso"]].map(([c,l]) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -11656,117 +11688,118 @@ function SegundoAccesoTab({ myId }) {
           );
         })()}
 
-        <SectionLabel text="Carriles de ingreso (C1–C3) · Zona confinada" rightBtn={<NormalBtn onClick={resetAllConfinada} label="Todo normal" />} />
+        <SectionLabel text="CARRILES DE INGRESO (C1–C3) · ZONA SUR" rightBtn={<NormalBtn onClick={resetAllConfinada} label="TODO NORMAL" />} />
 
         {CONFINADA_CARRILES.map(carril => {
-          const st = confinada[carril.id] || {};
+          const st = confinada[carril.id];
           const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const laneOpt = getSegundoLaneOpt(st);
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === getPuertasExpoValue(st));
+          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = laneOpt?.color || "#a78bfa";
-          const isChanged = getSegundoLaneStatus(st) !== "libre" || st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || getPuertasExpoValue(st) !== "no_horario";
-          const setSearch = (value) => setTerminalSearch(prev => ({ ...prev, [`cf:${carril.id}`]: value }));
-          const pending = (field) => !!pendingKeys[`${carril.id}:${field}`];
+          const borderColor = st.terminal==="sin_uso" ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
+          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="sin_uso" || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}55`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:"0 8px 22px rgba(15,23,42,0.18)" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px", gap:"10px" }}>
+            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+              {/* Header carril */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
                 <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
                     <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa44", borderRadius:"6px", padding:"3px 10px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    <Badge color={laneOpt.color} small>{laneOpt.label}</Badge>
-                    {st.retornos && <Badge color="#f59e0b" small>Retornos</Badge>}
-                    {st.transferencia && <Badge color="#f59e0b" small>Transferencia</Badge>}
+                    {st.terminal === "sin_uso"
+                      ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
+                      : <Badge color="#22c55e" small>INGRESO</Badge>
+                    }
+                    {st.transferencia && st.terminal !== "sin_uso" && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
                   </div>
                   <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>Expo {expoOpt.label}</Badge>}
-                    {expoContOpt && getPuertasExpoValue(st) !== "no_horario" && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>Impo {impoOpt.label}</Badge>}
+                    <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
+                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
+                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
+                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
+                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
                   </div>
-                  {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"3px 8px", background:"#a78bfa15", border:"1px solid #a78bfa44", borderRadius:"5px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>Normal</button>}
+                  {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"3px 8px", background:"#a78bfa15", border:"1px solid #a78bfa44", borderRadius:"5px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
                 </div>
               </div>
 
-              <div style={{ background:"rgba(15,23,42,0.42)", border:"1px solid rgba(148,163,184,0.15)", borderRadius:"10px", padding:"10px", marginBottom:"12px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px" }}>
+              {/* Terminal asignada */}
+              <div style={{ background: st.terminal==="sin_uso" ? "#6b728011" : st.terminal==="general" ? "#fbbf2411" : "#a78bfa11", border:`1px solid ${st.terminal==="sin_uso"?"#6b728033":st.terminal==="general"?"#fbbf2433":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
-                  <div style={{ color:"rgba(226,232,240,0.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Terminal actual</div>
-                  <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontWeight:700, fontSize:"14px" }}>{termObj?.name || (st.terminal === "sin_uso" ? "Sin uso" : "General")}</div>
-                  <div style={{ color:"rgba(226,232,240,0.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"1px" }}>{termObj?.zona === "Todas" ? "General" : termObj?.zona ? `Zona ${termObj.zona}` : ""}</div>
+                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
+                  {st.terminal === "sin_uso"
+                    ? <><div style={{ color:"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
+                    : st.terminal === "general"
+                    ? <><div style={{ color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>GENERAL</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todas las terminales</div></>
+                    : <><div style={{ color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
+                  }
                 </div>
-                <AppIcon name={st.transferencia ? "route" : "lock"} size={24} active />
+                <span style={{ fontSize:"22px" }}>{st.terminal === "sin_uso" ? "🚫" : "🚛"}</span>
               </div>
 
-              <TerminalAccordionSelector
-                carrilId={`cf-${carril.id}`}
-                value={st.terminal || "general"}
-                onChange={(terminal) => updateConfinada(carril.id,"terminal",terminal)}
-                search={terminalSearch[`cf:${carril.id}`] || ""}
-                onSearch={setSearch}
-                theme={theme}
-              />
-
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Estado del carril</div>
-                <SnapSlider
-                  value={getSegundoLaneStatus(st)}
-                  options={SEGUNDO_LANE_STATUS_OPTS}
-                  onChange={(value) => updateConfinada(carril.id,"estado_carril",value)}
-                  pending={pending("estado_carril")}
-                  theme={theme}
-                />
-              </div>
-
-              <div style={{ marginBottom:"12px" }}>
-                <div style={{ color:"rgba(226,232,240,0.68)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"6px" }}>Retornos</div>
-                <SnapSlider
-                  value={st.retornos ? "con" : "sin"}
-                  options={SEGUNDO_RETORNO_OPTS}
-                  onChange={(value) => updateConfinada(carril.id,"retornos",value === "con")}
-                  pending={pending("retornos")}
-                  theme={theme}
-                  compact
-                />
-              </div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))", gap:"10px", marginBottom:"12px" }}>
-                <ExportacionBlock
-                  st={st}
-                  onTraffic={(value) => updateConfinada(carril.id,"expo",value)}
-                  onPuertas={(value) => updateConfinada(carril.id,"expo_contenedor",value)}
-                  pendingTraffic={pending("expo")}
-                  pendingPuertas={pending("expo_contenedor")}
-                  theme={theme}
-                />
-                <ImportacionBlock
-                  st={st}
-                  onTraffic={(value) => updateConfinada(carril.id,"impo",value)}
-                  pendingTraffic={pending("impo")}
-                  theme={theme}
-                />
-              </div>
-
-              <div style={{ background: st.transferencia ? "rgba(245,158,11,0.14)" : "rgba(37,99,235,0.10)", border:`1px solid ${st.transferencia ? "rgba(245,158,11,0.34)" : "rgba(37,99,235,0.26)"}`, borderRadius:"12px", padding:"12px" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"8px", gap:"10px" }}>
-                  <div>
-                    <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:700 }}>Transferencia de Aduana</div>
-                    <div style={{ color:"rgba(226,232,240,0.58)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>
-                      {st.transferencia ? "Transferencia activa en esta vialidad." : "Estado normal; sin transferencia activa."}
-                    </div>
-                  </div>
-                  <AppIcon name="route" size={22} active />
+              {/* Cambiar terminal — General + Zona Sur + Sin Uso */}
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
+              <div style={{ marginBottom:"8px" }}>
+                <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                  <button onClick={() => updateConfinada(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
                 </div>
-                <SnapSlider
-                  value={st.transferencia ? "transferencia" : "sin_transferencia"}
-                  options={CONFINADA_TRANSFERENCIA_OPTS}
-                  onChange={(value) => updateConfinada(carril.id,"transferencia",value === "transferencia")}
-                  pending={pending("transferencia")}
-                  theme={theme}
-                  compact
-                />
+              </div>
+              <div style={{ marginBottom:"8px" }}>
+                <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                  {termsSur.map(t => <button key={t.id} onClick={() => updateConfinada(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
+                </div>
+              </div>
+              <div style={{ marginBottom:"10px" }}>
+                <div style={{ fontSize:"9px", color:"#6b7280", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— SIN USO —</div>
+                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+                  <button onClick={() => updateConfinada(carril.id,"terminal","sin_uso")} style={{ padding:"5px 10px", background: st.terminal==="sin_uso"?"#6b728022":"#0a1628", border:`1px solid ${st.terminal==="sin_uso"?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="sin_uso"?"#9ca3af":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="sin_uso"?"700":"400" }}>🚫 Sin uso</button>
+                </div>
+              </div>
+
+              {/* Estado del carril */}
+              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
+                <button onClick={() => updateConfinada(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
+                <button onClick={() => updateConfinada(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
+                <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
+                <button onClick={() => updateConfinada(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
+              </div>
+
+              {/* Tráfico expo/impo */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+                <div>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
+                  <select value={st.expo || "libre"} onChange={e => updateConfinada(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
+                  </select>
+                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
+                  <select value={st.expo_contenedor || ""} onChange={e => updateConfinada(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
+                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
+                  <select value={st.impo || "libre"} onChange={e => updateConfinada(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
+                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Transferencia de Aduana — al final */}
+              <div style={{ background: st.transferencia ? "#fbbf2415" : "rgba(255,255,255,0.03)", border:`1px solid ${st.transferencia?"#fbbf2466":"rgba(255,255,255,0.08)"}`, borderRadius:"10px", padding:"12px" }}>
+                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 SEGUNDO ACCESO</div>
+                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), marginBottom:"8px" }}>Indica si este carril opera como Segundo Acceso.</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>NORMAL</button>
+                  <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
+                </div>
               </div>
             </div>
           );
@@ -12066,7 +12099,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       if (upErr) throw upErr;
       const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
       
-      const { error: insErr } = await sb.from("comunicados").insert({
+      const { data: comunicadoInsertado, error: insErr } = await sb.from("comunicados").insert({
         titulo: titulo.trim(),
         detalle: detalle.trim() || null,
         archivo_url: publicUrl,
@@ -12075,8 +12108,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         fecha_fin: fin,
         aprobado: isAdmin === true,
         created_at: new Date().toISOString()
-      });
+      }).select("*").single();
       if (insErr) throw insErr;
+
+      // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
+      if (isAdmin === true && comunicadoInsertado) {
+        await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: true });
+      }
 
       setExito(true);
       setTitulo("");
@@ -12284,6 +12322,11 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
       alert("No se pudo aprobar el comunicado. Revisa las políticas RLS de Supabase para UPDATE en la tabla comunicados.");
       cargarPendientes();
       return;
+    }
+
+    // Replica a Noticias sin aprobación adicional.
+    if (data?.[0]) {
+      await syncComunicadoToNoticia(data[0], { processMedia: true });
     }
 
     // UI inmediata: lo quitamos de pendientes sin esperar realtime.
@@ -12608,6 +12651,156 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
 }
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
+function NoticiasAdminPublisher({ onPublished }) {
+  const theme = React.useContext(ThemeContext);
+  const [titulo, setTitulo] = useState("");
+  const [categoria, setCategoria] = useState("comunicado");
+  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [texto, setTexto] = useState("");
+  const [files, setFiles] = useState([]);
+  const [mediaUrls, setMediaUrls] = useState([]);
+  const [pdfUrls, setPdfUrls] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const inputRef = useRef(null);
+
+  const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  const setNotice = (text, color = "#2563eb") => { setMsg({ text, color }); setTimeout(() => setMsg(null), 3500); };
+
+  const onFiles = (e) => {
+    const selected = Array.from(e.target.files || []);
+    const bad = selected.find(f => !allowed.includes(f.type));
+    if (bad) return setNotice("Solo se permiten JPG, PNG, WEBP y PDF.", "#ef4444");
+    const tooLarge = selected.find(f => f.size > 15 * 1024 * 1024);
+    if (tooLarge) return setNotice("Cada archivo debe pesar máximo 15 MB.", "#ef4444");
+    setFiles(selected);
+    setMediaUrls(selected.filter(f => f.type.startsWith("image/")).map(f => URL.createObjectURL(f)));
+    setPdfUrls(selected.filter(f => f.type === "application/pdf").map(f => f.name));
+  };
+
+  const uploadFiles = async () => {
+    const uploadedImages = [];
+    const uploadedPdfs = [];
+    for (const file of files) {
+      const ext = sanitizeStorageName(file.name.split(".").pop() || (file.type === "application/pdf" ? "pdf" : "jpg"));
+      const path = `noticias/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizeStorageName(file.name)}`;
+      const { error } = await sb.storage.from("noticias").upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+      if (file.type === "application/pdf") uploadedPdfs.push({ url: publicUrl, type: file.type, path });
+      else uploadedImages.push(publicUrl);
+    }
+    return { uploadedImages, uploadedPdfs };
+  };
+
+  const procesar = async () => {
+    if (!files.length) return setNotice("Selecciona una imagen o PDF para procesar.", "#f97316");
+    setBusy(true);
+    try {
+      const { uploadedImages, uploadedPdfs } = await uploadFiles();
+      let allImages = [...uploadedImages];
+      let extracted = "";
+      for (const img of uploadedImages) {
+        const r = await callMediaProcessor({ action: "image_ocr", sourceUrl: img, fileType: "image/*", title: titulo, bucketPath: "noticias/ocr" });
+        if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+      }
+      for (const pdf of uploadedPdfs) {
+        const r = await callMediaProcessor({ action: "pdf_to_images_ocr", sourceUrl: pdf.url, fileType: pdf.type, title: titulo, bucketPath: "noticias/pdf" });
+        allImages = [...allImages, ...parseJsonArray(r?.image_urls)];
+        if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+      }
+      setMediaUrls(allImages);
+      setPdfUrls(uploadedPdfs.map(p => p.url));
+      if (extracted.trim()) setTexto(prev => [prev, extracted.trim()].filter(Boolean).join("\n\n"));
+      setNotice(extracted.trim() ? "Texto extraído. Revísalo antes de publicar." : "Archivos cargados. OCR no devolvió texto o el servicio no está configurado.", extracted.trim() ? "#22c55e" : "#f97316");
+      setFiles([]);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (e) {
+      console.error(e);
+      setNotice("No se pudo procesar. Verifica el bucket 'noticias' y la API de OCR/PDF.", "#ef4444");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publicar = async () => {
+    if (!titulo.trim()) return setNotice("Escribe un título.", "#ef4444");
+    setBusy(true);
+    try {
+      // Si el admin no presionó procesar, subimos los archivos al publicar.
+      let images = mediaUrls.filter(u => typeof u === "string" && !u.startsWith("blob:"));
+      let pdfs = pdfUrls.filter(u => typeof u === "string" && u.startsWith("http"));
+      if (files.length) {
+        const up = await uploadFiles();
+        images = [...images, ...up.uploadedImages];
+        pdfs = [...pdfs, ...up.uploadedPdfs.map(p => p.url)];
+      }
+      const payload = {
+        tipo: categoria,
+        titulo: titulo.trim(),
+        detalle: texto.trim() || null,
+        icono: categoria === "comunicado" ? "document" : "dispatch-news",
+        color: categoria === "comunicado" ? "#2563eb" : "#0ea5e9",
+        origen: categoria === "comunicado" ? "comunicados" : "admin_noticias",
+        fecha_publicacion: fecha || new Date().toISOString().slice(0, 10),
+        texto_extraido: texto.trim() || null,
+        media_urls: images,
+        pdf_urls: pdfs,
+        archivo_url: images[0] || pdfs[0] || null,
+        archivo_tipo: images[0] ? "image/jpeg" : (pdfs[0] ? "application/pdf" : null),
+        ocultar_en_feed: false,
+      };
+      const { data, error } = await sb.from("noticias").insert(payload).select("*").single();
+      if (error) throw error;
+      setTitulo(""); setTexto(""); setFiles([]); setMediaUrls([]); setPdfUrls([]);
+      if (inputRef.current) inputRef.current.value = "";
+      setNotice("Noticia publicada.", "#22c55e");
+      onPublished && onPublished(data);
+    } catch (e) {
+      console.error(e);
+      setNotice("No se pudo publicar. Aplica la migración SQL de noticias extendidas.", "#ef4444");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(148,163,184,0.22)", borderRadius:"14px", padding:"14px", marginBottom:"16px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.92)", fontWeight:800 }}>Panel admin de Noticias</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", marginTop:"2px" }}>Sube imágenes o PDF, procesa OCR y edita el texto antes de publicar.</div>
+        </div>
+        <Badge color="#2563eb" small>Solo administrador</Badge>
+      </div>
+      {msg && <div style={{ padding:"9px 10px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{msg.text}</div>}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 150px", gap:"8px", marginBottom:"8px" }}>
+        <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={categoria} onChange={e=>setCategoria(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+          <option value="comunicado">Comunicado</option>
+          <option value="acceso">Accesos</option>
+          <option value="terminal">Terminales</option>
+          <option value="incidente">Incidente</option>
+          <option value="accidente">Accidente</option>
+          <option value="patio">Patios</option>
+          <option value="carril">Carriles</option>
+        </select>
+      </div>
+      <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={onFiles} style={{ width:"100%", color:"rgba(255,255,255,0.7)", marginBottom:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+      {(mediaUrls.length > 0 || pdfUrls.length > 0) && <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
+        {mediaUrls.map((u,i)=><img key={u+i} src={u} alt="preview" style={{ width:"82px", height:"62px", objectFit:"cover", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)" }} />)}
+        {pdfUrls.map((u,i)=><div key={u+i} style={{ width:"82px", height:"62px", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", color:"#cbd5e1", fontSize:"10px", fontFamily:getFont(theme,"secondary") }}>PDF</div>)}
+      </div>}
+      <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Texto extraído o descripción editable antes de publicar…" rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+        <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
+        <button onClick={publicar} disabled={busy} style={{ padding:"11px", borderRadius:"10px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy?"wait":"pointer" }}>Publicar en Noticias</button>
+      </div>
+    </div>
+  );
+}
+
 function NoticiasTab({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
@@ -12620,63 +12813,72 @@ function NoticiasTab({ isAdmin }) {
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const cargarComunicados = () => {
-    // Trae todos y filtra en cliente para soportar aprobado como boolean, string o número.
+  const cargarComunicados = useCallback(() => {
     sb.from("comunicados")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         if (error) console.error("Error cargando comunicados:", error);
-        if (data) setComunicados(data.filter(c => isComunicadoAprobado(c.aprobado)));
+        if (data) {
+          const aprobados = data.filter(c => isComunicadoAprobado(c.aprobado));
+          setComunicados(aprobados);
+          // Sincronización idempotente hacia Noticias.
+          for (const c of aprobados.slice(0, 25)) {
+            const n = await syncComunicadoToNoticia(c, { processMedia: false });
+            if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
+          }
+        }
       });
-  };
+  }, []);
 
   useEffect(() => {
-    sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(100)
+    sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
       .then(({ data }) => { if (data) setNoticias(data); setLoading(false); });
     cargarComunicados();
-    const chan = sb.channel("noticias-rt")
+    const chan = sb.channel("noticias-comunicados-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => [r, ...prev].slice(0, 100));
+        if (r) setNoticias(prev => prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150));
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, ({ new: r }) => {
-        // Solo agregar si está aprobado
-        const aprobado = isComunicadoAprobado(r.aprobado);
-        if (r && aprobado) setComunicados(prev => [r, ...prev].slice(0, 50));
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => prev.map(x => x.id === r.id ? r : x));
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, ({ new: r }) => {
-        // Si se aprobó, agregarlo a la lista (si no estaba)
-        const aprobado = isComunicadoAprobado(r.aprobado);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
         if (r && aprobado) {
-          setComunicados(prev => {
-            // Si ya existe, actualizarlo; si no, agregarlo.
-            if (prev.some(c => c.id === r.id)) return prev.map(c => c.id === r.id ? r : c);
-            return [r, ...prev].slice(0, 50);
-          });
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
+        if (r && aprobado) {
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
         }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
-        // Remover de la lista cuando se elimina
         if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
       })
       .subscribe();
     return () => sb.removeChannel(chan);
-  }, []);
-
+  }, [cargarComunicados]);
 
   const FILTROS = [
     { id: "todos",     label: "Todos",      icon: "news" },
+    { id: "comunicado",label: "Comunicados", icon: "document" },
     { id: "acceso",    label: "Accesos",    icon: "access" },
     { id: "terminal",  label: "Terminales", icon: "terminal" },
     { id: "incidente", label: "Incidentes", icon: "alert" },
     { id: "accidente", label: "Accidentes", icon: "crash" },
-    { id: "segundo",   label: "2do Acceso", icon: "road" },
     { id: "patio",     label: "Patios",     icon: "yard" },
     { id: "carril",    label: "Carriles",   icon: "lanes" },
   ];
 
-  const filtered = filtro === "todos" ? noticias : noticias.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
+  const noticiasVisibles = noticias.filter(isNoticiaVisibleEnFeed);
+  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
 
   const timeAgo = (ts) => {
     const d = Date.now() - new Date(ts).getTime();
@@ -12687,79 +12889,78 @@ function NoticiasTab({ isAdmin }) {
   };
 
   const isPdf = (url) => url?.toLowerCase().endsWith(".pdf");
+  const getMedia = (n) => [...parseJsonArray(n.media_urls), ...(n.archivo_url && !isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
+  const getPdfs = (n) => [...parseJsonArray(n.pdf_urls), ...(n.archivo_url && isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      {/* Visor fullscreen */}
       {visorItem && <VisorFullscreen item={visorItem} onClose={() => setVisorItem(null)} />}
 
-      {/* Header */}
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
         <div style={{ display:"flex", justifyContent:"center", marginBottom:"8px" }}><AppIcon name="dispatch-news" size={34} active={true} /></div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>NOTICIAS DEL PUERTO</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary") }}>Actualizaciones en tiempo real de toda la operación</div>
+        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>Noticias del puerto</div>
+        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary") }}>Actualizaciones oficiales y operativas, sin ruido de votos automáticos.</div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"16px", marginTop:"8px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-            <div style={{ width:"6px", height:"6px", background:"#22c55e", borderRadius:"50%" }} />
-            <span style={{ fontSize:"10px", color:"#22c55e", fontFamily:getFont(theme, "secondary") }}>{noticias.length} actualizaciones</span>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-            <div style={{ width:"6px", height:"6px", background:"#fbbf24", borderRadius:"50%" }} />
-            <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary") }}>{comunicados.filter(c => {
-              const aprobado = c.aprobado === true || c.aprobado === "true" || c.aprobado === 1;
-              if (!aprobado) return false;
-              if (!c.fecha_fin) return true;
-              const fin = toMs(c.fecha_fin);
-              if (!fin || isNaN(fin)) return true;
-              return fin > Date.now();
-            }).length} comunicados</span>
-          </div>
+          <span style={{ fontSize:"10px", color:"#93c5fd", fontFamily:getFont(theme, "secondary") }}>{noticiasVisibles.length} noticias visibles</span>
+          <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary") }}>{comunicados.filter(c => isComunicadoAprobado(c.aprobado)).length} comunicados</span>
         </div>
       </div>
 
-      {/* Selector de sección */}
       <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
-        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-          <AppIcon name="news" size={16} active={seccion==="noticias"} /> NOTICIAS
+        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+          <AppIcon name="news" size={16} active={seccion==="noticias"} /> Noticias
         </button>
-        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-          <AppIcon name="document" size={16} active={seccion==="comunicados"} /> COMUNICADOS
+        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+          <AppIcon name="document" size={16} active={seccion==="comunicados"} /> Comunicados
         </button>
       </div>
 
-      {/* ── SECCIÓN NOTICIAS ── */}
       {seccion === "noticias" && (
         <>
+          {isAdmin && <NoticiasAdminPublisher onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
-              <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"5px 10px", borderRadius:"20px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"400", display:"flex", alignItems:"center", gap:"4px" }}>
+              <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"6px 10px", borderRadius:"10px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"500", display:"flex", alignItems:"center", gap:"4px" }}>
                 <AppIcon name={f.icon} size={15} active={filtro === f.id} /> {f.label}
               </button>
             ))}
           </div>
           {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Cargando noticias...</div>}
-          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Sin noticias aún — los cambios aparecerán aquí en tiempo real</div>}
-          {filtered.map((n) => (
-            <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
-              <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-                <div style={{ width:"32px", height:"32px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name={n.icono || "news"} size={18} active={true} /></div>
-                <div style={{ flex:1 }}>
-                  <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", marginBottom:"3px" }}>{n.titulo}</div>
-                  {n.detalle && <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"5px" }}>{n.detalle}</div>}
-                  <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                    <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
-                    <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
-                    <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:getFont(theme, "secondary"), fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
+          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Sin noticias visibles para este filtro.</div>}
+          {filtered.map((n) => {
+            const media = getMedia(n);
+            const pdfs = getPdfs(n);
+            const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
+            return (
+              <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"12px", padding:"12px 14px", marginBottom:"10px" }}>
+                <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
+                  <div style={{ width:"34px", height:"34px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"9px", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name={n.icono || "news"} size={18} active={true} /></div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap", marginBottom:"3px" }}>
+                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px" }}>{n.titulo}</div>
+                      {origen === "comunicados" && <Badge color="#2563eb" small>Origen: Comunicados</Badge>}
+                    </div>
+                    {n.detalle && <div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.58)", fontSize:"11px", lineHeight:1.5, marginBottom:"8px" }}>{n.detalle}</div>}
+                    {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
+                      {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>setVisorItem({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" })} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
+                    </div>}
+                    {pdfs.length > 0 && <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>{pdfs.map((u,i)=><a key={u+i} href={u} target="_blank" rel="noreferrer" style={{ padding:"6px 9px", borderRadius:"8px", background:"rgba(37,99,235,.14)", border:"1px solid rgba(37,99,235,.35)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textDecoration:"none", fontWeight:700 }}>Abrir PDF {i+1}</a>)}</div>}
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap" }}>
+                      <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
+                      <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
+                      <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:getFont(theme, "secondary"), fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
+                      <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
+                      <span style={{ fontSize:"9px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary") }}>Origen: {origen === "comunicados" ? "Comunicados" : "Sistema"}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-          {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px" }}>— Mostrando {filtered.length} actualizaciones —</div>}
+            );
+          })}
+          {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px" }}>— Mostrando {filtered.length} noticias —</div>}
         </>
       )}
 
-      {/* ── SECCIÓN COMUNICADOS ── */}
       {seccion === "comunicados" && (
         <ComunicadosSection 
           isAdmin={isAdmin}
