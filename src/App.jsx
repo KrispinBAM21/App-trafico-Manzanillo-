@@ -2302,17 +2302,129 @@ const sanitizeStorageName = (name = "archivo") => String(name)
   .replace(/^-|-$/g, "")
   .slice(0, 90) || "archivo";
 
-const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPath }) => {
+const loadScriptOnce = (src, testFn) => new Promise((resolve, reject) => {
   try {
-    const res = await fetch("/api/media/process", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, source_url: sourceUrl, file_type: fileType, title, bucket_path: bucketPath, lang: "es" })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    if (typeof testFn === "function" && testFn()) return resolve(true);
+    const existing = Array.from(document.scripts || []).find(s => (s.src || "") === src);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      if (typeof testFn === "function" && testFn()) return resolve(true);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  } catch (e) { reject(e); }
+});
+
+const loadTesseractClient = async () => {
+  await loadScriptOnce("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js", () => !!window.Tesseract);
+  if (!window.Tesseract?.recognize) throw new Error("Tesseract.js no cargó correctamente");
+  return window.Tesseract;
+};
+
+const loadPdfJsClient = async () => {
+  await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", () => !!window.pdfjsLib);
+  if (!window.pdfjsLib?.getDocument) throw new Error("PDF.js no cargó correctamente");
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  return window.pdfjsLib;
+};
+
+const imageUrlToCanvas = (src, maxSide = 1800) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * ratio));
+    canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * ratio));
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    resolve(canvas);
+  };
+  img.onerror = reject;
+  img.src = src;
+});
+
+const ocrCanvasClient = async (canvas) => {
+  const Tesseract = await loadTesseractClient();
+  const result = await Tesseract.recognize(canvas, "spa+eng");
+  return String(result?.data?.text || "").trim();
+};
+
+const processImageOcrClient = async (sourceUrl) => {
+  const canvas = await imageUrlToCanvas(sourceUrl);
+  const text = await ocrCanvasClient(canvas);
+  return { ok: true, text, image_urls: [sourceUrl] };
+};
+
+const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
+  const pdfjsLib = await loadPdfJsClient();
+  const res = await fetch(sourceUrl, { mode: "cors" });
+  if (!res.ok) throw new Error(`No se pudo leer PDF: HTTP ${res.status}`);
+  const data = await res.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  let text = "";
+  const imageUrls = [];
+  const pageLimit = Math.min(pdf.numPages || 0, 8);
+  for (let pageNo = 1; pageNo <= pageLimit; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const pageText = await ocrCanvasClient(canvas);
+    if (pageText) text += (text ? "\n\n" : "") + pageText;
+
+    // Genera una vista previa de páginas en imágenes y las sube al bucket noticias.
+    // Si la subida falla, el OCR sigue funcionando y solo omite la miniatura.
+    try {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.88));
+      if (blob) {
+        const path = `${bucketPath || "noticias/pdf"}/page_${Date.now()}_${pageNo}_${Math.random().toString(36).slice(2)}.jpg`;
+        const { error } = await sb.storage.from("noticias").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+        if (!error) {
+          const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+          imageUrls.push(publicUrl);
+        }
+      }
+    } catch {}
+  }
+  return { ok: true, text: text.trim(), image_urls: imageUrls };
+};
+
+const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPath }) => {
+  // Primero intenta una Edge Function opcional llamada media-process, útil si después
+  // decides hacer OCR en servidor. Si no existe, cae automáticamente al OCR en navegador.
+  try {
+    if (sb?.functions?.invoke) {
+      const { data, error } = await sb.functions.invoke("media-process", {
+        body: { action, source_url: sourceUrl, file_type: fileType, title, bucket_path: bucketPath, lang: "spa+eng" }
+      });
+      if (!error && data?.ok !== false && (data?.text || data?.image_urls)) return data;
+    }
   } catch (e) {
-    console.warn("Procesamiento OCR/PDF no disponible en frontend. Configura /api/media/process.", e?.message || e);
+    console.warn("Edge Function media-process no disponible; usando OCR en navegador.", e?.message || e);
+  }
+
+  try {
+    const isPdfAction = action === "pdf_to_images_ocr" || String(fileType || "").includes("pdf") || /\.pdf(\?|$)/i.test(String(sourceUrl || ""));
+    return isPdfAction
+      ? await processPdfOcrClient(sourceUrl, bucketPath)
+      : await processImageOcrClient(sourceUrl);
+  } catch (e) {
+    console.warn("OCR en navegador no disponible.", e?.message || e);
     return { ok: false, text: "", image_urls: [] };
   }
 };
@@ -13087,6 +13199,12 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
               </div>
             </div>
           </div>
+
+          {isAdmin && (
+            <div style={{ marginBottom: "16px" }}>
+              <NoticiasAdminPublisher onPublished={() => {}} />
+            </div>
+          )}
 
           <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
 
