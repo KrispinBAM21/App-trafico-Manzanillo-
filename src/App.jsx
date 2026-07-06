@@ -13563,6 +13563,103 @@ function NoticiasAutoJpegReport() {
   );
 }
 
+function NoticiasAdminCleanup({ onCleaned }) {
+  const theme = React.useContext(ThemeContext);
+  const today = new Date().toISOString().slice(0, 10);
+  const [open, setOpen] = useState(false);
+  const [fechaInicio, setFechaInicio] = useState(today);
+  const [fechaFin, setFechaFin] = useState(today);
+  const [origen, setOrigen] = useState("todos");
+  const [tipo, setTipo] = useState("todos");
+  const [confirmacion, setConfirmacion] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const setNotice = (text, color = "#2563eb") => {
+    setMsg({ text, color });
+    setTimeout(() => setMsg(null), 5000);
+  };
+
+  const limpiar = async () => {
+    if (!fechaInicio || !fechaFin) return setNotice("Selecciona fecha de inicio y fecha de fin.", "#f97316");
+    if (fechaInicio > fechaFin) return setNotice("La fecha de inicio no puede ser mayor que la fecha de fin.", "#ef4444");
+    if (confirmacion.trim().toUpperCase() !== "LIMPIAR") return setNotice("Escribe LIMPIAR para confirmar la eliminación.", "#f97316");
+
+    setBusy(true);
+    try {
+      const inicioIso = new Date(`${fechaInicio}T00:00:00`).toISOString();
+      const finIso = new Date(`${fechaFin}T23:59:59.999`).toISOString();
+      let q = sb.from("noticias").delete({ count: "exact" }).gte("created_at", inicioIso).lte("created_at", finIso);
+      if (origen !== "todos") q = q.eq("origen", origen);
+      if (tipo !== "todos") q = q.eq("tipo", tipo);
+      const { count, error } = await q;
+      if (error) throw error;
+      setConfirmacion("");
+      setNotice(`Limpieza realizada. Registros eliminados: ${count ?? 0}.`, "#22c55e");
+      onCleaned && onCleaned();
+    } catch (e) {
+      console.error(e);
+      setNotice("No se pudo limpiar noticias. Verifica permisos DELETE/RLS en Supabase.", "#ef4444");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ background:"rgba(239,68,68,0.07)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:"14px", padding:"12px", marginBottom:"16px" }}>
+      <button onClick={() => setOpen(v => !v)} style={{ width:"100%", padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.35)", background:"rgba(127,29,29,0.22)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px" }}>
+        <span>🧹 Limpiar noticias por rango</span>
+        <span>{open ? "Ocultar" : "Abrir"}</span>
+      </button>
+
+      {open && (
+        <div style={{ marginTop:"12px" }}>
+          <div style={{ color:"rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.5, marginBottom:"10px" }}>
+            Elimina noticias dentro del rango seleccionado. Usa esta herramienta para retirar registros de prueba, vacíos o generados durante ajustes.
+          </div>
+          {msg && <div style={{ padding:"9px 10px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{msg.text}</div>}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px", marginBottom:"8px" }}>
+            <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
+              Fecha inicio
+              <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+            </label>
+            <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
+              Fecha fin
+              <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+            </label>
+            <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
+              Origen
+              <select value={origen} onChange={e=>setOrigen(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+                <option value="todos">Todos</option>
+                <option value="sistema">Sistema</option>
+                <option value="admin_noticias">Admin noticias</option>
+                <option value="comunicados">Comunicados</option>
+              </select>
+            </label>
+            <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
+              Tipo
+              <select value={tipo} onChange={e=>setTipo(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+                <option value="todos">Todos</option>
+                <option value="comunicado">Comunicado</option>
+                <option value="acceso">Acceso</option>
+                <option value="terminal">Terminal</option>
+                <option value="incidente">Incidente</option>
+                <option value="accidente">Accidente</option>
+                <option value="patio">Patio</option>
+                <option value="carril">Carril</option>
+              </select>
+            </label>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", alignItems:"center" }}>
+            <input value={confirmacion} onChange={e=>setConfirmacion(e.target.value)} placeholder="Escribe LIMPIAR para confirmar" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+            <button onClick={limpiar} disabled={busy} style={{ padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(239,68,68,0.45)", background:busy ? "rgba(100,116,139,.18)" : "linear-gradient(135deg,#ef4444,#b91c1c)", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:busy ? "wait" : "pointer" }}>{busy ? "Limpiando…" : "Eliminar"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NoticiasTab({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
@@ -13577,6 +13674,16 @@ function NoticiasTab({ isAdmin }) {
 
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
+
+  const cargarNoticias = useCallback(() => {
+    setLoading(true);
+    return sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
+      .then(({ data, error }) => {
+        if (error) console.error("Error cargando noticias:", error);
+        if (data) setNoticias(data);
+        setLoading(false);
+      });
+  }, []);
 
   const cargarComunicados = useCallback(() => {
     sb.from("comunicados")
@@ -13598,8 +13705,7 @@ function NoticiasTab({ isAdmin }) {
   }, []);
 
   useEffect(() => {
-    sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
-      .then(({ data }) => { if (data) setNoticias(data); setLoading(false); });
+    cargarNoticias();
     cargarComunicados();
     const chan = sb.channel("noticias-comunicados-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
@@ -13629,7 +13735,7 @@ function NoticiasTab({ isAdmin }) {
       })
       .subscribe();
     return () => sb.removeChannel(chan);
-  }, [cargarComunicados]);
+  }, [cargarNoticias, cargarComunicados]);
 
   const FILTROS = [
     { id: "todos",     label: "Todos",      icon: "news" },
@@ -13642,11 +13748,28 @@ function NoticiasTab({ isAdmin }) {
     { id: "carril",    label: "Carriles",   icon: "lanes" },
   ];
 
-  const noticiasVisibles = noticias.filter(isNoticiaVisibleEnFeed);
+  const isNoticiaListaParaMostrar = (n) => {
+    if (!isNoticiaVisibleEnFeed(n)) return false;
+    const created = new Date(n?.created_at).getTime();
+    if (!Number.isFinite(created)) return false;
+    const hasContent = Boolean(
+      String(n?.titulo || "").trim() ||
+      String(n?.detalle || "").trim() ||
+      String(n?.archivo_url || "").trim() ||
+      parseJsonArray(n?.media_urls).length ||
+      parseJsonArray(n?.pdf_urls).length
+    );
+    return hasContent;
+  };
+
+  const noticiasVisibles = noticias.filter(isNoticiaListaParaMostrar);
   const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
 
   const timeAgo = (ts) => {
-    const d = Date.now() - new Date(ts).getTime();
+    const t = new Date(ts).getTime();
+    if (!Number.isFinite(t)) return "";
+    const d = Date.now() - t;
+    if (d < 0) return "programada";
     if (d < 60000)    return "hace un momento";
     if (d < 3600000)  return `hace ${Math.floor(d/60000)}min`;
     if (d < 86400000) return `hace ${Math.floor(d/3600000)}h`;
@@ -13850,6 +13973,7 @@ function NoticiasTab({ isAdmin }) {
       {seccion === "noticias" && (
         <>
           <NoticiasAutoJpegReport />
+          {isAdmin && <NoticiasAdminCleanup onCleaned={cargarNoticias} />}
           {isAdmin && <NoticiasAdminPublisher onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
