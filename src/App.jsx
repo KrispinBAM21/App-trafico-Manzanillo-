@@ -14338,6 +14338,12 @@ const POSTURAS_LICENCIAS = [
 const POSTURAS_MANIOBRAS = ["Full", "Sencillo", "Caja seca", "Rabón", "Torton", "Plataforma", "Portacontenedor", "Lowboy", "Dolly", "Refrigerado", "Material peligroso", "Maniobra local", "Otro"];
 const POSTURAS_ALCANCE = ["Local", "Foráneo", "Ambos"];
 const POSTURAS_TIPO_EMPRESA = ["Transportista", "Agencia aduanal", "Patio", "Terminal", "Operador logístico", "Maniobrista", "Taller", "Refacciones", "Otro"];
+const PIS_DOC_TYPES = ["DEO", "DEA", "DEI", "DEV", "DEP", "DEC"];
+const PIS_ASIPONAS = [
+  "ACAPULCO", "ALTAMIRA", "CABO SAN LUCAS", "CAMPECHE", "CHIAPAS", "COATZACOALCOS", "DOS BOCAS",
+  "ENSENADA", "GUAYMAS", "LA PAZ", "LÁZARO CÁRDENAS", "MANZANILLO", "MAZATLÁN", "PROGRESO",
+  "PUERTO VALLARTA", "SALINA CRUZ", "TAMPICO", "TOPOLOBAMPO", "TUXPAN", "VERACRUZ"
+];
 
 function StarRating({ value=0, onRate=null, small=false }) {
   const theme = React.useContext(ThemeContext);
@@ -14366,6 +14372,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pageEmp, setPageEmp] = useState(1);
   const [msg, setMsg] = useState(null);
   const [showReminder, setShowReminder] = useState(false);
+  const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
+  const [pisLoading, setPisLoading] = useState(false);
+  const [pisResult, setPisResult] = useState(null);
+  const [pisHistory, setPisHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
+  });
   const PAGE_SIZE = 8;
 
   const emptyTrab = { nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local", telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true };
@@ -14609,14 +14621,120 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn("#22c55e")}>{editingEmpId?"Actualizar empresa":"Guardar empresa"}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
   </div>;
 
+  const savePisHistory = (entry) => {
+    const next = [entry, ...pisHistory].slice(0, 12);
+    setPisHistory(next);
+    try { localStorage.setItem("cm_pis_verificaciones", JSON.stringify(next)); } catch {}
+  };
+
+  const verifyPisDocument = async () => {
+    const id = String(pisForm.id || "").trim();
+    if (!pisForm.asipona || !pisForm.tipo || !id) {
+      setPisResult({ ok:false, status:"incompleto", message:"Selecciona ASIPONA, tipo de documento y escribe el ID." });
+      return;
+    }
+    if (!/^\d+$/.test(id)) {
+      setPisResult({ ok:false, status:"id_invalido", message:"El ID debe ser numérico." });
+      return;
+    }
+    setPisLoading(true);
+    setPisResult(null);
+    const payload = { asipona:pisForm.asipona, tipo:pisForm.tipo, id };
+    try {
+      const { data, error } = await sb.functions.invoke("pis-verificar-documento", { body: payload });
+      if (error) throw error;
+      const result = data || {};
+      const valid = result.valid === true || /válido|valido/i.test(String(result.message || result.resultado || ""));
+      const normalized = {
+        ok:true,
+        valid,
+        status: valid ? "valido" : "no_valido",
+        message: result.message || result.resultado || (valid ? `${pisForm.tipo} válido.` : "Documento no válido o no encontrado."),
+        raw: result,
+        query: payload,
+        checked_at: new Date().toISOString(),
+      };
+      setPisResult(normalized);
+      savePisHistory(normalized);
+      auditLog({ action:"pis_verificacion_documento", section:"posturas_boletinados", entityId:`${payload.asipona}-${payload.tipo}-${payload.id}`, after:{ summary:`Consulta PIS ${payload.asipona} ${payload.tipo} ${payload.id}`, valid:normalized.valid, message:normalized.message }, actor:authUser?.email || myId || "Usuario" });
+    } catch (e) {
+      const fallback = {
+        ok:false,
+        status:"backend_no_configurado",
+        message:"No se pudo consultar PIS/SEMAR desde la app. Falta desplegar la función backend pis-verificar-documento o revisar permisos/CORS.",
+        detail:e?.message || String(e),
+        query:payload,
+        checked_at:new Date().toISOString(),
+      };
+      setPisResult(fallback);
+    } finally {
+      setPisLoading(false);
+    }
+  };
+
+  const BoletinadosTab = () => (
+    <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.05fr) minmax(280px, .95fr)", gap:"14px", alignItems:"start" }}>
+      <div style={card}>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+          <div style={{ width:"38px", height:"38px", borderRadius:"12px", background:"rgba(56,189,248,.14)", border:"1px solid rgba(56,189,248,.35)", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name="document-check" size={18} active /></div>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"18px", color:"#fff", fontWeight:"900" }}>Boletinados · Verificación PIS</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.55)", lineHeight:1.5 }}>Consulta documentos electrónicos públicos del portal PIS/SEMAR desde Conect Manzanillo.</div>
+          </div>
+        </div>
+
+        <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
+          Esta sección requiere la función backend <b>pis-verificar-documento</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado.
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
+          <div><div style={label}>ASIPONA</div><select style={input} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
+          <div><div style={label}>Tipo</div><select style={input} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
+          <div><div style={label}>ID</div><input style={input} inputMode="numeric" placeholder="Ej. 2" value={pisForm.id} onChange={e=>setPisForm(f=>({...f, id:e.target.value.replace(/[^0-9]/g, "")}))} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} /></div>
+        </div>
+
+        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+          <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"150px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); }} style={btn("#94a3b8")}>Limpiar</button>
+          <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>Abrir PIS oficial</a>
+        </div>
+
+        {pisResult && (
+          <div style={{ marginTop:"14px", borderRadius:"14px", padding:"18px", background:pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)") : "rgba(251,191,36,.10)", border:`1px solid ${pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)") : "rgba(251,191,36,.42)"}` }}>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"28px", color:pisResult.ok ? (pisResult.valid ? "#22c55e" : "#ef4444") : "#fbbf24", fontWeight:"900", marginBottom:"8px" }}>
+              {pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente"}
+            </div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.78)", lineHeight:1.65 }}>{pisResult.message}</div>
+            {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <div style={{ color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"12px", letterSpacing:"1px", marginBottom:"10px" }}>ÚLTIMAS CONSULTAS EN ESTE DISPOSITIVO</div>
+        {pisHistory.length === 0 ? <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6 }}>Aún no hay consultas guardadas localmente.</div> : pisHistory.map((h, idx) => (
+          <div key={idx} style={{ padding:"10px 0", borderTop:idx ? "1px solid rgba(255,255,255,.08)" : "none" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", alignItems:"center" }}>
+              <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900" }}>{h.query?.asipona || "ASIPONA"} · {h.query?.tipo || "DOC"}-{h.query?.id || "ID"}</div>
+              <span style={{ color:h.valid ? "#22c55e" : "#ef4444", border:`1px solid ${h.valid ? "#22c55e55" : "#ef444455"}`, borderRadius:"999px", padding:"3px 7px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900" }}>{h.valid ? "VÁLIDO" : "NO VÁLIDO"}</span>
+            </div>
+            <div style={{ marginTop:"4px", color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{h.checked_at ? new Date(h.checked_at).toLocaleString("es-MX") : ""}</div>
+          </div>
+        ))}
+        {pisHistory.length > 0 && <button onClick={()=>{ setPisHistory([]); try{localStorage.removeItem("cm_pis_verificaciones");}catch{} }} style={{...btn("#ef4444"), marginTop:"12px"}}>Borrar historial local</button>}
+      </div>
+    </div>
+  );
+
   const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
 
   return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1120px", margin:"0 auto" }}>
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"},{id:"boletinados", label:"Boletinados", icon:"document-check"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
+    {sub === "boletinados" && <BoletinadosTab />}
     {sub === "posturas" && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
       {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
