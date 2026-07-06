@@ -2358,6 +2358,39 @@ const ocrCanvasClient = async (canvas) => {
   return String(result?.data?.text || "").trim();
 };
 
+const stripFileNamesFromOcrText = (rawText = "", files = []) => {
+  const names = Array.from(files || [])
+    .map(f => String(f?.name || "").trim())
+    .filter(Boolean);
+  if (!names.length) return String(rawText || "").trim();
+
+  const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const candidates = [];
+  names.forEach(name => {
+    candidates.push(name);
+    candidates.push(name.replace(/\.[a-z0-9]{1,8}$/i, ""));
+  });
+
+  const cleanLines = String(rawText || "")
+    .replace(/^\s*\[[^\]]+\]\s*$/gm, "")
+    .split(/\r?\n/)
+    .filter(line => {
+      const normalized = line.trim();
+      if (!normalized) return true;
+      return !candidates.some(candidate => {
+        const c = String(candidate || "").trim();
+        if (!c) return false;
+        return normalized === c || normalized.replace(/\s+/g, " ") === c.replace(/\s+/g, " ");
+      });
+    })
+    .join("\n");
+
+  return cleanLines
+    .replace(new RegExp(`^\\s*(?:${candidates.map(escapeRegExp).join("|")})\\s*$`, "gim"), "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 const processImageOcrClient = async (sourceUrl) => {
   const canvas = await imageUrlToCanvas(sourceUrl);
   const text = await ocrCanvasClient(canvas);
@@ -13610,11 +13643,11 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
         const pageText = await ocrCanvasClient(cropped);
         results.push({ key: page.key, fileName: page.fileName, pageNo: page.pageNo, text: pageText });
         if (pageText) {
-          const label = page.type === "pdf" ? `${page.fileName} · hoja ${page.pageNo}` : page.fileName;
-          text += `${text ? "\n\n" : ""}[${label}]\n${pageText}`;
+          text += `${text ? "\n\n" : ""}${pageText}`;
         }
       }
-      await onApply?.({ text: text.trim(), results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
+      const cleanedText = stripFileNamesFromOcrText(text, files);
+      await onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
       onClose?.();
     } catch (e) {
       setError(e?.message || "No se pudo extraer texto de las zonas seleccionadas.");
@@ -13766,13 +13799,14 @@ function NoticiasAdminPublisher({ onPublished }) {
         setPdfUrls(files.filter(f => f.type === "application/pdf").map(f => f.name));
       }
 
+      const cleanExtracted = stripFileNamesFromOcrText(extracted, files);
       setMediaUrls(allImages);
-      if (extracted.trim()) setTexto(prev => [prev, extracted.trim()].filter(Boolean).join("\n\n"));
+      if (cleanExtracted) setTexto(prev => [prev, cleanExtracted].filter(Boolean).join("\n\n"));
       setNotice(
-        extracted.trim()
+        cleanExtracted
           ? "Texto extraído en el navegador. Revísalo antes de publicar."
           : "No se detectó texto legible. Puedes escribir o corregir la descripción manualmente.",
-        extracted.trim() ? "#22c55e" : "#f97316"
+        cleanExtracted ? "#22c55e" : "#f97316"
       );
     } catch (e) {
       console.error(e);
@@ -13785,8 +13819,9 @@ function NoticiasAdminPublisher({ onPublished }) {
   };
 
   const aplicarTextoDeZonas = async ({ text }) => {
-    if (text?.trim()) {
-      setTexto(prev => [prev, text.trim()].filter(Boolean).join("\n\n"));
+    const cleanText = stripFileNamesFromOcrText(text, files);
+    if (cleanText) {
+      setTexto(prev => [prev, cleanText].filter(Boolean).join("\n\n"));
       setNotice("Texto extraído desde las zonas seleccionadas. Revísalo antes de publicar.", "#22c55e");
     } else {
       setNotice("No se detectó texto legible dentro de las zonas seleccionadas.", "#f97316");
