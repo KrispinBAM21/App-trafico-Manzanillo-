@@ -12712,7 +12712,11 @@ function ScreenshotCropModal({ onClose, onApply }) {
         invokeError = e;
       }
       if (invokeError || !data?.base64) {
-        throw new Error("La Edge Function screenshot-web no devolvió imagen. Revisa que esté desplegada en Supabase.");
+        const detail = data?.error || invokeError?.message || "La Edge Function screenshot-web no devolvió imagen.";
+        const lastAttempt = Array.isArray(data?.attempts) && data.attempts.length
+          ? data.attempts.map(a => `${a.label || "proveedor"}: HTTP ${a.status || "?"} ${a.contentType || ""}`).join(" · ")
+          : "";
+        throw new Error(`${detail}${lastAttempt ? ` (${lastAttempt})` : ""}`);
       }
       setSourceUrl(data.url || target);
       setImageDataUrl(data.base64);
