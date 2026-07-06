@@ -14347,6 +14347,8 @@ const PIS_ASIPONAS = [
 const PIS_EDGE_FUNCTION = "smooth-service";
 const PIS_ASIPONA_WHATSAPP_URL = "https://wa.me/+523141215154";
 const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
+const PIS_ASIPONA_MAIN_PHONE = "314 3311 400";
+const PIS_ASIPONA_EXTENSION = "71385";
 const PIS_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
 
 function StarRating({ value=0, onRate=null, small=false }) {
@@ -14380,6 +14382,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisLoading, setPisLoading] = useState(false);
   const [pisResult, setPisResult] = useState(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
+  const [pisCopiedField, setPisCopiedField] = useState("");
   const [pisContactMessage, setPisContactMessage] = useState("");
   const [pisContactUnlocked, setPisContactUnlocked] = useState(false);
   const [pisUnlockRequested, setPisUnlockRequested] = useState(false);
@@ -14435,6 +14438,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       setPisResult(null);
       setPisContactMessage("");
       setPisEmailCopied(false);
+      setPisCopiedField("");
       setPisContactUnlocked(false);
       setPisUnlockRequested(false);
       setPisUnlockSeconds(0);
@@ -14758,23 +14762,31 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     }
   };
 
-  const copyPisEmail = async () => {
+  const copyPisText = async (value, field) => {
+    const text = String(value || "").trim();
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(PIS_ASIPONA_EMAIL);
-      setPisEmailCopied(true);
-      setTimeout(() => setPisEmailCopied(false), 1800);
+      await navigator.clipboard.writeText(text);
     } catch {
       const temp = document.createElement("textarea");
-      temp.value = PIS_ASIPONA_EMAIL;
+      temp.value = text;
       temp.setAttribute("readonly", "");
       temp.style.position = "fixed";
       temp.style.left = "-9999px";
       document.body.appendChild(temp);
       temp.select();
-      try { document.execCommand("copy"); setPisEmailCopied(true); setTimeout(() => setPisEmailCopied(false), 1800); } catch {}
+      try { document.execCommand("copy"); } catch {}
       temp.remove();
     }
+    setPisCopiedField(field);
+    if (field === "email") setPisEmailCopied(true);
+    setTimeout(() => {
+      setPisCopiedField("");
+      if (field === "email") setPisEmailCopied(false);
+    }, 1800);
   };
+
+  const copyPisEmail = () => copyPisText(PIS_ASIPONA_EMAIL, "email");
 
   const BoletinadosTab = () => (
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap:"14px", alignItems:"start", width:"100%", maxWidth:"100%", overflow:"hidden" }}>
@@ -14799,7 +14811,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", minWidth:0 }}>
           <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"min(100%, 180px)", flex:"1 1 180px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
           <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center", justifyContent:"center", flex:"1 1 150px" }}>Abrir PIS oficial</a>
         </div>
 
@@ -14812,7 +14824,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
               <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
-                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después de 30 segundos se desbloquearán automáticamente los datos de contacto y el cuadro de consulta específica.
+                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar.
               </div>
 
               {!pisUnlockRequested && !pisContactUnlocked && (
@@ -14831,7 +14843,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
               {pisUnlockRequested && !pisContactUnlocked && (
                 <div style={{ border:"1px dashed rgba(251,191,36,.36)", background:"rgba(251,191,36,.08)", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.70)", lineHeight:1.55, marginBottom:"10px" }}>
-                  Gracias. El contacto de ASIPONA se habilitará automáticamente en <b style={{ color:"#fbbf24" }}>{pisUnlockSeconds || 30}s</b>. Puedes entrar al canal, seguirlo y regresar a esta pantalla.
+                  Verificando acceso al canal. Entra al canal, presiona seguir y regresa a esta pantalla para habilitar los datos de contacto.
                 </div>
               )}
 
@@ -14839,6 +14851,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
                 <>
                   <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
                     Contacto ASIPONA para información específica: <b>314 121 5154</b> · <b>{PIS_ASIPONA_EMAIL}</b>.
+                  </div>
+                  <div style={{ border:"1px solid rgba(56,189,248,.28)", background:"rgba(56,189,248,.08)", borderRadius:"12px", padding:"10px 12px", marginBottom:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.78)", lineHeight:1.6 }}>
+                    También puedes comunicarte por teléfono con ASIPONA usando extensiones. Teléfono principal: <button onClick={() => copyPisText(PIS_ASIPONA_MAIN_PHONE, "mainPhone")} style={{ background:"transparent", border:"none", color:pisCopiedField === "mainPhone" ? "#22c55e" : "#38bdf8", fontWeight:"900", cursor:"pointer", padding:"0 2px", fontFamily:"inherit" }}>{pisCopiedField === "mainPhone" ? "Teléfono copiado" : PIS_ASIPONA_MAIN_PHONE}</button> · Extensión: <button onClick={() => copyPisText(PIS_ASIPONA_EXTENSION, "extension")} style={{ background:"transparent", border:"none", color:pisCopiedField === "extension" ? "#22c55e" : "#fbbf24", fontWeight:"900", cursor:"pointer", padding:"0 2px", fontFamily:"inherit" }}>{pisCopiedField === "extension" ? "Extensión copiada" : PIS_ASIPONA_EXTENSION}</button>.
+                    <div style={{ marginTop:"5px", color:"rgba(255,255,255,.48)", fontSize:"10px" }}>Pulsa el teléfono o la extensión para copiarlos.</div>
                   </div>
                   <textarea
                     value={pisContactMessage}
