@@ -14777,42 +14777,42 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   };
 
   const BoletinadosTab = () => (
-    <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.05fr) minmax(280px, .95fr)", gap:"14px", alignItems:"start" }}>
-      <div style={card}>
-        <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
-          <div style={{ width:"38px", height:"38px", borderRadius:"12px", background:"rgba(56,189,248,.14)", border:"1px solid rgba(56,189,248,.35)", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name="document-check" size={18} active /></div>
-          <div>
-            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"18px", color:"#fff", fontWeight:"900" }}>Boletinados · Verificación PIS</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.55)", lineHeight:1.5 }}>Consulta documentos electrónicos públicos del portal PIS/SEMAR desde Conect Manzanillo.</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap:"14px", alignItems:"start", width:"100%", maxWidth:"100%", overflow:"hidden" }}>
+      <div style={{ ...card, minWidth:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
+        <div style={{ display:"flex", alignItems:"flex-start", gap:"10px", marginBottom:"10px", minWidth:0, flexWrap:"wrap" }}>
+          <div style={{ width:"38px", height:"38px", borderRadius:"12px", background:"rgba(56,189,248,.14)", border:"1px solid rgba(56,189,248,.35)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><AppIcon name="document-check" size={18} active /></div>
+          <div style={{ minWidth:0, flex:"1 1 220px" }}>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(17px, 5vw, 22px)", lineHeight:1.12, color:"#fff", fontWeight:"900", overflowWrap:"anywhere" }}>Boletinados · Verificación PIS</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.62)", lineHeight:1.45, overflowWrap:"break-word" }}>Consulta documentos electrónicos públicos del portal PIS/SEMAR desde Conect Manzanillo.</div>
           </div>
         </div>
 
-        <div style={{ color:"rgba(255,255,255,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.65, marginBottom:"13px" }}>
+        <div style={{ color:"rgba(255,255,255,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.5vw, 13px)", lineHeight:1.55, marginBottom:"13px", maxWidth:"100%", overflowWrap:"break-word" }}>
           El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:"10px", marginBottom:"12px", minWidth:0 }}>
           <div><div style={label}>ASIPONA</div><select style={input} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
           <div><div style={label}>Tipo</div><select style={input} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
           <div><div style={label}>ID</div><input style={input} inputMode="numeric" placeholder="Ej. 2" value={pisForm.id} onChange={e=>setPisForm(f=>({...f, id:e.target.value.replace(/[^0-9]/g, "")}))} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} /></div>
         </div>
 
-        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
-          <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"150px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={btn("#94a3b8")}>Limpiar</button>
-          <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>Abrir PIS oficial</a>
+        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", minWidth:0 }}>
+          <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"min(100%, 180px)", flex:"1 1 180px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
+          <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center", justifyContent:"center", flex:"1 1 150px" }}>Abrir PIS oficial</a>
         </div>
 
         {pisResult && (
-          <div style={{ marginTop:"14px", borderRadius:"14px", padding:"18px", background:pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)") : "rgba(251,191,36,.10)", border:`1px solid ${pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)") : "rgba(251,191,36,.42)"}` }}>
-            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"28px", color:pisResult.ok ? (pisResult.valid ? "#22c55e" : "#ef4444") : "#fbbf24", fontWeight:"900", marginBottom:"8px" }}>
+          <div style={{ marginTop:"14px", borderRadius:"14px", padding:"clamp(12px, 4vw, 18px)", background:pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)") : "rgba(251,191,36,.10)", border:`1px solid ${pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)") : "rgba(251,191,36,.42)"}`, minWidth:0, overflow:"hidden", boxSizing:"border-box" }}>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(23px, 8vw, 34px)", lineHeight:1.1, color:pisResult.ok ? (pisResult.valid ? "#22c55e" : "#ef4444") : "#fbbf24", fontWeight:"900", marginBottom:"8px", overflowWrap:"anywhere" }}>
               {pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente"}
             </div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.78)", lineHeight:1.65 }}>{pisResult.message}</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", color:"rgba(255,255,255,.78)", lineHeight:1.55, overflowWrap:"break-word" }}>{pisResult.message}</div>
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
-              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"10px" }}>
-                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después regresa y podrás visualizar los datos de contacto y el cuadro de consulta específica.
+              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
+                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después de 30 segundos se desbloquearán automáticamente los datos de contacto y el cuadro de consulta específica.
               </div>
 
               {!pisUnlockRequested && !pisContactUnlocked && (
@@ -14862,8 +14862,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         )}
       </div>
 
-      <div style={card}>
-        <div style={{ color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"12px", letterSpacing:"1px", marginBottom:"10px" }}>ÚLTIMAS CONSULTAS EN ESTE DISPOSITIVO</div>
+      <div style={{ ...card, minWidth:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
+        <div style={{ color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"clamp(11px, 3.4vw, 12px)", letterSpacing:"1px", marginBottom:"10px", overflowWrap:"break-word" }}>ÚLTIMAS CONSULTAS EN ESTE DISPOSITIVO</div>
         {pisHistory.length === 0 ? <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6 }}>Aún no hay consultas guardadas localmente.</div> : pisHistory.map((h, idx) => (
           <div key={idx} style={{ padding:"10px 0", borderTop:idx ? "1px solid rgba(255,255,255,.08)" : "none" }}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", alignItems:"center" }}>
@@ -14884,7 +14884,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"8px", marginBottom:"12px" }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"},{id:"boletinados", label:"Boletinados", icon:"document-check"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 170px),1fr))", gap:"8px", marginBottom:"12px", minWidth:0 }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"},{id:"boletinados", label:"Boletinados", icon:"document-check"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
     {sub === "boletinados" && <BoletinadosTab />}
     {sub === "posturas" && <>
