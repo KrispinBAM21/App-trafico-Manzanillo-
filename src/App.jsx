@@ -20621,8 +20621,35 @@ function App() {
           </div>
         )}
 
+        {/* Etiqueta visible del asistente principal */}
+        {!hasUnreadAdminMessages && showQRPanel !== "gemini" && (
+          <div
+            onClick={() => { setSupportExpanded(false); setShowQRPanel("gemini"); }}
+            style={{
+              position:"absolute",
+              right:"64px",
+              bottom:"12px",
+              padding:"8px 12px",
+              borderRadius:"999px",
+              background:"rgba(13,31,60,.96)",
+              border:"1px solid rgba(96,165,250,.45)",
+              color:"#fff",
+              fontFamily:getFont(theme,"secondary"),
+              fontSize:"12px",
+              fontWeight:900,
+              whiteSpace:"nowrap",
+              cursor:"pointer",
+              boxShadow:"0 8px 24px rgba(0,0,0,.42), 0 0 20px rgba(96,165,250,.18)",
+              userSelect:"none"
+            }}
+          >
+            ✨ AI Gemini
+          </div>
+        )}
+
         {/* Botón principal FAB: AI Gemini */}
         <div
+          title="Abrir AI Gemini"
           onClick={() => {
             if (hasUnreadAdminMessages) {
               setSupportExpanded(false);
