@@ -14738,7 +14738,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         </div>
 
         <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
-          El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR.</b>. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema..
+          El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
           <div style={{ marginTop:"6px", color:"rgba(255,255,255,.78)" }}>
             Si requieres información más específica del boletinaje, contacta directamente a ASIPONA: <b>314 121 5154</b> o <b>{PIS_ASIPONA_EMAIL}</b>.
           </div>
