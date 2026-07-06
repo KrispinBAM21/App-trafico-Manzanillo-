@@ -14345,6 +14345,8 @@ const PIS_ASIPONAS = [
   "PUERTO VALLARTA", "SALINA CRUZ", "TAMPICO", "TOPOLOBAMPO", "TUXPAN", "VERACRUZ"
 ];
 const PIS_EDGE_FUNCTION = "smooth-service";
+const PIS_ASIPONA_WHATSAPP_URL = "https://wa.me/+523141215154";
+const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
 
 function StarRating({ value=0, onRate=null, small=false }) {
   const theme = React.useContext(ThemeContext);
@@ -14376,6 +14378,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
   const [pisLoading, setPisLoading] = useState(false);
   const [pisResult, setPisResult] = useState(null);
+  const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
@@ -14705,6 +14708,24 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     }
   };
 
+  const copyPisEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(PIS_ASIPONA_EMAIL);
+      setPisEmailCopied(true);
+      setTimeout(() => setPisEmailCopied(false), 1800);
+    } catch {
+      const temp = document.createElement("textarea");
+      temp.value = PIS_ASIPONA_EMAIL;
+      temp.setAttribute("readonly", "");
+      temp.style.position = "fixed";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.select();
+      try { document.execCommand("copy"); setPisEmailCopied(true); setTimeout(() => setPisEmailCopied(false), 1800); } catch {}
+      temp.remove();
+    }
+  };
+
   const BoletinadosTab = () => (
     <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.05fr) minmax(280px, .95fr)", gap:"14px", alignItems:"start" }}>
       <div style={card}>
@@ -14717,7 +14738,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         </div>
 
         <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
-          Esta sección usa la función backend <b>smooth-service</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado desde PIS/SEMAR.
+          El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR.</b>. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema..
+          <div style={{ marginTop:"6px", color:"rgba(255,255,255,.78)" }}>
+            Si requieres información más específica del boletinaje, contacta directamente a ASIPONA: <b>314 121 5154</b> o <b>{PIS_ASIPONA_EMAIL}</b>.
+          </div>
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
@@ -14730,6 +14754,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"150px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
           <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); }} style={btn("#94a3b8")}>Limpiar</button>
           <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>Abrir PIS oficial</a>
+          <a href={PIS_ASIPONA_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
+          <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
         </div>
 
         {pisResult && (
