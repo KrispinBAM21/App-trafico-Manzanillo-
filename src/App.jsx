@@ -2415,6 +2415,89 @@ const fileToImageCanvas = async (file) => {
   }
 };
 
+const downloadClientBlob = (blob, fileName) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1200);
+};
+
+const canvasToClientBlob = (canvas, type = "image/jpeg", quality = 0.92) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("No se pudo crear el archivo convertido")), type, quality);
+});
+
+const loadJsZipClient = async () => {
+  await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", () => !!window.JSZip);
+  if (!window.JSZip) throw new Error("JSZip no cargó correctamente");
+  return window.JSZip;
+};
+
+const loadJsPdfClient = async () => {
+  await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", () => !!window.jspdf?.jsPDF);
+  if (!window.jspdf?.jsPDF) throw new Error("jsPDF no cargó correctamente");
+  return window.jspdf.jsPDF;
+};
+
+const pdfFilesToJpegDownloadClient = async (files = []) => {
+  const pdfFiles = Array.from(files).filter(f => f.type === "application/pdf");
+  if (!pdfFiles.length) throw new Error("Selecciona al menos un PDF para convertir a JPEG");
+  const rendered = [];
+  for (const file of pdfFiles) {
+    const pages = await renderPdfFileToCanvases(file, 80);
+    for (const page of pages) {
+      const blob = await canvasToClientBlob(page.canvas, "image/jpeg", 0.94);
+      const base = sanitizeStorageName(file.name.replace(/\.pdf$/i, "")) || "pdf";
+      rendered.push({ blob, name: `${base}_hoja_${String(page.pageNo).padStart(2, "0")}.jpg` });
+    }
+  }
+  if (rendered.length === 1) {
+    downloadClientBlob(rendered[0].blob, rendered[0].name);
+    return { count: 1, zipped: false };
+  }
+  const JSZip = await loadJsZipClient();
+  const zip = new JSZip();
+  rendered.forEach(item => zip.file(item.name, item.blob));
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  downloadClientBlob(zipBlob, `pdf_a_jpeg_${new Date().toISOString().slice(0,10)}.zip`);
+  return { count: rendered.length, zipped: true };
+};
+
+const imageFilesToPdfDownloadClient = async (files = []) => {
+  const imageFiles = Array.from(files).filter(f => f.type?.startsWith("image/"));
+  if (!imageFiles.length) throw new Error("Selecciona al menos una imagen para convertir a PDF");
+  const jsPDF = await loadJsPdfClient();
+  let doc = null;
+  for (let i = 0; i < imageFiles.length; i++) {
+    const file = imageFiles[i];
+    const { canvas } = await fileToImageCanvas(file);
+    const orientation = canvas.width > canvas.height ? "landscape" : "portrait";
+    if (!doc) doc = new jsPDF({ orientation, unit: "mm", format: "letter" });
+    else doc.addPage("letter", orientation);
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableW = pageW - margin * 2;
+    const usableH = pageH - margin * 2;
+    const imgRatio = canvas.height / canvas.width;
+    let renderW = usableW;
+    let renderH = renderW * imgRatio;
+    if (renderH > usableH) {
+      renderH = usableH;
+      renderW = renderH / imgRatio;
+    }
+    const x = (pageW - renderW) / 2;
+    const y = (pageH - renderH) / 2;
+    doc.addImage(canvas.toDataURL("image/jpeg", 0.94), "JPEG", x, y, renderW, renderH, undefined, "FAST");
+  }
+  const blob = doc.output("blob");
+  downloadClientBlob(blob, `imagenes_a_pdf_${new Date().toISOString().slice(0,10)}.pdf`);
+  return { count: imageFiles.length };
+};
+
 const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
   const pdfjsLib = await loadPdfJsClient();
   const res = await fetch(sourceUrl, { mode: "cors" });
@@ -13339,6 +13422,78 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
 }
 
 
+function MediaConverterModal({ files = [], onClose, onNotice }) {
+  const theme = React.useContext(ThemeContext);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const pdfCount = Array.from(files).filter(f => f.type === "application/pdf").length;
+  const imgCount = Array.from(files).filter(f => f.type?.startsWith("image/")).length;
+
+  const runPdfToJpeg = async () => {
+    setBusy("pdf-jpeg");
+    setError("");
+    try {
+      const result = await pdfFilesToJpegDownloadClient(files);
+      onNotice?.(result.zipped ? `Se descargó un ZIP con ${result.count} imágenes JPEG.` : "Se descargó la imagen JPEG.", "#22c55e");
+      onClose?.();
+    } catch (e) {
+      setError(e?.message || "No se pudo convertir PDF a JPEG.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const runImagesToPdf = async () => {
+    setBusy("img-pdf");
+    setError("");
+    try {
+      const result = await imageFilesToPdfDownloadClient(files);
+      onNotice?.(`Se generó PDF con ${result.count} imagen${result.count === 1 ? "" : "es"}.`, "#22c55e");
+      onClose?.();
+    } catch (e) {
+      setError(e?.message || "No se pudo convertir imagen a PDF.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return createPortal(
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(2,6,23,.88)", display:"flex", alignItems:"center", justifyContent:"center", padding:"14px" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"min(720px, 100%)", background:"#0b1b33", border:"1px solid rgba(56,189,248,.35)", borderRadius:"16px", boxShadow:"0 20px 80px rgba(0,0,0,.45)", overflow:"hidden" }}>
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontWeight:900, fontSize:"15px" }}>Conversor PDF / imagen</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.55)", fontSize:"11px", marginTop:"3px" }}>Funciona directo en el navegador desde GitHub/Vercel; no requiere backend local.</div>
+          </div>
+          <button onClick={onClose} style={{ width:"34px", height:"34px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.08)", color:"#fff", cursor:"pointer" }}>✕</button>
+        </div>
+
+        <div style={{ padding:"16px", display:"grid", gap:"12px" }}>
+          <div style={{ padding:"12px", borderRadius:"12px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", color:"rgba(255,255,255,.76)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
+            Archivos detectados: <b>{pdfCount}</b> PDF · <b>{imgCount}</b> imagen{imgCount === 1 ? "" : "es"}. Si un PDF tiene varias hojas, se genera un JPEG por hoja y se descarga en ZIP.
+          </div>
+
+          {error && <div style={{ padding:"10px 12px", borderRadius:"10px", color:"#f87171", border:"1px solid rgba(239,68,68,.45)", background:"rgba(239,68,68,.10)", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>{error}</div>}
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:"10px" }}>
+            <button onClick={runPdfToJpeg} disabled={!!busy || !pdfCount} style={{ padding:"14px", borderRadius:"12px", border:"1px solid rgba(251,191,36,.55)", background:pdfCount ? "rgba(251,191,36,.14)" : "rgba(100,116,139,.12)", color:pdfCount ? "#fbbf24" : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy ? "wait" : (pdfCount ? "pointer" : "not-allowed") }}>
+              {busy === "pdf-jpeg" ? "Convirtiendo…" : "PDF → JPEG"}
+            </button>
+            <button onClick={runImagesToPdf} disabled={!!busy || !imgCount} style={{ padding:"14px", borderRadius:"12px", border:"1px solid rgba(56,189,248,.55)", background:imgCount ? "rgba(56,189,248,.14)" : "rgba(100,116,139,.12)", color:imgCount ? "#38bdf8" : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy ? "wait" : (imgCount ? "pointer" : "not-allowed") }}>
+              {busy === "img-pdf" ? "Convirtiendo…" : "Imagen → PDF"}
+            </button>
+          </div>
+
+          <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.5 }}>
+            Nota: archivos muy pesados o PDFs con muchas hojas pueden tardar más porque la conversión se hace en el dispositivo del usuario.
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function OcrZonePickerModal({ files = [], onClose, onApply }) {
   const theme = React.useContext(ThemeContext);
   const [pages, setPages] = useState([]);
@@ -13541,6 +13696,7 @@ function NoticiasAdminPublisher({ onPublished }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
+  const [converterOpen, setConverterOpen] = useState(false);
   const inputRef = useRef(null);
 
   const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -13710,9 +13866,11 @@ function NoticiasAdminPublisher({ onPublished }) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:"8px" }}>
         <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
         <button onClick={()=>setZonePickerOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
+        <button onClick={()=>setConverterOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
         <button onClick={publicar} disabled={busy} style={{ padding:"11px", borderRadius:"10px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy?"wait":"pointer" }}>Publicar en Noticias</button>
       </div>
       {zonePickerOpen && <OcrZonePickerModal files={files} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonas} />}
+      {converterOpen && <MediaConverterModal files={files} onClose={()=>setConverterOpen(false)} onNotice={setNotice} />}
     </div>
   );
 }
