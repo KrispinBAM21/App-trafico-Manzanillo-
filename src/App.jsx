@@ -389,6 +389,7 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "security-alert": return <svg {...common}><path d="M12 3.5 19 6v5c0 4.6-3 7.4-7 9-4-1.6-7-4.4-7-9V6l7-2.5Z" fill="rgba(251,191,36,.14)" stroke="#f59e0b" strokeWidth="1.6"/><path d="M12 8v4M12 15h.01" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/></svg>;
     case "check": return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(34,197,94,.15)" stroke="#22c55e" strokeWidth="1.6"/><path d="M8.3 12.1 11 14.8l5-5.6" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     case "xmark": return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(239,68,68,.14)" stroke="#ef4444" strokeWidth="1.6"/><path d="M9 9l6 6M15 9l-6 6" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"/></svg>;
+    case "ban": return <svg {...common}><circle cx="12" cy="12" r="8" fill="rgba(107,114,128,.16)" stroke="#6b7280" strokeWidth="1.7"/><path d="M7.8 16.2 16.2 7.8" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>;
     case "return-route": return <svg {...common}><path d="M18 7H9a4 4 0 0 0 0 8h7" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="m12 11-4 4 4 4" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     case "anchor-port": return <svg {...common}><circle cx="12" cy="5" r="2" fill="rgba(56,189,248,.16)" stroke={accent} strokeWidth="1.5"/><path d="M12 7v11M8 10h8M6 15c1.2 3 3.2 4 6 4s4.8-1 6-4" stroke={stroke} strokeWidth="1.7" strokeLinecap="round"/><path d="m6 15-2 1M18 15l2 1" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/></svg>;
     case "slow-traffic": return <svg {...common}><path d="M5 17h14" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><path d="M8 13h8l-1.5-4h-5L8 13Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.5"/><path d="M7 6h10" stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2 2"/></svg>;
@@ -2027,6 +2028,17 @@ const SEGUNDO_TRAFICO_OPTS = [
   { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "slow-traffic" },
   { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
 ];
+const CARRIL_ESTADO_OPTS = [
+  { id: "libre",    label: "Libre",              color: "#22c55e", icon: "check" },
+  { id: "lento",    label: "Tráfico Lento",      color: "#f59e0b", icon: "slow-traffic" },
+  { id: "moderado", label: "Tráfico Moderado",   color: "#f97316", icon: "slow-traffic" },
+  { id: "saturado", label: "Saturado",           color: "#ef4444", icon: "xmark" },
+  { id: "bloqueo",  label: "Bloqueo",            color: "#dc2626", icon: "stop-sign" },
+  { id: "sin_uso",  label: "Sin uso",            color: "#6b7280", icon: "ban" },
+];
+const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
+const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
+const carrilEstadoIsSaturado = (estadoId) => ["saturado", "bloqueo"].includes(estadoId);
 const SEGUNDO_CONTENEDOR_OPTS = [
   { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
   { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
@@ -2036,11 +2048,11 @@ const SEGUNDO_CONTENEDOR_OPTS = [
 
 const mkSegundoIngreso = () => ({
   ...Object.fromEntries(SEGUNDO_CARRILES_INGRESO.map(c => [c.id, {
-    terminal: c.defaultTerminal, saturado: false, retornos: false,
+    terminal: c.defaultTerminal, estado_carril: "libre", saturado: false, retornos: false,
     expo: "libre", expo_contenedor: null, impo: "libre",
     lastUpdate: Date.now(), updatedBy: "Sistema",
   }])),
-  c4: { saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
+  c4: { estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" },
 });
 
 // ─── CONFINADA ────────────────────────────────────────────────────────────────
@@ -2053,6 +2065,7 @@ const CONFINADA_CARRILES = [
 const mkConfinadaState = () => ({
   ...Object.fromEntries(CONFINADA_CARRILES.map(c => [c.id, {
     terminal: c.defaultTerminal,
+    estado_carril: "libre",
     saturado: false,
     retornos: false,
     transferencia: false,
@@ -7446,7 +7459,8 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
         if (st.retornos) flags.push("Con retornos");
         if (st.expo) flags.push(`Expo ${st.expo}`);
         if (st.impo) flags.push(`Impo ${st.impo}`);
-        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: st.saturado ? "Saturado" : "Fluido", detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: st.saturado ? "#ef4444" : "#22c55e" });
+        const laneOpt = getCarrilEstadoOpt(st);
+        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
       }));
       CONFINADA_CARRILES.forEach(c => {
         const st = conf[c.id] || {};
@@ -7456,7 +7470,8 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
         if (st.transferencia) flags.push("Transferencia");
         if (st.expo) flags.push(`Expo ${st.expo}`);
         if (st.impo) flags.push(`Impo ${st.impo}`);
-        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: st.saturado ? "Saturado" : "Fluido", detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: st.saturado ? "#ef4444" : "#22c55e" });
+        const laneOpt = getCarrilEstadoOpt(st);
+        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
       });
       groups.push({ id: "confinados", title: "Confinados / 2° Acceso", items });
     }
@@ -11380,6 +11395,42 @@ function SegundoAccesoTab({ myId }) {
       "Actualizado";
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
+  const updateIngresoEstado = async (id, estadoId) => {
+    if (!carriles) return;
+    const prev = carriles;
+    const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
+    const current = carriles[id] || {};
+    const nextTerminal = opt.id === "sin_uso" ? "sin_uso" : (current.terminal === "sin_uso" ? (def?.defaultTerminal || "ssa") : current.terminal);
+    const next = {
+      ...carriles,
+      [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" }
+    };
+    setCarriles(next);
+    setPending(`${id}:estado_carril`, true);
+    const error = await saveToSupa(next);
+    setPending(`${id}:estado_carril`, false);
+    if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
+    await auditLog({ action:"modificar_estado_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Estado del carril actualizado", opt.color);
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
+  };
+
+  const updateSalidaEstado = async (estadoId) => {
+    if (!carriles?.c4) return;
+    const prev = carriles;
+    const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
+    const next = { ...carriles, c4: { ...carriles.c4, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setCarriles(next);
+    setPending("c4:estado_carril", true);
+    const error = await saveToSupa(next);
+    setPending("c4:estado_carril", false);
+    if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
+    await auditLog({ action:"modificar_estado_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó Carril 4 como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Estado del carril de salida actualizado", opt.color);
+    await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso Carril 4 — ${opt.label}`, detalle: "Estado de carril de salida actualizado" });
+  };
+
   const resetAll = async () => {
     const next = mkSegundoIngreso();
     setCarriles(next);
@@ -11388,7 +11439,7 @@ function SegundoAccesoTab({ myId }) {
   };
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Carril restablecido", "#22c55e");
@@ -11411,6 +11462,26 @@ function SegundoAccesoTab({ myId }) {
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
+  const updateConfinadaEstado = async (id, estadoId) => {
+    if (!confinada) return;
+    const prev = confinada;
+    const def = CONFINADA_CARRILES.find(c => c.id === id);
+    const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
+    const current = confinada[id] || {};
+    const nextTerminal = estadoId === "sin_uso" ? "sin_uso" : (current.terminal === "sin_uso" ? (def?.defaultTerminal || "general") : current.terminal);
+    const next = {
+      ...confinada,
+      [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" }
+    };
+    setConfinada(next);
+    setPending(`${id}:estado_carril`, true);
+    await saveConfinada(next);
+    setPending(`${id}:estado_carril`, false);
+    await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
+    notify("✓ Estado del carril Confinada actualizado", opt.color);
+    await publicarNoticia({ tipo: "segundo", icono: "🔒", color: opt.color, titulo: `Confinada ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
+  };
+
   const resetAllConfinada = async () => {
     const next = mkConfinadaState();
     setConfinada(next);
@@ -11419,7 +11490,7 @@ function SegundoAccesoTab({ myId }) {
   };
   const resetOneConfinada = async (id) => {
     const def = CONFINADA_CARRILES.find(c => c.id === id);
-    const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
+    const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
     await saveConfinada(next);
     notify("✓ Carril restablecido", "#a78bfa");
@@ -11430,13 +11501,11 @@ function SegundoAccesoTab({ myId }) {
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
-    { id:"sin_uso", label:"Sin uso", color:"#6b7280", icon:"ban" },
     { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
     ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:"#38bdf8", icon:"port-terminal" })),
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
   ];
   const terminalOptionsConfinada = [
-    { id:"sin_uso", label:"Sin uso", color:"#6b7280", icon:"ban" },
     { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
   ];
@@ -11497,8 +11566,8 @@ function SegundoAccesoTab({ myId }) {
 
   {/* C4 — SALIDA (ciudad, verde/rojo) */}
   {(() => {
-    const c4sat = carriles?.c4?.saturado;
-    const c4col = c4sat ? "#ef4444" : "#22c55e";
+    const c4Opt = getCarrilEstadoOpt(carriles?.c4);
+    const c4col = c4Opt.color;
     return (
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
         
@@ -11517,7 +11586,7 @@ function SegundoAccesoTab({ myId }) {
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
           <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
           <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>
-            {c4sat ? "SATURADO" : "LIBRE"}
+            {c4Opt.label.toUpperCase()}
           </div>
         </div>
       </div>
@@ -11527,8 +11596,8 @@ function SegundoAccesoTab({ myId }) {
   {/* C1, C2, C3 — INGRESO (puerto) */}
   {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
     const st  = carriles?.[c.id];
-    const sat = st?.saturado;
-    const col = st?.terminal === "sin_uso" ? "#6b7280" : sat ? "#ef4444" : "#14b8a6";
+    const laneOpt = getCarrilEstadoOpt(st);
+    const col = laneOpt.id === "libre" ? "#14b8a6" : laneOpt.color;
     const tz  = getTermZona(st?.terminal);
     const tc  = tz === "Sin uso" ? "#6b7280" : tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
 
@@ -11574,7 +11643,7 @@ function SegundoAccesoTab({ myId }) {
 
           {/* Leyenda */}
           <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#14b8a6","INGRESO"],["#22c55e","SALIDA LIBRE"],["#ef4444","SATURADO"],["#fbbf24","GENERAL"],["#38bdf8","ZONA NORTE"],["#a78bfa","ZONA SUR"]].map(([c,l]) => (
+            {[["#14b8a6","LIBRE"],["#f59e0b","LENTO"],["#f97316","MODERADO"],["#ef4444","SATURADO"],["#dc2626","BLOQUEO"],["#6b7280","SIN USO"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -11586,14 +11655,16 @@ function SegundoAccesoTab({ myId }) {
         <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
         {SEGUNDO_CARRILES_INGRESO.map(carril => {
           const st        = carriles[carril.id];
+          const laneOpt   = getCarrilEstadoOpt(st);
+          const isSinUso  = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
           const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = st.terminal === "sin_uso" ? "#6b7280" : termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+          const zonaColor = isSinUso ? "#6b7280" : termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const isChanged = st.saturado || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+          const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${st.saturado ? "#ef444466" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.id !== "libre" ? laneOpt.color+"66" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
@@ -11604,7 +11675,7 @@ function SegundoAccesoTab({ myId }) {
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
+                    <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
                     {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
                     {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
                     {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
@@ -11616,7 +11687,7 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  {st.terminal === "sin_uso" ? (
+                  {isSinUso ? (
                     <>
                       <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"15px" }}>SIN USO</div>
                       <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div>
@@ -11646,13 +11717,13 @@ function SegundoAccesoTab({ myId }) {
 
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
               <div style={{ marginBottom:"8px" }}>
-                <SegmentedToggle
-                  value={!!st.saturado}
-                  onChange={(v) => updateIngreso(carril.id,"saturado",v)}
-                  leftLabel="LIBRE" rightLabel="SATURADO"
-                  leftColor="#22c55e" rightColor="#ef4444"
-                  pending={!!pendingKeys[`${carril.id}:saturado`]}
+                <WheelPickerSelect
+                  value={getCarrilEstadoId(st)}
+                  options={CARRIL_ESTADO_OPTS}
+                  onChange={(v) => updateIngresoEstado(carril.id, v || "libre")}
+                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
                   theme={theme}
+                  title={`${carril.label} · Estado del carril`}
                 />
               </div>
               <div style={{ marginBottom:"10px" }}>
@@ -11702,7 +11773,8 @@ function SegundoAccesoTab({ myId }) {
         })}
 
         <SectionLabel text="CARRIL DE SALIDA (C4)" />
-        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${carriles.c4.saturado?"#ef444466":"#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
+        {(() => { const c4LaneOpt = getCarrilEstadoOpt(carriles.c4); return (
+        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${c4LaneOpt.id !== "libre" ? c4LaneOpt.color+"66" : "#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
@@ -11711,7 +11783,7 @@ function SegundoAccesoTab({ myId }) {
               </div>
               <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
             </div>
-            <Badge color={carriles.c4.saturado?"#ef4444":"#22c55e"} small>{carriles.c4.saturado?"SATURADO":"FLUIDO"}</Badge>
+            <Badge color={c4LaneOpt.color} small>{c4LaneOpt.label.toUpperCase()}</Badge>
           </div>
           <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
             <span style={{ fontSize:"22px" }}>🚚</span>
@@ -11720,14 +11792,15 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
             </div>
           </div>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
           <div style={{ marginBottom:"8px" }}>
-            <SegmentedToggle
-              value={!!carriles.c4.saturado}
-              onChange={(v) => updateSalida("saturado",v)}
-              leftLabel="FLUIDO" rightLabel="SATURADO"
-              leftColor="#22c55e" rightColor="#ef4444"
-              pending={!!pendingKeys["c4:saturado"]}
+            <WheelPickerSelect
+              value={getCarrilEstadoId(carriles.c4)}
+              options={CARRIL_ESTADO_OPTS}
+              onChange={(v) => updateSalidaEstado(v || "libre")}
+              pending={!!pendingKeys["c4:estado_carril"]}
               theme={theme}
+              title="Carril 4 · Estado del carril"
             />
           </div>
           <div style={{ marginBottom:"10px" }}>
@@ -11773,6 +11846,7 @@ function SegundoAccesoTab({ myId }) {
             </div>
           </div>
         </div>
+        ); })()}
 
         {/* ── Segundo Acceso Por Fases ── */}
         <div style={{ marginTop:"8px" }}>
@@ -11796,8 +11870,9 @@ function SegundoAccesoTab({ myId }) {
         {(() => {
           const getCarrilColor = (id) => {
             const st = confinada[id];
-            if (!st || st.terminal === "sin_uso") return "#6b7280";
-            if (st.saturado) return "#ef4444";
+            if (!st) return "#6b7280";
+            const opt = getCarrilEstadoOpt(st);
+            if (opt.id !== "libre") return opt.color;
             if (st.transferencia) return "#fbbf24";
             return "#22c55e";
           };
@@ -11808,7 +11883,7 @@ function SegundoAccesoTab({ myId }) {
           const getTermShort = (id) => {
             const st = confinada[id];
             if (!st) return "—";
-            if (st.terminal === "sin_uso") return "SIN USO";
+            if (getCarrilEstadoId(st) === "sin_uso" || st.terminal === "sin_uso") return "SIN USO";
             if (st.terminal === "general") return "GENERAL";
             const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
             return found ? found.name : st.terminal.toUpperCase();
@@ -11868,7 +11943,7 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#ef4444","Saturado"],["#fbbf24","2° Acceso"],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#6b7280","Sin uso"]].map(([c,l]) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -11883,12 +11958,14 @@ function SegundoAccesoTab({ myId }) {
 
         {CONFINADA_CARRILES.map(carril => {
           const st = confinada[carril.id];
+          const laneOpt = getCarrilEstadoOpt(st);
+          const isSinUso = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
           const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = st.terminal==="sin_uso" ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : st.saturado ? "#ef4444" : "#a78bfa";
-          const isChanged = st.saturado || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="sin_uso" || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
+          const borderColor = isSinUso ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : laneOpt.id !== "libre" ? laneOpt.color : "#a78bfa";
+          const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
             <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
               {/* Header carril */}
@@ -11896,17 +11973,17 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
                     <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa44", borderRadius:"6px", padding:"3px 10px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    {st.terminal === "sin_uso"
+                    {isSinUso
                       ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
                       : <Badge color="#22c55e" small>INGRESO</Badge>
                     }
-                    {st.transferencia && st.terminal !== "sin_uso" && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
+                    {st.transferencia && !isSinUso && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
                   </div>
                   <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
                   <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={st.saturado ? "#ef4444" : "#22c55e"} small>{st.saturado ? "SATURADO" : "LIBRE"}</Badge>
+                    <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
                     {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
                     {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
                     {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
@@ -11917,17 +11994,17 @@ function SegundoAccesoTab({ myId }) {
               </div>
 
               {/* Terminal asignada */}
-              <div style={{ background: st.terminal==="sin_uso" ? "#6b728011" : st.terminal==="general" ? "#fbbf2411" : "#a78bfa11", border:`1px solid ${st.terminal==="sin_uso"?"#6b728033":st.terminal==="general"?"#fbbf2433":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ background: isSinUso ? "#6b728011" : st.terminal==="general" ? "#fbbf2411" : "#a78bfa11", border:`1px solid ${isSinUso?"#6b728033":st.terminal==="general"?"#fbbf2433":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  {st.terminal === "sin_uso"
+                  {isSinUso
                     ? <><div style={{ color:"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
                     : st.terminal === "general"
                     ? <><div style={{ color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>GENERAL</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todas las terminales</div></>
                     : <><div style={{ color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
                   }
                 </div>
-                <span style={{ fontSize:"22px" }}>{st.terminal === "sin_uso" ? "🚫" : "🚛"}</span>
+                <span style={{ fontSize:"22px" }}>{isSinUso ? "🚫" : "🚛"}</span>
               </div>
 
               {/* Cambiar terminal — selector de rueda compacto */}
@@ -11945,9 +12022,15 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Estado del carril */}
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"6px" }}>
-                <button onClick={() => updateConfinada(carril.id,"saturado",false)} style={{ padding:"9px", background: !st.saturado?"#22c55e22":"#0a1628", border:`1px solid ${!st.saturado?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.saturado?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.saturado?"700":"400" }}>LIBRE</button>
-                <button onClick={() => updateConfinada(carril.id,"saturado",true)}  style={{ padding:"9px", background: st.saturado?"#ef444422":"#0a1628",  border:`1px solid ${st.saturado?"#ef4444":"#1e3a5f"}`,  borderRadius:"8px", color: st.saturado?"#ef4444":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.saturado?"700":"400"  }}>SATURADO</button>
+              <div style={{ marginBottom:"6px" }}>
+                <WheelPickerSelect
+                  value={getCarrilEstadoId(st)}
+                  options={CARRIL_ESTADO_OPTS}
+                  onChange={(v) => updateConfinadaEstado(carril.id, v || "libre")}
+                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
+                  theme={theme}
+                  title={`Confinada ${carril.label} · Estado del carril`}
+                />
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
                 <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
@@ -13250,12 +13333,14 @@ function NoticiasAutoJpegReport() {
         ...ACCESOS_SEGUNDO.flatMap(acc => acc.carriles.map(c => {
           const st = segundo[c.id] || {};
           const flags = [terminalName(st.terminal), st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          return { name:`${acc.label} · ${c.label}`, status:st.saturado ? "Saturado" : "Fluido", detail:flags, color:st.saturado ? "#ef4444" : "#22c55e" };
+          const laneOpt = getCarrilEstadoOpt(st);
+          return { name:`${acc.label} · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
         })),
         ...CONFINADA_CARRILES.map(c => {
           const st = confinada[c.id] || {};
           const flags = [terminalName(st.terminal), st.transferencia ? "Transferencia" : "", st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          return { name:`Confinada · ${c.label}`, status:st.saturado ? "Saturado" : "Fluido", detail:flags, color:st.saturado ? "#ef4444" : "#22c55e" };
+          const laneOpt = getCarrilEstadoOpt(st);
+          return { name:`Confinada · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
         })
       ]}
     ];
