@@ -14641,7 +14641,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     setPisResult(null);
     const payload = { asipona:pisForm.asipona, tipo:pisForm.tipo, id };
     try {
-      const { data, error } = await sb.functions.invoke("pis-verificar-documento", { body: payload });
+      const { data, error } = await sb.functions.invoke("smooth-service", { body: payload });
       if (error) throw error;
       const result = data || {};
       const valid = result.valid === true || /válido|valido/i.test(String(result.message || result.resultado || ""));
