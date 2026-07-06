@@ -14347,6 +14347,7 @@ const PIS_ASIPONAS = [
 const PIS_EDGE_FUNCTION = "smooth-service";
 const PIS_ASIPONA_WHATSAPP_URL = "https://wa.me/+523141215154";
 const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
+const PIS_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
 
 function StarRating({ value=0, onRate=null, small=false }) {
   const theme = React.useContext(ThemeContext);
@@ -14380,6 +14381,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisResult, setPisResult] = useState(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisContactMessage, setPisContactMessage] = useState("");
+  const [pisContactUnlocked, setPisContactUnlocked] = useState(false);
+  const [pisUnlockRequested, setPisUnlockRequested] = useState(false);
+  const [pisUnlockSeconds, setPisUnlockSeconds] = useState(0);
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
@@ -14426,14 +14430,39 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   useEffect(() => {
     if (!pisResult) return undefined;
-    const timer = setTimeout(() => {
+    const resetTimer = setTimeout(() => {
       setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
       setPisResult(null);
       setPisContactMessage("");
       setPisEmailCopied(false);
+      setPisContactUnlocked(false);
+      setPisUnlockRequested(false);
+      setPisUnlockSeconds(0);
     }, 120000);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(resetTimer);
   }, [pisResult?.checked_at, pisResult?.status]);
+
+  useEffect(() => {
+    if (!pisResult || !pisUnlockRequested || pisContactUnlocked) return undefined;
+    setPisUnlockSeconds(30);
+    const unlockStartedAt = Date.now();
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, 30 - Math.floor((Date.now() - unlockStartedAt) / 1000));
+      setPisUnlockSeconds(remaining);
+      if (remaining <= 0) {
+        setPisContactUnlocked(true);
+        clearInterval(interval);
+      }
+    }, 500);
+    const unlockTimer = setTimeout(() => {
+      setPisContactUnlocked(true);
+      setPisUnlockSeconds(0);
+    }, 30000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(unlockTimer);
+    };
+  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked]);
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
   const requireLogin = () => { setMsg({ type:"err", text:"Para guardar y editar tu perfil, primero crea o inicia sesión en Más info." }); return false; };
@@ -14702,6 +14731,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         checked_at: new Date().toISOString(),
       };
 
+      setPisContactUnlocked(false);
+      setPisUnlockRequested(false);
+      setPisUnlockSeconds(0);
       setPisResult(normalized);
       setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada en PIS/SEMAR: ${payload.asipona} · ${payload.tipo}-${payload.id}. Resultado mostrado: ${normalized.message}`);
       savePisHistory(normalized);
@@ -14716,6 +14748,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         query:payload,
         checked_at:new Date().toISOString(),
       };
+      setPisContactUnlocked(false);
+      setPisUnlockRequested(false);
+      setPisUnlockSeconds(0);
       setPisResult(fallback);
       setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
     } finally {
@@ -14764,7 +14799,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
           <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"150px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); }} style={btn("#94a3b8")}>Limpiar</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={btn("#94a3b8")}>Limpiar</button>
           <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>Abrir PIS oficial</a>
         </div>
 
@@ -14776,20 +14811,49 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.78)", lineHeight:1.65 }}>{pisResult.message}</div>
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
-              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
-                Si requieres información más específica del boletinaje, contacta directamente a ASIPONA al <b>314 121 5154</b> o al correo <b>{PIS_ASIPONA_EMAIL}</b>.
+              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"10px" }}>
+                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después de 30 segundos se desbloquearán automáticamente los datos de contacto y el cuadro de consulta específica.
               </div>
-              <textarea
-                value={pisContactMessage}
-                onChange={e=>setPisContactMessage(e.target.value)}
-                placeholder="Escribe aquí tu consulta específica para ASIPONA..."
-                rows={3}
-                style={{ ...input, resize:"vertical", minHeight:"74px", marginBottom:"9px" }}
-              />
-              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
-                <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
-              </div>
+
+              {!pisUnlockRequested && !pisContactUnlocked && (
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"10px" }}>
+                  <a
+                    href={PIS_WHATSAPP_CHANNEL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { setPisUnlockRequested(true); setPisContactUnlocked(false); setPisUnlockSeconds(30); }}
+                    style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}
+                  >
+                    <AppIcon name="whatsapp" size={14} active /> Aceptar y seguir canal
+                  </a>
+                </div>
+              )}
+
+              {pisUnlockRequested && !pisContactUnlocked && (
+                <div style={{ border:"1px dashed rgba(251,191,36,.36)", background:"rgba(251,191,36,.08)", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.70)", lineHeight:1.55, marginBottom:"10px" }}>
+                  Gracias. El contacto de ASIPONA se habilitará automáticamente en <b style={{ color:"#fbbf24" }}>{pisUnlockSeconds || 30}s</b>. Puedes entrar al canal, seguirlo y regresar a esta pantalla.
+                </div>
+              )}
+
+              {pisContactUnlocked && (
+                <>
+                  <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
+                    Contacto ASIPONA para información específica: <b>314 121 5154</b> · <b>{PIS_ASIPONA_EMAIL}</b>.
+                  </div>
+                  <textarea
+                    value={pisContactMessage}
+                    onChange={e=>setPisContactMessage(e.target.value)}
+                    placeholder="Escribe aquí tu consulta específica para ASIPONA..."
+                    rows={3}
+                    style={{ ...input, resize:"vertical", minHeight:"74px", marginBottom:"9px" }}
+                  />
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                    <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
+                    <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
+                  </div>
+                </>
+              )}
+
               <div style={{ marginTop:"7px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)" }}>
                 Esta información de contacto se ocultará automáticamente 2 minutos después de la consulta.
               </div>
