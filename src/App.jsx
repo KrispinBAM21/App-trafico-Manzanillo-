@@ -7759,7 +7759,7 @@ function MapaAccesos({ accesos }) {
           { sticky: true, className: "cm-tooltip", direction: "center" }
         );
         if (!polyRefs.current[poly.id]) polyRefs.current[poly.id] = [];
-      polyRefs.current[poly.id].push(layer);
+        polyRefs.current[poly.id].push(layer);
       });
 
       if (!document.getElementById("cm-map-style")) {
@@ -7805,15 +7805,19 @@ function MapaAccesos({ accesos }) {
   useEffect(() => {
     if (!leafRef.current || !accesos) return;
     ACCESO_POLYGONS.forEach(poly => {
-      const layer = polyRefs.current[poly.id];
-      if (!layer) return;
+      const layersRaw = polyRefs.current[poly.id];
+      const layers = Array.isArray(layersRaw) ? layersRaw : (layersRaw ? [layersRaw] : []);
+      if (!layers.length) return;
       const color = getColor(poly.id);
-      layer.setStyle({ color, fillColor: color, fillOpacity: 0.45, weight: 3, opacity: 1 });
       const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
-      layer.bindTooltip(
-        `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
-        { sticky: true, className: "cm-tooltip", direction: "center" }
-      );
+      layers.forEach(layer => {
+        if (!layer?.setStyle) return;
+        layer.setStyle({ color, fillColor: color, fillOpacity: 0.45, weight: 3, opacity: 1 });
+        layer.bindTooltip(
+          `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
+          { sticky: true, className: "cm-tooltip", direction: "center" }
+        );
+      });
     });
   }, [JSON.stringify(accesos)]);
 
