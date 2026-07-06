@@ -15610,6 +15610,251 @@ const WORLD_COUNTRIES = [
 ];
 
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
+
+// ─── MODAL AUTH RÁPIDO (header: iniciar sesión / crear cuenta sin redirigir) ───
+function AuthQuickModal({ initialMode = "login", onClose }) {
+  const theme = React.useContext(ThemeContext);
+  const [authMode, setAuthMode] = useState(initialMode === "registro" ? "registro" : "login");
+  const [loading, setLoading] = useState(false);
+
+  // Login
+  const [loginUser, setLoginUser] = useState(() => { try { return localStorage.getItem("cm_remember_email") || ""; } catch { return ""; } });
+  const [loginPass, setLoginPass] = useState(() => { try { return localStorage.getItem("cm_remember_pass") || ""; } catch { return ""; } });
+  const [loginRemember, setLoginRemember] = useState(() => { try { return !!localStorage.getItem("cm_remember_email"); } catch { return false; } });
+  const [showLoginPass, setShowLoginPass] = useState(false);
+  const [loginMsg, setLoginMsg] = useState(null);
+
+  // Registro — mismo flujo usado en Tutorial
+  const [regStep, setRegStep] = useState(1);
+  const [regNombre, setRegNombre] = useState("");
+  const [regApellidos, setRegApellidos] = useState("");
+  const [regUsername, setRegUsername] = useState("");
+  const [regFecha, setRegFecha] = useState("");
+  const [regPais, setRegPais] = useState("");
+  const [regCiudad, setRegCiudad] = useState("");
+  const [regTipoUsuario, setRegTipoUsuario] = useState("visualizador_votante");
+  const [regTel, setRegTel] = useState("");
+  const [regOtp, setRegOtp] = useState("");
+  const [otpEnviado, setOtpEnviado] = useState(false);
+  const [regCorreo, setRegCorreo] = useState("");
+  const [regCorreo2, setRegCorreo2] = useState("");
+  const [regPass, setRegPass] = useState("");
+  const [regPass2, setRegPass2] = useState("");
+  const [showRegPass, setShowRegPass] = useState(false);
+  const [showRegPass2, setShowRegPass2] = useState(false);
+  const [regTerminos, setRegTerminos] = useState(false);
+  const [regPrivacidad, setRegPrivacidad] = useState(false);
+  const [regAntibot, setRegAntibot] = useState("");
+  const [regMsg, setRegMsg] = useState(null);
+
+  // Recuperación
+  const [forgotCorreo, setForgotCorreo] = useState("");
+  const [forgotMsg, setForgotMsg] = useState(null);
+
+  useEffect(() => {
+    setAuthMode(initialMode === "registro" ? "registro" : "login");
+    setLoginMsg(null);
+    setRegMsg(null);
+    setForgotMsg(null);
+  }, [initialMode]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const inputStyle = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"12px 14px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+  const btnPrimary = (color="#38bdf8") => ({ width:"100%", padding:"13px", background:`linear-gradient(135deg,${color},${color}cc)`, border:"none", borderRadius:"10px", color:"#0a1628", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:loading?"wait":"pointer", letterSpacing:"0.5px", marginTop:"4px", opacity:loading?0.7:1 });
+  const btnSecondary = { background:"none", border:"none", color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", padding:"4px 0" };
+  const checkboxBox = (active) => ({ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${active?"#38bdf8":"rgba(255,255,255,0.2)"}`, background:active?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 });
+  const MsgBox = ({ msg }) => msg ? (
+    <div style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok" ? "#22c55e55" : "#ef444455"}`, color: msg.type==="ok" ? "#22c55e" : "#ef4444" }}>
+      {msg.type==="ok" ? "✓ " : "⚠️ "}{msg.text}
+    </div>
+  ) : null;
+
+  const passStrong = (p) => p.length >= 10 && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
+
+  const handleLogin = async () => {
+    if (!loginUser.trim() || !loginPass) { setLoginMsg({type:"err", text:"Completa usuario y contraseña"}); return; }
+    const email = loginUser.includes("@") ? loginUser.trim() : null;
+    if (!email) { setLoginMsg({type:"err", text:"Ingresa tu correo electrónico para iniciar sesión"}); return; }
+    setLoading(true); setLoginMsg(null);
+    const { error } = await sb.auth.signInWithPassword({ email, password: loginPass });
+    setLoading(false);
+    if (error) setLoginMsg({type:"err", text:error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos" : error.message});
+    else {
+      setLoginMsg({type:"ok", text:"Sesión iniciada correctamente."});
+      if (loginRemember) {
+        try { localStorage.setItem("cm_remember_email", loginUser.trim()); localStorage.setItem("cm_remember_pass", loginPass); } catch {}
+      } else {
+        try { localStorage.removeItem("cm_remember_email"); localStorage.removeItem("cm_remember_pass"); } catch {}
+      }
+      setTimeout(() => onClose && onClose(), 650);
+    }
+  };
+
+  const handleLoginGoogle = async () => {
+    setLoading(true); setLoginMsg(null);
+    const { error } = await sb.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: window.location.href } });
+    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
+  };
+
+  const handleEnviarOtp = async () => {
+    const tel = regTel.trim();
+    if (!tel.match(/^\+[0-9]{10,15}$/)) { setRegMsg({type:"err", text:"Número inválido. Usa formato internacional: +521XXXXXXXXXX"}); return; }
+    setLoading(true); setRegMsg(null);
+    const { error } = await sb.auth.signInWithOtp({ phone: tel });
+    setLoading(false);
+    if (error) setRegMsg({type:"err", text:"Error al enviar SMS: " + error.message});
+    else { setOtpEnviado(true); setRegMsg({type:"ok", text:"Código enviado por SMS. Revisa tu teléfono."}); }
+  };
+
+  const handleVerificarOtp = async () => {
+    if (regOtp.length < 6) { setRegMsg({type:"err", text:"El código debe tener 6 dígitos"}); return; }
+    setLoading(true); setRegMsg(null);
+    const { error } = await sb.auth.verifyOtp({ phone: regTel.trim(), token: regOtp, type:"sms" });
+    setLoading(false);
+    if (error) setRegMsg({type:"err", text:"Código incorrecto o expirado. Inténtalo de nuevo."});
+    else { setRegMsg({type:"ok", text:"Teléfono verificado correctamente."}); setRegStep(3); }
+  };
+
+  const handleRegStep = async () => {
+    setRegMsg(null);
+    if (regStep === 1) {
+      if (!regNombre.trim() || !regApellidos.trim() || !regUsername.trim() || !regFecha || !regPais.trim() || !regCiudad.trim()) { setRegMsg({type:"err", text:"Completa todos los campos obligatorios"}); return; }
+      setRegStep(2);
+    } else if (regStep === 2) {
+      setRegMsg({type:"err", text:"Verifica tu número de teléfono primero"});
+    } else if (regStep === 3) {
+      if (!regCorreo.trim() || !regCorreo2.trim()) { setRegMsg({type:"err", text:"Ingresa tu correo electrónico"}); return; }
+      if (regCorreo !== regCorreo2) { setRegMsg({type:"err", text:"Los correos no coinciden"}); return; }
+      if (!regCorreo.includes("@")) { setRegMsg({type:"err", text:"Correo electrónico no válido"}); return; }
+      setRegStep(4);
+    } else if (regStep === 4) {
+      if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 10 caracteres, 1 mayúscula, 1 número y 1 símbolo"}); return; }
+      if (regPass !== regPass2) { setRegMsg({type:"err", text:"Las contraseñas no coinciden"}); return; }
+      if (regAntibot.trim() !== "8") { setRegMsg({type:"err", text:"Respuesta incorrecta — ¿cuánto es 3 + 5?"}); return; }
+      if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
+      setLoading(true);
+      const { error } = await sb.auth.signUp({
+        email: regCorreo.trim(),
+        password: regPass,
+        options: { data: { nombre:regNombre.trim(), apellidos:regApellidos.trim(), username:regUsername.trim(), fecha_nacimiento:regFecha, pais:regPais.trim(), ciudad:regCiudad.trim(), telefono:regTel.trim(), tipo_usuario:regTipoUsuario } }
+      });
+      setLoading(false);
+      if (error) setRegMsg({type:"err", text:error.message.includes("already registered") ? "Este correo ya está registrado" : error.message});
+      else { setRegMsg({type:"ok", text:"Cuenta creada. Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); setTimeout(() => setAuthMode("login"), 900); }
+    }
+  };
+
+  const handleForgot = async () => {
+    if (!forgotCorreo.includes("@")) { setForgotMsg({type:"err", text:"Ingresa un correo válido"}); return; }
+    setLoading(true); setForgotMsg(null);
+    const { error } = await sb.auth.resetPasswordForEmail(forgotCorreo.trim(), { redirectTo: window.location.href });
+    setLoading(false);
+    if (error) setForgotMsg({type:"err", text:"Error: " + error.message});
+    else setForgotMsg({type:"ok", text:"Si el correo existe, recibirás el enlace de recuperación en minutos."});
+  };
+
+  const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.74)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", display:"flex", alignItems:"flex-start", justifyContent:"flex-end", padding:"84px 18px 18px" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:"430px", maxHeight:"calc(100vh - 110px)", overflowY:"auto", background:"linear-gradient(135deg,#0d1b2e,#071426)", border:"1px solid rgba(56,189,248,0.28)", borderRadius:"18px", padding:"16px", boxShadow:"0 24px 80px rgba(0,0,0,0.55)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"12px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"17px", fontWeight:"900", color:"#fff" }}>{authMode === "login" ? "Iniciar sesión" : authMode === "registro" ? "Crear cuenta" : "Recuperar contraseña"}</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", marginTop:"3px" }}>Puedes continuar dentro de esta misma pantalla.</div>
+          </div>
+          <button onClick={onClose} style={{ width:"34px", height:"34px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.14)", background:"rgba(255,255,255,0.07)", color:"#fff", cursor:"pointer", fontSize:"16px" }}>✕</button>
+        </div>
+
+        {authMode !== "forgot" && (
+          <div style={{ display:"flex", gap:"4px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px", marginBottom:"14px" }}>
+            {[{id:"login", label:"Iniciar sesión"}, {id:"registro", label:"Crear cuenta"}].map(t => (
+              <button key={t.id} onClick={() => { setAuthMode(t.id); setLoginMsg(null); setRegMsg(null); }} style={{ flex:1, padding:"9px", borderRadius:"9px", border:"none", background:authMode===t.id ? "linear-gradient(135deg,#38bdf8,#0ea5e9)" : "transparent", color:authMode===t.id ? "#0a1628" : "rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>{t.label}</button>
+            ))}
+          </div>
+        )}
+
+        {authMode === "login" && (
+          <div>
+            <MsgBox msg={loginMsg} />
+            <input value={loginUser} onChange={e=>setLoginUser(e.target.value)} placeholder="tu@correo.com" style={inputStyle} />
+            <div style={{ position:"relative" }}>
+              <input type={showLoginPass ? "text" : "password"} value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Tu contraseña" style={{...inputStyle, paddingRight:"38px"}} onKeyDown={e=>e.key==="Enter"&&handleLogin()} />
+              <button onClick={()=>setShowLoginPass(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showLoginPass?"🙈":"👁️"}</button>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"10px" }}>
+              <div onClick={()=>setLoginRemember(v=>!v)} style={{ display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", color:"rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>
+                <div style={checkboxBox(loginRemember)}>{loginRemember && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}</div> Recordarme
+              </div>
+              <button onClick={()=>{ setAuthMode("forgot"); setForgotMsg(null); }} style={btnSecondary}>¿Olvidaste tu contraseña?</button>
+            </div>
+            <button onClick={handleLogin} disabled={loading} style={btnPrimary()}>{loading ? "Entrando..." : "Entrar"}</button>
+            <button onClick={handleLoginGoogle} disabled={loading} style={{ ...btnPrimary("#ffffff"), color:"#0a1628", marginTop:"8px" }}>Continuar con Google</button>
+          </div>
+        )}
+
+        {authMode === "registro" && (
+          <div>
+            <div style={{ display:"flex", gap:"4px", marginBottom:"12px" }}>{stepLabels.map((s,i)=><div key={s} style={{ flex:1, height:"4px", borderRadius:"999px", background:i+1<=regStep ? "#38bdf8" : "rgba(255,255,255,0.1)" }} />)}</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"#38bdf8", fontWeight:"800", fontSize:"11px", marginBottom:"10px" }}>Paso {regStep}/4 · {stepLabels[regStep-1]}</div>
+            <MsgBox msg={regMsg} />
+            {regStep === 1 && <>
+              <input value={regNombre} onChange={e=>setRegNombre(e.target.value)} placeholder="Nombre(s)" style={inputStyle} />
+              <input value={regApellidos} onChange={e=>setRegApellidos(e.target.value)} placeholder="Apellidos" style={inputStyle} />
+              <input value={regUsername} onChange={e=>setRegUsername(e.target.value.toLowerCase().replace(/\s/g,""))} placeholder="Nombre de usuario" style={inputStyle} />
+              <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} style={inputStyle} />
+              <input value={regPais} onChange={e=>setRegPais(e.target.value)} placeholder="País" style={inputStyle} />
+              <input value={regCiudad} onChange={e=>setRegCiudad(e.target.value)} placeholder="Ciudad" style={inputStyle} />
+              <select value={regTipoUsuario} onChange={e=>setRegTipoUsuario(e.target.value)} style={inputStyle}>
+                <option value="visualizador_votante">Visualizador / votante</option>
+                <option value="operador">Operador</option>
+                <option value="empresa">Empresa</option>
+                <option value="transportista">Transportista</option>
+              </select>
+            </>}
+            {regStep === 2 && <>
+              <input value={regTel} onChange={e=>setRegTel(e.target.value)} placeholder="Teléfono internacional, ej. +5213140000000" style={inputStyle} />
+              <button onClick={handleEnviarOtp} disabled={loading} style={btnPrimary("#22c55e")}>{otpEnviado ? "Reenviar SMS" : "Enviar SMS"}</button>
+              {otpEnviado && <>
+                <input value={regOtp} onChange={e=>setRegOtp(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="Código de 6 dígitos" style={{...inputStyle, marginTop:"10px"}} />
+                <button onClick={handleVerificarOtp} disabled={loading} style={btnPrimary()}>Verificar teléfono</button>
+              </>}
+            </>}
+            {regStep === 3 && <>
+              <input value={regCorreo} onChange={e=>setRegCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
+              <input value={regCorreo2} onChange={e=>setRegCorreo2(e.target.value)} placeholder="Confirmar correo" style={inputStyle} />
+            </>}
+            {regStep === 4 && <>
+              <div style={{ position:"relative" }}><input type={showRegPass?"text":"password"} value={regPass} onChange={e=>setRegPass(e.target.value)} placeholder="Contraseña segura" style={{...inputStyle, paddingRight:"38px"}} /><button onClick={()=>setShowRegPass(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showRegPass?"🙈":"👁️"}</button></div>
+              <div style={{ position:"relative" }}><input type={showRegPass2?"text":"password"} value={regPass2} onChange={e=>setRegPass2(e.target.value)} placeholder="Confirmar contraseña" style={{...inputStyle, paddingRight:"38px"}} /><button onClick={()=>setShowRegPass2(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showRegPass2?"🙈":"👁️"}</button></div>
+              <input value={regAntibot} onChange={e=>setRegAntibot(e.target.value)} placeholder="Antibot: ¿cuánto es 3 + 5?" style={inputStyle} />
+              {[{label:"Acepto términos y condiciones", val:regTerminos, set:setRegTerminos}, {label:"Acepto política de privacidad", val:regPrivacidad, set:setRegPrivacidad}].map(x=><div key={x.label} onClick={()=>x.set(v=>!v)} style={{ display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", color:"rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginBottom:"8px" }}><div style={checkboxBox(x.val)}>{x.val && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}</div>{x.label}</div>)}
+            </>}
+            <div style={{ display:"flex", gap:"8px", marginTop:"8px" }}>
+              {regStep > 1 && <button onClick={()=>setRegStep(s=>Math.max(1,s-1))} style={{ ...btnPrimary("#64748b"), flex:1 }}>Atrás</button>}
+              <button onClick={handleRegStep} disabled={loading} style={{ ...btnPrimary(regStep===4 ? "#22c55e" : "#38bdf8"), flex:1 }}>{loading ? "Procesando..." : regStep===4 ? "Crear cuenta" : "Continuar"}</button>
+            </div>
+          </div>
+        )}
+
+        {authMode === "forgot" && (
+          <div>
+            <MsgBox msg={forgotMsg} />
+            <input value={forgotCorreo} onChange={e=>setForgotCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
+            <button onClick={handleForgot} disabled={loading} style={btnPrimary("#fbbf24")}>{loading ? "Enviando..." : "Enviar enlace de recuperación"}</button>
+            <button onClick={()=>{ setAuthMode("login"); setForgotMsg(null); }} style={{...btnSecondary, marginTop:"10px"}}>← Volver al inicio de sesión</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TutorialTab({ setActive, isAdmin, authIntent }) {
   const theme = React.useContext(ThemeContext);
   const [open, setOpen] = useState(null);
@@ -17819,6 +18064,7 @@ function App() {
   const [dbReady,   setDbReady]   = useState(false);
   // Intención de autenticación disparada desde el header (login/registro)
   const [authIntent, setAuthIntent] = useState(null);
+  const [authQuickMode, setAuthQuickMode] = useState(null); // "login" | "registro" para modal sin redirigir
   
   // Validado TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
@@ -18266,7 +18512,7 @@ function App() {
             {!isAdmin && !authUser && (
               <>
                 <button
-                  onClick={() => { setAuthIntent("login"); setActive("tutorial"); }}
+                  onClick={() => setAuthQuickMode("login")}
                   style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(148,163,184,0.35)", borderRadius:"8px", padding:"8px 14px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"600", letterSpacing:"0.3px", cursor:"pointer", transition:"background 0.2s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
@@ -18274,7 +18520,7 @@ function App() {
                   Iniciar sesión
                 </button>
                 <button
-                  onClick={() => { setAuthIntent("registro"); setActive("tutorial"); }}
+                  onClick={() => setAuthQuickMode("registro")}
                   style={{ background:"#1e40af", border:"1px solid #1e40af", borderRadius:"8px", padding:"8px 14px", color:"#ffffff", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"700", letterSpacing:"0.3px", cursor:"pointer", boxShadow:"0 3px 10px rgba(30,64,175,0.35)", transition:"filter 0.2s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.1)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.filter = "brightness(1)"; }}
@@ -18285,6 +18531,8 @@ function App() {
             )}
           </div>
         </div>
+
+        {authQuickMode && <AuthQuickModal initialMode={authQuickMode} onClose={() => setAuthQuickMode(null)} />}
 
         <NavBar active={active} set={setActive} />
 
