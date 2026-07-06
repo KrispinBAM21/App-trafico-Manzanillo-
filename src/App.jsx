@@ -12106,13 +12106,69 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
   const [fechaInicio, setFechaInicio] = useState("");
-  const [horaInicio, setHoraInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
-  const [horaFin, setHoraFin] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
   const inputRef = useRef();
+
+  const localDateInput = (offsetDays = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  };
+
+  const ensureFechaInicio = () => {
+    if (!fechaInicio) setFechaInicio(localDateInput(0));
+  };
+
+  const plantillasAdmin = [
+    {
+      id: "tarifa",
+      label: "Tarifa pública",
+      titulo: "Tarifa pública actualizada",
+      detalle: "Se comparte comunicado oficial con tarifa pública vigente para consulta de la comunidad portuaria.",
+      duracionDias: 30
+    },
+    {
+      id: "operativo",
+      label: "Aviso operativo",
+      titulo: "Aviso operativo importante",
+      detalle: "Se informa a usuarios y operadores sobre actualización operativa. Favor de revisar el documento adjunto y tomar previsiones.",
+      duracionDias: 7
+    },
+    {
+      id: "mantenimiento",
+      label: "Mantenimiento",
+      titulo: "Mantenimiento programado",
+      detalle: "Se informa mantenimiento programado. Considerar posibles ajustes operativos durante el periodo indicado.",
+      duracionDias: 3
+    },
+    {
+      id: "horario",
+      label: "Horario especial",
+      titulo: "Horario especial de atención",
+      detalle: "Se comunica horario especial de atención. Revisar el archivo adjunto para mayor detalle.",
+      duracionDias: 5
+    },
+    {
+      id: "general",
+      label: "Comunicado general",
+      titulo: "Comunicado oficial",
+      detalle: "Comunicado oficial para conocimiento de usuarios, operadores y comunidad logística.",
+      duracionDias: 10
+    }
+  ];
+
+  const aplicarPlantilla = (tpl) => {
+    const inicio = localDateInput(0);
+    setTitulo(tpl.titulo);
+    setDetalle(tpl.detalle);
+    setFechaInicio(inicio);
+    setFechaFin(localDateInput(tpl.duracionDias || 7));
+    setError("");
+  };
 
   const onFileChange = (e) => {
     const f = e.target.files[0];
@@ -12146,20 +12202,24 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setError("Selecciona un archivo");
       return;
     }
-    if (!fechaInicio || !horaInicio) {
-      setError("Especifica la fecha y hora de inicio");
+    if (!fechaInicio) {
+      setError("Especifica la fecha de inicio");
       return;
     }
-    if (!fechaFin || !horaFin) {
-      setError("Especifica la fecha y hora de término");
+    if (!fechaFin) {
+      setError("Especifica la fecha de término");
       return;
     }
 
-    const inicio = new Date(`${fechaInicio}T${horaInicio}`).toISOString();
-    const fin = new Date(`${fechaFin}T${horaFin}`).toISOString();
+    // Vigencia por fecha completa, sin hora visible para el usuario.
+    // Inicio: 00:00:00 del día seleccionado. Fin: 23:59:59 del día seleccionado.
+    const inicioDate = new Date(`${fechaInicio}T00:00:00`);
+    const finDate = new Date(`${fechaFin}T23:59:59.999`);
+    const inicio = inicioDate.toISOString();
+    const fin = finDate.toISOString();
 
-    if (fin <= inicio) {
-      setError("La fecha de término debe ser posterior a la fecha de inicio");
+    if (finDate < inicioDate) {
+      setError("La fecha de término debe ser igual o posterior a la fecha de inicio");
       return;
     }
 
@@ -12197,9 +12257,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setArchivo(null);
       setPreview(null);
       setFechaInicio("");
-      setHoraInicio("");
       setFechaFin("");
-      setHoraFin("");
       if (inputRef.current) inputRef.current.value = "";
       setTimeout(() => setExito(false), 3000);
       if (onSubido) onSubido();
@@ -12217,12 +12275,39 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           {isAdmin ? "SUBIR COMUNICADO (Admin)" : "PROPONER COMUNICADO"}
         </span>
       </div>
+
+      {isAdmin && (
+        <div style={{ background: "rgba(56,189,248,0.06)", border: "1px solid rgba(56,189,248,0.20)", borderRadius: "12px", padding: "12px", marginBottom: "12px" }}>
+          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#7dd3fc", fontWeight: "700", letterSpacing: "1px", marginBottom: "8px" }}>
+            PLANTILLAS RÁPIDAS
+          </div>
+          <div style={{ display: "flex", gap: "7px", flexWrap: "wrap" }}>
+            {plantillasAdmin.map(tpl => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => aplicarPlantilla(tpl)}
+                style={{ padding: "7px 9px", borderRadius: "999px", border: "1px solid rgba(56,189,248,0.35)", background: "rgba(56,189,248,0.12)", color: "#bae6fd", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: "pointer" }}
+              >
+                {tpl.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(226,232,240,0.45)", marginTop: "8px", lineHeight: "1.5" }}>
+            Selecciona una plantilla para llenar título, descripción y vigencia. Puedes ajustar cualquier dato antes de publicar.
+          </div>
+        </div>
+      )}
       
       <input
         type="text"
         placeholder="Título del comunicado *"
         value={titulo}
-        onChange={(e) => setTitulo(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setTitulo(v);
+          if (v.trim()) ensureFechaInicio();
+        }}
         maxLength={120}
         style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "8px", boxSizing: "border-box", outline: "none" }}
       />
@@ -12236,7 +12321,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none" }}
       />
 
-      {/* Fechas de vigencia */}
+      {/* Fechas de vigencia: solo fechas, sin horas */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
         <div>
           <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA INICIO *</div>
@@ -12248,35 +12333,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           />
         </div>
         <div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>HORA INICIO *</div>
-          <input
-            type="time"
-            value={horaInicio}
-            onChange={(e) => setHoraInicio(e.target.value)}
-            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
-        <div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA TÉRMINO *</div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA FIN *</div>
           <input
             type="date"
             value={fechaFin}
+            min={fechaInicio || undefined}
             onChange={(e) => setFechaFin(e.target.value)}
             style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
           />
         </div>
-        <div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>HORA TÉRMINO *</div>
-          <input
-            type="time"
-            value={horaFin}
-            onChange={(e) => setHoraFin(e.target.value)}
-            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
-          />
-        </div>
+      </div>
+      <div style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", padding: "8px 10px", marginBottom: "10px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(226,232,240,0.48)", lineHeight: "1.5" }}>
+        La fecha de inicio se llena automáticamente con el día actual al escribir el título. El comunicado permanecerá vigente hasta finalizar la fecha fin seleccionada.
       </div>
 
       {/* Zona de archivo */}
