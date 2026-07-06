@@ -2364,6 +2364,57 @@ const processImageOcrClient = async (sourceUrl) => {
   return { ok: true, text, image_urls: [sourceUrl] };
 };
 
+
+const cropCanvasByZone = (sourceCanvas, zone = null) => {
+  if (!sourceCanvas) throw new Error("No hay canvas para recortar");
+  const z = zone || { x: 0, y: 0, w: 1, h: 1 };
+  const sx = Math.max(0, Math.round((z.x || 0) * sourceCanvas.width));
+  const sy = Math.max(0, Math.round((z.y || 0) * sourceCanvas.height));
+  const sw = Math.max(1, Math.min(sourceCanvas.width - sx, Math.round((z.w || 1) * sourceCanvas.width)));
+  const sh = Math.max(1, Math.min(sourceCanvas.height - sy, Math.round((z.h || 1) * sourceCanvas.height)));
+  const out = document.createElement("canvas");
+  out.width = sw;
+  out.height = sh;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, sw, sh);
+  ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+  return out;
+};
+
+const renderPdfFileToCanvases = async (fileOrUrl, maxPages = 8) => {
+  const pdfjsLib = await loadPdfJsClient();
+  const data = typeof fileOrUrl === "string"
+    ? await (await fetch(fileOrUrl, { mode: "cors" })).arrayBuffer()
+    : await fileOrUrl.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const pages = [];
+  const limit = Math.min(pdf.numPages || 0, maxPages);
+  for (let pageNo = 1; pageNo <= limit; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pages.push({ pageNo, canvas, previewUrl: canvas.toDataURL("image/jpeg", 0.86), width: canvas.width, height: canvas.height });
+  }
+  return pages;
+};
+
+const fileToImageCanvas = async (file) => {
+  const url = URL.createObjectURL(file);
+  try {
+    const canvas = await imageUrlToCanvas(url, 2200);
+    return { canvas, previewUrl: canvas.toDataURL("image/jpeg", 0.88), width: canvas.width, height: canvas.height };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
 const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
   const pdfjsLib = await loadPdfJsClient();
   const res = await fetch(sourceUrl, { mode: "cors" });
@@ -13287,6 +13338,196 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   );
 }
 
+
+function OcrZonePickerModal({ files = [], onClose, onApply }) {
+  const theme = React.useContext(ThemeContext);
+  const [pages, setPages] = useState([]);
+  const [activeKey, setActiveKey] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const built = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file.type?.startsWith("image/")) {
+            const img = await fileToImageCanvas(file);
+            built.push({
+              key: `${i}-img-1`, fileIndex: i, fileName: file.name, type: "image", pageNo: 1,
+              canvas: img.canvas, previewUrl: img.previewUrl, width: img.width, height: img.height,
+              zone: { x: 0.08, y: 0.12, w: 0.84, h: 0.34 }
+            });
+          } else if (file.type === "application/pdf") {
+            const pdfPages = await renderPdfFileToCanvases(file, 12);
+            pdfPages.forEach(pg => built.push({
+              key: `${i}-pdf-${pg.pageNo}`, fileIndex: i, fileName: file.name, type: "pdf", pageNo: pg.pageNo,
+              canvas: pg.canvas, previewUrl: pg.previewUrl, width: pg.width, height: pg.height,
+              zone: { x: 0.08, y: 0.12, w: 0.84, h: 0.28 }
+            }));
+          }
+        }
+        if (!cancelled) {
+          setPages(built);
+          setActiveKey(built[0]?.key || "");
+        }
+      } catch (e) {
+        if (!cancelled) setError(e?.message || "No se pudo abrir el archivo para seleccionar zonas.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [files]);
+
+  useEffect(() => {
+    const move = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      ev.preventDefault?.();
+      const clientX = ev.touches?.[0]?.clientX ?? ev.clientX;
+      const clientY = ev.touches?.[0]?.clientY ?? ev.clientY;
+      const dx = (clientX - d.startX) / Math.max(1, d.rect.width);
+      const dy = (clientY - d.startY) / Math.max(1, d.rect.height);
+      setPages(prev => prev.map(p => {
+        if (p.key !== d.key) return p;
+        let { x, y, w, h } = d.zone;
+        if (d.mode === "move") {
+          x = Math.min(0.98 - w, Math.max(0, x + dx));
+          y = Math.min(0.98 - h, Math.max(0, y + dy));
+        } else {
+          w = Math.min(1 - x, Math.max(0.08, w + dx));
+          h = Math.min(1 - y, Math.max(0.06, h + dy));
+        }
+        return { ...p, zone: { x, y, w, h } };
+      }));
+    };
+    const up = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+    };
+  }, []);
+
+  const active = pages.find(p => p.key === activeKey) || pages[0];
+  const activeIndex = active ? pages.findIndex(p => p.key === active.key) : -1;
+
+  const startDrag = (ev, page, mode) => {
+    const box = ev.currentTarget.closest("[data-zone-stage]")?.getBoundingClientRect();
+    if (!box) return;
+    const clientX = ev.touches?.[0]?.clientX ?? ev.clientX;
+    const clientY = ev.touches?.[0]?.clientY ?? ev.clientY;
+    dragRef.current = { key: page.key, mode, startX: clientX, startY: clientY, rect: box, zone: { ...page.zone } };
+    ev.preventDefault?.();
+    ev.stopPropagation?.();
+  };
+
+  const resetZone = () => {
+    if (!active) return;
+    setPages(prev => prev.map(p => p.key === active.key ? { ...p, zone: { x: 0.08, y: 0.12, w: 0.84, h: 0.34 } } : p));
+  };
+
+  const fullPageZone = () => {
+    if (!active) return;
+    setPages(prev => prev.map(p => p.key === active.key ? { ...p, zone: { x: 0, y: 0, w: 1, h: 1 } } : p));
+  };
+
+  const apply = async () => {
+    setRunning(true);
+    setError("");
+    try {
+      let text = "";
+      const results = [];
+      for (const page of pages) {
+        const cropped = cropCanvasByZone(page.canvas, page.zone);
+        const pageText = await ocrCanvasClient(cropped);
+        results.push({ key: page.key, fileName: page.fileName, pageNo: page.pageNo, text: pageText });
+        if (pageText) {
+          const label = page.type === "pdf" ? `${page.fileName} · hoja ${page.pageNo}` : page.fileName;
+          text += `${text ? "\n\n" : ""}[${label}]\n${pageText}`;
+        }
+      }
+      await onApply?.({ text: text.trim(), results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
+      onClose?.();
+    } catch (e) {
+      setError(e?.message || "No se pudo extraer texto de las zonas seleccionadas.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return createPortal(
+    <div style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(2,6,23,.88)", display:"flex", alignItems:"center", justifyContent:"center", padding:"14px" }} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"min(1180px, 100%)", maxHeight:"94vh", overflow:"hidden", background:"#0b1b33", border:"1px solid rgba(56,189,248,.35)", borderRadius:"16px", boxShadow:"0 20px 80px rgba(0,0,0,.45)", display:"flex", flexDirection:"column" }}>
+        <div style={{ padding:"13px 15px", borderBottom:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontWeight:900, color:"#fff", fontSize:"14px" }}>Elegir zonas de extracción</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.55)", fontSize:"11px", marginTop:"2px" }}>Arrastra el cuadro para moverlo. Usa la esquina inferior derecha para agrandarlo o hacerlo pequeño.</div>
+          </div>
+          <button onClick={onClose} style={{ width:"34px", height:"34px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.08)", color:"#fff", cursor:"pointer" }}>✕</button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding:"44px", textAlign:"center", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Abriendo archivo…</div>
+        ) : error ? (
+          <div style={{ margin:"16px", padding:"14px", borderRadius:"12px", color:"#f87171", border:"1px solid rgba(239,68,68,.45)", background:"rgba(239,68,68,.10)", fontFamily:getFont(theme,"secondary") }}>{error}</div>
+        ) : !active ? (
+          <div style={{ padding:"44px", textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary") }}>Selecciona una imagen o PDF primero.</div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"190px 1fr", minHeight:0, overflow:"hidden" }}>
+            <div style={{ borderRight:"1px solid rgba(255,255,255,.10)", padding:"10px", overflowY:"auto", maxHeight:"calc(94vh - 124px)" }}>
+              {pages.map((p, idx) => (
+                <button key={p.key} onClick={()=>setActiveKey(p.key)} style={{ width:"100%", textAlign:"left", marginBottom:"8px", padding:"8px", borderRadius:"10px", border:`1px solid ${p.key===active.key ? "rgba(56,189,248,.75)" : "rgba(255,255,255,.12)"}`, background:p.key===active.key ? "rgba(56,189,248,.16)" : "rgba(255,255,255,.05)", color:"#fff", cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>
+                  <img src={p.previewUrl} alt="preview" style={{ width:"100%", height:"78px", objectFit:"cover", borderRadius:"7px", display:"block", marginBottom:"6px" }} />
+                  {p.type === "pdf" ? `Hoja ${p.pageNo}` : "Imagen"} · {idx + 1}/{pages.length}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding:"12px", overflow:"auto", maxHeight:"calc(94vh - 124px)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
+                <div style={{ color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{active.fileName}{active.type === "pdf" ? ` · Hoja ${active.pageNo}` : ""}</div>
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                  <button onClick={() => activeIndex > 0 && setActiveKey(pages[activeIndex - 1].key)} disabled={activeIndex <= 0} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#cbd5e1", cursor:activeIndex <= 0 ? "not-allowed" : "pointer" }}>←</button>
+                  <button onClick={() => activeIndex < pages.length - 1 && setActiveKey(pages[activeIndex + 1].key)} disabled={activeIndex >= pages.length - 1} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#cbd5e1", cursor:activeIndex >= pages.length - 1 ? "not-allowed" : "pointer" }}>→</button>
+                  <button onClick={resetZone} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", cursor:"pointer" }}>Restablecer cuadro</button>
+                  <button onClick={fullPageZone} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.30)", background:"rgba(148,163,184,.10)", color:"#cbd5e1", cursor:"pointer" }}>Toda la hoja</button>
+                </div>
+              </div>
+              <div data-zone-stage style={{ position:"relative", width:"min(100%, 820px)", margin:"0 auto", borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", background:"#fff", lineHeight:0, userSelect:"none" }}>
+                <img src={active.previewUrl} alt="zona" draggable={false} style={{ width:"100%", height:"auto", display:"block" }} />
+                <div onMouseDown={(e)=>startDrag(e, active, "move")} onTouchStart={(e)=>startDrag(e, active, "move")} style={{ position:"absolute", left:`${active.zone.x*100}%`, top:`${active.zone.y*100}%`, width:`${active.zone.w*100}%`, height:`${active.zone.h*100}%`, border:"2px solid #22c55e", background:"rgba(34,197,94,.14)", boxShadow:"0 0 0 9999px rgba(0,0,0,.36)", cursor:"move", boxSizing:"border-box" }}>
+                  <div style={{ position:"absolute", left:"8px", top:"8px", background:"rgba(2,6,23,.82)", color:"#fff", borderRadius:"999px", padding:"4px 8px", fontSize:"10px", fontFamily:getFont(theme,"secondary"), lineHeight:1 }}>Zona OCR</div>
+                  <div onMouseDown={(e)=>startDrag(e, active, "resize")} onTouchStart={(e)=>startDrag(e, active, "resize")} style={{ position:"absolute", right:"-8px", bottom:"-8px", width:"18px", height:"18px", borderRadius:"5px", background:"#22c55e", border:"2px solid #fff", cursor:"nwse-resize" }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ padding:"12px 15px", borderTop:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", gap:"10px", flexWrap:"wrap" }}>
+          <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : ""}</div>
+          <div style={{ display:"flex", gap:"8px" }}>
+            <button onClick={onClose} disabled={running} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(148,163,184,.12)", color:"#cbd5e1", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Cancelar</button>
+            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? "Extrayendo…" : "Extraer texto de zonas"}</button>
+          </div>
+        </div>
+      </div>
+    </div>, document.body
+  );
+}
+
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
 function NoticiasAdminPublisher({ onPublished }) {
   const theme = React.useContext(ThemeContext);
@@ -13299,6 +13540,7 @@ function NoticiasAdminPublisher({ onPublished }) {
   const [pdfUrls, setPdfUrls] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const inputRef = useRef(null);
 
   const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -13386,6 +13628,15 @@ function NoticiasAdminPublisher({ onPublished }) {
     }
   };
 
+  const aplicarTextoDeZonas = async ({ text }) => {
+    if (text?.trim()) {
+      setTexto(prev => [prev, text.trim()].filter(Boolean).join("\n\n"));
+      setNotice("Texto extraído desde las zonas seleccionadas. Revísalo antes de publicar.", "#22c55e");
+    } else {
+      setNotice("No se detectó texto legible dentro de las zonas seleccionadas.", "#f97316");
+    }
+  };
+
   const publicar = async () => {
     if (!titulo.trim()) return setNotice("Escribe un título.", "#ef4444");
     setBusy(true);
@@ -13456,10 +13707,12 @@ function NoticiasAdminPublisher({ onPublished }) {
         {pdfUrls.map((u,i)=><div key={u+i} style={{ width:"82px", height:"62px", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", color:"#cbd5e1", fontSize:"10px", fontFamily:getFont(theme,"secondary") }}>PDF</div>)}
       </div>}
       <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Texto extraído o descripción editable antes de publicar…" rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:"8px" }}>
         <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
+        <button onClick={()=>setZonePickerOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
         <button onClick={publicar} disabled={busy} style={{ padding:"11px", borderRadius:"10px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy?"wait":"pointer" }}>Publicar en Noticias</button>
       </div>
+      {zonePickerOpen && <OcrZonePickerModal files={files} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonas} />}
     </div>
   );
 }
