@@ -12016,36 +12016,66 @@ function CarrilesTab() {
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
 // ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
-function VisorFullscreen({ item, onClose }) {
+function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNavigate = null }) {
   const theme = React.useContext(ThemeContext);
   const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
+  const canNavigate = Array.isArray(items) && items.length > 1 && typeof onNavigate === "function";
+  const safeIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
+
+  const goPrev = useCallback(() => {
+    if (!canNavigate) return;
+    onNavigate((safeIndex - 1 + items.length) % items.length);
+  }, [canNavigate, onNavigate, safeIndex, items.length]);
+
+  const goNext = useCallback(() => {
+    if (!canNavigate) return;
+    onNavigate((safeIndex + 1) % items.length);
+  }, [canNavigate, onNavigate, safeIndex, items.length]);
+
   useEffect(() => {
-    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      if (canNavigate && e.key === "ArrowLeft") goPrev();
+      if (canNavigate && e.key === "ArrowRight") goNext();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, canNavigate, goPrev, goNext]);
+
   if (!item) return null;
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.95)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:"700px", maxHeight:"90vh", display:"flex", flexDirection:"column", gap:"10px" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:"1120px", maxHeight:"92vh", display:"flex", flexDirection:"column", gap:"10px" }}>
         {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, gap:"12px" }}>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", color:"rgba(255,255,255,0.95)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.titulo}</div>
+            <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px", color:"rgba(255,255,255,0.95)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.titulo}</div>
             {item.detalle && <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"2px" }}>{item.detalle}</div>}
+            {canNavigate && (
+              <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#fbbf24", fontWeight:"700" }}>
+                Documento {safeIndex + 1} de {items.length}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} style={{ flexShrink:0, marginLeft:"12px", width:"34px", height:"34px", borderRadius:"50%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.8)", fontSize:"16px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          <button onClick={onClose} style={{ flexShrink:0, width:"38px", height:"38px", borderRadius:"50%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.8)", fontSize:"16px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
         </div>
         {/* Contenido */}
-        <div style={{ flex:1, minHeight:0, borderRadius:"12px", overflow:"hidden", background:"#0a1628", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ position:"relative", flex:1, minHeight:0, borderRadius:"16px", overflow:"hidden", background:"#0a1628", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
           {isPdf ? (
-            <iframe src={item.archivo_url} title={item.titulo} style={{ width:"100%", height:"80vh", border:"none" }} />
+            <iframe src={item.archivo_url} title={item.titulo} style={{ width:"100%", height:"80vh", border:"none", background:"#fff" }} />
           ) : (
-            <img src={item.archivo_url} alt={item.titulo} style={{ maxWidth:"100%", maxHeight:"80vh", objectFit:"contain", display:"block" }} />
+            <img src={item.archivo_url} alt={item.titulo} style={{ width:"100%", height:"80vh", objectFit:"contain", display:"block", background:"#061428" }} />
+          )}
+
+          {canNavigate && (
+            <>
+              <button onClick={goPrev} style={{ position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"48px", height:"48px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.18)", background:"rgba(10,22,40,0.75)", color:"#fff", fontSize:"24px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(8px)" }} aria-label="Anterior">‹</button>
+              <button onClick={goNext} style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"48px", height:"48px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.18)", background:"rgba(10,22,40,0.75)", color:"#fff", fontSize:"24px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(8px)" }} aria-label="Siguiente">›</button>
+            </>
           )}
         </div>
         {/* Acciones */}
-        <div style={{ display:"flex", gap:"8px", justifyContent:"center", flexShrink:0 }}>
+        <div style={{ display:"flex", gap:"8px", justifyContent:"center", flexShrink:0, flexWrap:"wrap" }}>
           <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"8px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
             Enlace Abrir en nueva pestaña
           </a>
@@ -12054,7 +12084,9 @@ function VisorFullscreen({ item, onClose }) {
           </a>
         </div>
       </div>
-      <div style={{ marginTop:"12px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.25)" }}>Toca fuera o presiona ESC para cerrar</div>
+      <div style={{ marginTop:"12px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.25)", textAlign:"center" }}>
+        Toca fuera o presiona ESC para cerrar{canNavigate ? " · Usa ← y → para cambiar de archivo" : ""}
+      </div>
     </div>
   );
 }
@@ -12291,6 +12323,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
   const [pendientes, setPendientes] = useState([]);
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
   const [eliminando, setEliminando] = useState(false); // estado de eliminación en progreso
+  const [selectedIndex, setSelectedIndex] = useState(0); // comunicado destacado en vista grande
 
   const formatDateTime = (timestamp) => {
     const d = new Date(toMs(timestamp));
@@ -12313,6 +12346,29 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
     if (!fin || isNaN(fin)) return true;
     return fin > ahora;
   });
+
+  useEffect(() => {
+    if (!vigentes.length) {
+      if (selectedIndex !== 0) setSelectedIndex(0);
+      return;
+    }
+    if (selectedIndex > vigentes.length - 1) setSelectedIndex(0);
+  }, [vigentes.length, selectedIndex]);
+
+  const comunicadoActivo = vigentes[selectedIndex] || null;
+  const totalVigentes = vigentes.length;
+  const irAnterior = () => {
+    if (totalVigentes < 2) return;
+    setSelectedIndex(prev => (prev - 1 + totalVigentes) % totalVigentes);
+  };
+  const irSiguiente = () => {
+    if (totalVigentes < 2) return;
+    setSelectedIndex(prev => (prev + 1) % totalVigentes);
+  };
+  const abrirComunicadoActivo = () => {
+    if (!comunicadoActivo) return;
+    setVisorItem(comunicadoActivo, vigentes, selectedIndex);
+  };
 
   const cargarPendientes = () => {
     if (!isAdmin) return;
@@ -12546,42 +12602,86 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
             </div>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
-                {vigentes.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => setVisorItem(c)}
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", overflow: "hidden", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s", position: "relative" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = "rgba(251,191,36,0.4)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
-                  >
-                    <div style={{ width: "100%", aspectRatio: "4/3", background: "#060e1a", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                      {isPdf(c.archivo_url) ? (
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ fontSize: "32px" }}>📄</div>
-                          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>PDF</div>
+              {comunicadoActivo && (
+                <div style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", overflow: "hidden", marginBottom: "14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
+                      {comunicadoActivo.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.55)", lineHeight: "1.5", marginBottom: "6px" }}>{comunicadoActivo.detalle}</div>}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                        <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
+                        <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <button onClick={abrirComunicadoActivo} style={{ padding: "9px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>Pantalla completa</button>
+                      <a href={comunicadoActivo.archivo_url} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Abrir</a>
+                      <a href={comunicadoActivo.archivo_url} download style={{ padding: "9px 12px", background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Descargar</a>
+                    </div>
+                  </div>
+
+                  <div style={{ position: "relative", width: "100%", minHeight: "480px", maxHeight: "70vh", background: "#06101d", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {isPdf(comunicadoActivo.archivo_url) ? (
+                      <iframe src={comunicadoActivo.archivo_url} title={comunicadoActivo.titulo} style={{ width: "100%", height: "68vh", border: "none", background: "#fff" }} />
+                    ) : (
+                      <img src={comunicadoActivo.archivo_url} alt={comunicadoActivo.titulo} style={{ width: "100%", height: "68vh", objectFit: "contain", display: "block", background: "#061428" }} loading="lazy" />
+                    )}
+
+                    {totalVigentes > 1 && (
+                      <>
+                        <button onClick={irAnterior} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", width: "46px", height: "46px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(10,22,40,0.82)", color: "#fff", fontSize: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)", zIndex: 2 }} aria-label="Comunicado anterior">‹</button>
+                        <button onClick={irSiguiente} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", width: "46px", height: "46px", borderRadius: "50%", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(10,22,40,0.82)", color: "#fff", fontSize: "24px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)", zIndex: 2 }} aria-label="Siguiente comunicado">›</button>
+                        <div style={{ position: "absolute", bottom: "12px", left: "50%", transform: "translateX(-50%)", background: "rgba(10,22,40,0.72)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: "999px", padding: "6px 12px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.85)", zIndex: 2 }}>
+                          Usa las flechas para cambiar de archivo
                         </div>
-                      ) : (
-                        <img src={c.archivo_url} alt={c.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
-                      )}
-                    </div>
-                    <div style={{ padding: "8px 10px" }}>
-                      <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.titulo}</div>
-                      {c.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>{c.detalle}</div>}
-                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>🕐 Vence: {formatDateTime(c.fecha_fin)}</div>
-                    </div>
-                    {isAdmin && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); pedirEliminar(c.id); }}
-                        style={{ position: "absolute", top: "6px", right: "6px", width: "28px", height: "28px", background: "rgba(239,68,68,0.85)", border: "1px solid rgba(239,68,68,0.6)", borderRadius: "50%", color: "#fff", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
-                        title="Eliminar comunicado"
-                      >Eliminar</button>
+                      </>
                     )}
                   </div>
-                ))}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px" }}>
+                {vigentes.map((c, idx) => {
+                  const activo = idx === selectedIndex;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedIndex(idx)}
+                      style={{ background: activo ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.07)", border: `1px solid ${activo ? "rgba(251,191,36,0.45)" : "rgba(255,255,255,0.10)"}`, borderRadius: "12px", overflow: "hidden", cursor: "pointer", transition: "transform 0.15s, border-color 0.15s", position: "relative", boxShadow: activo ? "0 0 0 1px rgba(251,191,36,0.18) inset" : "none" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.02)"; if (!activo) e.currentTarget.style.borderColor = "rgba(251,191,36,0.4)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = activo ? "rgba(251,191,36,0.45)" : "rgba(255,255,255,0.1)"; }}
+                    >
+                      <div style={{ width: "100%", aspectRatio: "4/3", background: "#060e1a", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                        {isPdf(c.archivo_url) ? (
+                          <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: "38px" }}>📄</div>
+                            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>PDF</div>
+                          </div>
+                        ) : (
+                          <img src={c.archivo_url} alt={c.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+                        )}
+                      </div>
+                      <div style={{ padding: "8px 10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
+                          <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{c.titulo}</div>
+                          {activo && <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700", color: "#fbbf24" }}>ACTIVO</span>}
+                        </div>
+                        {c.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>{c.detalle}</div>}
+                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>🕐 Vence: {formatDateTime(c.fecha_fin)}</div>
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); pedirEliminar(c.id); }}
+                          style={{ position: "absolute", top: "6px", right: "6px", minWidth: "28px", height: "28px", padding: "0 8px", background: "rgba(239,68,68,0.85)", border: "1px solid rgba(239,68,68,0.6)", borderRadius: "999px", color: "#fff", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)", fontFamily: getFont(theme, "secondary"), fontWeight: "700" }}
+                          title="Eliminar comunicado"
+                        >Eliminar</button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div style={{ textAlign: "center", padding: "16px", color: "rgba(255,255,255,0.3)", fontFamily: getFont(theme, "secondary"), fontSize: "10px" }}>
-                Toca cualquier comunicado para verlo a pantalla completa
+                Vista previa ampliada activa. Selecciona una tarjeta o usa las flechas laterales para cambiar de archivo.
               </div>
             </>
           )}
@@ -13182,6 +13282,8 @@ function NoticiasTab({ isAdmin }) {
   const [loading,       setLoading]       = useState(true);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
+  const [visorItems,    setVisorItems]    = useState([]);
+  const [visorIndex,    setVisorIndex]    = useState(0);
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
 
   const isComunicadoAprobado = (value) =>
@@ -13266,9 +13368,24 @@ function NoticiasTab({ isAdmin }) {
   const getMedia = (n) => [...parseJsonArray(n.media_urls), ...(n.archivo_url && !isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
   const getPdfs = (n) => [...parseJsonArray(n.pdf_urls), ...(n.archivo_url && isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
 
+  const openVisor = useCallback((item, items = null, index = 0) => {
+    const list = Array.isArray(items) && items.length ? items : [item].filter(Boolean);
+    setVisorItems(list);
+    setVisorIndex(index || 0);
+    setVisorItem(list[index || 0] || item || null);
+  }, []);
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      {visorItem && <VisorFullscreen item={visorItem} onClose={() => setVisorItem(null)} />}
+      {visorItem && <VisorFullscreen item={visorItem} items={visorItems} currentIndex={visorIndex} onNavigate={(nextIndex) => {
+        if (!visorItems[nextIndex]) return;
+        setVisorIndex(nextIndex);
+        setVisorItem(visorItems[nextIndex]);
+      }} onClose={() => {
+        setVisorItem(null);
+        setVisorItems([]);
+        setVisorIndex(0);
+      }} />}
 
       <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
         <div style={{ display:"flex", justifyContent:"center", marginBottom:"8px" }}><AppIcon name="dispatch-news" size={34} active={true} /></div>
@@ -13317,7 +13434,7 @@ function NoticiasTab({ isAdmin }) {
                     </div>
                     {n.detalle && <div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.58)", fontSize:"11px", lineHeight:1.5, marginBottom:"8px" }}>{n.detalle}</div>}
                     {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
-                      {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>setVisorItem({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" })} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
+                      {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
                     </div>}
                     {pdfs.length > 0 && <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>{pdfs.map((u,i)=><a key={u+i} href={u} target="_blank" rel="noreferrer" style={{ padding:"6px 9px", borderRadius:"8px", background:"rgba(37,99,235,.14)", border:"1px solid rgba(37,99,235,.35)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textDecoration:"none", fontWeight:700 }}>Abrir PDF {i+1}</a>)}</div>}
                     <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap" }}>
@@ -13341,7 +13458,7 @@ function NoticiasTab({ isAdmin }) {
           isAdmin={isAdmin}
           comunicados={comunicados}
           onReload={cargarComunicados}
-          setVisorItem={setVisorItem}
+          setVisorItem={openVisor}
           timeAgo={timeAgo}
           isPdf={isPdf}
         />
