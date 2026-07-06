@@ -14812,7 +14812,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
               <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"10px" }}>
-                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después de 30 segundos se desbloquearán automáticamente los datos de contacto y el cuadro de consulta específica.
+                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal; después regresa y podrás visualizar los datos de contacto y el cuadro de consulta específica.
               </div>
 
               {!pisUnlockRequested && !pisContactUnlocked && (
