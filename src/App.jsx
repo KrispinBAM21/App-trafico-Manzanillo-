@@ -12628,6 +12628,196 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
 }
 
 
+
+
+// ─── CAPTURA WEB CON RECORTE (solo admin) ────────────────────────────────────
+function ScreenshotCropModal({ onClose, onApply }) {
+  const theme = React.useContext(ThemeContext);
+  const [url, setUrl] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [zone, setZone] = useState({ x: 0.08, y: 0.12, w: 0.84, h: 0.48 });
+  const [natural, setNatural] = useState({ width: 1024, height: 768 });
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, []);
+
+  useEffect(() => {
+    const move = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      ev.preventDefault?.();
+      const clientX = ev.touches?.[0]?.clientX ?? ev.clientX;
+      const clientY = ev.touches?.[0]?.clientY ?? ev.clientY;
+      const dx = (clientX - d.startX) / Math.max(1, d.rect.width);
+      const dy = (clientY - d.startY) / Math.max(1, d.rect.height);
+      let { x, y, w, h } = d.zone;
+      if (d.mode === "move") {
+        x = Math.min(1 - w, Math.max(0, x + dx));
+        y = Math.min(1 - h, Math.max(0, y + dy));
+      } else {
+        w = Math.min(1 - x, Math.max(0.08, w + dx));
+        h = Math.min(1 - y, Math.max(0.06, h + dy));
+      }
+      setZone({ x, y, w, h });
+    };
+    const up = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+    };
+  }, []);
+
+  const normalizedUrl = (value) => {
+    let u = String(value || "").trim();
+    if (!u) return "";
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    return u;
+  };
+
+  const takeScreenshot = async () => {
+    const target = normalizedUrl(url);
+    if (!target) {
+      setError("Escribe una URL para capturar.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setImageDataUrl("");
+    try {
+      let data = null;
+      let invokeError = null;
+      try {
+        const result = await sb.functions.invoke("screenshot-web", { body: { url: target, dimension: "1024x768" } });
+        data = result.data;
+        invokeError = result.error;
+      } catch (e) {
+        invokeError = e;
+      }
+      if (invokeError || !data?.base64) {
+        throw new Error("La Edge Function screenshot-web no devolvió imagen. Revisa que esté desplegada en Supabase.");
+      }
+      setSourceUrl(data.url || target);
+      setImageDataUrl(data.base64);
+      setZone({ x: 0.08, y: 0.12, w: 0.84, h: 0.48 });
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || "No se pudo tomar la captura web.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startDrag = (ev, mode) => {
+    const rect = ev.currentTarget.closest("[data-screenshot-stage]")?.getBoundingClientRect();
+    if (!rect) return;
+    const clientX = ev.touches?.[0]?.clientX ?? ev.clientX;
+    const clientY = ev.touches?.[0]?.clientY ?? ev.clientY;
+    dragRef.current = { mode, startX: clientX, startY: clientY, rect, zone: { ...zone } };
+    ev.preventDefault?.();
+    ev.stopPropagation?.();
+  };
+
+  const applyCrop = async () => {
+    if (!imageDataUrl) {
+      setError("Primero toma una captura.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const img = await loadImage(imageDataUrl);
+      const sx = Math.round(zone.x * img.width);
+      const sy = Math.round(zone.y * img.height);
+      const sw = Math.max(1, Math.round(zone.w * img.width));
+      const sh = Math.max(1, Math.round(zone.h * img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("No se pudo crear la imagen recortada.");
+      const file = new File([blob], `captura-web-${Date.now()}.jpg`, { type: "image/jpeg" });
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      await onApply?.({ file, dataUrl, url: sourceUrl || normalizedUrl(url), zone: { ...zone } });
+      onClose?.();
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || "No se pudo preparar el recorte.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return createPortal(
+    <div style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(2,6,23,.88)", display:"flex", alignItems:"center", justifyContent:"center", padding:"14px", overflow:"hidden", overscrollBehavior:"none" }} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"min(1120px, 100%)", maxHeight:"94vh", overflow:"hidden", background:"#0b1b33", border:"1px solid rgba(56,189,248,.35)", borderRadius:"16px", boxShadow:"0 20px 80px rgba(0,0,0,.45)", display:"flex", flexDirection:"column" }}>
+        <div style={{ padding:"13px 15px", borderBottom:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontWeight:900, color:"#fff", fontSize:"14px" }}>Captura web con recorte</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.55)", fontSize:"11px", marginTop:"2px" }}>Solo admin. Toma screenshot, centra la zona y úsala para publicar en Noticias.</div>
+          </div>
+          <button onClick={onClose} style={{ width:"34px", height:"34px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.08)", color:"#fff", cursor:"pointer" }}>✕</button>
+        </div>
+
+        <div style={{ padding:"12px", display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
+          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ejemplo.com" onKeyDown={e=>{ if(e.key === "Enter") takeScreenshot(); }} style={{ minWidth:0, background:"#061428", border:"1px solid rgba(56,189,248,.30)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), outline:"none" }} />
+          <button onClick={takeScreenshot} disabled={loading} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid #2563eb", background:loading ? "#1e3a8a" : "#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:loading ? "wait" : "pointer" }}>{loading ? "Capturando…" : "Tomar screenshot"}</button>
+        </div>
+
+        {error && <div style={{ margin:"12px", padding:"10px 12px", borderRadius:"10px", color:"#f87171", border:"1px solid rgba(239,68,68,.45)", background:"rgba(239,68,68,.10)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{error}</div>}
+
+        <div style={{ padding:"12px", overflow:"auto", overscrollBehavior:"contain", WebkitOverflowScrolling:"touch" }}>
+          {!imageDataUrl ? (
+            <div style={{ padding:"42px", textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), border:"1px dashed rgba(148,163,184,.25)", borderRadius:"14px" }}>Ingresa una URL y toma una captura para elegir la zona de recorte.</div>
+          ) : (
+            <>
+              <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
+                <div style={{ color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, wordBreak:"break-all" }}>{sourceUrl}</div>
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                  <button onClick={()=>setZone({ x:0.08, y:0.12, w:0.84, h:0.48 })} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", cursor:"pointer" }}>Restablecer cuadro</button>
+                  <button onClick={()=>setZone({ x:0, y:0, w:1, h:1 })} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.30)", background:"rgba(148,163,184,.10)", color:"#cbd5e1", cursor:"pointer" }}>Toda la captura</button>
+                </div>
+              </div>
+              <div data-screenshot-stage style={{ position:"relative", width:"min(100%, 920px)", aspectRatio:`${natural.width} / ${natural.height}`, margin:"0 auto", borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", background:"#fff", lineHeight:0, userSelect:"none", touchAction:"none" }}>
+                <img src={imageDataUrl} alt="Captura web" draggable={false} onLoad={(e)=>setNatural({ width:e.currentTarget.naturalWidth || 1024, height:e.currentTarget.naturalHeight || 768 })} style={{ position:"absolute", inset:0, width:"100%", height:"100%", display:"block" }} />
+                <div onMouseDown={(e)=>startDrag(e,"move")} onTouchStart={(e)=>startDrag(e,"move")} style={{ position:"absolute", left:`${zone.x*100}%`, top:`${zone.y*100}%`, width:`${zone.w*100}%`, height:`${zone.h*100}%`, border:"2px solid #22c55e", background:"rgba(34,197,94,.14)", boxShadow:"0 0 0 9999px rgba(0,0,0,.36)", cursor:"move", boxSizing:"border-box", touchAction:"none" }}>
+                  <div style={{ position:"absolute", left:"8px", top:"8px", background:"rgba(2,6,23,.82)", color:"#fff", borderRadius:"999px", padding:"4px 8px", fontSize:"10px", fontFamily:getFont(theme,"secondary"), lineHeight:1 }}>Zona de publicación</div>
+                  <div onMouseDown={(e)=>startDrag(e,"resize")} onTouchStart={(e)=>startDrag(e,"resize")} style={{ position:"absolute", right:"-7px", bottom:"-7px", width:"18px", height:"18px", borderRadius:"5px", background:"#22c55e", border:"2px solid #052e16", cursor:"nwse-resize", touchAction:"none" }} />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ padding:"12px", borderTop:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"flex-end", gap:"8px", flexWrap:"wrap" }}>
+          <button onClick={onClose} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid rgba(255,255,255,.14)", background:"rgba(255,255,255,.06)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer" }}>Cancelar</button>
+          <button onClick={applyCrop} disabled={loading || !imageDataUrl} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid #22c55e", background:(loading || !imageDataUrl) ? "rgba(34,197,94,.25)" : "#22c55e", color:(loading || !imageDataUrl) ? "#86efac" : "#052e16", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(loading || !imageDataUrl) ? "not-allowed" : "pointer" }}>Usar recorte para publicar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ─── SUBIR COMUNICADO (con fechas y aprobación) ──────────────────────────────
 function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const theme = React.useContext(ThemeContext);
@@ -12646,6 +12836,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [toolMsg, setToolMsg] = useState(null);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [converterOpen, setConverterOpen] = useState(false);
+  const [screenshotOpen, setScreenshotOpen] = useState(false);
   const inputRef = useRef();
 
   const localDateInput = (offsetDays = 0) => {
@@ -12780,6 +12971,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const aplicarTextoDeZonasComunicado = async ({ text }) => {
     const ok = agregarTextoExtraidoADetalle(text);
     setToolNotice(ok ? "Texto de la zona agregado en Descripción breve." : "No se detectó texto legible dentro de la zona seleccionada.", ok ? "#22c55e" : "#f97316");
+  };
+
+  const aplicarCapturaWebRecortada = ({ file, dataUrl, url }) => {
+    if (!isAdmin || !file) return;
+    setArchivo(file);
+    setPreview(dataUrl || null);
+    if (!titulo.trim()) setTitulo("Captura web");
+    if (url && !detalle.trim()) setDetalle(`Captura tomada desde: ${url}`);
+    setToolNotice("Captura recortada lista. Puedes publicarla en Noticias.", "#22c55e");
   };
 
   const publicarArchivoEnNoticias = async () => {
@@ -13052,11 +13252,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           <button type="button" onClick={procesarArchivoComunicado} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>{toolBusy ? "Procesando…" : "Convertir / extraer texto"}</button>
           <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
           <button type="button" onClick={()=>setConverterOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
+          {isAdmin && <button type="button" onClick={()=>setScreenshotOpen(true)} disabled={toolBusy} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:toolBusy?"not-allowed":"pointer" }}>Captura web / recorte</button>}
           {isAdmin && <button type="button" onClick={publicarArchivoEnNoticias} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Publicar en Noticias</button>}
         </div>
       </div>
       {zonePickerOpen && <OcrZonePickerModal files={archivo ? [archivo] : []} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonasComunicado} />}
       {converterOpen && <MediaConverterModal files={archivo ? [archivo] : []} onClose={()=>setConverterOpen(false)} onNotice={(message, color)=>setToolNotice(message, color)} />}
+      {isAdmin && screenshotOpen && <ScreenshotCropModal onClose={()=>setScreenshotOpen(false)} onApply={aplicarCapturaWebRecortada} />}
       
       {!isAdmin && (
         <div style={{ background: "#fbbf2411", border: "1px solid #fbbf2433", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px", fontSize: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6" }}>
