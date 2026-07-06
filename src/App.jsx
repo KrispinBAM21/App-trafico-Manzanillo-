@@ -14379,6 +14379,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisLoading, setPisLoading] = useState(false);
   const [pisResult, setPisResult] = useState(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
+  const [pisContactMessage, setPisContactMessage] = useState("");
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
@@ -14422,6 +14423,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     setLoading(false);
   };
   useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+
+  useEffect(() => {
+    if (!pisResult) return undefined;
+    const timer = setTimeout(() => {
+      setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
+      setPisResult(null);
+      setPisContactMessage("");
+      setPisEmailCopied(false);
+    }, 120000);
+    return () => clearTimeout(timer);
+  }, [pisResult?.checked_at, pisResult?.status]);
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
   const requireLogin = () => { setMsg({ type:"err", text:"Para guardar y editar tu perfil, primero crea o inicia sesión en Más info." }); return false; };
@@ -14675,6 +14687,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           checked_at:new Date().toISOString(),
         };
         setPisResult(fallback);
+        setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
         return;
       }
 
@@ -14690,6 +14703,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       };
 
       setPisResult(normalized);
+      setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada en PIS/SEMAR: ${payload.asipona} · ${payload.tipo}-${payload.id}. Resultado mostrado: ${normalized.message}`);
       savePisHistory(normalized);
       auditLog({ action:"pis_verificacion_documento", section:"posturas_boletinados", entityId:`${payload.asipona}-${payload.tipo}-${payload.id}`, after:{ summary:`Consulta PIS ${payload.asipona} ${payload.tipo} ${payload.id}`, valid:normalized.valid, message:normalized.message }, actor:authUser?.email || myId || "Usuario" });
     } catch (e) {
@@ -14703,6 +14717,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         checked_at:new Date().toISOString(),
       };
       setPisResult(fallback);
+      setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
     } finally {
       setPisLoading(false);
     }
@@ -14737,11 +14752,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           </div>
         </div>
 
-        <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
+        <div style={{ color:"rgba(255,255,255,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.65, marginBottom:"13px" }}>
           El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
-          <div style={{ marginTop:"6px", color:"rgba(255,255,255,.78)" }}>
-            Si requieres información más específica del boletinaje, contacta directamente a ASIPONA: <b>314 121 5154</b> o <b>{PIS_ASIPONA_EMAIL}</b>.
-          </div>
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
@@ -14752,10 +14764,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
           <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"150px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); }} style={btn("#94a3b8")}>Limpiar</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); }} style={btn("#94a3b8")}>Limpiar</button>
           <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center" }}>Abrir PIS oficial</a>
-          <a href={PIS_ASIPONA_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
-          <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
         </div>
 
         {pisResult && (
@@ -14765,6 +14775,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             </div>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.78)", lineHeight:1.65 }}>{pisResult.message}</div>
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
+            <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
+              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
+                Si requieres información más específica del boletinaje, contacta directamente a ASIPONA al <b>314 121 5154</b> o al correo <b>{PIS_ASIPONA_EMAIL}</b>.
+              </div>
+              <textarea
+                value={pisContactMessage}
+                onChange={e=>setPisContactMessage(e.target.value)}
+                placeholder="Escribe aquí tu consulta específica para ASIPONA..."
+                rows={3}
+                style={{ ...input, resize:"vertical", minHeight:"74px", marginBottom:"9px" }}
+              />
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
+                <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
+              </div>
+              <div style={{ marginTop:"7px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)" }}>
+                Esta información de contacto se ocultará automáticamente 2 minutos después de la consulta.
+              </div>
+            </div>
           </div>
         )}
       </div>
