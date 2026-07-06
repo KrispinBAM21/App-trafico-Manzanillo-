@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -10986,20 +10987,73 @@ function SegmentedToggle({ value, onChange, leftLabel, rightLabel, leftColor = "
 // con opciones), evitando que el usuario dude si el campo es texto libre.
 function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin especificar —", allowClear = false, pending = false, theme }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
   const ref = React.useRef(null);
   const current = options.find(o => o.id === value) || null;
 
+  const updateMenuPos = useCallback(() => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const margin = 8;
+    const maxH = Math.min(260, Math.max(140, window.innerHeight - r.bottom - margin));
+    setMenuPos({ top: r.bottom + 4, left: r.left, width: r.width, maxHeight: maxH });
+  }, []);
+
   useEffect(() => {
     if (!open) return;
-    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
+    updateMenuPos();
+    const onDocPointer = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return;
+      if (e.target?.closest?.('[data-cm-quickselect-menu="1"]')) return;
+      setOpen(false);
+    };
+    const onMove = () => updateMenuPos();
+    document.addEventListener("mousedown", onDocPointer);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("mousedown", onDocPointer);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, updateMenuPos]);
 
   const color = current?.color || "#64748b";
+  const menu = open && menuPos ? createPortal(
+    <div data-cm-quickselect-menu="1" style={{
+      position:"fixed", top:menuPos.top, left:menuPos.left, width:menuPos.width,
+      zIndex:2147483000, background:"#0f233a", border:"1px solid #1e3a5f", borderRadius:"8px",
+      boxShadow:"0 18px 42px rgba(0,0,0,0.62)", overflowY:"auto", maxHeight:menuPos.maxHeight,
+      WebkitOverflowScrolling:"touch"
+    }}>
+      {allowClear && (
+        <div
+          onClick={() => { onChange(null); setOpen(false); }}
+          style={{ padding:"9px 10px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#64748b", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.06)" }}
+          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+        >
+          {placeholder}
+        </div>
+      )}
+      {options.map(o => (
+        <div
+          key={o.id}
+          onClick={() => { onChange(o.id); setOpen(false); }}
+          style={{ padding:"9px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", background: o.id === value ? o.color + "18" : "transparent" }}
+          onMouseEnter={e => e.currentTarget.style.background = o.color + "22"}
+          onMouseLeave={e => e.currentTarget.style.background = o.id === value ? o.color + "18" : "transparent"}
+        >
+          <IconText icon={o.icon} label={o.label} size={14} style={{ color: o.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight: o.id === value ? "700" : "500" }} />
+          {o.id === value && <span style={{ color:o.color, fontSize:"12px" }}>✓</span>}
+        </div>
+      ))}
+    </div>,
+    document.body
+  ) : null;
 
   return (
-    <div ref={ref} style={{ position:"relative", opacity: pending ? 0.65 : 1, transition:"opacity 0.15s" }}>
+    <div ref={ref} style={{ position:"relative", zIndex: open ? 99999 : 1, opacity: pending ? 0.65 : 1, transition:"opacity 0.15s" }}>
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -11019,37 +11073,7 @@ function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin 
           <path d="M6 9l6 6 6-6" stroke={current ? color : "#64748b"} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-
-      {open && (
-        <div style={{
-          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:50,
-          background:"#0f233a", border:"1px solid #1e3a5f", borderRadius:"8px",
-          boxShadow:"0 12px 28px rgba(0,0,0,0.45)", overflow:"hidden", maxHeight:"220px", overflowY:"auto"
-        }}>
-          {allowClear && (
-            <div
-              onClick={() => { onChange(null); setOpen(false); }}
-              style={{ padding:"9px 10px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#64748b", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.06)" }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              {placeholder}
-            </div>
-          )}
-          {options.map(o => (
-            <div
-              key={o.id}
-              onClick={() => { onChange(o.id); setOpen(false); }}
-              style={{ padding:"9px 10px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", background: o.id === value ? o.color + "18" : "transparent" }}
-              onMouseEnter={e => e.currentTarget.style.background = o.color + "22"}
-              onMouseLeave={e => e.currentTarget.style.background = o.id === value ? o.color + "18" : "transparent"}
-            >
-              <IconText icon={o.icon} label={o.label} size={14} style={{ color: o.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight: o.id === value ? "700" : "500" }} />
-              {o.id === value && <span style={{ color:o.color, fontSize:"12px" }}>✓</span>}
-            </div>
-          ))}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
@@ -11775,20 +11799,33 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <select value={st.expo || "libre"} onChange={e => updateConfinada(carril.id,"expo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.expo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateConfinada(carril.id,"expo",v)}
+                    pending={!!pendingKeys[`${carril.id}:expo`]}
+                    theme={theme}
+                  />
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <select value={st.expo_contenedor || ""} onChange={e => updateConfinada(carril.id,"expo_contenedor", e.target.value || null)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${expoContOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: expoContOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    <option value="" style={{ background:"#0a1628", color:"#475569" }}>— Sin especificar —</option>
-                    {SEGUNDO_CONTENEDOR_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.expo_contenedor}
+                    options={SEGUNDO_CONTENEDOR_OPTS}
+                    onChange={(v) => updateConfinada(carril.id,"expo_contenedor", v)}
+                    placeholder="— Sin especificar —"
+                    allowClear
+                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+                    theme={theme}
+                  />
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <select value={st.impo || "libre"} onChange={e => updateConfinada(carril.id,"impo",e.target.value)} style={{ width:"100%", padding:"9px 8px", background:"#0a1628", border:`1px solid ${impoOpt?.color || "#1e3a5f"}`, borderRadius:"8px", color: impoOpt?.color || "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight:"700", outline:"none", appearance:"none", WebkitAppearance:"none" }}>
-                    {SEGUNDO_TRAFICO_OPTS.map(o => <option key={o.id} value={o.id} style={{ background:"#0a1628", color:"#ffffff" }}><IconText icon={o.icon} label={o.label} size={15} /></option>)}
-                  </select>
+                  <QuickSelectDropdown
+                    value={st.impo || "libre"}
+                    options={SEGUNDO_TRAFICO_OPTS}
+                    onChange={(v) => updateConfinada(carril.id,"impo",v)}
+                    pending={!!pendingKeys[`${carril.id}:impo`]}
+                    theme={theme}
+                  />
                 </div>
               </div>
 
@@ -12801,6 +12838,227 @@ function NoticiasAdminPublisher({ onPublished }) {
   );
 }
 
+
+// ─── REPORTE AUTOMÁTICO EN NOTICIAS: JPEG visible y descargable ───────────────
+function NoticiasAutoJpegReport() {
+  const theme = React.useContext(ThemeContext);
+  const [jpegUrl, setJpegUrl] = useState(null);
+  const [generatedAt, setGeneratedAt] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const objectUrlRef = useRef(null);
+
+  const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
+  const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
+  const terminalName = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id || "General";
+  const clean = (txt) => String(txt ?? "").replace(/\s+/g, " ").trim();
+
+  const cargarSnapshot = useCallback(async () => {
+    const [accesosRes, vialidadesRes, rutasRes, terminalsRes, patiosRes, carrilesRes] = await Promise.all([
+      sb.from("accesos").select("*"),
+      sb.from("vialidades").select("*"),
+      sb.from("rutas_fiscales").select("*"),
+      sb.from("terminals").select("*"),
+      sb.from("patios").select("*"),
+      sb.from("carriles").select("*")
+    ]);
+    const accesos = { ...mkAccesos() };
+    (accesosRes.data || []).forEach(r => { accesos[r.id] = { status:r.status, retornos:r.retornos || "none" }; });
+    const vialidades = { ...mkVialidades() };
+    (vialidadesRes.data || []).forEach(r => { vialidades[r.id] = { status:r.status }; });
+    const rutas = { ...mkRutasFiscales() };
+    (rutasRes.data || []).forEach(r => { rutas[r.id] = { status:r.status }; });
+    const terminalMap = Object.fromEntries((terminalsRes.data || []).map(r => [r.id, r]));
+    const patioMap = Object.fromEntries((patiosRes.data || []).map(r => [r.id, r]));
+    const carrilesRows = carrilesRes.data || [];
+    const carrilesExpo = carrilesRows.find(r => r.id === "expo_impo")?.data || mkCarrilesState();
+    const segundo = { ...mkSegundoIngreso(), ...(carrilesRows.find(r => r.id === "segundo_acceso")?.data || {}) };
+    const confinada = { ...mkConfinadaState(), ...(carrilesRows.find(r => r.id === "confinada_acceso")?.data || {}) };
+
+    return [
+      { title:"Accesos", rows: ACCESOS_PRINCIPALES.map(a => {
+        const st = accesos[a.id] || {};
+        const retorno = optLabel(RETORNO_OPTIONS, st.retornos || "none", "Sin retorno");
+        return { name:a.label, status:optLabel(ACCESO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:retorno !== "Sin Retornos" ? retorno : a.zona || "", color:optColor(ACCESO_STATUS_OPTIONS, st.status) };
+      })},
+      { title:"Vialidades", rows: VIALIDADES.map(v => {
+        const st = vialidades[v.id] || {};
+        return { name:v.name, status:optLabel(VIALIDAD_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:"", color:optColor(VIALIDAD_STATUS_OPTIONS, st.status) };
+      })},
+      { title:"Rutas fiscales", rows: RUTAS_FISCALES.map(r => {
+        const st = rutas[r.id] || {};
+        return { name:r.name, status:optLabel(RUTA_FISCAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:r.zona ? `Zona ${r.zona}` : "", color:optColor(RUTA_FISCAL_STATUS_OPTIONS, st.status) };
+      })},
+      { title:"Terminales", rows: [...TERMINALS_NORTE.map(t => ({ ...t, zona:"Norte" })), ...TERMINALS_SUR.map(t => ({ ...t, zona:"Sur" }))].map(t => {
+        const st = terminalMap[t.id] || { status:"libre" };
+        return { name:t.name, status:optLabel(TERMINAL_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:`Zona ${t.zona}`, color:optColor(TERMINAL_STATUS_OPTIONS, st.status) };
+      })},
+      { title:"Patios", rows: PATIOS_REGULADORES.map(p => {
+        const st = patioMap[p.id] || { status:"libre" };
+        return { name:p.name, status:optLabel(PATIO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:"", color:optColor(PATIO_STATUS_OPTIONS, st.status) };
+      })},
+      { title:"Carriles Expo / Impo", rows: ACCESOS_CARRILES.flatMap(acc => acc.carriles.map(c => {
+        const st = carrilesExpo[c.id] || { abierto:true };
+        return { name:`${acc.label} · ${c.label}`, status:st.abierto === false ? "Cerrado" : "Abierto", detail:c.flujo || "", color:st.abierto === false ? "#ef4444" : "#22c55e" };
+      }))},
+      { title:"2° Acceso y confinada", rows: [
+        ...ACCESOS_SEGUNDO.flatMap(acc => acc.carriles.map(c => {
+          const st = segundo[c.id] || {};
+          const flags = [terminalName(st.terminal), st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
+          return { name:`${acc.label} · ${c.label}`, status:st.saturado ? "Saturado" : "Fluido", detail:flags, color:st.saturado ? "#ef4444" : "#22c55e" };
+        })),
+        ...CONFINADA_CARRILES.map(c => {
+          const st = confinada[c.id] || {};
+          const flags = [terminalName(st.terminal), st.transferencia ? "Transferencia" : "", st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
+          return { name:`Confinada · ${c.label}`, status:st.saturado ? "Saturado" : "Fluido", detail:flags, color:st.saturado ? "#ef4444" : "#22c55e" };
+        })
+      ]}
+    ];
+  }, []);
+
+  const generarJpeg = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const groups = await cargarSnapshot();
+      const scale = 2;
+      const w = 1080;
+      const pad = 42;
+      const rowH = 44;
+      const sectionH = 58;
+      const headerH = 150;
+      const footerH = 56;
+      const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
+      const h = headerH + footerH + groups.length * sectionH + rowsCount * rowH + 40;
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      const roundRect = (x,y,ww,hh,r) => {
+        ctx.beginPath();
+        ctx.moveTo(x+r,y); ctx.arcTo(x+ww,y,x+ww,y+hh,r); ctx.arcTo(x+ww,y+hh,x,y+hh,r); ctx.arcTo(x,y+hh,x,y,r); ctx.arcTo(x,y,x+ww,y,r); ctx.closePath();
+      };
+      const wrapText = (text, x, y, maxWidth, lineHeight, maxLines = 1) => {
+        const words = clean(text).split(" ");
+        let line = "";
+        let lineNo = 0;
+        for (let i=0; i<words.length; i++) {
+          const test = line ? line + " " + words[i] : words[i];
+          if (ctx.measureText(test).width > maxWidth && line) {
+            ctx.fillText(lineNo + 1 === maxLines ? line + "…" : line, x, y + lineNo * lineHeight);
+            lineNo++;
+            line = words[i];
+            if (lineNo >= maxLines) return;
+          } else line = test;
+        }
+        if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
+      };
+      const now = new Date();
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "#07152a");
+      grad.addColorStop(1, "#0b2440");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 34px Arial";
+      ctx.fillText("Reporte operativo", pad, 62);
+      ctx.font = "700 18px Arial";
+      ctx.fillStyle = "#93c5fd";
+      ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
+      ctx.font = "400 17px Arial";
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "900 18px Arial";
+      ctx.fillText(`${rowsCount} registros`, w - pad, 62);
+      ctx.textAlign = "left";
+
+      let y = headerH;
+      groups.forEach(g => {
+        ctx.fillStyle = "rgba(56,189,248,0.14)";
+        roundRect(pad, y, w - pad*2, 42, 14); ctx.fill();
+        ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = "#7dd3fc";
+        ctx.font = "900 18px Arial";
+        ctx.fillText(g.title.toUpperCase(), pad + 18, y + 27);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "700 14px Arial";
+        ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
+        ctx.textAlign = "left";
+        y += sectionH;
+        g.rows.forEach((r, idx) => {
+          ctx.fillStyle = idx % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.065)";
+          roundRect(pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "800 16px Arial";
+          wrapText(r.name, pad + 16, y + 17, 560, 17, 1);
+          if (r.detail) {
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "400 13px Arial";
+            wrapText(r.detail, pad + 16, y + 34, 670, 14, 1);
+          }
+          ctx.textAlign = "right";
+          ctx.fillStyle = r.color || "#94a3b8";
+          ctx.font = "900 16px Arial";
+          ctx.fillText(clean(r.status).slice(0, 32), w - pad - 16, y + 22);
+          ctx.textAlign = "left";
+          y += rowH;
+        });
+      });
+      ctx.fillStyle = "#64748b";
+      ctx.font = "400 14px Arial";
+      ctx.fillText("Reporte en imagen JPEG generado desde la sección Noticias para vista y descarga de usuarios.", pad, h - 26);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("No se pudo crear el JPEG");
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+      setJpegUrl(url);
+      setGeneratedAt(now);
+    } catch (e) {
+      console.error(e);
+      setError("No se pudo generar el reporte JPEG. Revisa tablas operativas y permisos de lectura.");
+    } finally {
+      setLoading(false);
+    }
+  }, [cargarSnapshot]);
+
+  useEffect(() => {
+    generarJpeg();
+    const id = setInterval(generarJpeg, 10 * 60 * 1000);
+    return () => {
+      clearInterval(id);
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, [generarJpeg]);
+
+  return (
+    <div style={{ background:"linear-gradient(135deg,rgba(37,99,235,.16),rgba(2,6,23,.72))", border:"1px solid rgba(56,189,248,.26)", borderRadius:"15px", padding:"14px", marginBottom:"16px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
+        <div>
+          <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"14px" }}>Reporte automático del puerto</div>
+          <div style={{ color:"rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Imagen JPEG generada con información de accesos, vialidades, rutas, terminales, patios, carriles y confinados.</div>
+          {generatedAt && <div style={{ color:"rgba(147,197,253,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"5px" }}>Actualizado: {generatedAt.toLocaleString("es-MX")}</div>}
+        </div>
+        <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
+          <button onClick={generarJpeg} disabled={loading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.45)", background:"rgba(56,189,248,.12)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:loading?"wait":"pointer" }}>{loading ? "Generando…" : "Actualizar JPEG"}</button>
+          {jpegUrl && <a href={jpegUrl} download={`reporte-operativo-conect-${new Date().toISOString().slice(0,10)}.jpeg`} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.4)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, textDecoration:"none" }}>Descargar JPEG</a>}
+        </div>
+      </div>
+      {error && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(239,68,68,.12)", border:"1px solid rgba(239,68,68,.35)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{error}</div>}
+      {jpegUrl ? <img src={jpegUrl} alt="Reporte operativo automático" style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#fff", display:"block" }} /> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imagen del reporte…" : "Reporte JPEG no disponible todavía."}</div>}
+    </div>
+  );
+}
+
 function NoticiasTab({ isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
@@ -12917,6 +13175,7 @@ function NoticiasTab({ isAdmin }) {
 
       {seccion === "noticias" && (
         <>
+          <NoticiasAutoJpegReport />
           {isAdmin && <NoticiasAdminPublisher onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
