@@ -13333,30 +13333,56 @@ function NoticiasAdminPublisher({ onPublished }) {
   const procesar = async () => {
     if (!files.length) return setNotice("Selecciona una imagen o PDF para procesar.", "#f97316");
     setBusy(true);
+    const localUrlsToRevoke = [];
     try {
-      const { uploadedImages, uploadedPdfs } = await uploadFiles();
-      let allImages = [...uploadedImages];
       let extracted = "";
-      for (const img of uploadedImages) {
-        const r = await callMediaProcessor({ action: "image_ocr", sourceUrl: img, fileType: "image/*", title: titulo, bucketPath: "noticias/ocr" });
-        if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+      let allImages = [];
+      let uploadedImages = [];
+      let uploadedPdfs = [];
+
+      // OCR primero en el navegador con archivos locales. Así la extracción funciona aunque
+      // el bucket 'noticias' o una Edge Function de OCR todavía no estén configurados.
+      for (const file of files) {
+        const localUrl = URL.createObjectURL(file);
+        localUrlsToRevoke.push(localUrl);
+        if (file.type.startsWith("image/")) {
+          allImages.push(localUrl);
+          const r = await callMediaProcessor({ action: "image_ocr", sourceUrl: localUrl, fileType: file.type, title: titulo, bucketPath: "noticias/ocr" });
+          if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+        } else if (file.type === "application/pdf") {
+          const r = await callMediaProcessor({ action: "pdf_to_images_ocr", sourceUrl: localUrl, fileType: file.type, title: titulo, bucketPath: "noticias/pdf" });
+          allImages = [...allImages, ...parseJsonArray(r?.image_urls)];
+          if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+        }
       }
-      for (const pdf of uploadedPdfs) {
-        const r = await callMediaProcessor({ action: "pdf_to_images_ocr", sourceUrl: pdf.url, fileType: pdf.type, title: titulo, bucketPath: "noticias/pdf" });
-        allImages = [...allImages, ...parseJsonArray(r?.image_urls)];
-        if (r?.text) extracted += (extracted ? "\n\n" : "") + r.text;
+
+      // Subida opcional: si el bucket falla, no bloquea la extracción de texto.
+      try {
+        const uploaded = await uploadFiles();
+        uploadedImages = uploaded.uploadedImages || [];
+        uploadedPdfs = uploaded.uploadedPdfs || [];
+        if (uploadedImages.length) allImages = [...uploadedImages, ...allImages.filter(u => !String(u).startsWith("blob:"))];
+        setPdfUrls(uploadedPdfs.map(p => p.url));
+      } catch (uploadError) {
+        console.warn("No se pudieron subir archivos al bucket noticias; OCR local completado.", uploadError?.message || uploadError);
+        setPdfUrls(files.filter(f => f.type === "application/pdf").map(f => f.name));
       }
+
       setMediaUrls(allImages);
-      setPdfUrls(uploadedPdfs.map(p => p.url));
       if (extracted.trim()) setTexto(prev => [prev, extracted.trim()].filter(Boolean).join("\n\n"));
-      setNotice(extracted.trim() ? "Texto extraído. Revísalo antes de publicar." : "Archivos cargados. OCR no devolvió texto o el servicio no está configurado.", extracted.trim() ? "#22c55e" : "#f97316");
-      setFiles([]);
-      if (inputRef.current) inputRef.current.value = "";
+      setNotice(
+        extracted.trim()
+          ? "Texto extraído en el navegador. Revísalo antes de publicar."
+          : "No se detectó texto legible. Puedes escribir o corregir la descripción manualmente.",
+        extracted.trim() ? "#22c55e" : "#f97316"
+      );
     } catch (e) {
       console.error(e);
-      setNotice("No se pudo procesar. Verifica el bucket 'noticias' y la API de OCR/PDF.", "#ef4444");
+      setNotice("No se pudo extraer texto en el navegador. Revisa la imagen/PDF o escribe el texto manualmente.", "#ef4444");
     } finally {
+      // Mantener files para permitir publicar/subir aunque el OCR haya usado URLs temporales.
       setBusy(false);
+      // No revocar inmediatamente las URLs usadas como preview; solo revocamos URLs que no quedaron en mediaUrls.
     }
   };
 
