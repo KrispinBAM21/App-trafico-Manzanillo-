@@ -13115,17 +13115,34 @@ function NoticiasAutoJpegReport() {
     document.head.appendChild(script);
   });
 
+  const drawCanvasWatermark = async (ctx, w, startY, areaH) => {
+    try {
+      const wm = await loadImage(CM_REPORT_WATERMARK);
+      const wmW = Math.min(610, w * 0.64);
+      const wmH = wmW * (wm.height / wm.width);
+      const centerY = startY + areaH / 2;
+      ctx.save();
+      if ("filter" in ctx) ctx.filter = "grayscale(1)";
+      ctx.globalAlpha = 0.14;
+      ctx.drawImage(wm, (w - wmW) / 2, centerY - wmH / 2, wmW, wmH);
+      ctx.restore();
+    } catch {}
+  };
+
   const buildReportCanvas = useCallback(async () => {
     const groups = await cargarSnapshot();
     const scale = 2;
     const w = 1080;
     const pad = 42;
-    const rowH = 44;
-    const sectionH = 58;
     const headerH = 150;
-    const footerH = 56;
+    const footerH = 58;
+    const sectionGap = 24;
+    const titleGap = 34;
+    const rowBaseH = 32;
+    const detailExtraH = 14;
     const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
-    const h = headerH + footerH + groups.length * sectionH + rowsCount * rowH + 40;
+    const totalDetails = groups.reduce((n, g) => n + g.rows.filter(r => clean(r.detail)).length, 0);
+    const h = headerH + footerH + groups.length * (titleGap + sectionGap) + rowsCount * rowBaseH + totalDetails * detailExtraH + 48;
     const canvas = document.createElement("canvas");
     canvas.width = w * scale;
     canvas.height = h * scale;
@@ -13134,107 +13151,110 @@ function NoticiasAutoJpegReport() {
     const ctx = canvas.getContext("2d");
     ctx.scale(scale, scale);
 
-    const roundRect = (x,y,ww,hh,r) => {
+    const line = (x1, y1, x2, y2, color = "#cbd5e1", width = 1) => {
       ctx.beginPath();
-      ctx.moveTo(x+r,y); ctx.arcTo(x+ww,y,x+ww,y+hh,r); ctx.arcTo(x+ww,y+hh,x,y+hh,r); ctx.arcTo(x,y+hh,x,y,r); ctx.arcTo(x,y,x+ww,y,r); ctx.closePath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.stroke();
     };
     const wrapText = (text, x, y, maxWidth, lineHeight, maxLines = 1) => {
       const words = clean(text).split(" ");
-      let line = "";
+      let lineText = "";
       let lineNo = 0;
-      for (let i=0; i<words.length; i++) {
-        const test = line ? line + " " + words[i] : words[i];
-        if (ctx.measureText(test).width > maxWidth && line) {
-          ctx.fillText(lineNo + 1 === maxLines ? line + "…" : line, x, y + lineNo * lineHeight);
-          lineNo++;
-          line = words[i];
+      for (let i = 0; i < words.length; i++) {
+        const test = lineText ? `${lineText} ${words[i]}` : words[i];
+        if (ctx.measureText(test).width > maxWidth && lineText) {
+          ctx.fillText(lineNo + 1 === maxLines ? `${lineText}…` : lineText, x, y + lineNo * lineHeight);
+          lineNo += 1;
+          lineText = words[i];
           if (lineNo >= maxLines) return;
-        } else line = test;
+        } else {
+          lineText = test;
+        }
       }
-      if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
+      if (lineNo < maxLines) ctx.fillText(lineText, x, y + lineNo * lineHeight);
     };
+
     const now = new Date();
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#07152a");
-    grad.addColorStop(1, "#0b2440");
-    ctx.fillStyle = grad;
+    const selectedCount = groups.length;
+
+    ctx.fillStyle = "#f3f4f6";
     ctx.fillRect(0, 0, w, h);
 
-    // Misma marca de agua usada por el PDF del apartado REPORTES.
-    // Se dibuja antes del contenido para que el reporte sea legible y la descarga conserve la marca.
-    try {
-      const wm = await loadImage(CM_REPORT_WATERMARK);
-      const wmW = Math.min(520, w * 0.52);
-      const wmH = wmW * (wm.height / wm.width);
-      const pageLikeH = 980;
-      ctx.save();
-      ctx.globalAlpha = 0.18;
-      for (let cy = headerH + pageLikeH / 2; cy < h - footerH; cy += pageLikeH) {
-        ctx.drawImage(wm, (w - wmW) / 2, cy - wmH / 2, wmW, wmH);
-      }
-      ctx.restore();
-    } catch {}
-
+    ctx.fillStyle = "#03152f";
+    ctx.fillRect(0, 0, w, 116);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 34px Arial";
-    ctx.fillText("Reporte operativo", pad, 62);
-    ctx.font = "700 18px Arial";
-    ctx.fillStyle = "#93c5fd";
-    ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
-    ctx.font = "400 17px Arial";
-    ctx.fillStyle = "#cbd5e1";
-    ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
+    ctx.font = "700 30px Arial";
+    ctx.fillText("Reporte operativo", pad, 56);
+    ctx.font = "400 18px Arial";
+    ctx.fillText("Conect Manzanillo", pad, 92);
+
     ctx.textAlign = "right";
-    ctx.fillStyle = "#38bdf8";
-    ctx.font = "900 18px Arial";
-    ctx.fillText(`${rowsCount} registros`, w - pad, 62);
+    ctx.font = "400 17px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(`Generado: ${now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}`, w - pad, 56);
+    ctx.fillText(`${selectedCount} secciones · ${rowsCount} registros`, w - pad, 92);
     ctx.textAlign = "left";
 
-    let y = headerH;
-    groups.forEach(g => {
-      ctx.fillStyle = "rgba(56,189,248,0.14)";
-      roundRect(pad, y, w - pad*2, 42, 14); ctx.fill();
-      ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = "#7dd3fc";
-      ctx.font = "900 18px Arial";
-      ctx.fillText(g.title.toUpperCase(), pad + 18, y + 27);
+    await drawCanvasWatermark(ctx, w, headerH, h - headerH - footerH);
+
+    let y = headerH + 10;
+    groups.forEach((g) => {
+      line(pad, y, w - pad, y, "#cbd5e1", 1.1);
+      y += 22;
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "700 21px Arial";
+      ctx.fillText(g.title, pad, y);
       ctx.textAlign = "right";
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "700 14px Arial";
-      ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "400 16px Arial";
+      ctx.fillText(`${g.rows.length} registros`, w - pad, y);
       ctx.textAlign = "left";
-      y += sectionH;
-      g.rows.forEach((r, idx) => {
-        ctx.fillStyle = idx % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.065)";
-        roundRect(pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
-        ctx.fillStyle = "#f8fafc";
-        ctx.font = "800 16px Arial";
-        wrapText(r.name, pad + 16, y + 17, 560, 17, 1);
-        if (r.detail) {
-          ctx.fillStyle = "#94a3b8";
-          ctx.font = "400 13px Arial";
-          wrapText(r.detail, pad + 16, y + 34, 670, 14, 1);
-        }
+      y += 22;
+
+      g.rows.forEach((r) => {
+        const detail = clean(r.detail);
+        ctx.fillStyle = "#1f2937";
+        ctx.font = "400 17px Arial";
+        wrapText(r.name, pad + 10, y, 640, 18, 1);
         ctx.textAlign = "right";
-        ctx.fillStyle = r.color || "#94a3b8";
-        ctx.font = "900 16px Arial";
-        ctx.fillText(clean(r.status).slice(0, 32), w - pad - 16, y + 22);
+        ctx.fillStyle = r.color || "#64748b";
+        ctx.font = "700 17px Arial";
+        ctx.fillText(clean(r.status).slice(0, 32), w - pad, y);
         ctx.textAlign = "left";
-        y += rowH;
+        y += 14;
+        if (detail) {
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "400 12px Arial";
+          wrapText(detail, pad + 10, y, 700, 13, 1);
+          y += 11;
+        }
+        y += 10;
+        line(pad + 10, y, w - pad, y, "#d7dde5", 1);
+        y += 18;
       });
+      y += 16;
     });
+
     ctx.fillStyle = "#64748b";
     ctx.font = "400 14px Arial";
-    ctx.fillText("Reporte generado desde la sección Noticias. Descarga disponible en JPEG o PDF con marca de agua.", pad, h - 26);
-    return { canvas, now };
+    ctx.fillText("Conect Manzanillo · Reporte generado desde la web", pad, h - 24);
+    ctx.textAlign = "right";
+    ctx.fillText("Vista previa JPEG con marca de agua", w - pad, h - 24);
+    ctx.textAlign = "left";
+
+    return { canvas, now, groups, rowsCount };
   }, [cargarSnapshot]);
 
   const generarJpeg = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { canvas, now } = await buildReportCanvas();
+      const { canvas, now, groups } = await buildReportCanvas();
       canvasRef.current = canvas;
+      canvasRef.current.__reportGroups = groups;
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
       if (!blob) throw new Error("No se pudo crear el JPEG");
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
@@ -13263,35 +13283,105 @@ function NoticiasAutoJpegReport() {
     setTimeout(() => URL.revokeObjectURL(url), 1200);
   };
 
-  const downloadCanvasAsPdf = async (canvas, now) => {
+  const downloadCanvasAsPdf = async (canvas, now, groups = null) => {
     const jsPDF = await loadJsPdf();
+    const reportGroups = groups || (await cargarSnapshot());
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 8;
-    const usableW = pageW - margin * 2;
-    const usableH = pageH - margin * 2;
-    const srcW = canvas.width;
-    const srcH = canvas.height;
-    const sliceH = Math.floor(srcW * (usableH / usableW));
-    let sy = 0;
-    let page = 0;
-    while (sy < srcH) {
-      const hSlice = Math.min(sliceH, srcH - sy);
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width = srcW;
-      pageCanvas.height = hSlice;
-      const pctx = pageCanvas.getContext("2d");
-      pctx.fillStyle = "#07152a";
-      pctx.fillRect(0, 0, srcW, hSlice);
-      pctx.drawImage(canvas, 0, sy, srcW, hSlice, 0, 0, srcW, hSlice);
-      const img = pageCanvas.toDataURL("image/jpeg", 0.92);
-      if (page > 0) doc.addPage();
-      const imgH = usableW * (hSlice / srcW);
-      doc.addImage(img, "JPEG", margin, margin, usableW, imgH, undefined, "FAST");
-      sy += hSlice;
-      page++;
+    const left = 16;
+    const right = pageW - 16;
+    const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
+    const totalItems = reportGroups.reduce((sum, g) => sum + g.rows.length, 0);
+    const selectedCount = reportGroups.length;
+    let y = 18;
+
+    const drawWatermark = () => {
+      try {
+        const size = 118;
+        doc.addImage(CM_REPORT_WATERMARK, "PNG", (pageW - size) / 2, (pageH - size) / 2 + 8, size, size, undefined, "FAST");
+      } catch {}
+    };
+
+    const addPageHeader = () => {
+      drawWatermark();
+      doc.setFillColor(3, 21, 47);
+      doc.rect(0, 0, pageW, 30, "F");
+      doc.setTextColor(255,255,255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text("Reporte operativo", left, 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(241, 245, 249);
+      doc.text("Conect Manzanillo", left, 22);
+      doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
+      doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
+      y = 42;
+    };
+
+    const checkPage = (needed = 8) => {
+      if (y + needed > pageH - 15) {
+        doc.addPage();
+        addPageHeader();
+      }
+    };
+
+    addPageHeader();
+    const statusX = pageW - 48;
+
+    reportGroups.forEach((g) => {
+      checkPage(12);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.25);
+      doc.line(left, y, right, y);
+      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cleanPdfText(g.title), left, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.3);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${g.rows.length} registros`, right, y, { align:"right" });
+      y += 5;
+
+      g.rows.forEach((item) => {
+        const detail = cleanPdfText(item.detail || "");
+        const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
+        const rowHeight = detail ? 8.8 : 5.8;
+        checkPage(detail ? 10 : 7);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.2);
+        doc.setTextColor(15, 23, 42);
+        doc.text(cleanPdfText(item.name).slice(0, 84), left + 2, y);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(rgb.r, rgb.g, rgb.b);
+        doc.text(cleanPdfText(item.status).slice(0, 28), statusX, y);
+        if (detail) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.6);
+          doc.setTextColor(148, 163, 184);
+          doc.text(detail.slice(0, 98), left + 2, y + 3.4);
+        }
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.12);
+        doc.line(left + 2, y + rowHeight - 3.7, right, y + rowHeight - 3.7);
+        y += rowHeight;
+      });
+      y += 3;
+    });
+
+    const pages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Página ${i} de ${pages}`, right, pageH - 9, { align:"right" });
+      doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - 9);
     }
+
     doc.save(`reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
   };
 
@@ -13301,13 +13391,16 @@ function NoticiasAutoJpegReport() {
     try {
       let canvas = canvasRef.current;
       let now = generatedAt || new Date();
+      let groups = canvasRef.current?.__reportGroups || null;
       if (!canvas) {
         const built = await buildReportCanvas();
         canvas = built.canvas;
         now = built.now;
+        groups = built.groups;
         canvasRef.current = canvas;
+        canvasRef.current.__reportGroups = groups;
       }
-      if (downloadFormat === "pdf") await downloadCanvasAsPdf(canvas, now);
+      if (downloadFormat === "pdf") await downloadCanvasAsPdf(canvas, now, groups);
       else await downloadCanvasAsJpeg(canvas, now);
     } catch (e) {
       console.error(e);
