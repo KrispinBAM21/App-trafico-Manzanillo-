@@ -13020,17 +13020,25 @@ function NoticiasAdminPublisher({ onPublished }) {
 
 
 // ─── REPORTE AUTOMÁTICO EN NOTICIAS: JPEG visible y descargable ───────────────
+const getNoticiasAutoReportCache = () => {
+  if (typeof window === "undefined") return {};
+  window.__cmNoticiasAutoReportCache = window.__cmNoticiasAutoReportCache || {};
+  return window.__cmNoticiasAutoReportCache;
+};
+
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
-  const [jpegUrl, setJpegUrl] = useState(null);
-  const [generatedAt, setGeneratedAt] = useState(null);
+  const reportCacheRef = useRef(getNoticiasAutoReportCache());
+  const [jpegUrl, setJpegUrl] = useState(() => reportCacheRef.current.jpegUrl || null);
+  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
   const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
-  const objectUrlRef = useRef(null);
-  const canvasRef = useRef(null);
+  const objectUrlRef = useRef(reportCacheRef.current.jpegUrl || null);
+  const canvasRef = useRef(reportCacheRef.current.canvas || null);
+  if (canvasRef.current && reportCacheRef.current.groups) canvasRef.current.__reportGroups = reportCacheRef.current.groups;
 
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
@@ -13377,9 +13385,14 @@ function NoticiasAutoJpegReport() {
       canvasRef.current.__reportGroups = groups;
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
       if (!blob) throw new Error("No se pudo crear el JPEG");
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      const previousUrl = reportCacheRef.current.jpegUrl;
       const url = URL.createObjectURL(blob);
       objectUrlRef.current = url;
+      reportCacheRef.current.jpegUrl = url;
+      reportCacheRef.current.generatedAt = now.toISOString();
+      reportCacheRef.current.canvas = canvas;
+      reportCacheRef.current.groups = groups;
+      if (previousUrl && previousUrl !== url) setTimeout(() => URL.revokeObjectURL(previousUrl), 1500);
       setJpegUrl(url);
       setGeneratedAt(now);
     } catch (e) {
@@ -13541,7 +13554,8 @@ function NoticiasAutoJpegReport() {
     return () => {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      // No revocar aquí: el reporte debe mantenerse visible al cambiar de sección.
+      // El objectURL anterior se libera solo cuando se genera un nuevo corte.
     };
   }, [generarJpeg]);
 
