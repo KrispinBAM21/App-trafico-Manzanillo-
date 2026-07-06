@@ -12607,70 +12607,73 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
   }, [canNavigate, onNavigate, safeIndex, items.length]);
 
   useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const handler = (e) => {
       if (e.key === "Escape") onClose();
       if (canNavigate && e.key === "ArrowLeft") goPrev();
       if (canNavigate && e.key === "ArrowRight") goNext();
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", handler);
+    };
   }, [onClose, canNavigate, goPrev, goNext]);
 
   if (!item) return null;
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.95)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:"1120px", maxHeight:"92vh", display:"flex", flexDirection:"column", gap:"10px" }}>
-        {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, gap:"12px" }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px", color:"rgba(255,255,255,0.95)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.titulo}</div>
-            {item.detalle && <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"2px" }}>{item.detalle}</div>}
-            {canNavigate && (
-              <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#fbbf24", fontWeight:"700" }}>
-                Documento {safeIndex + 1} de {items.length}
-              </div>
-            )}
-          </div>
-          <button onClick={onClose} style={{ flexShrink:0, width:"38px", height:"38px", borderRadius:"50%", background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", color:"rgba(255,255,255,0.8)", fontSize:"16px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
-        </div>
-        {/* Contenido */}
-        <div style={{ position:"relative", flex:1, minHeight:0, borderRadius:"16px", overflow:"hidden", background:"#0a1628", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-          {isPdf ? (
-            <iframe src={item.archivo_url} title={item.titulo} style={{ width:"100%", height:"80vh", border:"none", background:"#fff" }} />
-          ) : (
-            <img src={item.archivo_url} alt={item.titulo} style={{ width:"100%", height:"80vh", objectFit:"contain", display:"block", background:"#061428" }} />
-          )}
 
-          {canNavigate && (
-            <>
-              <button onClick={goPrev} style={{ position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"48px", height:"48px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.18)", background:"rgba(10,22,40,0.75)", color:"#fff", fontSize:"24px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(8px)" }} aria-label="Anterior">‹</button>
-              <button onClick={goNext} style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"48px", height:"48px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.18)", background:"rgba(10,22,40,0.75)", color:"#fff", fontSize:"24px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(8px)" }} aria-label="Siguiente">›</button>
-            </>
-          )}
-        </div>
-        {/* Acciones */}
-        <div style={{ display:"flex", gap:"8px", justifyContent:"center", flexShrink:0, flexWrap:"wrap" }}>
-          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"8px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
-            Enlace Abrir en nueva pestaña
-          </a>
+  const iconBtn = {
+    width:"42px",
+    height:"42px",
+    borderRadius:"999px",
+    background:"rgba(10,22,40,0.62)",
+    border:"1px solid rgba(255,255,255,0.20)",
+    color:"#fff",
+    fontSize:"18px",
+    cursor:"pointer",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    backdropFilter:"blur(10px)",
+    WebkitBackdropFilter:"blur(10px)",
+    boxShadow:"0 12px 36px rgba(0,0,0,.45)",
+    textDecoration:"none"
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.96)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", overflow:"hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        {isPdf ? (
+          <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"94vh", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
+        ) : (
+          <img src={item.archivo_url} alt="Imagen ampliada" style={{ maxWidth:"100%", maxHeight:"96vh", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
+        )}
+
+        <button onClick={onClose} title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"14px", right:"14px", fontSize:"22px" }}>×</button>
+
+        {canNavigate && (
+          <>
+            <button onClick={goPrev} title="Anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>‹</button>
+            <button onClick={goNext} title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>›</button>
+            <div style={{ position:"absolute", left:"50%", bottom:"14px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.46)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.70)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+              {safeIndex + 1} / {items.length}
+            </div>
+          </>
+        )}
+
+        <div style={{ position:"absolute", right:"14px", bottom:"14px", display:"flex", gap:"8px", alignItems:"center" }}>
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
           {onDownload ? (
-            <button onClick={() => onDownload(item)} disabled={downloading} style={{ padding:"8px 16px", background: downloading ? "rgba(100,116,139,.18)" : "#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color: downloading ? "#94a3b8" : "#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px", cursor: downloading ? "not-allowed" : "pointer" }}>
-              {downloading ? "Preparando descarga…" : "⬇️ Descargar con marca de agua"}
-            </button>
+            <button onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "⬇"}</button>
           ) : (
-            <a href={item.archivo_url} download style={{ padding:"8px 16px", background:"#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
-              ⬇️ Descargar
-            </a>
+            <a href={item.archivo_url} download title="Descargar" style={iconBtn}>⬇</a>
           )}
         </div>
-      </div>
-      <div style={{ marginTop:"12px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.25)", textAlign:"center" }}>
-        Toca fuera o presiona ESC para cerrar{canNavigate ? " · Usa ← y → para cambiar de archivo" : ""}
       </div>
     </div>
   );
 }
-
 
 
 
