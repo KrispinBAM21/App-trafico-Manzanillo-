@@ -12642,6 +12642,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
+  const [toolBusy, setToolBusy] = useState(false);
+  const [toolMsg, setToolMsg] = useState(null);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
+  const [converterOpen, setConverterOpen] = useState(false);
   const inputRef = useRef();
 
   const localDateInput = (offsetDays = 0) => {
@@ -12727,6 +12731,97 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       reader.readAsDataURL(f);
     } else {
       setPreview("pdf");
+    }
+  };
+
+  const setToolNotice = (message, color = "#2563eb") => {
+    setToolMsg({ message, color });
+    setTimeout(() => setToolMsg(null), 3800);
+  };
+
+  const agregarTextoExtraidoADetalle = (rawText) => {
+    const cleanText = stripFileNamesFromOcrText(String(rawText || ""), archivo ? [archivo] : []);
+    if (!cleanText.trim()) return false;
+    setDetalle(prev => [prev, cleanText.trim()].filter(Boolean).join(prev?.trim() ? "\n\n" : ""));
+    return true;
+  };
+
+  const procesarArchivoComunicado = async () => {
+    if (!archivo) {
+      setError("Selecciona un archivo para extraer texto");
+      return;
+    }
+    setToolBusy(true);
+    setError("");
+    try {
+      const localUrl = URL.createObjectURL(archivo);
+      let extracted = "";
+      try {
+        if (archivo.type?.startsWith("image/")) {
+          const r = await callMediaProcessor({ action: "image_ocr", sourceUrl: localUrl, fileType: archivo.type, title: titulo, bucketPath: "comunicados/ocr" });
+          extracted = r?.text || "";
+        } else if (archivo.type === "application/pdf") {
+          const r = await callMediaProcessor({ action: "pdf_to_images_ocr", sourceUrl: localUrl, fileType: archivo.type, title: titulo, bucketPath: "comunicados/pdf" });
+          extracted = r?.text || "";
+        }
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(localUrl), 1500);
+      }
+      const ok = agregarTextoExtraidoADetalle(extracted);
+      setToolNotice(ok ? "Texto extraído y agregado en Descripción breve." : "No se detectó texto legible. Puedes escribir la descripción manualmente.", ok ? "#22c55e" : "#f97316");
+    } catch (e) {
+      console.error(e);
+      setToolNotice("No se pudo extraer texto. Intenta elegir una zona o escribe la descripción manualmente.", "#ef4444");
+    } finally {
+      setToolBusy(false);
+    }
+  };
+
+  const aplicarTextoDeZonasComunicado = async ({ text }) => {
+    const ok = agregarTextoExtraidoADetalle(text);
+    setToolNotice(ok ? "Texto de la zona agregado en Descripción breve." : "No se detectó texto legible dentro de la zona seleccionada.", ok ? "#22c55e" : "#f97316");
+  };
+
+  const publicarArchivoEnNoticias = async () => {
+    if (!isAdmin) return;
+    if (!titulo.trim()) {
+      setError("Escribe un título para publicar en Noticias");
+      return;
+    }
+    if (!archivo) {
+      setError("Selecciona un archivo para publicar en Noticias");
+      return;
+    }
+    setToolBusy(true);
+    setError("");
+    try {
+      const path = `noticias/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizeStorageName(archivo.name)}`;
+      const { error: upErr } = await sb.storage.from("noticias").upload(path, archivo, { contentType: archivo.type, upsert: false });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+      const payload = {
+        tipo: "comunicado",
+        titulo: titulo.trim(),
+        detalle: detalle.trim() || null,
+        icono: "document",
+        color: "#2563eb",
+        origen: "admin_noticias",
+        fecha_publicacion: new Date().toISOString().slice(0, 10),
+        texto_extraido: detalle.trim() || null,
+        media_urls: archivo.type?.startsWith("image/") ? [publicUrl] : [],
+        pdf_urls: archivo.type === "application/pdf" ? [publicUrl] : [],
+        archivo_url: publicUrl,
+        archivo_tipo: archivo.type,
+        ocultar_en_feed: false,
+      };
+      const { error: insErr } = await sb.from("noticias").insert(payload).select("*").single();
+      if (insErr) throw insErr;
+      setToolNotice("Publicado en Noticias.", "#22c55e");
+    } catch (e) {
+      console.error(e);
+      setToolNotice("No se pudo publicar en Noticias. Revisa bucket/políticas de Supabase.", "#ef4444");
+    } finally {
+      setToolBusy(false);
     }
   };
 
@@ -12866,13 +12961,12 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "8px", boxSizing: "border-box", outline: "none" }}
       />
       
-      <input
-        type="text"
+      <textarea
         placeholder="Descripción breve (opcional)"
         value={detalle}
         onChange={(e) => setDetalle(e.target.value)}
-        maxLength={200}
-        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none" }}
+        rows={3}
+        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none", resize: "vertical", lineHeight: "1.45", minHeight: "74px" }}
       />
 
       {/* Fechas de vigencia: solo fechas, sin horas */}
@@ -12944,10 +13038,25 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         )}
         {preview === "pdf" && <div style={{ fontSize: "40px", marginBottom: "6px" }}>📄</div>}
         <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: archivo ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
-          {archivo ? `✓ ${archivo.name}` : "Toca aquí para seleccionar JPG, PNG o PDF (máx. 10 MB)"}
+          {archivo ? `✓ ${archivo.name}` : "Seleccionar JPG, PNG o PDF (máx. 10 MB)"}
         </div>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display: "none" }} />
       </div>
+
+      <div style={{ background:"rgba(255,255,255,0.055)", border:"1px solid rgba(148,163,184,0.18)", borderRadius:"10px", padding:"10px", marginBottom:"10px" }}>
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", marginBottom:"8px", lineHeight:"1.45" }}>
+          Herramientas opcionales para preparar el comunicado. El texto extraído se agregará automáticamente en <b style={{ color:"rgba(255,255,255,0.78)" }}>Descripción breve</b>.
+        </div>
+        {toolMsg && <div style={{ padding:"8px 10px", borderRadius:"8px", background:toolMsg.color+"18", border:`1px solid ${toolMsg.color}55`, color:toolMsg.color, fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginBottom:"8px" }}>{toolMsg.message}</div>}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))", gap:"8px" }}>
+          <button type="button" onClick={procesarArchivoComunicado} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>{toolBusy ? "Procesando…" : "Convertir / extraer texto"}</button>
+          <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
+          <button type="button" onClick={()=>setConverterOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
+          {isAdmin && <button type="button" onClick={publicarArchivoEnNoticias} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Publicar en Noticias</button>}
+        </div>
+      </div>
+      {zonePickerOpen && <OcrZonePickerModal files={archivo ? [archivo] : []} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonasComunicado} />}
+      {converterOpen && <MediaConverterModal files={archivo ? [archivo] : []} onClose={()=>setConverterOpen(false)} onNotice={(message, color)=>setToolNotice(message, color)} />}
       
       {!isAdmin && (
         <div style={{ background: "#fbbf2411", border: "1px solid #fbbf2433", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px", fontSize: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6" }}>
@@ -13365,10 +13474,6 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                   : "Tu propuesta será revisada por un administrador antes de ser visible para la comunidad."}
               </div>
             </div>
-          </div>
-
-          <div style={{ marginBottom: "16px" }}>
-            <NoticiasAdminPublisher isAdmin={isAdmin} onPublished={() => {}} />
           </div>
 
           <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
