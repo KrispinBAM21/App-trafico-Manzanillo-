@@ -14850,11 +14850,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
               {pisContactUnlocked && (
                 <>
                   <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
-                    Contacto ASIPONA para información específica: <b>314 121 5154</b> · <b>{PIS_ASIPONA_EMAIL}</b>.
+                    Datos de contacto para información específica de boletinaje:
                   </div>
-                  <div style={{ border:"1px solid rgba(56,189,248,.28)", background:"rgba(56,189,248,.08)", borderRadius:"12px", padding:"10px 12px", marginBottom:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.78)", lineHeight:1.6 }}>
-                    También puedes comunicarte por teléfono con ASIPONA usando extensiones. Teléfono principal: <button onClick={() => copyPisText(PIS_ASIPONA_MAIN_PHONE, "mainPhone")} style={{ background:"transparent", border:"none", color:pisCopiedField === "mainPhone" ? "#22c55e" : "#38bdf8", fontWeight:"900", cursor:"pointer", padding:"0 2px", fontFamily:"inherit" }}>{pisCopiedField === "mainPhone" ? "Teléfono copiado" : PIS_ASIPONA_MAIN_PHONE}</button> · Extensión: <button onClick={() => copyPisText(PIS_ASIPONA_EXTENSION, "extension")} style={{ background:"transparent", border:"none", color:pisCopiedField === "extension" ? "#22c55e" : "#fbbf24", fontWeight:"900", cursor:"pointer", padding:"0 2px", fontFamily:"inherit" }}>{pisCopiedField === "extension" ? "Extensión copiada" : PIS_ASIPONA_EXTENSION}</button>.
-                    <div style={{ marginTop:"5px", color:"rgba(255,255,255,.48)", fontSize:"10px" }}>Pulsa el teléfono o la extensión para copiarlos.</div>
+                  <div style={{ border:"1px solid rgba(56,189,248,.28)", background:"rgba(56,189,248,.08)", borderRadius:"12px", padding:"10px", marginBottom:"10px", fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.82)", display:"grid", gap:"8px" }}>
+                    {[
+                      { label:"Teléfono principal", value:PIS_ASIPONA_MAIN_PHONE, field:"mainPhone", copied:"Teléfono copiado" },
+                      { label:"Extensión", value:PIS_ASIPONA_EXTENSION, field:"extension", copied:"Extensión copiada" },
+                      { label:"Correo electrónico", value:PIS_ASIPONA_EMAIL, field:"email", copied:"Correo copiado" },
+                    ].map(row => (
+                      <div key={row.field} style={{ display:"grid", gridTemplateColumns:"minmax(120px, 1fr) minmax(0, 1.25fr) auto", alignItems:"center", gap:"8px", padding:"8px 9px", borderRadius:"10px", background:"rgba(2,6,23,.25)", border:"1px solid rgba(255,255,255,.08)", minWidth:0 }}>
+                        <div style={{ fontSize:"11px", color:"rgba(255,255,255,.62)", fontWeight:"800" }}>{row.label}</div>
+                        <button onClick={() => copyPisText(row.value, row.field)} style={{ minWidth:0, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:"transparent", border:"none", color:pisCopiedField === row.field ? "#22c55e" : "#ffffff", fontWeight:"900", cursor:"pointer", padding:0, fontFamily:"inherit", fontSize:"12px" }} title="Copiar">
+                          {pisCopiedField === row.field ? row.copied : row.value}
+                        </button>
+                        <button onClick={() => copyPisText(row.value, row.field)} style={{ border:"1px solid rgba(56,189,248,.35)", background:pisCopiedField === row.field ? "rgba(34,197,94,.15)" : "rgba(56,189,248,.12)", color:pisCopiedField === row.field ? "#22c55e" : "#38bdf8", borderRadius:"999px", padding:"5px 9px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", cursor:"pointer", whiteSpace:"nowrap" }}>
+                          {pisCopiedField === row.field ? "Copiado" : "Copiar"}
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ color:"rgba(255,255,255,.48)", fontSize:"10px", lineHeight:1.45 }}>Pulsa el dato o la pestaña de copiar para guardarlo en el portapapeles.</div>
                   </div>
                   <textarea
                     value={pisContactMessage}
@@ -14865,7 +14879,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
                   />
                   <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
                     <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
-                    <button onClick={copyPisEmail} style={{ ...btn(pisEmailCopied ? "#22c55e" : "#fbbf24"), display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name={pisEmailCopied ? "check" : "document"} size={14} active /> {pisEmailCopied ? "Correo copiado" : "Copiar correo"}</button>
                   </div>
                 </>
               )}
