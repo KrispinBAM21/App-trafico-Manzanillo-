@@ -2251,8 +2251,9 @@ function useAdminMode() {
 }
 
 // ─── HELPERS: noticias, comunicados y archivos operativos ───────────────────
-const NOTICIAS_TIPOS_VISIBLES = ["acceso", "terminal", "incidente", "accidente", "resuelto", "patio", "carril", "vialidad", "ruta_fiscal", "comunicado", "admin"];
-const NOTICIAS_TIPOS_AUTO_OCULTOS = ["segundo", "estado_segundo", "voto_segundo", "confinada_estado"];
+const NOTICIAS_TIPOS_VISIBLES = ["comunicado", "admin", "incidente", "accidente"];
+const NOTICIAS_TIPOS_OPERATIVOS_OCULTOS = ["acceso", "terminal", "resuelto", "patio", "carril", "vialidad", "ruta_fiscal", "segundo", "estado_segundo", "voto_segundo", "confinada_estado"];
+const NOTICIAS_ORIGENES_OPERATIVOS_OCULTOS = ["sistema", "auto_estado_carril", "voto_carril", "votos", "grafica", "gráfica", "segundo", "confinada"];
 
 const isNoticiaVisibleEnFeed = (n) => {
   if (!n) return false;
@@ -2260,10 +2261,15 @@ const isNoticiaVisibleEnFeed = (n) => {
   const tipo = String(n.tipo || "").toLowerCase();
   const origen = String(n.origen || n.source || n.event_source || "").toLowerCase();
   const titulo = String(n.titulo || "").toLowerCase();
-  if (NOTICIAS_TIPOS_AUTO_OCULTOS.includes(tipo)) return false;
-  if (origen.includes("auto_estado_carril") || origen.includes("voto_carril") || origen.includes("segundo")) return false;
-  // Oculta los eventos automáticos antiguos de 2do Acceso/Confinada aunque no tengan flag.
-  if ((titulo.includes("2do acceso") || titulo.includes("confinada")) && (tipo === "segundo" || titulo.includes("carril"))) return false;
+  const detalle = String(n.detalle || "").toLowerCase();
+
+  // La sección Noticias queda reservada para comunicados/noticias publicadas.
+  // Los movimientos automáticos de votos, gráficas, accesos, vialidades, rutas,
+  // terminales, patios y carriles se consultan desde administración, no en el feed público.
+  if (NOTICIAS_TIPOS_OPERATIVOS_OCULTOS.includes(tipo)) return false;
+  if (NOTICIAS_ORIGENES_OPERATIVOS_OCULTOS.some(k => origen.includes(k))) return false;
+  if (/actualizad[oa]|vot[óo]|voto|gr[aá]fica|confirm[óo]|marc[óo] falso|resuelt[oa]|anul[óo]/i.test(`${titulo} ${detalle}`)) return false;
+  if (tipo && !NOTICIAS_TIPOS_VISIBLES.includes(tipo) && !origen.includes("admin_noticias") && !origen.includes("comunicados")) return false;
   return true;
 };
 
@@ -13587,22 +13593,49 @@ function NoticiasAdminCleanup({ onCleaned }) {
 
     setBusy(true);
     try {
-      const inicioIso = new Date(`${fechaInicio}T00:00:00`).toISOString();
-      const finIso = new Date(`${fechaFin}T23:59:59.999`).toISOString();
-      let q = sb.from("noticias").delete({ count: "exact" }).gte("created_at", inicioIso).lte("created_at", finIso);
+      const inicio = new Date(`${fechaInicio}T00:00:00`);
+      const finExclusivo = new Date(`${fechaFin}T00:00:00`);
+      finExclusivo.setDate(finExclusivo.getDate() + 1);
+      const inicioIso = inicio.toISOString();
+      const finIso = finExclusivo.toISOString();
+
+      // Primero se consultan los IDs y después se eliminan por lote. Es más confiable
+      // que hacer un DELETE directo con filtros cuando Supabase/RLS no devuelve count.
+      let q = sb.from("noticias").select("id,tipo,origen,titulo,created_at").gte("created_at", inicioIso).lt("created_at", finIso).limit(1000);
       if (origen !== "todos") q = q.eq("origen", origen);
       if (tipo !== "todos") q = q.eq("tipo", tipo);
-      const { count, error } = await q;
-      if (error) throw error;
+      const { data: filas, error: selectError } = await q;
+      if (selectError) throw selectError;
+      const ids = (filas || []).map(r => r.id).filter(Boolean);
+      if (!ids.length) {
+        setNotice("No se encontraron noticias para ese rango/filtro. Prueba origen 'Todos' y tipo 'Todos'.", "#f97316");
+        return;
+      }
+
+      let eliminadas = 0;
+      for (let i = 0; i < ids.length; i += 100) {
+        const batch = ids.slice(i, i + 100);
+        const { data: deleted, error: deleteError } = await sb.from("noticias").delete().in("id", batch).select("id");
+        if (deleteError) throw deleteError;
+        eliminadas += deleted?.length || batch.length;
+      }
+
       setConfirmacion("");
-      setNotice(`Limpieza realizada. Registros eliminados: ${count ?? 0}.`, "#22c55e");
+      setNotice(`Limpieza realizada. Registros eliminados: ${eliminadas}.`, "#22c55e");
       onCleaned && onCleaned();
     } catch (e) {
       console.error(e);
-      setNotice("No se pudo limpiar noticias. Verifica permisos DELETE/RLS en Supabase.", "#ef4444");
+      setNotice(`No se pudo limpiar noticias: ${e?.message || "verifica permisos DELETE/RLS en Supabase."}`, "#ef4444");
     } finally {
       setBusy(false);
     }
+  };
+
+  const prepararLimpiezaMovimientos = () => {
+    setOrigen("sistema");
+    setTipo("todos");
+    setConfirmacion("");
+    setNotice("Filtro preparado para movimientos automáticos del sistema. Revisa fechas y escribe LIMPIAR.", "#38bdf8");
   };
 
   return (
@@ -13615,9 +13648,10 @@ function NoticiasAdminCleanup({ onCleaned }) {
       {open && (
         <div style={{ marginTop:"12px" }}>
           <div style={{ color:"rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.5, marginBottom:"10px" }}>
-            Elimina noticias dentro del rango seleccionado. Usa esta herramienta para retirar registros de prueba, vacíos o generados durante ajustes.
+            Elimina noticias dentro del rango seleccionado. Para limpiar movimientos automáticos, usa origen Sistema con tipo Todos; los comunicados/admin se conservan si filtras por otro origen.
           </div>
           {msg && <div style={{ padding:"9px 10px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{msg.text}</div>}
+          <button onClick={prepararLimpiezaMovimientos} disabled={busy} style={{ marginBottom:"10px", padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,0.35)", background:"rgba(56,189,248,0.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:busy ? "wait" : "pointer" }}>Preparar limpieza de movimientos automáticos</button>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px", marginBottom:"8px" }}>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Fecha inicio
@@ -13647,6 +13681,9 @@ function NoticiasAdminCleanup({ onCleaned }) {
                 <option value="accidente">Accidente</option>
                 <option value="patio">Patio</option>
                 <option value="carril">Carril</option>
+                <option value="vialidad">Vialidad</option>
+                <option value="ruta_fiscal">Ruta fiscal</option>
+                <option value="resuelto">Resuelto</option>
               </select>
             </label>
           </div>
@@ -13738,14 +13775,11 @@ function NoticiasTab({ isAdmin }) {
   }, [cargarNoticias, cargarComunicados]);
 
   const FILTROS = [
-    { id: "todos",     label: "Todos",      icon: "news" },
-    { id: "comunicado",label: "Comunicados", icon: "document" },
-    { id: "acceso",    label: "Accesos",    icon: "access" },
-    { id: "terminal",  label: "Terminales", icon: "terminal" },
-    { id: "incidente", label: "Incidentes", icon: "alert" },
-    { id: "accidente", label: "Accidentes", icon: "crash" },
-    { id: "patio",     label: "Patios",     icon: "yard" },
-    { id: "carril",    label: "Carriles",   icon: "lanes" },
+    { id: "todos",      label: "Todos",       icon: "news" },
+    { id: "comunicado", label: "Comunicados", icon: "document" },
+    { id: "admin",      label: "Admin",       icon: "dispatch-news" },
+    { id: "incidente",  label: "Incidentes",  icon: "alert" },
+    { id: "accidente",  label: "Accidentes",  icon: "crash" },
   ];
 
   const isNoticiaListaParaMostrar = (n) => {
@@ -13763,7 +13797,7 @@ function NoticiasTab({ isAdmin }) {
   };
 
   const noticiasVisibles = noticias.filter(isNoticiaListaParaMostrar);
-  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "incidente" && n.tipo === "resuelto"));
+  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "admin" && String(n.origen || "").toLowerCase().includes("admin_noticias")));
 
   const timeAgo = (ts) => {
     const t = new Date(ts).getTime();
