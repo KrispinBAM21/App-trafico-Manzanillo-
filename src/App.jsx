@@ -19772,6 +19772,44 @@ function App() {
   const [showQRPanel, setShowQRPanel] = useState(null); // 'whatsapp', 'facebook', 'canal', 'donativo', 'admin_msg'
   const [adminMessages, setAdminMessages] = useState([]);
   const [deviceBlock, setDeviceBlock] = useState(null);
+
+  // ── Asistente AI Gemini en burbuja principal ──
+  const [geminiMessages, setGeminiMessages] = useState(() => ([
+    { role: "assistant", content: "Hola, soy el asistente AI de Conect Manzanillo. Puedes preguntarme sobre la app, comunicados, reportes o pedir ayuda para redactar texto." }
+  ]));
+  const [geminiInput, setGeminiInput] = useState("");
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiError, setGeminiError] = useState("");
+
+  const sendGeminiMessage = async () => {
+    const text = geminiInput.trim();
+    if (!text || geminiLoading) return;
+    const nextMessages = [...geminiMessages, { role: "user", content: text }];
+    setGeminiMessages(nextMessages);
+    setGeminiInput("");
+    setGeminiError("");
+    setGeminiLoading(true);
+    try {
+      const { data, error } = await sb.functions.invoke("gemini-chat", {
+        body: {
+          message: text,
+          history: nextMessages.slice(-12).map(m => ({ role: m.role, content: m.content })),
+          section: active,
+          isAdmin: !!isAdmin
+        }
+      });
+      if (error) throw error;
+      const reply = data?.reply || data?.text || data?.message || "No recibí respuesta de Gemini.";
+      setGeminiMessages(prev => [...prev, { role: "assistant", content: String(reply) }]);
+    } catch (e) {
+      const msg = e?.message || "No se pudo conectar con Gemini.";
+      setGeminiError(msg);
+      setGeminiMessages(prev => [...prev, { role: "assistant", content: "No pude responder en este momento. Revisa que la Edge Function gemini-chat esté desplegada y que el secreto GEMINI_API_KEY esté configurado." }]);
+    } finally {
+      setGeminiLoading(false);
+    }
+  };
+
   const lastAdminMsgIdsRef = useRef("");
   const lastDeviceBlockRef = useRef(null);
   useEffect(() => {
@@ -20042,6 +20080,35 @@ function App() {
         }
       `}</style>
     <div data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
+      {isAdmin && (
+        <button
+          onClick={logout}
+          title="Cerrar sesión de administrador"
+          style={{
+            position:"fixed",
+            top:"14px",
+            left:"14px",
+            zIndex:10000,
+            display:"inline-flex",
+            alignItems:"center",
+            gap:"8px",
+            padding:"10px 13px",
+            borderRadius:"999px",
+            border:"1px solid rgba(248,113,113,.45)",
+            background:"rgba(15,23,42,.86)",
+            color:"#fecaca",
+            fontFamily:getFont(theme,"secondary"),
+            fontWeight:900,
+            fontSize:"12px",
+            cursor:"pointer",
+            boxShadow:"0 10px 28px rgba(0,0,0,.35)",
+            backdropFilter:"blur(12px)",
+            WebkitBackdropFilter:"blur(12px)"
+          }}
+        >
+          🚪 Cerrar sesión
+        </button>
+      )}
       {/* Validado FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
@@ -20252,6 +20319,10 @@ function App() {
             gap: "12px",
             alignItems: "flex-end"
           }}>
+            <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
+              <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI Gemini</div>
+              <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px" }}>✨</div>
+            </div>
             {adminMessages.length > 0 && (
               <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
                 <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"700", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Mensaje del administrador</div>
@@ -20522,7 +20593,35 @@ function App() {
           </div>
         )}
 
-        {/* Botón principal FAB */}
+        {/* Botón secundario: más opciones de contacto */}
+        {!hasUnreadAdminMessages && (
+          <div
+            onClick={() => { setSupportExpanded(!supportExpanded); setShowQRPanel(null); }}
+            title="Más opciones"
+            style={{
+              position:"absolute",
+              right:"68px",
+              bottom:"7px",
+              width:"42px",
+              height:"42px",
+              borderRadius:"50%",
+              background:supportExpanded ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(13,31,60,.94)",
+              border:"1px solid rgba(255,255,255,.18)",
+              color:"#fff",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              cursor:"pointer",
+              boxShadow:"0 8px 20px rgba(0,0,0,.35)",
+              fontSize:"20px",
+              fontWeight:900
+            }}
+          >
+            {supportExpanded ? "×" : "⋯"}
+          </div>
+        )}
+
+        {/* Botón principal FAB: AI Gemini */}
         <div
           onClick={() => {
             if (hasUnreadAdminMessages) {
@@ -20530,53 +20629,128 @@ function App() {
               setShowQRPanel("admin_msg");
               return;
             }
-            setSupportExpanded(!supportExpanded);
-            setShowQRPanel(null);
+            setSupportExpanded(false);
+            setShowQRPanel(showQRPanel === "gemini" ? null : "gemini");
           }}
           style={{
             width: "56px",
             height: "56px",
-            background: supportExpanded 
+            background: showQRPanel === "gemini" 
               ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
               : hasUnreadAdminMessages
                 ? "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)"
-                : "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
+                : "linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            boxShadow: supportExpanded
+            boxShadow: showQRPanel === "gemini"
               ? "0 4px 20px rgba(239, 68, 68, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)"
               : hasUnreadAdminMessages
                 ? "0 4px 22px rgba(251,191,36,.55), 0 8px 16px rgba(0,0,0,.3)"
-                : "0 4px 20px rgba(37, 211, 102, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)",
+                : "0 4px 22px rgba(96, 165, 250, 0.45), 0 8px 16px rgba(0, 0, 0, 0.3)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             border: "2px solid rgba(255, 255, 255, 0.2)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
-            transform: supportExpanded ? "rotate(45deg)" : "rotate(0deg)",
+            transform: showQRPanel === "gemini" ? "rotate(45deg)" : "rotate(0deg)",
             animation: hasUnreadAdminMessages && !supportExpanded ? "adminBubblePulse 1.15s ease-in-out infinite" : "none"
           }}
           onMouseEnter={(e) => {
-            if (!supportExpanded && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1.1)";
+            if (showQRPanel !== "gemini" && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1.1)";
           }}
           onMouseLeave={(e) => {
-            if (!supportExpanded && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1)";
+            if (showQRPanel !== "gemini" && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1)";
           }}
         >
           <span style={{ 
             fontSize: "28px", 
             lineHeight: 1,
-            transform: supportExpanded ? "rotate(-45deg)" : "rotate(0deg)",
+            transform: showQRPanel === "gemini" ? "rotate(-45deg)" : "rotate(0deg)",
             transition: "transform 0.3s"
           }}>
-            {supportExpanded ? "✕" : hasUnreadAdminMessages ? "🔔" : "💬"}
+            {showQRPanel === "gemini" ? "✕" : hasUnreadAdminMessages ? "🔔" : "✨"}
           </span>
           {hasUnreadAdminMessages && !supportExpanded && (
             <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
           )}
         </div>
+
+        {showQRPanel === 'gemini' && (
+          <div
+            style={{
+              position:"absolute",
+              bottom:"72px",
+              right:"0",
+              width:"360px",
+              maxWidth:"calc(100vw - 40px)",
+              background:"rgba(13,31,60,.98)",
+              border:"1px solid rgba(96,165,250,.45)",
+              borderRadius:"18px",
+              padding:"14px",
+              boxShadow:"0 12px 42px rgba(0,0,0,.72), 0 0 30px rgba(96,165,250,.18)",
+              animation:"slideUp .25s ease-out",
+              backdropFilter:"blur(18px)",
+              WebkitBackdropFilter:"blur(18px)"
+            }}
+            onClick={(e)=>e.stopPropagation()}
+          >
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", paddingBottom:"10px", borderBottom:"1px solid rgba(255,255,255,.1)" }}>
+              <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"21px" }}>✨</div>
+              <div style={{ flex:1 }}>
+                <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI Gemini</div>
+                <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Asistente principal de Conect Manzanillo</div>
+              </div>
+              <button onClick={()=>setShowQRPanel(null)} style={{ width:"26px", height:"26px", borderRadius:"50%", border:"none", background:"rgba(255,255,255,.1)", color:"#fff", cursor:"pointer" }}>×</button>
+            </div>
+
+            <div style={{ maxHeight:"320px", overflowY:"auto", paddingRight:"4px", display:"flex", flexDirection:"column", gap:"8px" }}>
+              {geminiMessages.map((m, idx) => (
+                <div key={idx} style={{
+                  alignSelf:m.role === "user" ? "flex-end" : "flex-start",
+                  maxWidth:"88%",
+                  padding:"9px 11px",
+                  borderRadius:m.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                  background:m.role === "user" ? "rgba(37,99,235,.72)" : "rgba(255,255,255,.08)",
+                  border:m.role === "user" ? "1px solid rgba(147,197,253,.25)" : "1px solid rgba(255,255,255,.1)",
+                  color:"rgba(255,255,255,.92)",
+                  fontFamily:getFont(theme,"secondary"),
+                  fontSize:"12px",
+                  lineHeight:1.45,
+                  whiteSpace:"pre-wrap"
+                }}>{m.content}</div>
+              ))}
+              {geminiLoading && <div style={{ color:"rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>Gemini está escribiendo…</div>}
+            </div>
+
+            {geminiError && (
+              <div style={{ marginTop:"10px", padding:"8px 10px", borderRadius:"10px", background:"rgba(239,68,68,.13)", border:"1px solid rgba(239,68,68,.35)", color:"#fecaca", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+                {geminiError}
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:"8px", marginTop:"12px" }}>
+              <textarea
+                value={geminiInput}
+                onChange={e=>setGeminiInput(e.target.value)}
+                onKeyDown={e=>{ if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendGeminiMessage(); } }}
+                placeholder="Escribe tu mensaje…"
+                style={{ flex:1, minHeight:"42px", maxHeight:"90px", resize:"vertical", borderRadius:"12px", border:"1px solid rgba(96,165,250,.35)", background:"rgba(2,12,27,.75)", color:"#fff", padding:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" }}
+              />
+              <button
+                onClick={sendGeminiMessage}
+                disabled={geminiLoading || !geminiInput.trim()}
+                style={{ width:"54px", borderRadius:"12px", border:"1px solid rgba(96,165,250,.35)", background:geminiLoading || !geminiInput.trim() ? "rgba(100,116,139,.28)" : "linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff", fontWeight:900, cursor:geminiLoading || !geminiInput.trim() ? "not-allowed" : "pointer" }}
+              >
+                ➤
+              </button>
+            </div>
+            <div style={{ marginTop:"8px", color:"rgba(255,255,255,.35)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", lineHeight:1.35 }}>
+              Las respuestas son generadas por AI. Verifica datos operativos importantes antes de publicarlos.
+            </div>
+          </div>
+        )}
 
         {showQRPanel === 'admin_msg' && (
           <div style={{ position:"absolute", bottom:"72px", right:"0", width:"320px", maxWidth:"calc(100vw - 40px)", background:"rgba(13,31,60,.97)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"18px", padding:"16px", boxShadow:"0 12px 40px rgba(0,0,0,.7)", animation:"slideUp .25s ease-out" }}>
