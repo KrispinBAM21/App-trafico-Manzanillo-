@@ -13638,6 +13638,9 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const dragRef = useRef(null);
+  // Congela los archivos al abrir el modal. Evita que un arreglo nuevo en cada render
+  // dispare otra vez la carga y restablezca el cuadro en bucle.
+  const sourceFilesRef = useRef(Array.isArray(files) ? files : []);
 
   useEffect(() => {
     const oldOverflow = document.body.style.overflow;
@@ -13657,8 +13660,9 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
       setError("");
       try {
         const built = [];
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
+        const sourceFiles = sourceFilesRef.current || [];
+        for (let i = 0; i < sourceFiles.length; i++) {
+          const file = sourceFiles[i];
           if (file.type?.startsWith("image/")) {
             const img = await fileToImageCanvas(file);
             built.push({
@@ -13686,7 +13690,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [files]);
+  }, []);
 
   useEffect(() => {
     const move = (ev) => {
@@ -13761,7 +13765,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
           text += `${text ? "\n\n" : ""}${pageText}`;
         }
       }
-      const cleanedText = stripFileNamesFromOcrText(text, files);
+      const cleanedText = stripFileNamesFromOcrText(text, sourceFilesRef.current || []);
       await onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
       onClose?.();
     } catch (e) {
