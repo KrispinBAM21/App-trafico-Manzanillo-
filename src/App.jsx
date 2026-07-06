@@ -14814,12 +14814,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         return;
       }
 
+      const responseIsNonJson = /respuesta\s+no\s+json/i.test(message) || /respuesta\s+no\s+json/i.test(String(result?.raw?.mensaje || ""));
+      const responseUnavailable = result?.ok === false || responseIsNonJson;
       const valid = result?.valido === true || result?.valor === true || result?.valid === true || /(?:^|\s)(válido|valido)\.?$/i.test(message);
       const normalized = {
-        ok: result?.ok !== false,
+        ok: !responseUnavailable,
         valid,
-        status: valid ? "valido" : "no_valido",
-        message: message || (valid ? `${payload.tipo} válido.` : "Documento no válido o no encontrado."),
+        status: valid ? "valido" : (responseUnavailable ? "sin_respuesta_pis" : "no_valido"),
+        message: responseUnavailable
+          ? "PIS/SEMAR no devolvió una respuesta legible para esta consulta. Verifica el tipo e ID en el portal oficial o contacta a Boletinados."
+          : (message || (valid ? `${payload.tipo} válido.` : "Documento no válido o no encontrado.")),
+        detail: responseUnavailable ? (message || result?.raw?.mensaje || `Estatus PIS: ${result?.status || "sin estatus"}`) : undefined,
         raw: result,
         query: payload,
         checked_at: new Date().toISOString(),
@@ -14878,7 +14883,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   const copyPisEmail = () => copyPisText(PIS_ASIPONA_EMAIL, "email");
 
-  const BoletinadosTab = () => (
+  const renderBoletinadosTab = () => (
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap:"14px", alignItems:"start", width:"100%", maxWidth:"100%", overflow:"hidden" }}>
       <div style={{ ...card, minWidth:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:"10px", marginBottom:"10px", minWidth:0, flexWrap:"wrap" }}>
@@ -14896,7 +14901,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:"10px", marginBottom:"12px", minWidth:0 }}>
           <div><div style={label}>ASIPONA</div><select style={input} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
           <div><div style={label}>Tipo</div><select style={input} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
-          <div><div style={label}>ID</div><input style={input} inputMode="numeric" placeholder="Ej. 2" value={pisForm.id} onChange={e=>setPisForm(f=>({...f, id:e.target.value.replace(/[^0-9]/g, "")}))} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} /></div>
+          <div><div style={label}>ID</div><input style={input} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Ej. 2" value={pisForm.id} onChange={e=>{ const nextId = e.currentTarget.value.replace(/[^0-9]/g, ""); setPisForm(f=>({...f, id:nextId})); }} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} /></div>
         </div>
 
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", minWidth:0 }}>
@@ -14908,7 +14913,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         {pisResult && (
           <div style={{ marginTop:"14px", borderRadius:"14px", padding:"clamp(12px, 4vw, 18px)", background:pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)") : "rgba(251,191,36,.10)", border:`1px solid ${pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)") : "rgba(251,191,36,.42)"}`, minWidth:0, overflow:"hidden", boxSizing:"border-box" }}>
             <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(23px, 8vw, 34px)", lineHeight:1.1, color:pisResult.ok ? (pisResult.valid ? "#22c55e" : "#ef4444") : "#fbbf24", fontWeight:"900", marginBottom:"8px", overflowWrap:"anywhere" }}>
-              {pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente"}
+              {pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")}
             </div>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", color:"rgba(255,255,255,.78)", lineHeight:1.55, overflowWrap:"break-word" }}>{pisResult.message}</div>
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
@@ -15007,7 +15012,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 170px),1fr))", gap:"8px", marginBottom:"12px", minWidth:0 }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"},{id:"boletinados", label:"Boletinados", icon:"document-check"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
     {sub === "donativos" && <DonativosTab embedded />}
-    {sub === "boletinados" && <BoletinadosTab />}
+    {sub === "boletinados" && renderBoletinadosTab()}
     {sub === "posturas" && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
       {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
