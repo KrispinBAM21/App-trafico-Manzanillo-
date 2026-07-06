@@ -14644,12 +14644,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       const { data, error } = await sb.functions.invoke("smooth-service", { body: payload });
       if (error) throw error;
       const result = data || {};
-      const valid = result.valid === true || /válido|valido/i.test(String(result.message || result.resultado || ""));
+      const message = result.mensaje || result.message || result.resultado || result.raw?.mensaje || "";
+      const valid = result.valido === true || result.valid === true || result.valor === true || result.raw?.valor === true || /válido|valido/i.test(String(message));
       const normalized = {
         ok:true,
         valid,
         status: valid ? "valido" : "no_valido",
-        message: result.message || result.resultado || (valid ? `${pisForm.tipo} válido.` : "Documento no válido o no encontrado."),
+        message: message || (valid ? `${pisForm.tipo} válido.` : "Documento no válido o no encontrado."),
         raw: result,
         query: payload,
         checked_at: new Date().toISOString(),
@@ -14661,7 +14662,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       const fallback = {
         ok:false,
         status:"backend_no_configurado",
-        message:"No se pudo consultar PIS/SEMAR desde la app. Falta desplegar la función backend pis-verificar-documento o revisar permisos/CORS.",
+        message:"No se pudo consultar PIS/SEMAR desde la app. Falta desplegar o revisar la función backend smooth-service, o verificar permisos/CORS.",
         detail:e?.message || String(e),
         query:payload,
         checked_at:new Date().toISOString(),
@@ -14684,7 +14685,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         </div>
 
         <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
-          Esta sección requiere la función backend <b>pis-verificar-documento</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado.
+          Esta sección usa la función backend <b>smooth-service</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado.
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
