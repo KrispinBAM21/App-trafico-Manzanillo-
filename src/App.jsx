@@ -11107,15 +11107,73 @@ function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin 
 function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin especificar —", allowClear = false, pending = false, theme, title = "Seleccionar opción" }) {
   const [open, setOpen] = useState(false);
   const listRef = React.useRef(null);
+  const scrollTimerRef = React.useRef(null);
   const current = options.find(o => o.id === value) || null;
   const [draft, setDraft] = useState(value ?? null);
+
+  const syncDraftFromWheelCenter = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const centerY = list.getBoundingClientRect().top + list.clientHeight / 2;
+    const items = Array.from(list.querySelectorAll('[data-wheel-id]'));
+    let closest = null;
+    let closestDist = Infinity;
+    items.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      const itemCenter = rect.top + rect.height / 2;
+      const dist = Math.abs(itemCenter - centerY);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = el;
+      }
+    });
+    if (!closest) return;
+    const nextId = closest.getAttribute('data-wheel-id');
+    setDraft(nextId === '__clear' ? null : nextId);
+  }, []);
+
+  const handleWheelScroll = useCallback(() => {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(syncDraftFromWheelCenter, 90);
+  }, [syncDraftFromWheelCenter]);
+
+  const getDraftFromWheelCenter = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return draft;
+    const centerY = list.getBoundingClientRect().top + list.clientHeight / 2;
+    const items = Array.from(list.querySelectorAll('[data-wheel-id]'));
+    let closest = null;
+    let closestDist = Infinity;
+    items.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      const itemCenter = rect.top + rect.height / 2;
+      const dist = Math.abs(itemCenter - centerY);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = el;
+      }
+    });
+    if (!closest) return draft;
+    const nextId = closest.getAttribute('data-wheel-id');
+    return nextId === '__clear' ? null : nextId;
+  }, [draft]);
+
+  const applyWheelSelection = useCallback(() => {
+    const next = getDraftFromWheelCenter();
+    setDraft(next);
+    onChange(next);
+    setOpen(false);
+  }, [getDraftFromWheelCenter, onChange]);
 
   useEffect(() => {
     if (!open) return;
     setDraft(value ?? null);
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
   }, [open, value]);
 
   useEffect(() => {
@@ -11124,8 +11182,9 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
     setTimeout(() => {
       const item = listRef.current?.querySelector(`[data-wheel-id="${CSS.escape(String(options[idx]?.id || ""))}"]`);
       item?.scrollIntoView?.({ block:"center", behavior:"smooth" });
+      setTimeout(syncDraftFromWheelCenter, 220);
     }, 40);
-  }, [open]);
+  }, [open, syncDraftFromWheelCenter]);
 
   const color = current?.color || "#64748b";
   const display = current ? current.label : placeholder;
@@ -11145,6 +11204,9 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
           <div style={{ position:"absolute", left:"14px", right:"14px", top:"50%", height:"44px", transform:"translateY(-50%)", border:"1px solid rgba(56,189,248,.42)", background:"rgba(56,189,248,.08)", borderRadius:"12px", pointerEvents:"none", boxShadow:"0 0 0 999px rgba(2,6,23,.18)" }} />
           <div
             ref={listRef}
+            onScroll={handleWheelScroll}
+            onPointerUp={syncDraftFromWheelCenter}
+            onTouchEnd={syncDraftFromWheelCenter}
             style={{ height:"190px", overflowY:"auto", scrollSnapType:"y mandatory", WebkitOverflowScrolling:"touch", padding:"74px 0", scrollbarWidth:"thin" }}
           >
             {allowClear && (
@@ -11175,7 +11237,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
 
         <div style={{ padding:"12px 14px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", borderTop:"1px solid rgba(255,255,255,.08)" }}>
           <button type="button" onClick={() => setOpen(false)} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer" }}>Cancelar</button>
-          <button type="button" onClick={() => { onChange(draft); setOpen(false); }} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.45)", background:"rgba(34,197,94,.16)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:"pointer" }}>Aplicar</button>
+          <button type="button" onClick={applyWheelSelection} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.45)", background:"rgba(34,197,94,.16)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:"pointer" }}>Aplicar</button>
         </div>
       </div>
     </div>,
