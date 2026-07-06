@@ -13367,11 +13367,9 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
             </div>
           </div>
 
-          {isAdmin && (
-            <div style={{ marginBottom: "16px" }}>
-              <NoticiasAdminPublisher onPublished={() => {}} />
-            </div>
-          )}
+          <div style={{ marginBottom: "16px" }}>
+            <NoticiasAdminPublisher isAdmin={isAdmin} onPublished={() => {}} />
+          </div>
 
           <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
 
@@ -13717,7 +13715,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
 }
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
-function NoticiasAdminPublisher({ onPublished }) {
+function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
   const [titulo, setTitulo] = useState("");
   const [categoria, setCategoria] = useState("comunicado");
@@ -13873,12 +13871,14 @@ function NoticiasAdminPublisher({ onPublished }) {
     <div style={{ background:"rgba(255,255,255,0.07)", border:"1px solid rgba(148,163,184,0.22)", borderRadius:"14px", padding:"14px", marginBottom:"16px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
         <div>
-          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.92)", fontWeight:800 }}>Panel admin de Noticias</div>
-          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", marginTop:"2px" }}>Sube imágenes o PDF, procesa OCR y edita el texto antes de publicar.</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.92)", fontWeight:800 }}>{isAdmin ? "Panel admin de Noticias" : "Herramientas para preparar comunicado"}</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", marginTop:"2px" }}>{isAdmin ? "Sube imágenes o PDF, procesa OCR y edita el texto antes de publicar." : "Convierte archivos, elige zonas y extrae texto. Después pega el texto en tu propuesta para revisión."}</div>
         </div>
-        <Badge color="#2563eb" small>Solo administrador</Badge>
+        <Badge color={isAdmin ? "#2563eb" : "#fbbf24"} small>{isAdmin ? "Solo administrador" : "Usuarios normales"}</Badge>
       </div>
       {msg && <div style={{ padding:"9px 10px", borderRadius:"9px", background:msg.color+"18", border:`1px solid ${msg.color}55`, color:msg.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{msg.text}</div>}
+      {!isAdmin && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.28)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px", lineHeight:1.45 }}>Estas herramientas son para preparar tu propuesta. La publicación directa en Noticias queda reservada para administradores; los comunicados de usuarios normales pasan por aprobación.</div>}
+      {isAdmin && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 150px", gap:"8px", marginBottom:"8px" }}>
         <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
         <select value={categoria} onChange={e=>setCategoria(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
@@ -13892,17 +13892,19 @@ function NoticiasAdminPublisher({ onPublished }) {
         </select>
       </div>
       <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
+      </>}
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={onFiles} style={{ width:"100%", color:"rgba(255,255,255,0.7)", marginBottom:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
       {(mediaUrls.length > 0 || pdfUrls.length > 0) && <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
         {mediaUrls.map((u,i)=><img key={u+i} src={u} alt="preview" style={{ width:"82px", height:"62px", objectFit:"cover", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)" }} />)}
         {pdfUrls.map((u,i)=><div key={u+i} style={{ width:"82px", height:"62px", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", color:"#cbd5e1", fontSize:"10px", fontFamily:getFont(theme,"secondary") }}>PDF</div>)}
       </div>}
-      <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Texto extraído o descripción editable antes de publicar…" rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
+      <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder={isAdmin ? "Texto extraído o descripción editable antes de publicar…" : "Texto extraído. Puedes copiarlo y pegarlo en tu propuesta de comunicado…"} rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:"8px" }}>
         <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
         <button onClick={()=>setZonePickerOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
         <button onClick={()=>setConverterOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
-        <button onClick={publicar} disabled={busy} style={{ padding:"11px", borderRadius:"10px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy?"wait":"pointer" }}>Publicar en Noticias</button>
+        {!isAdmin && <button onClick={async()=>{ try { await navigator.clipboard.writeText(texto || ""); setNotice(texto ? "Texto copiado. Pégalo en tu propuesta de comunicado." : "No hay texto para copiar todavía.", texto ? "#22c55e" : "#f97316"); } catch { setNotice("No se pudo copiar automáticamente. Selecciona el texto y cópialo manualmente.", "#f97316"); } }} disabled={busy || !texto.trim()} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !texto.trim())?"not-allowed":"pointer" }}>Copiar texto extraído</button>}
+        {isAdmin && <button onClick={publicar} disabled={busy} style={{ padding:"11px", borderRadius:"10px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:busy?"wait":"pointer" }}>Publicar en Noticias</button>}
       </div>
       {zonePickerOpen && <OcrZonePickerModal files={files} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonas} />}
       {converterOpen && <MediaConverterModal files={files} onClose={()=>setConverterOpen(false)} onNotice={setNotice} />}
@@ -14916,7 +14918,7 @@ function NoticiasTab({ isAdmin }) {
         <>
           <NoticiasAutoJpegReport />
           {isAdmin && <NoticiasAdminCleanup onCleaned={cargarNoticias} />}
-          {isAdmin && <NoticiasAdminPublisher onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
+          {isAdmin && <NoticiasAdminPublisher isAdmin={true} onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
               <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"6px 10px", borderRadius:"10px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"500", display:"flex", alignItems:"center", gap:"4px" }}>
