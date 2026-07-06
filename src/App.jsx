@@ -103,7 +103,7 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 })();
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwsrzrcrhhukg.supabase.co";
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
 const sb = createClient(SUPA_URL, SUPA_KEY);
 
@@ -14344,6 +14344,7 @@ const PIS_ASIPONAS = [
   "ENSENADA", "GUAYMAS", "LA PAZ", "LÁZARO CÁRDENAS", "MANZANILLO", "MAZATLÁN", "PROGRESO",
   "PUERTO VALLARTA", "SALINA CRUZ", "TAMPICO", "TOPOLOBAMPO", "TUXPAN", "VERACRUZ"
 ];
+const PIS_EDGE_FUNCTION = "smooth-service";
 
 function StarRating({ value=0, onRate=null, small=false }) {
   const theme = React.useContext(ThemeContext);
@@ -14637,32 +14638,63 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       setPisResult({ ok:false, status:"id_invalido", message:"El ID debe ser numérico." });
       return;
     }
+
     setPisLoading(true);
     setPisResult(null);
-    const payload = { asipona:pisForm.asipona, tipo:pisForm.tipo, id };
+
+    const payload = {
+      asipona: String(pisForm.asipona || "").trim().toUpperCase(),
+      tipo: String(pisForm.tipo || "").trim().toUpperCase(),
+      id,
+    };
+
+    const pickMessage = (result) => String(
+      result?.mensaje ?? result?.message ?? result?.resultado ?? result?.result ?? result?.error_description ?? ""
+    ).trim();
+
     try {
-      const { data, error } = await sb.functions.invoke("smooth-service", { body: payload });
+      const { data, error } = await sb.functions.invoke(PIS_EDGE_FUNCTION, { body: payload });
       if (error) throw error;
+
       const result = data || {};
-      const message = result.mensaje || result.message || result.resultado || result.raw?.mensaje || "";
-      const valid = result.valido === true || result.valid === true || result.valor === true || result.raw?.valor === true || /válido|valido/i.test(String(message));
+      const message = pickMessage(result);
+      const looksLikeTemplate = /hello\s+undefined/i.test(message) || (message === "Hello undefined!");
+
+      if (looksLikeTemplate) {
+        const fallback = {
+          ok:false,
+          valid:false,
+          status:"backend_template",
+          message:"La función smooth-service todavía tiene el código de ejemplo de Supabase. Debes reemplazar el index.ts de esa función con el código de consulta PIS/SEMAR.",
+          detail:message,
+          raw:result,
+          query:payload,
+          checked_at:new Date().toISOString(),
+        };
+        setPisResult(fallback);
+        return;
+      }
+
+      const valid = result?.valido === true || result?.valor === true || result?.valid === true || /(?:^|\s)(válido|valido)\.?$/i.test(message);
       const normalized = {
-        ok:true,
+        ok: result?.ok !== false,
         valid,
         status: valid ? "valido" : "no_valido",
-        message: message || (valid ? `${pisForm.tipo} válido.` : "Documento no válido o no encontrado."),
+        message: message || (valid ? `${payload.tipo} válido.` : "Documento no válido o no encontrado."),
         raw: result,
         query: payload,
         checked_at: new Date().toISOString(),
       };
+
       setPisResult(normalized);
       savePisHistory(normalized);
       auditLog({ action:"pis_verificacion_documento", section:"posturas_boletinados", entityId:`${payload.asipona}-${payload.tipo}-${payload.id}`, after:{ summary:`Consulta PIS ${payload.asipona} ${payload.tipo} ${payload.id}`, valid:normalized.valid, message:normalized.message }, actor:authUser?.email || myId || "Usuario" });
     } catch (e) {
       const fallback = {
         ok:false,
+        valid:false,
         status:"backend_no_configurado",
-        message:"No se pudo consultar PIS/SEMAR desde la app. Falta desplegar o revisar la función backend smooth-service, o verificar permisos/CORS.",
+        message:"No se pudo consultar PIS/SEMAR desde la app. Revisa que la Edge Function smooth-service esté desplegada, pública y con el código correcto.",
         detail:e?.message || String(e),
         query:payload,
         checked_at:new Date().toISOString(),
@@ -14685,7 +14717,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         </div>
 
         <div style={{ background:"rgba(251,191,36,.08)", border:"1px solid rgba(251,191,36,.28)", color:"#fbbf24", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6, marginBottom:"13px" }}>
-          Esta sección usa la función backend <b>smooth-service</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado.
+          Esta sección usa la función backend <b>smooth-service</b>. La app no expone usuarios ni contraseñas; solo envía ASIPONA, tipo e ID para recibir el resultado desde PIS/SEMAR.
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px,1fr))", gap:"10px", marginBottom:"12px" }}>
