@@ -2614,12 +2614,57 @@ const procesarMediaComunicado = async (comunicado) => {
   };
 };
 
-const syncComunicadoToNoticia = async (comunicado, { processMedia = true } = {}) => {
+const insertNoticiaConFallback = async (payload) => {
+  const intentos = [
+    payload,
+    {
+      tipo: payload.tipo || "comunicado",
+      titulo: payload.titulo || "Comunicado oficial",
+      detalle: payload.detalle || "Comunicado oficial publicado por administración.",
+      icono: payload.icono || "document",
+      color: payload.color || "#2563eb",
+      origen: payload.origen || "comunicados",
+      archivo_url: payload.archivo_url || null,
+      archivo_tipo: payload.archivo_tipo || null,
+      media_urls: payload.media_urls || [],
+      pdf_urls: payload.pdf_urls || [],
+      ocultar_en_feed: false,
+    },
+    {
+      tipo: payload.tipo || "comunicado",
+      titulo: payload.titulo || "Comunicado oficial",
+      detalle: [payload.detalle, payload.archivo_url ? `Archivo: ${payload.archivo_url}` : ""].filter(Boolean).join("\n\n"),
+      icono: payload.icono || "document",
+      color: payload.color || "#2563eb",
+      origen: payload.origen || "comunicados",
+      ocultar_en_feed: false,
+    },
+    {
+      tipo: payload.tipo || "comunicado",
+      titulo: payload.titulo || "Comunicado oficial",
+      detalle: [payload.detalle, payload.archivo_url ? `Archivo: ${payload.archivo_url}` : ""].filter(Boolean).join("\n\n"),
+      icono: payload.icono || "document",
+      color: payload.color || "#2563eb",
+    },
+  ];
+
+  let ultimoError = null;
+  for (const intento of intentos) {
+    const limpio = Object.fromEntries(Object.entries(intento).filter(([, v]) => v !== undefined));
+    const { data, error } = await sb.from("noticias").insert(limpio).select("*").single();
+    if (!error) return data;
+    ultimoError = error;
+    console.warn("Intento de publicar en Noticias falló:", error?.message || error);
+  }
+  throw ultimoError || new Error("No se pudo insertar la noticia");
+};
+
+const syncComunicadoToNoticia = async (comunicado, { processMedia = false } = {}) => {
   if (!comunicado) return null;
   const aprobado = comunicado.aprobado === true || comunicado.aprobado === "true" || comunicado.aprobado === 1 || comunicado.aprobado === "1";
   if (!aprobado) return null;
 
-  // Requiere columna noticias.comunicado_id para evitar duplicados. Si no existe, el SQL incluido la crea.
+  // Evita duplicados cuando la tabla ya tiene comunicado_id. Si esa columna no existe, simplemente continúa.
   try {
     const { data: existing, error: findErr } = await sb
       .from("noticias")
@@ -2629,9 +2674,22 @@ const syncComunicadoToNoticia = async (comunicado, { processMedia = true } = {})
     if (!findErr && existing?.id) return existing;
   } catch {}
 
-  const media = processMedia ? await procesarMediaComunicado(comunicado) : { textoExtraido: comunicado.texto_extraido || "", imagenes: parseJsonArray(comunicado.media_urls) };
+  let media = { textoExtraido: comunicado.texto_extraido || "", imagenes: [] };
+  if (processMedia) {
+    try {
+      media = await procesarMediaComunicado(comunicado);
+    } catch (e) {
+      console.warn("No se procesó media del comunicado; se publicará con el archivo original:", e?.message || e);
+    }
+  }
+
+  const isImage = String(comunicado.archivo_tipo || "").startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(String(comunicado.archivo_url || ""));
+  const isPdfFile = String(comunicado.archivo_tipo || "").includes("pdf") || /\.pdf(\?|$)/i.test(String(comunicado.archivo_url || ""));
+  const imagenes = media.imagenes?.length ? media.imagenes : (isImage && comunicado.archivo_url ? [comunicado.archivo_url] : []);
+  const pdfs = isPdfFile && comunicado.archivo_url ? [comunicado.archivo_url] : [];
   const detalleBase = [comunicado.detalle, media.textoExtraido].filter(Boolean).join("\n\n").trim();
-  const payload = {
+
+  return await insertNoticiaConFallback({
     tipo: "comunicado",
     titulo: comunicado.titulo || "Comunicado oficial",
     detalle: detalleBase || "Comunicado oficial publicado por administración.",
@@ -2641,26 +2699,12 @@ const syncComunicadoToNoticia = async (comunicado, { processMedia = true } = {})
     comunicado_id: comunicado.id,
     archivo_url: comunicado.archivo_url || null,
     archivo_tipo: comunicado.archivo_tipo || null,
-    media_urls: media.imagenes || [],
+    media_urls: imagenes,
+    pdf_urls: pdfs,
     texto_extraido: media.textoExtraido || null,
     ocultar_en_feed: false,
     created_at: comunicado.created_at || new Date().toISOString(),
-  };
-
-  const { data, error } = await sb.from("noticias").insert(payload).select("*").single();
-  if (!error) return data;
-
-  // Compatibilidad si aún no aplicaste la migración de columnas extendidas.
-  console.warn("Insert extendido de comunicado→noticia falló; usando formato básico:", error.message);
-  const fallback = {
-    tipo: "comunicado",
-    titulo: payload.titulo,
-    detalle: `${payload.detalle}\n\nOrigen: Comunicados${comunicado.id ? ` · Ref: ${comunicado.id}` : ""}`,
-    icono: "document",
-    color: "#2563eb",
-  };
-  const { data: fb } = await sb.from("noticias").insert(fallback).select("*").single();
-  return fb || null;
+  });
 };
 
 const publicarNoticia = async ({ tipo, titulo, detalle, icono, color, origen, ocultar_en_feed, ...extra }) => {
@@ -12999,17 +13043,29 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setToolBusy(true);
     setError("");
     try {
-      const path = `noticias/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizeStorageName(archivo.name)}`;
-      const { error: upErr } = await sb.storage.from("noticias").upload(path, archivo, { contentType: archivo.type, upsert: false });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+      const safeName = sanitizeStorageName(archivo.name);
+      const pathNoticias = `noticias/${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
+      let publicUrl = "";
+      let uploadError = null;
+
+      const upNoticias = await sb.storage.from("noticias").upload(pathNoticias, archivo, { contentType: archivo.type, upsert: false });
+      if (!upNoticias.error) {
+        publicUrl = sb.storage.from("noticias").getPublicUrl(pathNoticias).data.publicUrl;
+      } else {
+        uploadError = upNoticias.error;
+        const pathComunicados = `comunicados/noticias_${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
+        const upComunicados = await sb.storage.from("comunicados").upload(pathComunicados, archivo, { contentType: archivo.type, upsert: false });
+        if (upComunicados.error) throw uploadError || upComunicados.error;
+        publicUrl = sb.storage.from("comunicados").getPublicUrl(pathComunicados).data.publicUrl;
+      }
+
       const payload = {
         tipo: "comunicado",
         titulo: titulo.trim(),
-        detalle: detalle.trim() || null,
+        detalle: detalle.trim() || "Comunicado oficial publicado por administración.",
         icono: "document",
         color: "#2563eb",
-        origen: "admin_noticias",
+        origen: "comunicados",
         fecha_publicacion: new Date().toISOString().slice(0, 10),
         texto_extraido: detalle.trim() || null,
         media_urls: archivo.type?.startsWith("image/") ? [publicUrl] : [],
@@ -13018,9 +13074,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         archivo_tipo: archivo.type,
         ocultar_en_feed: false,
       };
-      const { error: insErr } = await sb.from("noticias").insert(payload).select("*").single();
-      if (insErr) throw insErr;
-      setToolNotice("Publicado en Noticias.", "#22c55e");
+      await insertNoticiaConFallback(payload);
+      setToolNotice(uploadError ? "Publicado en Noticias usando el bucket comunicados." : "Publicado en Noticias.", "#22c55e");
     } catch (e) {
       console.error(e);
       setToolNotice("No se pudo publicar en Noticias. Revisa bucket/políticas de Supabase.", "#ef4444");
@@ -13099,7 +13154,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
-        await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: true });
+        try {
+          await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
+          setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
+        } catch (syncErr) {
+          console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
+          setToolNotice("Comunicado publicado, pero no se pudo replicar en Noticias. Revisa permisos INSERT/RLS de la tabla noticias.", "#ef4444");
+        }
       }
 
       setExito(true);
@@ -13676,7 +13737,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
               </div>
               <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.5" }}>
                 {isAdmin
-                  ? "Tus comunicados se publican de inmediato y aparecen en la sección Ver Comunicados."
+                  ? "Tus comunicados se publican de inmediato, aparecen en Ver Comunicados y se replican automáticamente en Noticias."
                   : "Tu propuesta será revisada por un administrador antes de ser visible para la comunidad."}
               </div>
             </div>
@@ -20664,7 +20725,7 @@ function App() {
               ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
               : hasUnreadAdminMessages
                 ? "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)"
-                : "linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%)",
+                : "rgba(13,31,60,.96)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
@@ -20689,14 +20750,24 @@ function App() {
             if (showQRPanel !== "gemini" && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1)";
           }}
         >
-          <span style={{ 
-            fontSize: "28px", 
-            lineHeight: 1,
-            transform: showQRPanel === "gemini" ? "rotate(-45deg)" : "rotate(0deg)",
-            transition: "transform 0.3s"
-          }}>
-            {showQRPanel === "gemini" ? "✕" : hasUnreadAdminMessages ? "🔔" : "✨"}
-          </span>
+          {showQRPanel === "gemini" || hasUnreadAdminMessages ? (
+            <span style={{ 
+              fontSize: "28px", 
+              lineHeight: 1,
+              transform: showQRPanel === "gemini" ? "rotate(-45deg)" : "rotate(0deg)",
+              transition: "transform 0.3s"
+            }}>
+              {showQRPanel === "gemini" ? "✕" : "🔔"}
+            </span>
+          ) : (
+            <img
+              src="/burbuja%20ia.png"
+              alt="AI ConectMzo"
+              style={{ width:"42px", height:"42px", objectFit:"contain", display:"block", borderRadius:"50%" }}
+              onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
+            />
+          )}
+          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", fontSize:"28px", lineHeight:1 }}>✨</span>}
           {hasUnreadAdminMessages && !supportExpanded && (
             <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
           )}
