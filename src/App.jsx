@@ -11101,6 +11101,102 @@ function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin 
   );
 }
 
+// ─── UI: Selector de Rueda compacto ──────────────────────────────────────────
+// Reduce espacio en listas largas: muestra un botón compacto y abre un wheel picker
+// con scroll-snap, selección central y confirmación explícita.
+function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin especificar —", allowClear = false, pending = false, theme, title = "Seleccionar opción" }) {
+  const [open, setOpen] = useState(false);
+  const listRef = React.useRef(null);
+  const current = options.find(o => o.id === value) || null;
+  const [draft, setDraft] = useState(value ?? null);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(value ?? null);
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, value]);
+
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const idx = Math.max(0, options.findIndex(o => o.id === (draft ?? value)));
+    setTimeout(() => {
+      const item = listRef.current?.querySelector(`[data-wheel-id="${CSS.escape(String(options[idx]?.id || ""))}"]`);
+      item?.scrollIntoView?.({ block:"center", behavior:"smooth" });
+    }, 40);
+  }, [open]);
+
+  const color = current?.color || "#64748b";
+  const display = current ? current.label : placeholder;
+
+  const modal = open ? createPortal(
+    <div onClick={() => setOpen(false)} style={{ position:"fixed", inset:0, zIndex:2147483000, background:"rgba(2,6,23,.68)", backdropFilter:"blur(8px)", display:"flex", alignItems:"flex-end", justifyContent:"center", padding:"16px" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:"460px", background:"linear-gradient(180deg,#10233b,#081424)", border:"1px solid rgba(56,189,248,.28)", borderRadius:"18px", boxShadow:"0 24px 70px rgba(0,0,0,.65)", overflow:"hidden" }}>
+        <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
+          <div>
+            <div style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"13px" }}>{title}</div>
+            <div style={{ color:"rgba(255,255,255,.38)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"2px" }}>Desliza la rueda y confirma</div>
+          </div>
+          <button onClick={() => setOpen(false)} style={{ width:"32px", height:"32px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#94a3b8", cursor:"pointer" }}>✕</button>
+        </div>
+
+        <div style={{ position:"relative", padding:"10px 14px" }}>
+          <div style={{ position:"absolute", left:"14px", right:"14px", top:"50%", height:"44px", transform:"translateY(-50%)", border:"1px solid rgba(56,189,248,.42)", background:"rgba(56,189,248,.08)", borderRadius:"12px", pointerEvents:"none", boxShadow:"0 0 0 999px rgba(2,6,23,.18)" }} />
+          <div
+            ref={listRef}
+            style={{ height:"190px", overflowY:"auto", scrollSnapType:"y mandatory", WebkitOverflowScrolling:"touch", padding:"74px 0", scrollbarWidth:"thin" }}
+          >
+            {allowClear && (
+              <button
+                type="button"
+                data-wheel-id="__clear"
+                onClick={() => setDraft(null)}
+                style={{ scrollSnapAlign:"center", width:"100%", height:"44px", margin:"4px 0", borderRadius:"12px", border:"none", background: draft == null ? "rgba(100,116,139,.20)" : "transparent", color:draft == null ? "#94a3b8" : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:draft == null ? 800 : 500, cursor:"pointer" }}
+              >{placeholder}</button>
+            )}
+            {options.map(o => {
+              const active = o.id === draft;
+              return (
+                <button
+                  type="button"
+                  key={o.id}
+                  data-wheel-id={o.id}
+                  onClick={() => setDraft(o.id)}
+                  style={{ scrollSnapAlign:"center", width:"100%", minHeight:"44px", margin:"4px 0", padding:"8px 12px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "13px" : "12px", fontWeight: active ? 900 : 600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", transition:"all .14s" }}
+                >
+                  <IconText icon={o.icon} label={o.label} size={15} />
+                  {active && <span style={{ color:o.color, fontWeight:900 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ padding:"12px 14px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", borderTop:"1px solid rgba(255,255,255,.08)" }}>
+          <button type="button" onClick={() => setOpen(false)} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer" }}>Cancelar</button>
+          <button type="button" onClick={() => { onChange(draft); setOpen(false); }} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.45)", background:"rgba(34,197,94,.16)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:"pointer" }}>Aplicar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <div style={{ opacity: pending ? .65 : 1 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{ width:"100%", padding:"9px 10px", background:"#0a1628", border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"8px", color: current ? color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", cursor:"pointer", fontWeight: current ? 800 : 500, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}
+      >
+        <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:"6px" }}>{current ? <IconText icon={current.icon} label={display} size={14} /> : display}</span>
+        <span style={{ color: current ? color : "#64748b", fontSize:"13px" }}>☰</span>
+      </button>
+      {modal}
+    </div>
+  );
+}
+
 // ─── UI: Buscador de terminal (filtro en vivo sobre los botones existentes) ───
 function TerminalSearchBox({ value, onChange, theme }) {
   return (
@@ -11239,9 +11335,12 @@ function SegundoAccesoTab({ myId }) {
   // ── Handlers CONFINADA ──
   const updateConfinada = async (id, field, value) => {
     if (!confinada) return;
+    const key = `${id}:${field}`;
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setConfinada(next);
+    setPending(key, true);
     await saveConfinada(next);
+    setPending(key, false);
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
     await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -11264,10 +11363,21 @@ function SegundoAccesoTab({ myId }) {
     notify("✓ Carril restablecido", "#a78bfa");
   };
 
-  const getTermName = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
-  const getTermZona = (id) => TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
+  const getTermName = (id) => id === "sin_uso" ? "SIN USO" : TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
+  const getTermZona = (id) => id === "sin_uso" ? "Sin uso" : TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
+  const terminalOptionsSegundo = [
+    { id:"sin_uso", label:"Sin uso", color:"#6b7280", icon:"ban" },
+    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
+    ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:"#38bdf8", icon:"port-terminal" })),
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+  ];
+  const terminalOptionsConfinada = [
+    { id:"sin_uso", label:"Sin uso", color:"#6b7280", icon:"ban" },
+    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+  ];
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
@@ -11356,9 +11466,9 @@ function SegundoAccesoTab({ myId }) {
   {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
     const st  = carriles?.[c.id];
     const sat = st?.saturado;
-    const col = sat ? "#ef4444" : "#14b8a6";
+    const col = st?.terminal === "sin_uso" ? "#6b7280" : sat ? "#ef4444" : "#14b8a6";
     const tz  = getTermZona(st?.terminal);
-    const tc  = tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
+    const tc  = tz === "Sin uso" ? "#6b7280" : tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
 
     return (
       <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
@@ -11415,7 +11525,7 @@ function SegundoAccesoTab({ myId }) {
         {SEGUNDO_CARRILES_INGRESO.map(carril => {
           const st        = carriles[carril.id];
           const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+          const zonaColor = st.terminal === "sin_uso" ? "#6b7280" : termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
@@ -11444,61 +11554,33 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
-                    {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
-                  </div>
+                  {st.terminal === "sin_uso" ? (
+                    <>
+                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"15px" }}>SIN USO</div>
+                      <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
+                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
+                        {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <span style={{ fontSize:"22px" }}>🚛</span>
               </div>
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
-
-              {/* Buscador de terminal — atajo adicional, no reemplaza los botones */}
-              <TerminalSearchBox
-                value={terminalSearch[carril.id] || ""}
-                onChange={(v) => setTerminalSearch(prev => ({ ...prev, [carril.id]: v }))}
-                theme={theme}
-              />
-
-              {(() => {
-                const q = (terminalSearch[carril.id] || "").trim().toLowerCase();
-                const matches = (name) => !q || name.toLowerCase().includes(q);
-                const showGeneral = matches("general");
-                const filteredNorte = termsNorte.filter(t => matches(t.name));
-                const filteredSur = termsSur.filter(t => matches(t.name));
-                const nada = q && !showGeneral && filteredNorte.length === 0 && filteredSur.length === 0;
-                return (
-                  <>
-                    {showGeneral && (
-                      <div style={{ marginBottom:"8px" }}>
-                        <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          <button onClick={() => updateIngreso(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
-                        </div>
-                      </div>
-                    )}
-                    {filteredNorte.length > 0 && (
-                      <div style={{ marginBottom:"8px" }}>
-                        <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA NORTE —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          {filteredNorte.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#38bdf822":"#0a1628", border:`1px solid ${st.terminal===t.id?"#38bdf8":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#38bdf8":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                        </div>
-                      </div>
-                    )}
-                    {filteredSur.length > 0 && (
-                      <div style={{ marginBottom:"10px" }}>
-                        <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
-                        <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                          {filteredSur.map(t => <button key={t.id} onClick={() => updateIngreso(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                        </div>
-                      </div>
-                    )}
-                    {nada && (
-                      <div style={{ fontSize:"10px", color:"#64748b", fontFamily:getFont(theme, "secondary"), padding:"6px 2px", marginBottom:"8px" }}>Sin coincidencias para "{terminalSearch[carril.id]}"</div>
-                    )}
-                  </>
-                );
-              })()}
+              <div style={{ marginBottom:"12px" }}>
+                <WheelPickerSelect
+                  value={st.terminal || carril.defaultTerminal}
+                  options={terminalOptionsSegundo}
+                  onChange={(v) => updateIngreso(carril.id,"terminal",v)}
+                  pending={!!pendingKeys[`${carril.id}:terminal`]}
+                  theme={theme}
+                  title={`${carril.label} · Terminal / uso`}
+                />
+              </div>
 
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
               <div style={{ marginBottom:"8px" }}>
@@ -11524,7 +11606,7 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.expo || "libre"}
                     options={SEGUNDO_TRAFICO_OPTS}
                     onChange={(v) => updateIngreso(carril.id,"expo",v)}
@@ -11532,7 +11614,7 @@ function SegundoAccesoTab({ myId }) {
                     theme={theme}
                   />
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.expo_contenedor}
                     options={SEGUNDO_CONTENEDOR_OPTS}
                     onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
@@ -11544,7 +11626,7 @@ function SegundoAccesoTab({ myId }) {
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.impo || "libre"}
                     options={SEGUNDO_TRAFICO_OPTS}
                     onChange={(v) => updateIngreso(carril.id,"impo",v)}
@@ -11599,7 +11681,7 @@ function SegundoAccesoTab({ myId }) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
             <div>
               <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-              <QuickSelectDropdown
+              <WheelPickerSelect
                 value={carriles.c4.expo || "libre"}
                 options={SEGUNDO_TRAFICO_OPTS}
                 onChange={(v) => updateSalida("expo",v)}
@@ -11607,7 +11689,7 @@ function SegundoAccesoTab({ myId }) {
                 theme={theme}
               />
               <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-              <QuickSelectDropdown
+              <WheelPickerSelect
                 value={carriles.c4.expo_contenedor}
                 options={SEGUNDO_CONTENEDOR_OPTS}
                 onChange={(v) => updateSalida("expo_contenedor", v)}
@@ -11619,7 +11701,7 @@ function SegundoAccesoTab({ myId }) {
             </div>
             <div>
               <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-              <QuickSelectDropdown
+              <WheelPickerSelect
                 value={carriles.c4.impo || "libre"}
                 options={SEGUNDO_TRAFICO_OPTS}
                 onChange={(v) => updateSalida("impo",v)}
@@ -11786,25 +11868,17 @@ function SegundoAccesoTab({ myId }) {
                 <span style={{ fontSize:"22px" }}>{st.terminal === "sin_uso" ? "🚫" : "🚛"}</span>
               </div>
 
-              {/* Cambiar terminal — General + Zona Sur + Sin Uso */}
+              {/* Cambiar terminal — selector de rueda compacto */}
               <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
-              <div style={{ marginBottom:"8px" }}>
-                <div style={{ fontSize:"9px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— GENERAL (TODAS LAS TERMINALES) —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  <button onClick={() => updateConfinada(carril.id,"terminal","general")} style={{ padding:"5px 10px", background: st.terminal==="general"?"#fbbf2422":"#0a1628", border:`1px solid ${st.terminal==="general"?"#fbbf24":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="general"?"#fbbf24":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="general"?"700":"400" }}>⚡ GENERAL</button>
-                </div>
-              </div>
-              <div style={{ marginBottom:"8px" }}>
-                <div style={{ fontSize:"9px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— ZONA SUR —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  {termsSur.map(t => <button key={t.id} onClick={() => updateConfinada(carril.id,"terminal",t.id)} style={{ padding:"5px 10px", background: st.terminal===t.id?"#a78bfa22":"#0a1628", border:`1px solid ${st.terminal===t.id?"#a78bfa":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal===t.id?"#a78bfa":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal===t.id?"700":"400" }}>{t.name}</button>)}
-                </div>
-              </div>
-              <div style={{ marginBottom:"10px" }}>
-                <div style={{ fontSize:"9px", color:"#6b7280", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>— SIN USO —</div>
-                <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-                  <button onClick={() => updateConfinada(carril.id,"terminal","sin_uso")} style={{ padding:"5px 10px", background: st.terminal==="sin_uso"?"#6b728022":"#0a1628", border:`1px solid ${st.terminal==="sin_uso"?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: st.terminal==="sin_uso"?"#9ca3af":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.terminal==="sin_uso"?"700":"400" }}>🚫 Sin uso</button>
-                </div>
+              <div style={{ marginBottom:"12px" }}>
+                <WheelPickerSelect
+                  value={st.terminal || carril.defaultTerminal}
+                  options={terminalOptionsConfinada}
+                  onChange={(v) => updateConfinada(carril.id,"terminal",v)}
+                  pending={!!pendingKeys[`${carril.id}:terminal`]}
+                  theme={theme}
+                  title={`Confinada ${carril.label} · Terminal / uso`}
+                />
               </div>
 
               {/* Estado del carril */}
@@ -11822,7 +11896,7 @@ function SegundoAccesoTab({ myId }) {
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
                 <div>
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.expo || "libre"}
                     options={SEGUNDO_TRAFICO_OPTS}
                     onChange={(v) => updateConfinada(carril.id,"expo",v)}
@@ -11830,7 +11904,7 @@ function SegundoAccesoTab({ myId }) {
                     theme={theme}
                   />
                   <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.expo_contenedor}
                     options={SEGUNDO_CONTENEDOR_OPTS}
                     onChange={(v) => updateConfinada(carril.id,"expo_contenedor", v)}
@@ -11842,7 +11916,7 @@ function SegundoAccesoTab({ myId }) {
                 </div>
                 <div>
                   <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <QuickSelectDropdown
+                  <WheelPickerSelect
                     value={st.impo || "libre"}
                     options={SEGUNDO_TRAFICO_OPTS}
                     onChange={(v) => updateConfinada(carril.id,"impo",v)}
