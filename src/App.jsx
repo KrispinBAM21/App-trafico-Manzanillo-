@@ -14442,9 +14442,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisCopiedField, setPisCopiedField] = useState("");
   const [pisContactMessage, setPisContactMessage] = useState("");
-  const [pisContactUnlocked, setPisContactUnlocked] = useState(() => {
-    try { return localStorage.getItem(PIS_CONTACT_UNLOCKED_KEY) === "1"; } catch { return false; }
-  });
+  const [pisContactUnlocked, setPisContactUnlocked] = useState(false);
   const [pisUnlockRequested, setPisUnlockRequested] = useState(false);
   const [pisUnlockSeconds, setPisUnlockSeconds] = useState(0);
   const [pisHistory, setPisHistory] = useState(() => {
@@ -14452,16 +14450,34 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   });
   const PAGE_SIZE = 8;
 
+  const getPisContactUnlockKey = useCallback(() => {
+    if (authUser?.id) return `${PIS_CONTACT_UNLOCKED_KEY}:user:${authUser.id}`;
+    return `${PIS_CONTACT_UNLOCKED_KEY}:device:${myId || "anon"}`;
+  }, [authUser?.id, myId]);
+
   const hasPisContactUnlock = useCallback(() => {
-    try { return localStorage.getItem(PIS_CONTACT_UNLOCKED_KEY) === "1"; } catch { return false; }
-  }, []);
+    try {
+      const scopedKey = getPisContactUnlockKey();
+      return localStorage.getItem(scopedKey) === "1";
+    } catch {
+      return false;
+    }
+  }, [getPisContactUnlockKey]);
 
   const markPisContactUnlocked = useCallback(() => {
-    try { localStorage.setItem(PIS_CONTACT_UNLOCKED_KEY, "1"); } catch {}
+    try {
+      localStorage.setItem(getPisContactUnlockKey(), "1");
+    } catch {}
     setPisContactUnlocked(true);
     setPisUnlockRequested(false);
     setPisUnlockSeconds(0);
-  }, []);
+  }, [getPisContactUnlockKey]);
+
+  useEffect(() => {
+    setPisContactUnlocked(hasPisContactUnlock());
+    setPisUnlockRequested(false);
+    setPisUnlockSeconds(0);
+  }, [hasPisContactUnlock]);
 
   const emptyTrab = { nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local", telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true };
   const emptyEmp = { razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local" };
@@ -14899,7 +14915,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
               {!pisContactUnlocked && (
                 <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
-                  Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar.
+                  Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar. Esta validación quedará guardada en este usuario o dispositivo para futuras consultas.
                 </div>
               )}
 
