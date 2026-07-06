@@ -20141,35 +20141,6 @@ function App() {
         }
       `}</style>
     <div data-cm-auto-theme={theme.backgroundType === "color" && theme.uiAutoAdjust !== false ? "1" : "0"} style={getMainContainerStyle()}>
-      {isAdmin && (
-        <button
-          onClick={logout}
-          title="Cerrar sesión de administrador"
-          style={{
-            position:"fixed",
-            top:"14px",
-            left:"14px",
-            zIndex:10000,
-            display:"inline-flex",
-            alignItems:"center",
-            gap:"8px",
-            padding:"10px 13px",
-            borderRadius:"999px",
-            border:"1px solid rgba(248,113,113,.45)",
-            background:"rgba(15,23,42,.86)",
-            color:"#fecaca",
-            fontFamily:getFont(theme,"secondary"),
-            fontWeight:900,
-            fontSize:"12px",
-            cursor:"pointer",
-            boxShadow:"0 10px 28px rgba(0,0,0,.35)",
-            backdropFilter:"blur(12px)",
-            WebkitBackdropFilter:"blur(12px)"
-          }}
-        >
-          🚪 Cerrar sesión
-        </button>
-      )}
       {/* Validado FIX: Overlay oscuro para imágenes de fondo con opacidad configurable */}
       {theme.backgroundType === "image" && theme.backgroundImage && (
         <div style={{ 
@@ -20230,10 +20201,35 @@ function App() {
           </div>
           <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
             {isAdmin && (
-              <div title="Sesión admin activa" style={{ display:"flex", alignItems:"center", gap:"4px", background:"rgba(148,163,184,0.14)", border:"1px solid rgba(148,163,184,0.32)", borderRadius:"7px", padding:"5px 9px" }}>
+              <button
+                type="button"
+                onClick={logout}
+                title="Cerrar sesión de administrador"
+                style={{
+                  display:"flex",
+                  alignItems:"center",
+                  gap:"4px",
+                  background:"rgba(148,163,184,0.14)",
+                  border:"1px solid rgba(148,163,184,0.32)",
+                  borderRadius:"7px",
+                  padding:"5px 9px",
+                  cursor:"pointer",
+                  color:"#e2e8f0",
+                  fontFamily:"'DM Sans',sans-serif",
+                  transition:"background 0.2s, border-color 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(248,113,113,0.18)";
+                  e.currentTarget.style.borderColor = "rgba(248,113,113,0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(148,163,184,0.14)";
+                  e.currentTarget.style.borderColor = "rgba(148,163,184,0.32)";
+                }}
+              >
                 <span style={{ fontSize:"12px" }}>🔑</span>
                 <span style={{ fontSize:"10px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>ADMIN</span>
-              </div>
+              </button>
             )}
 
             {!isAdmin && authUser && (
@@ -20793,7 +20789,15 @@ function App() {
             onClick={(e)=>e.stopPropagation()}
           >
             <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", paddingBottom:"10px", borderBottom:"1px solid rgba(255,255,255,.1)" }}>
-              <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"21px" }}>✨</div>
+              <div style={{ width:"42px", height:"42px", borderRadius:"50%", background:"rgba(255,255,255,.08)", border:"1px solid rgba(96,165,250,.35)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flex:"0 0 auto" }}>
+                <img
+                  src="/burbuja%20ia.png"
+                  alt="AI ConectMzo"
+                  style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                  onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }}
+                />
+                <span style={{ display:"none", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"21px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)" }}>✨</span>
+              </div>
               <div style={{ flex:1 }}>
                 <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI ConectMzo</div>
                 <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Asistente principal de Conect Manzanillo</div>
