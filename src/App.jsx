@@ -13021,6 +13021,7 @@ function NoticiasAutoJpegReport() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
+  const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
   const objectUrlRef = useRef(null);
   const canvasRef = useRef(null);
@@ -13248,11 +13249,124 @@ function NoticiasAutoJpegReport() {
     return { canvas, now, groups, rowsCount };
   }, [cargarSnapshot]);
 
+  const buildPreviewCanvas = useCallback(async () => {
+    const groups = await cargarSnapshot();
+    const scale = 2;
+    const w = 1080;
+    const pad = 42;
+    const rowH = 44;
+    const sectionH = 58;
+    const headerH = 150;
+    const footerH = 56;
+    const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
+    const h = headerH + footerH + groups.length * sectionH + rowsCount * rowH + 40;
+    const canvas = document.createElement("canvas");
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    const roundRect = (x,y,ww,hh,r) => {
+      ctx.beginPath();
+      ctx.moveTo(x+r,y); ctx.arcTo(x+ww,y,x+ww,y+hh,r); ctx.arcTo(x+ww,y+hh,x,y+hh,r); ctx.arcTo(x,y+hh,x,y,r); ctx.arcTo(x,y,x+ww,y,r); ctx.closePath();
+    };
+    const wrapText = (text, x, y, maxWidth, lineHeight, maxLines = 1) => {
+      const words = clean(text).split(" ");
+      let line = "";
+      let lineNo = 0;
+      for (let i=0; i<words.length; i++) {
+        const test = line ? line + " " + words[i] : words[i];
+        if (ctx.measureText(test).width > maxWidth && line) {
+          ctx.fillText(lineNo + 1 === maxLines ? line + "…" : line, x, y + lineNo * lineHeight);
+          lineNo++;
+          line = words[i];
+          if (lineNo >= maxLines) return;
+        } else line = test;
+      }
+      if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
+    };
+
+    const now = new Date();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#07152a");
+    grad.addColorStop(1, "#0b2440");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    try {
+      const wm = await loadImage(CM_REPORT_WATERMARK);
+      const wmW = Math.min(560, w * 0.54);
+      const wmH = wmW * (wm.height / wm.width);
+      ctx.save();
+      if ("filter" in ctx) ctx.filter = "grayscale(1) brightness(1.8)";
+      ctx.globalAlpha = 0.08;
+      for (let cy = headerH + 440; cy < h - footerH; cy += 980) {
+        ctx.drawImage(wm, (w - wmW) / 2, cy - wmH / 2, wmW, wmH);
+      }
+      ctx.restore();
+    } catch {}
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 34px Arial";
+    ctx.fillText("Reporte operativo", pad, 62);
+    ctx.font = "700 18px Arial";
+    ctx.fillStyle = "#93c5fd";
+    ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
+    ctx.font = "400 17px Arial";
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "900 18px Arial";
+    ctx.fillText(`${rowsCount} registros`, w - pad, 62);
+    ctx.textAlign = "left";
+
+    let y = headerH;
+    groups.forEach(g => {
+      ctx.fillStyle = "rgba(56,189,248,0.14)";
+      roundRect(pad, y, w - pad*2, 42, 14); ctx.fill();
+      ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#7dd3fc";
+      ctx.font = "900 18px Arial";
+      ctx.fillText(g.title.toUpperCase(), pad + 18, y + 27);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 14px Arial";
+      ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
+      ctx.textAlign = "left";
+      y += sectionH;
+      g.rows.forEach((r, idx) => {
+        ctx.fillStyle = idx % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.065)";
+        roundRect(pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
+        ctx.fillStyle = "#f8fafc";
+        ctx.font = "800 16px Arial";
+        wrapText(r.name, pad + 16, y + 17, 560, 17, 1);
+        if (r.detail) {
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "400 13px Arial";
+          wrapText(r.detail, pad + 16, y + 34, 670, 14, 1);
+        }
+        ctx.textAlign = "right";
+        ctx.fillStyle = r.color || "#94a3b8";
+        ctx.font = "900 16px Arial";
+        ctx.fillText(clean(r.status).slice(0, 32), w - pad - 16, y + 22);
+        ctx.textAlign = "left";
+        y += rowH;
+      });
+    });
+    ctx.fillStyle = "#64748b";
+    ctx.font = "400 14px Arial";
+    ctx.fillText("Vista web. Al descargar se convierte al formato formal de Reporte.", pad, h - 26);
+    return { canvas, now, groups, rowsCount };
+  }, [cargarSnapshot]);
+
   const generarJpeg = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { canvas, now, groups } = await buildReportCanvas();
+      const { canvas, now, groups } = await buildPreviewCanvas();
       canvasRef.current = canvas;
       canvasRef.current.__reportGroups = groups;
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
@@ -13268,7 +13382,7 @@ function NoticiasAutoJpegReport() {
     } finally {
       setLoading(false);
     }
-  }, [buildReportCanvas]);
+  }, [buildPreviewCanvas]);
 
   const downloadCanvasAsJpeg = async (canvas, now) => {
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
@@ -13389,17 +13503,10 @@ function NoticiasAutoJpegReport() {
     setDownloading(true);
     setError("");
     try {
-      let canvas = canvasRef.current;
-      let now = generatedAt || new Date();
-      let groups = canvasRef.current?.__reportGroups || null;
-      if (!canvas) {
-        const built = await buildReportCanvas();
-        canvas = built.canvas;
-        now = built.now;
-        groups = built.groups;
-        canvasRef.current = canvas;
-        canvasRef.current.__reportGroups = groups;
-      }
+      const built = await buildReportCanvas();
+      const canvas = built.canvas;
+      const now = built.now;
+      const groups = built.groups;
       if (downloadFormat === "pdf") await downloadCanvasAsPdf(canvas, now, groups);
       else await downloadCanvasAsJpeg(canvas, now);
     } catch (e) {
@@ -13411,10 +13518,23 @@ function NoticiasAutoJpegReport() {
   };
 
   useEffect(() => {
-    generarJpeg();
-    const id = setInterval(generarJpeg, 10 * 60 * 1000);
+    let timeoutId = null;
+    let cancelled = false;
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const next = (Math.floor(now / (10 * 60 * 1000)) + 1) * 10 * 60 * 1000;
+      setNextRunAt(new Date(next));
+      timeoutId = setTimeout(async () => {
+        if (cancelled) return;
+        await generarJpeg();
+        scheduleNext();
+      }, Math.max(1000, next - now));
+    };
+    scheduleNext();
     return () => {
-      clearInterval(id);
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
   }, [generarJpeg]);
@@ -13424,20 +13544,21 @@ function NoticiasAutoJpegReport() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
         <div>
           <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"14px" }}>Reporte automático del puerto</div>
-          <div style={{ color:"rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Imagen JPEG generada con información de accesos, vialidades, rutas, terminales, patios, carriles y confinados.</div>
-          {generatedAt && <div style={{ color:"rgba(147,197,253,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"5px" }}>Actualizado: {generatedAt.toLocaleString("es-MX")}</div>}
+          <div style={{ color:"rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Vista web en fondo oscuro. Las descargas JPEG/PDF se convierten al formato formal del apartado Reporte.</div>
+          {generatedAt && <div style={{ color:"rgba(147,197,253,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"5px" }}>Último reporte automático: {generatedAt.toLocaleString("es-MX")}</div>}
+          {nextRunAt && <div style={{ color:"rgba(251,191,36,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"3px" }}>Próximo automático: {nextRunAt.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" })}</div>}
         </div>
         <div style={{ display:"flex", gap:"7px", flexWrap:"wrap", alignItems:"center" }}>
-          <button onClick={generarJpeg} disabled={loading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.45)", background:"rgba(56,189,248,.12)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:loading?"wait":"pointer" }}>{loading ? "Generando…" : "Actualizar reporte"}</button>
-          <select value={downloadFormat} onChange={e=>setDownloadFormat(e.target.value)} disabled={!jpegUrl || downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(2,6,23,.72)", color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, outline:"none" }}>
+          <button onClick={generarJpeg} disabled={loading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.45)", background:"rgba(56,189,248,.12)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:loading?"wait":"pointer" }}>{loading ? "Generando…" : "Generar ahora"}</button>
+          <select value={downloadFormat} onChange={e=>setDownloadFormat(e.target.value)} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(2,6,23,.72)", color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, outline:"none" }}>
             <option value="jpeg">Descargar como JPEG</option>
             <option value="pdf">Descargar como PDF</option>
           </select>
-          <button onClick={descargarReporte} disabled={!jpegUrl || downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.4)", background:(!jpegUrl || downloading) ? "rgba(100,116,139,.18)" : "rgba(34,197,94,.12)", color:(!jpegUrl || downloading) ? "#94a3b8" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(!jpegUrl || downloading)?"not-allowed":"pointer" }}>{downloading ? "Descargando…" : "Descargar"}</button>
+          <button onClick={descargarReporte} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.4)", background:downloading ? "rgba(100,116,139,.18)" : "rgba(34,197,94,.12)", color:downloading ? "#94a3b8" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:downloading?"not-allowed":"pointer" }}>{downloading ? "Descargando…" : "Descargar"}</button>
         </div>
       </div>
       {error && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(239,68,68,.12)", border:"1px solid rgba(239,68,68,.35)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{error}</div>}
-      {jpegUrl ? <img src={jpegUrl} alt="Reporte operativo automático" style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#fff", display:"block" }} /> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imagen del reporte…" : "Reporte JPEG no disponible todavía."}</div>}
+      {jpegUrl ? <img src={jpegUrl} alt="Reporte operativo automático" style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#061428", display:"block" }} /> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imagen del reporte…" : "El reporte automático aparecerá en el próximo corte de 10 minutos. También puedes generarlo ahora."}</div>}
     </div>
   );
 }
