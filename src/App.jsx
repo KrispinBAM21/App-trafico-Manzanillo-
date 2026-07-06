@@ -11123,6 +11123,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
   const [open, setOpen] = useState(false);
   const listRef = React.useRef(null);
   const scrollTimerRef = React.useRef(null);
+  const lastInteractionRef = React.useRef("wheel");
   const current = options.find(o => o.id === value) || null;
   const [draft, setDraft] = useState(value ?? null);
 
@@ -11148,6 +11149,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
   }, []);
 
   const handleWheelScroll = useCallback(() => {
+    lastInteractionRef.current = "wheel";
     if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
     scrollTimerRef.current = setTimeout(syncDraftFromWheelCenter, 90);
   }, [syncDraftFromWheelCenter]);
@@ -11174,15 +11176,22 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
   }, [draft]);
 
   const applyWheelSelection = useCallback(() => {
-    const next = getDraftFromWheelCenter();
+    const next = lastInteractionRef.current === "tap" ? draft : getDraftFromWheelCenter();
     setDraft(next);
     onChange(next);
     setOpen(false);
-  }, [getDraftFromWheelCenter, onChange]);
+  }, [draft, getDraftFromWheelCenter, onChange]);
+
+  const chooseDraftByTap = useCallback((next, el = null) => {
+    lastInteractionRef.current = "tap";
+    setDraft(next);
+    el?.scrollIntoView?.({ block:"center", behavior:"smooth" });
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     setDraft(value ?? null);
+    lastInteractionRef.current = "wheel";
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -11210,7 +11219,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
         <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
           <div>
             <div style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"13px" }}>{title}</div>
-            <div style={{ color:"rgba(255,255,255,.38)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"2px" }}>Desliza la rueda y confirma</div>
+            <div style={{ color:"rgba(255,255,255,.38)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"2px" }}>Desliza la rueda o toca una opción y confirma</div>
           </div>
           <button onClick={() => setOpen(false)} style={{ width:"32px", height:"32px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#94a3b8", cursor:"pointer" }}>✕</button>
         </div>
@@ -11228,8 +11237,8 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
               <button
                 type="button"
                 data-wheel-id="__clear"
-                onClick={() => setDraft(null)}
-                style={{ scrollSnapAlign:"center", width:"100%", height:"44px", margin:"4px 0", borderRadius:"12px", border:"none", background: draft == null ? "rgba(100,116,139,.20)" : "transparent", color:draft == null ? "#94a3b8" : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:draft == null ? 800 : 500, cursor:"pointer" }}
+                onClick={(e) => chooseDraftByTap(null, e.currentTarget)}
+                style={{ scrollSnapAlign:"center", width:"100%", height:"48px", margin:"4px 0", borderRadius:"12px", border:"none", background: draft == null ? "rgba(100,116,139,.20)" : "transparent", color:draft == null ? "#94a3b8" : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:draft == null ? 800 : 500, cursor:"pointer" }}
               >{placeholder}</button>
             )}
             {options.map(o => {
@@ -11239,8 +11248,8 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
                   type="button"
                   key={o.id}
                   data-wheel-id={o.id}
-                  onClick={() => setDraft(o.id)}
-                  style={{ scrollSnapAlign:"center", width:"100%", minHeight:"44px", margin:"4px 0", padding:"8px 12px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "13px" : "12px", fontWeight: active ? 900 : 600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", transition:"all .14s" }}
+                  onClick={(e) => chooseDraftByTap(o.id, e.currentTarget)}
+                  style={{ scrollSnapAlign:"center", width:"100%", minHeight:"48px", margin:"4px 0", padding:"9px 14px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "14px" : "13px", fontWeight: active ? 900 : 650, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", transition:"all .14s" }}
                 >
                   <IconText icon={o.icon} label={o.label} size={15} />
                   {active && <span style={{ color:o.color, fontWeight:900 }}>✓</span>}
@@ -11264,10 +11273,10 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
       <button
         type="button"
         onClick={() => setOpen(true)}
-        style={{ width:"100%", padding:"9px 10px", background:"#0a1628", border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"8px", color: current ? color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", cursor:"pointer", fontWeight: current ? 800 : 500, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px" }}
+        style={{ width:"100%", minHeight:"44px", padding:"11px 14px", background:"linear-gradient(180deg, rgba(10,22,40,.98), rgba(8,18,34,.98))", border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"10px", color: current ? color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer", fontWeight: current ? 900 : 650, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", boxShadow: current ? `inset 0 0 0 1px ${color}22` : "none" }}
       >
-        <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:"6px" }}>{current ? <IconText icon={current.icon} label={display} size={14} /> : display}</span>
-        <span style={{ color: current ? color : "#64748b", fontSize:"13px" }}>☰</span>
+        <span style={{ minWidth:0, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}>{current ? <IconText icon={current.icon} label={display} size={16} /> : display}</span>
+        <span style={{ color: current ? color : "#64748b", fontSize:"16px", lineHeight:1 }}>☰</span>
       </button>
       {modal}
     </div>
