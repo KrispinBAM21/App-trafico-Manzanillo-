@@ -13725,6 +13725,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
 
   const active = pages.find(p => p.key === activeKey) || pages[0];
   const activeIndex = active ? pages.findIndex(p => p.key === active.key) : -1;
+  const activeRatio = active?.width && active?.height ? `${active.width} / ${active.height}` : "1 / 1";
 
   const startDrag = (ev, page, mode) => {
     const box = ev.currentTarget.closest("[data-zone-stage]")?.getBoundingClientRect();
@@ -13772,7 +13773,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
 
   return createPortal(
     <div style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(2,6,23,.88)", display:"flex", alignItems:"center", justifyContent:"center", padding:"14px", overflow:"hidden", overscrollBehavior:"none", touchAction:"none" }} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{ width:"min(1180px, 100%)", maxHeight:"94vh", overflow:"hidden", background:"#0b1b33", border:"1px solid rgba(56,189,248,.35)", borderRadius:"16px", boxShadow:"0 20px 80px rgba(0,0,0,.45)", display:"flex", flexDirection:"column", overscrollBehavior:"contain", touchAction:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"min(1180px, 100%)", maxHeight:"94vh", overflow:"hidden", background:"#0b1b33", border:"1px solid rgba(56,189,248,.35)", borderRadius:"16px", boxShadow:"0 20px 80px rgba(0,0,0,.45)", display:"flex", flexDirection:"column", overscrollBehavior:"contain", touchAction:"auto", overflowAnchor:"none" }}>
         <div style={{ padding:"13px 15px", borderBottom:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px" }}>
           <div>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontWeight:900, color:"#fff", fontSize:"14px" }}>Elegir zonas de extracción</div>
@@ -13789,7 +13790,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
           <div style={{ padding:"44px", textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary") }}>Selecciona una imagen o PDF primero.</div>
         ) : (
           <div style={{ display:"grid", gridTemplateColumns:"190px 1fr", minHeight:0, overflow:"hidden" }}>
-            <div style={{ borderRight:"1px solid rgba(255,255,255,.10)", padding:"10px", overflowY:"auto", maxHeight:"calc(94vh - 124px)", overscrollBehavior:"contain", WebkitOverflowScrolling:"touch", touchAction:"pan-y" }}>
+            <div style={{ borderRight:"1px solid rgba(255,255,255,.10)", padding:"10px", overflowY:"auto", maxHeight:"calc(94vh - 124px)", overscrollBehavior:"contain", WebkitOverflowScrolling:"touch", touchAction:"pan-y", overflowAnchor:"none" }}>
               {pages.map((p, idx) => (
                 <button key={p.key} onClick={()=>setActiveKey(p.key)} style={{ width:"100%", textAlign:"left", marginBottom:"8px", padding:"8px", borderRadius:"10px", border:`1px solid ${p.key===active.key ? "rgba(56,189,248,.75)" : "rgba(255,255,255,.12)"}`, background:p.key===active.key ? "rgba(56,189,248,.16)" : "rgba(255,255,255,.05)", color:"#fff", cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>
                   <img src={p.previewUrl} alt="preview" style={{ width:"100%", height:"78px", objectFit:"cover", borderRadius:"7px", display:"block", marginBottom:"6px" }} />
@@ -13797,7 +13798,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
                 </button>
               ))}
             </div>
-            <div style={{ padding:"12px", overflow:"auto", maxHeight:"calc(94vh - 124px)", overscrollBehavior:"contain", WebkitOverflowScrolling:"touch", touchAction:"pan-y" }} onWheel={(e)=>e.stopPropagation()}>
+            <div style={{ padding:"12px", overflow:"auto", maxHeight:"calc(94vh - 124px)", overscrollBehavior:"contain", WebkitOverflowScrolling:"touch", touchAction:"pan-y", overflowAnchor:"none" }} onWheel={(e)=>e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
                 <div style={{ color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>{active.fileName}{active.type === "pdf" ? ` · Hoja ${active.pageNo}` : ""}</div>
                 <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
@@ -13807,8 +13808,8 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
                   <button onClick={fullPageZone} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.30)", background:"rgba(148,163,184,.10)", color:"#cbd5e1", cursor:"pointer" }}>Toda la hoja</button>
                 </div>
               </div>
-              <div data-zone-stage style={{ position:"relative", width:"min(100%, 820px)", margin:"0 auto", borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", background:"#fff", lineHeight:0, userSelect:"none", touchAction:"none" }}>
-                <img src={active.previewUrl} alt="zona" draggable={false} style={{ width:"100%", height:"auto", display:"block" }} />
+              <div data-zone-stage style={{ position:"relative", width:"min(100%, 820px)", aspectRatio: activeRatio, margin:"0 auto", borderRadius:"12px", overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", background:"#fff", lineHeight:0, userSelect:"none", touchAction:"none", overflowAnchor:"none", contain:"layout paint" }}>
+                <img src={active.previewUrl} alt="zona" draggable={false} loading="eager" decoding="sync" style={{ position:"absolute", inset:0, width:"100%", height:"100%", display:"block" }} />
                 <div onMouseDown={(e)=>startDrag(e, active, "move")} onTouchStart={(e)=>startDrag(e, active, "move")} style={{ position:"absolute", left:`${active.zone.x*100}%`, top:`${active.zone.y*100}%`, width:`${active.zone.w*100}%`, height:`${active.zone.h*100}%`, border:"2px solid #22c55e", background:"rgba(34,197,94,.14)", boxShadow:"0 0 0 9999px rgba(0,0,0,.36)", cursor:"move", boxSizing:"border-box", touchAction:"none" }}>
                   <div style={{ position:"absolute", left:"8px", top:"8px", background:"rgba(2,6,23,.82)", color:"#fff", borderRadius:"999px", padding:"4px 8px", fontSize:"10px", fontFamily:getFont(theme,"secondary"), lineHeight:1 }}>Zona OCR</div>
                   <div onMouseDown={(e)=>startDrag(e, active, "resize")} onTouchStart={(e)=>startDrag(e, active, "resize")} style={{ position:"absolute", right:"-8px", bottom:"-8px", width:"18px", height:"18px", borderRadius:"5px", background:"#22c55e", border:"2px solid #fff", cursor:"nwse-resize", touchAction:"none" }} />
