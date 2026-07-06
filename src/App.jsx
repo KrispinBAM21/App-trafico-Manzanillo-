@@ -19773,7 +19773,7 @@ function App() {
   const [adminMessages, setAdminMessages] = useState([]);
   const [deviceBlock, setDeviceBlock] = useState(null);
 
-  // ── Asistente AI Gemini en burbuja principal ──
+  // ── Asistente AI ConectMzo en burbuja principal ──
   const [geminiMessages, setGeminiMessages] = useState(() => ([
     { role: "assistant", content: "Hola, soy el asistente AI de Conect Manzanillo. Puedes preguntarme sobre la app, comunicados, reportes o pedir ayuda para redactar texto." }
   ]));
@@ -19799,10 +19799,10 @@ function App() {
         }
       });
       if (error) throw error;
-      const reply = data?.reply || data?.text || data?.message || "No recibí respuesta de Gemini.";
+      const reply = data?.reply || data?.text || data?.message || "No recibí respuesta de AI ConectMzo.";
       setGeminiMessages(prev => [...prev, { role: "assistant", content: String(reply) }]);
     } catch (e) {
-      const msg = e?.message || "No se pudo conectar con Gemini.";
+      const msg = e?.message || "No se pudo conectar con AI ConectMzo.";
       setGeminiError(msg);
       setGeminiMessages(prev => [...prev, { role: "assistant", content: "No pude responder en este momento. Revisa que la Edge Function gemini-chat esté desplegada y que el secreto GEMINI_API_KEY esté configurado." }]);
     } finally {
@@ -20320,7 +20320,7 @@ function App() {
             alignItems: "flex-end"
           }}>
             <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
-              <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI Gemini</div>
+              <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
               <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px" }}>✨</div>
             </div>
             {adminMessages.length > 0 && (
@@ -20593,11 +20593,10 @@ function App() {
           </div>
         )}
 
-        {/* Botón secundario: más opciones de contacto */}
-        {!hasUnreadAdminMessages && (
-          <div
+        {/* Botón secundario: accesos indispensables: WhatsApp, Facebook, Canal y Donativo */}
+        <div
             onClick={() => { setSupportExpanded(!supportExpanded); setShowQRPanel(null); }}
-            title="Más opciones"
+            title="WhatsApp, Facebook, Canal y Donativo"
             style={{
               position:"absolute",
               right:"68px",
@@ -20617,9 +20616,8 @@ function App() {
               fontWeight:900
             }}
           >
-            {supportExpanded ? "×" : "⋯"}
+            {supportExpanded ? "×" : "☰"}
           </div>
-        )}
 
         {/* Etiqueta visible del asistente principal */}
         {!hasUnreadAdminMessages && showQRPanel !== "gemini" && (
@@ -20643,13 +20641,13 @@ function App() {
               userSelect:"none"
             }}
           >
-            ✨ AI Gemini
+            ✨ AI ConectMzo
           </div>
         )}
 
-        {/* Botón principal FAB: AI Gemini */}
+        {/* Botón principal FAB: AI ConectMzo */}
         <div
-          title="Abrir AI Gemini"
+          title="Abrir AI ConectMzo"
           onClick={() => {
             if (hasUnreadAdminMessages) {
               setSupportExpanded(false);
@@ -20726,7 +20724,7 @@ function App() {
             <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", paddingBottom:"10px", borderBottom:"1px solid rgba(255,255,255,.1)" }}>
               <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"21px" }}>✨</div>
               <div style={{ flex:1 }}>
-                <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI Gemini</div>
+                <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI ConectMzo</div>
                 <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Asistente principal de Conect Manzanillo</div>
               </div>
               <button onClick={()=>setShowQRPanel(null)} style={{ width:"26px", height:"26px", borderRadius:"50%", border:"none", background:"rgba(255,255,255,.1)", color:"#fff", cursor:"pointer" }}>×</button>
@@ -20748,7 +20746,7 @@ function App() {
                   whiteSpace:"pre-wrap"
                 }}>{m.content}</div>
               ))}
-              {geminiLoading && <div style={{ color:"rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>Gemini está escribiendo…</div>}
+              {geminiLoading && <div style={{ color:"rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>AI ConectMzo está escribiendo…</div>}
             </div>
 
             {geminiError && (
