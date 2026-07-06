@@ -12358,6 +12358,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [preview, setPreview] = useState(null);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [fechaFinModo, setFechaFinModo] = useState("fecha"); // "fecha" | "fecha_hora"
+  const [fechaFinHora, setFechaFinHora] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
@@ -12369,6 +12371,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0, 10);
   };
+
+  const localDateTimeInput = (offsetDays = 0, hhmm = "23:59") => `${localDateInput(offsetDays)}T${hhmm}`;
 
   const ensureFechaInicio = () => {
     if (!fechaInicio) setFechaInicio(localDateInput(0));
@@ -12417,7 +12421,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setTitulo(tpl.titulo);
     setDetalle(tpl.detalle);
     setFechaInicio(inicio);
-    setFechaFin(localDateInput(tpl.duracionDias || 7));
+    const finPlantilla = localDateInput(tpl.duracionDias || 7);
+    setFechaFin(finPlantilla);
+    setFechaFinModo("fecha");
+    setFechaFinHora(`${finPlantilla}T23:59`);
     setError("");
   };
 
@@ -12462,10 +12469,25 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       return;
     }
 
-    // Vigencia por fecha completa, sin hora visible para el usuario.
-    // Inicio: 00:00:00 del día seleccionado. Fin: 23:59:59 del día seleccionado.
+    if (fechaFinModo === "fecha_hora" && !fechaFinHora) {
+      setError("Especifica la fecha y hora de término");
+      return;
+    }
+
+    // Vigencia flexible:
+    // Inicio: 00:00:00 del día seleccionado.
+    // Fin modalidad "solo fecha": 23:59:59 del día seleccionado.
+    // Fin modalidad "fecha y hora": hora exacta seleccionada por el usuario.
     const inicioDate = new Date(`${fechaInicio}T00:00:00`);
-    const finDate = new Date(`${fechaFin}T23:59:59.999`);
+    const finDate = fechaFinModo === "fecha_hora"
+      ? new Date(fechaFinHora)
+      : new Date(`${fechaFin}T23:59:59.999`);
+
+    if (isNaN(inicioDate.getTime()) || isNaN(finDate.getTime())) {
+      setError("Las fechas ingresadas no son válidas");
+      return;
+    }
+
     const inicio = inicioDate.toISOString();
     const fin = finDate.toISOString();
 
@@ -12509,6 +12531,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setPreview(null);
       setFechaInicio("");
       setFechaFin("");
+      setFechaFinModo("fecha");
+      setFechaFinHora("");
       if (inputRef.current) inputRef.current.value = "";
       setTimeout(() => setExito(false), 3000);
       if (onSubido) onSubido();
@@ -12585,17 +12609,50 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         </div>
         <div>
           <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA FIN *</div>
-          <input
-            type="date"
-            value={fechaFin}
-            min={fechaInicio || undefined}
-            onChange={(e) => setFechaFin(e.target.value)}
-            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
-          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px", marginBottom: "6px" }}>
+            <button
+              type="button"
+              onClick={() => setFechaFinModo("fecha")}
+              style={{ padding: "7px 6px", borderRadius: "8px", border: `1px solid ${fechaFinModo === "fecha" ? "#22c55e" : "#1e3a5f"}`, background: fechaFinModo === "fecha" ? "rgba(34,197,94,0.14)" : "#060e1a", color: fechaFinModo === "fecha" ? "#22c55e" : "rgba(226,232,240,0.55)", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: "pointer" }}
+            >Solo fecha</button>
+            <button
+              type="button"
+              onClick={() => {
+                const base = fechaFin || localDateInput(7);
+                setFechaFin(base);
+                setFechaFinHora(fechaFinHora || `${base}T23:59`);
+                setFechaFinModo("fecha_hora");
+              }}
+              style={{ padding: "7px 6px", borderRadius: "8px", border: `1px solid ${fechaFinModo === "fecha_hora" ? "#38bdf8" : "#1e3a5f"}`, background: fechaFinModo === "fecha_hora" ? "rgba(56,189,248,0.14)" : "#060e1a", color: fechaFinModo === "fecha_hora" ? "#7dd3fc" : "rgba(226,232,240,0.55)", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: "pointer" }}
+            >Fecha y hora</button>
+          </div>
+          {fechaFinModo === "fecha_hora" ? (
+            <input
+              type="datetime-local"
+              value={fechaFinHora}
+              min={fechaInicio ? `${fechaInicio}T00:00` : undefined}
+              onChange={(e) => {
+                setFechaFinHora(e.target.value);
+                if (e.target.value) setFechaFin(e.target.value.slice(0, 10));
+              }}
+              style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+            />
+          ) : (
+            <input
+              type="date"
+              value={fechaFin}
+              min={fechaInicio || undefined}
+              onChange={(e) => {
+                setFechaFin(e.target.value);
+                if (fechaFinHora) setFechaFinHora(`${e.target.value}T${fechaFinHora.slice(11, 16) || "23:59"}`);
+              }}
+              style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+            />
+          )}
         </div>
       </div>
       <div style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", padding: "8px 10px", marginBottom: "10px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(226,232,240,0.48)", lineHeight: "1.5" }}>
-        La fecha de inicio se llena automáticamente con el día actual al escribir el título. El comunicado permanecerá vigente hasta finalizar la fecha fin seleccionada.
+        La fecha de inicio se llena automáticamente con el día actual al escribir el título. En "Solo fecha", el comunicado permanece vigente hasta terminar el día seleccionado; en "Fecha y hora", finaliza exactamente en la hora indicada.
       </div>
 
       {/* Zona de archivo */}
@@ -14350,6 +14407,7 @@ const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
 const PIS_ASIPONA_MAIN_PHONE = "314 3311 400";
 const PIS_ASIPONA_EXTENSION = "71385";
 const PIS_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
+const PIS_CONTACT_UNLOCKED_KEY = "cm_pis_contact_unlocked";
 
 function StarRating({ value=0, onRate=null, small=false }) {
   const theme = React.useContext(ThemeContext);
@@ -14384,13 +14442,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisCopiedField, setPisCopiedField] = useState("");
   const [pisContactMessage, setPisContactMessage] = useState("");
-  const [pisContactUnlocked, setPisContactUnlocked] = useState(false);
+  const [pisContactUnlocked, setPisContactUnlocked] = useState(() => {
+    try { return localStorage.getItem(PIS_CONTACT_UNLOCKED_KEY) === "1"; } catch { return false; }
+  });
   const [pisUnlockRequested, setPisUnlockRequested] = useState(false);
   const [pisUnlockSeconds, setPisUnlockSeconds] = useState(0);
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
   const PAGE_SIZE = 8;
+
+  const hasPisContactUnlock = useCallback(() => {
+    try { return localStorage.getItem(PIS_CONTACT_UNLOCKED_KEY) === "1"; } catch { return false; }
+  }, []);
+
+  const markPisContactUnlocked = useCallback(() => {
+    try { localStorage.setItem(PIS_CONTACT_UNLOCKED_KEY, "1"); } catch {}
+    setPisContactUnlocked(true);
+    setPisUnlockRequested(false);
+    setPisUnlockSeconds(0);
+  }, []);
 
   const emptyTrab = { nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local", telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true };
   const emptyEmp = { razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local" };
@@ -14439,12 +14510,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       setPisContactMessage("");
       setPisEmailCopied(false);
       setPisCopiedField("");
-      setPisContactUnlocked(false);
+      setPisContactUnlocked(hasPisContactUnlock());
       setPisUnlockRequested(false);
       setPisUnlockSeconds(0);
     }, 120000);
     return () => clearTimeout(resetTimer);
-  }, [pisResult?.checked_at, pisResult?.status]);
+  }, [pisResult?.checked_at, pisResult?.status, hasPisContactUnlock]);
 
   useEffect(() => {
     if (!pisResult || !pisUnlockRequested || pisContactUnlocked) return undefined;
@@ -14454,19 +14525,18 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       const remaining = Math.max(0, 30 - Math.floor((Date.now() - unlockStartedAt) / 1000));
       setPisUnlockSeconds(remaining);
       if (remaining <= 0) {
-        setPisContactUnlocked(true);
+        markPisContactUnlocked();
         clearInterval(interval);
       }
     }, 500);
     const unlockTimer = setTimeout(() => {
-      setPisContactUnlocked(true);
-      setPisUnlockSeconds(0);
+      markPisContactUnlocked();
     }, 30000);
     return () => {
       clearInterval(interval);
       clearTimeout(unlockTimer);
     };
-  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked]);
+  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
   const requireLogin = () => { setMsg({ type:"err", text:"Para guardar y editar tu perfil, primero crea o inicia sesión en Más info." }); return false; };
@@ -14689,6 +14759,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
     setPisLoading(true);
     setPisResult(null);
+    const contactAlreadyUnlocked = hasPisContactUnlock();
 
     const payload = {
       asipona: String(pisForm.asipona || "").trim().toUpperCase(),
@@ -14719,6 +14790,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           query:payload,
           checked_at:new Date().toISOString(),
         };
+        setPisContactUnlocked(contactAlreadyUnlocked);
+        setPisUnlockRequested(false);
+        setPisUnlockSeconds(0);
         setPisResult(fallback);
         setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
         return;
@@ -14735,7 +14809,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         checked_at: new Date().toISOString(),
       };
 
-      setPisContactUnlocked(false);
+      setPisContactUnlocked(contactAlreadyUnlocked);
       setPisUnlockRequested(false);
       setPisUnlockSeconds(0);
       setPisResult(normalized);
@@ -14752,7 +14826,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         query:payload,
         checked_at:new Date().toISOString(),
       };
-      setPisContactUnlocked(false);
+      setPisContactUnlocked(contactAlreadyUnlocked);
       setPisUnlockRequested(false);
       setPisUnlockSeconds(0);
       setPisResult(fallback);
@@ -14811,7 +14885,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
         <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", minWidth:0 }}>
           <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"min(100%, 180px)", flex:"1 1 180px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(false); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
+          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
           <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center", justifyContent:"center", flex:"1 1 150px" }}>Abrir PIS oficial</a>
         </div>
 
@@ -14823,9 +14897,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", color:"rgba(255,255,255,.78)", lineHeight:1.55, overflowWrap:"break-word" }}>{pisResult.message}</div>
             {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
             <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
-              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
-                Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar.
-              </div>
+              {!pisContactUnlocked && (
+                <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
+                  Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar.
+                </div>
+              )}
 
               {!pisUnlockRequested && !pisContactUnlocked && (
                 <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"10px" }}>
