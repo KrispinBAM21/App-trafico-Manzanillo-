@@ -12016,7 +12016,7 @@ function CarrilesTab() {
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
 // ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
-function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNavigate = null }) {
+function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNavigate = null, onDownload = null, downloading = false }) {
   const theme = React.useContext(ThemeContext);
   const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
   const canNavigate = Array.isArray(items) && items.length > 1 && typeof onNavigate === "function";
@@ -12079,9 +12079,15 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
           <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding:"8px 16px", background:"#38bdf822", border:"1px solid #38bdf855", borderRadius:"8px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
             Enlace Abrir en nueva pestaña
           </a>
-          <a href={item.archivo_url} download style={{ padding:"8px 16px", background:"#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
-            ⬇️ Descargar
-          </a>
+          {onDownload ? (
+            <button onClick={() => onDownload(item)} disabled={downloading} style={{ padding:"8px 16px", background: downloading ? "rgba(100,116,139,.18)" : "#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color: downloading ? "#94a3b8" : "#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px", cursor: downloading ? "not-allowed" : "pointer" }}>
+              {downloading ? "Preparando descarga…" : "⬇️ Descargar con marca de agua"}
+            </button>
+          ) : (
+            <a href={item.archivo_url} download style={{ padding:"8px 16px", background:"#22c55e22", border:"1px solid #22c55e55", borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", textDecoration:"none", display:"flex", alignItems:"center", gap:"6px" }}>
+              ⬇️ Descargar
+            </a>
+          )}
         </div>
       </div>
       <div style={{ marginTop:"12px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.25)", textAlign:"center" }}>
@@ -12317,7 +12323,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 }
 
 // ─── SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ──────────────────────
-function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, timeAgo, isPdf }) {
+function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDownloadItem, downloadingItemUrl, timeAgo, isPdf }) {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
@@ -12616,7 +12622,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, time
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                       <button onClick={abrirComunicadoActivo} style={{ padding: "9px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>Pantalla completa</button>
                       <a href={comunicadoActivo.archivo_url} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Abrir</a>
-                      <a href={comunicadoActivo.archivo_url} download style={{ padding: "9px 12px", background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Descargar</a>
+                      {onDownloadItem ? (<button onClick={() => onDownloadItem(comunicadoActivo)} disabled={downloadingItemUrl === comunicadoActivo.archivo_url} style={{ padding: "9px 12px", background: downloadingItemUrl === comunicadoActivo.archivo_url ? "rgba(100,116,139,.18)" : "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: downloadingItemUrl === comunicadoActivo.archivo_url ? "#94a3b8" : "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: downloadingItemUrl === comunicadoActivo.archivo_url ? "not-allowed" : "pointer" }}>{downloadingItemUrl === comunicadoActivo.archivo_url ? "Preparando descarga…" : "Descargar con marca de agua"}</button>) : (<a href={comunicadoActivo.archivo_url} download style={{ padding: "9px 12px", background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Descargar</a>)}
                     </div>
                   </div>
 
@@ -13284,6 +13290,7 @@ function NoticiasTab({ isAdmin }) {
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
   const [visorIndex,    setVisorIndex]    = useState(0);
+  const [downloadingItemUrl, setDownloadingItemUrl] = useState("");
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
 
   const isComunicadoAprobado = (value) =>
@@ -13375,13 +13382,165 @@ function NoticiasTab({ isAdmin }) {
     setVisorItem(list[index || 0] || item || null);
   }, []);
 
+  const loadJsPdf = useCallback(() => new Promise((resolve, reject) => {
+    if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
+    const existing = document.querySelector('script[src*="jspdf.umd.min.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.jspdf.jsPDF));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf.jsPDF);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  }), []);
+
+  const loadPdfJs = useCallback(() => new Promise((resolve, reject) => {
+    const finish = () => {
+      if (!window.pdfjsLib) return reject(new Error("PDF.js no disponible"));
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.mjs";
+      } catch {}
+      resolve(window.pdfjsLib);
+    };
+    if (window.pdfjsLib) return finish();
+    const existing = document.querySelector('script[src*="pdf.min.mjs"], script[src*="pdf.min.js"]');
+    if (existing) {
+      existing.addEventListener("load", finish);
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.mjs";
+    script.onload = finish;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  }), []);
+
+  const loadImageWithCors = useCallback((src) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  }), []);
+
+  const fileBaseName = useCallback((item, fallbackExt = "jpg") => {
+    const raw = String(item?.titulo || item?.detalle || "archivo").toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "archivo";
+    return `${raw}-con-marca-de-agua.${fallbackExt}`;
+  }, []);
+
+  const triggerBlobDownload = useCallback((blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }, []);
+
+  const paintReportWatermark = useCallback(async (ctx, width, height) => {
+    const wm = await loadImageWithCors(CM_REPORT_WATERMARK);
+    const ratio = wm.height / wm.width;
+    const wmW = Math.min(width * 0.62, 1300);
+    const wmH = wmW * ratio;
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.drawImage(wm, (width - wmW) / 2, (height - wmH) / 2, wmW, wmH);
+    ctx.restore();
+  }, [loadImageWithCors]);
+
+  const downloadNewsImageWithWatermark = useCallback(async (item) => {
+    const img = await loadImageWithCors(item.archivo_url);
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    await paintReportWatermark(ctx, canvas.width, canvas.height);
+    const isPng = /\.png(\?|$)/i.test(String(item.archivo_url || ""));
+    const mime = isPng ? "image/png" : "image/jpeg";
+    const ext = isPng ? "png" : "jpeg";
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, mime, 0.95));
+    if (!blob) throw new Error("No se pudo crear la imagen con marca de agua");
+    triggerBlobDownload(blob, fileBaseName(item, ext));
+  }, [fileBaseName, loadImageWithCors, paintReportWatermark, triggerBlobDownload]);
+
+  const downloadNewsPdfWithWatermark = useCallback(async (item) => {
+    const [pdfjsLib, jsPDF] = await Promise.all([loadPdfJs(), loadJsPdf()]);
+    const res = await fetch(item.archivo_url);
+    if (!res.ok) throw new Error("No se pudo descargar el PDF original");
+    const data = await res.arrayBuffer();
+    const sourcePdf = await pdfjsLib.getDocument({ data }).promise;
+    let doc = null;
+
+    for (let pageNo = 1; pageNo <= sourcePdf.numPages; pageNo++) {
+      const page = await sourcePdf.getPage(pageNo);
+      const viewport = page.getViewport({ scale: 2 });
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = Math.ceil(viewport.width);
+      pageCanvas.height = Math.ceil(viewport.height);
+      const pctx = pageCanvas.getContext("2d");
+      pctx.fillStyle = "#ffffff";
+      pctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      await page.render({ canvasContext: pctx, viewport }).promise;
+      await paintReportWatermark(pctx, pageCanvas.width, pageCanvas.height);
+      const orientation = viewport.width > viewport.height ? "landscape" : "portrait";
+      if (!doc) doc = new jsPDF({ orientation, unit: "mm", format: "letter" });
+      else doc.addPage("letter", orientation);
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 8;
+      const usableW = pageW - margin * 2;
+      const usableH = pageH - margin * 2;
+      const imgRatio = pageCanvas.height / pageCanvas.width;
+      let renderW = usableW;
+      let renderH = renderW * imgRatio;
+      if (renderH > usableH) {
+        renderH = usableH;
+        renderW = renderH / imgRatio;
+      }
+      const dx = (pageW - renderW) / 2;
+      const dy = (pageH - renderH) / 2;
+      const imgData = pageCanvas.toDataURL("image/jpeg", 0.95);
+      doc.addImage(imgData, "JPEG", dx, dy, renderW, renderH, undefined, "FAST");
+    }
+
+    const blob = doc.output("blob");
+    triggerBlobDownload(blob, fileBaseName(item, "pdf"));
+  }, [fileBaseName, loadJsPdf, loadPdfJs, paintReportWatermark, triggerBlobDownload]);
+
+  const downloadItemWithWatermark = useCallback(async (item) => {
+    if (!item?.archivo_url) return;
+    setDownloadingItemUrl(item.archivo_url);
+    try {
+      if (isPdf(item.archivo_url) || item?.archivo_tipo === "application/pdf") await downloadNewsPdfWithWatermark(item);
+      else await downloadNewsImageWithWatermark(item);
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo descargar el archivo con marca de agua. Verifica el origen del archivo y vuelve a intentarlo.");
+    } finally {
+      setDownloadingItemUrl("");
+    }
+  }, [downloadNewsImageWithWatermark, downloadNewsPdfWithWatermark, isPdf]);
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
       {visorItem && <VisorFullscreen item={visorItem} items={visorItems} currentIndex={visorIndex} onNavigate={(nextIndex) => {
         if (!visorItems[nextIndex]) return;
         setVisorIndex(nextIndex);
         setVisorItem(visorItems[nextIndex]);
-      }} onClose={() => {
+      }} onDownload={downloadItemWithWatermark} downloading={downloadingItemUrl === visorItem?.archivo_url} onClose={() => {
         setVisorItem(null);
         setVisorItems([]);
         setVisorIndex(0);
@@ -13436,7 +13595,7 @@ function NoticiasTab({ isAdmin }) {
                     {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
                       {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
                     </div>}
-                    {pdfs.length > 0 && <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>{pdfs.map((u,i)=><a key={u+i} href={u} target="_blank" rel="noreferrer" style={{ padding:"6px 9px", borderRadius:"8px", background:"rgba(37,99,235,.14)", border:"1px solid rgba(37,99,235,.35)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textDecoration:"none", fontWeight:700 }}>Abrir PDF {i+1}</a>)}</div>}
+                    {pdfs.length > 0 && <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>{pdfs.map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"application/pdf" }, pdfs.map((pu)=>({ ...n, archivo_url:pu, archivo_tipo:"application/pdf" })), i)} style={{ padding:"6px 9px", borderRadius:"8px", background:"rgba(37,99,235,.14)", border:"1px solid rgba(37,99,235,.35)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textDecoration:"none", fontWeight:700, cursor:"pointer" }}>Ver PDF {i+1}</button>)}</div>}
                     <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap" }}>
                       <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
                       <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
@@ -13459,6 +13618,8 @@ function NoticiasTab({ isAdmin }) {
           comunicados={comunicados}
           onReload={cargarComunicados}
           setVisorItem={openVisor}
+          onDownloadItem={downloadItemWithWatermark}
+          downloadingItemUrl={downloadingItemUrl}
           timeAgo={timeAgo}
           isPdf={isPdf}
         />
