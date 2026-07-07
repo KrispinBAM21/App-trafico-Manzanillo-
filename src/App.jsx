@@ -457,11 +457,27 @@ const TERMINALS_SUR = [
   { id: "granelera",  name: "GRANELERA",  fullName: "Granelera" },
   { id: "asipona",    name: "ASIPONA",    fullName: "Recinto ASIPONA" },
 ];
+const TERMINAL_BRAND_COLORS = {
+  ssa: "#22c55e",
+  ocupa: "#facc15",
+  friman: "#facc15",
+  timsa: "#0ea5e9",
+  multimodal: "#ef4444",
+  contecon: "#f97316",
+  hazesa: "#f8fafc",
+  lajunta: "#111827",
+  cemex: "#9333ea",
+  granelera: "#64748b",
+  asipona: "#a16207",
+  general: "#94a3b8",
+};
+const getTerminalBrandColor = (id) => TERMINAL_BRAND_COLORS[id] || "#94a3b8";
+
 const TERMINAL_STATUS_OPTIONS = [
-  { id: "libre",            label: "Terminal Libre",   color: "#22c55e", icon: "check" },
-  { id: "llena",            label: "Terminal Llena",   color: "#ef4444", icon: "xmark" },
-  { id: "retorno_terminal", label: "Retorno Terminal", color: "#f97316", icon: "return-route" },
-  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#a855f7", icon: "anchor-port" },
+  { id: "libre",            label: "Terminal Libre",   color: "#14b8a6", icon: "✓" },
+  { id: "llena",            label: "Terminal Llena",   color: "#be123c", icon: "✗" },
+  { id: "retorno_terminal", label: "Retorno Terminal", color: "#b45309", icon: "↩" },
+  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#475569", icon: "⚓" },
 ];
 
 const INCIDENT_CATEGORIAS = [
@@ -1389,7 +1405,7 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
               <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
                 {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
                   <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 ))}
               </div>
@@ -2104,22 +2120,23 @@ const SEGUNDO_CARRILES_INGRESO = [
   { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
 ];
 const SEGUNDO_TRAFICO_OPTS = [
-  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "check" },
-  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "xmark" },
-  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "slow-traffic" },
-  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
+  { id: "libre",    label: "Libre",            color: "#14b8a6", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",    color: "#d97706", icon: "triangle-alert" },
+  { id: "saturado", label: "Saturado",         color: "#db2777", icon: "traffic-cone" },
+  { id: "detenido", label: "Tráfico Detenido", color: "#881337", icon: "circle-x" },
 ];
 const CARRIL_ESTADO_OPTS = [
-  { id: "libre",    label: "Libre",              color: "#22c55e", icon: "check" },
-  { id: "lento",    label: "Tráfico Lento",      color: "#f59e0b", icon: "slow-traffic" },
-  { id: "moderado", label: "Tráfico Moderado",   color: "#f97316", icon: "slow-traffic" },
-  { id: "saturado", label: "Saturado",           color: "#ef4444", icon: "xmark" },
-  { id: "bloqueo",  label: "Bloqueo",            color: "#dc2626", icon: "stop-sign" },
-  { id: "sin_uso",  label: "Sin uso",            color: "#6b7280", icon: "ban" },
+  { id: "libre",    label: "Libre",                    color: "#14b8a6", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",            color: "#d97706", icon: "triangle-alert" },
+  { id: "moderado", label: "Tráfico Moderado",         color: "#0891b2", icon: "gauge" },
+  { id: "saturado", label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
+  { id: "bloqueo",  label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
+  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
+  { id: "sin_uso",  label: "Sin operación",            color: "#71717a", icon: "ban" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
-const carrilEstadoIsSaturado = (estadoId) => ["saturado", "bloqueo"].includes(estadoId);
+const carrilEstadoIsSaturado = (estadoId) => ["saturado", "bloqueo", "cerrado"].includes(estadoId);
 const SEGUNDO_CONTENEDOR_OPTS = [
   { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
   { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
@@ -7758,7 +7775,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     carriles: true,
     confinados: true,
   });
-  const [remote, setRemote] = useState({ terminals: [], patios: [], carrilesExpo: null, segundo: null, confinada: null });
+  const [remote, setRemote] = useState({ terminals: [], patios: [], carrilesExpo: null, segundo: null, confinada: null, fases: null });
   const [loading, setLoading] = useState(false);
   const [busyPdf, setBusyPdf] = useState(false);
   const [toast, setToast] = useState(null);
@@ -7793,7 +7810,8 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       const carrilesExpo = (carrilesData || []).find(r => r.id === "expo_impo")?.data || null;
       const segundo = (carrilesData || []).find(r => r.id === "segundo_acceso")?.data || null;
       const confinada = (carrilesData || []).find(r => r.id === "confinada_acceso")?.data || null;
-      setRemote({ terminals: terminalsData || [], patios: patiosData || [], carrilesExpo, segundo, confinada });
+      const fases = (carrilesData || []).find(r => r.id === "trafico_mapa_votos")?.data || readStatusCache("carriles:trafico_mapa_votos") || null;
+      setRemote({ terminals: terminalsData || [], patios: patiosData || [], carrilesExpo, segundo, confinada, fases });
     } catch (e) {
       notify("No se pudo cargar todo el reporte", "#f97316");
     } finally {
@@ -7872,29 +7890,14 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     if (include.confinados) {
       const segundo = { ...mkSegundoIngreso(), ...(remote.segundo || {}) };
       const conf = { ...mkConfinadaState(), ...(remote.confinada || {}) };
-      const items = [];
-      ACCESOS_SEGUNDO.forEach(acc => acc.carriles.forEach(c => {
-        const st = segundo[c.id] || {};
-        const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
-        const flags = [];
-        if (st.retornos) flags.push("Con retornos");
-        if (st.expo) flags.push(`Expo ${st.expo}`);
-        if (st.impo) flags.push(`Impo ${st.impo}`);
-        const laneOpt = getCarrilEstadoOpt(st);
-        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
-      }));
-      CONFINADA_CARRILES.forEach(c => {
-        const st = conf[c.id] || {};
-        const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
-        const flags = [];
-        if (st.retornos) flags.push("Con retornos");
-        if (st.transferencia) flags.push("Transferencia");
-        if (st.expo) flags.push(`Expo ${st.expo}`);
-        if (st.impo) flags.push(`Impo ${st.impo}`);
-        const laneOpt = getCarrilEstadoOpt(st);
-        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
-      });
-      groups.push({ id: "confinados", title: "Confinados / 2° Acceso", items });
+      const terminalNameFn = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id || "General";
+      const laneRows = [
+        ...buildSegundoCarrilReportRows(segundo, terminalNameFn),
+        ...buildConfinadaCarrilReportRows(conf, terminalNameFn),
+        ...buildSegundoFasesReportRows(remote.fases),
+      ];
+      const items = laneRows.map(r => ({ tipo: "Confinado", nombre: r.name, zona: r.detail, estatus: r.status, detalle: r.detail, color: r.color }));
+      groups.push({ id: "confinados", title: "2° Acceso, confinada y fases", items });
     }
     return groups;
   }, [include, accesos, vialidades, rutasFiscales, remote]);
@@ -7904,43 +7907,17 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
 
   const loadJsPdf = () => new Promise((resolve, reject) => {
     if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
-
-    const scriptSelector = 'script[data-cm-jspdf="1"]';
-    const existing = document.querySelector(scriptSelector);
-    const finalize = () => {
-      if (window.jspdf?.jsPDF) resolve(window.jspdf.jsPDF);
-      else reject(new Error("jsPDF no quedó disponible en window.jspdf.jsPDF"));
-    };
-
+    const existing = document.querySelector('script[src*="jspdf.umd.min.js"]');
     if (existing) {
-      existing.addEventListener("load", finalize, { once: true });
-      existing.addEventListener("error", () => reject(new Error("No se pudo cargar jsPDF")), { once: true });
+      existing.addEventListener("load", () => resolve(window.jspdf.jsPDF));
+      existing.addEventListener("error", reject);
       return;
     }
-
-    const sources = [
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
-    ];
-
-    const tryLoad = (index = 0) => {
-      if (index >= sources.length) {
-        reject(new Error("No fue posible cargar jsPDF desde CDN"));
-        return;
-      }
-      const script = document.createElement("script");
-      script.dataset.cmJspdf = "1";
-      script.src = sources[index];
-      script.async = true;
-      script.onload = finalize;
-      script.onerror = () => {
-        try { script.remove(); } catch {}
-        tryLoad(index + 1);
-      };
-      document.head.appendChild(script);
-    };
-
-    tryLoad(0);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf.jsPDF);
+    script.onerror = reject;
+    document.head.appendChild(script);
   });
 
   const drawWatermark = (doc) => {
@@ -8309,7 +8286,7 @@ function MapaAccesos({ accesos }) {
         {ACCESO_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display:"flex", alignItems:"center", gap:"5px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#e2e8f0" }}>
             <span style={{ width:"14px", height:"14px", borderRadius:"3px", background:o.color+"55", border:`2px solid ${o.color}`, display:"inline-block", boxShadow:`0 0 6px ${o.color}70` }} />
-            <IconText icon={o.icon} label={o.label} size={15} />
+            <span>{o.label}</span>
           </span>
         ))}
       </div>
@@ -8604,17 +8581,17 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 
   // Datos exactos del KML
   const KML_POINTS = [
-    { id:"contecon",   name:"Terminal Contecon",           color:"#f57c00", coords:[19.08418178396766,-104.3020765405659],  category:"terminal" },
-    { id:"hazesa",     name:"Terminal Hazesa",             color:"#424242", coords:[19.08389836997078,-104.295058165122],   category:"terminal" },
-    { id:"ssa",        name:"Terminal SSA",                color:"#388e3c", coords:[19.07463139813982,-104.2891322457856],  category:"terminal" },
+    { id:"contecon",   name:"Terminal Contecon",           color:TERMINAL_BRAND_COLORS.contecon, coords:[19.08418178396766,-104.3020765405659],  category:"terminal" },
+    { id:"hazesa",     name:"Terminal Hazesa",             color:TERMINAL_BRAND_COLORS.hazesa, coords:[19.08389836997078,-104.295058165122],   category:"terminal" },
+    { id:"ssa",        name:"Terminal SSA",                color:TERMINAL_BRAND_COLORS.ssa, coords:[19.07463139813982,-104.2891322457856],  category:"terminal" },
     { id:"zonanorte",  name:"Acceso Zona Norte",           color:"#ffee58", coords:[19.08656881040979,-104.2970097872907],  category:"acceso"   },
     { id:"granelera",  name:"Granelera",                   color:"#00796b", coords:[19.06434906950253,-104.2907952693104],  category:"terminal" },
-    { id:"lajunta",    name:"La Junta (TAP)",              color:"#5d4037", coords:[19.06322612268734,-104.2910153355142],  category:"terminal" },
-    { id:"timsa",      name:"Terminal TIMSA",              color:"#5c6bc0", coords:[19.06126633877015,-104.2909711781655],  category:"terminal" },
-    { id:"multimodal", name:"Terminal MULTIMODAL",         color:"#7b1fa2", coords:[19.05724964895184,-104.2942608658049],  category:"terminal" },
-    { id:"friman",     name:"Terminal FRIMAN",             color:"#ef5350", coords:[19.05698919310202,-104.2954019724908],  category:"terminal" },
-    { id:"ocupa",      name:"Terminal Multipropósito (OCUPA)", color:"#424242", coords:[19.05651848457071,-104.3003288440099], category:"terminal" },
-    { id:"cemex",      name:"Terminal CEMEX",              color:"#4def05", coords:[19.05780874594614,-104.2997456907227],  category:"terminal" },
+    { id:"lajunta",    name:"La Junta (TAP)",              color:TERMINAL_BRAND_COLORS.lajunta, coords:[19.06322612268734,-104.2910153355142],  category:"terminal" },
+    { id:"timsa",      name:"Terminal TIMSA",              color:TERMINAL_BRAND_COLORS.timsa, coords:[19.06126633877015,-104.2909711781655],  category:"terminal" },
+    { id:"multimodal", name:"Terminal MULTIMODAL",         color:TERMINAL_BRAND_COLORS.multimodal, coords:[19.05724964895184,-104.2942608658049],  category:"terminal" },
+    { id:"friman",     name:"Terminal FRIMAN",             color:TERMINAL_BRAND_COLORS.friman, coords:[19.05698919310202,-104.2954019724908],  category:"terminal" },
+    { id:"ocupa",      name:"Terminal Multipropósito (OCUPA)", color:TERMINAL_BRAND_COLORS.ocupa, coords:[19.05651848457071,-104.3003288440099], category:"terminal" },
+    { id:"cemex",      name:"Terminal CEMEX",              color:TERMINAL_BRAND_COLORS.cemex, coords:[19.05780874594614,-104.2997456907227],  category:"terminal" },
     { id:"asipona",    name:"Recinto ASIPONA",             color:"#e8ef05", coords:[19.05604853655314,-104.3034885062604],  category:"terminal" },
     { id:"pezvela",    name:"Acceso Pez Vela",             color:"#e806eb", coords:[19.07634709752751,-104.2873039903065],  category:"acceso"   },
     { id:"puerta15",   name:"Acceso Puerta 15",            color:"#eb0671", coords:[19.07789046237833,-104.2884816132865],  category:"acceso"   },
@@ -10760,7 +10737,7 @@ function MapaTerminales({ zona, stMap }) {
         {TERMINAL_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
             <span style={{ width: "14px", height: "14px", borderRadius: "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
-            <IconText icon={o.icon} label={o.label} size={15} />
+            <span>{o.label}</span>
           </span>
         ))}
       </div>
@@ -10972,8 +10949,7 @@ function TerminalesTab({ myId }) {
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
         {TERMINAL_STATUS_OPTIONS.map(o => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>{o.label}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
           </div>
         ))}
       </div>
@@ -11001,7 +10977,7 @@ function TerminalesTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 );
               })}
@@ -11131,10 +11107,15 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:   { color: "#22c55e", label: "Fluido",   icon: "green-dot", bg: "#dcfce7", text: "#15803d" },
-  moderado: { color: "#f97316", label: "Moderado", icon: "orange-dot", bg: "#ffedd5", text: "#c2410c" },
-  detenido: { color: "#ef4444", label: "Detenido", icon: "red-dot", bg: "#fee2e2", text: "#b91c1c" },
-  sinuso:   { color: "#a855f7", label: "Sin Uso",  icon: "purple-dot", bg: "#f3e8ff", text: "#7e22ce" },
+  fluido:           { color: "#0f766e", label: "Flujo normal",      icon: "circle-check",   bg: "rgba(15,118,110,0.18)", text: "#5eead4" },
+  moderado:         { color: "#0891b2", label: "Carga moderada",    icon: "gauge",          bg: "rgba(8,145,178,0.18)", text: "#67e8f9" },
+  detenido:         { color: "#db2777", label: "Paso detenido",     icon: "circle-x",       bg: "rgba(219,39,119,0.18)", text: "#f9a8d4" },
+  cierre:           { color: "#881337", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(136,19,55,0.22)", text: "#fda4af" },
+  retorno_fila:     { color: "#d97706", label: "Retorno por fila",  icon: "corner-up-left", bg: "rgba(217,119,6,0.18)", text: "#fcd34d" },
+  retorno_terminal: { color: "#475569", label: "Retorno terminal",  icon: "warehouse",      bg: "rgba(71,85,105,0.22)", text: "#cbd5e1" },
+  retorno_aduana:   { color: "#4c1d95", label: "Retorno aduana",    icon: "badge-check",    bg: "rgba(76,29,149,0.22)", text: "#c4b5fd" },
+  // Compatibilidad con registros antiguos. Ya no se muestra como opción.
+  sinuso:           { color: "#881337", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(136,19,55,0.22)", text: "#fda4af" },
 };
 
 const TRAFICO_MAP_STYLES = {
@@ -11146,9 +11127,9 @@ const TRAFICO_MAP_STYLES = {
 const toLLC = (coords) => coords.map(([lng, lat]) => [lat, lng]);
 
 const VOTOS_DEFAULT = {
-  1: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  2: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  3: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+  1: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
+  2: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
+  3: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
 };
 
 const USER_VOTES_DEFAULT = { 1: {}, 2: {}, 3: {} };
@@ -11175,6 +11156,69 @@ const normalizarVotosFases = (raw) => {
     userVotes: { ...USER_VOTES_DEFAULT },
     counts: { ...VOTOS_DEFAULT, ...(raw || {}) },
   };
+};
+
+
+const SEGUNDO_REPORTE_CARRILES = [
+  { id: "c1", label: "Carril 1", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c2", label: "Carril 2", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c3", label: "Carril 3", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c4", label: "Carril 4", tipo: "Salida",  zona: "2° Acceso", defaultTerminal: "general" },
+];
+
+const describeTrafficValue = (value, prefix) => {
+  if (!value || value === "libre") return "";
+  const opt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === value);
+  return `${prefix}: ${opt?.label || value}`;
+};
+
+const buildSegundoCarrilReportRows = (segundoState = {}, terminalNameFn = (id) => id || "General") =>
+  SEGUNDO_REPORTE_CARRILES.map(c => {
+    const st = segundoState?.[c.id] || {};
+    const laneOpt = getCarrilEstadoOpt(st);
+    const terminal = terminalNameFn(st.terminal || c.defaultTerminal || "general");
+    const detail = [
+      `Terminal: ${terminal}`,
+      `Zona: ${c.zona}`,
+      `Tipo: ${c.tipo}`,
+      st.retornos ? "Retornos activos" : "",
+      describeTrafficValue(st.expo, "Expo"),
+      describeTrafficValue(st.impo, "Impo"),
+    ].filter(Boolean).join(" · ");
+    return { name: `2° Acceso · ${c.label}`, status: laneOpt.label, detail, color: laneOpt.color };
+  });
+
+const buildConfinadaCarrilReportRows = (confinadaState = {}, terminalNameFn = (id) => id || "General") =>
+  CONFINADA_CARRILES.map(c => {
+    const st = confinadaState?.[c.id] || {};
+    const laneOpt = getCarrilEstadoOpt(st);
+    const terminal = terminalNameFn(st.terminal || c.defaultTerminal || "general");
+    const detail = [
+      `Terminal: ${terminal}`,
+      "Zona: Confinada",
+      st.transferencia ? "Transferencia" : "",
+      st.retornos ? "Retornos activos" : "",
+      describeTrafficValue(st.expo, "Expo"),
+      describeTrafficValue(st.impo, "Impo"),
+    ].filter(Boolean).join(" · ");
+    return { name: `Confinada · ${c.label}`, status: laneOpt.label, detail, color: laneOpt.color };
+  });
+
+const buildSegundoFasesReportRows = (rawFases = null) => {
+  const { counts } = normalizarVotosFases(rawFases || {});
+  const calcStatus = (votes) => {
+    const safe = votes || {};
+    const total = Object.values(safe).reduce((s, n) => s + (Number(n) || 0), 0);
+    if (total === 0) return "fluido";
+    const prioridad = ["cierre", "sinuso", "retorno_aduana", "retorno_terminal", "retorno_fila", "detenido", "moderado", "fluido"];
+    for (const key of prioridad) if ((safe[key] || 0) > 0) return key === "sinuso" ? "cierre" : key;
+    return "fluido";
+  };
+  return Object.entries(TRAFICO_FASES).map(([id, fase]) => {
+    const statusId = calcStatus(counts?.[id]);
+    const opt = TRAFICO_STATUS[statusId] || TRAFICO_STATUS.fluido;
+    return { name: `Segundo acceso por fases · ${fase.nombre}`, status: opt.label, detail: fase.descripcion, color: opt.color };
+  });
 };
 
 const paqueteVotosFases = (userVotes) => ({
@@ -11221,12 +11265,16 @@ function TrafficMapSegundo({ theme, myId }) {
 
   // ── Calcular status dominante ──────────────────────────────────────────────
   const calcStatus = (votes) => {
-    // "Sin Uso" toma prioridad si tiene al menos un voto
-    if ((votes.sinuso || 0) > 0) return "sinuso";
-    const entries = Object.entries(votes).filter(([k]) => k !== "sinuso");
-    const total = entries.reduce((s, [, n]) => s + n, 0);
+    const safe = votes || {};
+    const total = Object.values(safe).reduce((s, n) => s + (Number(n) || 0), 0);
     if (total === 0) return "fluido";
-    return entries.reduce((best, [k, n]) => (n > best[1] ? [k, n] : best), ["fluido", -1])[0];
+
+    // Para reportes operativos, los estados críticos tienen prioridad visual.
+    const prioridad = ["cierre", "sinuso", "retorno_aduana", "retorno_terminal", "retorno_fila", "detenido", "moderado", "fluido"];
+    for (const key of prioridad) {
+      if ((safe[key] || 0) > 0) return key === "sinuso" ? "cierre" : key;
+    }
+    return "fluido";
   };
 
   const recalcAllStatus = (v) => ({
@@ -11321,7 +11369,9 @@ function TrafficMapSegundo({ theme, myId }) {
     const now = new Date();
     setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
 
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: paqueteVotosFases(nextUserVotes) });
+    const paquete = paqueteVotosFases(nextUserVotes);
+    writeStatusCache(`carriles:${ROW_ID}`, paquete);
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: paquete });
   };
 
   const totalVotos = (fase) => Object.values(votos[fase] || {}).reduce((a, b) => a + b, 0);
@@ -11382,12 +11432,11 @@ function TrafficMapSegundo({ theme, myId }) {
 
               {/* Botones de voto */}
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 2 }}>
-                {["fluido","moderado","detenido","sinuso"].map((tipo) => {
+                {["fluido","moderado","detenido","cierre","retorno_fila","retorno_terminal","retorno_aduana"].map((tipo) => {
                   const tr = TRAFICO_STATUS[tipo];
                   const isActive = activeVote.fase === id && activeVote.tipo === tipo;
                   const miVoto = userVotes?.[String(id)]?.[myId] || userVotes?.[id]?.[myId];
                   const isMine = miVoto === tipo;
-                  const isSinUsoOn = tipo === "sinuso" && st === "sinuso";
                   return (
                     <button
                       key={tipo}
@@ -11396,7 +11445,7 @@ function TrafficMapSegundo({ theme, myId }) {
                       onMouseEnter={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = `${tr.color}20`; }}
                       onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
-                      <AppIcon name={tr.emoji} size={16} active={true} />
+                      <AppIcon name={tr.icon} size={16} active={true} />
                       <span>{tr.label}{st === tipo ? " · activo" : ""}</span>
                     </button>
                   );
@@ -11415,7 +11464,7 @@ function TrafficMapSegundo({ theme, myId }) {
       {/* Leyenda */}
       <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", fontSize: "11px", color: "#94a3b8", background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.1)" }}>
         <span style={{ fontWeight: 700, color: "#ffffff", fontFamily: getFont(theme,"secondary") }}>Leyenda:</span>
-        {Object.entries(TRAFICO_STATUS).map(([key, t]) => (
+        {Object.entries(TRAFICO_STATUS).filter(([key]) => key !== "sinuso").map(([key, t]) => (
           <span key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 24, height: 5, borderRadius: 4, background: t.color, display: "inline-block", boxShadow: `0 0 8px ${t.color}60` }} />
             <span style={{ color: "#e2e8f0", fontFamily: getFont(theme,"secondary") }}>{t.label}</span>
@@ -11711,7 +11760,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
                   onClick={(e) => chooseDraftByTap(o.id, e.currentTarget)}
                   style={{ scrollSnapAlign:"center", width:"100%", minHeight:"48px", margin:"4px 0", padding:"9px 14px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "14px" : "13px", fontWeight: active ? 900 : 650, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", transition:"all .14s" }}
                 >
-                  <IconText icon={o.icon} label={o.label} size={15} />
+                  <span>{o.label}</span>
                   {active && <span style={{ color:o.color, fontWeight:900 }}>✓</span>}
                 </button>
               );
@@ -11970,13 +12019,13 @@ function SegundoAccesoTab({ myId }) {
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
-    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
-    ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:"#38bdf8", icon:"port-terminal" })),
-    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+    { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
+    ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
   const terminalOptionsConfinada = [
-    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
-    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+    { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
 
   return (
@@ -12112,7 +12161,7 @@ function SegundoAccesoTab({ myId }) {
 
           {/* Leyenda */}
           <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#14b8a6","LIBRE"],["#f59e0b","LENTO"],["#f97316","MODERADO"],["#ef4444","SATURADO"],["#dc2626","BLOQUEO"],["#6b7280","SIN USO"]].map(([c,l]) => (
+            {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -12412,7 +12461,7 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -12433,7 +12482,7 @@ function SegundoAccesoTab({ myId }) {
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = isSinUso ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : laneOpt.id !== "libre" ? laneOpt.color : "#a78bfa";
+          const borderColor = isSinUso ? "#71717a" : st.transferencia ? "#d97706" : laneOpt.id !== "libre" ? laneOpt.color : getTerminalBrandColor(st.terminal || "general");
           const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
             <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
@@ -13784,7 +13833,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
-                      {comunicadoActivo.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.55)", lineHeight: "1.5", marginBottom: "6px" }}>{comunicadoActivo.detalle}</div>}
+                      {comunicadoActivo.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#93c5fd", fontWeight:800 }}>Ver descripción</summary><div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.62)", lineHeight: "1.45", marginTop:"6px", maxHeight:"120px", overflowY:"auto", overflowX:"hidden", whiteSpace:"pre-wrap", wordBreak:"normal", overflowWrap:"break-word" }}>{comunicadoActivo.detalle}</div></details>}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
@@ -14475,7 +14524,7 @@ function NoticiasAutoJpegReport() {
       sb.from("terminals").select("*"),
       sb.from("patios").select("*"),
       sb.from("carriles").select("*"),
-      sb.from(OPERATIONAL_STATUS_TABLE).select("*").in("section", ["accesos", "vialidades", "rutas_fiscales", "terminales", "terminals", "patios", "carriles", "segundo_acceso", "confinada"])
+      sb.from(OPERATIONAL_STATUS_TABLE).select("*").in("section", ["accesos", "vialidades", "rutas_fiscales", "terminales", "terminals", "patios", "carriles", "segundo_acceso", "confinada", "fases"])
     ]);
     const opRows = opStatusRes?.data || [];
     const accesosRemote = {};
@@ -14506,6 +14555,7 @@ function NoticiasAutoJpegReport() {
     const carrilesExpo = mergeCarrilesRowByLatest("expo_impo", mkCarrilesState(), carrilesRows.find(r => r.id === "expo_impo")?.data || {});
     const segundo = mergeCarrilesRowByLatest("segundo_acceso", mkSegundoIngreso(), carrilesRows.find(r => r.id === "segundo_acceso")?.data || {});
     const confinada = mergeCarrilesRowByLatest("confinada_acceso", mkConfinadaState(), carrilesRows.find(r => r.id === "confinada_acceso")?.data || {});
+    const fasesSegundo = carrilesRows.find(r => r.id === "trafico_mapa_votos")?.data || readStatusCache("carriles:trafico_mapa_votos") || null;
 
     return [
       { title:"Accesos", rows: ACCESOS_PRINCIPALES.map(a => {
@@ -14533,19 +14583,10 @@ function NoticiasAutoJpegReport() {
         const st = carrilesExpo[c.id] || { abierto:true };
         return { name:`${acc.label} · ${c.label}`, status:st.abierto === false ? "Cerrado" : "Abierto", detail:c.flujo || "", color:st.abierto === false ? "#ef4444" : "#22c55e" };
       }))},
-      { title:"2° Acceso y confinada", rows: [
-        ...ACCESOS_SEGUNDO.flatMap(acc => acc.carriles.map(c => {
-          const st = segundo[c.id] || {};
-          const flags = [terminalName(st.terminal), st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          const laneOpt = getCarrilEstadoOpt(st);
-          return { name:`${acc.label} · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
-        })),
-        ...CONFINADA_CARRILES.map(c => {
-          const st = confinada[c.id] || {};
-          const flags = [terminalName(st.terminal), st.transferencia ? "Transferencia" : "", st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          const laneOpt = getCarrilEstadoOpt(st);
-          return { name:`Confinada · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
-        })
+      { title:"2° Acceso, confinada y fases", rows: [
+        ...buildSegundoCarrilReportRows(segundo, terminalName),
+        ...buildConfinadaCarrilReportRows(confinada, terminalName),
+        ...buildSegundoFasesReportRows(fasesSegundo),
       ]}
     ];
   }, []);
@@ -14559,43 +14600,17 @@ function NoticiasAutoJpegReport() {
 
   const loadJsPdf = () => new Promise((resolve, reject) => {
     if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
-
-    const scriptSelector = 'script[data-cm-jspdf="1"]';
-    const existing = document.querySelector(scriptSelector);
-    const finalize = () => {
-      if (window.jspdf?.jsPDF) resolve(window.jspdf.jsPDF);
-      else reject(new Error("jsPDF no quedó disponible en window.jspdf.jsPDF"));
-    };
-
+    const existing = document.querySelector('script[src*="jspdf.umd.min.js"]');
     if (existing) {
-      existing.addEventListener("load", finalize, { once: true });
-      existing.addEventListener("error", () => reject(new Error("No se pudo cargar jsPDF")), { once: true });
+      existing.addEventListener("load", () => resolve(window.jspdf.jsPDF));
+      existing.addEventListener("error", reject);
       return;
     }
-
-    const sources = [
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
-    ];
-
-    const tryLoad = (index = 0) => {
-      if (index >= sources.length) {
-        reject(new Error("No fue posible cargar jsPDF desde CDN"));
-        return;
-      }
-      const script = document.createElement("script");
-      script.dataset.cmJspdf = "1";
-      script.src = sources[index];
-      script.async = true;
-      script.onload = finalize;
-      script.onerror = () => {
-        try { script.remove(); } catch {}
-        tryLoad(index + 1);
-      };
-      document.head.appendChild(script);
-    };
-
-    tryLoad(0);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf.jsPDF);
+    script.onerror = reject;
+    document.head.appendChild(script);
   });
 
   const drawCanvasWatermark = async (ctx, w, startY, areaH) => {
@@ -14871,72 +14886,107 @@ function NoticiasAutoJpegReport() {
     }
   }, [buildPreviewCanvas]);
 
-  const triggerBlobDownload = (blob, filename) => {
+  const downloadCanvasAsJpeg = async (canvas, now) => {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!blob) throw new Error("No se pudo crear el JPEG");
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = filename;
+    a.download = `reporte-operativo-conect-${now.toISOString().slice(0,10)}.jpeg`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
   };
 
-  const downloadCanvasAsJpeg = async (canvas, now) => {
-    const base = `reporte-operativo-conect-${now.toISOString().slice(0,10)}`;
-    const totalParts = 2;
-    const overlap = 40; // pequeño traslape para que no se corte texto en la unión
-    const naturalPartH = Math.ceil(canvas.height / totalParts);
-
-    for (let i = 0; i < totalParts; i++) {
-      const startY = Math.max(0, i * naturalPartH - (i > 0 ? overlap : 0));
-      const endY = Math.min(canvas.height, (i + 1) * naturalPartH + (i < totalParts - 1 ? overlap : 0));
-      const sliceH = endY - startY;
-      const partCanvas = document.createElement("canvas");
-      partCanvas.width = canvas.width;
-      partCanvas.height = sliceH;
-      const partCtx = partCanvas.getContext("2d");
-      partCtx.fillStyle = "#f3f4f6";
-      partCtx.fillRect(0, 0, partCanvas.width, partCanvas.height);
-      partCtx.drawImage(canvas, 0, startY, canvas.width, sliceH, 0, 0, partCanvas.width, sliceH);
-      const blob = await new Promise(resolve => partCanvas.toBlob(resolve, "image/jpeg", 0.94));
-      if (!blob) throw new Error(`No se pudo crear el JPEG ${i + 1}`);
-      triggerBlobDownload(blob, `${base}-parte-${i + 1}.jpeg`);
-      await new Promise(resolve => setTimeout(resolve, 180));
-    }
-  };
-
-  const downloadCanvasAsPdf = async (canvas, now) => {
+  const downloadCanvasAsPdf = async (canvas, now, groups = null) => {
     const jsPDF = await loadJsPdf();
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter", compress: true });
+    const reportGroups = groups || (await cargarSnapshot());
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 10;
-    const usableW = pageW - margin * 2;
-    const usableH = pageH - margin * 2;
-    const imgData = canvas.toDataURL("image/jpeg", 0.96);
+    const left = 16;
+    const right = pageW - 16;
+    const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
+    const totalItems = reportGroups.reduce((sum, g) => sum + g.rows.length, 0);
+    const selectedCount = reportGroups.length;
+    let y = 18;
 
-    const pxPerPage = Math.floor((usableH / usableW) * canvas.width);
-    let offsetY = 0;
-    let pageNo = 0;
+    const drawWatermark = () => {
+      try {
+        const size = 118;
+        doc.addImage(CM_REPORT_WATERMARK, "PNG", (pageW - size) / 2, (pageH - size) / 2 + 8, size, size, undefined, "FAST");
+      } catch {}
+    };
 
-    while (offsetY < canvas.height) {
-      const sliceH = Math.min(pxPerPage, canvas.height - offsetY);
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = sliceH;
-      const pageCtx = pageCanvas.getContext("2d");
-      pageCtx.fillStyle = "#f3f4f6";
-      pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageCtx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
-      const pageData = pageCanvas.toDataURL("image/jpeg", 0.96);
-      const imgH = usableW * (sliceH / canvas.width);
+    const addPageHeader = () => {
+      drawWatermark();
+      doc.setFillColor(3, 21, 47);
+      doc.rect(0, 0, pageW, 30, "F");
+      doc.setTextColor(255,255,255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text("Reporte operativo", left, 15);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(241, 245, 249);
+      doc.text("Conect Manzanillo", left, 22);
+      doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
+      doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
+      y = 42;
+    };
 
-      if (pageNo > 0) doc.addPage();
-      doc.addImage(pageData, "JPEG", margin, margin, usableW, imgH, undefined, "FAST");
-      pageNo += 1;
-      offsetY += sliceH;
-    }
+    const checkPage = (needed = 8) => {
+      if (y + needed > pageH - 15) {
+        doc.addPage();
+        addPageHeader();
+      }
+    };
+
+    addPageHeader();
+    const statusX = pageW - 48;
+
+    reportGroups.forEach((g) => {
+      checkPage(12);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.25);
+      doc.line(left, y, right, y);
+      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cleanPdfText(g.title), left, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.3);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${g.rows.length} registros`, right, y, { align:"right" });
+      y += 5;
+
+      g.rows.forEach((item) => {
+        const detail = cleanPdfText(item.detail || "");
+        const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
+        const rowHeight = detail ? 8.8 : 5.8;
+        checkPage(detail ? 10 : 7);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.2);
+        doc.setTextColor(15, 23, 42);
+        doc.text(cleanPdfText(item.name).slice(0, 84), left + 2, y);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(rgb.r, rgb.g, rgb.b);
+        doc.text(cleanPdfText(item.status).slice(0, 28), statusX, y);
+        if (detail) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.6);
+          doc.setTextColor(148, 163, 184);
+          doc.text(detail.slice(0, 98), left + 2, y + 3.4);
+        }
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.12);
+        doc.line(left + 2, y + rowHeight - 3.7, right, y + rowHeight - 3.7);
+        y += rowHeight;
+      });
+      y += 3;
+    });
 
     const pages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
@@ -14944,16 +14994,11 @@ function NoticiasAutoJpegReport() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Página ${i} de ${pages}`, pageW - margin, pageH - 4.5, { align: "right" });
-      doc.text(`Conect Manzanillo · ${now.toLocaleString("es-MX")}`, margin, pageH - 4.5);
+      doc.text(`Página ${i} de ${pages}`, right, pageH - 9, { align:"right" });
+      doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - 9);
     }
 
-    try {
-      doc.save(`reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
-    } catch (saveError) {
-      const blob = doc.output("blob");
-      triggerBlobDownload(blob, `reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
-    }
+    doc.save(`reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
   };
 
   const descargarReporte = async () => {
@@ -15508,7 +15553,7 @@ function NoticiasTab({ isAdmin }) {
                       <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px" }}>{n.titulo}</div>
                       {origen === "comunicados" && <Badge color="#2563eb" small>Origen: Comunicados</Badge>}
                     </div>
-                    {n.detalle && <div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.58)", fontSize:"11px", lineHeight:1.5, marginBottom:"8px" }}>{n.detalle}</div>}
+                    {n.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800 }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.62)", fontSize:"11px", lineHeight:1.45, marginTop:"6px", maxHeight:"130px", overflowY:"auto", overflowX:"hidden", wordBreak:"normal", overflowWrap:"break-word" }}>{n.detalle}</div></details>}
                     {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
                       {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
                     </div>}
@@ -17389,8 +17434,7 @@ function PatioReguladorTab({ myId }) {
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
         {PATIO_STATUS_OPTIONS.map(o => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>{o.label}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
           </div>
         ))}
       </div>
@@ -17421,7 +17465,7 @@ function PatioReguladorTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 );
               })}
@@ -20377,6 +20421,9 @@ function App() {
           .cm-adsense-wrap.cm-ad-loading{height:0!important;max-height:0!important;min-height:0!important;overflow:hidden!important;opacity:0!important;margin:0!important;padding:0!important;}
           .cm-adsense-wrap.cm-ad-hidden{display:none!important;}
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
+          .cm-compact-text{white-space:pre-wrap;word-break:normal;overflow-wrap:break-word;line-height:1.45;}
+          @media(max-width:640px){.cm-compact-text{max-height:120px;overflow-y:auto;}}
+
         `}</style>
 
         {/* Header */}
@@ -20565,7 +20612,7 @@ function App() {
           }}>
             <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
               <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
-              <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px" }}>✨</div>
+              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}><img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"42px", height:"42px", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="block"; }} /><span style={{ display:"none", fontSize:"24px" }}>✨</span></div>
             </div>
             {adminMessages.length > 0 && (
               <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
