@@ -13624,8 +13624,29 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setToolNotice(ok ? "Texto de la zona agregado en Descripción breve." : "No se detectó texto legible dentro de la zona seleccionada.", ok ? "#22c55e" : "#f97316");
   };
 
-  const solicitarTextoConIA = async () => {
+  const extraerRespuestaIA = (data) => {
+    if (!data) return "";
+    if (typeof data === "string") return data;
+    const directKeys = ["reply", "text", "message", "output", "content", "answer", "result", "response", "respuesta"];
+    for (const key of directKeys) {
+      const val = data?.[key];
+      if (typeof val === "string" && val.trim()) return val;
+      if (val && typeof val === "object") {
+        const nested = extraerRespuestaIA(val);
+        if (nested) return nested;
+      }
+    }
+    const candidateText = data?.candidates?.[0]?.content?.parts?.map(p => p?.text || "").join(" ");
+    if (candidateText?.trim()) return candidateText;
+    const choiceText = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text;
+    if (choiceText?.trim()) return choiceText;
+    return "";
+  };
+
+  const solicitarTextoConIA = async (requestedAction = aiAction) => {
     const inputText = detalle.trim();
+    const actionLabel = requestedAction === "crear" ? "crear" : "resumir";
+    setAiAction(actionLabel);
     if (!inputText) {
       setError("Escribe el texto o las especificaciones para usar la IA");
       return;
@@ -13634,34 +13655,32 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setError("");
     setAiOutput("");
     try {
-      const actionLabel = aiAction === "resumir" ? "resumir" : "crear";
-      const prompt = aiAction === "resumir"
-        ? `Resume el siguiente texto para un comunicado de Conect Manzanillo. Mantén un tono claro, formal y breve.\n\n${inputText}`
-        : `Crea un texto listo para comunicado de Conect Manzanillo a partir de estas especificaciones. Mantén un tono claro, formal y útil para usuarios del puerto.\n\n${inputText}`;
+      // CORRECCIÓN INTEGRACIÓN IA:
+      // La Edge Function gemini-chat ya se usa en el asistente principal con el contrato
+      // { message, history, section, isAdmin }. Aquí reutilizamos ese mismo contrato para
+      // evitar errores 5xx causados por payloads con campos no esperados por el backend.
+      const prompt = actionLabel === "resumir"
+        ? `Actúa como asistente de redacción de Conect Manzanillo. Resume el siguiente contenido para un comunicado operativo. Devuelve únicamente el texto final, claro, formal y breve:\n\n${inputText}`
+        : `Actúa como asistente de redacción de Conect Manzanillo. Crea un texto listo para comunicado operativo a partir de estas especificaciones. Devuelve únicamente el texto final, claro, formal y útil para usuarios del puerto:\n\n${inputText}`;
 
-      // INTEGRACIÓN IA SUPABASE:
-      // Se reutiliza la Edge Function existente gemini-chat, ya conectada al backend de IA.
-      // Se envía el texto capturado y la acción explícita seleccionada: resumir / crear.
       const { data, error } = await sb.functions.invoke("gemini-chat", {
         body: {
           message: prompt,
-          action: actionLabel,
-          input_text: inputText,
-          source: "comunicados_proponer",
+          history: [{ role: "user", content: prompt }],
           section: "comunicados",
-          history: [
-            { role: "user", content: prompt }
-          ]
+          isAdmin: !!isAdmin
         }
       });
       if (error) throw error;
-      const reply = data?.reply || data?.text || data?.message || data?.output || "";
-      if (!String(reply).trim()) throw new Error("La IA no devolvió texto");
+      const reply = extraerRespuestaIA(data);
+      if (!String(reply).trim()) throw new Error("La IA respondió, pero no se encontró texto en la respuesta");
       setAiOutput(String(reply).trim());
-      setToolNotice("Texto generado por IA listo para revisar.", "#22c55e");
+      setToolNotice(actionLabel === "resumir" ? "Resumen generado por IA listo para revisar." : "Texto creado por IA listo para revisar.", "#22c55e");
     } catch (e) {
       console.error("Error al solicitar asistencia IA para comunicados:", e);
-      setError("No se pudo generar el texto con IA. Revisa la Edge Function gemini-chat y la conexión de Supabase.");
+      const msg = e?.message || e?.context?.message || "No se pudo conectar con la función de IA";
+      setError(`No se pudo generar el texto con IA. Detalle: ${msg}`);
+      setToolNotice("La IA no devolvió resultado. Revisa logs de gemini-chat si aparece 5XX.", "#ef4444");
     } finally {
       setAiBusy(false);
     }
@@ -13905,11 +13924,11 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setAiAction(opt.id)}
-                disabled={aiBusy}
-                style={{ padding:"9px", borderRadius:"9px", border:`1px solid ${aiAction === opt.id ? "#a78bfa" : "rgba(148,163,184,.28)"}`, background: aiAction === opt.id ? "rgba(167,139,250,.20)" : "rgba(2,6,23,.42)", color: aiAction === opt.id ? "#d8b4fe" : "rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:aiBusy ? "not-allowed" : "pointer" }}
+                onClick={() => solicitarTextoConIA(opt.id)}
+                disabled={aiBusy || !detalle.trim()}
+                style={{ padding:"9px", borderRadius:"9px", border:`1px solid ${aiAction === opt.id ? "#a78bfa" : "rgba(148,163,184,.28)"}`, background: aiAction === opt.id ? "rgba(167,139,250,.20)" : "rgba(2,6,23,.42)", color: aiAction === opt.id ? "#d8b4fe" : "rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(aiBusy || !detalle.trim()) ? "not-allowed" : "pointer" }}
               >
-                {opt.label}
+                {aiBusy && aiAction === opt.id ? "Procesando…" : opt.label}
               </button>
             ))}
           </div>
