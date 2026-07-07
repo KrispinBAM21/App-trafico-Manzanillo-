@@ -2017,6 +2017,40 @@ const mkAccesos = () =>
     lastUpdate: Date.now(), updatedBy: "Sistema", pendingVoters: {},
   }]));
 
+
+// ─── Persistencia local de estatus operativo ─────────────────────────────────
+// Respaldo para evitar que un estatus se pierda al recargar si Supabase tarda,
+// falla por RLS, no tiene realtime activo o el upsert no se confirma.
+const STATUS_CACHE_PREFIX = "cm_status_cache_v3";
+const statusCacheKey = (scope) => `${STATUS_CACHE_PREFIX}:${scope}`;
+const readStatusCache = (scope) => {
+  try {
+    const raw = localStorage.getItem(statusCacheKey(scope));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch { return {}; }
+};
+const writeStatusCache = (scope, data) => {
+  try { localStorage.setItem(statusCacheKey(scope), JSON.stringify(data || {})); } catch {}
+};
+const persistStatusMap = (scope, data) => writeStatusCache(scope, data);
+const persistStatusEntry = (scope, id, entry) => {
+  const current = readStatusCache(scope);
+  writeStatusCache(scope, { ...current, [id]: entry });
+};
+const mergeStatusMapsByLatest = (scope, defaults = {}, remote = {}) => {
+  const cached = readStatusCache(scope);
+  const merged = { ...(defaults || {}), ...(remote || {}) };
+  Object.entries(cached || {}).forEach(([id, entry]) => {
+    const cachedTime = Number(entry?.lastUpdate || entry?.last_update || 0);
+    const remoteTime = Number(merged?.[id]?.lastUpdate || merged?.[id]?.last_update || 0);
+    if (!merged[id] || cachedTime >= remoteTime) merged[id] = entry;
+  });
+  return merged;
+};
+const persistCarrilesRow = (rowId, data) => writeStatusCache(`carriles:${rowId}`, data);
+const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
+
 const SEGUNDO_CARRILES_INGRESO = [
   { id: "c1", label: "Carril 1", defaultTerminal: "ssa"   },
   { id: "c2", label: "Carril 2", defaultTerminal: "timsa" },
@@ -7271,15 +7305,16 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   // ── Accesos ──
   useEffect(() => {
-    sb.from("accesos").select("*").then(async ({ data }) => {
+    sb.from("accesos").select("*").then(async ({ data, error }) => {
+      if (error) { setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {})); return; }
       if (!data || data.length === 0) {
         await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Sistema" })));
-        setAccesos(mkAccesos());
+        setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {}));
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setAccesos({ ...mkAccesos(), ...map });
+      setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), map));
     });
     const chan = sb.channel("accesos-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
@@ -7287,7 +7322,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           if (!data) return;
           const map = {};
           data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-          setAccesos(prev => ({ ...prev, ...map }));
+          setAccesos(prev => mergeStatusMapsByLatest("accesos", prev || mkAccesos(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
@@ -7295,15 +7330,16 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
 
   // ── Vialidades ──
   useEffect(() => {
-    sb.from("vialidades").select("*").then(async ({ data }) => {
+    sb.from("vialidades").select("*").then(async ({ data, error }) => {
+      if (error) { setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {})); return; }
       if (!data || data.length === 0) {
         await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
-        setVialidades(mkVialidades());
+        setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {}));
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setVialidades({ ...mkVialidades(), ...map });
+      setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), map));
     });
     const chan = sb.channel("vialidades-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
@@ -7311,7 +7347,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           if (!data) return;
           const map = {};
           data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-          setVialidades(prev => ({ ...prev, ...map }));
+          setVialidades(prev => mergeStatusMapsByLatest("vialidades", prev || mkVialidades(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
@@ -7320,15 +7356,15 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   // ── Rutas fiscales ──
   useEffect(() => {
     sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
-      if (error) { setRutasFiscales(mkRutasFiscales()); return; }
+      if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
       if (!data || data.length === 0) {
         await sb.from("rutas_fiscales").upsert(RUTAS_FISCALES.map(r => ({ id: r.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
-        setRutasFiscales(mkRutasFiscales());
+        setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {}));
         return;
       }
       const map = {};
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
-      setRutasFiscales({ ...mkRutasFiscales(), ...map });
+      setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
     });
     const chan = sb.channel("rutas-fiscales-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
@@ -7336,7 +7372,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           if (!data) return;
           const map = {};
           data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
-          setRutasFiscales(prev => ({ ...prev, ...map }));
+          setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
@@ -7348,7 +7384,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
-      setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
+      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setAccesos(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("accesos", id, entry);
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
@@ -7360,7 +7398,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
     const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
     // Optimistic update — refleja el cambio al instante
-    setAccesos(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
+    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setAccesos(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("accesos", id, entry);
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
@@ -7373,7 +7413,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
-      setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" } }));
+      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setVialidades(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("vialidades", id, entry);
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
       await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
@@ -7384,7 +7426,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const vName = VIALIDADES.find(x => x.id === id)?.name;
     const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
     // Optimistic update
-    setVialidades(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` } }));
+    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setVialidades(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("vialidades", id, entry);
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
@@ -7401,7 +7445,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     const actor = isAdmin ? "⚡ Admin" : `Usuario_${myId.slice(-4)}`;
     const rl = isAdmin ? { allowed:true } : rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
     if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
-    setRutasFiscales(prev => ({ ...prev, [id]: { ...prev[id], status: newStatus, lastUpdate: Date.now(), updatedBy: actor } }));
+    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    setRutasFiscales(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("rutas_fiscales", id, entry);
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
     await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
     notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
@@ -10752,11 +10798,16 @@ function TerminalesTab({ myId }) {
 
   useEffect(() => {
     const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    sb.from("terminals").select("*").then(async ({ data }) => {
+    sb.from("terminals").select("*").then(async ({ data, error }) => {
+      if (error) {
+        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
+        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
+        return;
+      }
       if (!data || data.length === 0) {
         await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
-        setStN(mkTerminals(TERMINALS_NORTE));
-        setStS(mkTerminals(TERMINALS_SUR));
+        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
+        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
         return;
       }
       const mapN = {}; const mapS = {};
@@ -10765,15 +10816,15 @@ function TerminalesTab({ myId }) {
         if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
         else mapS[r.id] = entry;
       });
-      setStN({ ...mkTerminals(TERMINALS_NORTE), ...mapN });
-      setStS({ ...mkTerminals(TERMINALS_SUR),   ...mapS });
+      setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), mapN));
+      setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), mapS));
     });
     const chan = sb.channel("terminals-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
         if (!r) return;
         const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => ({ ...prev, [r.id]: entry }));
-        else setStS(prev => ({ ...prev, [r.id]: entry }));
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_NORTE), { [r.id]: entry }));
+        else setStS(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_SUR), { [r.id]: entry }));
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
@@ -10802,7 +10853,9 @@ function TerminalesTab({ myId }) {
     const [statusGanador, votosGanador] = ganadora;
     // Optimistic update
     const setSt2 = zona === "norte" ? setStN : setStS;
-    setSt2(prev => ({ ...(prev || {}), [termId]: { ...(prev?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` } }));
+    const entry = { ...(stMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
+    setSt2(prev => ({ ...(prev || {}), [termId]: entry }));
+    persistStatusEntry("terminals", termId, entry);
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
@@ -10813,11 +10866,17 @@ function TerminalesTab({ myId }) {
 
   const resetAll = async () => {
     const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
     await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
     notify("✓ Todas las terminales marcadas como Libres", "#22c55e");
   };
 
   const resetOne = async (id) => {
+    const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
+    setSt(prev => ({ ...(prev || {}), [id]: entry }));
+    persistStatusEntry("terminals", id, entry);
     await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
     notify("✓ Terminal marcada como Libre", "#22c55e");
   };
@@ -11655,8 +11714,8 @@ function SegundoAccesoTab({ myId }) {
   const ROW_ID = "segundo_acceso";
   const ROW_ID_CF = "confinada_acceso";
 
-  const saveToSupa = async (newState) => { const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); return error; };
-  const saveConfinada = async (newState) => { await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); };
+  const saveToSupa = async (newState) => { persistCarrilesRow(ROW_ID, newState); const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); return error; };
+  const saveConfinada = async (newState) => { persistCarrilesRow(ROW_ID_CF, newState); const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); return error; };
 
   // ── Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
   const setPending = (key, on) => setPendingKeys(prev => {
@@ -11666,16 +11725,16 @@ function SegundoAccesoTab({ myId }) {
   });
 
   useEffect(() => {
-    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
-      if (data?.data) setCarriles({ ...mkSegundoIngreso(), ...data.data });
+    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data, error }) => {
+      setCarriles(mergeCarrilesRowByLatest(ROW_ID, mkSegundoIngreso(), error ? {} : (data?.data || {})));
     });
-    sb.from(TABLA).select("*").eq("id", ROW_ID_CF).single().then(({ data }) => {
-      if (data?.data) setConfinada({ ...mkConfinadaState(), ...data.data });
+    sb.from(TABLA).select("*").eq("id", ROW_ID_CF).single().then(({ data, error }) => {
+      setConfinada(mergeCarrilesRowByLatest(ROW_ID_CF, mkConfinadaState(), error ? {} : (data?.data || {})));
     });
     const chan = sb.channel("segundo-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
-        if (r?.id === ROW_ID && r?.data) setCarriles(r.data);
-        if (r?.id === ROW_ID_CF && r?.data) setConfinada(r.data);
+        if (r?.id === ROW_ID && r?.data) setCarriles(prev => mergeCarrilesRowByLatest(ROW_ID, prev || mkSegundoIngreso(), r.data));
+        if (r?.id === ROW_ID_CF && r?.data) setConfinada(prev => mergeCarrilesRowByLatest(ROW_ID_CF, prev || mkConfinadaState(), r.data));
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
@@ -13364,7 +13423,6 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
   const [eliminando, setEliminando] = useState(false); // estado de eliminación en progreso
   const [selectedIndex, setSelectedIndex] = useState(0); // comunicado destacado en vista grande
-  const [detalleExpandidoId, setDetalleExpandidoId] = useState(null);
 
   const formatDateTime = (timestamp) => {
     const d = new Date(toMs(timestamp));
@@ -13398,13 +13456,6 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
 
   const comunicadoActivo = vigentes[selectedIndex] || null;
   const totalVigentes = vigentes.length;
-  const detalleActivo = String(comunicadoActivo?.detalle || "").trim();
-  const detalleActivoEsLargo = detalleActivo.length > 220 || detalleActivo.split(/\n+/).length > 4;
-  const detalleActivoExpandido = comunicadoActivo?.id && detalleExpandidoId === comunicadoActivo.id;
-
-  useEffect(() => {
-    setDetalleExpandidoId(null);
-  }, [comunicadoActivo?.id]);
   const irAnterior = () => {
     if (totalVigentes < 2) return;
     setSelectedIndex(prev => (prev - 1 + totalVigentes) % totalVigentes);
@@ -13655,49 +13706,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
-                      {detalleActivo && (
-                        <div style={{ marginBottom: "8px" }}>
-                          <div
-                            style={{
-                              fontFamily: getFont(theme, "secondary"),
-                              fontSize: "11px",
-                              color: "rgba(255,255,255,0.55)",
-                              lineHeight: "1.45",
-                              whiteSpace: "pre-wrap",
-                              maxHeight: detalleActivoExpandido ? "none" : "64px",
-                              overflow: detalleActivoExpandido ? "visible" : "hidden",
-                              paddingRight: "2px",
-                              WebkitMaskImage: (!detalleActivoExpandido && detalleActivoEsLargo) ? "linear-gradient(180deg, #000 68%, transparent 100%)" : "none",
-                              maskImage: (!detalleActivoExpandido && detalleActivoEsLargo) ? "linear-gradient(180deg, #000 68%, transparent 100%)" : "none"
-                            }}
-                          >
-                            {detalleActivo}
-                          </div>
-                          {detalleActivoEsLargo && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDetalleExpandidoId(detalleActivoExpandido ? null : comunicadoActivo.id);
-                              }}
-                              style={{
-                                marginTop: "6px",
-                                padding: "6px 10px",
-                                borderRadius: "999px",
-                                border: "1px solid rgba(56,189,248,0.28)",
-                                background: "rgba(56,189,248,0.08)",
-                                color: "#7dd3fc",
-                                fontFamily: getFont(theme, "secondary"),
-                                fontSize: "10px",
-                                fontWeight: "800",
-                                cursor: "pointer"
-                              }}
-                            >
-                              {detalleActivoExpandido ? "Ocultar descripción" : "Ver descripción completa"}
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      {comunicadoActivo.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.55)", lineHeight: "1.5", marginBottom: "6px" }}>{comunicadoActivo.detalle}</div>}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
@@ -17177,22 +17186,24 @@ function PatioReguladorTab({ myId }) {
   const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
 
   useEffect(() => {
-    sb.from("patios").select("*").then(async ({ data }) => {
+    sb.from("patios").select("*").then(async ({ data, error }) => {
+      if (error) { setPatios(mergeStatusMapsByLatest("patios", mkPatios(), {})); return; }
       if (!data || data.length === 0) {
         await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Sistema", pending_voters: {} })));
-        setPatios(mkPatios());
+        setPatios(mergeStatusMapsByLatest("patios", mkPatios(), {}));
         return;
       }
       const map = {};
       data.forEach(r => {
         map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
       });
-      setPatios({ ...(mkPatios()), ...map });
+      setPatios(mergeStatusMapsByLatest("patios", mkPatios(), map));
     });
     const chan = sb.channel("patios-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "patios" }, ({ new: r }) => {
         if (!r) return;
-        setPatios(prev => ({ ...prev, [r.id]: { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} } }));
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        setPatios(prev => mergeStatusMapsByLatest("patios", prev || mkPatios(), { [r.id]: entry }));
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
@@ -17220,7 +17231,9 @@ function PatioReguladorTab({ myId }) {
     const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
     const [statusGanador, votosGanador] = ganadora;
     // Optimistic update
-    setPatios(prev => ({ ...prev, [patioId]: { ...prev[patioId], status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo } }));
+    const entry = { ...(patios?.[patioId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo };
+    setPatios(prev => ({ ...prev, [patioId]: entry }));
+    persistStatusEntry("patios", patioId, entry);
     await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
     await auditLog({ action:"votar_patio", section:"patios", entityId:patioId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
     const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
@@ -17230,11 +17243,15 @@ function PatioReguladorTab({ myId }) {
   };
 
   const resetAll = async () => {
+    const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} }]));
+    setPatios(next); persistStatusMap("patios", next);
     await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
     notify("✓ Todos los patios marcados como Libres", "#22c55e");
   };
 
   const resetOne = async (id) => {
+    const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} };
+    setPatios(prev => ({ ...(prev || {}), [id]: entry })); persistStatusEntry("patios", id, entry);
     await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
     notify("✓ Patio marcado como Libre", "#22c55e");
   };
