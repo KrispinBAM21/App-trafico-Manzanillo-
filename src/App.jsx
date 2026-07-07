@@ -13643,6 +13643,117 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     return "";
   };
 
+  const getSupabaseSessionToken = async () => {
+    try {
+      const { data } = await sb.auth.getSession();
+      return data?.session?.access_token || SUPA_KEY;
+    } catch {
+      return SUPA_KEY;
+    }
+  };
+
+  const readFunctionErrorDetail = async (error) => {
+    const baseMessage = error?.message || "Edge Function returned a non-2xx status code";
+    const response = error?.context;
+    if (!response || typeof response.text !== "function") return baseMessage;
+    try {
+      const raw = await response.text();
+      if (!raw) return baseMessage;
+      try {
+        const json = JSON.parse(raw);
+        return json?.error || json?.message || json?.details || raw;
+      } catch {
+        return raw;
+      }
+    } catch {
+      return baseMessage;
+    }
+  };
+
+  const invokeGeminiChatDirect = async (body) => {
+    const token = await getSupabaseSessionToken();
+    const response = await fetch(`${SUPA_URL}/functions/v1/gemini-chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${token || SUPA_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const raw = await response.text();
+    let payload = raw;
+    try { payload = raw ? JSON.parse(raw) : {}; } catch {}
+    if (!response.ok) {
+      const msg = typeof payload === "string" ? payload : (payload?.error || payload?.message || payload?.details || raw);
+      throw new Error(msg || `HTTP ${response.status}`);
+    }
+    return payload;
+  };
+
+  const callGeminiChatForComunicados = async ({ prompt, inputText, actionLabel }) => {
+    // FALLBACK DE CONTRATO IA:
+    // La captura muestra 5XX en gemini-chat. Para evitar que Comunicados dependa
+    // de un único shape de body, probamos primero el contrato usado por el chat
+    // global y después variantes frecuentes del backend IA (prompt/text/action).
+    const payloads = [
+      {
+        message: prompt,
+        history: [{ role: "user", content: prompt }],
+        section: "comunicados",
+        isAdmin: !!isAdmin,
+      },
+      {
+        message: prompt,
+        section: "comunicados",
+        isAdmin: !!isAdmin,
+      },
+      {
+        prompt,
+        text: inputText,
+        action: actionLabel,
+        section: "comunicados",
+        isAdmin: !!isAdmin,
+      },
+      {
+        input_text: inputText,
+        tipo: actionLabel,
+        action: actionLabel,
+        prompt,
+        section: "comunicados",
+      },
+    ];
+
+    const attempts = [];
+    for (let i = 0; i < payloads.length; i += 1) {
+      const body = payloads[i];
+      try {
+        const { data, error } = await sb.functions.invoke("gemini-chat", { body });
+        if (error) throw error;
+        const reply = extraerRespuestaIA(data);
+        if (String(reply).trim()) return { data, reply: String(reply).trim(), attempt: `invoke-${i + 1}` };
+        attempts.push(`invoke-${i + 1}: respuesta sin texto`);
+      } catch (err) {
+        attempts.push(`invoke-${i + 1}: ${await readFunctionErrorDetail(err)}`);
+      }
+    }
+
+    // DIAGNÓSTICO DIRECTO:
+    // fetch directo permite leer el cuerpo de error de Supabase, algo que
+    // sb.functions.invoke suele ocultar detrás de "non-2xx status code".
+    try {
+      const data = await invokeGeminiChatDirect(payloads[0]);
+      const reply = extraerRespuestaIA(data);
+      if (String(reply).trim()) return { data, reply: String(reply).trim(), attempt: "direct-fetch" };
+      attempts.push("direct-fetch: respuesta sin texto");
+    } catch (err) {
+      attempts.push(`direct-fetch: ${err?.message || err}`);
+    }
+
+    const detail = attempts.filter(Boolean).join(" | ").slice(0, 900);
+    throw new Error(detail || "gemini-chat no devolvió una respuesta utilizable");
+  };
+
   const solicitarTextoConIA = async (requestedAction = aiAction) => {
     const inputText = detalle.trim();
     const actionLabel = requestedAction === "crear" ? "crear" : "resumir";
@@ -13655,32 +13766,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setError("");
     setAiOutput("");
     try {
-      // CORRECCIÓN INTEGRACIÓN IA:
-      // La Edge Function gemini-chat ya se usa en el asistente principal con el contrato
-      // { message, history, section, isAdmin }. Aquí reutilizamos ese mismo contrato para
-      // evitar errores 5xx causados por payloads con campos no esperados por el backend.
       const prompt = actionLabel === "resumir"
         ? `Actúa como asistente de redacción de Conect Manzanillo. Resume el siguiente contenido para un comunicado operativo. Devuelve únicamente el texto final, claro, formal y breve:\n\n${inputText}`
         : `Actúa como asistente de redacción de Conect Manzanillo. Crea un texto listo para comunicado operativo a partir de estas especificaciones. Devuelve únicamente el texto final, claro, formal y útil para usuarios del puerto:\n\n${inputText}`;
 
-      const { data, error } = await sb.functions.invoke("gemini-chat", {
-        body: {
-          message: prompt,
-          history: [{ role: "user", content: prompt }],
-          section: "comunicados",
-          isAdmin: !!isAdmin
-        }
-      });
-      if (error) throw error;
-      const reply = extraerRespuestaIA(data);
-      if (!String(reply).trim()) throw new Error("La IA respondió, pero no se encontró texto en la respuesta");
-      setAiOutput(String(reply).trim());
-      setToolNotice(actionLabel === "resumir" ? "Resumen generado por IA listo para revisar." : "Texto creado por IA listo para revisar.", "#22c55e");
+      const { reply, attempt } = await callGeminiChatForComunicados({ prompt, inputText, actionLabel });
+      setAiOutput(reply);
+      setToolNotice(actionLabel === "resumir" ? `Resumen generado por IA (${attempt}).` : `Texto creado por IA (${attempt}).`, "#22c55e");
     } catch (e) {
       console.error("Error al solicitar asistencia IA para comunicados:", e);
-      const msg = e?.message || e?.context?.message || "No se pudo conectar con la función de IA";
+      const msg = e?.message || "No se pudo conectar con la función de IA";
       setError(`No se pudo generar el texto con IA. Detalle: ${msg}`);
-      setToolNotice("La IA no devolvió resultado. Revisa logs de gemini-chat si aparece 5XX.", "#ef4444");
+      setToolNotice("gemini-chat devolvió error. Revisa Logs en Supabase para ver el stack real de la Edge Function.", "#ef4444");
     } finally {
       setAiBusy(false);
     }
