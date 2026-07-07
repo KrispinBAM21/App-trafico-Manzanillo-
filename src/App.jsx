@@ -13631,25 +13631,25 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   };
 
   // Canvas no genera saltos de línea automáticamente. Esta función mide cada palabra
-  // y crea las líneas necesarias para que el texto nunca rebase el ancho disponible.
+  // y devuelve las líneas necesarias sin rebasar el ancho disponible.
   const wrapTextCanvas = (ctx, text, maxWidth) => {
     const paragraphs = String(text || "")
       .replace(/\r/g, "")
-      .split("\n")
-      .map((part) => part.trim())
-      .filter((part, index, arr) => part || (index > 0 && arr[index - 1]));
+      .split("\n");
 
     const lines = [];
-    const sourceParagraphs = paragraphs.length ? paragraphs : [String(text || "").trim()];
 
-    sourceParagraphs.forEach((paragraph, paragraphIndex) => {
-      if (!paragraph) {
-        lines.push("");
+    paragraphs.forEach((paragraph, paragraphIndex) => {
+      const cleanParagraph = paragraph.trim();
+
+      if (!cleanParagraph) {
+        if (paragraphIndex < paragraphs.length - 1) lines.push("");
         return;
       }
 
-      const rawWords = paragraph.split(/\s+/).filter(Boolean);
+      const rawWords = cleanParagraph.split(/\s+/).filter(Boolean);
       const words = [];
+
       rawWords.forEach((word) => {
         const trozos = segmentarPalabraCanvas(ctx, word, maxWidth);
         trozos.forEach((trozo) => words.push(trozo));
@@ -13667,60 +13667,45 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       });
 
       if (currentLine) lines.push(currentLine);
-      if (paragraphIndex < sourceParagraphs.length - 1) lines.push("");
+      if (paragraphIndex < paragraphs.length - 1) lines.push("");
     });
 
-    return lines.filter((line, index, arr) => line || (index > 0 && arr[index - 1]));
+    return lines;
   };
 
-  // Ajusta dinámicamente el tamaño de fuente hasta que el bloque completo
-  // (título o cuerpo) quepa dentro del espacio vertical y horizontal indicado.
-  const ajustarBloqueTextoCanvas = ({
+  // Escribe texto multilínea en canvas respetando el textAlign actual solicitado
+  // y retorna la nueva coordenada Y para continuar con el siguiente bloque,
+  // evitando que los textos se encimen entre sí.
+  const drawWrappedTextCanvas = ({
     ctx,
     text,
+    x,
+    y,
     maxWidth,
-    maxHeight,
-    maxFontSize,
-    minFontSize,
-    lineHeightFactor = 1.3,
-    fontFamily = '"Noto Sans", sans-serif',
-    fontWeight = 400,
-    maxLines = Infinity,
+    lineHeight,
+    textAlign = "left",
+    fillStyle = "#0f172a",
+    paragraphSpacing = 0,
   }) => {
-    for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
-      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-      const lines = wrapTextCanvas(ctx, text, maxWidth);
-      const lineHeight = fontSize * lineHeightFactor;
-      const totalHeight = lines.length * lineHeight;
-      const withinHeight = totalHeight <= maxHeight;
-      const withinLineCount = lines.length <= maxLines;
-      if (withinHeight && withinLineCount) {
-        return { fontSize, lines, lineHeight, totalHeight };
-      }
-    }
+    const lines = wrapTextCanvas(ctx, text, maxWidth);
 
-    const fallbackSize = minFontSize;
-    ctx.font = `${fontWeight} ${fallbackSize}px ${fontFamily}`;
-    const fallbackLines = wrapTextCanvas(ctx, text, maxWidth).slice(0, maxLines === Infinity ? undefined : maxLines);
-    const fallbackLineHeight = fallbackSize * lineHeightFactor;
-    return {
-      fontSize: fallbackSize,
-      lines: fallbackLines,
-      lineHeight: fallbackLineHeight,
-      totalHeight: fallbackLines.length * fallbackLineHeight,
-    };
-  };
-
-  const dibujarLineasCanvas = ({ ctx, lines, x, y, lineHeight, fillStyle = "#0f172a", textAlign = "center" }) => {
     ctx.save();
     ctx.fillStyle = fillStyle;
     ctx.textAlign = textAlign;
     ctx.textBaseline = "top";
-    lines.forEach((line, index) => {
-      const texto = line || " ";
-      ctx.fillText(texto, x, y + (index * lineHeight));
+
+    let currentY = y;
+    lines.forEach((line) => {
+      if (!line) {
+        currentY += paragraphSpacing || lineHeight;
+        return;
+      }
+      ctx.fillText(line, x, currentY);
+      currentY += lineHeight;
     });
+
     ctx.restore();
+    return currentY;
   };
 
   const agregarTextoExtraidoADetalle = (rawText) => {
@@ -14107,16 +14092,16 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     try {
       if (document?.fonts?.load) {
         await Promise.all([
-          document.fonts.load('400 28px "Noto Sans"'),
-          document.fonts.load('700 36px "Noto Sans"'),
-          document.fonts.load('800 24px "Noto Sans"'),
+          document.fonts.load('400 20px "Noto Sans"'),
+          document.fonts.load('700 24px "Noto Sans"'),
+          document.fonts.load('700 22px "Noto Sans"'),
         ]);
       }
 
       const template = await cargarImagenParaCanvas("/comunicado formato.jpg");
       const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
-      const width = template.naturalWidth || template.width || 1080;
-      const height = template.naturalHeight || template.height || 1350;
+      const width = template.naturalWidth || template.width || 1024;
+      const height = template.naturalHeight || template.height || 1448;
       canvas.width = width;
       canvas.height = height;
 
@@ -14126,79 +14111,85 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       ctx.clearRect(0, 0, width, height);
       ctx.drawImage(template, 0, 0, width, height);
 
+      const scale = width / 1024;
+      const leftMargin = 80 * scale;
+      const rightMargin = 80 * scale;
+      const topMargin = 265 * scale;
+      const rightX = width - rightMargin;
+      const centerX = width / 2;
+      const bodyMaxWidth = width - (leftMargin * 2);
+      const corporateBlue = "#113f79";
+      const textDark = "#1f2937";
+
+      const dateFontSize = Math.round(20 * scale);
+      const titleFontSize = Math.round(24 * scale);
+      const headerFontSize = Math.round(22 * scale);
+      const bodyFontSize = Math.round(20 * scale);
+      const dateLineHeight = Math.round(dateFontSize * 1.3);
+      const titleLineHeight = Math.round(titleFontSize * 1.28);
+      const bodyLineHeight = Math.round(bodyFontSize * 1.5);
+
+      let currentY = topMargin;
+
+      // 1) Fecha (superior derecha): flujo vertical, alineada a la derecha,
+      // colocada debajo de la franja roja y dejando la Y lista para el siguiente bloque.
       const dateText = formatearFechaComunicado(new Date());
-      const rightColumnX = width * 0.60;
-      const rightColumnWidth = width * 0.29;
-      const dateY = height * 0.205;
-      const titleY = dateY + (height * 0.048);
-      const bodyAreaX = width * 0.16;
-      const bodyAreaWidth = width * 0.68;
-      const bodyStartY = height * 0.49;
-      const bodyAreaHeight = height * 0.30;
+      ctx.font = `normal ${dateFontSize}px "Noto Sans"`;
+      currentY = drawWrappedTextCanvas({
+        ctx,
+        text: dateText,
+        x: rightX,
+        y: currentY,
+        maxWidth: width * 0.30,
+        lineHeight: dateLineHeight,
+        textAlign: "right",
+        fillStyle: textDark,
+      });
 
-      // Fecha dinámica: se dibuja debajo del elemento rojo del diseño,
-      // alineada a la derecha y usando Noto Sans.
-      let dateFontSize = Math.round(width * 0.022);
-      ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
-      while (dateFontSize > 14 && ctx.measureText(dateText).width > rightColumnWidth) {
-        dateFontSize -= 1;
-        ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
-      }
-      ctx.save();
-      ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
-      ctx.fillStyle = "#111827";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(dateText, rightColumnX, dateY);
-      ctx.restore();
-
-      // Título con autoajuste: si el título es largo, la fuente se reduce
-      // automáticamente para no invadir el margen derecho ni salir del bloque.
-      const titleBlock = ajustarBloqueTextoCanvas({
+      // 2) Título generado: se dibuja debajo de la fecha con wrapText y alineación derecha.
+      // La función retorna la nueva Y para evitar cualquier encimado con el siguiente bloque.
+      currentY += 36 * scale;
+      ctx.font = `bold ${titleFontSize}px "Noto Sans"`;
+      currentY = drawWrappedTextCanvas({
         ctx,
         text: titleText,
-        maxWidth: rightColumnWidth,
-        maxHeight: height * 0.12,
-        maxFontSize: Math.round(width * 0.031),
-        minFontSize: Math.round(width * 0.018),
-        lineHeightFactor: 1.16,
-        fontFamily: '"Noto Sans", sans-serif',
-        fontWeight: 700,
-        maxLines: 4,
-      });
-      ctx.font = `700 ${titleBlock.fontSize}px "Noto Sans", sans-serif`;
-      dibujarLineasCanvas({
-        ctx,
-        lines: titleBlock.lines,
-        x: rightColumnX,
-        y: titleY,
-        lineHeight: titleBlock.lineHeight,
+        x: rightX,
+        y: currentY,
+        maxWidth: width * 0.42,
+        lineHeight: titleLineHeight,
+        textAlign: "right",
         fillStyle: "#111827",
-        textAlign: "left",
       });
 
-      // Cuerpo central del comunicado: se calcula el wrapText y el tamaño de fuente
-      // para que todo el bloque quepa dentro del espacio blanco sin desbordarse.
-      const bodyBlock = ajustarBloqueTextoCanvas({
+      // 3) Texto fijo centrado: se coloca después del título usando el mismo flujo vertical.
+      currentY += 60 * scale;
+      ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
+      currentY = drawWrappedTextCanvas({
+        ctx,
+        text: "CONECT MANZANILLO INFORMA:",
+        x: centerX,
+        y: currentY,
+        maxWidth: width * 0.70,
+        lineHeight: Math.round(headerFontSize * 1.25),
+        textAlign: "center",
+        fillStyle: corporateBlue,
+      });
+
+      // 4) Cuerpo del comunicado: inicia debajo del texto fijo, alineado a la izquierda.
+      // wrapText calcula los saltos de línea con margen izquierdo y derecho, y devuelve
+      // la Y final para mantener un flujo limpio y sin superposiciones.
+      currentY += 50 * scale;
+      ctx.font = `normal ${bodyFontSize}px "Noto Sans"`;
+      currentY = drawWrappedTextCanvas({
         ctx,
         text: bodyText,
-        maxWidth: bodyAreaWidth,
-        maxHeight: bodyAreaHeight,
-        maxFontSize: Math.round(width * 0.030),
-        minFontSize: Math.round(width * 0.016),
-        lineHeightFactor: 1.28,
-        fontFamily: '"Noto Sans", sans-serif',
-        fontWeight: 400,
-      });
-      ctx.font = `400 ${bodyBlock.fontSize}px "Noto Sans", sans-serif`;
-      dibujarLineasCanvas({
-        ctx,
-        lines: bodyBlock.lines,
-        x: bodyAreaX + (bodyAreaWidth / 2),
-        y: bodyStartY,
-        lineHeight: bodyBlock.lineHeight,
-        fillStyle: "#0f172a",
-        textAlign: "center",
+        x: leftMargin,
+        y: currentY,
+        maxWidth: bodyMaxWidth,
+        lineHeight: bodyLineHeight,
+        textAlign: "left",
+        fillStyle: textDark,
+        paragraphSpacing: Math.round(bodyLineHeight * 0.65),
       });
 
       const blob = await new Promise((resolve, reject) => {
