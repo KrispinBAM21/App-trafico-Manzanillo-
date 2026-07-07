@@ -13904,23 +13904,44 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       }
 
       const nextLine = lines[lineIndex + 1];
+      const isLastLineOfText = lineIndex === lines.length - 1;
+      const isLastLineBeforeParagraphBreak =
+        nextLine?.isParagraphBreak === true && nextLine?.tokens?.length === 0;
+
+      // Regla editorial: la última línea del texto o la última antes de salto
+      // de párrafo nunca se justifica para evitar "ríos de blanco".
+      const isLastEditorialLine =
+        isLastLineOfText || isLastLineBeforeParagraphBreak || line.isParagraphBreak;
+
       const spaceTokens = line.tokens.filter((token) => token.type === "space");
+      const MAX_EXTRA_SPACE_PER_GAP = 24;
+
+      const extraSpacePerGap =
+        spaceTokens.length > 0
+          ? Math.max(0, (maxWidth - line.width) / spaceTokens.length)
+          : 0;
+
       const canJustify =
         textAlign === "justify" &&
+        !isLastEditorialLine &&
         spaceTokens.length > 0 &&
-        lineIndex < lines.length - 1 &&
-        !(nextLine?.isParagraphBreak && !nextLine?.tokens?.length);
+        extraSpacePerGap <= MAX_EXTRA_SPACE_PER_GAP;
+
+      // Fallback editorial: si la justificación requiere espacios demasiado grandes,
+      // esa línea se renderiza alineada a la izquierda.
+      const effectiveAlign =
+        textAlign === "justify"
+          ? canJustify
+            ? "justify"
+            : "left"
+          : textAlign;
 
       let startX = x;
-      if (textAlign === "center") {
+      if (effectiveAlign === "center") {
         startX = x - (line.width / 2);
-      } else if (textAlign === "right") {
+      } else if (effectiveAlign === "right") {
         startX = x - line.width;
       }
-
-      const extraSpacePerGap = canJustify
-        ? Math.max(0, (maxWidth - line.width) / spaceTokens.length)
-        : 0;
 
       let currentX = startX;
 
@@ -13929,6 +13950,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
         ctx.font = token.bold ? boldFont : normalFont;
         ctx.fillText(token.text, currentX, currentY);
+
         currentX += ctx.measureText(token.text).width;
 
         if (canJustify && token.type === "space") {
