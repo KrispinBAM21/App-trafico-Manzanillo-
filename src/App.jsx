@@ -2032,6 +2032,9 @@ const readStatusCache = (scope) => {
 };
 const writeStatusCache = (scope, data) => {
   try { localStorage.setItem(statusCacheKey(scope), JSON.stringify(data || {})); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent("cm-status-cache-updated", { detail: { scope, at: Date.now() } }));
+  } catch {}
 };
 const persistStatusMap = (scope, data) => writeStatusCache(scope, data);
 const persistStatusEntry = (scope, id, entry) => {
@@ -2042,12 +2045,56 @@ const mergeStatusMapsByLatest = (scope, defaults = {}, remote = {}) => {
   const cached = readStatusCache(scope);
   const merged = { ...(defaults || {}), ...(remote || {}) };
   Object.entries(cached || {}).forEach(([id, entry]) => {
-    const cachedTime = Number(entry?.lastUpdate || entry?.last_update || 0);
-    const remoteTime = Number(merged?.[id]?.lastUpdate || merged?.[id]?.last_update || 0);
+    const cachedTime = statusTimeValue(entry?.lastUpdate || entry?.last_update || entry?.updated_at || 0);
+    const remoteTime = statusTimeValue(merged?.[id]?.lastUpdate || merged?.[id]?.last_update || merged?.[id]?.updated_at || 0);
     if (!merged[id] || cachedTime >= remoteTime) merged[id] = entry;
   });
   return merged;
 };
+const statusTimeValue = (v) => {
+  if (!v) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const asNum = Number(v);
+  if (Number.isFinite(asNum) && asNum > 0) return asNum;
+  const asDate = Date.parse(v);
+  return Number.isFinite(asDate) ? asDate : 0;
+};
+
+// Supabase: tabla nueva creada por SQL para persistencia unificada
+const OPERATIONAL_STATUS_TABLE = "operational_status";
+const upsertOperationalStatus = async ({ section, itemId, itemName, status, zone = null, updatedBy = "Sistema", source = "app", metadata = {} }) => {
+  try {
+    if (!section || !itemId) return;
+    const { error } = await sb.from(OPERATIONAL_STATUS_TABLE).upsert({
+      section,
+      item_id: itemId,
+      item_name: itemName || itemId,
+      status: status || "sin_dato",
+      zone,
+      updated_by: updatedBy || "Sistema",
+      source,
+      metadata: metadata || {},
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "section,item_id" });
+    if (error) console.warn("[operational_status] no se pudo guardar", error);
+  } catch (e) {
+    console.warn("[operational_status] error", e);
+  }
+};
+const operationalRowsToMap = (rows = [], section) => {
+  const map = {};
+  (rows || []).filter(r => !section || r.section === section).forEach(r => {
+    map[r.item_id] = {
+      status: r.status,
+      lastUpdate: statusTimeValue(r.updated_at || r.created_at),
+      updatedBy: r.updated_by || "Sistema",
+      zone: r.zone || null,
+      metadata: r.metadata || {},
+    };
+  });
+  return map;
+};
+
 const persistCarrilesRow = (rowId, data) => writeStatusCache(`carriles:${rowId}`, data);
 const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
 
@@ -7388,6 +7435,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       setAccesos(prev => ({ ...prev, [id]: entry }));
       persistStatusEntry("accesos", id, entry);
       await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"⚡ Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
       await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
@@ -7402,6 +7450,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     setAccesos(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("accesos", id, entry);
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app", metadata:{ retornos: acc.retornos || "none" } });
     await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
@@ -7417,6 +7466,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       setVialidades(prev => ({ ...prev, [id]: entry }));
       persistStatusEntry("vialidades", id, entry);
       await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"⚡ Admin", source:"admin" });
       await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
       notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
@@ -7430,6 +7480,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     setVialidades(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("vialidades", id, entry);
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app" });
     await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
     notify(`✓ ${vName}: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
@@ -7449,6 +7500,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     setRutasFiscales(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("rutas_fiscales", id, entry);
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
     await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
     notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
@@ -14390,26 +14442,44 @@ function NoticiasAutoJpegReport() {
   const clean = (txt) => String(txt ?? "").replace(/\s+/g, " ").trim();
 
   const cargarSnapshot = useCallback(async () => {
-    const [accesosRes, vialidadesRes, rutasRes, terminalsRes, patiosRes, carrilesRes] = await Promise.all([
+    const [accesosRes, vialidadesRes, rutasRes, terminalsRes, patiosRes, carrilesRes, opStatusRes] = await Promise.all([
       sb.from("accesos").select("*"),
       sb.from("vialidades").select("*"),
       sb.from("rutas_fiscales").select("*"),
       sb.from("terminals").select("*"),
       sb.from("patios").select("*"),
-      sb.from("carriles").select("*")
+      sb.from("carriles").select("*"),
+      sb.from(OPERATIONAL_STATUS_TABLE).select("*").in("section", ["accesos", "vialidades", "rutas_fiscales", "terminales", "terminals", "patios", "carriles", "segundo_acceso", "confinada"])
     ]);
-    const accesos = { ...mkAccesos() };
-    (accesosRes.data || []).forEach(r => { accesos[r.id] = { status:r.status, retornos:r.retornos || "none" }; });
-    const vialidades = { ...mkVialidades() };
-    (vialidadesRes.data || []).forEach(r => { vialidades[r.id] = { status:r.status }; });
-    const rutas = { ...mkRutasFiscales() };
-    (rutasRes.data || []).forEach(r => { rutas[r.id] = { status:r.status }; });
-    const terminalMap = Object.fromEntries((terminalsRes.data || []).map(r => [r.id, r]));
-    const patioMap = Object.fromEntries((patiosRes.data || []).map(r => [r.id, r]));
+    const opRows = opStatusRes?.data || [];
+    const accesosRemote = {};
+    (accesosRes.data || []).forEach(r => {
+      accesosRemote[r.id] = { status:r.status, retornos:r.retornos || "none", lastUpdate:r.last_update, updatedBy:r.updated_by, pendingVoters:r.pending_voters || {} };
+    });
+    const accesos = mergeStatusMapsByLatest("accesos", mkAccesos(), { ...accesosRemote, ...operationalRowsToMap(opRows, "accesos") });
+
+    const vialidadesRemote = {};
+    (vialidadesRes.data || []).forEach(r => {
+      vialidadesRemote[r.id] = { status:r.status, lastUpdate:r.last_update, updatedBy:r.updated_by, pendingVoters:r.pending_voters || {} };
+    });
+    const vialidades = mergeStatusMapsByLatest("vialidades", mkVialidades(), { ...vialidadesRemote, ...operationalRowsToMap(opRows, "vialidades") });
+
+    const rutasRemote = {};
+    (rutasRes.data || []).forEach(r => {
+      rutasRemote[r.id] = { status:r.status, lastUpdate:r.last_update, updatedBy:r.updated_by };
+    });
+    const rutas = mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), { ...rutasRemote, ...operationalRowsToMap(opRows, "rutas_fiscales") });
+
+    const terminalRemoteMap = Object.fromEntries((terminalsRes.data || []).map(r => [r.id, { ...r, lastUpdate:r.last_update, updatedBy:r.updated_by }]));
+    const terminalMap = mergeStatusMapsByLatest("terminales", mkTerminals([...TERMINALS_NORTE, ...TERMINALS_SUR]), { ...terminalRemoteMap, ...operationalRowsToMap(opRows, "terminales"), ...operationalRowsToMap(opRows, "terminals") });
+
+    const patioRemoteMap = Object.fromEntries((patiosRes.data || []).map(r => [r.id, { ...r, lastUpdate:r.last_update, updatedBy:r.updated_by }]));
+    const patioMap = mergeStatusMapsByLatest("patios", mkPatios(), { ...patioRemoteMap, ...operationalRowsToMap(opRows, "patios") });
+
     const carrilesRows = carrilesRes.data || [];
-    const carrilesExpo = carrilesRows.find(r => r.id === "expo_impo")?.data || mkCarrilesState();
-    const segundo = { ...mkSegundoIngreso(), ...(carrilesRows.find(r => r.id === "segundo_acceso")?.data || {}) };
-    const confinada = { ...mkConfinadaState(), ...(carrilesRows.find(r => r.id === "confinada_acceso")?.data || {}) };
+    const carrilesExpo = mergeCarrilesRowByLatest("expo_impo", mkCarrilesState(), carrilesRows.find(r => r.id === "expo_impo")?.data || {});
+    const segundo = mergeCarrilesRowByLatest("segundo_acceso", mkSegundoIngreso(), carrilesRows.find(r => r.id === "segundo_acceso")?.data || {});
+    const confinada = mergeCarrilesRowByLatest("confinada_acceso", mkConfinadaState(), carrilesRows.find(r => r.id === "confinada_acceso")?.data || {});
 
     return [
       { title:"Accesos", rows: ACCESOS_PRINCIPALES.map(a => {
@@ -14902,6 +14972,31 @@ function NoticiasAutoJpegReport() {
       if (timeoutId) clearTimeout(timeoutId);
       // No revocar aquí: el reporte debe mantenerse visible al cambiar de sección.
       // El objectURL anterior se libera solo cuando se genera un nuevo corte.
+    };
+  }, [generarJpeg]);
+
+  useEffect(() => {
+    let timer = null;
+    const refreshSoon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { generarJpeg(); }, 900);
+    };
+
+    window.addEventListener("cm-status-cache-updated", refreshSoon);
+
+    const chan = sb.channel("noticias-auto-report-status-rt")
+      .on("postgres_changes", { event:"*", schema:"public", table:"accesos" }, refreshSoon)
+      .on("postgres_changes", { event:"*", schema:"public", table:"vialidades" }, refreshSoon)
+      .on("postgres_changes", { event:"*", schema:"public", table:"rutas_fiscales" }, refreshSoon)
+      .on("postgres_changes", { event:"*", schema:"public", table:"terminals" }, refreshSoon)
+      .on("postgres_changes", { event:"*", schema:"public", table:"patios" }, refreshSoon)
+      .on("postgres_changes", { event:"*", schema:"public", table:"carriles" }, refreshSoon)
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("cm-status-cache-updated", refreshSoon);
+      if (timer) clearTimeout(timer);
+      try { sb.removeChannel(chan); } catch {}
     };
   }, [generarJpeg]);
 
