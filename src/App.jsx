@@ -7759,7 +7759,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     carriles: true,
     confinados: true,
   });
-  const [remote, setRemote] = useState({ terminals: [], patios: [], carrilesExpo: null, segundo: null, confinada: null });
+  const [remote, setRemote] = useState({ terminals: [], patios: [], carrilesExpo: null, segundo: null, confinada: null, fases: null });
   const [loading, setLoading] = useState(false);
   const [busyPdf, setBusyPdf] = useState(false);
   const [toast, setToast] = useState(null);
@@ -7794,7 +7794,8 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       const carrilesExpo = (carrilesData || []).find(r => r.id === "expo_impo")?.data || null;
       const segundo = (carrilesData || []).find(r => r.id === "segundo_acceso")?.data || null;
       const confinada = (carrilesData || []).find(r => r.id === "confinada_acceso")?.data || null;
-      setRemote({ terminals: terminalsData || [], patios: patiosData || [], carrilesExpo, segundo, confinada });
+      const fases = (carrilesData || []).find(r => r.id === "trafico_mapa_votos")?.data || readStatusCache("carriles:trafico_mapa_votos") || null;
+      setRemote({ terminals: terminalsData || [], patios: patiosData || [], carrilesExpo, segundo, confinada, fases });
     } catch (e) {
       notify("No se pudo cargar todo el reporte", "#f97316");
     } finally {
@@ -7873,29 +7874,14 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     if (include.confinados) {
       const segundo = { ...mkSegundoIngreso(), ...(remote.segundo || {}) };
       const conf = { ...mkConfinadaState(), ...(remote.confinada || {}) };
-      const items = [];
-      ACCESOS_SEGUNDO.forEach(acc => acc.carriles.forEach(c => {
-        const st = segundo[c.id] || {};
-        const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
-        const flags = [];
-        if (st.retornos) flags.push("Con retornos");
-        if (st.expo) flags.push(`Expo ${st.expo}`);
-        if (st.impo) flags.push(`Impo ${st.impo}`);
-        const laneOpt = getCarrilEstadoOpt(st);
-        items.push({ tipo: "Confinado", nombre: `${acc.label} · ${c.label}`, zona: "2° Acceso", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
-      }));
-      CONFINADA_CARRILES.forEach(c => {
-        const st = conf[c.id] || {};
-        const terminal = TODAS_TERMINALES.find(t => t.id === st.terminal)?.name || st.terminal || c.defaultTerminal || "General";
-        const flags = [];
-        if (st.retornos) flags.push("Con retornos");
-        if (st.transferencia) flags.push("Transferencia");
-        if (st.expo) flags.push(`Expo ${st.expo}`);
-        if (st.impo) flags.push(`Impo ${st.impo}`);
-        const laneOpt = getCarrilEstadoOpt(st);
-        items.push({ tipo: "Confinado", nombre: `Vialidad confinada · ${c.label}`, zona: "Confinada", estatus: laneOpt.label, detalle: [terminal, ...flags].filter(Boolean).join(" · "), color: laneOpt.color });
-      });
-      groups.push({ id: "confinados", title: "Confinados / 2° Acceso", items });
+      const terminalNameFn = (id) => TODAS_TERMINALES.find(t => t.id === id)?.name || id || "General";
+      const laneRows = [
+        ...buildSegundoCarrilReportRows(segundo, terminalNameFn),
+        ...buildConfinadaCarrilReportRows(conf, terminalNameFn),
+        ...buildSegundoFasesReportRows(remote.fases),
+      ];
+      const items = laneRows.map(r => ({ tipo: "Confinado", nombre: r.name, zona: r.detail, estatus: r.status, detalle: r.detail, color: r.color }));
+      groups.push({ id: "confinados", title: "2° Acceso, confinada y fases", items });
     }
     return groups;
   }, [include, accesos, vialidades, rutasFiscales, remote]);
@@ -11105,10 +11091,15 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:   { color: "#22c55e", label: "Fluido",   icon: "green-dot", bg: "#dcfce7", text: "#15803d" },
-  moderado: { color: "#f97316", label: "Moderado", icon: "orange-dot", bg: "#ffedd5", text: "#c2410c" },
-  detenido: { color: "#ef4444", label: "Detenido", icon: "red-dot", bg: "#fee2e2", text: "#b91c1c" },
-  sinuso:   { color: "#a855f7", label: "Sin Uso",  icon: "purple-dot", bg: "#f3e8ff", text: "#7e22ce" },
+  fluido:           { color: "#14b8a6", label: "Flujo normal",      icon: "check",        bg: "rgba(20,184,166,0.16)", text: "#5eead4" },
+  moderado:         { color: "#eab308", label: "Carga moderada",    icon: "slow-traffic", bg: "rgba(234,179,8,0.16)",  text: "#fde047" },
+  detenido:         { color: "#f43f5e", label: "Paso detenido",     icon: "stop-sign",    bg: "rgba(244,63,94,0.16)",  text: "#fb7185" },
+  cierre:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock",         bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
+  retorno_fila:     { color: "#f97316", label: "Retorno por fila",  icon: "return-route", bg: "rgba(249,115,22,0.16)", text: "#fdba74" },
+  retorno_terminal: { color: "#8b5cf6", label: "Retorno terminal",  icon: "anchor-port",  bg: "rgba(139,92,246,0.18)", text: "#c4b5fd" },
+  retorno_aduana:   { color: "#38bdf8", label: "Retorno aduana",    icon: "customs",      bg: "rgba(56,189,248,0.16)", text: "#7dd3fc" },
+  // Compatibilidad con registros antiguos. Ya no se muestra como opción.
+  sinuso:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock",         bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
 };
 
 const TRAFICO_MAP_STYLES = {
@@ -11120,9 +11111,9 @@ const TRAFICO_MAP_STYLES = {
 const toLLC = (coords) => coords.map(([lng, lat]) => [lat, lng]);
 
 const VOTOS_DEFAULT = {
-  1: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  2: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  3: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+  1: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
+  2: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
+  3: { fluido: 0, moderado: 0, detenido: 0, cierre: 0, retorno_fila: 0, retorno_terminal: 0, retorno_aduana: 0, sinuso: 0 },
 };
 
 const USER_VOTES_DEFAULT = { 1: {}, 2: {}, 3: {} };
@@ -11149,6 +11140,69 @@ const normalizarVotosFases = (raw) => {
     userVotes: { ...USER_VOTES_DEFAULT },
     counts: { ...VOTOS_DEFAULT, ...(raw || {}) },
   };
+};
+
+
+const SEGUNDO_REPORTE_CARRILES = [
+  { id: "c1", label: "Carril 1", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c2", label: "Carril 2", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c3", label: "Carril 3", tipo: "Ingreso", zona: "2° Acceso", defaultTerminal: "general" },
+  { id: "c4", label: "Carril 4", tipo: "Salida",  zona: "2° Acceso", defaultTerminal: "general" },
+];
+
+const describeTrafficValue = (value, prefix) => {
+  if (!value || value === "libre") return "";
+  const opt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === value);
+  return `${prefix}: ${opt?.label || value}`;
+};
+
+const buildSegundoCarrilReportRows = (segundoState = {}, terminalNameFn = (id) => id || "General") =>
+  SEGUNDO_REPORTE_CARRILES.map(c => {
+    const st = segundoState?.[c.id] || {};
+    const laneOpt = getCarrilEstadoOpt(st);
+    const terminal = terminalNameFn(st.terminal || c.defaultTerminal || "general");
+    const detail = [
+      `Terminal: ${terminal}`,
+      `Zona: ${c.zona}`,
+      `Tipo: ${c.tipo}`,
+      st.retornos ? "Retornos activos" : "",
+      describeTrafficValue(st.expo, "Expo"),
+      describeTrafficValue(st.impo, "Impo"),
+    ].filter(Boolean).join(" · ");
+    return { name: `2° Acceso · ${c.label}`, status: laneOpt.label, detail, color: laneOpt.color };
+  });
+
+const buildConfinadaCarrilReportRows = (confinadaState = {}, terminalNameFn = (id) => id || "General") =>
+  CONFINADA_CARRILES.map(c => {
+    const st = confinadaState?.[c.id] || {};
+    const laneOpt = getCarrilEstadoOpt(st);
+    const terminal = terminalNameFn(st.terminal || c.defaultTerminal || "general");
+    const detail = [
+      `Terminal: ${terminal}`,
+      "Zona: Confinada",
+      st.transferencia ? "Transferencia" : "",
+      st.retornos ? "Retornos activos" : "",
+      describeTrafficValue(st.expo, "Expo"),
+      describeTrafficValue(st.impo, "Impo"),
+    ].filter(Boolean).join(" · ");
+    return { name: `Confinada · ${c.label}`, status: laneOpt.label, detail, color: laneOpt.color };
+  });
+
+const buildSegundoFasesReportRows = (rawFases = null) => {
+  const { counts } = normalizarVotosFases(rawFases || {});
+  const calcStatus = (votes) => {
+    const safe = votes || {};
+    const total = Object.values(safe).reduce((s, n) => s + (Number(n) || 0), 0);
+    if (total === 0) return "fluido";
+    const prioridad = ["cierre", "sinuso", "retorno_aduana", "retorno_terminal", "retorno_fila", "detenido", "moderado", "fluido"];
+    for (const key of prioridad) if ((safe[key] || 0) > 0) return key === "sinuso" ? "cierre" : key;
+    return "fluido";
+  };
+  return Object.entries(TRAFICO_FASES).map(([id, fase]) => {
+    const statusId = calcStatus(counts?.[id]);
+    const opt = TRAFICO_STATUS[statusId] || TRAFICO_STATUS.fluido;
+    return { name: `Segundo acceso por fases · ${fase.nombre}`, status: opt.label, detail: fase.descripcion, color: opt.color };
+  });
 };
 
 const paqueteVotosFases = (userVotes) => ({
@@ -11195,12 +11249,16 @@ function TrafficMapSegundo({ theme, myId }) {
 
   // ── Calcular status dominante ──────────────────────────────────────────────
   const calcStatus = (votes) => {
-    // "Sin Uso" toma prioridad si tiene al menos un voto
-    if ((votes.sinuso || 0) > 0) return "sinuso";
-    const entries = Object.entries(votes).filter(([k]) => k !== "sinuso");
-    const total = entries.reduce((s, [, n]) => s + n, 0);
+    const safe = votes || {};
+    const total = Object.values(safe).reduce((s, n) => s + (Number(n) || 0), 0);
     if (total === 0) return "fluido";
-    return entries.reduce((best, [k, n]) => (n > best[1] ? [k, n] : best), ["fluido", -1])[0];
+
+    // Para reportes operativos, los estados críticos tienen prioridad visual.
+    const prioridad = ["cierre", "sinuso", "retorno_aduana", "retorno_terminal", "retorno_fila", "detenido", "moderado", "fluido"];
+    for (const key of prioridad) {
+      if ((safe[key] || 0) > 0) return key === "sinuso" ? "cierre" : key;
+    }
+    return "fluido";
   };
 
   const recalcAllStatus = (v) => ({
@@ -11295,7 +11353,9 @@ function TrafficMapSegundo({ theme, myId }) {
     const now = new Date();
     setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
 
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: paqueteVotosFases(nextUserVotes) });
+    const paquete = paqueteVotosFases(nextUserVotes);
+    writeStatusCache(`carriles:${ROW_ID}`, paquete);
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: paquete });
   };
 
   const totalVotos = (fase) => Object.values(votos[fase] || {}).reduce((a, b) => a + b, 0);
@@ -11356,12 +11416,11 @@ function TrafficMapSegundo({ theme, myId }) {
 
               {/* Botones de voto */}
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 2 }}>
-                {["fluido","moderado","detenido","sinuso"].map((tipo) => {
+                {["fluido","moderado","detenido","cierre","retorno_fila","retorno_terminal","retorno_aduana"].map((tipo) => {
                   const tr = TRAFICO_STATUS[tipo];
                   const isActive = activeVote.fase === id && activeVote.tipo === tipo;
                   const miVoto = userVotes?.[String(id)]?.[myId] || userVotes?.[id]?.[myId];
                   const isMine = miVoto === tipo;
-                  const isSinUsoOn = tipo === "sinuso" && st === "sinuso";
                   return (
                     <button
                       key={tipo}
@@ -11370,7 +11429,7 @@ function TrafficMapSegundo({ theme, myId }) {
                       onMouseEnter={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = `${tr.color}20`; }}
                       onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
-                      <AppIcon name={tr.emoji} size={16} active={true} />
+                      <AppIcon name={tr.icon} size={16} active={true} />
                       <span>{tr.label}{st === tipo ? " · activo" : ""}</span>
                     </button>
                   );
@@ -11389,7 +11448,7 @@ function TrafficMapSegundo({ theme, myId }) {
       {/* Leyenda */}
       <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", fontSize: "11px", color: "#94a3b8", background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)", borderRadius: "10px", padding: "12px 16px", border: "1px solid rgba(255,255,255,0.1)" }}>
         <span style={{ fontWeight: 700, color: "#ffffff", fontFamily: getFont(theme,"secondary") }}>Leyenda:</span>
-        {Object.entries(TRAFICO_STATUS).map(([key, t]) => (
+        {Object.entries(TRAFICO_STATUS).filter(([key]) => key !== "sinuso").map(([key, t]) => (
           <span key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 24, height: 5, borderRadius: 4, background: t.color, display: "inline-block", boxShadow: `0 0 8px ${t.color}60` }} />
             <span style={{ color: "#e2e8f0", fontFamily: getFont(theme,"secondary") }}>{t.label}</span>
@@ -14449,7 +14508,7 @@ function NoticiasAutoJpegReport() {
       sb.from("terminals").select("*"),
       sb.from("patios").select("*"),
       sb.from("carriles").select("*"),
-      sb.from(OPERATIONAL_STATUS_TABLE).select("*").in("section", ["accesos", "vialidades", "rutas_fiscales", "terminales", "terminals", "patios", "carriles", "segundo_acceso", "confinada"])
+      sb.from(OPERATIONAL_STATUS_TABLE).select("*").in("section", ["accesos", "vialidades", "rutas_fiscales", "terminales", "terminals", "patios", "carriles", "segundo_acceso", "confinada", "fases"])
     ]);
     const opRows = opStatusRes?.data || [];
     const accesosRemote = {};
@@ -14480,6 +14539,7 @@ function NoticiasAutoJpegReport() {
     const carrilesExpo = mergeCarrilesRowByLatest("expo_impo", mkCarrilesState(), carrilesRows.find(r => r.id === "expo_impo")?.data || {});
     const segundo = mergeCarrilesRowByLatest("segundo_acceso", mkSegundoIngreso(), carrilesRows.find(r => r.id === "segundo_acceso")?.data || {});
     const confinada = mergeCarrilesRowByLatest("confinada_acceso", mkConfinadaState(), carrilesRows.find(r => r.id === "confinada_acceso")?.data || {});
+    const fasesSegundo = carrilesRows.find(r => r.id === "trafico_mapa_votos")?.data || readStatusCache("carriles:trafico_mapa_votos") || null;
 
     return [
       { title:"Accesos", rows: ACCESOS_PRINCIPALES.map(a => {
@@ -14507,19 +14567,10 @@ function NoticiasAutoJpegReport() {
         const st = carrilesExpo[c.id] || { abierto:true };
         return { name:`${acc.label} · ${c.label}`, status:st.abierto === false ? "Cerrado" : "Abierto", detail:c.flujo || "", color:st.abierto === false ? "#ef4444" : "#22c55e" };
       }))},
-      { title:"2° Acceso y confinada", rows: [
-        ...ACCESOS_SEGUNDO.flatMap(acc => acc.carriles.map(c => {
-          const st = segundo[c.id] || {};
-          const flags = [terminalName(st.terminal), st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          const laneOpt = getCarrilEstadoOpt(st);
-          return { name:`${acc.label} · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
-        })),
-        ...CONFINADA_CARRILES.map(c => {
-          const st = confinada[c.id] || {};
-          const flags = [terminalName(st.terminal), st.transferencia ? "Transferencia" : "", st.retornos ? "Con retornos" : "", st.expo ? `Expo ${st.expo}` : "", st.impo ? `Impo ${st.impo}` : ""].filter(Boolean).join(" · ");
-          const laneOpt = getCarrilEstadoOpt(st);
-          return { name:`Confinada · ${c.label}`, status:laneOpt.label, detail:flags, color:laneOpt.color };
-        })
+      { title:"2° Acceso, confinada y fases", rows: [
+        ...buildSegundoCarrilReportRows(segundo, terminalName),
+        ...buildConfinadaCarrilReportRows(confinada, terminalName),
+        ...buildSegundoFasesReportRows(fasesSegundo),
       ]}
     ];
   }, []);
