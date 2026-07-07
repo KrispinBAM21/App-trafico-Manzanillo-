@@ -13925,6 +13925,96 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     return currentY;
   };
 
+  // DRY RUN RICH TEXT:
+  // Replica la lógica de drawRichText, pero no dibuja. Solo calcula altura total.
+  // Sirve para autoescalar el cuerpo del comunicado antes del render final.
+  const calculateRichTextHeight = ({
+    ctx,
+    text,
+    maxWidth,
+    lineHeight,
+    normalFont = 'normal 20px "Noto Sans"',
+    boldFont = 'bold 20px "Noto Sans"',
+    paragraphSpacing = 0,
+  }) => {
+    const originalFont = ctx.font;
+    const tokens = tokenizeRichText(text);
+
+    const expandedTokens = [];
+    tokens.forEach((token) => {
+      if (token.type === "word") {
+        const parts = splitRichWordIfNeeded(ctx, token, maxWidth, normalFont, boldFont);
+        parts.forEach((part) => expandedTokens.push(part));
+      } else {
+        expandedTokens.push(token);
+      }
+    });
+
+    const lines = [];
+    let currentLine = [];
+    let currentLineWidth = 0;
+
+    const pushLine = (isParagraphBreak = false) => {
+      while (currentLine.length && currentLine[currentLine.length - 1]?.type === "space") {
+        const removed = currentLine.pop();
+        currentLineWidth -= measureRichToken(ctx, removed, normalFont, boldFont);
+      }
+
+      lines.push({
+        tokens: currentLine,
+        width: Math.max(0, currentLineWidth),
+        isParagraphBreak,
+      });
+
+      currentLine = [];
+      currentLineWidth = 0;
+    };
+
+    expandedTokens.forEach((token) => {
+      if (token.type === "newline") {
+        pushLine(true);
+        return;
+      }
+
+      if (token.type === "space" && currentLine.length === 0) return;
+
+      const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
+      const nextWidth = currentLineWidth + tokenWidth;
+
+      if (token.type !== "space" && currentLine.length > 0 && nextWidth > maxWidth) {
+        pushLine(false);
+      }
+
+      if (token.type === "space" && currentLine.length === 0) return;
+
+      currentLine.push(token);
+      currentLineWidth += tokenWidth;
+    });
+
+    if (currentLine.length > 0) {
+      pushLine(false);
+    }
+
+    let totalHeight = 0;
+
+    lines.forEach((line) => {
+      if (line.isParagraphBreak && line.tokens.length === 0) {
+        totalHeight += paragraphSpacing || lineHeight;
+        return;
+      }
+
+      totalHeight += lineHeight;
+    });
+
+    ctx.font = originalFont;
+
+    return {
+      height: totalHeight,
+      linesCount: lines.length,
+      lines,
+    };
+  };
+
   const agregarTextoExtraidoADetalle = (rawText) => {
     const cleanText = stripFileNamesFromOcrText(String(rawText || ""), archivo ? [archivo] : []);
     if (!cleanText.trim()) return false;
@@ -14398,25 +14488,66 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         fillStyle: corporateBlue,
       });
 
-      // 4) Cuerpo del comunicado: inicia debajo del texto fijo, alineado a la izquierda.
-      // RICH TEXT: drawRichText interpreta **texto** y lo renderiza en bold
-      // para destacar horas, fechas y términos críticos sin mostrar los asteriscos.
-      currentY += 50 * scale;
-      const normalBodyFont = `normal ${bodyFontSize}px "Noto Sans"`;
-      const boldBodyFont = `bold ${bodyFontSize}px "Noto Sans"`;
+      // 4) CUERPO DEL COMUNICADO: autoescalado dinámico + centrado vertical.
+      // Se define un bounding box entre el encabezado "INFORMA:" y el pie de página.
+      // Luego se hace un dry run con calculateRichTextHeight para encontrar el mayor
+      // tamaño de fuente que quepa completo. Finalmente se centra verticalmente.
+      const bodyYStart = currentY + (50 * scale);
+      const bodyYEnd = height - (170 * scale);
+      const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
+
+      const maxBodyFontSize = Math.round(32 * scale);
+      const minBodyFontSize = Math.round(20 * scale);
+      const paragraphSpacingFactor = 0.65;
+
+      let selectedBodyFontSize = maxBodyFontSize;
+      let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
+      let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
+      let selectedBodyHeight = 0;
+
+      for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
+        const testLineHeight = Math.round(testFontSize * 1.5);
+        const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
+        const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
+        const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
+
+        const measured = calculateRichTextHeight({
+          ctx,
+          text: bodyText,
+          maxWidth: bodyMaxWidth,
+          lineHeight: testLineHeight,
+          normalFont: testNormalFont,
+          boldFont: testBoldFont,
+          paragraphSpacing: testParagraphSpacing,
+        });
+
+        if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
+          selectedBodyFontSize = testFontSize;
+          selectedBodyLineHeight = testLineHeight;
+          selectedParagraphSpacing = testParagraphSpacing;
+          selectedBodyHeight = measured.height;
+          break;
+        }
+      }
+
+      const verticalExtraSpace = Math.max(0, availableHeight - selectedBodyHeight);
+      const bodyRenderY = bodyYStart + (verticalExtraSpace / 2);
+
+      const normalBodyFont = `normal ${selectedBodyFontSize}px "Noto Sans"`;
+      const boldBodyFont = `bold ${selectedBodyFontSize}px "Noto Sans"`;
 
       currentY = drawRichText({
         ctx,
         text: bodyText,
         x: leftMargin,
-        y: currentY,
+        y: bodyRenderY,
         maxWidth: bodyMaxWidth,
-        lineHeight: bodyLineHeight,
+        lineHeight: selectedBodyLineHeight,
         textAlign: "left",
         fillStyle: textDark,
         normalFont: normalBodyFont,
         boldFont: boldBodyFont,
-        paragraphSpacing: Math.round(bodyLineHeight * 0.65),
+        paragraphSpacing: selectedParagraphSpacing,
       });
 
       const blob = await new Promise((resolve, reject) => {
