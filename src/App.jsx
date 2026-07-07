@@ -13708,6 +13708,223 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     return currentY;
   };
 
+  const tokenizeRichText = (text) => {
+    const source = String(text || "").replace(/\r/g, "");
+    const regex = /\*\*(.+?)\*\*/g;
+
+    const rawSegments = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(source)) !== null) {
+      if (match.index > lastIndex) {
+        rawSegments.push({
+          text: source.slice(lastIndex, match.index),
+          bold: false,
+        });
+      }
+
+      rawSegments.push({
+        text: match[1],
+        bold: true,
+      });
+
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < source.length) {
+      rawSegments.push({
+        text: source.slice(lastIndex),
+        bold: false,
+      });
+    }
+
+    const tokens = [];
+
+    rawSegments.forEach((segment) => {
+      const parts = segment.text.split(/(\n|\s+)/).filter((part) => part !== "");
+
+      parts.forEach((part) => {
+        if (part === "\n") {
+          tokens.push({ type: "newline" });
+        } else if (/^\s+$/.test(part)) {
+          tokens.push({
+            type: "space",
+            text: part,
+            bold: segment.bold,
+          });
+        } else {
+          tokens.push({
+            type: "word",
+            text: part,
+            bold: segment.bold,
+          });
+        }
+      });
+    });
+
+    return tokens;
+  };
+
+  const measureRichToken = (ctx, token, normalFont, boldFont) => {
+    if (!token?.text) return 0;
+    ctx.font = token.bold ? boldFont : normalFont;
+    return ctx.measureText(token.text).width;
+  };
+
+  const splitRichWordIfNeeded = (ctx, token, maxWidth, normalFont, boldFont) => {
+    if (!token?.text || token.type !== "word") return [token];
+
+    ctx.font = token.bold ? boldFont : normalFont;
+    if (ctx.measureText(token.text).width <= maxWidth) return [token];
+
+    const chars = token.text.split("");
+    const result = [];
+    let current = "";
+
+    chars.forEach((char) => {
+      const candidate = current + char;
+      ctx.font = token.bold ? boldFont : normalFont;
+
+      if (current && ctx.measureText(candidate).width > maxWidth) {
+        result.push({
+          ...token,
+          text: current,
+        });
+        current = char;
+      } else {
+        current = candidate;
+      }
+    });
+
+    if (current) {
+      result.push({
+        ...token,
+        text: current,
+      });
+    }
+
+    return result;
+  };
+
+  // RICH TEXT CANVAS:
+  // Interpreta **texto** como negritas, mide cada fragmento con su fuente real,
+  // hace salto de línea manual y devuelve la nueva coordenada Y.
+  const drawRichText = ({
+    ctx,
+    text,
+    x,
+    y,
+    maxWidth,
+    lineHeight,
+    textAlign = "left",
+    fillStyle = "#1f2937",
+    normalFont = 'normal 20px "Noto Sans"',
+    boldFont = 'bold 20px "Noto Sans"',
+    paragraphSpacing = 0,
+  }) => {
+    const originalFont = ctx.font;
+    const tokens = tokenizeRichText(text);
+
+    const expandedTokens = [];
+    tokens.forEach((token) => {
+      if (token.type === "word") {
+        const parts = splitRichWordIfNeeded(ctx, token, maxWidth, normalFont, boldFont);
+        parts.forEach((part) => expandedTokens.push(part));
+      } else {
+        expandedTokens.push(token);
+      }
+    });
+
+    const lines = [];
+    let currentLine = [];
+    let currentLineWidth = 0;
+
+    const pushLine = (isParagraphBreak = false) => {
+      // Limpia espacios finales para que la alineación no se vea desplazada.
+      while (currentLine.length && currentLine[currentLine.length - 1]?.type === "space") {
+        const removed = currentLine.pop();
+        currentLineWidth -= measureRichToken(ctx, removed, normalFont, boldFont);
+      }
+
+      lines.push({
+        tokens: currentLine,
+        width: Math.max(0, currentLineWidth),
+        isParagraphBreak,
+      });
+
+      currentLine = [];
+      currentLineWidth = 0;
+    };
+
+    expandedTokens.forEach((token) => {
+      if (token.type === "newline") {
+        pushLine(true);
+        return;
+      }
+
+      if (token.type === "space" && currentLine.length === 0) return;
+
+      const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
+      const nextWidth = currentLineWidth + tokenWidth;
+
+      if (token.type !== "space" && currentLine.length > 0 && nextWidth > maxWidth) {
+        pushLine(false);
+      }
+
+      if (token.type === "space" && currentLine.length === 0) return;
+
+      currentLine.push(token);
+      currentLineWidth += tokenWidth;
+    });
+
+    if (currentLine.length > 0) {
+      pushLine(false);
+    }
+
+    ctx.save();
+    ctx.fillStyle = fillStyle;
+    ctx.textBaseline = "top";
+
+    let currentY = y;
+
+    lines.forEach((line) => {
+      if (line.isParagraphBreak && line.tokens.length === 0) {
+        currentY += paragraphSpacing || lineHeight;
+        return;
+      }
+
+      if (!line.tokens.length) {
+        currentY += lineHeight;
+        return;
+      }
+
+      let startX = x;
+      if (textAlign === "center") {
+        startX = x - (line.width / 2);
+      } else if (textAlign === "right") {
+        startX = x - line.width;
+      }
+
+      let currentX = startX;
+
+      line.tokens.forEach((token) => {
+        if (!token?.text) return;
+
+        ctx.font = token.bold ? boldFont : normalFont;
+        ctx.fillText(token.text, currentX, currentY);
+        currentX += ctx.measureText(token.text).width;
+      });
+
+      currentY += lineHeight;
+    });
+
+    ctx.restore();
+    ctx.font = originalFont;
+
+    return currentY;
+  };
+
   const agregarTextoExtraidoADetalle = (rawText) => {
     const cleanText = stripFileNamesFromOcrText(String(rawText || ""), archivo ? [archivo] : []);
     if (!cleanText.trim()) return false;
@@ -13959,9 +14176,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setError("");
     setAiOutput("");
     try {
+      const emphasisInstruction =
+        "Revisa el texto final y encierra estrictamente entre dobles asteriscos ** los siguientes elementos para que se resalten en negritas: " +
+        "fechas completas, horas (ej. **15:00 horas** o **15:00**), y palabras clave de alerta logística " +
+        "(específicamente: **abstener**, **abstenerse**, **posponer traslados**, **hasta nuevo aviso**, **intermitencia**). " +
+        "No uses asteriscos para nada más.";
+
       const prompt = actionLabel === "resumir"
-        ? `Actúa como asistente de redacción de Conect Manzanillo. Resume el siguiente contenido para un comunicado operativo. Devuelve únicamente el texto final, claro, formal y breve:\n\n${inputText}`
-        : `Actúa como asistente de redacción de Conect Manzanillo. Crea un texto listo para comunicado operativo a partir de estas especificaciones. Devuelve únicamente el texto final, claro, formal y útil para usuarios del puerto:\n\n${inputText}`;
+        ? `Actúa como asistente de redacción de Conect Manzanillo. Resume el siguiente contenido para un comunicado operativo. Devuelve únicamente el texto final, claro, formal y breve. ${emphasisInstruction}\n\n${inputText}`
+        : `Actúa como asistente de redacción de Conect Manzanillo. Crea un texto listo para comunicado operativo a partir de estas especificaciones. Devuelve únicamente el texto final, claro, formal y útil para usuarios del puerto. ${emphasisInstruction}\n\n${inputText}`;
 
       const { reply, attempt } = await callGeminiChatForComunicados({ prompt, inputText, actionLabel });
       setAiOutput(reply);
@@ -14166,6 +14389,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
       currentY = drawWrappedTextCanvas({
         ctx,
+        text: "CONECT MANZANILLO INFORMA:",
         x: centerX,
         y: currentY,
         maxWidth: width * 0.70,
@@ -14175,11 +14399,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       });
 
       // 4) Cuerpo del comunicado: inicia debajo del texto fijo, alineado a la izquierda.
-      // wrapText calcula los saltos de línea con margen izquierdo y derecho, y devuelve
-      // la Y final para mantener un flujo limpio y sin superposiciones.
+      // RICH TEXT: drawRichText interpreta **texto** y lo renderiza en bold
+      // para destacar horas, fechas y términos críticos sin mostrar los asteriscos.
       currentY += 50 * scale;
-      ctx.font = `normal ${bodyFontSize}px "Noto Sans"`;
-      currentY = drawWrappedTextCanvas({
+      const normalBodyFont = `normal ${bodyFontSize}px "Noto Sans"`;
+      const boldBodyFont = `bold ${bodyFontSize}px "Noto Sans"`;
+
+      currentY = drawRichText({
         ctx,
         text: bodyText,
         x: leftMargin,
@@ -14188,6 +14414,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         lineHeight: bodyLineHeight,
         textAlign: "left",
         fillStyle: textDark,
+        normalFont: normalBodyFont,
+        boldFont: boldBodyFont,
         paragraphSpacing: Math.round(bodyLineHeight * 0.65),
       });
 
