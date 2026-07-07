@@ -7764,6 +7764,363 @@ function hexToRgb(hex) {
   return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
 }
 
+
+// ─── FORMATO COMPARTIDO DE EXPORTACIÓN "REPORTE" ────────────────────────────
+// Estos helpers concentran el diseño formal usado por la sección REPORTE.
+// Noticias los reutiliza para que JPEG y PDF mantengan la misma estructura,
+// encabezado, paginación, colores, tipografías y marca de agua.
+const CM_REPORT_EXPORT_STYLE = {
+  pdf: {
+    marginLeft: 16,
+    marginRight: 16,
+    headerHeight: 30,
+    contentTop: 42,
+    footerY: 9,
+    watermarkSize: 118,
+    watermarkOffsetY: 8,
+  },
+  jpeg: {
+    scale: 2,
+    width: 1080,
+    // Carta vertical: misma proporción que jsPDF({ format:"letter" }).
+    height: Math.round(1080 * 11 / 8.5),
+    margin: 80,
+    headerHeight: 150,
+    contentTop: 210,
+    footerHeight: 58,
+    sectionHeight: 60,
+    rowHeight: 32,
+    rowHeightWithDetail: 44,
+  }
+};
+
+const cleanReportExportText = (text) => String(text ?? "")
+  .replace(/&amp;/g, "&")
+  .replace(/&nbsp;/g, " ")
+  .replace(/&#x2F;|&#47;/g, "/")
+  .replace(/&quot;/g, '"')
+  .replace(/&#x27;|&#39;/g, "'")
+  .replace(/[→➡➜]/g, " - ")
+  .replace(/[←⬅]/g, " - ")
+  .replace(/[·•]/g, " - ")
+  .replace(/[–—]/g, "-")
+  .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "")
+  .replace(/\s*-\s*/g, " - ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const normalizeCmReportGroups = (groups = []) => groups.map(g => ({
+  title: cleanReportExportText(g.title || g.titulo || "Sección"),
+  rows: (g.rows || g.items || []).map(item => ({
+    name: cleanReportExportText(item.name || item.nombre || item.label || "Sin nombre"),
+    status: cleanReportExportText(item.status || item.estatus || item.estado || "Sin dato"),
+    detail: cleanReportExportText(item.detail || item.detalle || item.zona || ""),
+    color: item.color || "#64748b",
+  }))
+}));
+
+const drawCmReportPdfWatermark = (doc) => {
+  try {
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const size = CM_REPORT_EXPORT_STYLE.pdf.watermarkSize;
+    // MARCA DE AGUA COMPARTIDA: usa exactamente la misma imagen, tamaño y posición
+    // del PDF formal de la sección REPORTE: 118 mm, centrada y con offset vertical +8 mm.
+    doc.addImage(
+      CM_REPORT_WATERMARK,
+      "PNG",
+      (pageW - size) / 2,
+      (pageH - size) / 2 + CM_REPORT_EXPORT_STYLE.pdf.watermarkOffsetY,
+      size,
+      size,
+      undefined,
+      "FAST"
+    );
+  } catch {}
+};
+
+const drawCmReportPdfHeader = (doc, { stamp, selectedCount, totalItems }) => {
+  const pageW = doc.internal.pageSize.getWidth();
+  const left = CM_REPORT_EXPORT_STYLE.pdf.marginLeft;
+  const right = pageW - CM_REPORT_EXPORT_STYLE.pdf.marginRight;
+  drawCmReportPdfWatermark(doc);
+  // INSERCIÓN DEL ENCABEZADO COMPARTIDO: mismo encabezado que REPORTE.
+  doc.setFillColor(7, 20, 38);
+  doc.rect(0, 0, pageW, CM_REPORT_EXPORT_STYLE.pdf.headerHeight, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("Reporte operativo", left, 15);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text("Conect Manzanillo", left, 22);
+  doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
+  doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
+};
+
+const drawCmReportPdfFooter = (doc) => {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const left = CM_REPORT_EXPORT_STYLE.pdf.marginLeft;
+  const right = pageW - CM_REPORT_EXPORT_STYLE.pdf.marginRight;
+  const pages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Página ${i} de ${pages}`, right, pageH - CM_REPORT_EXPORT_STYLE.pdf.footerY, { align:"right" });
+    doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - CM_REPORT_EXPORT_STYLE.pdf.footerY);
+  }
+};
+
+const buildCmReportPdfDocument = (jsPDF, groups, now = new Date()) => {
+  const reportGroups = normalizeCmReportGroups(groups);
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const left = CM_REPORT_EXPORT_STYLE.pdf.marginLeft;
+  const right = pageW - CM_REPORT_EXPORT_STYLE.pdf.marginRight;
+  const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
+  const totalItems = reportGroups.reduce((sum, g) => sum + g.rows.length, 0);
+  const selectedCount = reportGroups.length;
+  const statusX = pageW - 48;
+  let y = 18;
+
+  const addPageHeader = () => {
+    drawCmReportPdfHeader(doc, { stamp, selectedCount, totalItems });
+    y = CM_REPORT_EXPORT_STYLE.pdf.contentTop;
+  };
+
+  const checkPage = (needed = 8) => {
+    // CONTROL DE SALTO DE PÁGINA PDF: se valida el alto del bloque antes de dibujarlo.
+    // Si no cabe completo, se crea una nueva hoja con encabezado y marca de agua propios.
+    if (y + needed > pageH - 15) {
+      doc.addPage();
+      addPageHeader();
+    }
+  };
+
+  addPageHeader();
+  reportGroups.forEach(g => {
+    checkPage(12);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.25);
+    doc.line(left, y, right, y);
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(cleanReportExportText(g.title), left, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.3);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${g.rows.length} registros`, right, y, { align:"right" });
+    y += 5;
+
+    g.rows.forEach(item => {
+      const detail = cleanReportExportText(item.detail || "");
+      const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
+      const rowHeight = detail ? 8.8 : 5.8;
+      checkPage(detail ? 10 : 7);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cleanReportExportText(item.name).slice(0, 84), left + 2, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(rgb.r, rgb.g, rgb.b);
+      doc.text(cleanReportExportText(item.status).slice(0, 28), statusX, y);
+      if (detail) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.6);
+        doc.setTextColor(148, 163, 184);
+        doc.text(detail.slice(0, 98), left + 2, y + 3.4);
+      }
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.12);
+      doc.line(left + 2, y + rowHeight - 3.7, right, y + rowHeight - 3.7);
+      y += rowHeight;
+    });
+    y += 3;
+  });
+
+  drawCmReportPdfFooter(doc);
+  return doc;
+};
+
+const loadCmReportImage = (src) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = reject;
+  img.src = src;
+});
+
+const buildCmReportJpegCanvases = async (groups, now = new Date()) => {
+  const reportGroups = normalizeCmReportGroups(groups);
+  const cfg = CM_REPORT_EXPORT_STYLE.jpeg;
+  const w = cfg.width;
+  const pageH = cfg.height;
+  const pad = cfg.margin;
+  const contentBottom = pageH - cfg.footerHeight;
+  const rowsCount = reportGroups.reduce((sum, g) => sum + g.rows.length, 0);
+
+  // CONTROL DE SALTO DE PÁGINA JPEG: se arma primero una lista de bloques indivisibles.
+  // Ninguna fila o encabezado se parte entre imágenes; si el bloque no cabe, pasa completo
+  // a la siguiente hoja. El texto también se envuelve por palabras, nunca a media palabra.
+  const pages = [];
+  let currentPage = [];
+  let yCursor = cfg.contentTop;
+  const startNewPage = () => {
+    if (currentPage.length) pages.push(currentPage);
+    currentPage = [];
+    yCursor = cfg.contentTop;
+  };
+  const ensureSpace = (needed) => {
+    if (yCursor + needed > contentBottom && currentPage.length) startNewPage();
+  };
+
+  reportGroups.forEach(g => {
+    let sectionOpenOnThisPage = false;
+    const addSectionHeader = (continuation = false) => {
+      ensureSpace(cfg.sectionHeight);
+      currentPage.push({ type:"section", group:g, continuation });
+      yCursor += cfg.sectionHeight;
+      sectionOpenOnThisPage = true;
+    };
+    addSectionHeader(false);
+    g.rows.forEach((row, rowIndex) => {
+      const rowHeight = row.detail ? cfg.rowHeightWithDetail : cfg.rowHeight;
+      if (yCursor + rowHeight > contentBottom) {
+        startNewPage();
+        sectionOpenOnThisPage = false;
+      }
+      if (!sectionOpenOnThisPage) addSectionHeader(true);
+      currentPage.push({ type:"row", row, rowIndex, rowHeight });
+      yCursor += rowHeight;
+    });
+  });
+  if (currentPage.length) pages.push(currentPage);
+
+  const wm = await loadCmReportImage(CM_REPORT_WATERMARK).catch(() => null);
+  const line = (ctx, x1, y1, x2, y2, color = "#cbd5e1", width = 1) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  };
+  const wrapText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 1) => {
+    const words = cleanReportExportText(text).split(" ").filter(Boolean);
+    let lineText = "";
+    let lineNo = 0;
+    for (let i = 0; i < words.length; i++) {
+      const test = lineText ? `${lineText} ${words[i]}` : words[i];
+      if (ctx.measureText(test).width > maxWidth && lineText) {
+        ctx.fillText(lineNo + 1 === maxLines ? `${lineText}…` : lineText, x, y + lineNo * lineHeight);
+        lineNo += 1;
+        lineText = words[i];
+        if (lineNo >= maxLines) return;
+      } else {
+        lineText = test;
+      }
+    }
+    if (lineNo < maxLines) ctx.fillText(lineText, x, y + lineNo * lineHeight);
+  };
+
+  const drawJpegHeader = (ctx) => {
+    // INSERCIÓN DEL ENCABEZADO COMPARTIDO: replica el header formal de REPORTE.
+    ctx.fillStyle = "#071426";
+    ctx.fillRect(0, 0, w, cfg.headerHeight);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 30px Arial"; // equivalente visual al encabezado formal del PDF de REPORTE.
+    ctx.fillText("Reporte operativo", pad, 74);
+    ctx.font = "400 17px Arial";
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillText("Conect Manzanillo", pad, 112);
+    ctx.textAlign = "right";
+    ctx.font = "400 17px Arial";
+    ctx.fillText(`Generado: ${now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}`, w - pad, 74);
+    ctx.fillText(`${reportGroups.length} secciones · ${rowsCount} registros`, w - pad, 112);
+    ctx.textAlign = "left";
+  };
+
+  const drawJpegWatermark = (ctx) => {
+    if (!wm) return;
+    const pxPerMm = w / 215.9;
+    const size = CM_REPORT_EXPORT_STYLE.pdf.watermarkSize * pxPerMm;
+    const offsetY = CM_REPORT_EXPORT_STYLE.pdf.watermarkOffsetY * pxPerMm;
+    ctx.save();
+    // MARCA DE AGUA COMPARTIDA: misma imagen/opacidad original, tamaño 118 mm y
+    // posición centrada con +8 mm vertical, igual que el PDF de REPORTE.
+    ctx.drawImage(wm, (w - size) / 2, (pageH - size) / 2 + offsetY, size, size);
+    ctx.restore();
+  };
+
+  const canvases = [];
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w * cfg.scale;
+    canvas.height = pageH * cfg.scale;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${pageH}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(cfg.scale, cfg.scale);
+
+    ctx.fillStyle = "#f3f4f6";
+    ctx.fillRect(0, 0, w, pageH);
+    drawJpegWatermark(ctx);
+    drawJpegHeader(ctx);
+
+    let y = cfg.contentTop;
+    pages[pageIndex].forEach(block => {
+      if (block.type === "section") {
+        const g = block.group;
+        line(ctx, pad, y - 16, w - pad, y - 16, "#cbd5e1", 1.2);
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "700 21px Arial";
+        wrapText(ctx, `${g.title}${block.continuation ? " (cont.)" : ""}`, pad, y + 16, 660, 22, 1);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#64748b";
+        ctx.font = "400 16px Arial";
+        ctx.fillText(`${g.rows.length} registros`, w - pad, y + 16);
+        ctx.textAlign = "left";
+        y += cfg.sectionHeight;
+        return;
+      }
+
+      const item = block.row;
+      const rowHeight = block.rowHeight;
+      const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "400 17px Arial";
+      wrapText(ctx, item.name, pad + 10, y, 650, 18, 1);
+      ctx.textAlign = "right";
+      ctx.fillStyle = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+      ctx.font = "700 17px Arial";
+      ctx.fillText(cleanReportExportText(item.status).slice(0, 28), w - pad, y);
+      ctx.textAlign = "left";
+      if (item.detail) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "400 13px Arial";
+        wrapText(ctx, item.detail, pad + 10, y + 18, 760, 14, 1);
+      }
+      line(ctx, pad + 10, y + rowHeight - 10, w - pad, y + rowHeight - 10, "#e2e8f0", 1);
+      y += rowHeight;
+    });
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "400 14px Arial";
+    ctx.fillText("Conect Manzanillo · Reporte generado desde la web", pad, pageH - 28);
+    ctx.textAlign = "right";
+    ctx.fillText(`Página ${pageIndex + 1} de ${pages.length}`, w - pad, pageH - 28);
+    ctx.textAlign = "left";
+    canvases.push(canvas);
+  }
+  return { canvases, now, groups: reportGroups, rowsCount };
+};
+
 function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
   const theme = React.useContext(ThemeContext);
   const [include, setInclude] = useState({
@@ -7943,85 +8300,10 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     setBusyPdf(true);
     try {
       const jsPDF = await loadJsPdf();
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const left = 16;
-      const right = pageW - 16;
       const now = new Date();
-      const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
-      let y = 18;
-
-      const addPageHeader = () => {
-        drawWatermark(doc);
-        doc.setFillColor(7, 20, 38);
-        doc.rect(0, 0, pageW, 30, "F");
-        doc.setTextColor(255,255,255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(15);
-        doc.text("Reporte operativo", left, 15);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(203, 213, 225);
-        doc.text("Conect Manzanillo", left, 22);
-        doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
-        doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
-        y = 42;
-      };
-      const checkPage = (needed = 8) => {
-        if (y + needed > pageH - 15) {
-          doc.addPage();
-          addPageHeader();
-        }
-      };
-      const statusX = pageW - 48;
-      addPageHeader();
-
-      reportGroups.forEach(g => {
-        checkPage(12);
-        doc.setDrawColor(203, 213, 225);
-        doc.setLineWidth(0.25);
-        doc.line(left, y, right, y);
-        y += 5;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(15, 23, 42);
-        doc.text(cleanPdfText(g.title), left, y);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.3);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`${g.items.length} registros`, right, y, { align:"right" });
-        y += 5;
-
-        g.items.forEach(item => {
-          checkPage(7);
-          const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9.2);
-          doc.setTextColor(15, 23, 42);
-          const detail = cleanPdfText(item.detalle || item.zona || "");
-          const name = cleanPdfText(item.nombre);
-          doc.text(name.slice(0, 84), left + 2, y);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(rgb.r, rgb.g, rgb.b);
-          doc.text(cleanPdfText(item.estatus).slice(0, 28), statusX, y);
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(0.12);
-          doc.line(left + 2, y + 2.1, right, y + 2.1);
-          y += 5.8;
-        });
-        y += 3;
-      });
-
-      const pages = doc.internal.getNumberOfPages();
-      for (let i=1;i<=pages;i++) {
-        doc.setPage(i);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Página ${i} de ${pages}`, right, pageH - 9, { align:"right" });
-        doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - 9);
-      }
+      // HOMOLOGACIÓN DE FORMATO: la sección REPORTE también usa el helper compartido.
+      // Así Noticias y REPORTE exportan con la misma estructura, encabezado y marca de agua.
+      const doc = buildCmReportPdfDocument(jsPDF, reportGroups, now);
       doc.save(`reporte-conect-manzanillo-${now.toISOString().slice(0,10)}.pdf`);
       notify("PDF generado correctamente", "#22c55e");
     } catch (e) {
@@ -14591,13 +14873,6 @@ function NoticiasAutoJpegReport() {
     ];
   }, []);
 
-  const loadImage = (src) => new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-
   const loadJsPdf = () => new Promise((resolve, reject) => {
     if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
     const existing = document.querySelector('script[src*="jspdf.umd.min.js"]');
@@ -14613,317 +14888,11 @@ function NoticiasAutoJpegReport() {
     document.head.appendChild(script);
   });
 
-  const drawCanvasWatermark = async (ctx, w, startY, areaH) => {
-    try {
-      const wm = await loadImage(CM_REPORT_WATERMARK);
-      const wmW = Math.min(610, w * 0.64);
-      const wmH = wmW * (wm.height / wm.width);
-      const centerY = startY + areaH / 2;
-      ctx.save();
-      if ("filter" in ctx) ctx.filter = "grayscale(1)";
-      ctx.globalAlpha = 0.14;
-      ctx.drawImage(wm, (w - wmW) / 2, centerY - wmH / 2, wmW, wmH);
-      ctx.restore();
-    } catch {}
-  };
-
-  const buildReportCanvas = useCallback(async () => {
-    const groups = await cargarSnapshot();
-    const scale = 2;
-    const w = 1080;
-    const pad = 42;
-    const headerH = 150;
-    const footerH = 58;
-    const sectionGap = 24;
-    const titleGap = 34;
-    const rowBaseH = 32;
-    const detailExtraH = 14;
-    const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
-    const totalDetails = groups.reduce((n, g) => n + g.rows.filter(r => clean(r.detail)).length, 0);
-    const h = headerH + footerH + groups.length * (titleGap + sectionGap) + rowsCount * rowBaseH + totalDetails * detailExtraH + 48;
-    const canvas = document.createElement("canvas");
-    canvas.width = w * scale;
-    canvas.height = h * scale;
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    const ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
-
-    const line = (x1, y1, x2, y2, color = "#cbd5e1", width = 1) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.stroke();
-    };
-    const wrapText = (text, x, y, maxWidth, lineHeight, maxLines = 1) => {
-      const words = clean(text).split(" ");
-      let lineText = "";
-      let lineNo = 0;
-      for (let i = 0; i < words.length; i++) {
-        const test = lineText ? `${lineText} ${words[i]}` : words[i];
-        if (ctx.measureText(test).width > maxWidth && lineText) {
-          ctx.fillText(lineNo + 1 === maxLines ? `${lineText}…` : lineText, x, y + lineNo * lineHeight);
-          lineNo += 1;
-          lineText = words[i];
-          if (lineNo >= maxLines) return;
-        } else {
-          lineText = test;
-        }
-      }
-      if (lineNo < maxLines) ctx.fillText(lineText, x, y + lineNo * lineHeight);
-    };
-
-    const now = new Date();
-    const selectedCount = groups.length;
-
-    ctx.fillStyle = "#f3f4f6";
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = "#03152f";
-    ctx.fillRect(0, 0, w, 116);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "700 30px Arial";
-    ctx.fillText("Reporte operativo", pad, 56);
-    ctx.font = "400 18px Arial";
-    ctx.fillText("Conect Manzanillo", pad, 92);
-
-    ctx.textAlign = "right";
-    ctx.font = "400 17px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillText(`Generado: ${now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}`, w - pad, 56);
-    ctx.fillText(`${selectedCount} secciones · ${rowsCount} registros`, w - pad, 92);
-    ctx.textAlign = "left";
-
-    await drawCanvasWatermark(ctx, w, headerH, h - headerH - footerH);
-
-    let y = headerH + 10;
-    groups.forEach((g) => {
-      line(pad, y, w - pad, y, "#cbd5e1", 1.1);
-      y += 22;
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "700 21px Arial";
-      ctx.fillText(g.title, pad, y);
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#64748b";
-      ctx.font = "400 16px Arial";
-      ctx.fillText(`${g.rows.length} registros`, w - pad, y);
-      ctx.textAlign = "left";
-      y += 22;
-
-      g.rows.forEach((r) => {
-        const detail = clean(r.detail);
-        ctx.fillStyle = "#1f2937";
-        ctx.font = "400 17px Arial";
-        wrapText(r.name, pad + 10, y, 640, 18, 1);
-        ctx.textAlign = "right";
-        ctx.fillStyle = r.color || "#64748b";
-        ctx.font = "700 17px Arial";
-        ctx.fillText(clean(r.status).slice(0, 32), w - pad, y);
-        ctx.textAlign = "left";
-        y += 14;
-        if (detail) {
-          ctx.fillStyle = "#94a3b8";
-          ctx.font = "400 12px Arial";
-          wrapText(detail, pad + 10, y, 700, 13, 1);
-          y += 11;
-        }
-        y += 10;
-        line(pad + 10, y, w - pad, y, "#d7dde5", 1);
-        y += 18;
-      });
-      y += 16;
-    });
-
-    ctx.fillStyle = "#64748b";
-    ctx.font = "400 14px Arial";
-    ctx.fillText("Conect Manzanillo · Reporte generado desde la web", pad, h - 24);
-    ctx.textAlign = "right";
-    ctx.fillText("Vista previa JPEG con marca de agua", w - pad, h - 24);
-    ctx.textAlign = "left";
-
-    return { canvas, now, groups, rowsCount };
-  }, [cargarSnapshot]);
-
   const buildPreviewCanvases = useCallback(async () => {
     const groups = await cargarSnapshot();
-    const scale = 2;
-    const w = 1080;
-    const pageH = 1528;
-    const pad = 42;
-    const rowH = 44;
-    const sectionH = 58;
-    const headerH = 150;
-    const footerH = 62;
-    const contentTop = headerH;
-    const contentBottom = pageH - footerH;
-    const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
-    const now = new Date();
-
-    // CONTROL DE SALTO DE PÁGINA:
-    // Se pagina por bloques completos (encabezado de sección o fila). Antes de dibujar
-    // se calcula si el bloque cabe; si no cabe, se abre una hoja nueva. Así ningún
-    // renglón, título ni palabra queda cortado entre dos imágenes.
-    const pages = [];
-    let currentPage = [];
-    let yCursor = contentTop;
-    const startNewPage = () => {
-      if (currentPage.length) pages.push(currentPage);
-      currentPage = [];
-      yCursor = contentTop;
-    };
-    const ensureSpace = (needed) => {
-      if (yCursor + needed > contentBottom && currentPage.length) startNewPage();
-    };
-
-    groups.forEach((g) => {
-      let sectionOpenOnThisPage = false;
-      const addSectionHeader = (continuation = false) => {
-        ensureSpace(sectionH);
-        currentPage.push({ type:"section", group:g, continuation });
-        yCursor += sectionH;
-        sectionOpenOnThisPage = true;
-      };
-
-      addSectionHeader(false);
-      g.rows.forEach((r, idx) => {
-        if (yCursor + rowH > contentBottom) {
-          startNewPage();
-          sectionOpenOnThisPage = false;
-        }
-        if (!sectionOpenOnThisPage) addSectionHeader(true);
-        currentPage.push({ type:"row", row:r, rowIndex:idx });
-        yCursor += rowH;
-      });
-    });
-    if (currentPage.length) pages.push(currentPage);
-
-    const roundRect = (ctx, x,y,ww,hh,r) => {
-      ctx.beginPath();
-      ctx.moveTo(x+r,y); ctx.arcTo(x+ww,y,x+ww,y+hh,r); ctx.arcTo(x+ww,y+hh,x,y+hh,r); ctx.arcTo(x,y+hh,x,y,r); ctx.arcTo(x,y,x+ww,y,r); ctx.closePath();
-    };
-    const wrapText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 1) => {
-      const words = clean(text).split(" ");
-      let line = "";
-      let lineNo = 0;
-      for (let i=0; i<words.length; i++) {
-        const test = line ? line + " " + words[i] : words[i];
-        if (ctx.measureText(test).width > maxWidth && line) {
-          ctx.fillText(lineNo + 1 === maxLines ? line + "…" : line, x, y + lineNo * lineHeight);
-          lineNo++;
-          line = words[i];
-          if (lineNo >= maxLines) return;
-        } else line = test;
-      }
-      if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
-    };
-
-    const drawPageHeader = (ctx, pageNo, totalPages) => {
-      // INSERCIÓN DEL ENCABEZADO:
-      // Cada canvas/hoja dibuja su propio encabezado, independiente de las demás páginas.
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "900 34px Arial";
-      ctx.fillText("Reporte operativo", pad, 62);
-      ctx.font = "700 18px Arial";
-      ctx.fillStyle = "#93c5fd";
-      ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
-      ctx.font = "400 17px Arial";
-      ctx.fillStyle = "#cbd5e1";
-      ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = "900 18px Arial";
-      ctx.fillText(`${rowsCount} registros`, w - pad, 62);
-      ctx.font = "700 14px Arial";
-      ctx.fillStyle = "#94a3b8";
-      ctx.fillText(`Hoja ${pageNo} de ${totalPages}`, w - pad, 94);
-      ctx.textAlign = "left";
-    };
-
-    const drawCenteredWatermark = async (ctx) => {
-      try {
-        const wm = await loadImage(CM_REPORT_WATERMARK);
-        const wmW = Math.min(560, w * 0.54);
-        const wmH = wmW * (wm.height / wm.width);
-        ctx.save();
-        if ("filter" in ctx) ctx.filter = "grayscale(1) brightness(1.8)";
-        ctx.globalAlpha = 0.08;
-        // MARCA DE AGUA:
-        // Se posiciona exactamente al centro de la imagen completa: eje X = w/2, eje Y = pageH/2.
-        ctx.drawImage(wm, (w - wmW) / 2, (pageH - wmH) / 2, wmW, wmH);
-        ctx.restore();
-      } catch {}
-    };
-
-    const canvases = [];
-    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-      const canvas = document.createElement("canvas");
-      canvas.width = w * scale;
-      canvas.height = pageH * scale;
-      canvas.style.width = w + "px";
-      canvas.style.height = pageH + "px";
-      const ctx = canvas.getContext("2d");
-      ctx.scale(scale, scale);
-
-      const grad = ctx.createLinearGradient(0, 0, 0, pageH);
-      grad.addColorStop(0, "#07152a");
-      grad.addColorStop(1, "#0b2440");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, pageH);
-
-      await drawCenteredWatermark(ctx);
-      drawPageHeader(ctx, pageIndex + 1, pages.length);
-
-      let y = contentTop;
-      pages[pageIndex].forEach(block => {
-        if (block.type === "section") {
-          const g = block.group;
-          ctx.fillStyle = "rgba(56,189,248,0.14)";
-          roundRect(ctx, pad, y, w - pad*2, 42, 14); ctx.fill();
-          ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
-          ctx.fillStyle = "#7dd3fc";
-          ctx.font = "900 18px Arial";
-          ctx.fillText(`${g.title.toUpperCase()}${block.continuation ? " · CONT." : ""}`, pad + 18, y + 27);
-          ctx.textAlign = "right";
-          ctx.fillStyle = "#94a3b8";
-          ctx.font = "700 14px Arial";
-          ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
-          ctx.textAlign = "left";
-          y += sectionH;
-          return;
-        }
-
-        const r = block.row;
-        const idx = block.rowIndex;
-        ctx.fillStyle = idx % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.065)";
-        roundRect(ctx, pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
-        ctx.fillStyle = "#f8fafc";
-        ctx.font = "800 16px Arial";
-        wrapText(ctx, r.name, pad + 16, y + 17, 560, 17, 1);
-        if (r.detail) {
-          ctx.fillStyle = "#94a3b8";
-          ctx.font = "400 13px Arial";
-          wrapText(ctx, r.detail, pad + 16, y + 34, 670, 14, 1);
-        }
-        ctx.textAlign = "right";
-        ctx.fillStyle = r.color || "#94a3b8";
-        ctx.font = "900 16px Arial";
-        ctx.fillText(clean(r.status).slice(0, 32), w - pad - 16, y + 22);
-        ctx.textAlign = "left";
-        y += rowH;
-      });
-
-      ctx.fillStyle = "#64748b";
-      ctx.font = "400 14px Arial";
-      ctx.fillText("Vista web. Al descargar se convierte al formato formal de Reporte.", pad, pageH - 26);
-      ctx.textAlign = "right";
-      ctx.fillText(`Hoja ${pageIndex + 1} de ${pages.length}`, w - pad, pageH - 26);
-      ctx.textAlign = "left";
-      canvases.push(canvas);
-    }
-
-    return { canvases, now, groups, rowsCount };
+    // HOMOLOGACIÓN DE FORMATO: Noticias no dibuja estilos propios; reutiliza el
+    // generador JPEG formal compartido por REPORTE para conservar estructura visual.
+    return await buildCmReportJpegCanvases(groups, new Date());
   }, [cargarSnapshot]);
 
   const generarJpeg = useCallback(async () => {
@@ -14970,105 +14939,12 @@ function NoticiasAutoJpegReport() {
     downloadClientBlob(zipBlob, `${base}-jpeg.zip`);
   };
 
-  const downloadCanvasAsPdf = async (canvas, now, groups = null) => {
+  const downloadGroupsAsPdf = async (groups, now) => {
     const jsPDF = await loadJsPdf();
+    // HOMOLOGACIÓN DE FORMATO: PDF de Noticias reutiliza exactamente el mismo
+    // constructor formal usado por REPORTE, incluyendo marca de agua y paginación.
     const reportGroups = groups || (await cargarSnapshot());
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const left = 16;
-    const right = pageW - 16;
-    const stamp = now.toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
-    const totalItems = reportGroups.reduce((sum, g) => sum + g.rows.length, 0);
-    const selectedCount = reportGroups.length;
-    let y = 18;
-
-    const drawWatermark = () => {
-      try {
-        const size = 118;
-        doc.addImage(CM_REPORT_WATERMARK, "PNG", (pageW - size) / 2, (pageH - size) / 2 + 8, size, size, undefined, "FAST");
-      } catch {}
-    };
-
-    const addPageHeader = () => {
-      drawWatermark();
-      doc.setFillColor(3, 21, 47);
-      doc.rect(0, 0, pageW, 30, "F");
-      doc.setTextColor(255,255,255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.text("Reporte operativo", left, 15);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(241, 245, 249);
-      doc.text("Conect Manzanillo", left, 22);
-      doc.text(`Generado: ${stamp}`, right, 15, { align:"right" });
-      doc.text(`${selectedCount} secciones · ${totalItems} registros`, right, 22, { align:"right" });
-      y = 42;
-    };
-
-    const checkPage = (needed = 8) => {
-      if (y + needed > pageH - 15) {
-        doc.addPage();
-        addPageHeader();
-      }
-    };
-
-    addPageHeader();
-    const statusX = pageW - 48;
-
-    reportGroups.forEach((g) => {
-      checkPage(12);
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.25);
-      doc.line(left, y, right, y);
-      y += 5;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text(cleanPdfText(g.title), left, y);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.3);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`${g.rows.length} registros`, right, y, { align:"right" });
-      y += 5;
-
-      g.rows.forEach((item) => {
-        const detail = cleanPdfText(item.detail || "");
-        const rgb = hexToRgb(item.color || "#64748b") || { r: 100, g: 116, b: 139 };
-        const rowHeight = detail ? 8.8 : 5.8;
-        checkPage(detail ? 10 : 7);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.2);
-        doc.setTextColor(15, 23, 42);
-        doc.text(cleanPdfText(item.name).slice(0, 84), left + 2, y);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(rgb.r, rgb.g, rgb.b);
-        doc.text(cleanPdfText(item.status).slice(0, 28), statusX, y);
-        if (detail) {
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.6);
-          doc.setTextColor(148, 163, 184);
-          doc.text(detail.slice(0, 98), left + 2, y + 3.4);
-        }
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.12);
-        doc.line(left + 2, y + rowHeight - 3.7, right, y + rowHeight - 3.7);
-        y += rowHeight;
-      });
-      y += 3;
-    });
-
-    const pages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
-      doc.setPage(i);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Página ${i} de ${pages}`, right, pageH - 9, { align:"right" });
-      doc.text("Conect Manzanillo · Reporte generado desde la web", left, pageH - 9);
-    }
-
+    const doc = buildCmReportPdfDocument(jsPDF, reportGroups, now);
     doc.save(`reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
   };
 
@@ -15077,8 +14953,8 @@ function NoticiasAutoJpegReport() {
     setError("");
     try {
       if (downloadFormat === "pdf") {
-        const built = await buildReportCanvas();
-        await downloadCanvasAsPdf(built.canvas, built.now, built.groups);
+        const built = await buildPreviewCanvases();
+        await downloadGroupsAsPdf(built.groups, built.now);
       } else {
         const built = await buildPreviewCanvases();
         await downloadCanvasesAsJpegs(built.canvases, built.now);
@@ -15144,7 +15020,7 @@ function NoticiasAutoJpegReport() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
         <div>
           <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"14px" }}>Reporte automático del puerto</div>
-          <div style={{ color:"rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Vista web en fondo oscuro. Las descargas JPEG/PDF se convierten al formato formal del apartado Reporte.</div>
+          <div style={{ color:"rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Vista previa y descargas JPEG/PDF con el mismo formato formal del apartado Reporte.</div>
           {generatedAt && <div style={{ color:"rgba(147,197,253,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"5px" }}>Último reporte automático: {generatedAt.toLocaleString("es-MX")}</div>}
           {nextRunAt && <div style={{ color:"rgba(251,191,36,.86)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"3px" }}>Próximo automático: {nextRunAt.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" })}</div>}
         </div>
@@ -15161,7 +15037,7 @@ function NoticiasAutoJpegReport() {
       {jpegUrls.length ? <div style={{ display:"grid", gap:"12px" }}>
         {jpegUrls.map((url, idx) => <div key={url + idx}>
           {jpegUrls.length > 1 && <div style={{ color:"rgba(226,232,240,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, margin:"0 0 6px 2px" }}>Hoja {idx + 1} de {jpegUrls.length}</div>}
-          <img src={url} alt={`Reporte operativo automático hoja ${idx + 1}`} style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#061428", display:"block" }} />
+          <img src={url} alt={`Reporte operativo automático formato Reporte hoja ${idx + 1}`} style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#061428", display:"block" }} />
         </div>)}
       </div> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imágenes del reporte…" : "El reporte automático aparecerá en el próximo corte de 10 minutos. También puedes generarlo ahora."}</div>}
     </div>
