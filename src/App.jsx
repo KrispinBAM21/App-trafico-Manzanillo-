@@ -109,6 +109,8 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // Logo oficial de Conect Manzanillo
 const CONECT_LOGO_SRC = "/logo.png";
+const AI_BUBBLE_ICON_SRC = "/burbuja ia.png";
+const AI_BUBBLE_ICON_FALLBACK_SRC = "/burbuja%20ia.png";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 // Error DEPRECATED - Usar getFont(theme, "secondary") en su lugar
@@ -2115,7 +2117,7 @@ const CARRIL_ESTADO_OPTS = [
   { id: "moderado", label: "Tráfico Moderado",   color: "#f97316", icon: "slow-traffic" },
   { id: "saturado", label: "Saturado",           color: "#ef4444", icon: "xmark" },
   { id: "bloqueo",  label: "Bloqueo",            color: "#dc2626", icon: "stop-sign" },
-  { id: "sin_uso",  label: "Sin uso",            color: "#6b7280", icon: "ban" },
+  { id: "sin_uso",  label: "Cerrado hasta nuevo aviso", color: "#475569", icon: "closed-gate" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
@@ -11131,11 +11133,16 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:   { color: "#22c55e", label: "Fluido",   icon: "green-dot", bg: "#dcfce7", text: "#15803d" },
-  moderado: { color: "#f97316", label: "Moderado", icon: "orange-dot", bg: "#ffedd5", text: "#c2410c" },
-  detenido: { color: "#ef4444", label: "Detenido", icon: "red-dot", bg: "#fee2e2", text: "#b91c1c" },
-  sinuso:   { color: "#a855f7", label: "Sin Uso",  icon: "purple-dot", bg: "#f3e8ff", text: "#7e22ce" },
+  fluido:           { color: "#0ea5e9", label: "Ágil",             icon: "green-dot",   bg: "#e0f2fe", text: "#0369a1" },
+  moderado:         { color: "#f59e0b", label: "Carga media",      icon: "orange-dot",  bg: "#fef3c7", text: "#92400e" },
+  detenido:         { color: "#e11d48", label: "Alto flujo",       icon: "red-dot",     bg: "#ffe4e6", text: "#9f1239" },
+  cerrado:          { color: "#475569", label: "Cierre operativo", icon: "closed-gate", bg: "#e2e8f0", text: "#334155" },
+  retorno_sat:      { color: "#7c3aed", label: "Retorno por cupo", icon: "return-route", bg: "#ede9fe", text: "#5b21b6" },
+  retorno_terminal: { color: "#0891b2", label: "Retorno terminal", icon: "port-terminal", bg: "#cffafe", text: "#155e75" },
+  retorno_aduana:   { color: "#be123c", label: "Retorno aduana",   icon: "security-alert", bg: "#ffe4e6", text: "#9f1239" },
 };
+const TRAFICO_STATUS_ALIASES = { sinuso: "cerrado" };
+const TRAFICO_STATUS_PRIORIDAD = ["cerrado", "retorno_sat", "retorno_terminal", "retorno_aduana"];
 
 const TRAFICO_MAP_STYLES = {
   streets:     { name: "Calles",   url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",    attribution: "© OpenStreetMap", subdomains: "abc" },
@@ -11146,9 +11153,9 @@ const TRAFICO_MAP_STYLES = {
 const toLLC = (coords) => coords.map(([lng, lat]) => [lat, lng]);
 
 const VOTOS_DEFAULT = {
-  1: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  2: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
-  3: { fluido: 0, moderado: 0, detenido: 0, sinuso: 0 },
+  1: { fluido: 0, moderado: 0, detenido: 0, cerrado: 0, retorno_sat: 0, retorno_terminal: 0, retorno_aduana: 0 },
+  2: { fluido: 0, moderado: 0, detenido: 0, cerrado: 0, retorno_sat: 0, retorno_terminal: 0, retorno_aduana: 0 },
+  3: { fluido: 0, moderado: 0, detenido: 0, cerrado: 0, retorno_sat: 0, retorno_terminal: 0, retorno_aduana: 0 },
 };
 
 const USER_VOTES_DEFAULT = { 1: {}, 2: {}, 3: {} };
@@ -11157,7 +11164,8 @@ const contarVotosFases = (userVotes = USER_VOTES_DEFAULT) => {
   const counts = JSON.parse(JSON.stringify(VOTOS_DEFAULT));
   [1, 2, 3].forEach((fase) => {
     Object.values(userVotes?.[fase] || {}).forEach((tipo) => {
-      if (counts[fase]?.[tipo] !== undefined) counts[fase][tipo] += 1;
+      const safeTipo = TRAFICO_STATUS_ALIASES[tipo] || tipo;
+      if (counts[fase]?.[safeTipo] !== undefined) counts[fase][safeTipo] += 1;
     });
   });
   return counts;
@@ -11171,9 +11179,17 @@ const normalizarVotosFases = (raw) => {
   }
   // Formato anterior: solo conteos. Se respeta para no romper datos existentes,
   // pero los votos nuevos ya se guardan por usuario.
+  const counts = JSON.parse(JSON.stringify(VOTOS_DEFAULT));
+  [1, 2, 3].forEach((fase) => {
+    const src = raw?.[fase] || {};
+    Object.entries(src).forEach(([tipo, n]) => {
+      const safeTipo = TRAFICO_STATUS_ALIASES[tipo] || tipo;
+      if (counts[fase]?.[safeTipo] !== undefined) counts[fase][safeTipo] += Number(n) || 0;
+    });
+  });
   return {
     userVotes: { ...USER_VOTES_DEFAULT },
-    counts: { ...VOTOS_DEFAULT, ...(raw || {}) },
+    counts,
   };
 };
 
@@ -11221,10 +11237,16 @@ function TrafficMapSegundo({ theme, myId }) {
 
   // ── Calcular status dominante ──────────────────────────────────────────────
   const calcStatus = (votes) => {
-    // "Sin Uso" toma prioridad si tiene al menos un voto
-    if ((votes.sinuso || 0) > 0) return "sinuso";
-    const entries = Object.entries(votes).filter(([k]) => k !== "sinuso");
-    const total = entries.reduce((s, [, n]) => s + n, 0);
+    // Estados restrictivos o de retorno prevalecen sobre flujo normal/moderado.
+    const normalizedVotes = Object.entries(votes || {}).reduce((acc, [key, val]) => {
+      const safeKey = TRAFICO_STATUS_ALIASES[key] || key;
+      acc[safeKey] = (acc[safeKey] || 0) + (Number(val) || 0);
+      return acc;
+    }, {});
+    const priorityHit = TRAFICO_STATUS_PRIORIDAD.find(k => (normalizedVotes[k] || 0) > 0);
+    if (priorityHit) return priorityHit;
+    const entries = Object.entries(normalizedVotes).filter(([k]) => TRAFICO_STATUS[k]);
+    const total = entries.reduce((sum, [, n]) => sum + n, 0);
     if (total === 0) return "fluido";
     return entries.reduce((best, [k, n]) => (n > best[1] ? [k, n] : best), ["fluido", -1])[0];
   };
@@ -11369,7 +11391,7 @@ function TrafficMapSegundo({ theme, myId }) {
               {/* Encabezado */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: "14px", fontWeight: 700, color: "#ffffff", fontFamily: getFont(theme,"secondary") }}>{fase.nombre}</span>
-                <span style={{ fontSize: "10px", fontWeight: 700, background: t.bg, color: t.text, padding: "3px 9px", borderRadius: "20px", border: `1px solid ${t.color}40` }}>{t.emoji} {t.label}</span>
+                <span style={{ fontSize: "10px", fontWeight: 700, background: t.bg, color: t.text, padding: "3px 9px", borderRadius: "20px", border: `1px solid ${t.color}40` }}>{t.label}</span>
               </div>
               <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", lineHeight: 1.5, fontFamily: getFont(theme,"secondary") }}>{fase.descripcion}</p>
 
@@ -11382,12 +11404,11 @@ function TrafficMapSegundo({ theme, myId }) {
 
               {/* Botones de voto */}
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 2 }}>
-                {["fluido","moderado","detenido","sinuso"].map((tipo) => {
+                {Object.keys(TRAFICO_STATUS).map((tipo) => {
                   const tr = TRAFICO_STATUS[tipo];
                   const isActive = activeVote.fase === id && activeVote.tipo === tipo;
                   const miVoto = userVotes?.[String(id)]?.[myId] || userVotes?.[id]?.[myId];
                   const isMine = miVoto === tipo;
-                  const isSinUsoOn = tipo === "sinuso" && st === "sinuso";
                   return (
                     <button
                       key={tipo}
@@ -11396,7 +11417,7 @@ function TrafficMapSegundo({ theme, myId }) {
                       onMouseEnter={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = `${tr.color}20`; }}
                       onMouseLeave={(e) => { if (!isActive && !isMine) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     >
-                      <AppIcon name={tr.emoji} size={16} active={true} />
+                      <AppIcon name={tr.icon} size={16} active={true} />
                       <span>{tr.label}{st === tipo ? " · activo" : ""}</span>
                     </button>
                   );
@@ -11965,8 +11986,8 @@ function SegundoAccesoTab({ myId }) {
     notify("✓ Carril restablecido", "#a78bfa");
   };
 
-  const getTermName = (id) => id === "sin_uso" ? "SIN USO" : TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
-  const getTermZona = (id) => id === "sin_uso" ? "Sin uso" : TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
+  const getTermName = (id) => id === "sin_uso" ? "CERRADO H/N" : TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
+  const getTermZona = (id) => id === "sin_uso" ? "Cerrado" : TODAS_TERMINALES.find(t => t.id === id)?.zona || "";
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
@@ -12063,12 +12084,12 @@ function SegundoAccesoTab({ myId }) {
   })()}
 
   {/* C1, C2, C3 — INGRESO (puerto) */}
-  {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
+  {SEGUNDO_CARRILES_INGRESO.map((c) => {
     const st  = carriles?.[c.id];
     const laneOpt = getCarrilEstadoOpt(st);
     const col = laneOpt.id === "libre" ? "#14b8a6" : laneOpt.color;
     const tz  = getTermZona(st?.terminal);
-    const tc  = tz === "Sin uso" ? "#6b7280" : tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
+    const tc  = tz === "Cerrado" ? "#475569" : tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
 
     return (
       <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
@@ -12112,7 +12133,7 @@ function SegundoAccesoTab({ myId }) {
 
           {/* Leyenda */}
           <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#14b8a6","LIBRE"],["#f59e0b","LENTO"],["#f97316","MODERADO"],["#ef4444","SATURADO"],["#dc2626","BLOQUEO"],["#6b7280","SIN USO"]].map(([c,l]) => (
+            {[["#14b8a6","LIBRE"],["#f59e0b","LENTO"],["#f97316","MODERADO"],["#ef4444","SATURADO"],["#dc2626","BLOQUEO"],["#475569","CERRADO H/N"]].map(([c,l]) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -12158,7 +12179,7 @@ function SegundoAccesoTab({ myId }) {
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
                   {isSinUso ? (
                     <>
-                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"15px" }}>SIN USO</div>
+                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"15px" }}>CERRADO HASTA NUEVO AVISO</div>
                       <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div>
                     </>
                   ) : (
@@ -12352,7 +12373,7 @@ function SegundoAccesoTab({ myId }) {
           const getTermShort = (id) => {
             const st = confinada[id];
             if (!st) return "—";
-            if (getCarrilEstadoId(st) === "sin_uso" || st.terminal === "sin_uso") return "SIN USO";
+            if (getCarrilEstadoId(st) === "sin_uso" || st.terminal === "sin_uso") return "CERRADO H/N";
             if (st.terminal === "general") return "GENERAL";
             const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
             return found ? found.name : st.terminal.toUpperCase();
@@ -12412,7 +12433,7 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#475569","Cerrado H/N"]].map(([c,l]) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -12443,7 +12464,7 @@ function SegundoAccesoTab({ myId }) {
                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
                     <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa44", borderRadius:"6px", padding:"3px 10px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
                     {isSinUso
-                      ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
+                      ? <Badge color="#475569" small>🚫 CERRADO H/N</Badge>
                       : <Badge color="#22c55e" small>INGRESO</Badge>
                     }
                     {st.transferencia && !isSinUso && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
@@ -12467,7 +12488,7 @@ function SegundoAccesoTab({ myId }) {
                 <div>
                   <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
                   {isSinUso
-                    ? <><div style={{ color:"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
+                    ? <><div style={{ color:"#475569", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>CERRADO HASTA NUEVO AVISO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
                     : st.terminal === "general"
                     ? <><div style={{ color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>GENERAL</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todas las terminales</div></>
                     : <><div style={{ color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
@@ -14636,6 +14657,47 @@ function NoticiasAutoJpegReport() {
     } catch {}
   };
 
+
+
+  const drawReportSheetChrome = (ctx, w, h, { now, pageNo = 1, totalPages = 1, rowsCount = 0 } = {}) => {
+    const pad = Math.round(w * 0.039);
+    const headerH = Math.max(132, Math.round(w * 0.108));
+    ctx.save();
+    ctx.fillStyle = "#03152f";
+    ctx.fillRect(0, 0, w, headerH);
+    const grad = ctx.createLinearGradient(0, 0, w, headerH);
+    grad.addColorStop(0, "#082f63");
+    grad.addColorStop(0.55, "#0f4c81");
+    grad.addColorStop(1, "#03152f");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, headerH);
+    ctx.fillStyle = "rgba(56,189,248,0.22)";
+    ctx.fillRect(0, headerH - 10, w, 10);
+
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `900 ${Math.round(w * 0.030)}px Arial`;
+    ctx.fillText("Reporte operativo", pad, Math.round(headerH * 0.44));
+    ctx.font = `700 ${Math.round(w * 0.016)}px Arial`;
+    ctx.fillStyle = "#bfdbfe";
+    ctx.fillText("Conect Manzanillo", pad, Math.round(headerH * 0.70));
+
+    ctx.textAlign = "right";
+    ctx.font = `700 ${Math.round(w * 0.015)}px Arial`;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillText(`Generado: ${(now || new Date()).toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}`, w - pad, Math.round(headerH * 0.44));
+    ctx.fillText(`${rowsCount || 0} registros · Hoja ${pageNo} de ${totalPages}`, w - pad, Math.round(headerH * 0.70));
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = `400 ${Math.round(w * 0.013)}px Arial`;
+    ctx.fillText(`Hoja ${pageNo} de ${totalPages}`, w - pad, h - 22);
+    ctx.textAlign = "left";
+    ctx.fillText("Conect Manzanillo · Reporte generado desde la web", pad, h - 22);
+    ctx.restore();
+    return headerH;
+  };
+
   const buildReportCanvas = useCallback(async (options = {}) => {
     const groups = await cargarSnapshot();
     const scale = 2;
@@ -14908,37 +14970,48 @@ function NoticiasAutoJpegReport() {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
-  const downloadCanvasAsJpeg = async (canvas, now) => {
+  const downloadCanvasAsJpeg = async (canvas, now, groups = []) => {
     const base = `reporte-operativo-conect-${now.toISOString().slice(0,10)}`;
-    const totalParts = 2;
-    const overlap = 40; // pequeño traslape para que no se corte texto en la unión
-    const naturalPartH = Math.ceil(canvas.height / totalParts);
+    const rowsCount = groups.reduce?.((n, g) => n + (g.rows?.length || 0), 0) || 0;
+    const headerH = Math.max(132, Math.round(canvas.width * 0.108));
+    const footerH = 52;
+    const sourceTop = Math.round(116 * (canvas.width / 1080));
+    const sourceH = Math.max(1, canvas.height - sourceTop);
+    const targetContentH = Math.max(1300, Math.round(canvas.width * 1.35));
+    const totalParts = Math.min(3, Math.max(1, Math.ceil(sourceH / targetContentH)));
+    const overlap = totalParts > 1 ? 56 : 0;
+    const naturalPartH = Math.ceil(sourceH / totalParts);
 
     for (let i = 0; i < totalParts; i++) {
-      const startY = Math.max(0, i * naturalPartH - (i > 0 ? overlap : 0));
-      const endY = Math.min(canvas.height, (i + 1) * naturalPartH + (i < totalParts - 1 ? overlap : 0));
-      const sliceH = endY - startY;
+      const relStartY = Math.max(0, i * naturalPartH - (i > 0 ? overlap : 0));
+      const relEndY = Math.min(sourceH, (i + 1) * naturalPartH + (i < totalParts - 1 ? overlap : 0));
+      const startY = sourceTop + relStartY;
+      const sliceH = relEndY - relStartY;
       const partCanvas = document.createElement("canvas");
       partCanvas.width = canvas.width;
-      partCanvas.height = sliceH;
+      partCanvas.height = headerH + sliceH + footerH;
       const partCtx = partCanvas.getContext("2d");
       partCtx.fillStyle = "#f3f4f6";
       partCtx.fillRect(0, 0, partCanvas.width, partCanvas.height);
-      partCtx.drawImage(canvas, 0, startY, canvas.width, sliceH, 0, 0, partCanvas.width, partCanvas.height);
-      await drawSliceWatermark(partCtx, partCanvas.width, partCanvas.height, {
+      drawReportSheetChrome(partCtx, partCanvas.width, partCanvas.height, { now, pageNo: i + 1, totalPages: totalParts, rowsCount });
+      partCtx.drawImage(canvas, 0, startY, canvas.width, sliceH, 0, headerH, partCanvas.width, sliceH);
+      partCtx.save();
+      partCtx.translate(0, headerH);
+      await drawSliceWatermark(partCtx, partCanvas.width, sliceH, {
         alpha: 0.11,
         maxWidthRatio: 0.52,
         maxHeightRatio: 0.24,
         minWidth: 420
       });
+      partCtx.restore();
       const blob = await new Promise(resolve => partCanvas.toBlob(resolve, "image/jpeg", 0.94));
       if (!blob) throw new Error(`No se pudo crear el JPEG ${i + 1}`);
-      triggerBlobDownload(blob, `${base}-parte-${i + 1}.jpeg`);
+      triggerBlobDownload(blob, `${base}-hoja-${String(i + 1).padStart(2, "0")}.jpeg`);
       await new Promise(resolve => setTimeout(resolve, 180));
     }
   };
 
-  const downloadCanvasAsPdf = async (canvas, now) => {
+  const downloadCanvasAsPdf = async (canvas, now, groups = []) => {
     const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter", compress: true });
     const pageW = doc.internal.pageSize.getWidth();
@@ -14946,31 +15019,41 @@ function NoticiasAutoJpegReport() {
     const margin = 10;
     const usableW = pageW - margin * 2;
     const usableH = pageH - margin * 2;
-
-    const pxPerPage = Math.floor((usableH / usableW) * canvas.width);
+    const rowsCount = groups.reduce?.((n, g) => n + (g.rows?.length || 0), 0) || 0;
+    const headerH = Math.max(132, Math.round(canvas.width * 0.108));
+    const footerH = 52;
+    const sourceTop = Math.round(116 * (canvas.width / 1080));
+    const sourceH = Math.max(1, canvas.height - sourceTop);
+    const pxPerPage = Math.floor((usableH / usableW) * canvas.width) - headerH - footerH;
+    const safePxPerPage = Math.max(900, pxPerPage);
+    const totalPages = Math.max(1, Math.ceil(sourceH / safePxPerPage));
     let offsetY = 0;
     let pageNo = 0;
 
-    while (offsetY < canvas.height) {
-      const sliceH = Math.min(pxPerPage, canvas.height - offsetY);
+    while (offsetY < sourceH) {
+      const sliceH = Math.min(safePxPerPage, sourceH - offsetY);
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = canvas.width;
-      pageCanvas.height = sliceH;
+      pageCanvas.height = headerH + sliceH + footerH;
       const pageCtx = pageCanvas.getContext("2d");
       pageCtx.fillStyle = "#f3f4f6";
       pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageCtx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
-      await drawSliceWatermark(pageCtx, pageCanvas.width, pageCanvas.height, {
+      drawReportSheetChrome(pageCtx, pageCanvas.width, pageCanvas.height, { now, pageNo: pageNo + 1, totalPages, rowsCount });
+      pageCtx.drawImage(canvas, 0, sourceTop + offsetY, canvas.width, sliceH, 0, headerH, pageCanvas.width, sliceH);
+      pageCtx.save();
+      pageCtx.translate(0, headerH);
+      await drawSliceWatermark(pageCtx, pageCanvas.width, sliceH, {
         alpha: 0.12,
         maxWidthRatio: 0.5,
         maxHeightRatio: 0.2,
         minWidth: 420
       });
+      pageCtx.restore();
       const pageData = pageCanvas.toDataURL("image/jpeg", 0.96);
-      const imgH = usableW * (sliceH / canvas.width);
+      const imgH = usableW * (pageCanvas.height / pageCanvas.width);
 
       if (pageNo > 0) doc.addPage();
-      doc.addImage(pageData, "JPEG", margin, margin, usableW, imgH, undefined, "FAST");
+      doc.addImage(pageData, "JPEG", margin, margin, usableW, Math.min(imgH, usableH), undefined, "FAST");
       pageNo += 1;
       offsetY += sliceH;
     }
@@ -15002,7 +15085,7 @@ function NoticiasAutoJpegReport() {
       const now = built.now;
       const groups = built.groups;
       if (downloadFormat === "pdf") await downloadCanvasAsPdf(canvas, now, groups);
-      else await downloadCanvasAsJpeg(canvas, now);
+      else await downloadCanvasAsJpeg(canvas, now, groups);
     } catch (e) {
       console.error(e);
       setError("No se pudo descargar el reporte en el formato seleccionado.");
@@ -18244,7 +18327,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
           { label: "Carril de salida C4", desc: "Permite reportar si la salida general está fluida o saturada, si hay retornos y el estado de exportación/importación." },
           { label: "Segundo Acceso por fases", desc: "Divide la vialidad en Fase 1, Fase 2 y Fase 3; ahora se actualiza con un toque, igual que los carriles del Segundo Acceso." },
           { label: "Confinada", desc: "Permite indicar terminal, libre/saturado, retornos, tráfico Expo/Impo, contenedor Expo y si opera como Segundo Acceso." },
-          { label: "Sin uso", desc: "Cuando un carril no opera, puede marcarse como Sin uso para que no se interprete como disponible." },
+          { label: "Cerrado hasta nuevo aviso", desc: "Cuando un carril no opera, puede marcarse como Cerrado hasta nuevo aviso para que no se interprete como disponible." },
         ]},
         { id: "carriles", icon: "lane-control", color: "#eab308", title: "CARRILES", subtitle: "Control rápido de carriles por acceso", items: [
           { label: "Carriles por acceso", desc: "Consulta carriles de Pez Vela, Puerta 15 y Zona Norte con estado abierto o cerrado." },
@@ -20981,10 +21064,10 @@ function App() {
             </span>
           ) : (
             <img
-              src="/burbuja%20ia.png"
+              src={AI_BUBBLE_ICON_SRC}
               alt="AI ConectMzo"
               style={{ width:"42px", height:"42px", objectFit:"contain", display:"block", borderRadius:"50%" }}
-              onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
+              onError={(e) => { if (e.currentTarget.src.indexOf("burbuja%20ia.png") === -1) { e.currentTarget.src = AI_BUBBLE_ICON_FALLBACK_SRC; return; } e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
             />
           )}
           {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", fontSize:"28px", lineHeight:1 }}>✨</span>}
@@ -21015,10 +21098,10 @@ function App() {
             <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", paddingBottom:"10px", borderBottom:"1px solid rgba(255,255,255,.1)" }}>
               <div style={{ width:"42px", height:"42px", borderRadius:"50%", background:"rgba(255,255,255,.08)", border:"1px solid rgba(96,165,250,.35)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flex:"0 0 auto" }}>
                 <img
-                  src="/burbuja%20ia.png"
+                  src={AI_BUBBLE_ICON_SRC}
                   alt="AI ConectMzo"
                   style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
-                  onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }}
+                  onError={(e) => { if (e.currentTarget.src.indexOf("burbuja%20ia.png") === -1) { e.currentTarget.src = AI_BUBBLE_ICON_FALLBACK_SRC; return; } e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }}
                 />
                 <span style={{ display:"none", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"21px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)" }}>✨</span>
               </div>
