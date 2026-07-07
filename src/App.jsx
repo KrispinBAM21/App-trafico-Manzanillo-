@@ -14937,6 +14937,30 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     };
   };
 
+  const copiarTextoComunicadoGrafico = async () => {
+    const dateElement = canvasElements.find((item) => item.id === "date");
+    const titleElement = canvasElements.find((item) => item.id === "title");
+    const bodyElement = canvasElements.find((item) => item.id === "body");
+
+    const finalText = [
+      dateElement?.text || formatearFechaComunicado(new Date()),
+      titleElement?.text || titulo,
+      "CONECT MANZANILLO INFORMA:",
+      bodyElement?.text || graphicEditorText || detalle,
+    ]
+      .map((part) => String(part || "").replace(/\*\*/g, "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+
+    try {
+      await navigator.clipboard.writeText(finalText);
+      setToolNotice("Texto copiado", "#22c55e");
+    } catch (e) {
+      console.error("No se pudo copiar el texto:", e);
+      setToolNotice("No se pudo copiar automáticamente. Selecciona el texto manualmente.", "#ef4444");
+    }
+  };
+
   const descargarComunicadoGenerado = () => {
     if (!graphicPreviewUrl) return;
     const safeTitle = (titulo || "comunicado")
@@ -15465,6 +15489,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:"8px" }}>
                 <button type="button" onClick={descargarComunicadoGenerado} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Descargar imagen final</button>
+                <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
                 <button type="button" onClick={abrirEditorComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Editar texto</button>
                 <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
               </div>
@@ -15480,7 +15505,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
                       <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#f9a8d4", fontWeight:900, letterSpacing:".8px" }}>EDICIÓN MANUAL DEL TEXTO</div>
                       <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.50)", marginTop:"3px" }}>Selecciona texto y usa negritas. La vista previa del canvas se actualiza en vivo.</div>
                     </div>
-                    <button type="button" onClick={aplicarEdicionComunicadoGrafico} disabled={graphicBusy || !graphicEditorText.trim()} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(graphicBusy || !graphicEditorText.trim())?"rgba(100,116,139,.16)":"rgba(34,197,94,.12)", color:(graphicBusy || !graphicEditorText.trim())?"#94a3b8":"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer" }}>Guardar / aplicar</button>
+                    <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                      <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
+                      <button type="button" onClick={aplicarEdicionComunicadoGrafico} disabled={graphicBusy || !graphicEditorText.trim()} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(graphicBusy || !graphicEditorText.trim())?"rgba(100,116,139,.16)":"rgba(34,197,94,.12)", color:(graphicBusy || !graphicEditorText.trim())?"#94a3b8":"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer" }}>Guardar / aplicar</button>
+                    </div>
                   </div>
 
                   <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
@@ -17098,6 +17126,75 @@ function NoticiasTab({ isAdmin }) {
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }, []);
 
+  const inferDownloadExtension = useCallback((url = "", contentType = "") => {
+    const cleanType = String(contentType || "").toLowerCase();
+    const cleanUrl = String(url || "").split("?")[0].toLowerCase();
+
+    if (cleanType.includes("pdf") || cleanUrl.endsWith(".pdf")) return "pdf";
+    if (cleanType.includes("png") || cleanUrl.endsWith(".png")) return "png";
+    if (cleanType.includes("webp") || cleanUrl.endsWith(".webp")) return "webp";
+    if (cleanType.includes("jpeg") || cleanType.includes("jpg") || cleanUrl.endsWith(".jpg") || cleanUrl.endsWith(".jpeg")) return "jpg";
+
+    return "png";
+  }, []);
+
+  const fileBaseNameSimple = useCallback((item, fallbackExt = "png") => {
+    const raw = String(item?.titulo || item?.detalle || "comunicado").toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "comunicado";
+    return `${raw}.${fallbackExt}`;
+  }, []);
+
+  const downloadItemRobusto = useCallback(async (item) => {
+    if (!item) return;
+
+    if (item.canvas instanceof HTMLCanvasElement) {
+      const blob = await new Promise((resolve) => item.canvas.toBlob(resolve, "image/png", 0.95));
+      if (!blob) throw new Error("No se pudo exportar el canvas");
+      triggerBlobDownload(blob, fileBaseNameSimple(item, "png"));
+      return;
+    }
+
+    if (typeof item.dataUrl === "string" && item.dataUrl.startsWith("data:")) {
+      const response = await fetch(item.dataUrl);
+      const blob = await response.blob();
+      const ext = inferDownloadExtension("", blob.type);
+      triggerBlobDownload(blob, fileBaseNameSimple(item, ext));
+      return;
+    }
+
+    const url = item.archivo_url || item.url || item.href;
+    if (!url) return;
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const ext = inferDownloadExtension(url, blob.type || item.archivo_tipo);
+      triggerBlobDownload(blob, fileBaseNameSimple(item, ext));
+    } catch (fetchError) {
+      console.warn("Descarga por fetch falló; usando fallback de enlace directo:", fetchError);
+      const ext = inferDownloadExtension(url, item.archivo_tipo);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileBaseNameSimple(item, ext);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }, [fileBaseNameSimple, inferDownloadExtension, triggerBlobDownload]);
+
   const paintReportWatermark = useCallback(async (ctx, width, height) => {
     const wm = await loadImageWithCors(CM_REPORT_WATERMARK);
     const ratio = wm.height / wm.width;
@@ -17172,18 +17269,28 @@ function NoticiasTab({ isAdmin }) {
   }, [fileBaseName, loadJsPdf, loadPdfJs, paintReportWatermark, triggerBlobDownload]);
 
   const downloadItemWithWatermark = useCallback(async (item) => {
-    if (!item?.archivo_url) return;
-    setDownloadingItemUrl(item.archivo_url);
+    if (!item?.archivo_url && !item?.canvas && !item?.dataUrl) return;
+    setDownloadingItemUrl(item.archivo_url || item.url || "canvas");
     try {
-      if (isPdf(item.archivo_url) || item?.archivo_tipo === "application/pdf") await downloadNewsPdfWithWatermark(item);
-      else await downloadNewsImageWithWatermark(item);
+      if (item?.archivo_url && (isPdf(item.archivo_url) || item?.archivo_tipo === "application/pdf")) {
+        await downloadNewsPdfWithWatermark(item);
+      } else if (item?.archivo_url) {
+        await downloadNewsImageWithWatermark(item);
+      } else {
+        await downloadItemRobusto(item);
+      }
     } catch (e) {
-      console.error(e);
-      alert("No se pudo descargar el archivo con marca de agua. Verifica el origen del archivo y vuelve a intentarlo.");
+      console.warn("Descarga con marca de agua falló; intentando descarga robusta directa:", e);
+      try {
+        await downloadItemRobusto(item);
+      } catch (fallbackError) {
+        console.error(fallbackError);
+        alert("No se pudo descargar el archivo. Verifica el origen del archivo y vuelve a intentarlo.");
+      }
     } finally {
       setDownloadingItemUrl("");
     }
-  }, [downloadNewsImageWithWatermark, downloadNewsPdfWithWatermark, isPdf]);
+  }, [downloadItemRobusto, downloadNewsImageWithWatermark, downloadNewsPdfWithWatermark, isPdf]);
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
@@ -21616,6 +21723,138 @@ function SistemaControlPortuario() {
   );
 }
 
+
+function WhatsAppInviteBubble({ userName = "", isAiActive = false }) {
+  const theme = React.useContext(ThemeContext);
+  const [visible, setVisible] = useState(false);
+  const pendingRef = useRef(false);
+
+  useEffect(() => {
+    const showInvite = () => {
+      if (isAiActive) {
+        pendingRef.current = true;
+        return;
+      }
+      pendingRef.current = false;
+      setVisible(true);
+    };
+
+    const timer = setInterval(showInvite, 600000);
+    return () => clearInterval(timer);
+  }, [isAiActive]);
+
+  useEffect(() => {
+    if (!isAiActive && pendingRef.current) {
+      pendingRef.current = false;
+      setVisible(true);
+    }
+  }, [isAiActive]);
+
+  if (!visible || isAiActive) return null;
+
+  const cleanName = String(userName || "").trim();
+  const greeting = cleanName ? `¡Hola ${cleanName}!` : "¡Hola!";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        right: "18px",
+        bottom: "96px",
+        width: "330px",
+        maxWidth: "calc(100vw - 36px)",
+        zIndex: 9998,
+        background: "rgba(13,31,60,.98)",
+        border: "1px solid rgba(37,211,102,.48)",
+        borderRadius: "18px",
+        padding: "14px",
+        boxShadow: "0 14px 42px rgba(0,0,0,.62), 0 0 24px rgba(37,211,102,.18)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        animation: "slideUp .25s ease-out"
+      }}
+      role="dialog"
+      aria-label="Invitación a canal de WhatsApp"
+    >
+      <button
+        type="button"
+        onClick={() => setVisible(false)}
+        aria-label="Cerrar invitación de WhatsApp"
+        style={{
+          position: "absolute",
+          top: "8px",
+          right: "8px",
+          width: "24px",
+          height: "24px",
+          borderRadius: "999px",
+          border: "1px solid rgba(255,255,255,.14)",
+          background: "rgba(255,255,255,.08)",
+          color: "#fff",
+          cursor: "pointer",
+          fontWeight: 900
+        }}
+      >
+        ×
+      </button>
+
+      <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingRight: "22px" }}>
+        <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "rgba(37,211,102,.15)", border: "1px solid rgba(37,211,102,.35)", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+          <AppIcon name="whatsapp" size={24} active />
+        </div>
+        <div>
+          <div style={{ fontFamily: getFont(theme, "secondary"), color: "#dcfce7", fontWeight: 900, fontSize: "13px", marginBottom: "4px" }}>
+            {greeting}
+          </div>
+          <div style={{ fontFamily: getFont(theme, "secondary"), color: "rgba(255,255,255,.82)", fontSize: "12px", lineHeight: 1.45 }}>
+            Síguenos en nuestro canal de WhatsApp para recibir actualizaciones y comunicados al instante.
+          </div>
+          <div style={{ display: "flex", gap: "8px", marginTop: "11px", flexWrap: "wrap" }}>
+            <a
+              href={PIS_WHATSAPP_CHANNEL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setVisible(false)}
+              style={{
+                padding: "9px 11px",
+                borderRadius: "10px",
+                border: "1px solid rgba(37,211,102,.55)",
+                background: "rgba(37,211,102,.16)",
+                color: "#86efac",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "11px",
+                fontWeight: 900,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <AppIcon name="whatsapp" size={14} active /> Seguir canal
+            </a>
+            <button
+              type="button"
+              onClick={() => setVisible(false)}
+              style={{
+                padding: "9px 11px",
+                borderRadius: "10px",
+                border: "1px solid rgba(148,163,184,.24)",
+                background: "rgba(15,23,42,.55)",
+                color: "rgba(226,232,240,.72)",
+                fontFamily: getFont(theme, "secondary"),
+                fontSize: "11px",
+                fontWeight: 900,
+                cursor: "pointer"
+              }}
+            >
+              Después
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP (RAÍZ) ───────────────────────────────────────────────────────────────
 // Validado FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
@@ -21893,6 +22132,19 @@ function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  const authDisplayName = useMemo(() => {
+    const meta = authUser?.user_metadata || {};
+    const raw =
+      meta.full_name ||
+      meta.name ||
+      meta.display_name ||
+      authUser?.email?.split("@")?.[0] ||
+      "";
+    return String(raw || "").trim();
+  }, [authUser]);
+
+  const isAiChatActive = showQRPanel === "gemini" || geminiLoading;
 
   // Validado FIX: handlers correctamente definidos dentro del componente
   const handleAccept = () => {
@@ -22550,6 +22802,8 @@ function App() {
           }
         `}</style>
 
+        <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} />
+
         {hasUnreadAdminMessages && showQRPanel !== 'admin_msg' && (
           <div
             onClick={() => setShowQRPanel('admin_msg')}
@@ -22885,7 +23139,7 @@ function App() {
               alignItems: "center"
             }}>
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://wa.me/5215566834948')}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://wa.me/5215612463102')}`}
                 alt="QR WhatsApp Soporte"
                 style={{
                   width: "140px",
@@ -22897,7 +23151,7 @@ function App() {
 
             {/* Botón WhatsApp */}
             <a
-              href="https://wa.me/5215566834948"
+              href="https://wa.me/5215612463102"
               target="_blank"
               rel="noopener noreferrer"
               style={{
