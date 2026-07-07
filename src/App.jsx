@@ -20602,7 +20602,15 @@ function App() {
           }}>
             <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
               <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
-              <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px" }}>✨</div>
+              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}>
+                <img
+                  src="/burbuja%20ia.png"
+                  alt="AI ConectMzo"
+                  style={{ width:"44px", height:"44px", objectFit:"cover", display:"block", borderRadius:"50%" }}
+                  onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
+                />
+                <span style={{ display:"none", fontSize:"24px", lineHeight:1 }}>✨</span>
+              </div>
             </div>
             {adminMessages.length > 0 && (
               <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
