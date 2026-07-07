@@ -22885,7 +22885,7 @@ function App() {
               alignItems: "center"
             }}>
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://wa.me/5215612463102')}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent('https://wa.me/5215566834948')}`}
                 alt="QR WhatsApp Soporte"
                 style={{
                   width: "140px",
@@ -22897,7 +22897,7 @@ function App() {
 
             {/* Botón WhatsApp */}
             <a
-              href="https://wa.me/5215612463102"
+              href="https://wa.me/5215566834948"
               target="_blank"
               rel="noopener noreferrer"
               style={{
