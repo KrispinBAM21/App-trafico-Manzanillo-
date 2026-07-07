@@ -13364,6 +13364,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
   const [eliminando, setEliminando] = useState(false); // estado de eliminación en progreso
   const [selectedIndex, setSelectedIndex] = useState(0); // comunicado destacado en vista grande
+  const [detalleExpandidoId, setDetalleExpandidoId] = useState(null);
 
   const formatDateTime = (timestamp) => {
     const d = new Date(toMs(timestamp));
@@ -13397,6 +13398,13 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
 
   const comunicadoActivo = vigentes[selectedIndex] || null;
   const totalVigentes = vigentes.length;
+  const detalleActivo = String(comunicadoActivo?.detalle || "").trim();
+  const detalleActivoEsLargo = detalleActivo.length > 220 || detalleActivo.split(/\n+/).length > 4;
+  const detalleActivoExpandido = comunicadoActivo?.id && detalleExpandidoId === comunicadoActivo.id;
+
+  useEffect(() => {
+    setDetalleExpandidoId(null);
+  }, [comunicadoActivo?.id]);
   const irAnterior = () => {
     if (totalVigentes < 2) return;
     setSelectedIndex(prev => (prev - 1 + totalVigentes) % totalVigentes);
@@ -13647,7 +13655,49 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
-                      {comunicadoActivo.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.55)", lineHeight: "1.5", marginBottom: "6px" }}>{comunicadoActivo.detalle}</div>}
+                      {detalleActivo && (
+                        <div style={{ marginBottom: "8px" }}>
+                          <div
+                            style={{
+                              fontFamily: getFont(theme, "secondary"),
+                              fontSize: "11px",
+                              color: "rgba(255,255,255,0.55)",
+                              lineHeight: "1.45",
+                              whiteSpace: "pre-wrap",
+                              maxHeight: detalleActivoExpandido ? "none" : "64px",
+                              overflow: detalleActivoExpandido ? "visible" : "hidden",
+                              paddingRight: "2px",
+                              WebkitMaskImage: (!detalleActivoExpandido && detalleActivoEsLargo) ? "linear-gradient(180deg, #000 68%, transparent 100%)" : "none",
+                              maskImage: (!detalleActivoExpandido && detalleActivoEsLargo) ? "linear-gradient(180deg, #000 68%, transparent 100%)" : "none"
+                            }}
+                          >
+                            {detalleActivo}
+                          </div>
+                          {detalleActivoEsLargo && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetalleExpandidoId(detalleActivoExpandido ? null : comunicadoActivo.id);
+                              }}
+                              style={{
+                                marginTop: "6px",
+                                padding: "6px 10px",
+                                borderRadius: "999px",
+                                border: "1px solid rgba(56,189,248,0.28)",
+                                background: "rgba(56,189,248,0.08)",
+                                color: "#7dd3fc",
+                                fontFamily: getFont(theme, "secondary"),
+                                fontSize: "10px",
+                                fontWeight: "800",
+                                cursor: "pointer"
+                              }}
+                            >
+                              {detalleActivoExpandido ? "Ocultar descripción" : "Ver descripción completa"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
