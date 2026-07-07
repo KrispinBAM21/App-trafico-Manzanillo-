@@ -14500,16 +14500,16 @@ const getNoticiasAutoReportCache = () => {
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
   const reportCacheRef = useRef(getNoticiasAutoReportCache());
-  const [jpegUrl, setJpegUrl] = useState(() => reportCacheRef.current.jpegUrl || null);
+  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
   const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
   const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
-  const objectUrlRef = useRef(reportCacheRef.current.jpegUrl || null);
-  const canvasRef = useRef(reportCacheRef.current.canvas || null);
-  if (canvasRef.current && reportCacheRef.current.groups) canvasRef.current.__reportGroups = reportCacheRef.current.groups;
+  const objectUrlsRef = useRef(reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const canvasesRef = useRef(reportCacheRef.current.canvases || (reportCacheRef.current.canvas ? [reportCacheRef.current.canvas] : []));
+  if (canvasesRef.current?.length && reportCacheRef.current.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
 
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
@@ -14746,30 +14746,64 @@ function NoticiasAutoJpegReport() {
     return { canvas, now, groups, rowsCount };
   }, [cargarSnapshot]);
 
-  const buildPreviewCanvas = useCallback(async () => {
+  const buildPreviewCanvases = useCallback(async () => {
     const groups = await cargarSnapshot();
     const scale = 2;
     const w = 1080;
+    const pageH = 1528;
     const pad = 42;
     const rowH = 44;
     const sectionH = 58;
     const headerH = 150;
-    const footerH = 56;
+    const footerH = 62;
+    const contentTop = headerH;
+    const contentBottom = pageH - footerH;
     const rowsCount = groups.reduce((n, g) => n + g.rows.length, 0);
-    const h = headerH + footerH + groups.length * sectionH + rowsCount * rowH + 40;
-    const canvas = document.createElement("canvas");
-    canvas.width = w * scale;
-    canvas.height = h * scale;
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    const ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
+    const now = new Date();
 
-    const roundRect = (x,y,ww,hh,r) => {
+    // CONTROL DE SALTO DE PÁGINA:
+    // Se pagina por bloques completos (encabezado de sección o fila). Antes de dibujar
+    // se calcula si el bloque cabe; si no cabe, se abre una hoja nueva. Así ningún
+    // renglón, título ni palabra queda cortado entre dos imágenes.
+    const pages = [];
+    let currentPage = [];
+    let yCursor = contentTop;
+    const startNewPage = () => {
+      if (currentPage.length) pages.push(currentPage);
+      currentPage = [];
+      yCursor = contentTop;
+    };
+    const ensureSpace = (needed) => {
+      if (yCursor + needed > contentBottom && currentPage.length) startNewPage();
+    };
+
+    groups.forEach((g) => {
+      let sectionOpenOnThisPage = false;
+      const addSectionHeader = (continuation = false) => {
+        ensureSpace(sectionH);
+        currentPage.push({ type:"section", group:g, continuation });
+        yCursor += sectionH;
+        sectionOpenOnThisPage = true;
+      };
+
+      addSectionHeader(false);
+      g.rows.forEach((r, idx) => {
+        if (yCursor + rowH > contentBottom) {
+          startNewPage();
+          sectionOpenOnThisPage = false;
+        }
+        if (!sectionOpenOnThisPage) addSectionHeader(true);
+        currentPage.push({ type:"row", row:r, rowIndex:idx });
+        yCursor += rowH;
+      });
+    });
+    if (currentPage.length) pages.push(currentPage);
+
+    const roundRect = (ctx, x,y,ww,hh,r) => {
       ctx.beginPath();
       ctx.moveTo(x+r,y); ctx.arcTo(x+ww,y,x+ww,y+hh,r); ctx.arcTo(x+ww,y+hh,x,y+hh,r); ctx.arcTo(x,y+hh,x,y,r); ctx.arcTo(x,y,x+ww,y,r); ctx.closePath();
     };
-    const wrapText = (text, x, y, maxWidth, lineHeight, maxLines = 1) => {
+    const wrapText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 1) => {
       const words = clean(text).split(" ");
       let line = "";
       let lineNo = 0;
@@ -14785,65 +14819,92 @@ function NoticiasAutoJpegReport() {
       if (lineNo < maxLines) ctx.fillText(line, x, y + lineNo * lineHeight);
     };
 
-    const now = new Date();
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#07152a");
-    grad.addColorStop(1, "#0b2440");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    try {
-      const wm = await loadImage(CM_REPORT_WATERMARK);
-      const wmW = Math.min(560, w * 0.54);
-      const wmH = wmW * (wm.height / wm.width);
-      ctx.save();
-      if ("filter" in ctx) ctx.filter = "grayscale(1) brightness(1.8)";
-      ctx.globalAlpha = 0.08;
-      for (let cy = headerH + 440; cy < h - footerH; cy += 980) {
-        ctx.drawImage(wm, (w - wmW) / 2, cy - wmH / 2, wmW, wmH);
-      }
-      ctx.restore();
-    } catch {}
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "900 34px Arial";
-    ctx.fillText("Reporte operativo", pad, 62);
-    ctx.font = "700 18px Arial";
-    ctx.fillStyle = "#93c5fd";
-    ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
-    ctx.font = "400 17px Arial";
-    ctx.fillStyle = "#cbd5e1";
-    ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#38bdf8";
-    ctx.font = "900 18px Arial";
-    ctx.fillText(`${rowsCount} registros`, w - pad, 62);
-    ctx.textAlign = "left";
-
-    let y = headerH;
-    groups.forEach(g => {
-      ctx.fillStyle = "rgba(56,189,248,0.14)";
-      roundRect(pad, y, w - pad*2, 42, 14); ctx.fill();
-      ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = "#7dd3fc";
-      ctx.font = "900 18px Arial";
-      ctx.fillText(g.title.toUpperCase(), pad + 18, y + 27);
+    const drawPageHeader = (ctx, pageNo, totalPages) => {
+      // INSERCIÓN DEL ENCABEZADO:
+      // Cada canvas/hoja dibuja su propio encabezado, independiente de las demás páginas.
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 34px Arial";
+      ctx.fillText("Reporte operativo", pad, 62);
+      ctx.font = "700 18px Arial";
+      ctx.fillStyle = "#93c5fd";
+      ctx.fillText("Conect Manzanillo · Noticias", pad, 94);
+      ctx.font = "400 17px Arial";
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillText(`Generado automáticamente: ${now.toLocaleString("es-MX")}`, pad, 124);
       ctx.textAlign = "right";
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = "#38bdf8";
+      ctx.font = "900 18px Arial";
+      ctx.fillText(`${rowsCount} registros`, w - pad, 62);
       ctx.font = "700 14px Arial";
-      ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText(`Hoja ${pageNo} de ${totalPages}`, w - pad, 94);
       ctx.textAlign = "left";
-      y += sectionH;
-      g.rows.forEach((r, idx) => {
+    };
+
+    const drawCenteredWatermark = async (ctx) => {
+      try {
+        const wm = await loadImage(CM_REPORT_WATERMARK);
+        const wmW = Math.min(560, w * 0.54);
+        const wmH = wmW * (wm.height / wm.width);
+        ctx.save();
+        if ("filter" in ctx) ctx.filter = "grayscale(1) brightness(1.8)";
+        ctx.globalAlpha = 0.08;
+        // MARCA DE AGUA:
+        // Se posiciona exactamente al centro de la imagen completa: eje X = w/2, eje Y = pageH/2.
+        ctx.drawImage(wm, (w - wmW) / 2, (pageH - wmH) / 2, wmW, wmH);
+        ctx.restore();
+      } catch {}
+    };
+
+    const canvases = [];
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = pageH * scale;
+      canvas.style.width = w + "px";
+      canvas.style.height = pageH + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, pageH);
+      grad.addColorStop(0, "#07152a");
+      grad.addColorStop(1, "#0b2440");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, pageH);
+
+      await drawCenteredWatermark(ctx);
+      drawPageHeader(ctx, pageIndex + 1, pages.length);
+
+      let y = contentTop;
+      pages[pageIndex].forEach(block => {
+        if (block.type === "section") {
+          const g = block.group;
+          ctx.fillStyle = "rgba(56,189,248,0.14)";
+          roundRect(ctx, pad, y, w - pad*2, 42, 14); ctx.fill();
+          ctx.strokeStyle = "rgba(56,189,248,0.36)"; ctx.lineWidth = 1; ctx.stroke();
+          ctx.fillStyle = "#7dd3fc";
+          ctx.font = "900 18px Arial";
+          ctx.fillText(`${g.title.toUpperCase()}${block.continuation ? " · CONT." : ""}`, pad + 18, y + 27);
+          ctx.textAlign = "right";
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "700 14px Arial";
+          ctx.fillText(`${g.rows.length} registros`, w - pad - 18, y + 27);
+          ctx.textAlign = "left";
+          y += sectionH;
+          return;
+        }
+
+        const r = block.row;
+        const idx = block.rowIndex;
         ctx.fillStyle = idx % 2 ? "rgba(255,255,255,0.035)" : "rgba(255,255,255,0.065)";
-        roundRect(pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
+        roundRect(ctx, pad, y - 6, w - pad*2, rowH - 6, 10); ctx.fill();
         ctx.fillStyle = "#f8fafc";
         ctx.font = "800 16px Arial";
-        wrapText(r.name, pad + 16, y + 17, 560, 17, 1);
+        wrapText(ctx, r.name, pad + 16, y + 17, 560, 17, 1);
         if (r.detail) {
           ctx.fillStyle = "#94a3b8";
           ctx.font = "400 13px Arial";
-          wrapText(r.detail, pad + 16, y + 34, 670, 14, 1);
+          wrapText(ctx, r.detail, pad + 16, y + 34, 670, 14, 1);
         }
         ctx.textAlign = "right";
         ctx.fillStyle = r.color || "#94a3b8";
@@ -14852,31 +14913,39 @@ function NoticiasAutoJpegReport() {
         ctx.textAlign = "left";
         y += rowH;
       });
-    });
-    ctx.fillStyle = "#64748b";
-    ctx.font = "400 14px Arial";
-    ctx.fillText("Vista web. Al descargar se convierte al formato formal de Reporte.", pad, h - 26);
-    return { canvas, now, groups, rowsCount };
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "400 14px Arial";
+      ctx.fillText("Vista web. Al descargar se convierte al formato formal de Reporte.", pad, pageH - 26);
+      ctx.textAlign = "right";
+      ctx.fillText(`Hoja ${pageIndex + 1} de ${pages.length}`, w - pad, pageH - 26);
+      ctx.textAlign = "left";
+      canvases.push(canvas);
+    }
+
+    return { canvases, now, groups, rowsCount };
   }, [cargarSnapshot]);
 
   const generarJpeg = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const { canvas, now, groups } = await buildPreviewCanvas();
-      canvasRef.current = canvas;
-      canvasRef.current.__reportGroups = groups;
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
-      if (!blob) throw new Error("No se pudo crear el JPEG");
-      const previousUrl = reportCacheRef.current.jpegUrl;
-      const url = URL.createObjectURL(blob);
-      objectUrlRef.current = url;
-      reportCacheRef.current.jpegUrl = url;
+      const { canvases, now, groups } = await buildPreviewCanvases();
+      canvasesRef.current = canvases;
+      canvasesRef.current.forEach(c => { c.__reportGroups = groups; });
+      const blobs = await Promise.all(canvases.map(canvas => new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92))));
+      if (blobs.some(blob => !blob)) throw new Error("No se pudo crear el JPEG");
+      const previousUrls = reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []);
+      const urls = blobs.map(blob => URL.createObjectURL(blob));
+      objectUrlsRef.current = urls;
+      reportCacheRef.current.jpegUrls = urls;
+      reportCacheRef.current.jpegUrl = urls[0] || null;
       reportCacheRef.current.generatedAt = now.toISOString();
-      reportCacheRef.current.canvas = canvas;
+      reportCacheRef.current.canvases = canvases;
+      reportCacheRef.current.canvas = canvases[0] || null;
       reportCacheRef.current.groups = groups;
-      if (previousUrl && previousUrl !== url) setTimeout(() => URL.revokeObjectURL(previousUrl), 1500);
-      setJpegUrl(url);
+      previousUrls.forEach(oldUrl => { if (oldUrl && !urls.includes(oldUrl)) setTimeout(() => URL.revokeObjectURL(oldUrl), 1500); });
+      setJpegUrls(urls);
       setGeneratedAt(now);
     } catch (e) {
       console.error(e);
@@ -14884,19 +14953,21 @@ function NoticiasAutoJpegReport() {
     } finally {
       setLoading(false);
     }
-  }, [buildPreviewCanvas]);
+  }, [buildPreviewCanvases]);
 
-  const downloadCanvasAsJpeg = async (canvas, now) => {
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92));
-    if (!blob) throw new Error("No se pudo crear el JPEG");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `reporte-operativo-conect-${now.toISOString().slice(0,10)}.jpeg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  const downloadCanvasesAsJpegs = async (canvases, now) => {
+    const blobs = await Promise.all(canvases.map(canvas => new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92))));
+    if (blobs.some(blob => !blob)) throw new Error("No se pudo crear el JPEG");
+    const base = `reporte-operativo-conect-${now.toISOString().slice(0,10)}`;
+    if (blobs.length === 1) {
+      downloadClientBlob(blobs[0], `${base}.jpeg`);
+      return;
+    }
+    const JSZip = await loadJsZipClient();
+    const zip = new JSZip();
+    blobs.forEach((blob, idx) => zip.file(`${base}-hoja-${String(idx + 1).padStart(2, "0")}.jpeg`, blob));
+    const zipBlob = await zip.generateAsync({ type:"blob" });
+    downloadClientBlob(zipBlob, `${base}-jpeg.zip`);
   };
 
   const downloadCanvasAsPdf = async (canvas, now, groups = null) => {
@@ -15005,12 +15076,13 @@ function NoticiasAutoJpegReport() {
     setDownloading(true);
     setError("");
     try {
-      const built = await buildReportCanvas();
-      const canvas = built.canvas;
-      const now = built.now;
-      const groups = built.groups;
-      if (downloadFormat === "pdf") await downloadCanvasAsPdf(canvas, now, groups);
-      else await downloadCanvasAsJpeg(canvas, now);
+      if (downloadFormat === "pdf") {
+        const built = await buildReportCanvas();
+        await downloadCanvasAsPdf(built.canvas, built.now, built.groups);
+      } else {
+        const built = await buildPreviewCanvases();
+        await downloadCanvasesAsJpegs(built.canvases, built.now);
+      }
     } catch (e) {
       console.error(e);
       setError("No se pudo descargar el reporte en el formato seleccionado.");
@@ -15086,7 +15158,12 @@ function NoticiasAutoJpegReport() {
         </div>
       </div>
       {error && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(239,68,68,.12)", border:"1px solid rgba(239,68,68,.35)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{error}</div>}
-      {jpegUrl ? <img src={jpegUrl} alt="Reporte operativo automático" style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#061428", display:"block" }} /> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imagen del reporte…" : "El reporte automático aparecerá en el próximo corte de 10 minutos. También puedes generarlo ahora."}</div>}
+      {jpegUrls.length ? <div style={{ display:"grid", gap:"12px" }}>
+        {jpegUrls.map((url, idx) => <div key={url + idx}>
+          {jpegUrls.length > 1 && <div style={{ color:"rgba(226,232,240,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, margin:"0 0 6px 2px" }}>Hoja {idx + 1} de {jpegUrls.length}</div>}
+          <img src={url} alt={`Reporte operativo automático hoja ${idx + 1}`} style={{ width:"100%", borderRadius:"12px", border:"1px solid rgba(255,255,255,.14)", background:"#061428", display:"block" }} />
+        </div>)}
+      </div> : <div style={{ textAlign:"center", padding:"24px", border:"1px dashed rgba(148,163,184,.35)", borderRadius:"12px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{loading ? "Generando imágenes del reporte…" : "El reporte automático aparecerá en el próximo corte de 10 minutos. También puedes generarlo ahora."}</div>}
     </div>
   );
 }
