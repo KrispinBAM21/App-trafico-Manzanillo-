@@ -61,7 +61,7 @@ const saveCookieConsent = (val) => {
 
 // Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Noto+Sans:wght@400;700;800&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -13488,7 +13488,20 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [converterOpen, setConverterOpen] = useState(false);
   const [screenshotOpen, setScreenshotOpen] = useState(false);
+  const [graphicBusy, setGraphicBusy] = useState(false);
+  const [graphicPreviewUrl, setGraphicPreviewUrl] = useState("");
+  const [generatedGraphicFile, setGeneratedGraphicFile] = useState(null);
   const inputRef = useRef();
+  const comunicadoCanvasRef = useRef(null);
+  const generatedGraphicObjectUrlRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (generatedGraphicObjectUrlRef.current) {
+        URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
+      }
+    };
+  }, []);
 
   const localDateInput = (offsetDays = 0) => {
     const d = new Date();
@@ -13567,6 +13580,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
     setError("");
     setArchivo(f);
+    setGeneratedGraphicFile(null);
+    setGraphicPreviewUrl("");
     if (f.type !== "application/pdf") {
       const reader = new FileReader();
       reader.onload = (ev) => setPreview(ev.target.result);
@@ -13579,6 +13594,133 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const setToolNotice = (message, color = "#2563eb") => {
     setToolMsg({ message, color });
     setTimeout(() => setToolMsg(null), 3800);
+  };
+
+  const formatearFechaComunicado = (date = new Date()) => {
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = meses[date.getMonth()] || "";
+    const year = date.getFullYear();
+    return `${day} de ${month} del ${year}`;
+  };
+
+  const cargarImagenParaCanvas = (src) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`No se pudo cargar la imagen de plantilla: ${src}`));
+    img.src = src;
+  });
+
+  const segmentarPalabraCanvas = (ctx, word, maxWidth) => {
+    if (!word) return [""];
+    if (ctx.measureText(word).width <= maxWidth) return [word];
+    const partes = [];
+    let actual = "";
+    for (const char of word) {
+      const candidato = `${actual}${char}`;
+      if (actual && ctx.measureText(candidato).width > maxWidth) {
+        partes.push(actual);
+        actual = char;
+      } else {
+        actual = candidato;
+      }
+    }
+    if (actual) partes.push(actual);
+    return partes.length ? partes : [word];
+  };
+
+  // Canvas no genera saltos de línea automáticamente. Esta función mide cada palabra
+  // y crea las líneas necesarias para que el texto nunca rebase el ancho disponible.
+  const wrapTextCanvas = (ctx, text, maxWidth) => {
+    const paragraphs = String(text || "")
+      .replace(/\r/g, "")
+      .split("\n")
+      .map((part) => part.trim())
+      .filter((part, index, arr) => part || (index > 0 && arr[index - 1]));
+
+    const lines = [];
+    const sourceParagraphs = paragraphs.length ? paragraphs : [String(text || "").trim()];
+
+    sourceParagraphs.forEach((paragraph, paragraphIndex) => {
+      if (!paragraph) {
+        lines.push("");
+        return;
+      }
+
+      const rawWords = paragraph.split(/\s+/).filter(Boolean);
+      const words = [];
+      rawWords.forEach((word) => {
+        const trozos = segmentarPalabraCanvas(ctx, word, maxWidth);
+        trozos.forEach((trozo) => words.push(trozo));
+      });
+
+      let currentLine = "";
+      words.forEach((word) => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        if (currentLine && ctx.measureText(testLine).width > maxWidth) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      });
+
+      if (currentLine) lines.push(currentLine);
+      if (paragraphIndex < sourceParagraphs.length - 1) lines.push("");
+    });
+
+    return lines.filter((line, index, arr) => line || (index > 0 && arr[index - 1]));
+  };
+
+  // Ajusta dinámicamente el tamaño de fuente hasta que el bloque completo
+  // (título o cuerpo) quepa dentro del espacio vertical y horizontal indicado.
+  const ajustarBloqueTextoCanvas = ({
+    ctx,
+    text,
+    maxWidth,
+    maxHeight,
+    maxFontSize,
+    minFontSize,
+    lineHeightFactor = 1.3,
+    fontFamily = '"Noto Sans", sans-serif',
+    fontWeight = 400,
+    maxLines = Infinity,
+  }) => {
+    for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
+      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      const lines = wrapTextCanvas(ctx, text, maxWidth);
+      const lineHeight = fontSize * lineHeightFactor;
+      const totalHeight = lines.length * lineHeight;
+      const withinHeight = totalHeight <= maxHeight;
+      const withinLineCount = lines.length <= maxLines;
+      if (withinHeight && withinLineCount) {
+        return { fontSize, lines, lineHeight, totalHeight };
+      }
+    }
+
+    const fallbackSize = minFontSize;
+    ctx.font = `${fontWeight} ${fallbackSize}px ${fontFamily}`;
+    const fallbackLines = wrapTextCanvas(ctx, text, maxWidth).slice(0, maxLines === Infinity ? undefined : maxLines);
+    const fallbackLineHeight = fallbackSize * lineHeightFactor;
+    return {
+      fontSize: fallbackSize,
+      lines: fallbackLines,
+      lineHeight: fallbackLineHeight,
+      totalHeight: fallbackLines.length * fallbackLineHeight,
+    };
+  };
+
+  const dibujarLineasCanvas = ({ ctx, lines, x, y, lineHeight, fillStyle = "#0f172a", textAlign = "center" }) => {
+    ctx.save();
+    ctx.fillStyle = fillStyle;
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = "top";
+    lines.forEach((line, index) => {
+      const texto = line || " ";
+      ctx.fillText(texto, x, y + (index * lineHeight));
+    });
+    ctx.restore();
   };
 
   const agregarTextoExtraidoADetalle = (rawText) => {
@@ -13918,6 +14060,179 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
   };
 
+  const descargarComunicadoGenerado = () => {
+    if (!graphicPreviewUrl) return;
+    const safeTitle = (titulo || "comunicado")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase();
+
+    const a = document.createElement("a");
+    a.href = graphicPreviewUrl;
+    a.download = `${safeTitle || "comunicado"}_formato.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const adjuntarComunicadoGenerado = () => {
+    if (!generatedGraphicFile || !graphicPreviewUrl) return;
+    setArchivo(generatedGraphicFile);
+    setPreview(graphicPreviewUrl);
+    if (inputRef.current) inputRef.current.value = "";
+    setToolNotice("La imagen generada se adjuntó automáticamente al comunicado actual.", "#22c55e");
+  };
+
+  const crearComunicadoPorFormato = async () => {
+    if (!isAdmin) return;
+
+    const bodyText = String(detalle || "").trim();
+    const titleText = String(titulo || "").trim();
+
+    if (!bodyText) {
+      setError("Primero extrae o escribe el texto del comunicado antes de crear el formato.");
+      return;
+    }
+
+    if (!titleText) {
+      setError("Primero genera o escribe el título del comunicado.");
+      return;
+    }
+
+    setGraphicBusy(true);
+    setError("");
+
+    try {
+      if (document?.fonts?.load) {
+        await Promise.all([
+          document.fonts.load('400 28px "Noto Sans"'),
+          document.fonts.load('700 36px "Noto Sans"'),
+          document.fonts.load('800 24px "Noto Sans"'),
+        ]);
+      }
+
+      const template = await cargarImagenParaCanvas("/comunicado formato.jpg");
+      const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
+      const width = template.naturalWidth || template.width || 1080;
+      const height = template.naturalHeight || template.height || 1350;
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(template, 0, 0, width, height);
+
+      const dateText = formatearFechaComunicado(new Date());
+      const rightColumnX = width * 0.60;
+      const rightColumnWidth = width * 0.29;
+      const dateY = height * 0.205;
+      const titleY = dateY + (height * 0.048);
+      const bodyAreaX = width * 0.16;
+      const bodyAreaWidth = width * 0.68;
+      const bodyStartY = height * 0.49;
+      const bodyAreaHeight = height * 0.30;
+
+      // Fecha dinámica: se dibuja debajo del elemento rojo del diseño,
+      // alineada a la derecha y usando Noto Sans.
+      let dateFontSize = Math.round(width * 0.022);
+      ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
+      while (dateFontSize > 14 && ctx.measureText(dateText).width > rightColumnWidth) {
+        dateFontSize -= 1;
+        ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
+      }
+      ctx.save();
+      ctx.font = `400 ${dateFontSize}px "Noto Sans", sans-serif`;
+      ctx.fillStyle = "#111827";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(dateText, rightColumnX, dateY);
+      ctx.restore();
+
+      // Título con autoajuste: si el título es largo, la fuente se reduce
+      // automáticamente para no invadir el margen derecho ni salir del bloque.
+      const titleBlock = ajustarBloqueTextoCanvas({
+        ctx,
+        text: titleText,
+        maxWidth: rightColumnWidth,
+        maxHeight: height * 0.12,
+        maxFontSize: Math.round(width * 0.031),
+        minFontSize: Math.round(width * 0.018),
+        lineHeightFactor: 1.16,
+        fontFamily: '"Noto Sans", sans-serif',
+        fontWeight: 700,
+        maxLines: 4,
+      });
+      ctx.font = `700 ${titleBlock.fontSize}px "Noto Sans", sans-serif`;
+      dibujarLineasCanvas({
+        ctx,
+        lines: titleBlock.lines,
+        x: rightColumnX,
+        y: titleY,
+        lineHeight: titleBlock.lineHeight,
+        fillStyle: "#111827",
+        textAlign: "left",
+      });
+
+      // Cuerpo central del comunicado: se calcula el wrapText y el tamaño de fuente
+      // para que todo el bloque quepa dentro del espacio blanco sin desbordarse.
+      const bodyBlock = ajustarBloqueTextoCanvas({
+        ctx,
+        text: bodyText,
+        maxWidth: bodyAreaWidth,
+        maxHeight: bodyAreaHeight,
+        maxFontSize: Math.round(width * 0.030),
+        minFontSize: Math.round(width * 0.016),
+        lineHeightFactor: 1.28,
+        fontFamily: '"Noto Sans", sans-serif',
+        fontWeight: 400,
+      });
+      ctx.font = `400 ${bodyBlock.fontSize}px "Noto Sans", sans-serif`;
+      dibujarLineasCanvas({
+        ctx,
+        lines: bodyBlock.lines,
+        x: bodyAreaX + (bodyAreaWidth / 2),
+        y: bodyStartY,
+        lineHeight: bodyBlock.lineHeight,
+        fillStyle: "#0f172a",
+        textAlign: "center",
+      });
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
+        }, "image/jpeg", 0.95);
+      });
+
+      if (generatedGraphicObjectUrlRef.current) {
+        URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      generatedGraphicObjectUrlRef.current = objectUrl;
+      setGraphicPreviewUrl(objectUrl);
+
+      const safeTitle = (titleText || "comunicado")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .toLowerCase();
+
+      const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.jpg`, { type: "image/jpeg" });
+      setGeneratedGraphicFile(generatedFile);
+      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
+    } catch (e) {
+      console.error("Error al crear comunicado por formato:", e);
+      setToolNotice(`No se pudo generar el comunicado gráfico: ${e?.message || e}`, "#ef4444");
+    } finally {
+      setGraphicBusy(false);
+    }
+  };
+
   const handleSubir = async () => {
     if (!titulo.trim()) {
       setError("Escribe un título para el comunicado");
@@ -14002,6 +14317,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setDetalle("");
       setArchivo(null);
       setPreview(null);
+      setGeneratedGraphicFile(null);
+      setGraphicPreviewUrl("");
       setFechaInicio("");
       setFechaFin("");
       setFechaFinModo("fecha");
@@ -14208,9 +14525,28 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
           <button type="button" onClick={()=>setConverterOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
           {isAdmin && <button type="button" onClick={()=>setScreenshotOpen(true)} disabled={toolBusy} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:toolBusy?"not-allowed":"pointer" }}>Captura web / recorte</button>}
+          {isAdmin && <button type="button" onClick={crearComunicadoPorFormato} disabled={graphicBusy || !detalle.trim() || !titulo.trim()} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:(graphicBusy || !detalle.trim() || !titulo.trim())?"rgba(100,116,139,.16)":"rgba(236,72,153,.12)", color:(graphicBusy || !detalle.trim() || !titulo.trim())?"#94a3b8":"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(graphicBusy || !detalle.trim() || !titulo.trim())?"not-allowed":"pointer" }}>{graphicBusy ? "Generando formato…" : "Crear comunicado por formato"}</button>}
           {isAdmin && <button type="button" onClick={publicarArchivoEnNoticias} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Publicar en Noticias</button>}
         </div>
       </div>
+
+      {isAdmin && (
+        <>
+          <canvas ref={comunicadoCanvasRef} style={{ display: "none" }} />
+          {graphicPreviewUrl && (
+            <div style={{ background:"rgba(236,72,153,.06)", border:"1px solid rgba(236,72,153,.22)", borderRadius:"12px", padding:"12px", marginBottom:"10px" }}>
+              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#f9a8d4", fontWeight:900, letterSpacing:".8px", marginBottom:"8px" }}>
+                VISTA PREVIA DEL COMUNICADO GRÁFICO
+              </div>
+              <img src={graphicPreviewUrl} alt="Vista previa del comunicado generado" style={{ width:"100%", borderRadius:"10px", border:"1px solid rgba(255,255,255,.1)", background:"#fff", display:"block", marginBottom:"10px" }} />
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:"8px" }}>
+                <button type="button" onClick={descargarComunicadoGenerado} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Descargar imagen final</button>
+                <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
       {zonePickerOpen && <OcrZonePickerModal files={archivo ? [archivo] : []} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonasComunicado} />}
       {converterOpen && <MediaConverterModal files={archivo ? [archivo] : []} onClose={()=>setConverterOpen(false)} onNotice={(message, color)=>setToolNotice(message, color)} />}
       {isAdmin && screenshotOpen && <ScreenshotCropModal onClose={()=>setScreenshotOpen(false)} onApply={aplicarCapturaWebRecortada} />}
