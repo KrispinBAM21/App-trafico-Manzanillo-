@@ -13609,8 +13609,22 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       } finally {
         setTimeout(() => URL.revokeObjectURL(localUrl), 1500);
       }
-      const ok = agregarTextoExtraidoADetalle(extracted);
-      setToolNotice(ok ? "Texto extraído y agregado en Descripción breve." : "No se detectó texto legible. Puedes escribir la descripción manualmente.", ok ? "#22c55e" : "#f97316");
+
+      const cleanExtracted = stripFileNamesFromOcrText(String(extracted || ""), archivo ? [archivo] : []);
+      const ok = agregarTextoExtraidoADetalle(cleanExtracted);
+
+      if (ok) {
+        setToolNotice("Texto extraído. Generando título automático con IA...", "#2563eb");
+        const tituloGenerado = await generarTituloDesdeTextoExtraido(cleanExtracted);
+        if (tituloGenerado) {
+          setTitulo(tituloGenerado);
+          setToolNotice("Texto extraído y título generado automáticamente.", "#22c55e");
+        } else {
+          setToolNotice("Texto extraído y agregado en Descripción breve. No se pudo generar el título automático.", "#f97316");
+        }
+      } else {
+        setToolNotice("No se detectó texto legible. Puedes escribir la descripción manualmente.", "#f97316");
+      }
     } catch (e) {
       console.error(e);
       setToolNotice("No se pudo extraer texto. Intenta elegir una zona o escribe la descripción manualmente.", "#ef4444");
@@ -13620,8 +13634,21 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   };
 
   const aplicarTextoDeZonasComunicado = async ({ text }) => {
-    const ok = agregarTextoExtraidoADetalle(text);
-    setToolNotice(ok ? "Texto de la zona agregado en Descripción breve." : "No se detectó texto legible dentro de la zona seleccionada.", ok ? "#22c55e" : "#f97316");
+    const cleanText = String(text || "").trim();
+    const ok = agregarTextoExtraidoADetalle(cleanText);
+
+    if (ok) {
+      setToolNotice("Texto de la zona agregado. Generando título automático con IA...", "#2563eb");
+      const tituloGenerado = await generarTituloDesdeTextoExtraido(cleanText);
+      if (tituloGenerado) {
+        setTitulo(tituloGenerado);
+        setToolNotice("Texto de la zona agregado y título generado automáticamente.", "#22c55e");
+      } else {
+        setToolNotice("Texto de la zona agregado en Descripción breve. No se pudo generar el título automático.", "#f97316");
+      }
+    } else {
+      setToolNotice("No se detectó texto legible dentro de la zona seleccionada.", "#f97316");
+    }
   };
 
   const extraerRespuestaIA = (data) => {
@@ -13752,6 +13779,45 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
     const detail = attempts.filter(Boolean).join(" | ").slice(0, 900);
     throw new Error(detail || "gemini-chat no devolvió una respuesta utilizable");
+  };
+
+  const limpiarTituloGeneradoIA = (value) => {
+    const firstLine = String(value || "")
+      .trim()
+      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+      .replace(/^[-•*\s]+/, "")
+      .replace(/^t[ií]tulo\s*:\s*/i, "")
+      .split("\n")[0]
+      .trim();
+
+    const words = firstLine.split(/\s+/).filter(Boolean);
+    if (words.length <= 10) return firstLine;
+
+    return words.slice(0, 10).join(" ").replace(/[.,;:]+$/g, "").trim();
+  };
+
+  const generarTituloDesdeTextoExtraido = async (textoExtraido) => {
+    const inputText = String(textoExtraido || "").trim();
+    if (!inputText) return "";
+
+    const prompt =
+      "Analiza el siguiente texto extraído de una imagen y genera un título formal, descriptivo y directo para un comunicado operativo. " +
+      "El título debe tener un máximo de 8 a 10 palabras. " +
+      "Devuelve estrictamente solo el título, sin comillas, sin viñetas y sin texto introductorio.\n\n" +
+      inputText;
+
+    try {
+      const { reply } = await callGeminiChatForComunicados({
+        prompt,
+        inputText,
+        actionLabel: "titulo",
+      });
+
+      return limpiarTituloGeneradoIA(reply);
+    } catch (err) {
+      console.warn("No se pudo generar título automático desde OCR:", err);
+      return "";
+    }
   };
 
   const solicitarTextoConIA = async (requestedAction = aiAction) => {
