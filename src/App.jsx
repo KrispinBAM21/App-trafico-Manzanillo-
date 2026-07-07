@@ -2402,18 +2402,31 @@ const sanitizeStorageName = (name = "archivo") => String(name)
 
 const loadScriptOnce = (src, testFn) => new Promise((resolve, reject) => {
   try {
-    if (typeof testFn === "function" && testFn()) return resolve(true);
+    const isReady = () => (typeof testFn === "function" ? !!testFn() : true);
+    if (isReady()) return resolve(true);
     const existing = Array.from(document.scripts || []).find(s => (s.src || "") === src);
     if (existing) {
-      existing.addEventListener("load", () => resolve(true), { once: true });
+      // CARGA ASÍNCRONA ROBUSTA: si el script ya existe pero ya terminó de cargar,
+      // no dejamos la promesa colgada esperando un evento "load" que no volverá a ocurrir.
+      if (existing.dataset.loaded === "true" || existing.readyState === "complete") {
+        return isReady()
+          ? resolve(true)
+          : reject(new Error(`El script cargó, pero la librería no quedó disponible: ${src}`));
+      }
+      existing.addEventListener("load", () => {
+        existing.dataset.loaded = "true";
+        isReady() ? resolve(true) : reject(new Error(`El script cargó, pero la librería no quedó disponible: ${src}`));
+      }, { once: true });
       existing.addEventListener("error", reject, { once: true });
-      if (typeof testFn === "function" && testFn()) return resolve(true);
       return;
     }
     const s = document.createElement("script");
     s.src = src;
     s.async = true;
-    s.onload = () => resolve(true);
+    s.onload = () => {
+      s.dataset.loaded = "true";
+      isReady() ? resolve(true) : reject(new Error(`El script cargó, pero la librería no quedó disponible: ${src}`));
+    };
     s.onerror = reject;
     document.head.appendChild(s);
   } catch (e) { reject(e); }
@@ -2571,6 +2584,20 @@ const loadJsPdfClient = async () => {
   await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", () => !!window.jspdf?.jsPDF);
   if (!window.jspdf?.jsPDF) throw new Error("jsPDF no cargó correctamente");
   return window.jspdf.jsPDF;
+};
+
+const savePdfDocumentClient = (doc, fileName) => {
+  if (!doc) throw new Error("Documento PDF no inicializado");
+  try {
+    // DESCARGA PDF ROBUSTA: usamos Blob + enlace temporal para evitar fallos de
+    // doc.save() en navegadores móviles o cuando FileSaver no está disponible.
+    const blob = doc.output("blob");
+    if (!(blob instanceof Blob) || !blob.size) throw new Error("PDF vacío");
+    downloadClientBlob(blob, fileName);
+  } catch (blobError) {
+    // Fallback conservador de jsPDF. Si también falla, el catch superior mostrará el error.
+    doc.save(fileName);
+  }
 };
 
 const pdfFilesToJpegDownloadClient = async (files = []) => {
@@ -8304,7 +8331,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
       // HOMOLOGACIÓN DE FORMATO: la sección REPORTE también usa el helper compartido.
       // Así Noticias y REPORTE exportan con la misma estructura, encabezado y marca de agua.
       const doc = buildCmReportPdfDocument(jsPDF, reportGroups, now);
-      doc.save(`reporte-conect-manzanillo-${now.toISOString().slice(0,10)}.pdf`);
+      savePdfDocumentClient(doc, `reporte-conect-manzanillo-${now.toISOString().slice(0,10)}.pdf`);
       notify("PDF generado correctamente", "#22c55e");
     } catch (e) {
       console.error(e);
@@ -14873,20 +14900,7 @@ function NoticiasAutoJpegReport() {
     ];
   }, []);
 
-  const loadJsPdf = () => new Promise((resolve, reject) => {
-    if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
-    const existing = document.querySelector('script[src*="jspdf.umd.min.js"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.jspdf.jsPDF));
-      existing.addEventListener("error", reject);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-    script.onload = () => resolve(window.jspdf.jsPDF);
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
+  const loadJsPdf = () => loadJsPdfClient();
 
   const buildPreviewCanvases = useCallback(async () => {
     const groups = await cargarSnapshot();
@@ -14928,24 +14942,36 @@ function NoticiasAutoJpegReport() {
     const blobs = await Promise.all(canvases.map(canvas => new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.92))));
     if (blobs.some(blob => !blob)) throw new Error("No se pudo crear el JPEG");
     const base = `reporte-operativo-conect-${now.toISOString().slice(0,10)}`;
-    if (blobs.length === 1) {
-      downloadClientBlob(blobs[0], `${base}.jpeg`);
-      return;
+
+    // DESCARGA DIRECTA INDIVIDUAL:
+    // Cada hoja JPEG se descarga como archivo nativo independiente en el navegador.
+    // No se agrupan imágenes en carpetas ni se comprimen en ZIP.
+    for (let idx = 0; idx < blobs.length; idx += 1) {
+      const blob = blobs[idx];
+      const fileName = blobs.length === 1
+        ? `${base}.jpeg`
+        : `${base}-pag${idx + 1}.jpeg`;
+
+      // DESCARGA NATIVA CON <a download>:
+      // Forzamos la descarga hoja por hoja reutilizando el helper que crea un
+      // enlace temporal y simula el clic. Se añade una pausa corta para que el
+      // navegador procese múltiples descargas sin empaquetarlas.
+      downloadClientBlob(blob, fileName);
+      if (idx < blobs.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 180));
+      }
     }
-    const JSZip = await loadJsZipClient();
-    const zip = new JSZip();
-    blobs.forEach((blob, idx) => zip.file(`${base}-hoja-${String(idx + 1).padStart(2, "0")}.jpeg`, blob));
-    const zipBlob = await zip.generateAsync({ type:"blob" });
-    downloadClientBlob(zipBlob, `${base}-jpeg.zip`);
   };
 
-  const downloadGroupsAsPdf = async (groups, now) => {
+  const downloadGroupsAsPdf = async (groups, now = new Date()) => {
     const jsPDF = await loadJsPdf();
     // HOMOLOGACIÓN DE FORMATO: PDF de Noticias reutiliza exactamente el mismo
-    // constructor formal usado por REPORTE, incluyendo marca de agua y paginación.
+    // constructor formal usado por REPORTE, incluyendo encabezado, paginación y marca de agua.
     const reportGroups = groups || (await cargarSnapshot());
+    const totalRows = (reportGroups || []).reduce((sum, g) => sum + ((g.rows || g.items || []).length), 0);
+    if (!totalRows) throw new Error("No hay datos para generar el PDF de Noticias");
     const doc = buildCmReportPdfDocument(jsPDF, reportGroups, now);
-    doc.save(`reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
+    savePdfDocumentClient(doc, `reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
   };
 
   const descargarReporte = async () => {
@@ -14953,8 +14979,12 @@ function NoticiasAutoJpegReport() {
     setError("");
     try {
       if (downloadFormat === "pdf") {
-        const built = await buildPreviewCanvases();
-        await downloadGroupsAsPdf(built.groups, built.now);
+        // CORRECCIÓN PDF NOTICIAS: el PDF no debe reconstruir canvases/JPEG antes de descargar.
+        // Ese paso agregaba promesas e imágenes innecesarias y podía disparar el mensaje genérico
+        // "No se pudo descargar..." aunque la generación PDF fuera independiente.
+        const now = new Date();
+        const groups = reportCacheRef.current.groups || (await cargarSnapshot());
+        await downloadGroupsAsPdf(groups, now);
       } else {
         const built = await buildPreviewCanvases();
         await downloadCanvasesAsJpegs(built.canvases, built.now);
