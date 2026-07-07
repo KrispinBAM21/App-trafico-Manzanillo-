@@ -1389,7 +1389,7 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
               <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
                 {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
                   <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 ))}
               </div>
@@ -2115,11 +2115,12 @@ const CARRIL_ESTADO_OPTS = [
   { id: "moderado", label: "Tráfico Moderado",   color: "#f97316", icon: "slow-traffic" },
   { id: "saturado", label: "Saturado",           color: "#ef4444", icon: "xmark" },
   { id: "bloqueo",  label: "Bloqueo",            color: "#dc2626", icon: "stop-sign" },
+  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#991b1b", icon: "lock" },
   { id: "sin_uso",  label: "Sin uso",            color: "#6b7280", icon: "ban" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
-const carrilEstadoIsSaturado = (estadoId) => ["saturado", "bloqueo"].includes(estadoId);
+const carrilEstadoIsSaturado = (estadoId) => ["saturado", "bloqueo", "cerrado"].includes(estadoId);
 const SEGUNDO_CONTENEDOR_OPTS = [
   { id: "puertas_cerradas", label: "Puertas Cerradas",        color: "#38bdf8", icon: "container" },
   { id: "puertas_abiertas", label: "Puertas Abiertas",        color: "#a78bfa", icon: "open-lock" },
@@ -8283,7 +8284,7 @@ function MapaAccesos({ accesos }) {
         {ACCESO_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display:"flex", alignItems:"center", gap:"5px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#e2e8f0" }}>
             <span style={{ width:"14px", height:"14px", borderRadius:"3px", background:o.color+"55", border:`2px solid ${o.color}`, display:"inline-block", boxShadow:`0 0 6px ${o.color}70` }} />
-            <IconText icon={o.icon} label={o.label} size={15} />
+            <span>{o.label}</span>
           </span>
         ))}
       </div>
@@ -10734,7 +10735,7 @@ function MapaTerminales({ zona, stMap }) {
         {TERMINAL_STATUS_OPTIONS.map(o => (
           <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
             <span style={{ width: "14px", height: "14px", borderRadius: "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
-            <IconText icon={o.icon} label={o.label} size={15} />
+            <span>{o.label}</span>
           </span>
         ))}
       </div>
@@ -10946,8 +10947,7 @@ function TerminalesTab({ myId }) {
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
         {TERMINAL_STATUS_OPTIONS.map(o => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>{o.label}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
           </div>
         ))}
       </div>
@@ -10975,7 +10975,7 @@ function TerminalesTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 );
               })}
@@ -11685,7 +11685,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
                   onClick={(e) => chooseDraftByTap(o.id, e.currentTarget)}
                   style={{ scrollSnapAlign:"center", width:"100%", minHeight:"48px", margin:"4px 0", padding:"9px 14px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "14px" : "13px", fontWeight: active ? 900 : 650, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", transition:"all .14s" }}
                 >
-                  <IconText icon={o.icon} label={o.label} size={15} />
+                  <span>{o.label}</span>
                   {active && <span style={{ color:o.color, fontWeight:900 }}>✓</span>}
                 </button>
               );
@@ -12386,7 +12386,7 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#991b1b","Cerrado hasta nuevo aviso"],["#6b7280","Sin uso"]].map(([c,l]) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -13758,7 +13758,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
-                      {comunicadoActivo.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.55)", lineHeight: "1.5", marginBottom: "6px" }}>{comunicadoActivo.detalle}</div>}
+                      {comunicadoActivo.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#93c5fd", fontWeight:800 }}>Ver descripción</summary><div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.62)", lineHeight: "1.45", marginTop:"6px", maxHeight:"120px", overflowY:"auto", overflowX:"hidden", whiteSpace:"pre-wrap", wordBreak:"normal", overflowWrap:"break-word" }}>{comunicadoActivo.detalle}</div></details>}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
@@ -15486,7 +15486,7 @@ function NoticiasTab({ isAdmin }) {
                       <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px" }}>{n.titulo}</div>
                       {origen === "comunicados" && <Badge color="#2563eb" small>Origen: Comunicados</Badge>}
                     </div>
-                    {n.detalle && <div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.58)", fontSize:"11px", lineHeight:1.5, marginBottom:"8px" }}>{n.detalle}</div>}
+                    {n.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800 }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.62)", fontSize:"11px", lineHeight:1.45, marginTop:"6px", maxHeight:"130px", overflowY:"auto", overflowX:"hidden", wordBreak:"normal", overflowWrap:"break-word" }}>{n.detalle}</div></details>}
                     {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
                       {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
                     </div>}
@@ -17367,8 +17367,7 @@ function PatioReguladorTab({ myId }) {
       <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
         {PATIO_STATUS_OPTIONS.map(o => (
           <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"11px", fontWeight:"700" }}>{o.icon}</span>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>{o.label}</span>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
           </div>
         ))}
       </div>
@@ -17399,7 +17398,7 @@ function PatioReguladorTab({ myId }) {
                 const isAct = st.status === o.id;
                 return (
                   <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <IconText icon={o.icon} label={o.label} size={15} />
+                    <span>{o.label}</span>
                   </button>
                 );
               })}
@@ -20355,6 +20354,9 @@ function App() {
           .cm-adsense-wrap.cm-ad-loading{height:0!important;max-height:0!important;min-height:0!important;overflow:hidden!important;opacity:0!important;margin:0!important;padding:0!important;}
           .cm-adsense-wrap.cm-ad-hidden{display:none!important;}
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
+          .cm-compact-text{white-space:pre-wrap;word-break:normal;overflow-wrap:break-word;line-height:1.45;}
+          @media(max-width:640px){.cm-compact-text{max-height:120px;overflow-y:auto;}}
+
         `}</style>
 
         {/* Header */}
@@ -20543,7 +20545,7 @@ function App() {
           }}>
             <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
               <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
-              <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px" }}>✨</div>
+              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}><img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"42px", height:"42px", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="block"; }} /><span style={{ display:"none", fontSize:"24px" }}>✨</span></div>
             </div>
             {adminMessages.length > 0 && (
               <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
