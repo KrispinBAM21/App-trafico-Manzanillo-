@@ -442,6 +442,89 @@ function leafletIconMarkup(name = "pin", color = "#38bdf8", size = 16) {
   return `<svg ${common}><path d="M12 3.8 21 19H3L12 3.8Z" fill="${safeColor}" stroke="${stroke}" stroke-width="1.7"/><path d="M12 9v4M12 16h.01" stroke="${stroke}" stroke-width="2" stroke-linecap="round"/></svg>`;
 }
 
+
+// ─── MAPAS: estilos compartidos para polígonos vivos y etiquetas ─────────────
+const CM_MAP_VIVID_POLYGON_FALLBACKS = ["#22c55e", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#facc15"];
+const CM_MAP_DULL_COLOR_REPLACEMENTS = {
+  "#475569": "#8b5cf6",
+  "#64748b": "#06b6d4",
+  "#6b7280": "#ec4899",
+  "#111827": "#f97316",
+  "#334155": "#0ea5e9",
+  "#00796b": "#14b8a6",
+  "#0f172a": "#3b82f6",
+};
+
+const cmHashString = (value = "") => String(value).split("").reduce((acc, ch) => ((acc * 31) + ch.charCodeAt(0)) >>> 0, 7);
+const cmVividMapColor = (color, key = "") => {
+  const clean = String(color || "").trim().toLowerCase();
+  if (CM_MAP_DULL_COLOR_REPLACEMENTS[clean]) return CM_MAP_DULL_COLOR_REPLACEMENTS[clean];
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(clean)) return color;
+  return CM_MAP_VIVID_POLYGON_FALLBACKS[cmHashString(key || clean) % CM_MAP_VIVID_POLYGON_FALLBACKS.length];
+};
+
+const cmMapPolygonStyle = (color, opts = {}) => {
+  const vivid = cmVividMapColor(color, opts.key);
+  return {
+    color: vivid,
+    fillColor: vivid,
+    // POLÍGONOS VIVOS: opacidad alta/moderada para resaltar sin ocultar calles ni mapa base.
+    fillOpacity: opts.fillOpacity ?? 0.52,
+    opacity: opts.opacity ?? 1,
+    weight: opts.weight ?? 3.5,
+    lineJoin: "round",
+  };
+};
+
+const CM_MAP_PERMANENT_LABEL_OPTIONS = {
+  permanent: true,
+  direction: "top",
+  offset: [0, -10],
+  className: "cm-tooltip-permanent",
+};
+
+const ensureCmMapSharedStyle = () => {
+  if (typeof document === "undefined" || document.getElementById("cm-map-shared-style")) return;
+  const s = document.createElement("style");
+  s.id = "cm-map-shared-style";
+  s.textContent = `
+    .cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}
+    .cm-tooltip::before{display:none!important;}
+    .cm-tooltip-permanent{background:rgba(4,12,24,0.88)!important;border:1px solid rgba(56,189,248,0.4)!important;border-radius:5px!important;color:rgba(255,255,255,0.92)!important;font-family:'DM Sans',sans-serif!important;font-size:10px!important;font-weight:700!important;padding:2px 7px!important;box-shadow:0 2px 8px rgba(0,0,0,0.6)!important;white-space:nowrap!important;pointer-events:none!important;}
+    .cm-tooltip-permanent::before{display:none!important;}
+    .cm-map-ref-icon{background:transparent!important;border:none!important;}
+  `;
+  document.head.appendChild(s);
+};
+
+const bindCmMapPermanentLabel = (layer, name) => {
+  ensureCmMapSharedStyle();
+  return layer.bindTooltip(`<b>${sanitize(name)}</b>`, CM_MAP_PERMANENT_LABEL_OPTIONS).openTooltip();
+};
+
+const addCmMapReferenceLabels = (L, targetLayer, refs = [], store = {}) => {
+  ensureCmMapSharedStyle();
+  refs.forEach(ref => {
+    if (!ref?.coords) return;
+    const color = cmVividMapColor(ref.color || (ref.tipo === "acceso" ? "#facc15" : "#38bdf8"), ref.id || ref.name);
+    const marker = L.marker(ref.coords, {
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 650,
+      icon: L.divIcon({
+        className: "cm-map-ref-icon",
+        html: `<div style="width:14px;height:14px;background:${color};border:2.5px solid rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 0 7px ${color}aa;"></div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      })
+    }).addTo(targetLayer);
+    // ETIQUETAS COMPARTIDAS: misma lógica, fuente y clase visual usada por la sección principal de Mapa.
+    bindCmMapPermanentLabel(marker, ref.name || ref.short || ref.id);
+    store[ref.id || ref.name] = marker;
+  });
+  return store;
+};
+
 const TERMINALS_NORTE = [
   { id: "contecon", name: "CONTECON", fullName: "Contecon Manzanillo S.A." },
   { id: "hazesa",   name: "HAZESA",   fullName: "Hazesa Terminal Especializada" },
@@ -1261,14 +1344,12 @@ function FiscalZoneMap({ zona, rutas }) {
       const st = rutas?.[route.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
       const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
       route.coords.forEach(c => allCoords.push(c));
-      const layer = L.polygon(route.coords, {
-        color: opt.color,
-        fillColor: opt.color,
-        fillOpacity: 0.38,
-        opacity: 1,
+      const routeColor = cmVividMapColor(opt.color, route.id);
+      const layer = L.polygon(route.coords, cmMapPolygonStyle(routeColor, {
+        key: route.id,
         weight: 4,
-        lineJoin: "round",
-      })
+        fillOpacity: 0.52,
+      }))
         .bindTooltip(`<b>${route.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`, {
           permanent: false,
           sticky: true,
@@ -8467,6 +8548,7 @@ function MapaAccesos({ accesos }) {
   const polyRefs  = useRef({});
   const tileRef   = useRef(null);
   const labelRef  = useRef(null);
+  const labelMarkerRefs = useRef({});
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
@@ -8498,9 +8580,12 @@ function MapaAccesos({ accesos }) {
 
       ACCESO_POLYGONS.forEach(poly => {
         const color = getColor(poly.id);
-        const layer = L.polygon(poly.coords, {
-          color, weight: 3, opacity: 1, fillColor: color, fillOpacity: 0.45,
-        }).addTo(map);
+        const polygonColor = cmVividMapColor(color, poly.id);
+        const layer = L.polygon(poly.coords, cmMapPolygonStyle(polygonColor, {
+          key: poly.id,
+          weight: 3.5,
+          fillOpacity: 0.54,
+        })).addTo(map);
         const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
         layer.bindTooltip(
           `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
@@ -8509,6 +8594,10 @@ function MapaAccesos({ accesos }) {
         if (!polyRefs.current[poly.id]) polyRefs.current[poly.id] = [];
         polyRefs.current[poly.id].push(layer);
       });
+
+      // ETIQUETAS COMPARTIDAS EN ACCESOS:
+      // Replica la misma lógica/clase/fuente de etiquetas permanentes de la sección principal de Mapa.
+      labelMarkerRefs.current = addCmMapReferenceLabels(L, map, RUTA_FISCAL_REFERENCIAS, {});
 
       if (!document.getElementById("cm-map-style")) {
         const s = document.createElement("style"); s.id = "cm-map-style";
@@ -8534,7 +8623,7 @@ function MapaAccesos({ accesos }) {
     } else {
       const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
     }
-    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; labelMarkerRefs.current = {}; } };
   }, []);
 
   // Cambiar tile
@@ -8560,7 +8649,12 @@ function MapaAccesos({ accesos }) {
       const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === accesos?.[poly.id]?.status) || ACCESO_STATUS_OPTIONS[0];
       layers.forEach(layer => {
         if (!layer?.setStyle) return;
-        layer.setStyle({ color, fillColor: color, fillOpacity: 0.45, weight: 3, opacity: 1 });
+        const polygonColor = cmVividMapColor(color, poly.id);
+        layer.setStyle(cmMapPolygonStyle(polygonColor, {
+          key: poly.id,
+          weight: 3.5,
+          fillOpacity: 0.54,
+        }));
         layer.bindTooltip(
           `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
           { sticky: true, className: "cm-tooltip", direction: "center" }
@@ -9116,12 +9210,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
           iconAnchor: [7, 7],
         });
         const marker = L.marker(pt.coords, { icon }).addTo(map);
-        marker.bindTooltip(`<b>${pt.name}</b>`, {
-          permanent: true,
-          direction: "top",
-          offset: [0, -10],
-          className: "cm-tooltip-permanent",
-        }).openTooltip();
+        // ETIQUETAS COMPARTIDAS: fuente/estilo reutilizable para Mapa, Terminales y Accesos.
+        bindCmMapPermanentLabel(marker, pt.name);
         layersRef.current[pt.id] = { marker, pt };
       });
 
@@ -9242,9 +9332,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       });
       entry.marker.setIcon(icon);
       // Re-bind permanent tooltip after icon change
-      entry.marker.bindTooltip(`<b>${entry.pt.name}</b>`, {
-        permanent: true, direction: "top", offset: [0, -10], className: "cm-tooltip-permanent",
-      }).openTooltip();
+      bindCmMapPermanentLabel(entry.marker, entry.pt.name);
     });
   }, [JSON.stringify(incGeoMap), cleanReportMap]);
 
@@ -10864,6 +10952,7 @@ function MapaTerminales({ zona, stMap }) {
   const polyRefs  = useRef({});
   const tileRef   = useRef(null);
   const labelRef  = useRef(null);
+  const labelMarkerRefs = useRef({});
   const zonaRef   = useRef(zona); // Validado FIX: ref para acceder a zona actual en callbacks
   const stMapRef  = useRef(stMap);
   const [tileMode, setTileMode] = useState("dark");
@@ -10888,9 +10977,11 @@ function MapaTerminales({ zona, stMap }) {
     const L = window.L;
     const map = leafRef.current;
 
-    // Limpiar polígonos anteriores
+    // Limpiar polígonos y etiquetas anteriores
     Object.values(polyRefs.current).flat().forEach(layer => { try { map.removeLayer(layer); } catch {} });
+    Object.values(labelMarkerRefs.current).forEach(layer => { try { map.removeLayer(layer); } catch {} });
     polyRefs.current = {};
+    labelMarkerRefs.current = {};
 
     // Centro y zoom según zona
     const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
@@ -10900,13 +10991,12 @@ function MapaTerminales({ zona, stMap }) {
     const polys = TERM_POLYGONS[z] || [];
     polys.forEach(poly => {
       const color = getPolyColor(poly.id, sm);
-      const layer = L.polygon(poly.coords, {
-        color,
-        weight: 2.5,
-        opacity: 1,
-        fillColor: color,
-        fillOpacity: 0.35,
-      }).addTo(map);
+      const polygonColor = cmVividMapColor(color, poly.id);
+      const layer = L.polygon(poly.coords, cmMapPolygonStyle(polygonColor, {
+        key: poly.id,
+        weight: 3.5,
+        fillOpacity: 0.54,
+      })).addTo(map);
       const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === sm?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
       layer.bindTooltip(
         `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
@@ -10915,6 +11005,12 @@ function MapaTerminales({ zona, stMap }) {
       if (!polyRefs.current[poly.id]) polyRefs.current[poly.id] = [];
       polyRefs.current[poly.id].push(layer);
     });
+
+    // ETIQUETAS COMPARTIDAS EN TERMINALES:
+    // Usa la misma función de la sección principal de Mapa para mostrar nombres como "Terminal SSA".
+    const zoneName = z === "norte" ? "Norte" : "Sur";
+    const terminalRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zoneName && r.tipo === "terminal");
+    labelMarkerRefs.current = addCmMapReferenceLabels(L, map, terminalRefs, {});
   };
 
   // Validado FIX PRINCIPAL: Init solo una vez con []
@@ -10967,7 +11063,7 @@ function MapaTerminales({ zona, stMap }) {
         const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
       }
     }
-    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; } };
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; labelMarkerRefs.current = {}; } };
   }, []); // Validado Solo [] — el mapa se crea una sola vez
 
   // Validado FIX: Effect separado que reacciona al cambio de zona SIN recrear el mapa
@@ -11004,7 +11100,12 @@ function MapaTerminales({ zona, stMap }) {
       const color = getPolyColor(poly.id, stMap);
       const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
       layers.forEach(layer => {
-        layer.setStyle({ color, fillColor: color, fillOpacity: 0.35, weight: 2.5, opacity: 1 });
+        const polygonColor = cmVividMapColor(color, poly.id);
+        layer.setStyle(cmMapPolygonStyle(polygonColor, {
+          key: poly.id,
+          weight: 3.5,
+          fillOpacity: 0.54,
+        }));
         layer.bindTooltip(
           `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
           { sticky: true, className: "cm-tooltip", direction: "center" }
@@ -11620,7 +11721,7 @@ function TrafficMapSegundo({ theme, myId }) {
     const map = L.map(mapRef.current, { center: [19.0905, -104.2890], zoom: 15, zoomControl: true });
     const style = TRAFICO_MAP_STYLES[mapStyle];
     tileLayerRef.current = L.tileLayer(style.url, { attribution: style.attribution, subdomains: style.subdomains || "abc", maxZoom: 20 }).addTo(map);
-    L.polygon(toLLC(TRAFICO_POLIGONO), { color: "#fbbf24", weight: 2.5, opacity: 0.7, fillColor: "#fbbf24", fillOpacity: 0.08 })
+    L.polygon(toLLC(TRAFICO_POLIGONO), cmMapPolygonStyle("#facc15", { key: "trafico_poligono", weight: 3, opacity: 0.9, fillOpacity: 0.24 }))
       .addTo(map).bindTooltip("Vialidad — contorno general", { sticky: true });
     Object.entries(TRAFICO_FASES).forEach(([id, fase]) => {
       const shadow = L.polyline(toLLC(fase.coords), { color: "#000", weight: 14, opacity: 0.2, lineCap: "round", lineJoin: "round" }).addTo(map);
@@ -13380,6 +13481,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [exito, setExito] = useState(false);
   const [toolBusy, setToolBusy] = useState(false);
   const [toolMsg, setToolMsg] = useState(null);
+  const [aiAssistOpen, setAiAssistOpen] = useState(false);
+  const [aiAction, setAiAction] = useState("resumir"); // "resumir" | "crear"
+  const [aiOutput, setAiOutput] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [converterOpen, setConverterOpen] = useState(false);
   const [screenshotOpen, setScreenshotOpen] = useState(false);
@@ -13517,6 +13622,55 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const aplicarTextoDeZonasComunicado = async ({ text }) => {
     const ok = agregarTextoExtraidoADetalle(text);
     setToolNotice(ok ? "Texto de la zona agregado en Descripción breve." : "No se detectó texto legible dentro de la zona seleccionada.", ok ? "#22c55e" : "#f97316");
+  };
+
+  const solicitarTextoConIA = async () => {
+    const inputText = detalle.trim();
+    if (!inputText) {
+      setError("Escribe el texto o las especificaciones para usar la IA");
+      return;
+    }
+    setAiBusy(true);
+    setError("");
+    setAiOutput("");
+    try {
+      const actionLabel = aiAction === "resumir" ? "resumir" : "crear";
+      const prompt = aiAction === "resumir"
+        ? `Resume el siguiente texto para un comunicado de Conect Manzanillo. Mantén un tono claro, formal y breve.\n\n${inputText}`
+        : `Crea un texto listo para comunicado de Conect Manzanillo a partir de estas especificaciones. Mantén un tono claro, formal y útil para usuarios del puerto.\n\n${inputText}`;
+
+      // INTEGRACIÓN IA SUPABASE:
+      // Se reutiliza la Edge Function existente gemini-chat, ya conectada al backend de IA.
+      // Se envía el texto capturado y la acción explícita seleccionada: resumir / crear.
+      const { data, error } = await sb.functions.invoke("gemini-chat", {
+        body: {
+          message: prompt,
+          action: actionLabel,
+          input_text: inputText,
+          source: "comunicados_proponer",
+          section: "comunicados",
+          history: [
+            { role: "user", content: prompt }
+          ]
+        }
+      });
+      if (error) throw error;
+      const reply = data?.reply || data?.text || data?.message || data?.output || "";
+      if (!String(reply).trim()) throw new Error("La IA no devolvió texto");
+      setAiOutput(String(reply).trim());
+      setToolNotice("Texto generado por IA listo para revisar.", "#22c55e");
+    } catch (e) {
+      console.error("Error al solicitar asistencia IA para comunicados:", e);
+      setError("No se pudo generar el texto con IA. Revisa la Edge Function gemini-chat y la conexión de Supabase.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const aplicarResultadoIAADescripcion = () => {
+    if (!aiOutput.trim()) return;
+    setDetalle(aiOutput.trim());
+    setToolNotice("Resultado de IA copiado en Descripción breve.", "#22c55e");
   };
 
   const aplicarCapturaWebRecortada = ({ file, dataUrl, url }) => {
@@ -13724,13 +13878,69 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "8px", boxSizing: "border-box", outline: "none" }}
       />
       
+      <button
+        type="button"
+        onClick={() => setAiAssistOpen(prev => !prev)}
+        style={{ width:"100%", padding:"10px 12px", borderRadius:"9px", border:`1px solid ${aiAssistOpen ? "#a78bfa" : "rgba(167,139,250,.45)"}`, background: aiAssistOpen ? "rgba(167,139,250,.18)" : "rgba(167,139,250,.10)", color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", marginBottom:"8px", display:"flex", justifyContent:"center", alignItems:"center", gap:"6px" }}
+      >
+        ✨ Resumir o crear texto con IA
+      </button>
+
       <textarea
-        placeholder="Descripción breve (opcional)"
+        placeholder={aiAssistOpen ? "Redacta tu texto que deseas resumir o las especificaciones para generar un texto" : "Descripción breve (opcional)"}
+        aria-label={aiAssistOpen ? "Texto para resumir o especificaciones para crear con IA" : "Descripción breve"}
         value={detalle}
         onChange={(e) => setDetalle(e.target.value)}
-        rows={3}
-        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none", resize: "vertical", lineHeight: "1.45", minHeight: "74px" }}
+        rows={aiAssistOpen ? 5 : 3}
+        style={{ width: "100%", background: "#060e1a", border: aiAssistOpen ? "1px solid rgba(167,139,250,.55)" : "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none", resize: "vertical", lineHeight: "1.45", minHeight: aiAssistOpen ? "112px" : "74px" }}
       />
+
+      {aiAssistOpen && (
+        <div style={{ background:"rgba(167,139,250,.07)", border:"1px solid rgba(167,139,250,.24)", borderRadius:"10px", padding:"10px", marginBottom:"10px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"9px" }}>
+            {[
+              { id:"resumir", label:"Resumir" },
+              { id:"crear", label:"Crear" }
+            ].map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setAiAction(opt.id)}
+                disabled={aiBusy}
+                style={{ padding:"9px", borderRadius:"9px", border:`1px solid ${aiAction === opt.id ? "#a78bfa" : "rgba(148,163,184,.28)"}`, background: aiAction === opt.id ? "rgba(167,139,250,.20)" : "rgba(2,6,23,.42)", color: aiAction === opt.id ? "#d8b4fe" : "rgba(226,232,240,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:aiBusy ? "not-allowed" : "pointer" }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={solicitarTextoConIA}
+            disabled={aiBusy || !detalle.trim()}
+            style={{ width:"100%", padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(aiBusy || !detalle.trim()) ? "rgba(100,116,139,.16)" : "rgba(34,197,94,.13)", color:(aiBusy || !detalle.trim()) ? "#94a3b8" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(aiBusy || !detalle.trim()) ? "not-allowed" : "pointer", marginBottom:"9px" }}
+          >
+            {aiBusy ? "Procesando con IA…" : aiAction === "resumir" ? "Generar resumen" : "Crear texto"}
+          </button>
+          <textarea
+            value={aiOutput}
+            onChange={(e) => setAiOutput(e.target.value)}
+            placeholder="Aquí aparecerá el texto final devuelto por la IA"
+            rows={5}
+            readOnly={aiBusy}
+            style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.72)", border:"1px solid rgba(167,139,250,.34)", borderRadius:"9px", padding:"10px 12px", color:"rgba(255,255,255,.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", lineHeight:1.45, minHeight:"112px", outline:"none", marginBottom:"8px" }}
+          />
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+            <button
+              type="button"
+              onClick={aplicarResultadoIAADescripcion}
+              disabled={aiBusy || !aiOutput.trim()}
+              style={{ flex:"1 1 180px", padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(37,99,235,.5)", background:(aiBusy || !aiOutput.trim()) ? "rgba(100,116,139,.14)" : "rgba(37,99,235,.14)", color:(aiBusy || !aiOutput.trim()) ? "#94a3b8" : "#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(aiBusy || !aiOutput.trim()) ? "not-allowed" : "pointer" }}
+            >
+              Usar este texto en la descripción
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Fechas de vigencia: solo fechas, sin horas */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
@@ -16924,9 +17134,10 @@ function PatioIdentificaMap({ myId }) {
     const baseColor = feature.color || (isKml ? DEFAULT_KML_POLYGON_COLOR : DEFAULT_USER_POLYGON_COLOR);
     return {
       pane: "patioPane",
-      color: selected ? "#fbbf24" : baseColor,
-      fillColor: baseColor,
-      fillOpacity: selected ? 0.62 : (isKml ? 0.38 : 0.36),
+      color: selected ? "#facc15" : cmVividMapColor(baseColor, feature.id),
+      fillColor: cmVividMapColor(baseColor, feature.id),
+      // POLÍGONOS VIVOS: se conserva transparencia suficiente para ver calles y mapa base.
+      fillOpacity: selected ? 0.66 : (isKml ? 0.48 : 0.46),
       opacity: 1,
       weight: selected ? 6 : 4,
       lineJoin: "round",
@@ -17048,7 +17259,7 @@ function PatioIdentificaMap({ myId }) {
         polygon: {
           allowIntersection: false,
           showArea: true,
-          shapeOptions: { pane: "patioPane", color: DEFAULT_USER_POLYGON_COLOR, fillColor: DEFAULT_USER_POLYGON_COLOR, fillOpacity: 0.36, weight: 4 }
+          shapeOptions: { pane: "patioPane", ...cmMapPolygonStyle(DEFAULT_USER_POLYGON_COLOR, { key: "patio_usuario", weight: 4, fillOpacity: 0.46 }) }
         },
         marker: true
       },
