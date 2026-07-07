@@ -14166,7 +14166,6 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
       currentY = drawWrappedTextCanvas({
         ctx,
-        text: "CONECT MANZANILLO INFORMA:",
         x: centerX,
         y: currentY,
         maxWidth: width * 0.70,
