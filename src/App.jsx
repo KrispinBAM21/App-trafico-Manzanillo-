@@ -2104,19 +2104,19 @@ const SEGUNDO_CARRILES_INGRESO = [
   { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
 ];
 const SEGUNDO_TRAFICO_OPTS = [
-  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "check" },
-  { id: "saturado", label: "Saturado",          color: "#ef4444", icon: "xmark" },
-  { id: "lento",    label: "Tráfico Lento",     color: "#f59e0b", icon: "slow-traffic" },
-  { id: "detenido", label: "Tráfico Detenido",  color: "#dc2626", icon: "stop-sign" },
+  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",     color: "#fbbf24", icon: "triangle-alert" },
+  { id: "saturado", label: "Saturado",          color: "#fb7185", icon: "traffic-cone" },
+  { id: "detenido", label: "Tráfico Detenido",  color: "#e11d48", icon: "circle-x" },
 ];
 const CARRIL_ESTADO_OPTS = [
-  { id: "libre",    label: "Libre",              color: "#22c55e", icon: "check" },
-  { id: "lento",    label: "Tráfico Lento",      color: "#f59e0b", icon: "slow-traffic" },
-  { id: "moderado", label: "Tráfico Moderado",   color: "#f97316", icon: "slow-traffic" },
-  { id: "saturado", label: "Saturado",           color: "#ef4444", icon: "xmark" },
-  { id: "bloqueo",  label: "Bloqueo",            color: "#dc2626", icon: "stop-sign" },
-  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#991b1b", icon: "lock" },
-  { id: "sin_uso",  label: "Sin uso",            color: "#6b7280", icon: "ban" },
+  { id: "libre",    label: "Libre",                    color: "#22c55e", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",            color: "#fbbf24", icon: "triangle-alert" },
+  { id: "moderado", label: "Tráfico Moderado",         color: "#fb923c", icon: "gauge" },
+  { id: "saturado", label: "Saturado",                 color: "#fb7185", icon: "traffic-cone" },
+  { id: "bloqueo",  label: "Bloqueo",                  color: "#e11d48", icon: "circle-x" },
+  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#7f1d1d", icon: "lock-keyhole" },
+  { id: "sin_uso",  label: "Sin operación",            color: "#64748b", icon: "ban" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
@@ -11091,15 +11091,15 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:           { color: "#14b8a6", label: "Flujo normal",      icon: "check",        bg: "rgba(20,184,166,0.16)", text: "#5eead4" },
-  moderado:         { color: "#eab308", label: "Carga moderada",    icon: "slow-traffic", bg: "rgba(234,179,8,0.16)",  text: "#fde047" },
-  detenido:         { color: "#f43f5e", label: "Paso detenido",     icon: "stop-sign",    bg: "rgba(244,63,94,0.16)",  text: "#fb7185" },
-  cierre:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock",         bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
-  retorno_fila:     { color: "#f97316", label: "Retorno por fila",  icon: "return-route", bg: "rgba(249,115,22,0.16)", text: "#fdba74" },
-  retorno_terminal: { color: "#8b5cf6", label: "Retorno terminal",  icon: "anchor-port",  bg: "rgba(139,92,246,0.18)", text: "#c4b5fd" },
-  retorno_aduana:   { color: "#38bdf8", label: "Retorno aduana",    icon: "customs",      bg: "rgba(56,189,248,0.16)", text: "#7dd3fc" },
+  fluido:           { color: "#22c55e", label: "Flujo normal",      icon: "circle-check",   bg: "rgba(34,197,94,0.16)",  text: "#86efac" },
+  moderado:         { color: "#facc15", label: "Carga moderada",    icon: "gauge",          bg: "rgba(250,204,21,0.16)", text: "#fde047" },
+  detenido:         { color: "#f43f5e", label: "Paso detenido",     icon: "circle-x",       bg: "rgba(244,63,94,0.16)",  text: "#fb7185" },
+  cierre:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
+  retorno_fila:     { color: "#fb923c", label: "Retorno por fila",  icon: "corner-up-left", bg: "rgba(251,146,60,0.16)", text: "#fdba74" },
+  retorno_terminal: { color: "#a855f7", label: "Retorno terminal",  icon: "warehouse",      bg: "rgba(168,85,247,0.18)", text: "#d8b4fe" },
+  retorno_aduana:   { color: "#38bdf8", label: "Retorno aduana",    icon: "badge-check",    bg: "rgba(56,189,248,0.16)", text: "#7dd3fc" },
   // Compatibilidad con registros antiguos. Ya no se muestra como opción.
-  sinuso:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock",         bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
+  sinuso:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
 };
 
 const TRAFICO_MAP_STYLES = {
@@ -12145,7 +12145,7 @@ function SegundoAccesoTab({ myId }) {
 
           {/* Leyenda */}
           <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {[["#14b8a6","LIBRE"],["#f59e0b","LENTO"],["#f97316","MODERADO"],["#ef4444","SATURADO"],["#dc2626","BLOQUEO"],["#6b7280","SIN USO"]].map(([c,l]) => (
+            {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
               <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                 <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
                 <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
@@ -12445,7 +12445,7 @@ function SegundoAccesoTab({ myId }) {
 
               {/* Leyenda inline compacta */}
               <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {[["#22c55e","Libre"],["#f59e0b","Tráfico lento"],["#f97316","Tráfico moderado"],["#ef4444","Saturado"],["#dc2626","Bloqueo"],["#991b1b","Cerrado hasta nuevo aviso"],["#6b7280","Sin uso"]].map(([c,l]) => (
+                {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
                   <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
                     <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
                     <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
