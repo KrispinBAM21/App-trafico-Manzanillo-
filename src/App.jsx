@@ -457,11 +457,27 @@ const TERMINALS_SUR = [
   { id: "granelera",  name: "GRANELERA",  fullName: "Granelera" },
   { id: "asipona",    name: "ASIPONA",    fullName: "Recinto ASIPONA" },
 ];
+const TERMINAL_BRAND_COLORS = {
+  ssa: "#22c55e",
+  ocupa: "#facc15",
+  friman: "#facc15",
+  timsa: "#0ea5e9",
+  multimodal: "#ef4444",
+  contecon: "#f97316",
+  hazesa: "#f8fafc",
+  lajunta: "#111827",
+  cemex: "#9333ea",
+  granelera: "#64748b",
+  asipona: "#a16207",
+  general: "#94a3b8",
+};
+const getTerminalBrandColor = (id) => TERMINAL_BRAND_COLORS[id] || "#94a3b8";
+
 const TERMINAL_STATUS_OPTIONS = [
-  { id: "libre",            label: "Terminal Libre",   color: "#22c55e", icon: "check" },
-  { id: "llena",            label: "Terminal Llena",   color: "#ef4444", icon: "xmark" },
-  { id: "retorno_terminal", label: "Retorno Terminal", color: "#f97316", icon: "return-route" },
-  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#a855f7", icon: "anchor-port" },
+  { id: "libre",            label: "Terminal Libre",   color: "#14b8a6", icon: "✓" },
+  { id: "llena",            label: "Terminal Llena",   color: "#be123c", icon: "✗" },
+  { id: "retorno_terminal", label: "Retorno Terminal", color: "#b45309", icon: "↩" },
+  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#475569", icon: "⚓" },
 ];
 
 const INCIDENT_CATEGORIAS = [
@@ -2104,19 +2120,19 @@ const SEGUNDO_CARRILES_INGRESO = [
   { id: "c3", label: "Carril 3", defaultTerminal: "ocupa" },
 ];
 const SEGUNDO_TRAFICO_OPTS = [
-  { id: "libre",    label: "Libre",            color: "#22c55e", icon: "circle-check" },
-  { id: "lento",    label: "Tráfico Lento",     color: "#fbbf24", icon: "triangle-alert" },
-  { id: "saturado", label: "Saturado",          color: "#fb7185", icon: "traffic-cone" },
-  { id: "detenido", label: "Tráfico Detenido",  color: "#e11d48", icon: "circle-x" },
+  { id: "libre",    label: "Libre",            color: "#14b8a6", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",    color: "#d97706", icon: "triangle-alert" },
+  { id: "saturado", label: "Saturado",         color: "#db2777", icon: "traffic-cone" },
+  { id: "detenido", label: "Tráfico Detenido", color: "#881337", icon: "circle-x" },
 ];
 const CARRIL_ESTADO_OPTS = [
-  { id: "libre",    label: "Libre",                    color: "#22c55e", icon: "circle-check" },
-  { id: "lento",    label: "Tráfico Lento",            color: "#fbbf24", icon: "triangle-alert" },
-  { id: "moderado", label: "Tráfico Moderado",         color: "#fb923c", icon: "gauge" },
-  { id: "saturado", label: "Saturado",                 color: "#fb7185", icon: "traffic-cone" },
-  { id: "bloqueo",  label: "Bloqueo",                  color: "#e11d48", icon: "circle-x" },
-  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#7f1d1d", icon: "lock-keyhole" },
-  { id: "sin_uso",  label: "Sin operación",            color: "#64748b", icon: "ban" },
+  { id: "libre",    label: "Libre",                    color: "#14b8a6", icon: "circle-check" },
+  { id: "lento",    label: "Tráfico Lento",            color: "#d97706", icon: "triangle-alert" },
+  { id: "moderado", label: "Tráfico Moderado",         color: "#0891b2", icon: "gauge" },
+  { id: "saturado", label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
+  { id: "bloqueo",  label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
+  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
+  { id: "sin_uso",  label: "Sin operación",            color: "#71717a", icon: "ban" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
@@ -8565,17 +8581,17 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
 
   // Datos exactos del KML
   const KML_POINTS = [
-    { id:"contecon",   name:"Terminal Contecon",           color:"#f57c00", coords:[19.08418178396766,-104.3020765405659],  category:"terminal" },
-    { id:"hazesa",     name:"Terminal Hazesa",             color:"#424242", coords:[19.08389836997078,-104.295058165122],   category:"terminal" },
-    { id:"ssa",        name:"Terminal SSA",                color:"#388e3c", coords:[19.07463139813982,-104.2891322457856],  category:"terminal" },
+    { id:"contecon",   name:"Terminal Contecon",           color:TERMINAL_BRAND_COLORS.contecon, coords:[19.08418178396766,-104.3020765405659],  category:"terminal" },
+    { id:"hazesa",     name:"Terminal Hazesa",             color:TERMINAL_BRAND_COLORS.hazesa, coords:[19.08389836997078,-104.295058165122],   category:"terminal" },
+    { id:"ssa",        name:"Terminal SSA",                color:TERMINAL_BRAND_COLORS.ssa, coords:[19.07463139813982,-104.2891322457856],  category:"terminal" },
     { id:"zonanorte",  name:"Acceso Zona Norte",           color:"#ffee58", coords:[19.08656881040979,-104.2970097872907],  category:"acceso"   },
     { id:"granelera",  name:"Granelera",                   color:"#00796b", coords:[19.06434906950253,-104.2907952693104],  category:"terminal" },
-    { id:"lajunta",    name:"La Junta (TAP)",              color:"#5d4037", coords:[19.06322612268734,-104.2910153355142],  category:"terminal" },
-    { id:"timsa",      name:"Terminal TIMSA",              color:"#5c6bc0", coords:[19.06126633877015,-104.2909711781655],  category:"terminal" },
-    { id:"multimodal", name:"Terminal MULTIMODAL",         color:"#7b1fa2", coords:[19.05724964895184,-104.2942608658049],  category:"terminal" },
-    { id:"friman",     name:"Terminal FRIMAN",             color:"#ef5350", coords:[19.05698919310202,-104.2954019724908],  category:"terminal" },
-    { id:"ocupa",      name:"Terminal Multipropósito (OCUPA)", color:"#424242", coords:[19.05651848457071,-104.3003288440099], category:"terminal" },
-    { id:"cemex",      name:"Terminal CEMEX",              color:"#4def05", coords:[19.05780874594614,-104.2997456907227],  category:"terminal" },
+    { id:"lajunta",    name:"La Junta (TAP)",              color:TERMINAL_BRAND_COLORS.lajunta, coords:[19.06322612268734,-104.2910153355142],  category:"terminal" },
+    { id:"timsa",      name:"Terminal TIMSA",              color:TERMINAL_BRAND_COLORS.timsa, coords:[19.06126633877015,-104.2909711781655],  category:"terminal" },
+    { id:"multimodal", name:"Terminal MULTIMODAL",         color:TERMINAL_BRAND_COLORS.multimodal, coords:[19.05724964895184,-104.2942608658049],  category:"terminal" },
+    { id:"friman",     name:"Terminal FRIMAN",             color:TERMINAL_BRAND_COLORS.friman, coords:[19.05698919310202,-104.2954019724908],  category:"terminal" },
+    { id:"ocupa",      name:"Terminal Multipropósito (OCUPA)", color:TERMINAL_BRAND_COLORS.ocupa, coords:[19.05651848457071,-104.3003288440099], category:"terminal" },
+    { id:"cemex",      name:"Terminal CEMEX",              color:TERMINAL_BRAND_COLORS.cemex, coords:[19.05780874594614,-104.2997456907227],  category:"terminal" },
     { id:"asipona",    name:"Recinto ASIPONA",             color:"#e8ef05", coords:[19.05604853655314,-104.3034885062604],  category:"terminal" },
     { id:"pezvela",    name:"Acceso Pez Vela",             color:"#e806eb", coords:[19.07634709752751,-104.2873039903065],  category:"acceso"   },
     { id:"puerta15",   name:"Acceso Puerta 15",            color:"#eb0671", coords:[19.07789046237833,-104.2884816132865],  category:"acceso"   },
@@ -11091,15 +11107,15 @@ const TRAFICO_FASES = {
 };
 
 const TRAFICO_STATUS = {
-  fluido:           { color: "#22c55e", label: "Flujo normal",      icon: "circle-check",   bg: "rgba(34,197,94,0.16)",  text: "#86efac" },
-  moderado:         { color: "#facc15", label: "Carga moderada",    icon: "gauge",          bg: "rgba(250,204,21,0.16)", text: "#fde047" },
-  detenido:         { color: "#f43f5e", label: "Paso detenido",     icon: "circle-x",       bg: "rgba(244,63,94,0.16)",  text: "#fb7185" },
-  cierre:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
-  retorno_fila:     { color: "#fb923c", label: "Retorno por fila",  icon: "corner-up-left", bg: "rgba(251,146,60,0.16)", text: "#fdba74" },
-  retorno_terminal: { color: "#a855f7", label: "Retorno terminal",  icon: "warehouse",      bg: "rgba(168,85,247,0.18)", text: "#d8b4fe" },
-  retorno_aduana:   { color: "#38bdf8", label: "Retorno aduana",    icon: "badge-check",    bg: "rgba(56,189,248,0.16)", text: "#7dd3fc" },
+  fluido:           { color: "#0f766e", label: "Flujo normal",      icon: "circle-check",   bg: "rgba(15,118,110,0.18)", text: "#5eead4" },
+  moderado:         { color: "#0891b2", label: "Carga moderada",    icon: "gauge",          bg: "rgba(8,145,178,0.18)", text: "#67e8f9" },
+  detenido:         { color: "#db2777", label: "Paso detenido",     icon: "circle-x",       bg: "rgba(219,39,119,0.18)", text: "#f9a8d4" },
+  cierre:           { color: "#881337", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(136,19,55,0.22)", text: "#fda4af" },
+  retorno_fila:     { color: "#d97706", label: "Retorno por fila",  icon: "corner-up-left", bg: "rgba(217,119,6,0.18)", text: "#fcd34d" },
+  retorno_terminal: { color: "#475569", label: "Retorno terminal",  icon: "warehouse",      bg: "rgba(71,85,105,0.22)", text: "#cbd5e1" },
+  retorno_aduana:   { color: "#4c1d95", label: "Retorno aduana",    icon: "badge-check",    bg: "rgba(76,29,149,0.22)", text: "#c4b5fd" },
   // Compatibilidad con registros antiguos. Ya no se muestra como opción.
-  sinuso:           { color: "#7f1d1d", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(127,29,29,0.22)",  text: "#fca5a5" },
+  sinuso:           { color: "#881337", label: "Cierre operativo",  icon: "lock-keyhole",   bg: "rgba(136,19,55,0.22)", text: "#fda4af" },
 };
 
 const TRAFICO_MAP_STYLES = {
@@ -12003,13 +12019,13 @@ function SegundoAccesoTab({ myId }) {
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
-    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
-    ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:"#38bdf8", icon:"port-terminal" })),
-    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+    { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
+    ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
   const terminalOptionsConfinada = [
-    { id:"general", label:"GENERAL · todas las terminales", color:"#fbbf24", icon:"bolt" },
-    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:"#a78bfa", icon:"port-terminal" })),
+    { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
+    ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
 
   return (
@@ -12466,7 +12482,7 @@ function SegundoAccesoTab({ myId }) {
           const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
           const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
           const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = isSinUso ? "#6b7280" : st.terminal==="general" ? "#fbbf24" : st.transferencia ? "#fbbf24" : laneOpt.id !== "libre" ? laneOpt.color : "#a78bfa";
+          const borderColor = isSinUso ? "#71717a" : st.transferencia ? "#d97706" : laneOpt.id !== "libre" ? laneOpt.color : getTerminalBrandColor(st.terminal || "general");
           const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
           return (
             <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
