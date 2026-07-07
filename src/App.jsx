@@ -14612,7 +14612,31 @@ function NoticiasAutoJpegReport() {
     } catch {}
   };
 
-  const buildReportCanvas = useCallback(async () => {
+  const drawSliceWatermark = async (ctx, w, h, options = {}) => {
+    try {
+      const wm = await loadImage(CM_REPORT_WATERMARK);
+      const {
+        alpha = 0.12,
+        maxWidthRatio = 0.56,
+        maxHeightRatio = 0.26,
+        minWidth = 280
+      } = options || {};
+      let wmW = Math.max(minWidth, Math.min(w * maxWidthRatio, 900));
+      let wmH = wmW * (wm.height / wm.width);
+      const maxH = h * maxHeightRatio;
+      if (wmH > maxH) {
+        wmH = maxH;
+        wmW = wmH * (wm.width / wm.height);
+      }
+      ctx.save();
+      if ("filter" in ctx) ctx.filter = "grayscale(1) brightness(1.18)";
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(wm, (w - wmW) / 2, (h - wmH) / 2, wmW, wmH);
+      ctx.restore();
+    } catch {}
+  };
+
+  const buildReportCanvas = useCallback(async (options = {}) => {
     const groups = await cargarSnapshot();
     const scale = 2;
     const w = 1080;
@@ -14681,7 +14705,9 @@ function NoticiasAutoJpegReport() {
     ctx.fillText(`${selectedCount} secciones · ${rowsCount} registros`, w - pad, 92);
     ctx.textAlign = "left";
 
-    await drawCanvasWatermark(ctx, w, headerH, h - headerH - footerH);
+    if (options.includeFullWatermark !== false) {
+      await drawCanvasWatermark(ctx, w, headerH, h - headerH - footerH);
+    }
 
     let y = headerH + 10;
     groups.forEach((g) => {
@@ -14898,7 +14924,13 @@ function NoticiasAutoJpegReport() {
       const partCtx = partCanvas.getContext("2d");
       partCtx.fillStyle = "#f3f4f6";
       partCtx.fillRect(0, 0, partCanvas.width, partCanvas.height);
-      partCtx.drawImage(canvas, 0, startY, canvas.width, sliceH, 0, 0, partCanvas.width, sliceH);
+      partCtx.drawImage(canvas, 0, startY, canvas.width, sliceH, 0, 0, partCanvas.width, partCanvas.height);
+      await drawSliceWatermark(partCtx, partCanvas.width, partCanvas.height, {
+        alpha: 0.11,
+        maxWidthRatio: 0.52,
+        maxHeightRatio: 0.24,
+        minWidth: 420
+      });
       const blob = await new Promise(resolve => partCanvas.toBlob(resolve, "image/jpeg", 0.94));
       if (!blob) throw new Error(`No se pudo crear el JPEG ${i + 1}`);
       triggerBlobDownload(blob, `${base}-parte-${i + 1}.jpeg`);
@@ -14914,7 +14946,6 @@ function NoticiasAutoJpegReport() {
     const margin = 10;
     const usableW = pageW - margin * 2;
     const usableH = pageH - margin * 2;
-    const imgData = canvas.toDataURL("image/jpeg", 0.96);
 
     const pxPerPage = Math.floor((usableH / usableW) * canvas.width);
     let offsetY = 0;
@@ -14929,6 +14960,12 @@ function NoticiasAutoJpegReport() {
       pageCtx.fillStyle = "#f3f4f6";
       pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
       pageCtx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, pageCanvas.width, sliceH);
+      await drawSliceWatermark(pageCtx, pageCanvas.width, pageCanvas.height, {
+        alpha: 0.12,
+        maxWidthRatio: 0.5,
+        maxHeightRatio: 0.2,
+        minWidth: 420
+      });
       const pageData = pageCanvas.toDataURL("image/jpeg", 0.96);
       const imgH = usableW * (sliceH / canvas.width);
 
@@ -14960,7 +14997,7 @@ function NoticiasAutoJpegReport() {
     setDownloading(true);
     setError("");
     try {
-      const built = await buildReportCanvas();
+      const built = await buildReportCanvas({ includeFullWatermark: false });
       const canvas = built.canvas;
       const now = built.now;
       const groups = built.groups;
