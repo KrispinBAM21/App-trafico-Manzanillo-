@@ -13491,9 +13491,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [graphicBusy, setGraphicBusy] = useState(false);
   const [graphicPreviewUrl, setGraphicPreviewUrl] = useState("");
   const [generatedGraphicFile, setGeneratedGraphicFile] = useState(null);
+  const [graphicEditorOpen, setGraphicEditorOpen] = useState(false);
+  const [graphicEditorText, setGraphicEditorText] = useState("");
+  const [textAlignMode, setTextAlignMode] = useState("left"); // "left" | "center" | "right" | "justify"
   const inputRef = useRef();
   const comunicadoCanvasRef = useRef(null);
   const generatedGraphicObjectUrlRef = useRef(null);
+  const graphicEditorTextareaRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -13888,7 +13892,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
     let currentY = y;
 
-    lines.forEach((line) => {
+    lines.forEach((line, lineIndex) => {
       if (line.isParagraphBreak && line.tokens.length === 0) {
         currentY += paragraphSpacing || lineHeight;
         return;
@@ -13899,12 +13903,24 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         return;
       }
 
+      const nextLine = lines[lineIndex + 1];
+      const spaceTokens = line.tokens.filter((token) => token.type === "space");
+      const canJustify =
+        textAlign === "justify" &&
+        spaceTokens.length > 0 &&
+        lineIndex < lines.length - 1 &&
+        !(nextLine?.isParagraphBreak && !nextLine?.tokens?.length);
+
       let startX = x;
       if (textAlign === "center") {
         startX = x - (line.width / 2);
       } else if (textAlign === "right") {
         startX = x - line.width;
       }
+
+      const extraSpacePerGap = canJustify
+        ? Math.max(0, (maxWidth - line.width) / spaceTokens.length)
+        : 0;
 
       let currentX = startX;
 
@@ -13914,6 +13930,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         ctx.font = token.bold ? boldFont : normalFont;
         ctx.fillText(token.text, currentX, currentY);
         currentX += ctx.measureText(token.text).width;
+
+        if (canJustify && token.type === "space") {
+          currentX += extraSpacePerGap;
+        }
       });
 
       currentY += lineHeight;
@@ -14383,6 +14403,257 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setToolNotice("La imagen generada se adjuntó automáticamente al comunicado actual.", "#22c55e");
   };
 
+  const renderComunicadoCanvas = async ({
+    bodyText,
+    titleText,
+    alignMode = textAlignMode,
+    silent = false,
+  }) => {
+    const cleanBodyText = String(bodyText || "").trim();
+    const cleanTitleText = String(titleText || "").trim();
+
+    if (!cleanBodyText) {
+      throw new Error("Primero extrae o escribe el texto del comunicado antes de crear el formato.");
+    }
+
+    if (!cleanTitleText) {
+      throw new Error("Primero genera o escribe el título del comunicado.");
+    }
+
+    if (document?.fonts?.load) {
+      await Promise.all([
+        document.fonts.load('400 20px "Noto Sans"'),
+        document.fonts.load('700 24px "Noto Sans"'),
+        document.fonts.load('700 22px "Noto Sans"'),
+      ]);
+    }
+
+    const template = await cargarImagenParaCanvas("/comunicado formato.jpg");
+    const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
+    const width = template.naturalWidth || template.width || 1024;
+    const height = template.naturalHeight || template.height || 1448;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(template, 0, 0, width, height);
+
+    const scale = width / 1024;
+    const leftMargin = 80 * scale;
+    const rightMargin = 80 * scale;
+    const rightX = width - rightMargin;
+    const centerX = width / 2;
+    const bodyMaxWidth = width - (leftMargin * 2);
+    const corporateBlue = "#113f79";
+    const textDark = "#1f2937";
+
+    const dateFontSize = Math.round(20 * scale);
+    const titleFontSize = Math.round(24 * scale);
+    const headerFontSize = Math.round(22 * scale);
+
+    const dateLineHeight = Math.round(dateFontSize * 1.3);
+    const titleLineHeight = Math.round(titleFontSize * 1.28);
+    const headerLineHeight = Math.round(headerFontSize * 1.25);
+
+    let currentY = 265 * scale;
+
+    // 1) Fecha superior derecha
+    const dateText = formatearFechaComunicado(new Date());
+    ctx.font = `normal ${dateFontSize}px "Noto Sans"`;
+    currentY = drawWrappedTextCanvas({
+      ctx,
+      text: dateText,
+      x: rightX,
+      y: currentY,
+      maxWidth: width * 0.30,
+      lineHeight: dateLineHeight,
+      textAlign: "right",
+      fillStyle: textDark,
+    });
+
+    // 2) Título debajo de la fecha
+    currentY += 36 * scale;
+    ctx.font = `bold ${titleFontSize}px "Noto Sans"`;
+    currentY = drawWrappedTextCanvas({
+      ctx,
+      text: cleanTitleText,
+      x: rightX,
+      y: currentY,
+      maxWidth: width * 0.42,
+      lineHeight: titleLineHeight,
+      textAlign: "right",
+      fillStyle: "#111827",
+    });
+
+    // 3) Texto fijo centrado
+    currentY += 60 * scale;
+    ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
+    currentY = drawWrappedTextCanvas({
+      ctx,
+      text: "CONECT MANZANILLO INFORMA:",
+      x: centerX,
+      y: currentY,
+      maxWidth: width * 0.70,
+      lineHeight: headerLineHeight,
+      textAlign: "center",
+      fillStyle: corporateBlue,
+    });
+
+    // 4) Cuerpo editable: autoescalado dinámico + centrado vertical + alineación seleccionada.
+    const bodyYStart = currentY + (50 * scale);
+    const bodyYEnd = height - (170 * scale);
+    const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
+
+    const maxBodyFontSize = Math.round(32 * scale);
+    const minBodyFontSize = Math.round(20 * scale);
+    const paragraphSpacingFactor = 0.65;
+
+    let selectedBodyFontSize = maxBodyFontSize;
+    let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
+    let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
+    let selectedBodyHeight = 0;
+
+    for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
+      const testLineHeight = Math.round(testFontSize * 1.5);
+      const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
+      const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
+      const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
+
+      const measured = calculateRichTextHeight({
+        ctx,
+        text: cleanBodyText,
+        maxWidth: bodyMaxWidth,
+        lineHeight: testLineHeight,
+        normalFont: testNormalFont,
+        boldFont: testBoldFont,
+        paragraphSpacing: testParagraphSpacing,
+      });
+
+      if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
+        selectedBodyFontSize = testFontSize;
+        selectedBodyLineHeight = testLineHeight;
+        selectedParagraphSpacing = testParagraphSpacing;
+        selectedBodyHeight = measured.height;
+        break;
+      }
+    }
+
+    const verticalExtraSpace = Math.max(0, availableHeight - selectedBodyHeight);
+    const bodyRenderY = bodyYStart + (verticalExtraSpace / 2);
+
+    const normalBodyFont = `normal ${selectedBodyFontSize}px "Noto Sans"`;
+    const boldBodyFont = `bold ${selectedBodyFontSize}px "Noto Sans"`;
+
+    const safeAlignMode = ["left", "center", "right", "justify"].includes(alignMode)
+      ? alignMode
+      : "left";
+
+    const bodyX =
+      safeAlignMode === "center"
+        ? centerX
+        : safeAlignMode === "right"
+          ? width - rightMargin
+          : leftMargin;
+
+    drawRichText({
+      ctx,
+      text: cleanBodyText,
+      x: bodyX,
+      y: bodyRenderY,
+      maxWidth: bodyMaxWidth,
+      lineHeight: selectedBodyLineHeight,
+      textAlign: safeAlignMode,
+      fillStyle: textDark,
+      normalFont: normalBodyFont,
+      boldFont: boldBodyFont,
+      paragraphSpacing: selectedParagraphSpacing,
+    });
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) resolve(result);
+        else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
+      }, "image/jpeg", 0.95);
+    });
+
+    if (generatedGraphicObjectUrlRef.current) {
+      URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    generatedGraphicObjectUrlRef.current = objectUrl;
+    setGraphicPreviewUrl(objectUrl);
+
+    const safeTitle = (cleanTitleText || "comunicado")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase();
+
+    const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.jpg`, { type: "image/jpeg" });
+    setGeneratedGraphicFile(generatedFile);
+
+    if (!silent) {
+      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
+    }
+
+    return { objectUrl, file: generatedFile };
+  };
+
+  const aplicarNegritasEditor = () => {
+    const textarea = graphicEditorTextareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const currentText = graphicEditorText || "";
+    if (start === end) return;
+
+    const selectedText = currentText.slice(start, end);
+    const wrappedText =
+      selectedText.startsWith("**") && selectedText.endsWith("**")
+        ? selectedText
+        : `**${selectedText}**`;
+
+    const nextText = currentText.slice(0, start) + wrappedText + currentText.slice(end);
+    setGraphicEditorText(nextText);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, start + wrappedText.length);
+    }, 0);
+  };
+
+  const abrirEditorComunicadoGrafico = () => {
+    setGraphicEditorText(String(detalle || "").trim());
+    setGraphicEditorOpen(true);
+  };
+
+  const aplicarEdicionComunicadoGrafico = async () => {
+    const nextText = String(graphicEditorText || "").trim();
+    setDetalle(nextText);
+    setGraphicEditorOpen(false);
+
+    try {
+      setGraphicBusy(true);
+      await renderComunicadoCanvas({
+        bodyText: nextText,
+        titleText: titulo,
+        alignMode: textAlignMode,
+        silent: false,
+      });
+    } catch (e) {
+      console.error("Error al aplicar edición del comunicado gráfico:", e);
+      setToolNotice(`No se pudo aplicar la edición: ${e?.message || e}`, "#ef4444");
+    } finally {
+      setGraphicBusy(false);
+    }
+  };
+
   const crearComunicadoPorFormato = async () => {
     if (!isAdmin) return;
 
@@ -14401,179 +14672,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
     setGraphicBusy(true);
     setError("");
+    setGraphicEditorText(bodyText);
 
     try {
-      if (document?.fonts?.load) {
-        await Promise.all([
-          document.fonts.load('400 20px "Noto Sans"'),
-          document.fonts.load('700 24px "Noto Sans"'),
-          document.fonts.load('700 22px "Noto Sans"'),
-        ]);
-      }
-
-      const template = await cargarImagenParaCanvas("/comunicado formato.jpg");
-      const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
-      const width = template.naturalWidth || template.width || 1024;
-      const height = template.naturalHeight || template.height || 1448;
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
-
-      ctx.clearRect(0, 0, width, height);
-      ctx.drawImage(template, 0, 0, width, height);
-
-      const scale = width / 1024;
-      const leftMargin = 80 * scale;
-      const rightMargin = 80 * scale;
-      const topMargin = 265 * scale;
-      const rightX = width - rightMargin;
-      const centerX = width / 2;
-      const bodyMaxWidth = width - (leftMargin * 2);
-      const corporateBlue = "#113f79";
-      const textDark = "#1f2937";
-
-      const dateFontSize = Math.round(20 * scale);
-      const titleFontSize = Math.round(24 * scale);
-      const headerFontSize = Math.round(22 * scale);
-      const bodyFontSize = Math.round(20 * scale);
-      const dateLineHeight = Math.round(dateFontSize * 1.3);
-      const titleLineHeight = Math.round(titleFontSize * 1.28);
-      const bodyLineHeight = Math.round(bodyFontSize * 1.5);
-
-      let currentY = topMargin;
-
-      // 1) Fecha (superior derecha): flujo vertical, alineada a la derecha,
-      // colocada debajo de la franja roja y dejando la Y lista para el siguiente bloque.
-      const dateText = formatearFechaComunicado(new Date());
-      ctx.font = `normal ${dateFontSize}px "Noto Sans"`;
-      currentY = drawWrappedTextCanvas({
-        ctx,
-        text: dateText,
-        x: rightX,
-        y: currentY,
-        maxWidth: width * 0.30,
-        lineHeight: dateLineHeight,
-        textAlign: "right",
-        fillStyle: textDark,
+      await renderComunicadoCanvas({
+        bodyText,
+        titleText,
+        alignMode: textAlignMode,
+        silent: false,
       });
-
-      // 2) Título generado: se dibuja debajo de la fecha con wrapText y alineación derecha.
-      // La función retorna la nueva Y para evitar cualquier encimado con el siguiente bloque.
-      currentY += 36 * scale;
-      ctx.font = `bold ${titleFontSize}px "Noto Sans"`;
-      currentY = drawWrappedTextCanvas({
-        ctx,
-        text: titleText,
-        x: rightX,
-        y: currentY,
-        maxWidth: width * 0.42,
-        lineHeight: titleLineHeight,
-        textAlign: "right",
-        fillStyle: "#111827",
-      });
-
-      // 3) Texto fijo centrado: se coloca después del título usando el mismo flujo vertical.
-      currentY += 60 * scale;
-      ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
-      currentY = drawWrappedTextCanvas({
-        ctx,
-        text: "CONECT MANZANILLO INFORMA:",
-        x: centerX,
-        y: currentY,
-        maxWidth: width * 0.70,
-        lineHeight: Math.round(headerFontSize * 1.25),
-        textAlign: "center",
-        fillStyle: corporateBlue,
-      });
-
-      // 4) CUERPO DEL COMUNICADO: autoescalado dinámico + centrado vertical.
-      // Se define un bounding box entre el encabezado "INFORMA:" y el pie de página.
-      // Luego se hace un dry run con calculateRichTextHeight para encontrar el mayor
-      // tamaño de fuente que quepa completo. Finalmente se centra verticalmente.
-      const bodyYStart = currentY + (50 * scale);
-      const bodyYEnd = height - (170 * scale);
-      const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
-
-      const maxBodyFontSize = Math.round(32 * scale);
-      const minBodyFontSize = Math.round(20 * scale);
-      const paragraphSpacingFactor = 0.65;
-
-      let selectedBodyFontSize = maxBodyFontSize;
-      let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
-      let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
-      let selectedBodyHeight = 0;
-
-      for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
-        const testLineHeight = Math.round(testFontSize * 1.5);
-        const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
-        const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
-        const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
-
-        const measured = calculateRichTextHeight({
-          ctx,
-          text: bodyText,
-          maxWidth: bodyMaxWidth,
-          lineHeight: testLineHeight,
-          normalFont: testNormalFont,
-          boldFont: testBoldFont,
-          paragraphSpacing: testParagraphSpacing,
-        });
-
-        if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
-          selectedBodyFontSize = testFontSize;
-          selectedBodyLineHeight = testLineHeight;
-          selectedParagraphSpacing = testParagraphSpacing;
-          selectedBodyHeight = measured.height;
-          break;
-        }
-      }
-
-      const verticalExtraSpace = Math.max(0, availableHeight - selectedBodyHeight);
-      const bodyRenderY = bodyYStart + (verticalExtraSpace / 2);
-
-      const normalBodyFont = `normal ${selectedBodyFontSize}px "Noto Sans"`;
-      const boldBodyFont = `bold ${selectedBodyFontSize}px "Noto Sans"`;
-
-      currentY = drawRichText({
-        ctx,
-        text: bodyText,
-        x: leftMargin,
-        y: bodyRenderY,
-        maxWidth: bodyMaxWidth,
-        lineHeight: selectedBodyLineHeight,
-        textAlign: "left",
-        fillStyle: textDark,
-        normalFont: normalBodyFont,
-        boldFont: boldBodyFont,
-        paragraphSpacing: selectedParagraphSpacing,
-      });
-
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((result) => {
-          if (result) resolve(result);
-          else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
-        }, "image/jpeg", 0.95);
-      });
-
-      if (generatedGraphicObjectUrlRef.current) {
-        URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
-      }
-      const objectUrl = URL.createObjectURL(blob);
-      generatedGraphicObjectUrlRef.current = objectUrl;
-      setGraphicPreviewUrl(objectUrl);
-
-      const safeTitle = (titleText || "comunicado")
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/[^a-zA-Z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .toLowerCase();
-
-      const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.jpg`, { type: "image/jpeg" });
-      setGeneratedGraphicFile(generatedFile);
-      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
     } catch (e) {
       console.error("Error al crear comunicado por formato:", e);
       setToolNotice(`No se pudo generar el comunicado gráfico: ${e?.message || e}`, "#ef4444");
@@ -14581,6 +14688,26 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setGraphicBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
+
+    const nextText = String(graphicEditorText || "").trim();
+    if (!nextText) return;
+
+    const debounceId = setTimeout(() => {
+      renderComunicadoCanvas({
+        bodyText: nextText,
+        titleText: titulo,
+        alignMode: textAlignMode,
+        silent: true,
+      }).catch((e) => {
+        console.error("Error actualizando vista previa en vivo:", e);
+      });
+    }, 280);
+
+    return () => clearTimeout(debounceId);
+  }, [graphicEditorOpen, graphicEditorText, textAlignMode, titulo, isAdmin]);
 
   const handleSubir = async () => {
     if (!titulo.trim()) {
@@ -14890,8 +15017,59 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
               <img src={graphicPreviewUrl} alt="Vista previa del comunicado generado" style={{ width:"100%", borderRadius:"10px", border:"1px solid rgba(255,255,255,.1)", background:"#fff", display:"block", marginBottom:"10px" }} />
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:"8px" }}>
                 <button type="button" onClick={descargarComunicadoGenerado} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Descargar imagen final</button>
+                <button type="button" onClick={abrirEditorComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Editar texto</button>
                 <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
               </div>
+
+              {graphicEditorOpen && (
+                <div style={{ marginTop:"12px", background:"rgba(2,6,23,.58)", border:"1px solid rgba(236,72,153,.25)", borderRadius:"12px", padding:"12px" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px", flexWrap:"wrap" }}>
+                    <div>
+                      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#f9a8d4", fontWeight:900, letterSpacing:".8px" }}>EDICIÓN MANUAL DEL TEXTO</div>
+                      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.50)", marginTop:"3px" }}>Selecciona texto y usa negritas. La vista previa se actualiza en vivo.</div>
+                    </div>
+                    <button type="button" onClick={aplicarEdicionComunicadoGrafico} disabled={graphicBusy || !graphicEditorText.trim()} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(graphicBusy || !graphicEditorText.trim())?"rgba(100,116,139,.16)":"rgba(34,197,94,.12)", color:(graphicBusy || !graphicEditorText.trim())?"#94a3b8":"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer" }}>Guardar / aplicar</button>
+                  </div>
+
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
+                    <button type="button" onClick={aplicarNegritasEditor} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer" }}>B Negritas</button>
+                    {[
+                      { id:"left", label:"Izquierda" },
+                      { id:"center", label:"Centro" },
+                      { id:"right", label:"Derecha" },
+                      { id:"justify", label:"Justificado" },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setTextAlignMode(opt.id)}
+                        style={{
+                          padding:"8px 10px",
+                          borderRadius:"9px",
+                          border:`1px solid ${textAlignMode === opt.id ? "rgba(56,189,248,.75)" : "rgba(148,163,184,.25)"}`,
+                          background:textAlignMode === opt.id ? "rgba(56,189,248,.16)" : "rgba(15,23,42,.55)",
+                          color:textAlignMode === opt.id ? "#7dd3fc" : "rgba(226,232,240,.65)",
+                          fontFamily:getFont(theme,"secondary"),
+                          fontSize:"10px",
+                          fontWeight:900,
+                          cursor:"pointer"
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    ref={graphicEditorTextareaRef}
+                    value={graphicEditorText}
+                    onChange={(e) => setGraphicEditorText(e.target.value)}
+                    rows={8}
+                    placeholder="Edita el texto del comunicado. Usa **texto** para negritas."
+                    style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.78)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, resize:"vertical", outline:"none" }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </>
