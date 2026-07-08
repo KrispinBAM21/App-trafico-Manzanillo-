@@ -10133,6 +10133,18 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     </span>
   );
 
+  const AccidentCrashIcon = ({ size = 42, color = "#ef4444", style = {} }) => (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden="true" style={{ display:"block", filter:"drop-shadow(0 0 10px rgba(239,68,68,.65))", ...style }}>
+      <path d="M7 38h18l4-9H14c-2.8 0-5.2 1.8-6 4.5L7 38Z" fill="rgba(239,68,68,.18)" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M57 38H39l-4-9h15c2.8 0 5.2 1.8 6 4.5l1 4.5Z" fill="rgba(239,68,68,.18)" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M25 38l7-7 7 7" stroke="#fca5a5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M29 22l3 6 3-6M23 24l5 4M41 24l-5 4" stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="17" cy="42" r="4" fill="#020617" stroke={color} strokeWidth="3"/>
+      <circle cx="47" cy="42" r="4" fill="#020617" stroke={color} strokeWidth="3"/>
+      <path d="M10 35h8M46 35h8" stroke="#fee2e2" strokeWidth="2" strokeLinecap="round" opacity=".85"/>
+    </svg>
+  );
+
   // Procesar link de Google Maps o coordenadas directas
   const handleGmapsInput = async (val) => {
     const cleanVal = normalizeCoordsInput(val);
@@ -10292,29 +10304,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           <div style={{ padding:"6px 10px", borderRadius:"8px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"11px" }}>SENTINEL_V4</div>
         </header>
 
-        <nav style={{ display:"grid", gridTemplateColumns:"repeat(4, minmax(0,1fr))", gap:"8px" }}>
-          {[
-            ["Accesos", "gate", "MOD_01"],
-            ["Vialidades", "alt_route", "MOD_02"],
-            ["Rutas Fiscales", "security", "MOD_03"],
-            ["Reporte", "report", "MOD_04"],
-          ].map(([label, icon, mod]) => {
-            const active = label === "Reporte";
-            return (
-              <button key={label} className={`deep-glass-panel ${active ? "deep-active-module" : ""}`} style={{ minWidth:0, padding:"12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.08)", background:"rgba(2,6,23,0.46)", textAlign:"left", position:"relative", overflow:"hidden" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px", marginBottom:"8px" }}>
-                  <div style={{ width:38, height:38, borderRadius:"10px", background:active ? "rgba(0,242,234,0.1)" : "rgba(255,255,255,0.05)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    <MaterialIcon color={active ? "#00f2ea" : "#94a3b8"} size={22}>{icon}</MaterialIcon>
-                  </div>
-                  <span style={{ color:active ? "#00f2ea" : "#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px" }}>{mod}</span>
-                </div>
-                <p style={{ margin:0, color:active ? "#00f2ea" : "#cbd5e1", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.02em" }}>{label}</p>
-                {active && <div style={{ position:"absolute", left:0, bottom:0, width:"100%", height:3, background:"#00f2ea" }} />}
-              </button>
-            );
-          })}
-        </nav>
-
         <div className="deep-glass-panel" style={{ position:"relative", height:"clamp(260px, 42vh, 430px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", flexShrink:0 }}>
           <div className="deep-map-grid" style={{ position:"absolute", inset:0, opacity:.24, zIndex:3, pointerEvents:"none" }} />
           <div className="deep-scanline" style={{ position:"absolute", inset:0, zIndex:4 }} />
@@ -10348,7 +10337,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
           <button className="deep-sentinel-gradient-red" onClick={() => openTacticalPanel("accidente")} style={{ border:"1px solid rgba(239,68,68,.32)", borderRadius:"16px", padding:"24px 14px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px", cursor:"pointer", position:"relative", overflow:"hidden", transition:"transform .15s" }}>
             <div className="deep-pulse-red" style={{ width:64, height:64, borderRadius:"999px", background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.42)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <MaterialIcon color="#ef4444" size={38} fill={1} style={{ filter:"drop-shadow(0 0 8px rgba(239,68,68,.6))" }}>collision</MaterialIcon>
+              <AccidentCrashIcon size={44} color="#ef4444" />
             </div>
             <div style={{ textAlign:"center" }}>
               <span style={{ display:"block", color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"20px", fontWeight:900, letterSpacing:"-0.03em", textTransform:"uppercase" }}>ACCIDENTE</span>
@@ -10363,7 +10352,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
             <div className="deep-glass-panel" onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", borderRadius:"22px", border:"1px solid rgba(255,255,255,.2)", boxShadow:"0 24px 80px rgba(0,0,0,.55)" }}>
               <div style={{ padding:"16px", borderBottom:"1px solid rgba(255,255,255,.1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,.05)" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                  <MaterialIcon color={catObj.color} size={24}>{categoria === "accidente" ? "collision" : "warning"}</MaterialIcon>
+                  {categoria === "accidente" ? <AccidentCrashIcon size={28} color={catObj.color} /> : <MaterialIcon color={catObj.color} size={24}>warning</MaterialIcon>}
                   <h3 style={{ margin:0, color:"#fff", fontFamily:"JetBrains Mono, monospace", fontSize:"13px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.08em" }}>Reportar {categoria === "accidente" ? "Accidente" : "Incidente"}</h3>
                 </div>
                 <button onClick={closeTacticalPanel} style={{ width:34, height:34, borderRadius:"10px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.05)", color:"#94a3b8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MaterialIcon color="#94a3b8" size={20}>close</MaterialIcon></button>
