@@ -10049,7 +10049,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     try { localStorage.setItem("puerto_reporte_view", view); } catch {}
     setReporteViewRaw(view);
   };
-  const reporteView = reporteViewRaw;
+  const reporteView = "reportar";
   const [customIncidentTypes, setCustomIncidentTypes] = useState([]);
   const loadCustomIncidentTypes = useCallback(async () => {
     try {
@@ -10259,27 +10259,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px" }}>
 
-      {/* ── Navegación sub-tabs: Reportar / Eventos ── */}
-      <div style={{ display:"flex", gap:"8px", marginBottom:"20px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px" }}>
-        {[
-          { id:"reportar", label:"Reportar",  icon:"megaphone", color:"#0ea5e9" },
-          { id:"eventos",  label:"Eventos",   icon:"map", color:"#f97316" },
-          { id:"consolidado", label:"Reporte", icon:"document", color:"#2563eb" },
-        ].map(tab => {
-          const active = reporteView === tab.id;
-          const evCount = tab.id === "eventos" ? incidents.filter(i => i.visible && !i.resolved).length : 0;
-          return (
-            <button key={tab.id} onClick={() => setReporteView(tab.id)}
-              style={{ flex:1, padding:"11px 8px", border:`1.5px solid ${active ? tab.color : "rgba(255,255,255,0.1)"}`, background: active ? tab.color+"22" : "transparent", borderRadius:"9px", color: active ? tab.color : "rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight: active ? "700" : "500", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-              <AppIcon name={tab.icon} size={18} active={active} />
-              {tab.label}
-              {tab.id === "eventos" && evCount > 0 && (
-                <span style={{ background: active ? tab.color : "rgba(249,115,22,0.3)", color: active ? "#0a1628" : "#f97316", borderRadius:"10px", padding:"1px 7px", fontSize:"9px", fontWeight:"700", minWidth:"18px", textAlign:"center" }}>{evCount}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Navegación interna obsoleta retirada: esta sección inicia directamente con Deep Port Sentinel. */}
 
       {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
       {reporteView === "consolidado" && <ReporteAutomaticoPanel incidents={incidents} />}
