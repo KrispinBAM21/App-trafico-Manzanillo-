@@ -10810,10 +10810,10 @@ const buildLayerConfig = ({ accesos, vialidades, rutasFiscales }) => ([
   },
   {
     id:"terminales",
-    label:"Terminales",
-    checked:false,
+    label:"Polígonos de terminales",
+    checked:true,
     type:"polygon",
-    items:[...(TERM_POLYGONS.norte || []), ...(TERM_POLYGONS.sur || [])].map(poly => ({ ...poly, color:getTerminalCommandColor(poly.id), statusLabel:"Capa de referencia", statusIcon:"port-terminal" })),
+    items:[...(TERM_POLYGONS.norte || []), ...(TERM_POLYGONS.sur || [])].map(poly => ({ ...poly, color:getTerminalCommandColor(poly.id), statusLabel:"Terminal portuaria", statusIcon:"port-terminal" })),
   },
 ]);
 
