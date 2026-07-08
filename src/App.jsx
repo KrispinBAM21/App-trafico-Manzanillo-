@@ -7629,7 +7629,6 @@ function SmartTrafficReportPanel({ accesos, vialidades, rutasFiscales, notify })
   </div>;
 }
 
-
 function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [accesos,     setAccesos]     = useState(null);   // null = loading
@@ -7671,26 +7670,260 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           setAccesos(prev => mergeStatusMapsByLatest("accesos", prev || mkAccesos(), map));
         });
       }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  // ── Vialidades ──
+  useEffect(() => {
+    sb.from("vialidades").select("*").then(async ({ data, error }) => {
+      if (error) { setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {})); return; }
+      if (!data || data.length === 0) {
+        await sb.from("vialidades").upsert(VIALIDADES.map(v => ({ id: v.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {}));
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+      setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), map));
+    });
+    const chan = sb.channel("vialidades-rt2")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
+        sb.from("vialidades").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+          setVialidades(prev => mergeStatusMapsByLatest("vialidades", prev || mkVialidades(), map));
+        });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  // ── Rutas fiscales ──
+  useEffect(() => {
+    sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
+      if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
+      if (!data || data.length === 0) {
+        await sb.from("rutas_fiscales").upsert(RUTAS_FISCALES.map(r => ({ id: r.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {}));
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+      setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
+    });
+    const chan = sb.channel("rutas-fiscales-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
+        sb.from("rutas_fiscales").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+          setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
+        });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const voteAcceso = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const acc = accesos?.[id];
+    if (!acc) return;
+    if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    if (isAdmin) {
+      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setAccesos(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("accesos", id, entry);
+      await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"⚡ Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
+      await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
+      notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
+      return;
+    }
+    const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+    // Optimistic update — refleja el cambio al instante
+    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setAccesos(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("accesos", id, entry);
+    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app", metadata:{ retornos: acc.retornos || "none" } });
+    await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
+    notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
+  };
+
+  const voteVialidad = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const v = vialidades?.[id];
+    if (!v) return;
+    if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    if (isAdmin) {
+      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setVialidades(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("vialidades", id, entry);
+      await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"⚡ Admin", source:"admin" });
+      await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
+      notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      return;
+    }
+    const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const vName = VIALIDADES.find(x => x.id === id)?.name;
+    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    // Optimistic update
+    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setVialidades(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("vialidades", id, entry);
+    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app" });
+    await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
+    notify(`✓ ${vName}: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
+  };
+
+  const voteRutaFiscal = async (id, newStatus) => {
+    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const ruta = rutasFiscales?.[id];
+    if (!ruta) return;
+    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const actor = isAdmin ? "⚡ Admin" : `Usuario_${myId.slice(-4)}`;
+    const rl = isAdmin ? { allowed:true } : rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    setRutasFiscales(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("rutas_fiscales", id, entry);
+    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
+    notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+  };
+
+  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+
+  // Helper para renderizar tarjeta de incidente/accidente
+  const renderIncidentCard = (inc) => {
+    const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
+    const conf = Object.values(inc.votes).filter(v => v === 1).length;
     return (
+      <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
+          <AppIcon name={t.icon} size={24} active={true} />
+          <div style={{ flex: 1 }}>
+            <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
+            <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
+            {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
+          </div>
+          <Badge color={t.color} small>ACTIVO</Badge>
+        </div>
+        <VoteBar count={conf} needed={15} color={t.color} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>CONFIRMAR</button>
+          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>RESUELTO</button>
+        </div>
+      </div>
+    );
+  };
+
+  const voteConfirm = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const votes = { ...inc.votes, [myId]: 1 };
+    const conf = Object.values(votes).filter(v => v === 1).length;
+    const visible = conf >= 15;
+    await sb.from("incidents").update({ votes, visible }).eq("id", id);
+    notify(visible ? "Verificado" : `✓ ${conf}/15`, "#22c55e");
+  };
+  const voteResolve = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const rv = { ...inc.resolveVotes, [myId]: 1 };
+    const resolved = Object.keys(rv).length >= 3;
+    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
+    notify(resolved ? "✓ Resuelto" : `Voto ${Object.keys(rv).length}/3`, "#38bdf8");
+  };
+
+  const sections = [
+    { id: "mapa", label: "Mapa", title: "Mapa Operativo", icon: "map" },
+    { id: "accesos", label: "Accesos", title: "Accesos", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
+    { id: "vialidades", label: "Vialidades", title: "Vialidades", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+    { id: "rutas_fiscales", label: "Rutas fiscales", title: "Rutas Fiscales", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+    { id: "reporte", label: "Reporte", title: "Reporte", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
+  ];
+
+  const accesosItems = ACCESOS_PRINCIPALES.map(a => ({
+    id: a.id,
+    name: a.label,
+    section: "Acceso",
+    status: (accesos?.[a.id] || { status: "libre" }).status,
+  }));
+
+  const vialidadItems = VIALIDADES.map(v => ({
+    id: v.id,
+    name: v.name,
+    section: "Vialidad",
+    status: (vialidades?.[v.id] || { status: "libre" }).status,
+  }));
+
+  const rutaFiscalItems = RUTAS_FISCALES.map(r => ({
+    id: r.id,
+    name: r.name,
+    section: "Ruta Fiscal",
+    status: (rutasFiscales?.[r.id] || { status: "libre" }).status,
+  }));
+
+  const allTrafficItems = [...accesosItems, ...vialidadItems, ...rutaFiscalItems];
+  const globalTrafficStatus = smartGlobalStatus(allTrafficItems);
+  const globalTrafficMeta = smartStatusMeta(globalTrafficStatus);
+  const globalCriticalCount = allTrafficItems.filter(i => (smartTrafficRank[i.status] ?? 0) >= 2).length;
+
+  const vialidadesPrincipalesIds = new Set(["jalipa_puerto", "puerto_jalipa", "libramiento", "mzllo_colima", "colima_mzllo"]);
+  const vialidadesPrincipales = VIALIDADES.filter(v => vialidadesPrincipalesIds.has(v.id));
+  const vialidadesUrbanas = VIALIDADES.filter(v => !vialidadesPrincipalesIds.has(v.id));
+
+  return (
     <div className="cm-sp-dashboard">
       <style>{SMART_TRAFFIC_CONTROL_CSS}</style>
+
       <div className="cm-sp-hero" style={{ "--global-color": globalTrafficMeta.color }}>
         <div>
           <div className="cm-sp-eyebrow">Smart Port Control Center</div>
           <div className="cm-sp-hero-title">Centro de Control Portuario</div>
-          <p className="cm-sp-copy">Lectura operativa de accesos, vialidades, rutas fiscales y reporte ejecutivo para turnos continuos de monitoreo.</p>
+          <p className="cm-sp-copy">
+            Lectura operativa de accesos, vialidades, rutas fiscales y reporte ejecutivo para turnos continuos de monitoreo.
+          </p>
         </div>
+
         <div className="cm-sp-hero-status">
           <SmartTrafficStatusBadge status={globalTrafficStatus} size="lg" label={`Estado global: ${globalTrafficMeta.label}`} />
-          <div className="cm-sp-number"><strong>{globalCriticalCount}</strong><span>zonas críticas</span></div>
-          <div className="cm-sp-number"><span>{sections.find(s => s.id === activeSection)?.title || "Tráfico"}</span></div>
+          <div className="cm-sp-number">
+            <strong>{globalCriticalCount}</strong>
+            <span>zonas críticas</span>
+          </div>
+          <div className="cm-sp-number">
+            <span>{sections.find(s => s.id === activeSection)?.title || "Tráfico"}</span>
+          </div>
         </div>
       </div>
 
       <nav className="cm-sp-tabs" aria-label="Subsecciones del Centro de Control Portuario">
         {sections.map(s => (
-          <button key={s.id} type="button" onClick={() => setActiveSectionPersist(s.id)} className={`cm-sp-tab ${activeSection === s.id ? "is-active" : ""}`} aria-pressed={activeSection === s.id}>
-            <AppIcon name={s.icon} size={24} active={activeSection === s.id} />
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setActiveSectionPersist(s.id)}
+            className={`cm-sp-tab ${activeSection === s.id ? "is-active" : ""}`}
+            aria-pressed={activeSection === s.id}
+          >
+            <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"30px", height:"30px", overflow:"hidden" }}>
+              <AppIcon name={s.icon} size={28} active={activeSection === s.id} />
+            </span>
             {s.label}
           </button>
         ))}
@@ -7717,22 +7950,67 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             status={smartGlobalStatus(ACCESOS_PRINCIPALES, a => (accesos?.[a.id] || { status:"libre" }).status)}
             options={ACCESO_STATUS_OPTIONS}
             right={(() => {
-              const critical = smartCriticalItems(ACCESOS_PRINCIPALES, ACCESO_STATUS_OPTIONS, a => (accesos?.[a.id] || { status:"libre" }).status, a => a.label, 1)[0];
-              return critical ? <div className="cm-sp-critical"><span>Más crítico</span><b>{critical.label}</b></div> : <div className="cm-sp-critical"><span>Operación estable</span><b>Sin accesos críticos</b></div>;
+              const critical = smartCriticalItems(
+                ACCESOS_PRINCIPALES,
+                ACCESO_STATUS_OPTIONS,
+                a => (accesos?.[a.id] || { status:"libre" }).status,
+                a => a.label,
+                1
+              )[0];
+              return critical
+                ? <div className="cm-sp-critical"><span>Más crítico</span><b>{critical.label}</b></div>
+                : <div className="cm-sp-critical"><span>Operación estable</span><b>Sin accesos críticos</b></div>;
             })()}
           />
-          {accesos && <SmartTrafficSummaryBar items={ACCESO_STATUS_OPTIONS.map(o => ({ label:o.label.replace(" / Fluido", ""), value:smartCounts(ACCESOS_PRINCIPALES, a => (accesos?.[a.id] || { status:"libre" }).status)[o.id] || 0, color:o.color }))} />}
+
+          {accesos && (
+            <SmartTrafficSummaryBar
+              items={ACCESO_STATUS_OPTIONS.map(o => ({
+                label: o.label.replace(" / Fluido", ""),
+                value: smartCounts(ACCESOS_PRINCIPALES, a => (accesos?.[a.id] || { status:"libre" }).status)[o.id] || 0,
+                color: o.color,
+              }))}
+            />
+          )}
+
           <MapaAccesos accesos={accesos} />
+
           <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {!accesos ? <SkeletonCard n={3}/> : <div className="cm-sp-grid">{ACCESOS_PRINCIPALES.map(acc => {
-            const st = accesos[acc.id] || { status:"libre", retornos:"none", lastUpdate:Date.now(), updatedBy:"Sistema" };
-            const retornoOpt = RETORNO_OPTIONS.find(o => o.id === (st.retornos || "none")) || RETORNO_OPTIONS[0];
-            return <SmartOperationalCard key={acc.id} icon={acc.id === "patio" ? "parking" : "access-gate"} title={acc.label} subtitle={`${acc.zona} · ${retornoOpt.label}`} status={st.status} options={ACCESO_STATUS_OPTIONS} updatedAt={st.lastUpdate} updatedBy={st.updatedBy} impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "bajo"} recommendation={smartAccessRecommendation(st.status, st.retornos)} actions={<SmartStatusActionGrid options={ACCESO_STATUS_OPTIONS} currentStatus={st.status} onChange={(status) => voteAcceso(acc.id, status)} />} />;
-          })}</div>}
+
+          {!accesos ? <SkeletonCard n={3}/> : (
+            <div className="cm-sp-grid">
+              {ACCESOS_PRINCIPALES.map(acc => {
+                const st = accesos[acc.id] || { status:"libre", retornos:"none", lastUpdate:Date.now(), updatedBy:"Sistema" };
+                const retornoOpt = RETORNO_OPTIONS.find(o => o.id === (st.retornos || "none")) || RETORNO_OPTIONS[0];
+
+                return (
+                  <SmartOperationalCard
+                    key={acc.id}
+                    icon={acc.id === "patio" ? "parking" : "access-gate"}
+                    title={acc.label}
+                    subtitle={`${acc.zona} · ${retornoOpt.label}`}
+                    status={st.status}
+                    options={ACCESO_STATUS_OPTIONS}
+                    updatedAt={st.lastUpdate}
+                    updatedBy={st.updatedBy}
+                    impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "bajo"}
+                    recommendation={smartAccessRecommendation(st.status, st.retornos)}
+                    actions={
+                      <SmartStatusActionGrid
+                        options={ACCESO_STATUS_OPTIONS}
+                        currentStatus={st.status}
+                        onChange={(status) => voteAcceso(acc.id, status)}
+                      />
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
@@ -7745,22 +8023,81 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             status={smartGlobalStatus(VIALIDADES, v => (vialidades?.[v.id] || { status:"libre" }).status)}
             options={VIALIDAD_STATUS_OPTIONS}
             right={(() => {
-              const critical = smartCriticalItems(VIALIDADES, VIALIDAD_STATUS_OPTIONS, v => (vialidades?.[v.id] || { status:"libre" }).status, v => v.name, 1)[0];
-              const best = [...VIALIDADES].sort((a,b) => (smartTrafficRank[(vialidades?.[a.id] || { status:"libre" }).status] ?? 0) - (smartTrafficRank[(vialidades?.[b.id] || { status:"libre" }).status] ?? 0))[0];
-              return <div className="cm-sp-critical"><span>Vialidad crítica: {critical?.label || "Sin criticidad"}</span><span>Mejor opción: {best?.name || "Sin dato"}</span></div>;
+              const critical = smartCriticalItems(
+                VIALIDADES,
+                VIALIDAD_STATUS_OPTIONS,
+                v => (vialidades?.[v.id] || { status:"libre" }).status,
+                v => v.name,
+                1
+              )[0];
+              const best = [...VIALIDADES].sort((a,b) =>
+                (smartTrafficRank[(vialidades?.[a.id] || { status:"libre" }).status] ?? 0) -
+                (smartTrafficRank[(vialidades?.[b.id] || { status:"libre" }).status] ?? 0)
+              )[0];
+
+              return (
+                <div className="cm-sp-critical">
+                  <span>Vialidad crítica: {critical?.label || "Sin criticidad"}</span>
+                  <span>Mejor opción: {best?.name || "Sin dato"}</span>
+                </div>
+              );
             })()}
           />
-          {vialidades && <SmartTrafficSummaryBar items={VIALIDAD_STATUS_OPTIONS.map(o => ({ label:o.label.replace("Tráfico ", ""), value:smartCounts(VIALIDADES, v => (vialidades?.[v.id] || { status:"libre" }).status)[o.id] || 0, color:o.color }))} />}
+
+          {vialidades && (
+            <SmartTrafficSummaryBar
+              items={VIALIDAD_STATUS_OPTIONS.map(o => ({
+                label: o.label.replace("Tráfico ", ""),
+                value: smartCounts(VIALIDADES, v => (vialidades?.[v.id] || { status:"libre" }).status)[o.id] || 0,
+                color: o.color,
+              }))}
+            />
+          )}
+
           <MapaVialidades vialidades={vialidades} />
-          {!vialidades ? <SkeletonCard n={3}/> : <>
-            {[{ id:"principales", title:"Corredores principales", rows:vialidadesPrincipales }, { id:"urbanas", title:"Conectores urbanos", rows:vialidadesUrbanas }].map(group => <div key={group.id}>
-              <div style={{ color:"#f8fafc", fontSize:22, fontWeight:900, margin:"8px 0 10px" }}>{group.title}</div>
-              <div className="cm-sp-grid">{group.rows.map(v => {
-                const st = vialidades[v.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
-                return <SmartOperationalCard key={v.id} icon={group.id === "principales" ? "freight-truck" : "road"} title={v.name} subtitle={v.fullName || v.name} status={st.status} options={VIALIDAD_STATUS_OPTIONS} updatedAt={st.lastUpdate} updatedBy={st.updatedBy} impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "medio"} recommendation={smartVialidadRecommendation(st.status)} actions={<SmartStatusActionGrid options={VIALIDAD_STATUS_OPTIONS} currentStatus={st.status} onChange={(status) => voteVialidad(v.id, status)} />} />;
-              })}</div>
-            </div>)}
-          </>}
+
+          {!vialidades ? <SkeletonCard n={3}/> : (
+            <>
+              {[
+                { id:"principales", title:"Corredores principales", rows:vialidadesPrincipales },
+                { id:"urbanas", title:"Conectores urbanos", rows:vialidadesUrbanas },
+              ].map(group => (
+                <div key={group.id}>
+                  <div style={{ color:"#f8fafc", fontSize:22, fontWeight:900, margin:"8px 0 10px" }}>
+                    {group.title}
+                  </div>
+
+                  <div className="cm-sp-grid">
+                    {group.rows.map(v => {
+                      const st = vialidades[v.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+
+                      return (
+                        <SmartOperationalCard
+                          key={v.id}
+                          icon={group.id === "principales" ? "freight-truck" : "road"}
+                          title={v.name}
+                          subtitle={v.fullName || v.name}
+                          status={st.status}
+                          options={VIALIDAD_STATUS_OPTIONS}
+                          updatedAt={st.lastUpdate}
+                          updatedBy={st.updatedBy}
+                          impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "medio"}
+                          recommendation={smartVialidadRecommendation(st.status)}
+                          actions={
+                            <SmartStatusActionGrid
+                              options={VIALIDAD_STATUS_OPTIONS}
+                              currentStatus={st.status}
+                              onChange={(status) => voteVialidad(v.id, status)}
+                            />
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </section>
       )}
 
@@ -7773,19 +8110,64 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
             status={smartGlobalStatus(RUTAS_FISCALES, r => (rutasFiscales?.[r.id] || { status:"libre" }).status)}
             options={RUTA_FISCAL_STATUS_OPTIONS}
           />
-          {rutasFiscales && <SmartTrafficSummaryBar items={RUTA_FISCAL_STATUS_OPTIONS.map(o => ({ label:o.label.replace("Tráfico ", ""), value:smartCounts(RUTAS_FISCALES, r => (rutasFiscales?.[r.id] || { status:"libre" }).status)[o.id] || 0, color:o.color }))} />}
+
+          {rutasFiscales && (
+            <SmartTrafficSummaryBar
+              items={RUTA_FISCAL_STATUS_OPTIONS.map(o => ({
+                label: o.label.replace("Tráfico ", ""),
+                value: smartCounts(RUTAS_FISCALES, r => (rutasFiscales?.[r.id] || { status:"libre" }).status)[o.id] || 0,
+                color: o.color,
+              }))}
+            />
+          )}
+
           <MapaRutasFiscales rutas={rutasFiscales} zona="Norte" />
-          {!rutasFiscales ? <SkeletonCard n={3}/> : <div className="cm-sp-grid">{RUTAS_FISCALES.map(r => {
-            const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
-            const impact = (smartTrafficRank[st.status] ?? 0) >= 3 ? "crítico" : (smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : (smartTrafficRank[st.status] ?? 0) === 1 ? "medio" : "bajo";
-            return <SmartOperationalCard key={r.id} icon="route" title={r.name} subtitle={`Zona ${r.zona} · Flujo fiscal regulado`} status={st.status} options={RUTA_FISCAL_STATUS_OPTIONS} updatedAt={st.lastUpdate} updatedBy={st.updatedBy} impact={impact} recommendation={smartRutaFiscalRecommendation(st.status)} actions={<SmartStatusActionGrid options={RUTA_FISCAL_STATUS_OPTIONS} currentStatus={st.status} onChange={(status) => voteRutaFiscal(r.id, status)} />}><SmartFiscalFlow /></SmartOperationalCard>;
-          })}</div>}
+
+          {!rutasFiscales ? <SkeletonCard n={3}/> : (
+            <div className="cm-sp-grid">
+              {RUTAS_FISCALES.map(r => {
+                const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+                const rank = smartTrafficRank[st.status] ?? 0;
+                const impact = rank >= 3 ? "crítico" : rank >= 2 ? "alto" : rank === 1 ? "medio" : "bajo";
+
+                return (
+                  <SmartOperationalCard
+                    key={r.id}
+                    icon="route"
+                    title={r.name}
+                    subtitle={`Zona ${r.zona} · Flujo fiscal regulado`}
+                    status={st.status}
+                    options={RUTA_FISCAL_STATUS_OPTIONS}
+                    updatedAt={st.lastUpdate}
+                    updatedBy={st.updatedBy}
+                    impact={impact}
+                    recommendation={smartRutaFiscalRecommendation(st.status)}
+                    actions={
+                      <SmartStatusActionGrid
+                        options={RUTA_FISCAL_STATUS_OPTIONS}
+                        currentStatus={st.status}
+                        onChange={(status) => voteRutaFiscal(r.id, status)}
+                      />
+                    }
+                  >
+                    <SmartFiscalFlow />
+                  </SmartOperationalCard>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
       {activeSection === "reporte" && (
         <section className="cm-sp-section">
-          <SmartTrafficReportPanel accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} notify={notify} />
+          <SmartTrafficReportPanel
+            accesos={accesos}
+            vialidades={vialidades}
+            rutasFiscales={rutasFiscales}
+            notify={notify}
+          />
+
           <div style={{ border:"1px solid rgba(148,163,184,.18)", borderRadius:18, overflow:"hidden" }}>
             <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
           </div>
@@ -7795,9 +8177,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       <ToastBox toast={toast} />
     </div>
   );
-
 }
-
 
 
 
@@ -19931,7 +20311,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
             }}
           >
             <div style={{ color: steel, fontFamily: authFont, fontSize: "12px", fontWeight: 800, letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: "12px" }}>
-              CONECT MANZANILLO
+              Marine Logistics Framework
             </div>
             <h2 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "30px", lineHeight: 1.1, fontWeight: 800, letterSpacing: "-.5px" }}>
               Gestión Portuaria en Tiempo Real
