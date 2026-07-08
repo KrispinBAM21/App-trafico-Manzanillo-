@@ -8881,6 +8881,21 @@ const REPORT_MAP_FILTERS = [
   { id: "accidente", label: "Accidente", icon: "collision", color: "#ef4444" },
 ];
 
+
+function CommandLayerStackGlyph({ active = false, size = 34 }) {
+  const stroke = active ? "#38bdf8" : "#9ca3af";
+  const fillA = active ? "rgba(56,189,248,.22)" : "rgba(148,163,184,.20)";
+  const fillB = active ? "rgba(14,165,233,.16)" : "rgba(148,163,184,.14)";
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden="true" style={{ display:"block", filter: active ? "drop-shadow(0 0 9px rgba(56,189,248,.55))" : "drop-shadow(0 2px 6px rgba(0,0,0,.45))" }}>
+      <path d="M32 12 54 24 32 36 10 24 32 12Z" fill={fillA} stroke={stroke} strokeWidth="2.4" strokeLinejoin="round"/>
+      <path d="M14 30 32 40 50 30" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" opacity=".78"/>
+      <path d="M14 38 32 48 50 38" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" opacity=".55"/>
+      <path d="M32 18 43 24 32 30 21 24 32 18Z" fill={fillB} stroke="rgba(255,255,255,.22)" strokeWidth="1.2"/>
+    </svg>
+  );
+}
+
 // Normaliza coordenadas de reportes guardadas como {lat,lng}, [lat,lng] o strings numéricos.
 const getIncidentLatLng = (inc) => {
   const c = inc?.coords;
@@ -9417,29 +9432,54 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         <div style={{ position:"relative" }}>
           <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18" }} />
           {cleanReportMap && (
-            <div style={{ position:"absolute", top:16, right:16, zIndex:1000, fontFamily:"JetBrains Mono, DM Sans, monospace" }}>
+            <div
+              onMouseEnter={() => setReportLayerControlOpen(true)}
+              onMouseLeave={() => setReportLayerControlOpen(false)}
+              style={{ position:"absolute", top:16, right:16, zIndex:1000, fontFamily:"JetBrains Mono, DM Sans, monospace" }}
+            >
               <button
                 type="button"
                 aria-label="Control de capas del mapa de reportes"
+                onFocus={() => setReportLayerControlOpen(true)}
                 onClick={() => setReportLayerControlOpen(v => !v)}
-                style={{ width:58, height:58, borderRadius:"18px", border:"1px solid rgba(56,189,248,.42)", background:"rgba(2,6,23,.86)", color:"#e2e8f0", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", boxShadow:"0 12px 36px rgba(0,0,0,.42)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}
+                style={{
+                  width:58, height:58, borderRadius:"18px",
+                  border: reportLayerControlOpen ? "1px solid rgba(56,189,248,.78)" : "1px solid rgba(56,189,248,.38)",
+                  background: reportLayerControlOpen ? "rgba(8,47,73,.86)" : "rgba(2,6,23,.84)",
+                  color:"#e2e8f0", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+                  boxShadow: reportLayerControlOpen ? "0 0 0 1px rgba(56,189,248,.16),0 16px 42px rgba(14,165,233,.20),0 14px 36px rgba(0,0,0,.48)" : "0 12px 36px rgba(0,0,0,.42)",
+                  backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", transition:"all .16s ease"
+                }}
               >
-                <AppIcon name="window" size={31} active={reportLayerControlOpen} />
+                <CommandLayerStackGlyph active={reportLayerControlOpen} size={38} />
               </button>
               {reportLayerControlOpen && (
-                <div style={{ position:"absolute", right:0, top:68, width:278, maxWidth:"calc(100vw - 48px)", padding:"12px 14px", borderRadius:"14px", border:"1px solid rgba(56,189,248,.38)", background:"rgba(2,6,23,.94)", color:"#e2e8f0", boxShadow:"0 18px 44px rgba(0,0,0,.48)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+                <div
+                  onMouseEnter={() => setReportLayerControlOpen(true)}
+                  style={{ position:"absolute", right:0, top:66, width:286, maxWidth:"calc(100vw - 48px)", padding:"13px 14px", borderRadius:"16px", border:"1px solid rgba(56,189,248,.38)", background:"rgba(2,6,23,.94)", color:"#e2e8f0", boxShadow:"0 18px 44px rgba(0,0,0,.48)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}
+                >
                   {MAP_TILES.map(t => (
-                    <label key={t.id} style={{ display:"flex", alignItems:"center", gap:"9px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:700 }}>
-                      <input type="radio" name="report-map-tile" checked={tileMode === t.id} onChange={() => setTileMode(t.id)} style={{ width:16, height:16, accentColor:"#38bdf8" }} />
+                    <label key={t.id} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:800 }}>
+                      <input type="radio" name="report-map-tile" checked={tileMode === t.id} onChange={() => setTileMode(t.id)} style={{ width:17, height:17, accentColor:"#38bdf8" }} />
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"7px" }}><AppIcon name={t.icon} size={15} active={tileMode === t.id} />{t.label}</span>
                     </label>
                   ))}
-                  <div style={{ height:1, background:"rgba(255,255,255,.72)", margin:"8px 0 9px" }} />
-                  <div style={{ color:"rgba(255,255,255,.48)", fontSize:"10px", fontWeight:900, letterSpacing:"0.14em", textTransform:"uppercase", margin:"0 0 4px 2px" }}>Reportes visibles</div>
+                  <div style={{ height:1, background:"rgba(226,232,240,.72)", margin:"8px 0 9px" }} />
                   {REPORT_MAP_FILTERS.map(f => (
-                    <label key={f.id} style={{ display:"flex", alignItems:"center", gap:"9px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:800 }}>
-                      <input type="radio" name="report-map-filter" checked={reportMapFilter === f.id} onChange={() => setReportMapFilter(f.id)} style={{ width:16, height:16, accentColor:f.color }} />
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:"7px", color: reportMapFilter === f.id ? f.color : "#e2e8f0" }}><AppIcon name={f.id === "accidente" ? "collision" : f.icon} size={15} active={reportMapFilter === f.id} />{f.label}</span>
+                    <label key={f.id} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:900 }}>
+                      <input type="radio" name="report-map-filter" checked={reportMapFilter === f.id} onChange={() => setReportMapFilter(f.id)} style={{ width:17, height:17, accentColor:f.color }} />
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"7px", color: reportMapFilter === f.id ? f.color : "#e2e8f0" }}>
+                        {f.id === "accidente" ? (
+                          <svg width="17" height="17" viewBox="0 0 64 64" fill="none" aria-hidden="true" style={{ display:"block", filter: reportMapFilter === f.id ? "drop-shadow(0 0 7px rgba(239,68,68,.62))" : "none" }}>
+                            <path d="M7 38h18l4-9H14c-2.8 0-5.2 1.8-6 4.5L7 38Z" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="3" strokeLinejoin="round"/>
+                            <path d="M57 38H39l-4-9h15c2.8 0 5.2 1.8 6 4.5l1 4.5Z" fill="rgba(239,68,68,.18)" stroke="#ef4444" strokeWidth="3" strokeLinejoin="round"/>
+                            <path d="M25 38l7-7 7 7M29 22l3 6 3-6" stroke="#fca5a5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                            <circle cx="17" cy="42" r="4" fill="#020617" stroke="#ef4444" strokeWidth="3"/>
+                            <circle cx="47" cy="42" r="4" fill="#020617" stroke="#ef4444" strokeWidth="3"/>
+                          </svg>
+                        ) : <AppIcon name={f.icon} size={15} active={reportMapFilter === f.id} />}
+                        {f.label}
+                      </span>
                     </label>
                   ))}
                 </div>
