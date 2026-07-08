@@ -19995,7 +19995,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
             }}
           >
             <div style={{ color: steel, fontFamily: authFont, fontSize: "12px", fontWeight: 800, letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: "12px" }}>
-              Marine Logistics Framework
+              CONECT MANZANILLO
             </div>
             <h2 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "30px", lineHeight: 1.1, fontWeight: 800, letterSpacing: "-.5px" }}>
               Gestión Portuaria en Tiempo Real
