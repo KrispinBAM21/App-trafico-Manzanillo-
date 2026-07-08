@@ -7456,179 +7456,6 @@ function SkeletonCard({ n = 3 }) {
 }
 
 
-const SMART_TRAFFIC_CONTROL_CSS = `
-  .cm-sp-dashboard{--traffic-bg:#071426;--traffic-bg-soft:#0a2540;--traffic-card:rgba(255,255,255,.06);--traffic-card-strong:rgba(255,255,255,.09);--traffic-border:rgba(148,163,184,.18);--traffic-text-main:#f8fafc;--traffic-text-secondary:#cbd5e1;--traffic-text-muted:#94a3b8;--traffic-green:#22c55e;--traffic-yellow:#facc15;--traffic-orange:#f97316;--traffic-red:#ef4444;--traffic-gray:#94a3b8;--traffic-blue:#38bdf8;font-variant-numeric:tabular-nums;padding-bottom:80px;color:var(--traffic-text-main)}
-  .cm-sp-hero{display:flex;justify-content:space-between;gap:16px;align-items:stretch;border:1px solid var(--traffic-border);border-radius:22px;padding:18px;margin:12px 16px 14px;background:radial-gradient(circle at 12% 0%,rgba(56,189,248,.16),transparent 32%),linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.035));box-shadow:0 22px 60px rgba(0,0,0,.24)}
-  .cm-sp-eyebrow{color:var(--traffic-blue);font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;font-family:inherit}
-  .cm-sp-hero-title{margin:6px 0 0;color:var(--traffic-text-main);font-size:clamp(27px,5vw,44px);font-weight:900;letter-spacing:-.03em;line-height:.98}
-  .cm-sp-copy{margin:8px 0 0;color:var(--traffic-text-secondary);font-size:13px;line-height:1.45;max-width:720px}
-  .cm-sp-hero-status{min-width:215px;border:1px solid var(--global-color,#38bdf8);border-radius:18px;padding:12px;background:color-mix(in srgb,var(--global-color,#38bdf8) 10%,rgba(2,6,23,.38));display:grid;align-content:center;gap:10px}
-  .cm-sp-number{display:flex;align-items:baseline;gap:8px}.cm-sp-number strong{color:var(--global-color,#38bdf8);font-size:34px;line-height:.9;font-weight:900}.cm-sp-number span{color:var(--traffic-text-secondary);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px}
-  .cm-sp-tabs{position:sticky;top:0;z-index:50;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:8px;margin:0 16px 14px;border:1px solid var(--traffic-border);border-radius:18px;background:rgba(7,20,38,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-  .cm-sp-tab{min-height:56px;border:1px solid transparent;border-radius:14px;background:transparent;color:var(--traffic-text-muted);font-size:10px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;cursor:pointer;display:grid;place-items:center;gap:4px;transition:background .18s,color .18s,border-color .18s}.cm-sp-tab.is-active{color:var(--traffic-text-main);background:rgba(56,189,248,.13);border-color:rgba(56,189,248,.45);box-shadow:inset 0 -2px 0 rgba(56,189,248,.72)}
-  .cm-sp-section{padding:0 16px 16px;display:grid;gap:14px}.cm-sp-section-header{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border:1px solid var(--traffic-border);border-radius:18px;padding:16px;background:var(--traffic-card)}.cm-sp-section-header h2{margin:6px 0 0;color:var(--traffic-text-main);font-size:28px;font-weight:900;letter-spacing:-.02em;line-height:1}.cm-sp-section-header p{margin:7px 0 0;color:var(--traffic-text-secondary);font-size:12px;line-height:1.45;max-width:720px}.cm-sp-section-right{display:grid;gap:8px;justify-items:end}.cm-sp-critical{color:var(--traffic-text-secondary);font-size:11px;font-weight:800;display:grid;gap:3px;text-align:right}
-  .cm-sp-badge{--status-color:var(--traffic-green);display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,var(--status-color) 55%,transparent);background:color-mix(in srgb,var(--status-color) 16%,transparent);color:var(--status-color);border-radius:999px;font-weight:900;white-space:nowrap;line-height:1}.cm-sp-badge.sm{padding:5px 8px;font-size:10px}.cm-sp-badge.md{padding:7px 10px;font-size:11px}.cm-sp-badge.lg{padding:9px 12px;font-size:12px}
-  .cm-sp-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}.cm-sp-summary-item{--status-color:var(--traffic-gray);border:1px solid color-mix(in srgb,var(--status-color) 42%,transparent);border-radius:14px;background:color-mix(in srgb,var(--status-color) 12%,transparent);padding:12px}.cm-sp-summary-item strong{display:block;color:var(--status-color);font-size:28px;line-height:.9;font-weight:900}.cm-sp-summary-item span{display:block;margin-top:6px;color:var(--traffic-text-secondary);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.8px}
-  .cm-sp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cm-sp-card{--status-color:var(--traffic-green);border:1px solid color-mix(in srgb,var(--status-color) 40%,var(--traffic-border));border-radius:18px;padding:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--status-color) 10%,transparent),transparent),var(--traffic-card);box-shadow:0 14px 34px rgba(0,0,0,.18);transition:border-color .18s,background .18s}.cm-sp-card.critical{animation:cmSpCriticalPulse 2.4s ease-in-out infinite}.cm-sp-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.cm-sp-card-icon{width:44px;height:44px;flex:0 0 auto;border:1px solid color-mix(in srgb,var(--status-color) 45%,transparent);border-radius:14px;background:color-mix(in srgb,var(--status-color) 14%,transparent);color:var(--status-color);display:grid;place-items:center}.cm-sp-card-main{flex:1;min-width:0}.cm-sp-card-kicker{color:var(--status-color);font-size:9px;font-weight:900;letter-spacing:.9px;text-transform:uppercase}.cm-sp-card-title{margin:4px 0 0;color:var(--traffic-text-main);font-size:20px;line-height:1.05;font-weight:900;letter-spacing:-.02em}.cm-sp-card-sub,.cm-sp-card-meta{margin:5px 0 0;color:var(--traffic-text-secondary);font-size:12px;line-height:1.35}.cm-sp-card-meta{color:var(--traffic-text-muted);font-size:11px}.cm-sp-rec{margin-top:12px;border:1px solid rgba(148,163,184,.14);border-radius:13px;background:rgba(2,6,23,.34);padding:10px;color:var(--traffic-text-secondary);font-size:12px;line-height:1.45;display:flex;gap:8px;align-items:flex-start}.cm-sp-rec strong{color:var(--status-color);white-space:nowrap}
-  .cm-sp-actions{margin-top:12px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.cm-sp-action{--status-color:var(--traffic-gray);min-height:44px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(2,6,23,.42);color:var(--traffic-text-secondary);font-size:11px;font-weight:900;cursor:pointer;display:inline-flex;justify-content:center;align-items:center;gap:6px;transition:border-color .18s,background .18s,color .18s}.cm-sp-action.is-active{color:var(--status-color);border-color:color-mix(in srgb,var(--status-color) 62%,transparent);background:color-mix(in srgb,var(--status-color) 16%,rgba(2,6,23,.42))}
-  .cm-sp-map-shell{position:relative;border:1px solid var(--traffic-border);border-radius:22px;overflow:hidden;background:rgba(2,6,23,.52)}.cm-sp-layerbar{display:flex;gap:8px;flex-wrap:wrap;padding:10px;border-bottom:1px solid var(--traffic-border);background:rgba(7,20,38,.88)}.cm-sp-layer{--layer-color:var(--traffic-blue);border:1px solid color-mix(in srgb,var(--layer-color) 42%,transparent);border-radius:999px;background:rgba(7,20,38,.82);color:var(--traffic-text-main);padding:8px 10px;display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:900}.cm-sp-layer i{width:8px;height:8px;border-radius:999px;background:var(--layer-color);display:block}.cm-sp-bottom{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:1px solid var(--traffic-border);background:rgba(7,20,38,.88);padding:12px;color:var(--traffic-text-secondary);font-size:12px}.cm-sp-bottom strong{color:var(--traffic-text-main)}
-  .cm-sp-flow{margin-top:12px;display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto;align-items:center;gap:8px}.cm-sp-flow-node{border:1px solid rgba(148,163,184,.22);border-radius:999px;padding:7px 9px;color:var(--traffic-text-secondary);font-size:10px;font-weight:900;background:rgba(2,6,23,.36)}.cm-sp-flow-node.active{border-color:var(--status-color);color:var(--status-color);background:color-mix(in srgb,var(--status-color) 14%,transparent)}.cm-sp-flow-line{height:2px;border-radius:999px;background:linear-gradient(90deg,rgba(148,163,184,.28),var(--status-color))}
-  .cm-sp-report{border:1px solid var(--traffic-border);border-radius:22px;background:var(--traffic-card);overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.22)}.cm-sp-report-hero{--global-color:var(--traffic-green);display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--global-color) 16%,transparent),rgba(255,255,255,.04)),rgba(2,6,23,.36);border-bottom:1px solid var(--traffic-border)}.cm-sp-report-hero h2{margin:6px 0 0;font-size:30px;font-weight:900;line-height:1}.cm-sp-report-actions{padding:14px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--traffic-border)}.cm-sp-mode{display:inline-flex;padding:4px;border:1px solid var(--traffic-border);border-radius:13px;background:rgba(2,6,23,.35)}.cm-sp-mode button,.cm-sp-report-btn{min-height:38px;border:none;border-radius:10px;background:transparent;color:var(--traffic-text-secondary);font-size:11px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.6px}.cm-sp-mode button{padding:0 12px}.cm-sp-mode button.is-active{background:rgba(56,189,248,.16);color:var(--traffic-blue)}.cm-sp-report-btns{display:flex;gap:8px;flex-wrap:wrap}.cm-sp-report-btn{border:1px solid var(--traffic-border);padding:0 12px;background:rgba(255,255,255,.04);display:inline-flex;align-items:center;gap:7px}.cm-sp-metrics{padding:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cm-sp-metrics div{border:1px solid var(--traffic-border);border-radius:16px;background:rgba(2,6,23,.3);padding:14px}.cm-sp-metrics strong{display:block;color:var(--traffic-blue);font-size:34px;line-height:.9}.cm-sp-metrics span{display:block;margin-top:8px;color:var(--traffic-text-secondary);font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.7px}.cm-sp-priorities{padding:14px}.cm-sp-priorities h3{margin:0 0 12px;color:var(--traffic-text-main);font-size:22px;font-weight:900}.cm-sp-priorities ol{margin:0;padding-left:24px;display:grid;gap:10px}.cm-sp-priorities li{border:1px solid var(--traffic-border);border-radius:14px;background:rgba(2,6,23,.28);padding:12px;color:var(--traffic-text-secondary)}.cm-sp-priorities li small{display:block;color:var(--traffic-text-muted);font-size:10px;text-transform:uppercase;font-weight:900;letter-spacing:.8px;margin-bottom:4px}.cm-sp-priorities li b{display:inline-block;color:var(--traffic-text-main);margin-right:8px}.cm-sp-detail{margin-top:14px;display:grid;gap:8px}.cm-sp-detail div{border-top:1px solid var(--traffic-border);padding:10px 0}
-  @keyframes cmSpCriticalPulse{0%,100%{box-shadow:0 14px 34px rgba(0,0,0,.18),0 0 0 0 transparent}50%{box-shadow:0 14px 34px rgba(0,0,0,.18),0 0 0 6px color-mix(in srgb,var(--status-color) 12%,transparent)}}
-  @media(max-width:760px){.cm-sp-hero,.cm-sp-section-header,.cm-sp-report-hero,.cm-sp-report-actions{flex-direction:column;align-items:stretch}.cm-sp-hero-status,.cm-sp-section-right{justify-items:stretch;min-width:0}.cm-sp-tabs{grid-template-columns:repeat(5,minmax(66px,1fr));overflow-x:auto;scrollbar-width:none}.cm-sp-tab{min-width:74px;font-size:9px}.cm-sp-grid,.cm-sp-metrics{grid-template-columns:1fr}.cm-sp-card-head{display:grid;grid-template-columns:auto 1fr}.cm-sp-card-head .cm-sp-badge{grid-column:1/-1;justify-self:start}.cm-sp-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-sp-flow{grid-template-columns:1fr}.cm-sp-flow-line{width:2px;height:18px;justify-self:center}.cm-sp-report-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cm-sp-report-btn{justify-content:center}}
-`;
-
-const SMART_TRAFFIC_SECTIONS = [
-  { id: "mapa", label: "Mapa", title: "Mapa Operativo", icon: "map" },
-  { id: "accesos", label: "Accesos", title: "Accesos", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
-  { id: "vialidades", label: "Vialidades", title: "Vialidades", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
-  { id: "rutas_fiscales", label: "Rutas Fiscales", title: "Rutas Fiscales", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
-  { id: "reporte", label: "Reporte", title: "Reporte", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
-];
-
-const smartTrafficRank = { libre:0, none:0, lento:1, moderado:1, intermitente:1, saturado:2, detenido:3, cerrado:3 };
-const smartTrafficColorFallback = { libre:"#22c55e", lento:"#facc15", moderado:"#f97316", intermitente:"#facc15", saturado:"#f97316", detenido:"#ef4444", cerrado:"#94a3b8" };
-const smartTrafficLabelFallback = { libre:"Libre", lento:"Lento", moderado:"Tráfico Moderado", intermitente:"Intermitente", saturado:"Saturado", detenido:"Detenido", cerrado:"Cerrado" };
-const smartTrafficIconFallback = { libre:"check", lento:"warning-triangle", moderado:"warning-triangle", intermitente:"warning-triangle", saturado:"slow-traffic", detenido:"xmark", cerrado:"closed-gate" };
-
-const smartStatusMeta = (status = "libre", options = []) => {
-  const opt = (options || []).find(o => o.id === status) || {};
-  const rank = smartTrafficRank[status] ?? 0;
-  return {
-    id: status,
-    rank,
-    label: opt.label || smartTrafficLabelFallback[status] || status || "Sin dato",
-    color: opt.color || smartTrafficColorFallback[status] || "#94a3b8",
-    icon: opt.icon || smartTrafficIconFallback[status] || "status-live",
-    severity: rank >= 3 ? "CRÍTICO" : rank === 2 ? "ALTO FLUJO" : rank === 1 ? "PRECAUCIÓN" : "NORMAL"
-  };
-};
-
-const smartGlobalStatus = (items = [], statusGetter = item => item.status) => {
-  const maxRank = items.reduce((max, item) => Math.max(max, smartTrafficRank[statusGetter(item)] ?? 0), 0);
-  if (maxRank >= 3) return "detenido";
-  if (maxRank === 2) return "saturado";
-  if (maxRank === 1) return "lento";
-  return "libre";
-};
-
-const smartCriticalItems = (items = [], options = [], statusGetter = item => item.status, labelGetter = item => item.name || item.label, limit = 3) =>
-  [...items]
-    .map(item => ({ item, status: statusGetter(item), label: labelGetter(item), meta: smartStatusMeta(statusGetter(item), options) }))
-    .sort((a,b) => b.meta.rank - a.meta.rank)
-    .filter(x => x.meta.rank > 0)
-    .slice(0, limit);
-
-const smartCounts = (items = [], statusGetter = item => item.status) => items.reduce((acc, item) => {
-  const st = statusGetter(item) || "libre";
-  acc[st] = (acc[st] || 0) + 1;
-  return acc;
-}, {});
-
-const smartAccessRecommendation = (status, retornos) => {
-  if (status === "cerrado") return "Evitar ingreso. Esperar instrucción operativa.";
-  if (status === "saturado") return "Evitar ingreso temporalmente y coordinar alternativa.";
-  if (status === "lento") return retornos && retornos !== "none" ? "Precaución: avance lento con retornos activos." : "Precaución: considerar margen adicional.";
-  return retornos && retornos !== "none" ? "Flujo normal, vigilar retornos activos." : "Operación normal.";
-};
-
-const smartVialidadRecommendation = (status) => {
-  if (status === "detenido") return "Evitar esta ruta; buscar alternativa operativa.";
-  if (status === "saturado") return "Usar solo si es indispensable; prever demora.";
-  if (status === "lento") return "Ruta transitable con precaución.";
-  return "Ruta recomendada para operación normal.";
-};
-
-const smartRutaFiscalRecommendation = (status) => {
-  if (status === "detenido" || status === "cerrado") return "Coordinar salida con terminal, patio y aduana; no liberar unidades sin confirmación.";
-  if (status === "moderado" || status === "intermitente" || status === "saturado") return "Flujo regulado: confirmar ventanas operativas y salida de patio.";
-  return "Flujo permitido. Mantener vigilancia documental y operativa.";
-};
-
-function SmartTrafficStatusBadge({ status = "libre", options = [], label, size = "md" }) {
-  const meta = smartStatusMeta(status, options);
-  return <span className={`cm-sp-badge ${size}`} style={{ "--status-color": meta.color }}><IconText icon={meta.icon} label={label || meta.label} size={size === "lg" ? 16 : 14} /></span>;
-}
-
-function SmartTrafficSummaryBar({ items }) {
-  return <div className="cm-sp-summary">{items.map(item => <div key={item.label} className="cm-sp-summary-item" style={{ "--status-color": item.color }}><strong>{item.value}</strong><span>{item.label}</span></div>)}</div>;
-}
-
-function SmartSectionHeader({ eyebrow, title, description, status = "libre", options = [], right }) {
-  return <header className="cm-sp-section-header">
-    <div><div className="cm-sp-eyebrow">{eyebrow}</div><h2>{title}</h2><p>{description}</p></div>
-    <div className="cm-sp-section-right"><SmartTrafficStatusBadge status={status} options={options} size="lg" />{right}</div>
-  </header>;
-}
-
-function SmartOperationalCard({ icon = "freight-truck", title, subtitle, status = "libre", options = [], updatedAt, updatedBy, impact, recommendation, children, actions }) {
-  const meta = smartStatusMeta(status, options);
-  return <article className={`cm-sp-card ${meta.rank >= 3 ? "critical" : ""}`} style={{ "--status-color": meta.color }}>
-    <div className="cm-sp-card-head">
-      <div className="cm-sp-card-icon"><AppIcon name={icon} size={22} active /></div>
-      <div className="cm-sp-card-main">
-        <div className="cm-sp-card-kicker">{meta.severity}{impact ? ` · Impacto ${impact}` : ""}</div>
-        <div className="cm-sp-card-title">{title}</div>
-        {subtitle && <div className="cm-sp-card-sub">{subtitle}</div>}
-        <div className="cm-sp-card-meta">{updatedAt ? timeAgo(updatedAt) : "sin actualización"} · {updatedBy || "Sistema"}</div>
-      </div>
-      <SmartTrafficStatusBadge status={status} options={options} />
-    </div>
-    {recommendation && <div className="cm-sp-rec"><strong>Acción sugerida:</strong><span>{recommendation}</span></div>}
-    {children}
-    {actions && <div className="cm-sp-actions">{actions}</div>}
-  </article>;
-}
-
-function SmartStatusActionGrid({ options, currentStatus, onChange }) {
-  return <>{options.map(o => <button key={o.id} type="button" aria-label={`Reportar ${o.label}`} onClick={() => onChange(o.id)} className={`cm-sp-action ${currentStatus === o.id ? "is-active" : ""}`} style={{ "--status-color": o.color }}><IconText icon={o.icon} label={o.label} size={15} active={currentStatus === o.id} /></button>)}</>;
-}
-
-function SmartTrafficMapPanel({ incidents, accesos, vialidades, rutasFiscales }) {
-  const layers = [
-    { label:"Accesos", color:"#38bdf8" }, { label:"Vialidades", color:"#22c55e" }, { label:"Rutas fiscales", color:"#f97316" }, { label:"Incidentes", color:"#ef4444" }, { label:"Terminales", color:"#94a3b8" }
-  ];
-  const accesoCritical = smartCriticalItems(ACCESOS_PRINCIPALES, ACCESO_STATUS_OPTIONS, a => (accesos?.[a.id] || { status:"libre" }).status, a => a.label, 1)[0];
-  const vialCritical = smartCriticalItems(VIALIDADES, VIALIDAD_STATUS_OPTIONS, v => (vialidades?.[v.id] || { status:"libre" }).status, v => v.name, 1)[0];
-  const rutasCriticas = smartCriticalItems(RUTAS_FISCALES, RUTA_FISCAL_STATUS_OPTIONS, r => (rutasFiscales?.[r.id] || { status:"libre" }).status, r => r.name, 10).length;
-  return <div className="cm-sp-map-shell">
-    <div className="cm-sp-layerbar">{layers.map(l => <button type="button" key={l.label} className="cm-sp-layer" style={{ "--layer-color": l.color }}><i />{l.label}</button>)}</div>
-    <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
-    <div className="cm-sp-bottom"><strong>Resumen operativo:</strong><span>Acceso crítico: {accesoCritical?.label || "Sin criticidad"}</span><span>Vialidad crítica: {vialCritical?.label || "Sin criticidad"}</span><span>Rutas fiscales afectadas: {rutasCriticas}</span></div>
-  </div>;
-}
-
-function SmartFiscalFlow() {
-  return <div className="cm-sp-flow">{["Terminal", "Aduana", "Ruta", "Salida"].map((node, idx) => <React.Fragment key={node}><span className={`cm-sp-flow-node ${idx === 2 ? "active" : ""}`}>{node}</span>{idx < 3 && <span className="cm-sp-flow-line" />}</React.Fragment>)}</div>;
-}
-
-function SmartTrafficReportPanel({ accesos, vialidades, rutasFiscales, notify }) {
-  const [mode, setMode] = useState("ejecutivo");
-  const accesoItems = ACCESOS_PRINCIPALES.map(a => ({ id:a.id, section:"Acceso", name:a.label, status:(accesos?.[a.id] || { status:"libre" }).status }));
-  const vialItems = VIALIDADES.map(v => ({ id:v.id, section:"Vialidad", name:v.name, status:(vialidades?.[v.id] || { status:"libre" }).status }));
-  const rutaItems = RUTAS_FISCALES.map(r => ({ id:r.id, section:"Ruta Fiscal", name:r.name, status:(rutasFiscales?.[r.id] || { status:"libre" }).status }));
-  const allItems = [...accesoItems, ...vialItems, ...rutaItems];
-  const global = smartGlobalStatus(allItems);
-  const globalMeta = smartStatusMeta(global);
-  const critical = allItems.map(item => ({ item, meta: smartStatusMeta(item.status), label:item.name })).sort((a,b) => b.meta.rank - a.meta.rank).filter(x => x.meta.rank > 0).slice(0,3);
-  const criticalZones = allItems.filter(i => (smartTrafficRank[i.status] ?? 0) >= 2).length;
-  const fiscalAffected = rutaItems.filter(i => (smartTrafficRank[i.status] ?? 0) > 0).length;
-  const saturatedAccess = accesoItems.filter(i => ["saturado", "cerrado", "detenido"].includes(i.status)).length;
-  const summary = [
-    "REPORTE OPERATIVO DE TRÁFICO", "Conect Manzanillo", `Actualizado: ${new Date().toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}`, "",
-    `Estado general: ${globalMeta.severity}`, `Zonas críticas: ${criticalZones}`, `Rutas fiscales afectadas: ${fiscalAffected}`, `Accesos saturados/cerrados: ${saturatedAccess}`, "", "Prioridades:",
-    ...(critical.length ? critical.map((x,i) => `${i+1}. ${x.item.name} · ${x.meta.label}`) : ["1. Sin prioridades críticas activas."])
-  ].join("\n");
-  const copySummary = async () => { try { await navigator.clipboard.writeText(summary); notify?.("Resumen copiado", "#22c55e"); } catch { notify?.("No se pudo copiar", "#ef4444"); } };
-  const shareWhats = () => window.open(`https://wa.me/?text=${encodeURIComponent(summary)}`, "_blank", "noopener,noreferrer");
-  return <div className="cm-sp-report" style={{ "--global-color": globalMeta.color }}>
-    <div className="cm-sp-report-hero"><div><div className="cm-sp-eyebrow">Traffic Intelligence Report</div><h2>Reporte operativo de tráfico</h2><p>Conect Manzanillo · {new Date().toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" })}</p></div><SmartTrafficStatusBadge status={global} size="lg" label={globalMeta.severity} /></div>
-    <div className="cm-sp-report-actions"><div className="cm-sp-mode">{["ejecutivo", "detallado"].map(m => <button key={m} type="button" className={mode === m ? "is-active" : ""} onClick={() => setMode(m)}>{m}</button>)}</div><div className="cm-sp-report-btns"><button type="button" className="cm-sp-report-btn" onClick={copySummary}><AppIcon name="document" size={14} /> Copiar resumen</button><button type="button" className="cm-sp-report-btn" onClick={() => window.print()}><AppIcon name="document" size={14} /> PDF</button><button type="button" className="cm-sp-report-btn" onClick={() => notify?.("Usa el exportador detallado debajo para imagen formal", "#38bdf8")}><AppIcon name="window" size={14} /> Imagen</button><button type="button" className="cm-sp-report-btn" onClick={shareWhats}><AppIcon name="whatsapp" size={14} /> WhatsApp</button></div></div>
-    <div className="cm-sp-metrics"><div><strong>{criticalZones}</strong><span>Zonas críticas</span></div><div><strong>{fiscalAffected}</strong><span>Rutas fiscales afectadas</span></div><div><strong>{saturatedAccess}</strong><span>Accesos saturados/cerrados</span></div></div>
-    <div className="cm-sp-priorities"><h3>Prioridades operativas</h3><ol>{(critical.length ? critical : [{ item:{ id:"ok", section:"Sistema", name:"Operación general sin criticidad activa", status:"libre" }, meta:smartStatusMeta("libre") }]).map(x => <li key={`${x.item.section}-${x.item.id}`}><small>{x.item.section}</small><b>{x.item.name}</b><SmartTrafficStatusBadge status={x.item.status} size="sm" /></li>)}</ol>{mode === "detallado" && <div className="cm-sp-detail">{allItems.map(i => <div key={`${i.section}-${i.id}`}><small>{i.section}</small> <b>{i.name}</b> <SmartTrafficStatusBadge status={i.status} size="sm" /></div>)}</div>}</div>
-  </div>;
-}
-
 function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   const theme = React.useContext(ThemeContext);
   const [accesos,     setAccesos]     = useState(null);   // null = loading
@@ -7850,334 +7677,191 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
   };
 
   const sections = [
-    { id: "mapa", label: "Mapa", title: "Mapa Operativo", icon: "map" },
-    { id: "accesos", label: "Accesos", title: "Accesos", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
-    { id: "vialidades", label: "Vialidades", title: "Vialidades", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
-    { id: "rutas_fiscales", label: "Rutas fiscales", title: "Rutas Fiscales", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
-    { id: "reporte", label: "Reporte", title: "Reporte", icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
+    { id: "mapa",        label: "Mapa",        icon: "map" },
+    { id: "accesos",     label: "Accesos",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
+    { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+    { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
   ];
 
-  const accesosItems = ACCESOS_PRINCIPALES.map(a => ({
-    id: a.id,
-    name: a.label,
-    section: "Acceso",
-    status: (accesos?.[a.id] || { status: "libre" }).status,
-  }));
-
-  const vialidadItems = VIALIDADES.map(v => ({
-    id: v.id,
-    name: v.name,
-    section: "Vialidad",
-    status: (vialidades?.[v.id] || { status: "libre" }).status,
-  }));
-
-  const rutaFiscalItems = RUTAS_FISCALES.map(r => ({
-    id: r.id,
-    name: r.name,
-    section: "Ruta Fiscal",
-    status: (rutasFiscales?.[r.id] || { status: "libre" }).status,
-  }));
-
-  const allTrafficItems = [...accesosItems, ...vialidadItems, ...rutaFiscalItems];
-  const globalTrafficStatus = smartGlobalStatus(allTrafficItems);
-  const globalTrafficMeta = smartStatusMeta(globalTrafficStatus);
-  const globalCriticalCount = allTrafficItems.filter(i => (smartTrafficRank[i.status] ?? 0) >= 2).length;
-
-  const vialidadesPrincipalesIds = new Set(["jalipa_puerto", "puerto_jalipa", "libramiento", "mzllo_colima", "colima_mzllo"]);
-  const vialidadesPrincipales = VIALIDADES.filter(v => vialidadesPrincipalesIds.has(v.id));
-  const vialidadesUrbanas = VIALIDADES.filter(v => !vialidadesPrincipalesIds.has(v.id));
-
   return (
-    <div className="cm-sp-dashboard">
-      <style>{SMART_TRAFFIC_CONTROL_CSS}</style>
+    <div style={{ paddingBottom: "80px" }}>
 
-      <div className="cm-sp-hero" style={{ "--global-color": globalTrafficMeta.color }}>
-        <div>
-          <div className="cm-sp-eyebrow">Smart Port Control Center</div>
-          <div className="cm-sp-hero-title">Centro de Control Portuario</div>
-          <p className="cm-sp-copy">
-            Lectura operativa de accesos, vialidades, rutas fiscales y reporte ejecutivo para turnos continuos de monitoreo.
-          </p>
-        </div>
-
-        <div className="cm-sp-hero-status">
-          <SmartTrafficStatusBadge status={globalTrafficStatus} size="lg" label={`Estado global: ${globalTrafficMeta.label}`} />
-          <div className="cm-sp-number">
-            <strong>{globalCriticalCount}</strong>
-            <span>zonas críticas</span>
-          </div>
-          <div className="cm-sp-number">
-            <span>{sections.find(s => s.id === activeSection)?.title || "Tráfico"}</span>
-          </div>
-        </div>
-      </div>
-
-      <nav className="cm-sp-tabs" aria-label="Subsecciones del Centro de Control Portuario">
+      {/* ── Sub-tabs ── */}
+      <style>{`
+        .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{
+          width:30px!important;
+          height:30px!important;
+          object-fit:contain!important;
+          display:block!important;
+        }
+        @media (max-width: 480px){
+          .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
+        }
+      `}</style>
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
         {sections.map(s => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setActiveSectionPersist(s.id)}
-            className={`cm-sp-tab ${activeSection === s.id ? "is-active" : ""}`}
-            aria-pressed={activeSection === s.id}
-          >
-            <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"30px", height:"30px", overflow:"hidden" }}>
-              <AppIcon name={s.icon} size={28} active={activeSection === s.id} />
+          <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
+            flex: 1, padding: "10px 4px", background: "transparent", border: "none",
+            borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
+            color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
+            fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
+            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
+          }}>
+            <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
+              <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
             </span>
-            {s.label}
+            {s.label.toUpperCase()}
           </button>
         ))}
-      </nav>
+      </div>
 
+      {/* ══════════════════════════════════════
+          SECCIÓN: MAPA
+      ══════════════════════════════════════ */}
       {activeSection === "mapa" && (
-        <section className="cm-sp-section">
-          <SmartSectionHeader
-            eyebrow="Operational Traffic Map"
-            title="Mapa operativo"
-            description="Capas de accesos, vialidades, rutas fiscales, incidentes y terminales con lectura ejecutiva inmediata."
-            status={globalTrafficStatus}
-          />
-          <SmartTrafficMapPanel incidents={incidents} accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
-        </section>
+        <div style={{ padding: "16px" }}>
+          <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
+        </div>
       )}
 
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCESOS
+      ══════════════════════════════════════ */}
       {activeSection === "accesos" && (
-        <section className="cm-sp-section">
-          <SmartSectionHeader
-            eyebrow="Access Control Board"
-            title="Accesos portuarios"
-            description="Monitoreo directo de puertas operativas, retornos y recomendación de ingreso para transporte terrestre."
-            status={smartGlobalStatus(ACCESOS_PRINCIPALES, a => (accesos?.[a.id] || { status:"libre" }).status)}
-            options={ACCESO_STATUS_OPTIONS}
-            right={(() => {
-              const critical = smartCriticalItems(
-                ACCESOS_PRINCIPALES,
-                ACCESO_STATUS_OPTIONS,
-                a => (accesos?.[a.id] || { status:"libre" }).status,
-                a => a.label,
-                1
-              )[0];
-              return critical
-                ? <div className="cm-sp-critical"><span>Más crítico</span><b>{critical.label}</b></div>
-                : <div className="cm-sp-critical"><span>Operación estable</span><b>Sin accesos críticos</b></div>;
-            })()}
-          />
-
-          {accesos && (
-            <SmartTrafficSummaryBar
-              items={ACCESO_STATUS_OPTIONS.map(o => ({
-                label: o.label.replace(" / Fluido", ""),
-                value: smartCounts(ACCESOS_PRINCIPALES, a => (accesos?.[a.id] || { status:"libre" }).status)[o.id] || 0,
-                color: o.color,
-              }))}
-            />
-          )}
-
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
           <MapaAccesos accesos={accesos} />
-
           <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-
-          {!accesos ? <SkeletonCard n={3}/> : (
-            <div className="cm-sp-grid">
-              {ACCESOS_PRINCIPALES.map(acc => {
-                const st = accesos[acc.id] || { status:"libre", retornos:"none", lastUpdate:Date.now(), updatedBy:"Sistema" };
-                const retornoOpt = RETORNO_OPTIONS.find(o => o.id === (st.retornos || "none")) || RETORNO_OPTIONS[0];
-
-                return (
-                  <SmartOperationalCard
-                    key={acc.id}
-                    icon={acc.id === "patio" ? "parking" : "access-gate"}
-                    title={acc.label}
-                    subtitle={`${acc.zona} · ${retornoOpt.label}`}
-                    status={st.status}
-                    options={ACCESO_STATUS_OPTIONS}
-                    updatedAt={st.lastUpdate}
-                    updatedBy={st.updatedBy}
-                    impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "bajo"}
-                    recommendation={smartAccessRecommendation(st.status, st.retornos)}
-                    actions={
-                      <SmartStatusActionGrid
-                        options={ACCESO_STATUS_OPTIONS}
-                        currentStatus={st.status}
-                        onChange={(status) => voteAcceso(acc.id, status)}
-                      />
-                    }
-                  />
-                );
-              })}
-            </div>
-          )}
-        </section>
+          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return (
+              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div>
+                    <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
+                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {ACCESO_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
+      {/* ══════════════════════════════════════
+          SECCIÓN: VIALIDADES
+      ══════════════════════════════════════ */}
       {activeSection === "vialidades" && (
-        <section className="cm-sp-section">
-          <SmartSectionHeader
-            eyebrow="Route Status Board"
-            title="Vialidades y corredores logísticos"
-            description="Priorización de rutas hacia puerto, ciudad y corredores troncales con ranking operativo de criticidad."
-            status={smartGlobalStatus(VIALIDADES, v => (vialidades?.[v.id] || { status:"libre" }).status)}
-            options={VIALIDAD_STATUS_OPTIONS}
-            right={(() => {
-              const critical = smartCriticalItems(
-                VIALIDADES,
-                VIALIDAD_STATUS_OPTIONS,
-                v => (vialidades?.[v.id] || { status:"libre" }).status,
-                v => v.name,
-                1
-              )[0];
-              const best = [...VIALIDADES].sort((a,b) =>
-                (smartTrafficRank[(vialidades?.[a.id] || { status:"libre" }).status] ?? 0) -
-                (smartTrafficRank[(vialidades?.[b.id] || { status:"libre" }).status] ?? 0)
-              )[0];
-
-              return (
-                <div className="cm-sp-critical">
-                  <span>Vialidad crítica: {critical?.label || "Sin criticidad"}</span>
-                  <span>Mejor opción: {best?.name || "Sin dato"}</span>
-                </div>
-              );
-            })()}
-          />
-
-          {vialidades && (
-            <SmartTrafficSummaryBar
-              items={VIALIDAD_STATUS_OPTIONS.map(o => ({
-                label: o.label.replace("Tráfico ", ""),
-                value: smartCounts(VIALIDADES, v => (vialidades?.[v.id] || { status:"libre" }).status)[o.id] || 0,
-                color: o.color,
-              }))}
-            />
-          )}
-
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
           <MapaVialidades vialidades={vialidades} />
-
-          {!vialidades ? <SkeletonCard n={3}/> : (
-            <>
-              {[
-                { id:"principales", title:"Corredores principales", rows:vialidadesPrincipales },
-                { id:"urbanas", title:"Conectores urbanos", rows:vialidadesUrbanas },
-              ].map(group => (
-                <div key={group.id}>
-                  <div style={{ color:"#f8fafc", fontSize:22, fontWeight:900, margin:"8px 0 10px" }}>
-                    {group.title}
+          <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre" };
+            const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
+          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return (
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
                   </div>
-
-                  <div className="cm-sp-grid">
-                    {group.rows.map(v => {
-                      const st = vialidades[v.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
-
-                      return (
-                        <SmartOperationalCard
-                          key={v.id}
-                          icon={group.id === "principales" ? "freight-truck" : "road"}
-                          title={v.name}
-                          subtitle={v.fullName || v.name}
-                          status={st.status}
-                          options={VIALIDAD_STATUS_OPTIONS}
-                          updatedAt={st.lastUpdate}
-                          updatedBy={st.updatedBy}
-                          impact={(smartTrafficRank[st.status] ?? 0) >= 2 ? "alto" : "medio"}
-                          recommendation={smartVialidadRecommendation(st.status)}
-                          actions={
-                            <SmartStatusActionGrid
-                              options={VIALIDAD_STATUS_OPTIONS}
-                              currentStatus={st.status}
-                              onChange={(status) => voteVialidad(v.id, status)}
-                            />
-                          }
-                        />
-                      );
-                    })}
-                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
                 </div>
-              ))}
-            </>
-          )}
-        </section>
+                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
+                  {VIALIDAD_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
+      {/* ══════════════════════════════════════
+          SECCIÓN: RUTAS FISCALES
+      ══════════════════════════════════════ */}
       {activeSection === "rutas_fiscales" && (
-        <section className="cm-sp-section">
-          <SmartSectionHeader
-            eyebrow="Customs & Fiscal Corridor Dashboard"
-            title="Rutas fiscales"
-            description="Corredores regulados con lectura aduanera, impacto operativo y señalética de flujo Terminal → Aduana → Ruta → Salida."
-            status={smartGlobalStatus(RUTAS_FISCALES, r => (rutasFiscales?.[r.id] || { status:"libre" }).status)}
-            options={RUTA_FISCAL_STATUS_OPTIONS}
-          />
-
-          {rutasFiscales && (
-            <SmartTrafficSummaryBar
-              items={RUTA_FISCAL_STATUS_OPTIONS.map(o => ({
-                label: o.label.replace("Tráfico ", ""),
-                value: smartCounts(RUTAS_FISCALES, r => (rutasFiscales?.[r.id] || { status:"libre" }).status)[o.id] || 0,
-                color: o.color,
-              }))}
-            />
-          )}
-
-          <MapaRutasFiscales rutas={rutasFiscales} zona="Norte" />
-
-          {!rutasFiscales ? <SkeletonCard n={3}/> : (
-            <div className="cm-sp-grid">
-              {RUTAS_FISCALES.map(r => {
-                const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
-                const rank = smartTrafficRank[st.status] ?? 0;
-                const impact = rank >= 3 ? "crítico" : rank >= 2 ? "alto" : rank === 1 ? "medio" : "bajo";
-
-                return (
-                  <SmartOperationalCard
-                    key={r.id}
-                    icon="route"
-                    title={r.name}
-                    subtitle={`Zona ${r.zona} · Flujo fiscal regulado`}
-                    status={st.status}
-                    options={RUTA_FISCAL_STATUS_OPTIONS}
-                    updatedAt={st.lastUpdate}
-                    updatedBy={st.updatedBy}
-                    impact={impact}
-                    recommendation={smartRutaFiscalRecommendation(st.status)}
-                    actions={
-                      <SmartStatusActionGrid
-                        options={RUTA_FISCAL_STATUS_OPTIONS}
-                        currentStatus={st.status}
-                        onChange={(status) => voteRutaFiscal(r.id, status)}
-                      />
-                    }
-                  >
-                    <SmartFiscalFlow />
-                  </SmartOperationalCard>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;} }`}</style>
+          <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
+        </div>
       )}
 
+      {/* ══════════════════════════════════════
+          SECCIÓN: REPORTE
+      ══════════════════════════════════════ */}
       {activeSection === "reporte" && (
-        <section className="cm-sp-section">
-          <SmartTrafficReportPanel
-            accesos={accesos}
-            vialidades={vialidades}
-            rutasFiscales={rutasFiscales}
-            notify={notify}
-          />
+        <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
+      )}
 
-          <div style={{ border:"1px solid rgba(148,163,184,.18)", borderRadius:18, overflow:"hidden" }}>
-            <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "incidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin incidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
           </div>
-        </section>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
       )}
 
       <ToastBox toast={toast} />
+
     </div>
   );
 }
+
 
 
 
@@ -20311,7 +19995,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
             }}
           >
             <div style={{ color: steel, fontFamily: authFont, fontSize: "12px", fontWeight: 800, letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: "12px" }}>
-              Marine Logistics Framework
+              CONECT MANZANILLO
             </div>
             <h2 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "30px", lineHeight: 1.1, fontWeight: 800, letterSpacing: "-.5px" }}>
               Gestión Portuaria en Tiempo Real
