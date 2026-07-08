@@ -550,26 +550,26 @@ const TERMINALS_SUR = [
   { id: "asipona",    name: "ASIPONA",    fullName: "Recinto ASIPONA" },
 ];
 const TERMINAL_BRAND_COLORS = {
-  ssa: "#39ff14",
+  ssa: "#22c55e",
   ocupa: "#facc15",
-  friman: "#ff5c8a",
-  timsa: "#00e5ff",
-  multimodal: "#ff3dff",
-  contecon: "#ff8a00",
-  hazesa: "#e0f2fe",
-  lajunta: "#a78bfa",
-  cemex: "#7c3cff",
-  granelera: "#14f1d9",
-  asipona: "#fff200",
-  general: "#38bdf8",
+  friman: "#facc15",
+  timsa: "#0ea5e9",
+  multimodal: "#ef4444",
+  contecon: "#f97316",
+  hazesa: "#f8fafc",
+  lajunta: "#111827",
+  cemex: "#9333ea",
+  granelera: "#64748b",
+  asipona: "#a16207",
+  general: "#94a3b8",
 };
 const getTerminalBrandColor = (id) => TERMINAL_BRAND_COLORS[id] || "#94a3b8";
 
 const TERMINAL_STATUS_OPTIONS = [
-  { id: "libre",            label: "Terminal Libre",   color: "#22ff88", icon: "check" },
-  { id: "llena",            label: "Terminal Llena",   color: "#ff304f", icon: "xmark" },
-  { id: "retorno_terminal", label: "Retorno Terminal", color: "#ff8a00", icon: "return-route" },
-  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#fff200", icon: "anchor-port" },
+  { id: "libre",            label: "Terminal Libre",   color: "#14b8a6", icon: "✓" },
+  { id: "llena",            label: "Terminal Llena",   color: "#be123c", icon: "✗" },
+  { id: "retorno_terminal", label: "Retorno Terminal", color: "#b45309", icon: "↩" },
+  { id: "retorno_asipona",  label: "Retorno ASIPONA",  color: "#475569", icon: "⚓" },
 ];
 
 const INCIDENT_CATEGORIAS = [
@@ -1534,10 +1534,10 @@ const PATIOS_REGULADORES = [
 ];
 
 const PATIO_STATUS_OPTIONS = [
-  { id: "libre",    label: "Patio Libre",    color: "#22ff88", icon: "check" },
-  { id: "saturado", label: "Saturado",        color: "#ff304f", icon: "xmark" },
-  { id: "cerrado",  label: "Cerrado",         color: "#facc15", icon: "closed-gate" },
-  { id: "lleno",    label: "Patio Lleno",     color: "#ff8a00", icon: "warning-triangle" },
+  { id: "libre",    label: "Patio Libre",    color: "#22c55e", icon: "check" },
+  { id: "saturado", label: "Saturado",        color: "#ef4444", icon: "xmark" },
+  { id: "cerrado",  label: "Cerrado",         color: "#6b7280", icon: "closed-gate" },
+  { id: "lleno",    label: "Patio Lleno",     color: "#f97316", icon: "warning-triangle" },
 ];
 
 const ACCESOS_SEGUNDO = [
@@ -11494,8 +11494,6 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales }) {
           `<b>${route.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
           { sticky: true, className: "cm-tooltip", direction: "center" }
         );
-        line.on("mouseover", () => line.setStyle({ weight: 9, opacity: 1, color: "#ffffff" }));
-        line.on("mouseout", () => line.setStyle({ color, weight: 6, opacity: 0.98 }));
         layersRef.current.push(halo, line);
       });
       const refs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zName);
@@ -11513,8 +11511,6 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales }) {
         `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
         { sticky: true, className: "cm-tooltip", direction: "center" }
       );
-      layer.on("mouseover", () => layer.setStyle({ fillOpacity: 0.76, weight: 6, color: "#ffffff", dashArray: "" }));
-      layer.on("mouseout", () => layer.setStyle(cmMapPolygonStyle(color, { key: poly.id, weight: 3.5, fillOpacity: 0.54 })));
       layersRef.current.push(layer);
     });
     const terminalRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zName && r.tipo === "terminal");
@@ -11822,7 +11818,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
             {TERMINAL_STATUS_OPTIONS.map(o => {
               const isAct = st.status === o.id;
-              return <button key={o.id} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 900 : 700, boxShadow:isAct ? `0 0 18px ${o.color}66, inset 0 0 18px ${o.color}22` : "none", transform:isAct ? "translateY(-1px)" : "none" }}><IconText icon={o.icon} label={o.label} size={14} active={isAct} /></button>;
+              return <button key={o.id} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 800 : 600 }}>{o.label}</button>;
             })}
           </div>
         </div>
@@ -11847,7 +11843,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
             {RUTA_FISCAL_STATUS_OPTIONS.map(o => {
               const isAct = st.status === o.id;
-              return <button key={o.id} onClick={() => voteRutaFiscal(route.id, o.id)} style={{ padding:"10px 8px", background:isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color:isAct ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:isAct ? "900" : "700", boxShadow:isAct ? `0 0 18px ${o.color}66, inset 0 0 18px ${o.color}22` : "none", transform:isAct ? "translateY(-1px)" : "none" }}><IconText icon={o.icon} label={o.label} size={14} active={isAct} /></button>;
+              return <button key={o.id} onClick={() => voteRutaFiscal(route.id, o.id)} style={{ padding:"10px 8px", background:isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color:isAct ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:isAct ? "800" : "600" }}>{o.label}</button>;
             })}
           </div>
         </div>
@@ -11967,7 +11963,7 @@ function TypewriterTicker({ items }) {
       gap: "10px",
       minHeight: "42px",
     }}>
-      <AppIcon name="satellite" size={16} active />
+      <span style={{ fontSize: "14px", flexShrink: 0 }}>📡</span>
       <span style={{
         fontFamily: "'DM Sans', monospace",
         fontSize: "13px",
@@ -19331,10 +19327,6 @@ function PatioIdentificaMap({ myId }) {
       className: selectedId === feature.id ? "cm-tooltip patio-label patio-label-selected" : "cm-tooltip patio-label",
     });
     layer.on("click", () => setSelectedId(feature.id));
-    if (feature.type === "polygon") {
-      layer.on("mouseover", () => layer.setStyle?.({ fillOpacity: 0.74, weight: 7, color: "#ffffff" }));
-      layer.on("mouseout", () => layer.setStyle?.(featureStyle(feature)));
-    }
     return layer;
   };
 
@@ -19356,7 +19348,7 @@ function PatioIdentificaMap({ myId }) {
           pane: "markerPane",
           icon: L.divIcon({
             className: "cm-patio-pin",
-            html: `<div class="cm-patio-pin-dot ${selected ? "selected" : ""}"><span class="material-symbols-outlined" style="font-size:16px;color:#fb923c">pin_drop</span></div><div class="cm-patio-pin-label ${selected ? "selected" : ""}">${sanitize(feature.name)}</div>`,
+            html: `<div class="cm-patio-pin-dot ${selected ? "selected" : ""}">📍</div><div class="cm-patio-pin-label ${selected ? "selected" : ""}">${sanitize(feature.name)}</div>`,
             iconSize: [170, 44],
             iconAnchor: [16, 32],
           })
@@ -19651,14 +19643,14 @@ function PatioIdentificaMap({ myId }) {
       `}</style>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
         <div>
-          <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800", display:"flex", alignItems:"center", gap:"8px" }}><AppIcon name="satellite" size={18} active /> Identifica tu Patio</div>
+          <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"16px", fontWeight:"800" }}>🛰️ Identifica tu Patio</div>
           <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.58)", fontSize:"11px", marginTop:"3px" }}>
             Se cargan automáticamente los polígonos del KML. Puedes dibujar, editar, cambiar color, colocar pins y buscar patios por nombre. No se permite encimar polígonos sobre patios existentes. Los patios base están protegidos; los nuevos cambios se guardan automáticamente en Supabase para todos los usuarios.
           </div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           <span title={dbStatus.text} style={{ alignSelf:"center", padding:"6px 9px", borderRadius:"999px", border:`1px solid ${dbStatus.ok ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)"}`, background:dbStatus.ok ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)", color:dbStatus.ok ? "#22c55e" : "#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900" }}>
-            {dbStatus.ok ? "Global activo" : "Sin global"}
+            {dbStatus.ok ? "🟢 Global activo" : "🔴 Sin global"}
           </span>
           {TILE_OPTIONS.map(t => (
             <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
@@ -19667,12 +19659,12 @@ function PatioIdentificaMap({ myId }) {
       </div>
 
       <div className="patio-identifica-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-        <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}><IconText icon="map" label="Ver todos" size={14} /></button>
-        <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}><IconText icon="tag" label="Renombrar" size={14} /></button>
-        <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}><IconText icon="palette" label="Color" size={14} />
+        <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
+        <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
+        <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}>🎨 Color
           <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(e.target.value)} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
         </label>
-        <button onClick={() => fetchGlobalPatios(false)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}><IconText icon="turnover" label="Sincronizar" size={14} /></button>
+        <button onClick={() => fetchGlobalPatios(false)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🔄 Sincronizar</button>
       </div>
       <div style={{ display:"flex", gap:"7px", flexWrap:"wrap", margin:"-2px 0 10px" }}>
         {PATIO_POLYGON_COLORS.map(color => (
@@ -19836,8 +19828,8 @@ function PatioReguladorTab({ myId }) {
               {PATIO_STATUS_OPTIONS.map(o => {
                 const isAct = st.status === o.id;
                 return (
-                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 900 : 700, boxShadow:isAct ? `0 0 18px ${o.color}66, inset 0 0 18px ${o.color}22` : "none", transform:isAct ? "translateY(-1px)" : "none" }}>
-                    <IconText icon={o.icon} label={o.label} size={14} active={isAct} />
+                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                    <span>{o.label}</span>
                   </button>
                 );
               })}
@@ -19849,7 +19841,7 @@ function PatioReguladorTab({ myId }) {
       {changeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
           <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
-            <div style={{ display:"flex", justifyContent:"center", marginBottom:"10px" }}><AppIcon name="turnover" size={30} active /></div>
+            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
             <div style={{ color:"#e2e8f0", fontFamily:getFont(theme, "secondary"), fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
             <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", marginBottom:"20px" }}>
               ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#fb923c", fontWeight:"700" }}>{changeModal.label}</span>?
@@ -23075,7 +23067,6 @@ function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
 }
 
 function TerminalesPatiosTab({ myId }) {
-  const theme = React.useContext(ThemeContext);
   const [activeSubtab, setActiveSubtab] = useState(() => {
     try { return sessionStorage.getItem("terminales_patios_subtab") || "terminales"; } catch { return "terminales"; }
   });
@@ -23084,82 +23075,20 @@ function TerminalesPatiosTab({ myId }) {
     setActiveSubtab(id);
   };
   const tabs = [
-    { id: "terminales", label: "Terminales Portuarias", icon: "port-terminal", desc: "Terminales, accesos y rutas fiscales", render: () => <TerminalesTab key="terminales-portuarias" myId={myId} /> },
-    { id: "patios", label: "Gestión de Patios", icon: "container-yard", desc: "Patios reguladores y geocercas", render: () => <PatioReguladorTab key="gestion-patios" myId={myId} /> },
+    { id: "terminales", label: "Terminales Portuarias", icon: TAB_PUBLIC_ICONS.terminales || "port-terminal", render: () => <TerminalesTab myId={myId} /> },
+    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} /> },
   ];
-  const activeTab = tabs.find(t => t.id === activeSubtab) || tabs[0];
-  const accent = activeSubtab === "terminales" ? "#00e5ff" : "#ff8a00";
-  const secondary = activeSubtab === "terminales" ? "#ff3dff" : "#22ff88";
-
   return (
-    <div className="tp-command-root">
-      <style>{`
-        .tp-command-root{padding:16px 16px 96px;min-height:100vh;background:linear-gradient(180deg,rgba(2,6,23,.10),rgba(2,6,23,.34));}
-        .tp-command-shell{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:14px;}
-        .tp-visual{position:relative;overflow:hidden;border-radius:22px;border:1px solid ${accent}55;background:radial-gradient(circle at 16% 20%,${accent}22 0,transparent 30%),radial-gradient(circle at 86% 12%,${secondary}18 0,transparent 26%),linear-gradient(135deg,rgba(4,12,24,.96),rgba(10,22,40,.86));box-shadow:0 18px 46px rgba(0,0,0,.38),0 0 30px ${accent}18;min-height:clamp(210px,28vh,310px);}
-        .tp-visual:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:36px 36px;opacity:.46;pointer-events:none;}
-        .tp-visual:after{content:"";position:absolute;left:-20%;right:-20%;top:0;height:70px;background:linear-gradient(180deg,${accent}16,transparent);animation:tpScan 4.5s linear infinite;pointer-events:none;}
-        .tp-visual-inner{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px;padding:22px;height:100%;box-sizing:border-box;align-items:stretch;}
-        .tp-title{font-family:${getFont(theme,"title")};font-size:clamp(24px,4vw,42px);font-weight:950;letter-spacing:-.04em;color:#fff;line-height:1.02;text-transform:uppercase;}
-        .tp-subtitle{font-family:${getFont(theme,"secondary")};font-size:12px;line-height:1.65;color:rgba(226,232,240,.66);max-width:760px;margin-top:8px;}
-        .tp-kicker{display:inline-flex;align-items:center;gap:8px;border:1px solid ${accent}55;background:${accent}12;color:${accent};border-radius:999px;padding:7px 11px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;}
-        .tp-radar{position:relative;min-height:180px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(2,6,23,.48);overflow:hidden;box-shadow:inset 0 0 0 1px ${accent}1f;}
-        .tp-radar svg{position:absolute;inset:0;width:100%;height:100%;}
-        .tp-radar .node{filter:drop-shadow(0 0 8px currentColor);}
-        .tp-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:rgba(4,12,24,.72);border:1px solid rgba(255,255,255,.09);border-radius:20px;padding:8px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
-        .tp-nav-btn{position:relative;min-height:74px;border:0;border-radius:16px;background:rgba(255,255,255,.035);color:rgba(226,232,240,.58);display:flex;align-items:center;gap:12px;padding:12px 14px;text-align:left;cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;color .18s ease;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);}
-        .tp-nav-btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.06);color:#fff;}
-        .tp-nav-btn.is-active{background:linear-gradient(135deg,${accent}25,rgba(255,255,255,.045));color:#fff;box-shadow:inset 0 0 0 1px ${accent}80,0 12px 30px ${accent}22,0 0 26px ${accent}18;}
-        .tp-nav-btn.is-active:after{content:"";position:absolute;left:14px;right:14px;bottom:7px;height:2px;border-radius:999px;background:${accent};box-shadow:0 0 12px ${accent};}
-        .tp-nav-label{font-family:${getFont(theme,"secondary")};font-size:13px;font-weight:950;letter-spacing:.02em;text-transform:uppercase;color:inherit;}
-        .tp-nav-desc{font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(226,232,240,.40);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;}
-        .tp-dynamic-panel{border-radius:22px;border:1px solid rgba(255,255,255,.10);background:rgba(4,12,24,.42);box-shadow:0 14px 38px rgba(0,0,0,.24);overflow:hidden;animation:tpPanelIn .22s ease both;}
-        .tp-dynamic-panel > div{margin:0!important;}
-        @keyframes tpPanelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes tpScan{0%{transform:translateY(-80px)}100%{transform:translateY(340px)}}
-        @media(max-width:820px){.tp-visual-inner{grid-template-columns:1fr}.tp-radar{min-height:150px}.tp-nav{grid-template-columns:1fr}.tp-command-root{padding:12px 12px 92px}}
-      `}</style>
-      <div className="tp-command-shell">
-        <section className="tp-visual" aria-label="Visor visual de Terminales y Patios">
-          <div className="tp-visual-inner">
-            <div>
-              <div className="tp-kicker"><AppIcon name={activeTab.icon} size={15} active /> CENTRO DE MANDO LOGÍSTICO</div>
-              <div className="tp-title">Terminales y Patios</div>
-              <div className="tp-subtitle">Visor operativo con renderizado single-view. Al cambiar entre módulos, el contenedor dinámico desmonta la vista anterior y carga únicamente la sección seleccionada, preservando sincronización Supabase, mapas, estados y herramientas.</div>
-            </div>
-            <div className="tp-radar" aria-hidden="true">
-              <svg viewBox="0 0 420 220" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="tpLine" x1="0" x2="1"><stop offset="0" stopColor={accent} stopOpacity=".2"/><stop offset="1" stopColor={secondary} stopOpacity=".9"/></linearGradient>
-                  <filter id="tpGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                </defs>
-                <path d="M20 172 C95 96, 150 190, 226 92 S340 90, 400 34" fill="none" stroke="url(#tpLine)" strokeWidth="4" filter="url(#tpGlow)"/>
-                <path d="M50 45 L370 45 L370 176 L50 176 Z" fill="none" stroke={accent} strokeOpacity=".25" strokeWidth="1.5" strokeDasharray="8 8"/>
-                {[60,135,226,315,382].map((x,i)=><circle key={i} className="node" cx={x} cy={[155,118,92,112,48][i]} r={i===2?8:6} fill={i===2?secondary:accent} opacity=".95"/>)}
-              </svg>
-            </div>
-          </div>
-        </section>
-
-        <nav className="tp-nav" role="tablist" aria-label="Vistas de Terminales y Patios">
-          {tabs.map(tab => (
-            <button key={tab.id} type="button" role="tab" aria-selected={activeSubtab === tab.id} className={`tp-nav-btn ${activeSubtab === tab.id ? "is-active" : ""}`} onClick={() => setPersisted(tab.id)}>
-              <AppIcon name={tab.icon} size={26} active={activeSubtab === tab.id} />
-              <span>
-                <span className="tp-nav-label">{tab.label}</span>
-                <span className="tp-nav-desc">{tab.desc}</span>
-              </span>
-            </button>
-          ))}
-        </nav>
-
-        <main className="tp-dynamic-panel" key={activeSubtab}>
-          {activeTab.render()}
-        </main>
-      </div>
-    </div>
+    <SectionSubTabs
+      title="Terminales y Patios"
+      subtitle="Estado de terminales portuarias y patios reguladores en una sola sección con navegación rápida para turnos operativos."
+      tabs={tabs}
+      active={activeSubtab}
+      onChange={setPersisted}
+    />
   );
 }
+
 
 function App() {
   const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
