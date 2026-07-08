@@ -8861,15 +8861,24 @@ function MapaVialidades({ vialidades }) {
 
 // ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
 const MAP_TILES = [
-  { id: "dark",      label: "Noche",    icon: "moon",
+  { id: "dark",      label: "Nocturno", icon: "moon",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    labels: null },
+  { id: "streets",   label: "Calles",   icon: "map",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    labels: null },
+  { id: "light",     label: "Claro",    icon: "sun",
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     labels: null },
   { id: "satellite", label: "Satélite", icon: "satellite",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-  { id: "light",     label: "Claro",    icon: "sun",
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    labels: null },
+];
+
+const REPORT_MAP_FILTERS = [
+  { id: "ambos", label: "Ambos", icon: "radar", color: "#00f2ea" },
+  { id: "incidente", label: "Incidente", icon: "warning-triangle", color: "#f97316" },
+  { id: "accidente", label: "Accidente", icon: "collision", color: "#ef4444" },
 ];
 
 // Normaliza coordenadas de reportes guardadas como {lat,lng}, [lat,lng] o strings numéricos.
@@ -8894,6 +8903,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   const previewCoordsRef = useRef(null);   // stores latest coords even before map is ready
   const previewTypeRef   = useRef("incidente");
   const [tileMode, setTileMode] = useState("dark");
+  const [reportMapFilter, setReportMapFilter] = useState("ambos");
   const [mapReady, setMapReady] = useState(false);
 
   // Sync preview props to refs immediately (synchronous, before any effects run)
@@ -8901,12 +8911,15 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   previewTypeRef.current   = previewType;
 
   // En modo Reportar usamos un mapa limpio: sin rutas, terminales ni accesos; solo pins del tipo elegido.
-  const reportPinType = reportTypeFilter || previewType;
+  const effectiveReportFilter = cleanReportMap ? reportMapFilter : (reportTypeFilter || previewType);
   const shouldShowIncidentOnMap = (inc) => {
     if (!inc || inc.resolved || !getIncidentLatLng(inc)) return false;
-    // En Reportar, mostrar todos los reportes no resueltos de la categoría seleccionada,
-    // incluso si todavía están pendientes de validación comunitaria (visible === false).
-    if (cleanReportMap) return inc.type === reportPinType;
+    // En Reportar, el visor del mapa permite alternar entre incidentes, accidentes o ambos.
+    // No depende del tipo que esté abierto en el modal para evitar ocultar contexto operativo.
+    if (cleanReportMap) {
+      if (effectiveReportFilter === "ambos") return inc.type === "incidente" || inc.type === "accidente";
+      return inc.type === effectiveReportFilter;
+    }
     // En el mapa general de Tráfico, mantener el comportamiento original: solo visibles/activos.
     return !!inc.visible;
   };
@@ -9307,7 +9320,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         map.fitBounds(bounds.pad(0.35), { maxZoom: 16, animate: true });
       } catch {}
     }
-  }, [mapReady, JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, reportPinType]);
+  }, [mapReady, JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, effectiveReportFilter]);
 
   // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
   const applyPreviewPin = (coords, type) => {
@@ -9384,22 +9397,48 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     <div>
       {/* Mapa */}
       <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 32px rgba(0,0,0,0.5)", marginBottom: "14px" }}>
-        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "13px" }}>🗺️</span>
-          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>Mapa del Puerto</span>
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· tráfico en tiempo real</span>
-          <div style={{ marginLeft: "auto", display: "flex", gap: "4px", alignItems: "center" }}>
-            {MAP_TILES.map(t => (
-              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
-                padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
-                background: tileMode === t.id ? "#38bdf8" : "rgba(255,255,255,0.08)",
-                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
-                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
-              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
-            ))}
+        <div style={{ padding: "10px 14px", background: cleanReportMap ? "rgba(2,6,23,0.86)" : "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px", flexWrap:"wrap" }}>
+          <AppIcon name={cleanReportMap ? "radar" : "map"} size={16} active />
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", textTransform: cleanReportMap ? "uppercase" : "none", letterSpacing: cleanReportMap ? "0.06em" : 0 }}>
+            {cleanReportMap ? "Visor Sentinel" : "Mapa del Puerto"}
+          </span>
+          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>
+            {cleanReportMap ? "· incidentes georreferenciados" : "· tráfico en tiempo real"}
+          </span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "7px", alignItems: "center", flexWrap:"wrap", justifyContent:"flex-end" }}>
+            {cleanReportMap && (
+              <div style={{ display:"flex", alignItems:"center", gap:"4px", padding:"3px", borderRadius:"10px", background:"rgba(0,0,0,0.34)", border:"1px solid rgba(255,255,255,0.10)" }}>
+                {REPORT_MAP_FILTERS.map(f => {
+                  const active = reportMapFilter === f.id;
+                  return (
+                    <button key={f.id} onClick={() => setReportMapFilter(f.id)} style={{
+                      display:"inline-flex", alignItems:"center", gap:"5px", padding:"5px 8px", borderRadius:"8px", border:`1px solid ${active ? f.color : "transparent"}`, cursor:"pointer",
+                      background: active ? `${f.color}24` : "transparent", color: active ? f.color : "rgba(255,255,255,0.56)",
+                      fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:900, textTransform:"uppercase", letterSpacing:"0.04em"
+                    }}>
+                      <AppIcon name={f.id === "accidente" ? "collision" : f.icon} size={14} active={active} />
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display:"flex", alignItems:"center", gap:"4px", padding:"3px", borderRadius:"10px", background:"rgba(0,0,0,0.34)", border:"1px solid rgba(0,242,234,0.16)" }}>
+              <span title="Vistas del mapa" style={{ width:28, height:28, borderRadius:"8px", display:"inline-flex", alignItems:"center", justifyContent:"center", background:"rgba(0,242,234,0.10)", border:"1px solid rgba(0,242,234,0.25)" }}>
+                <AppIcon name="window" size={15} active />
+              </span>
+              {MAP_TILES.map(t => (
+                <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                  display:"inline-flex", alignItems:"center", gap:"5px", padding: "5px 8px", borderRadius: "8px", border: `1px solid ${tileMode === t.id ? "rgba(56,189,248,0.8)" : "transparent"}`, cursor: "pointer",
+                  background: tileMode === t.id ? "#38bdf8" : "transparent",
+                  color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.56)",
+                  fontFamily: "JetBrains Mono, monospace", fontSize: "10px", fontWeight: tileMode === t.id ? "900" : "700", textTransform:"uppercase", letterSpacing:"0.03em",
+                }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
+              ))}
+            </div>
             {activeIncidents.length > 0 && (
-              <span style={{ background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "2px 9px", fontSize: "11px", color: "#ef4444", fontFamily: getFont(theme, "secondary"), fontWeight: "700", marginLeft: "4px" }}>
-                {activeIncidents.length} incidente{activeIncidents.length > 1 ? "s" : ""}
+              <span style={{ background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "4px 9px", fontSize: "10px", color: "#ef4444", fontFamily: "JetBrains Mono, monospace", fontWeight: "900", marginLeft: "2px", textTransform:"uppercase" }}>
+                {activeIncidents.length} activo{activeIncidents.length > 1 ? "s" : ""}
               </span>
             )}
           </div>
