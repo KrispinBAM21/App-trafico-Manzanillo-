@@ -298,274 +298,6 @@ const DEFAULT_THEME = {
 // Validado FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
 const ThemeContext = React.createContext(DEFAULT_THEME);
 
-
-// ─── LOGISTICS COMMAND CENTER · TRÁFICO CENTRALIZADO ────────────────────────
-const TrafficDataContext = React.createContext(null);
-
-const MATERIAL_SYMBOLS_LINK_ID = "cm-material-symbols-font";
-(function injectMaterialSymbolsFont() {
-  try {
-    if (typeof document === "undefined" || document.getElementById(MATERIAL_SYMBOLS_LINK_ID)) return;
-    const link = document.createElement("link");
-    link.id = MATERIAL_SYMBOLS_LINK_ID;
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap";
-    document.head.appendChild(link);
-  } catch {}
-})();
-
-function MaterialIcon({ name, size = 20, style = {} }) {
-  return (
-    <span
-      className="material-symbols-outlined"
-      aria-hidden="true"
-      style={{
-        fontFamily: "'Material Symbols Outlined'",
-        fontVariationSettings: "'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24",
-        fontSize: size,
-        lineHeight: 1,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        ...style
-      }}
-    >
-      {name}
-    </span>
-  );
-}
-
-const OPERATIONAL_STATUS_META = {
-  libre:    { label: "Libre",    short: "LIBRE",    color: "#22c55e", icon: "check_circle", pct: 18 },
-  lento:    { label: "Lento",    short: "LENTO",    color: "#eab308", icon: "speed", pct: 45 },
-  moderado: { label: "Moderado", short: "LENTO",    color: "#eab308", icon: "speed", pct: 52 },
-  saturado: { label: "Saturado", short: "SATURADO", color: "#f97316", icon: "warning", pct: 78 },
-  detenido: { label: "Detenido", short: "DETENIDO", color: "#ef4444", icon: "block", pct: 100 },
-  cerrado:  { label: "Cerrado",  short: "CERRADO",  color: "#ef4444", icon: "lock", pct: 100 },
-};
-
-const normalizeOperationalStatus = (status) => {
-  const clean = String(status || "libre").toLowerCase();
-  return OPERATIONAL_STATUS_META[clean] ? clean : "libre";
-};
-
-const getOperationalStatusMeta = (status) => OPERATIONAL_STATUS_META[normalizeOperationalStatus(status)] || OPERATIONAL_STATUS_META.libre;
-
-const operationalOptionsFor = (options = []) => options.map(o => {
-  const normalized = normalizeOperationalStatus(o.id);
-  const meta = getOperationalStatusMeta(normalized);
-  return {
-    id: o.id,
-    label: normalized === "moderado" ? "Lento" : meta.label,
-    short: normalized === "cerrado" ? "STOP" : meta.short,
-    color: meta.color,
-    icon: meta.icon,
-  };
-});
-
-function OperationalSelector({ value, options, onChange, disabled = false, compact = false, ariaLabel = "Selector operativo" }) {
-  const normalizedValue = normalizeOperationalStatus(value);
-  const renderedOptions = operationalOptionsFor(options);
-  return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      className="cm-operational-selector"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: compact ? 3 : 4,
-        padding: compact ? 3 : 4,
-        borderRadius: 999,
-        background: "rgba(0,0,0,0.42)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)",
-        maxWidth: "100%",
-        overflowX: "auto",
-        WebkitOverflowScrolling: "touch"
-      }}
-    >
-      {renderedOptions.map(o => {
-        const isActive = normalizeOperationalStatus(o.id) === normalizedValue || o.id === value;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={isActive}
-            disabled={disabled}
-            onClick={() => !disabled && onChange?.(o.id)}
-            title={o.label}
-            style={{
-              minWidth: compact ? 72 : 86,
-              minHeight: compact ? 34 : 38,
-              padding: compact ? "8px 10px" : "9px 13px",
-              borderRadius: 999,
-              border: `1px solid ${isActive ? o.color : "transparent"}`,
-              background: isActive ? o.color : "rgba(255,255,255,0.03)",
-              color: isActive ? "#ffffff" : "rgba(226,232,240,0.58)",
-              fontFamily: "'JetBrains Mono','DM Sans',monospace",
-              fontSize: compact ? 10 : 11,
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              cursor: disabled ? "not-allowed" : "pointer",
-              transition: "transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease, border-color .18s ease",
-              boxShadow: isActive ? `0 0 16px ${o.color}70, inset 0 -1px 0 rgba(0,0,0,0.18)` : "none",
-              opacity: disabled ? 0.6 : 1,
-              whiteSpace: "nowrap"
-            }}
-          >
-            {o.short}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-const MAP_CONFIG = {
-  vialidades: [
-    { id:"jalipa_puerto", label:"Jalipa - Puerto", points:"82,245 145,226 232,205 325,184 445,164 565,146 685,127 805,108", width:18 },
-    { id:"puerto_jalipa", label:"Puerto - Jalipa", points:"100,296 185,274 285,252 392,230 512,209 626,187 752,164 878,142", width:18 },
-    { id:"libramiento", label:"Cihuatlán - Manzanillo", points:"112,355 229,331 350,303 465,274 581,244 704,214 830,184", width:18 },
-    { id:"mzllo_colima", label:"Manzanillo - Colima", points:"162,402 265,382 370,356 468,326 575,290 687,250 797,212", width:16 },
-    { id:"colima_mzllo", label:"Colima - Manzanillo", points:"198,453 294,428 394,397 492,360 598,318 714,273 835,230", width:16 },
-    { id:"algodones", label:"Algodones", points:"344,470 395,410 452,352 521,306 600,270", width:14 },
-    { id:"antonio_suarez", label:"Antonio Suárez", points:"466,485 509,424 560,371 623,327 695,292", width:14 },
-    { id:"av_trabajo", label:"Av. del Trabajo", points:"562,502 604,438 657,383 724,334 794,292", width:14 },
-  ],
-  accesos: [
-    { id:"pezvela", label:"Pez Vela", cx:790, cy:208 },
-    { id:"puerta15", label:"Puerta 15", cx:845, cy:170 },
-    { id:"zonanorte", label:"Zona Norte", cx:665, cy:120 },
-    { id:"patio", label:"Patio Regulador", cx:620, cy:355 },
-  ],
-  rutas_fiscales: [
-    { id:"contecon_ruta", label:"CONTECON", points:"662,118 705,150 754,183 810,218", width:13 },
-    { id:"hazesa_ruta", label:"HAZESA", points:"704,206 765,190 830,172 891,154", width:13 },
-    { id:"ssa_ruta", label:"SSA", points:"610,278 682,267 760,255 840,242", width:13 },
-    { id:"timsa_ruta", label:"TIMSA", points:"560,332 634,315 710,298 784,280", width:13 },
-  ],
-  terminales: [
-    { id:"contecon", label:"CONTECON", x:690, y:78, w:66, h:38 },
-    { id:"hazesa", label:"HAZESA", x:790, y:112, w:66, h:38 },
-    { id:"timsa", label:"TIMSA", x:725, y:310, w:58, h:34 },
-    { id:"ssa", label:"SSA", x:800, y:302, w:58, h:34 },
-    { id:"ocupa", label:"OCUPA", x:876, y:284, w:58, h:34 },
-    { id:"asipona", label:"ASIPONA", x:624, y:292, w:62, h:34 },
-  ]
-};
-
-function UnifiedMap({ trafficData, onSelectItem }) {
-  const data = trafficData || {};
-  const getItemStatus = (section, id) => data?.[section]?.[id]?.status || "libre";
-  const colorFor = (section, id) => getOperationalStatusMeta(getItemStatus(section, id)).color;
-  const trafficItems = [
-    ...VIALIDADES.map(v => ({ id:v.id, section:"vialidades", name:v.name, status:getItemStatus("vialidades", v.id) })),
-    ...RUTAS_FISCALES.slice(0, 4).map(r => ({ id:r.id, section:"rutas_fiscales", name:r.name, status:getItemStatus("rutasFiscales", r.id) || getItemStatus("rutas_fiscales", r.id) })),
-    ...ACCESOS_PRINCIPALES.map(a => ({ id:a.id, section:"accesos", name:a.label, status:getItemStatus("accesos", a.id) })),
-  ];
-  const critical = trafficItems.filter(x => ["saturado", "detenido", "cerrado"].includes(normalizeOperationalStatus(x.status)));
-  return (
-    <section className="cm-command-panel" style={{ marginBottom: 18 }}>
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, padding:"16px 18px 0" }}>
-        <div>
-          <div className="cm-kicker">Mapa Maestro SVG</div>
-          <h2 className="cm-panel-title" style={{ margin: "4px 0 0" }}>Centro de Control Unificado</h2>
-          <p className="cm-panel-copy" style={{ marginTop: 7 }}>Vialidades, rutas fiscales, accesos y terminales responden a una sola fuente de verdad.</p>
-        </div>
-        <div className="cm-live-chip"><MaterialIcon name="sensors" size={17} /> DATA FEED ACTIVO</div>
-      </div>
-      <div className="cm-unified-grid">
-        <div className="cm-unified-map-wrap">
-          <svg viewBox="0 0 960 560" role="img" aria-label="Mapa maestro de tráfico portuario" style={{ width:"100%", height:"100%", display:"block" }}>
-            <defs>
-              <filter id="cmMapGlow" x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="5" result="coloredBlur" />
-                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-              </filter>
-              <pattern id="cmGrid" width="56" height="56" patternUnits="userSpaceOnUse">
-                <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(96,165,250,0.10)" strokeWidth="1" />
-              </pattern>
-              <linearGradient id="cmWater" x1="0" x2="1" y1="0" y2="1">
-                <stop stopColor="#0b2038" offset="0"/><stop stopColor="#07324a" offset="1"/>
-              </linearGradient>
-            </defs>
-            <rect x="0" y="0" width="960" height="560" fill="#071426" />
-            <rect x="0" y="0" width="960" height="560" fill="url(#cmGrid)" />
-            <path d="M612 88 C706 48 819 60 900 118 C861 132 811 139 762 137 C705 136 654 119 612 88Z" fill="url(#cmWater)" stroke="rgba(125,211,252,0.22)" strokeWidth="2" />
-            <path d="M512 305 C618 232 744 201 928 186 L928 500 L512 500Z" fill="rgba(14,165,233,0.12)" stroke="rgba(125,211,252,0.18)" strokeWidth="2" />
-            <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-              {MAP_CONFIG.vialidades.map(seg => {
-                const color = colorFor("vialidades", seg.id);
-                return (
-                  <g key={seg.id} onClick={() => onSelectItem?.("vialidades", seg.id)} style={{ cursor:"pointer" }}>
-                    <polyline points={seg.points} stroke="rgba(0,0,0,0.40)" strokeWidth={seg.width + 8} />
-                    <polyline points={seg.points} stroke={color} strokeWidth={seg.width} filter="url(#cmMapGlow)" />
-                    <polyline points={seg.points} stroke="rgba(255,255,255,0.38)" strokeWidth="2" strokeDasharray="10 16" />
-                  </g>
-                );
-              })}
-              {MAP_CONFIG.rutas_fiscales.map(seg => {
-                const color = colorFor("rutas_fiscales", seg.id);
-                return (
-                  <g key={seg.id} onClick={() => onSelectItem?.("rutas_fiscales", seg.id)} style={{ cursor:"pointer" }}>
-                    <polyline points={seg.points} stroke="rgba(0,0,0,0.45)" strokeWidth={seg.width + 8} />
-                    <polyline points={seg.points} stroke={color} strokeWidth={seg.width} filter="url(#cmMapGlow)" strokeDasharray="18 8" />
-                  </g>
-                );
-              })}
-            </g>
-            <g>
-              {MAP_CONFIG.terminales.map(t => (
-                <g key={t.id}>
-                  <rect x={t.x} y={t.y} width={t.w} height={t.h} rx="7" fill="rgba(15,23,42,0.74)" stroke="rgba(125,211,252,0.42)" strokeWidth="2" />
-                  <text x={t.x + t.w / 2} y={t.y + t.h + 16} fill="rgba(203,213,225,0.64)" fontSize="10" fontFamily="JetBrains Mono, monospace" textAnchor="middle">{t.label}</text>
-                </g>
-              ))}
-              {MAP_CONFIG.accesos.map(a => {
-                const color = colorFor("accesos", a.id);
-                return (
-                  <g key={a.id} onClick={() => onSelectItem?.("accesos", a.id)} style={{ cursor:"pointer" }}>
-                    <circle cx={a.cx} cy={a.cy} r="20" fill={color} opacity="0.24" filter="url(#cmMapGlow)" />
-                    <circle cx={a.cx} cy={a.cy} r="13" fill={color} stroke="rgba(255,255,255,0.78)" strokeWidth="2" />
-                    <text x={a.cx} y={a.cy + 4} fill="#fff" fontSize="8" fontFamily="JetBrains Mono, monospace" textAnchor="middle" fontWeight="800">GATE</text>
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
-        </div>
-        <aside className="cm-index-panel">
-          <div className="cm-kicker">Índice operativo</div>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginTop:8 }}>
-            <strong style={{ color:"#fff", fontSize:22 }}>{critical.length} puntos críticos</strong>
-            <span className="cm-live-chip" style={{ color: critical.length ? "#f97316" : "#22c55e", borderColor: critical.length ? "rgba(249,115,22,0.34)" : "rgba(34,197,94,0.34)" }}>
-              <MaterialIcon name={critical.length ? "warning" : "check_circle"} size={16} /> {critical.length ? "ATENCIÓN" : "ESTABLE"}
-            </span>
-          </div>
-          <div style={{ display:"grid", gap:10, marginTop:16, maxHeight:390, overflowY:"auto", paddingRight:4 }}>
-            {trafficItems.slice(0, 10).map(item => {
-              const meta = getOperationalStatusMeta(item.status);
-              return (
-                <button key={`${item.section}-${item.id}`} type="button" onClick={() => onSelectItem?.(item.section, item.id)} className="cm-index-card" style={{ borderColor:`${meta.color}33` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", gap:10 }}>
-                    <span style={{ color:"#f8fafc", fontWeight:800 }}>{item.name}</span>
-                    <span style={{ color:meta.color, fontFamily:"JetBrains Mono, monospace", fontSize:11, fontWeight:900 }}>{meta.short}</span>
-                  </div>
-                  <div style={{ marginTop:10, height:5, background:"rgba(255,255,255,0.07)", borderRadius:999, overflow:"hidden" }}>
-                    <div style={{ width:`${meta.pct}%`, height:"100%", background:meta.color, boxShadow:`0 0 12px ${meta.color}` }} />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-      </div>
-    </section>
-  );
-}
-
 // ─── ICONOS REALISTAS SVG (sin dependencias externas) ───────────────────────
 function AppIcon({ name, size = 20, active = false, style = {} }) {
   const iconAliases = {
@@ -1755,14 +1487,12 @@ function RutasFiscalesSection({ rutasFiscales, voteRutaFiscal }) {
                 </div>
                 <div style={{ background:curOpt.color+"22", border:`1px solid ${curOpt.color}66`, color:curOpt.color, padding:"4px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", flexShrink:0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
               </div>
-              <div className="ruta-fiscal-btn-grid" style={{ display:"flex", justifyContent:"flex-end", overflowX:"auto", paddingTop:"2px" }}>
-                <OperationalSelector
-                  value={st.status}
-                  options={RUTA_FISCAL_STATUS_OPTIONS}
-                  onChange={(next) => voteRutaFiscal(r.id, next)}
-                  compact
-                  ariaLabel={`Estado fiscal ${r.name}`}
-                />
+              <div className="ruta-fiscal-btn-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+                {RUTA_FISCAL_STATUS_OPTIONS.map(o => (
+                  <button key={o.id} onClick={() => voteRutaFiscal(r.id, o.id)} style={{ padding:"10px 8px", background:st.status===o.id ? o.color+"33" : "#0a1628", border:`1px solid ${st.status===o.id ? o.color : "#1e3a5f"}`, borderRadius:"7px", color:st.status===o.id ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:st.status===o.id ? "700" : "400" }}>
+                    <span>{o.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           );
@@ -7800,14 +7530,14 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
-      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "Admin" };
+      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
       setAccesos(prev => ({ ...prev, [id]: entry }));
       persistStatusEntry("accesos", id, entry);
-      await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "Admin", pending_voters: {} });
-      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
+      await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"⚡ Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
       await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
-      notify(`${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
-      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado por Admin", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
+      notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
     }
     const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
@@ -7821,7 +7551,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app", metadata:{ retornos: acc.retornos || "none" } });
     await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
-    notify(`Acceso actualizado: ${label}`, "#22c55e");
+    notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
   };
 
@@ -7831,13 +7561,13 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     if (isAdmin) {
-      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "Admin" };
+      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
       setVialidades(prev => ({ ...prev, [id]: entry }));
       persistStatusEntry("vialidades", id, entry);
-      await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "Admin", pending_voters: {} });
-      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"Admin", source:"admin" });
+      await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"⚡ Admin", source:"admin" });
       await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
-      notify(`${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
       return;
     }
     const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
@@ -7851,7 +7581,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
     await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app" });
     await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
-    notify(`${vName}: ${label}`, "#22c55e");
+    notify(`✓ ${vName}: ${label}`, "#22c55e");
     await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
   };
 
@@ -7871,7 +7601,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
     await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
     await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
-    notify(`${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
@@ -7920,202 +7650,190 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     notify(resolved ? "✓ Resuelto" : `Voto ${Object.keys(rv).length}/3`, "#38bdf8");
   };
 
-  const scrollToCommandSection = (id) => {
-    try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {}
-  };
-
-  const trafficData = useMemo(() => ({ accesos, vialidades, rutasFiscales, rutas_fiscales: rutasFiscales }), [accesos, vialidades, rutasFiscales]);
-  const trafficContextValue = useMemo(() => ({ trafficData, setAccesos, setVialidades, setRutasFiscales, voteAcceso, voteVialidad, voteRutaFiscal }), [trafficData, voteAcceso, voteVialidad, voteRutaFiscal]);
-
-  const renderAccesosSection = () => (
-    <section id="cm-traffic-accesos" className="cm-command-section">
-      <div className="cm-section-heading">
-        <div className="cm-section-icon"><MaterialIcon name="login" size={22} /></div>
-        <div>
-          <div className="cm-kicker">Control táctico</div>
-          <h2>Estado de Accesos</h2>
-        </div>
-      </div>
-      <MapaAccesos accesos={accesos} />
-      <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
-        const st = accesos[acc.id] || { status: "libre" };
-        const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-        return { text: `${acc.label} - ${opt.label.toUpperCase()}`, color: opt.color };
-      })} />
-      {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
-        const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
-        const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-        return (
-          <article key={acc.id} className="cm-command-row" style={{ borderColor: `${curOpt.color}44` }}>
-            <div className="cm-row-main">
-              <div>
-                <div className="cm-row-label">{acc.label}</div>
-                <div className="cm-row-meta">{acc.zona} · {timeAgo(st.lastUpdate)} · {String(st.updatedBy || "Sistema").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "")}</div>
-              </div>
-              <div className="cm-status-pill" style={{ color: curOpt.color, borderColor: `${curOpt.color}66`, background: `${curOpt.color}22` }}>
-                <MaterialIcon name={getOperationalStatusMeta(st.status).icon} size={16} /> {getOperationalStatusMeta(st.status).short}
-              </div>
-            </div>
-            <div className="cm-row-controls">
-              <span className="cm-control-label">ESTADO OPERATIVO</span>
-              <OperationalSelector value={st.status} options={ACCESO_STATUS_OPTIONS} onChange={(next) => voteAcceso(acc.id, next)} ariaLabel={`Estado de ${acc.label}`} />
-            </div>
-          </article>
-        );
-      })}
-    </section>
-  );
-
-  const renderVialidadesSection = () => (
-    <section id="cm-traffic-vialidades" className="cm-command-section">
-      <div className="cm-section-heading">
-        <div className="cm-section-icon"><MaterialIcon name="conversion_path" size={22} /></div>
-        <div>
-          <div className="cm-kicker">Subsección detallada</div>
-          <h2>Vialidades</h2>
-        </div>
-      </div>
-      <MapaVialidades vialidades={vialidades} />
-      <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
-        const st = vialidades[v.id] || { status: "libre" };
-        const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-        return { text: `${v.name} - ${opt.label.toUpperCase()}`, color: opt.color };
-      })} />
-      <div className="cm-command-list">
-        {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
-          const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-          return (
-            <article key={v.id} className="cm-command-row" style={{ borderColor: `${curOpt.color}44` }}>
-              <div className="cm-row-main">
-                <div>
-                  <div className="cm-row-label">{v.name}</div>
-                  <div className="cm-row-meta">{v.fullName} · {timeAgo(st.lastUpdate)} · {String(st.updatedBy || "Sistema").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "")}</div>
-                </div>
-                <div className="cm-status-pill" style={{ color: curOpt.color, borderColor: `${curOpt.color}66`, background: `${curOpt.color}22` }}>
-                  <MaterialIcon name={getOperationalStatusMeta(st.status).icon} size={16} /> {getOperationalStatusMeta(st.status).short}
-                </div>
-              </div>
-              <div className="cm-row-controls">
-                <span className="cm-control-label">VOTACIÓN OPERATIVA</span>
-                <OperationalSelector value={st.status} options={VIALIDAD_STATUS_OPTIONS} onChange={(next) => voteVialidad(v.id, next)} ariaLabel={`Estado de ${v.name}`} />
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-
-  const renderRutasFiscalesSection = () => (
-    <section id="cm-traffic-rutas" className="cm-command-section">
-      <div className="cm-section-heading">
-        <div className="cm-section-icon cm-section-icon-purple"><MaterialIcon name="route" size={22} /></div>
-        <div>
-          <div className="cm-kicker">Subsección detallada</div>
-          <h2>Rutas Fiscales</h2>
-        </div>
-      </div>
-      <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
-    </section>
-  );
-
-  const renderReportSection = () => (
-    <section id="cm-traffic-reporte" className="cm-command-section">
-      <div className="cm-section-heading">
-        <div className="cm-section-icon cm-section-icon-orange"><MaterialIcon name="analytics" size={22} /></div>
-        <div>
-          <div className="cm-kicker">Exportación y resumen</div>
-          <h2>Reporte Operativo</h2>
-        </div>
-      </div>
-      <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
-    </section>
-  );
-
-  if (hideSubnav && defaultSection === "accesos") {
-    return (
-      <TrafficDataContext.Provider value={trafficContextValue}>
-        <div className="cm-command-root cm-command-root-embedded">
-          <CommandCenterStyles />
-          {renderAccesosSection()}
-          <ToastBox toast={toast} />
-        </div>
-      </TrafficDataContext.Provider>
-    );
-  }
+  const sections = [
+    { id: "mapa",        label: "Mapa",        icon: "map" },
+    { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+    { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
+  ];
 
   return (
-    <TrafficDataContext.Provider value={trafficContextValue}>
-      <div className="cm-command-root">
-        <CommandCenterStyles />
-        <header className="cm-command-hero">
-          <div>
-            <div className="cm-kicker">Logistics Command Center</div>
-            <h1>Tráfico en Tiempo Real</h1>
-            <p>Estado centralizado para vialidades, rutas fiscales, accesos y referencias portuarias. Cada cambio actualiza el mapa maestro y las secciones tácticas desde una sola fuente de verdad.</p>
+    <div style={{ paddingBottom: "80px" }}>
+
+      {/* ── Sub-tabs ── */}
+      <style>{`
+        .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{
+          width:30px!important;
+          height:30px!important;
+          object-fit:contain!important;
+          display:block!important;
+        }
+        @media (max-width: 480px){
+          .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
+        }
+      `}</style>
+      {!hideSubnav && (
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
+              flex: 1, padding: "10px 4px", background: "transparent", border: "none",
+              borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
+              color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
+              fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
+              cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
+            }}>
+              <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
+                <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
+              </span>
+              {s.label.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: MAPA
+      ══════════════════════════════════════ */}
+      {activeSection === "mapa" && (
+        <div style={{ padding: "16px" }}>
+          <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCESOS
+      ══════════════════════════════════════ */}
+      {activeSection === "accesos" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaAccesos accesos={accesos} />
+          <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre" };
+            const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
+          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return (
+              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div>
+                    <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
+                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {ACCESO_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: VIALIDADES
+      ══════════════════════════════════════ */}
+      {activeSection === "vialidades" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaVialidades vialidades={vialidades} />
+          <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre" };
+            const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
+          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return (
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+                </div>
+                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
+                  {VIALIDAD_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: RUTAS FISCALES
+      ══════════════════════════════════════ */}
+      {activeSection === "rutas_fiscales" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;} }`}</style>
+          <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: REPORTE
+      ══════════════════════════════════════ */}
+      {activeSection === "reporte" && (
+        <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "incidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin incidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
           </div>
-          <nav className="cm-command-nav" aria-label="Secciones de tráfico">
-            <button type="button" onClick={() => scrollToCommandSection("cm-traffic-master")}>Mapa Maestro</button>
-            <button type="button" onClick={() => scrollToCommandSection("cm-traffic-vialidades")}>Vialidades</button>
-            <button type="button" onClick={() => scrollToCommandSection("cm-traffic-rutas")}>Rutas fiscales</button>
-            <button type="button" onClick={() => scrollToCommandSection("cm-traffic-reporte")}>Reporte</button>
-          </nav>
-        </header>
-        <div id="cm-traffic-master">
-          <UnifiedMap trafficData={trafficData} onSelectItem={(section) => {
-            if (section === "vialidades") scrollToCommandSection("cm-traffic-vialidades");
-            else if (section === "rutas_fiscales") scrollToCommandSection("cm-traffic-rutas");
-            else if (section === "accesos") scrollToCommandSection("cm-traffic-accesos");
-          }} />
         </div>
-        {renderVialidadesSection()}
-        {renderRutasFiscalesSection()}
-        {renderReportSection()}
-        <ToastBox toast={toast} />
-      </div>
-    </TrafficDataContext.Provider>
-  );
-}
+      )}
 
-function CommandCenterStyles() {
-  return (
-    <style>{`
-      .cm-command-root{min-height:100vh;padding:22px 14px 96px;background:#0d1117;background-image:radial-gradient(circle,rgba(125,211,252,.08) 1px,transparent 1px),linear-gradient(180deg,rgba(0,98,140,.08),rgba(13,17,23,0) 280px);background-size:24px 24px,100% 100%;color:#f8fafc;font-family:'IBM Plex Sans','DM Sans',sans-serif;}
-      .cm-command-root-embedded{padding-top:14px;min-height:auto;background:transparent;}
-      .cm-command-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:end;margin:0 auto 18px;max-width:1440px;}
-      .cm-command-hero h1{margin:0;color:#fff;text-transform:uppercase;letter-spacing:.03em;font-size:clamp(36px,5.2vw,72px);line-height:.95;font-weight:900;}
-      .cm-command-hero p{max-width:960px;margin:16px 0 0;color:rgba(226,232,240,.72);font-size:clamp(15px,1.3vw,20px);line-height:1.55;font-weight:600;}
-      .cm-kicker{font-family:'JetBrains Mono','DM Sans',monospace;text-transform:uppercase;letter-spacing:.18em;font-size:12px;font-weight:900;color:rgba(148,163,184,.72);}
-      .cm-command-nav{display:flex;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:18px;background:rgba(15,23,42,.54);backdrop-filter:blur(14px);}
-      .cm-command-nav button{min-height:46px;padding:0 16px;border:1px solid transparent;border-radius:13px;background:transparent;color:rgba(226,232,240,.70);font-weight:900;cursor:pointer;white-space:nowrap;}
-      .cm-command-nav button:first-child,.cm-command-nav button:hover{background:rgba(0,98,140,.42);border-color:rgba(125,211,252,.46);color:#fff;box-shadow:0 0 18px rgba(14,165,233,.18);}
-      .cm-command-panel,.cm-command-section{max-width:1440px;margin-left:auto;margin-right:auto;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.09);border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.22);backdrop-filter:blur(14px);overflow:hidden;}
-      .cm-command-section{padding:16px;margin-bottom:18px;overflow:visible;}
-      .cm-panel-title,.cm-section-heading h2{color:#fff;font-size:clamp(21px,2vw,28px);line-height:1.1;font-weight:900;letter-spacing:-.02em;}
-      .cm-panel-copy{color:rgba(203,213,225,.68);font-weight:600;line-height:1.45;}
-      .cm-live-chip{display:inline-flex;align-items:center;gap:7px;padding:9px 13px;border-radius:999px;background:rgba(2,6,23,.58);border:1px solid rgba(56,189,248,.20);color:#93c5fd;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:900;letter-spacing:.06em;white-space:nowrap;}
-      .cm-unified-grid{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(280px,.8fr);gap:16px;padding:16px 18px 18px;}
-      .cm-unified-map-wrap{min-height:440px;border-radius:18px;overflow:hidden;border:1px solid rgba(125,211,252,.12);background:#071426;}
-      .cm-index-panel{border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.56);padding:16px;min-height:440px;}
-      .cm-index-card{text-align:left;width:100%;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.045);padding:14px;cursor:pointer;transition:transform .18s ease,background .18s ease,border-color .18s ease;}
-      .cm-index-card:hover{transform:translateY(-1px);background:rgba(255,255,255,.07);}
-      .cm-section-heading{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
-      .cm-section-icon{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:rgba(0,98,140,.30);color:#7dd3fc;border:1px solid rgba(125,211,252,.18);}
-      .cm-section-icon-purple{background:rgba(168,85,247,.18);color:#c084fc;border-color:rgba(192,132,252,.22);}
-      .cm-section-icon-orange{background:rgba(249,115,22,.18);color:#fb923c;border-color:rgba(251,146,60,.24);}
-      .cm-command-list{display:grid;gap:10px;margin-top:12px;}
-      .cm-command-row{background:rgba(15,23,42,.68);border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;}
-      .cm-row-main{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0;}
-      .cm-row-label{color:#fff;font-weight:900;font-size:16px;line-height:1.2;}
-      .cm-row-meta{margin-top:4px;color:rgba(148,163,184,.68);font-family:'JetBrains Mono','DM Sans',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.02em;}
-      .cm-status-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);font-family:'JetBrains Mono','DM Sans',monospace;font-size:11px;font-weight:900;white-space:nowrap;}
-      .cm-row-controls{display:flex;align-items:flex-end;gap:10px;justify-content:flex-end;}
-      .cm-control-label{font-family:'JetBrains Mono','DM Sans',monospace;color:rgba(148,163,184,.74);font-size:10px;font-weight:900;letter-spacing:.1em;white-space:nowrap;margin-bottom:11px;}
-      .material-symbols-outlined{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;line-height:1;text-transform:none;letter-spacing:normal;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;}
-      @media(max-width:900px){.cm-command-hero{grid-template-columns:1fr}.cm-command-nav{overflow-x:auto}.cm-unified-grid{grid-template-columns:1fr}.cm-index-panel{min-height:auto}.cm-command-row{grid-template-columns:1fr}.cm-row-controls{justify-content:flex-start;align-items:flex-start;flex-direction:column}.cm-control-label{margin-bottom:0}.cm-unified-map-wrap{min-height:340px}}
-      @media(max-width:520px){.cm-command-root{padding-left:10px;padding-right:10px}.cm-command-section{padding:12px}.cm-command-hero h1{font-size:36px}.cm-command-nav button{min-width:132px}.cm-unified-grid{padding:12px}.cm-operational-selector{width:100%}.cm-operational-selector button{flex:1;min-width:68px!important}.cm-row-main{flex-direction:column}.cm-status-pill{align-self:flex-start}}
-    `}</style>
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      <ToastBox toast={toast} />
+
+    </div>
   );
 }
 
@@ -10796,7 +10514,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes, visible } : i));
                     await auditLog({ action:"votar_reporte_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, visible, summary:`${getDeviceId()} confirmó reporte ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
                     if (visible) notify("Validado ¡Reporte verificado y publicado!", "#22c55e");
-                    else         notify(`Confirmado (${newConf}/3)`, "#22c55e");
+                    else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                   }}
                     style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>Validado</span>
@@ -10959,7 +10677,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
                           setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
                           await auditLog({ action:"votar_evento_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, subsection:"eventos_confirmados", summary:`${getDeviceId()} confirmó evento ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
-                          notify(`Confirmado (${newConf}/3)`, "#22c55e");
+                          notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
                         }}
                           style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                           <span style={{ fontSize:"16px" }}>Validado</span>
@@ -11592,7 +11310,7 @@ function TerminalesTab({ myId }) {
     const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
     setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
     await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
-    notify("Todas las terminales marcadas como Libres", "#22c55e");
+    notify("✓ Todas las terminales marcadas como Libres", "#22c55e");
   };
 
   const resetOne = async (id) => {
@@ -11600,7 +11318,7 @@ function TerminalesTab({ myId }) {
     setSt(prev => ({ ...(prev || {}), [id]: entry }));
     persistStatusEntry("terminals", id, entry);
     await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
-    notify("Terminal marcada como Libre", "#22c55e");
+    notify("✓ Terminal marcada como Libre", "#22c55e");
   };
 
   const getOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o=>o.id===id) || TERMINAL_STATUS_OPTIONS[0];
@@ -12551,7 +12269,7 @@ function SegundoAccesoTab({ myId }) {
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
     await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril actualizado", "#22c55e");
+    notify("✓ Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
@@ -12570,7 +12288,7 @@ function SegundoAccesoTab({ myId }) {
       return;
     }
     await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril de salida actualizado", "#22c55e");
+    notify("✓ Carril de salida actualizado", "#22c55e");
     const fieldLabel =
       field === "saturado" ? (value ? "Saturado" : "Libre") :
       field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
@@ -12597,7 +12315,7 @@ function SegundoAccesoTab({ myId }) {
     setPending(`${id}:estado_carril`, false);
     if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
     await auditLog({ action:"modificar_estado_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Estado del carril actualizado", opt.color);
+    notify("✓ Estado del carril actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
   };
 
@@ -12612,7 +12330,7 @@ function SegundoAccesoTab({ myId }) {
     setPending("c4:estado_carril", false);
     if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
     await auditLog({ action:"modificar_estado_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó Carril 4 como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Estado del carril de salida actualizado", opt.color);
+    notify("✓ Estado del carril de salida actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso Carril 4 — ${opt.label}`, detalle: "Estado de carril de salida actualizado" });
   };
 
@@ -12620,14 +12338,14 @@ function SegundoAccesoTab({ myId }) {
     const next = mkSegundoIngreso();
     setCarriles(next);
     await saveToSupa(next);
-    notify("Todos los carriles restablecidos", "#22c55e");
+    notify("✓ Todos los carriles restablecidos", "#22c55e");
   };
   const resetOne = async (id) => {
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
-    notify("Carril restablecido", "#22c55e");
+    notify("✓ Carril restablecido", "#22c55e");
   };
 
   // ── Handlers CONFINADA ──
@@ -12642,7 +12360,7 @@ function SegundoAccesoTab({ myId }) {
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
     await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Carril Confinada actualizado", "#a78bfa");
+    notify("✓ Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
@@ -12663,7 +12381,7 @@ function SegundoAccesoTab({ myId }) {
     await saveConfinada(next);
     setPending(`${id}:estado_carril`, false);
     await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("Estado del carril Confinada actualizado", opt.color);
+    notify("✓ Estado del carril Confinada actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: opt.color, titulo: `Confinada ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
   };
 
@@ -12671,14 +12389,14 @@ function SegundoAccesoTab({ myId }) {
     const next = mkConfinadaState();
     setConfinada(next);
     await saveConfinada(next);
-    notify("Confinada restablecida", "#a78bfa");
+    notify("✓ Confinada restablecida", "#a78bfa");
   };
   const resetOneConfinada = async (id) => {
     const def = CONFINADA_CARRILES.find(c => c.id === id);
     const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
     await saveConfinada(next);
-    notify("Carril restablecido", "#a78bfa");
+    notify("✓ Carril restablecido", "#a78bfa");
   };
 
   const getTermName = (id) => id === "sin_uso" ? "SIN USO" : TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
@@ -13321,14 +13039,14 @@ function CarrilesTab() {
     acc.carriles.forEach(c => { next[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
     setEstado(next);
     await saveToSupa(next);
-    notify("Acceso restablecido", "#22c55e");
+    notify("✓ Acceso restablecido", "#22c55e");
   };
 
   const resetAll = async () => {
     const next = mkCarrilesState();
     setEstado(next);
     await saveToSupa(next);
-    notify("Todo restablecido", "#22c55e");
+    notify("✓ Todo restablecido", "#22c55e");
   };
 
   const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
@@ -19463,14 +19181,14 @@ function PatioReguladorTab({ myId }) {
     const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} }]));
     setPatios(next); persistStatusMap("patios", next);
     await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
-    notify("Todos los patios marcados como Libres", "#22c55e");
+    notify("✓ Todos los patios marcados como Libres", "#22c55e");
   };
 
   const resetOne = async (id) => {
     const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} };
     setPatios(prev => ({ ...(prev || {}), [id]: entry })); persistStatusEntry("patios", id, entry);
     await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
-    notify("Patio marcado como Libre", "#22c55e");
+    notify("✓ Patio marcado como Libre", "#22c55e");
   };
 
   const patioTickerItems = !patios ? [] : PATIOS_REGULADORES.map(p => {
