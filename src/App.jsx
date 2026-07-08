@@ -8904,6 +8904,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   const previewTypeRef   = useRef("incidente");
   const [tileMode, setTileMode] = useState("dark");
   const [reportMapFilter, setReportMapFilter] = useState("ambos");
+  const [reportLayerControlOpen, setReportLayerControlOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   // Sync preview props to refs immediately (synchronous, before any effects run)
@@ -9406,36 +9407,6 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
             {cleanReportMap ? "· incidentes georreferenciados" : "· tráfico en tiempo real"}
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: "7px", alignItems: "center", flexWrap:"wrap", justifyContent:"flex-end" }}>
-            {cleanReportMap && (
-              <div style={{ display:"flex", alignItems:"center", gap:"4px", padding:"3px", borderRadius:"10px", background:"rgba(0,0,0,0.34)", border:"1px solid rgba(255,255,255,0.10)" }}>
-                {REPORT_MAP_FILTERS.map(f => {
-                  const active = reportMapFilter === f.id;
-                  return (
-                    <button key={f.id} onClick={() => setReportMapFilter(f.id)} style={{
-                      display:"inline-flex", alignItems:"center", gap:"5px", padding:"5px 8px", borderRadius:"8px", border:`1px solid ${active ? f.color : "transparent"}`, cursor:"pointer",
-                      background: active ? `${f.color}24` : "transparent", color: active ? f.color : "rgba(255,255,255,0.56)",
-                      fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:900, textTransform:"uppercase", letterSpacing:"0.04em"
-                    }}>
-                      <AppIcon name={f.id === "accidente" ? "collision" : f.icon} size={14} active={active} />
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <div style={{ display:"flex", alignItems:"center", gap:"4px", padding:"3px", borderRadius:"10px", background:"rgba(0,0,0,0.34)", border:"1px solid rgba(0,242,234,0.16)" }}>
-              <span title="Vistas del mapa" style={{ width:28, height:28, borderRadius:"8px", display:"inline-flex", alignItems:"center", justifyContent:"center", background:"rgba(0,242,234,0.10)", border:"1px solid rgba(0,242,234,0.25)" }}>
-                <AppIcon name="window" size={15} active />
-              </span>
-              {MAP_TILES.map(t => (
-                <button key={t.id} onClick={() => setTileMode(t.id)} style={{
-                  display:"inline-flex", alignItems:"center", gap:"5px", padding: "5px 8px", borderRadius: "8px", border: `1px solid ${tileMode === t.id ? "rgba(56,189,248,0.8)" : "transparent"}`, cursor: "pointer",
-                  background: tileMode === t.id ? "#38bdf8" : "transparent",
-                  color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.56)",
-                  fontFamily: "JetBrains Mono, monospace", fontSize: "10px", fontWeight: tileMode === t.id ? "900" : "700", textTransform:"uppercase", letterSpacing:"0.03em",
-                }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
-              ))}
-            </div>
             {activeIncidents.length > 0 && (
               <span style={{ background: "#ef444418", border: "1px solid #ef444455", borderRadius: "20px", padding: "4px 9px", fontSize: "10px", color: "#ef4444", fontFamily: "JetBrains Mono, monospace", fontWeight: "900", marginLeft: "2px", textTransform:"uppercase" }}>
                 {activeIncidents.length} activo{activeIncidents.length > 1 ? "s" : ""}
@@ -9443,7 +9414,39 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
             )}
           </div>
         </div>
-        <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18" }} />
+        <div style={{ position:"relative" }}>
+          <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18" }} />
+          {cleanReportMap && (
+            <div style={{ position:"absolute", top:16, right:16, zIndex:1000, fontFamily:"JetBrains Mono, DM Sans, monospace" }}>
+              <button
+                type="button"
+                aria-label="Control de capas del mapa de reportes"
+                onClick={() => setReportLayerControlOpen(v => !v)}
+                style={{ width:58, height:58, borderRadius:"18px", border:"1px solid rgba(56,189,248,.42)", background:"rgba(2,6,23,.86)", color:"#e2e8f0", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", boxShadow:"0 12px 36px rgba(0,0,0,.42)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}
+              >
+                <AppIcon name="window" size={31} active={reportLayerControlOpen} />
+              </button>
+              {reportLayerControlOpen && (
+                <div style={{ position:"absolute", right:0, top:68, width:278, maxWidth:"calc(100vw - 48px)", padding:"12px 14px", borderRadius:"14px", border:"1px solid rgba(56,189,248,.38)", background:"rgba(2,6,23,.94)", color:"#e2e8f0", boxShadow:"0 18px 44px rgba(0,0,0,.48)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+                  {MAP_TILES.map(t => (
+                    <label key={t.id} style={{ display:"flex", alignItems:"center", gap:"9px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:700 }}>
+                      <input type="radio" name="report-map-tile" checked={tileMode === t.id} onChange={() => setTileMode(t.id)} style={{ width:16, height:16, accentColor:"#38bdf8" }} />
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"7px" }}><AppIcon name={t.icon} size={15} active={tileMode === t.id} />{t.label}</span>
+                    </label>
+                  ))}
+                  <div style={{ height:1, background:"rgba(255,255,255,.72)", margin:"8px 0 9px" }} />
+                  <div style={{ color:"rgba(255,255,255,.48)", fontSize:"10px", fontWeight:900, letterSpacing:"0.14em", textTransform:"uppercase", margin:"0 0 4px 2px" }}>Reportes visibles</div>
+                  {REPORT_MAP_FILTERS.map(f => (
+                    <label key={f.id} style={{ display:"flex", alignItems:"center", gap:"9px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:800 }}>
+                      <input type="radio" name="report-map-filter" checked={reportMapFilter === f.id} onChange={() => setReportMapFilter(f.id)} style={{ width:16, height:16, accentColor:f.color }} />
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"7px", color: reportMapFilter === f.id ? f.color : "#e2e8f0" }}><AppIcon name={f.id === "accidente" ? "collision" : f.icon} size={15} active={reportMapFilter === f.id} />{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Índice */}
