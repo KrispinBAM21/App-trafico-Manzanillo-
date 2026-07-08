@@ -11295,7 +11295,7 @@ function UnifiedMap({
       <div className="sentinel-map-header">
         <div>
           <div className="sentinel-kicker">SVG MAESTRO · TERMINALES Y RUTAS FISCALES</div>
-          <div className="sentinel-title">Mapa por Zonas</div>
+          <div className="sentinel-title">Centro de Mando por Zonas</div>
         </div>
         <div className="sentinel-zone-chip" style={{ borderColor: `${zoneCfg.accent}80`, color: zoneCfg.accent }}>
           {zoneCfg.label}
@@ -12237,7 +12237,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
 
       <div className="sentinel-topbar">
         <div>
-          <div className="sentinel-title">Terminales y Patios</div>
+          <div className="sentinel-title">Terminales y Patios · Centro de Mando</div>
         </div>
         <button type="button" className="sentinel-action" onClick={isRutasView ? resetRutasZona : resetAllTerminales}>
           <span className="material-symbols-outlined">restart_alt</span>
