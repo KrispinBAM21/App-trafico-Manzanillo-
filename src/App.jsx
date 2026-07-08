@@ -7122,7 +7122,8 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-topbar{position:sticky;top:0;left:0;right:0;z-index:100;background:#0d1117;border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
         .cm-topbar-inner{width:100%;max-width:1440px;margin:0 auto;min-height:54px;padding:8px 16px;display:flex;align-items:center;gap:14px}
         .cm-topbar-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:0 0 auto;background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 2px;border-radius:8px;touch-action:manipulation}
-        .cm-topbar-anchor{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:#00628c;filter:drop-shadow(0 0 8px rgba(0,98,140,.35))}
+        .cm-topbar-anchor{width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 8px rgba(0,98,140,.35));overflow:hidden;border-radius:7px}
+        .cm-topbar-logo{width:100%;height:100%;object-fit:contain;display:block}
         .cm-topbar-title{font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:16px;line-height:20px;font-weight:800;letter-spacing:-.02em;color:#ffffff;white-space:nowrap}
         .cm-topbar-nav{margin-left:auto;display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px 4px}
         .cm-topbar-nav::-webkit-scrollbar{display:none}
@@ -7135,7 +7136,8 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
-        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:0;background:transparent;color:#fff;border-radius:10px;font-size:24px;cursor:pointer;touch-action:manipulation}
+        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:0;background:transparent;color:#fff;border-radius:10px;font-size:24px;cursor:pointer;touch-action:manipulation;overflow:hidden}
+        .cm-menu-logo{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 0 9px rgba(0,98,140,.45))}
         .cm-menu-btn:hover{background:rgba(255,255,255,.07)}
         .cm-mobile-nav{display:none;background:#0d1117;border-top:1px solid rgba(191,199,208,.16);padding:12px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
         .cm-mobile-nav.is-open{display:grid}
@@ -7150,7 +7152,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
         <div className="cm-topbar-inner">
           <button type="button" className="cm-topbar-brand" onClick={onLogoTap} title="Conect Manzanillo">
-            <span className="cm-topbar-anchor"><AppIcon name="anchor" size={22} active /></span>
+            <span className="cm-topbar-anchor"><img className="cm-topbar-logo" src={CONECT_LOGO_SRC} alt="" aria-hidden="true" /></span>
             <span className="cm-topbar-title">Conect Manzanillo</span>
           </button>
 
@@ -7185,7 +7187,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
               aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(v => !v)}
             >
-              {mobileOpen ? "×" : "☰"}
+              {mobileOpen ? "×" : <img className="cm-menu-logo" src={CONECT_LOGO_SRC} alt="Menú" />}
             </button>
           </div>
         </div>
@@ -21009,9 +21011,30 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
 
   const DockIcon = ({ type }) => {
     if (type === "wa") return <AppIcon name="whatsapp" size={24} active />;
-    if (type === "fb") return <span style={{ fontSize: 24, fontWeight: 900, fontFamily: "Arial", color: "#1877F2" }}>f</span>;
-    if (type === "ig") return <span style={{ fontSize: 23 }}>◎</span>;
-    if (type === "tt") return <span className="cm-tiktok-glyph">♪</span>;
+    if (type === "fb") return <span style={{ fontSize: 24, fontWeight: 900, fontFamily: "Arial", color: "#1877F2", lineHeight: 1 }}>f</span>;
+    if (type === "ig") return (
+      <svg className="cm-instagram-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="cmIgGradient" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#feda75" />
+            <stop offset="0.28" stopColor="#fa7e1e" />
+            <stop offset="0.52" stopColor="#d62976" />
+            <stop offset="0.74" stopColor="#962fbf" />
+            <stop offset="1" stopColor="#4f5bd5" />
+          </linearGradient>
+        </defs>
+        <rect x="2.7" y="2.7" width="18.6" height="18.6" rx="5.5" fill="url(#cmIgGradient)" />
+        <circle cx="12" cy="12" r="4.2" fill="none" stroke="#fff" strokeWidth="1.9" />
+        <circle cx="17.35" cy="6.65" r="1.25" fill="#fff" />
+      </svg>
+    );
+    if (type === "tt") return (
+      <svg className="cm-tiktok-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path className="cm-tt-cyan" d="M13.65 2.2h3.35c.18 1.55.78 2.85 1.79 3.88 1.02 1.04 2.33 1.66 3.91 1.86v3.35c-1.96-.06-3.62-.55-4.98-1.47v6.05c0 1.93-.63 3.48-1.9 4.64-1.18 1.08-2.7 1.61-4.55 1.6-1.73-.02-3.17-.56-4.31-1.62-1.16-1.08-1.74-2.47-1.74-4.17 0-1.75.61-3.16 1.82-4.23 1.21-1.07 2.77-1.55 4.68-1.44v3.55c-.87-.08-1.56.06-2.08.41-.55.37-.82.9-.82 1.61 0 .65.23 1.18.69 1.58.46.4 1.05.59 1.76.58.75 0 1.34-.24 1.76-.72.41-.48.62-1.15.62-2.02V2.2Z" />
+        <path className="cm-tt-red" d="M12.42 1.2h3.35c.18 1.55.78 2.85 1.79 3.88 1.02 1.04 2.33 1.66 3.91 1.86v3.35c-1.96-.06-3.62-.55-4.98-1.47v6.05c0 1.93-.63 3.48-1.9 4.64-1.18 1.08-2.7 1.61-4.55 1.6-1.73-.02-3.17-.56-4.31-1.62-1.16-1.08-1.74-2.47-1.74-4.17 0-1.75.61-3.16 1.82-4.23 1.21-1.07 2.77-1.55 4.68-1.44v3.55c-.87-.08-1.56.06-2.08.41-.55.37-.82.9-.82 1.61 0 .65.23 1.18.69 1.58.46.4 1.05.59 1.76.58.75 0 1.34-.24 1.76-.72.41-.48.62-1.15.62-2.02V1.2Z" />
+        <path className="cm-tt-white" d="M13.02 1.7h3.02c.16 1.4.7 2.57 1.61 3.5.92.94 2.1 1.5 3.52 1.68v3.02c-1.77-.05-3.27-.5-4.49-1.33v5.46c0 1.74-.57 3.14-1.72 4.19-1.06.97-2.44 1.45-4.1 1.44-1.56-.02-2.86-.51-3.89-1.46-1.05-.97-1.57-2.23-1.57-3.76 0-1.58.55-2.85 1.64-3.82 1.09-.96 2.5-1.4 4.22-1.3v3.2c-.78-.07-1.41.05-1.88.37-.49.33-.74.81-.74 1.45 0 .59.21 1.06.62 1.43.42.36.95.54 1.59.53.68 0 1.21-.22 1.59-.65.37-.43.56-1.04.56-1.82V1.7Z" />
+      </svg>
+    );
     return <AppIcon name="web" size={24} active />;
   };
 
@@ -21051,7 +21074,11 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
         .cm-dock-card:hover:before{opacity:.20;transform:scale(1.1)}
         .cm-dock-icon{position:relative;z-index:1;width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid color-mix(in srgb,var(--dock-color) 36%,rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
         .cm-dock-card span:last-child{position:relative;z-index:1;color:rgba(255,255,255,.82);line-height:1.05}
-        .cm-tiktok-glyph{font-size:22px;color:#fff;filter:drop-shadow(-1px -1px 4px #00f2ea) drop-shadow(1px 1px 4px #ff0050)}
+        .cm-instagram-logo{width:22px;height:22px;display:block;filter:drop-shadow(0 4px 10px rgba(214,41,118,.32))}
+        .cm-tiktok-logo{width:24px;height:24px;display:block;overflow:visible;filter:drop-shadow(-1px -1px 5px rgba(0,242,234,.55)) drop-shadow(1px 1px 5px rgba(255,0,80,.55))}
+        .cm-tiktok-logo .cm-tt-cyan{fill:#00f2ea;transform:translate(-.65px,.45px)}
+        .cm-tiktok-logo .cm-tt-red{fill:#ff0050;transform:translate(.65px,-.45px)}
+        .cm-tiktok-logo .cm-tt-white{fill:#ffffff}
         .cm-qr-dock{margin-top:12px;overflow:hidden;max-height:0;opacity:0;transition:max-height .55s ease,opacity .35s ease}
         .cm-qr-dock.is-active{max-height:230px;opacity:1}
         .cm-admin-strip{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:22px}
@@ -21089,7 +21116,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
           )}
         </div>
 
-        <aside className="cm-dock-panel" aria-label="REDES SOCIALES CONECT MANZANILLO">
+        <aside className="cm-dock-panel" aria-label="Digital Hub Interactive Dock">
           <div className="cm-dock-title">Digital Hub Interactive Dock</div>
           <div className="cm-dock-grid">
             {dockItems.map(item => (
@@ -23402,7 +23429,7 @@ function App() {
               fontWeight:900
             }}
           >
-            {supportExpanded ? "×" : "☰"}
+            {supportExpanded ? "×" : <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" style={{ width:"32px", height:"32px", objectFit:"contain", display:"block" }} />}
           </div>
 
         {/* Etiqueta visible del asistente principal */}
