@@ -7445,9 +7445,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     if (defaultSection) return initialView;
     try {
       const saved = sessionStorage.getItem("trafico_command_view");
-      return ["vialidades", "rutas_fiscales", "reporte"].includes(saved) ? saved : "vialidades";
+      return ["mapa_maestro", "vialidades", "rutas_fiscales", "reporte"].includes(saved) ? saved : "mapa_maestro";
     } catch {
-      return "vialidades";
+      return "mapa_maestro";
     }
   });
 
@@ -7601,17 +7601,27 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
+  const [zonaRutaActiva, setZonaRutaActiva] = useState("Norte");
+
   const commandViews = defaultSection === "accesos"
     ? [{ id:"accesos", label:"Accesos", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.accesos }]
     : [
+        { id:"mapa_maestro", label:"Mapa maestra", icon:"map" },
         { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
         { id:"rutas_fiscales", label:"Rutas fiscales", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
         { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
       ];
 
+  const renderActiveMap = () => {
+    if (activeView === "vialidades") return <MapaVialidades vialidades={vialidades} />;
+    if (activeView === "rutas_fiscales") return <CommandRutasFiscalMapPanel rutasFiscales={rutasFiscales} zonaActiva={zonaRutaActiva} setZonaActiva={setZonaRutaActiva} />;
+    return <UnifiedMap accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} incidents={incidents} />;
+  };
+
   const renderActiveView = () => {
     if (activeView === "accesos") return <CommandAccesosView theme={theme} accesos={accesos} onVote={voteAcceso} />;
-    if (activeView === "rutas_fiscales") return <CommandRutasFiscalesView theme={theme} rutasFiscales={rutasFiscales} onVote={voteRutaFiscal} />;
+    if (activeView === "mapa_maestro") return <CommandMasterSummary accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} incidents={incidents} />;
+    if (activeView === "rutas_fiscales") return <CommandRutasFiscalesView theme={theme} rutasFiscales={rutasFiscales} onVote={voteRutaFiscal} zonaActiva={zonaRutaActiva} setZonaActiva={setZonaRutaActiva} />;
     if (activeView === "reporte") return <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />;
     return <CommandVialidadesView theme={theme} vialidades={vialidades} onVote={voteVialidad} />;
   };
@@ -7627,12 +7637,9 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         <div className="cm-command-live">LIVE DATA</div>
       </div>
 
-      <UnifiedMap
-        accesos={accesos}
-        vialidades={vialidades}
-        rutasFiscales={rutasFiscales}
-        incidents={incidents}
-      />
+      <div key={`map-${activeView}`} className="cm-active-map-slot">
+        {renderActiveMap()}
+      </div>
 
       {!hideSubnav && (
         <div className="cm-command-nav" role="tablist" aria-label="Vistas de tráfico">
@@ -8697,7 +8704,7 @@ function MapaVialidades({ vialidades }) {
       {/* Header */}
       <div style={{ borderRadius: "14px 14px 0 0", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", borderBottom: "none" }}>
         <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "13px" }}>🗺️</span>
+          <AppIcon name="road" size={16} active={true} />
           <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>Mapa de Vialidades</span>
           <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· estado en tiempo real</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
@@ -10904,6 +10911,7 @@ function CommandCenterStyles() {
     .cm-command-kicker,.cm-panel-kicker{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;font-weight:800;letter-spacing:1.8px;color:#38bdf8;text-transform:uppercase;}
     .cm-command-title,.cm-panel-title{font-family:'DM Sans',sans-serif;font-size:17px;font-weight:800;color:#f8fafc;letter-spacing:.2px;margin-top:2px;}
     .cm-command-live{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.34);border-radius:999px;padding:7px 10px;box-shadow:0 0 20px rgba(34,197,94,.14);}
+    .cm-active-map-slot{margin-bottom:12px;}
     .cm-unified-map-card{border:1px solid rgba(56,189,248,.25);border-radius:20px;overflow:hidden;background:rgba(2,6,23,.72);box-shadow:0 24px 60px rgba(0,0,0,.38);backdrop-filter:blur(16px);}
     .cm-unified-map-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(8,47,73,.38));}
     .cm-map-hint{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.56);text-transform:uppercase;letter-spacing:.8px;}
@@ -10911,11 +10919,18 @@ function CommandCenterStyles() {
     .cm-map-legend{display:flex;gap:8px;flex-wrap:wrap;padding:9px 12px;border-top:1px solid rgba(148,163,184,.14);background:rgba(2,6,23,.8);}
     .cm-map-legend span{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.75);}
     .cm-map-legend i{width:18px;height:4px;border-radius:99px;box-shadow:0 0 10px currentColor;}
-    .cm-command-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0;}
+    .cm-command-nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:12px 0;}
     .cm-command-tab{min-height:56px;border:1px solid rgba(148,163,184,.16);border-radius:16px;background:rgba(15,23,42,.54);color:rgba(226,232,240,.58);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;letter-spacing:.45px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:transform .15s ease,border-color .15s ease,background .15s ease,color .15s ease;}
     .cm-command-tab:hover{transform:translateY(-1px);border-color:rgba(56,189,248,.38);color:#e0f2fe;}
     .cm-command-tab.is-active{background:linear-gradient(135deg,rgba(56,189,248,.22),rgba(99,102,241,.14));border-color:rgba(56,189,248,.72);color:#e0f2fe;box-shadow:0 0 0 1px rgba(56,189,248,.12),0 14px 36px rgba(14,165,233,.14);}
     .cm-command-tab-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;}
+    .cm-specific-map-card{border:1px solid rgba(56,189,248,.25);border-radius:20px;overflow:hidden;background:rgba(2,6,23,.72);box-shadow:0 24px 60px rgba(0,0,0,.38);backdrop-filter:blur(16px);}
+    .cm-specific-map-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(30,41,59,.46));}
+    .cm-specific-map-card > div:last-child{margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;}
+    .cm-specific-map-card > div:last-child > div[style]{border-radius:0!important;}
+    .cm-master-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
+    .cm-master-metrics span{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.72);border:1px solid rgba(148,163,184,.12);border-radius:10px;padding:8px;background:rgba(15,23,42,.58);text-transform:uppercase;}
+    .cm-master-metrics b{display:block;font-size:18px;color:#f8fafc;margin-bottom:2px;}
     .cm-dynamic-view{border:1px solid rgba(148,163,184,.16);border-radius:20px;background:linear-gradient(180deg,rgba(15,23,42,.72),rgba(2,6,23,.54));box-shadow:0 18px 44px rgba(0,0,0,.28);backdrop-filter:blur(16px);padding:14px;animation:cmViewIn .18s ease-out;}
     @keyframes cmViewIn{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
     .cm-view-topline{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
@@ -10999,8 +11014,77 @@ function CommandVialidadesView({ theme, vialidades, onVote }) {
   );
 }
 
-function CommandRutasFiscalesView({ theme, rutasFiscales, onVote }) {
-  const [zonaActiva, setZonaActiva] = useState("Norte");
+function CommandRutasFiscalMapPanel({ rutasFiscales, zonaActiva, setZonaActiva }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <div className="cm-specific-map-card">
+      <div className="cm-specific-map-head">
+        <div>
+          <div className="cm-panel-kicker">MAPA ESPECÍFICO</div>
+          <div className="cm-panel-title">Rutas fiscales · Zona {zonaActiva}</div>
+        </div>
+        <CommandSegmentedControl
+          options={[{ id:"Norte", label:"Zona Norte", color:"#38bdf8" }, { id:"Sur", label:"Zona Sur", color:"#a78bfa" }]}
+          value={zonaActiva}
+          onChange={setZonaActiva}
+        />
+      </div>
+      <MapaRutasFiscales rutas={rutasFiscales} zona={zonaActiva} />
+    </div>
+  );
+}
+
+const getCommandCounts = (items, stateMap, options) => {
+  const counts = { total:items.length, libre:0, alerta:0, critico:0 };
+  items.forEach(item => {
+    const opt = getCommandOption(options, stateMap?.[item.id]?.status);
+    if (opt?.id === "libre") counts.libre += 1;
+    else if (["cerrado", "bloqueado", "detenido"].includes(opt?.id)) counts.critico += 1;
+    else counts.alerta += 1;
+  });
+  return counts;
+};
+
+function CommandMasterSummary({ accesos, vialidades, rutasFiscales, incidents = [] }) {
+  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved).length;
+  const cards = [
+    { id:"accesos", label:"Accesos", counts:getCommandCounts(ACCESOS_PRINCIPALES, accesos || {}, ACCESO_STATUS_OPTIONS), color:"#38bdf8" },
+    { id:"vialidades", label:"Vialidades", counts:getCommandCounts(VIALIDADES, vialidades || {}, VIALIDAD_STATUS_OPTIONS), color:"#22c55e" },
+    { id:"rutas", label:"Rutas fiscales", counts:getCommandCounts(RUTAS_FISCALES, rutasFiscales || {}, RUTA_FISCAL_STATUS_OPTIONS), color:"#a78bfa" },
+    { id:"eventos", label:"Eventos activos", counts:{ total:activeIncidents, libre:0, alerta:activeIncidents, critico:0 }, color:"#f97316" },
+  ];
+  return (
+    <div>
+      <div className="cm-view-topline">
+        <div>
+          <div className="cm-panel-kicker">CONCENTRACIÓN OPERATIVA</div>
+          <div className="cm-view-title">Mapa maestra y lectura global</div>
+        </div>
+        <div className="cm-map-hint">Todas las capas en una sola vista</div>
+      </div>
+      <div className="cm-grid-cards">
+        {cards.map(card => (
+          <div className="cm-status-card" key={card.id}>
+            <div className="cm-status-card-head">
+              <div>
+                <div className="cm-status-name">{card.label}</div>
+                <div className="cm-status-meta">TOTAL {card.counts.total}</div>
+              </div>
+              <div className="cm-status-pill" style={{ color:card.color, background:card.color + "1f", border:`1px solid ${card.color}55` }}>LIVE</div>
+            </div>
+            <div className="cm-master-metrics">
+              <span><b>{card.counts.libre}</b> libre</span>
+              <span><b>{card.counts.alerta}</b> alerta</span>
+              <span><b>{card.counts.critico}</b> crítico</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommandRutasFiscalesView({ theme, rutasFiscales, onVote, zonaActiva = "Norte", setZonaActiva = () => {} }) {
   if (!rutasFiscales) return <SkeletonCard n={3} />;
   const rutas = RUTAS_FISCALES.filter(r => r.zona === zonaActiva);
   return (
