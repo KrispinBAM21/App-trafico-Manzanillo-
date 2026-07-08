@@ -21089,7 +21089,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
           )}
         </div>
 
-        <aside className="cm-dock-panel" aria-label="Digital Hub Interactive Dock">
+        <aside className="cm-dock-panel" aria-label="REDES SOCIALES CONECT MANZANILLO">
           <div className="cm-dock-title">Digital Hub Interactive Dock</div>
           <div className="cm-dock-grid">
             {dockItems.map(item => (
