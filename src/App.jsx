@@ -7445,7 +7445,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     if (defaultSection) return initialView;
     try {
       const saved = sessionStorage.getItem("trafico_command_view");
-      return ["mapa_maestro", "vialidades", "rutas_fiscales", "reporte"].includes(saved) ? saved : "mapa_maestro";
+      return ["mapa_maestro", "vialidades", "reporte"].includes(saved) ? saved : "mapa_maestro";
     } catch {
       return "mapa_maestro";
     }
@@ -7608,20 +7608,17 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     : [
         { id:"mapa_maestro", label:"Mapa maestra", icon:"map" },
         { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
-        { id:"rutas_fiscales", label:"Rutas fiscales", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
         { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
       ];
 
   const renderActiveMap = () => {
     if (activeView === "vialidades") return <MapaVialidades vialidades={vialidades} />;
-    if (activeView === "rutas_fiscales") return <CommandRutasFiscalMapPanel rutasFiscales={rutasFiscales} zonaActiva={zonaRutaActiva} setZonaActiva={setZonaRutaActiva} />;
     return <UnifiedMap accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} incidents={incidents} />;
   };
 
   const renderActiveView = () => {
     if (activeView === "accesos") return <CommandAccesosView theme={theme} accesos={accesos} onVote={voteAcceso} />;
     if (activeView === "mapa_maestro") return <CommandMasterSummary accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} incidents={incidents} />;
-    if (activeView === "rutas_fiscales") return <CommandRutasFiscalesView theme={theme} rutasFiscales={rutasFiscales} onVote={voteRutaFiscal} zonaActiva={zonaRutaActiva} setZonaActiva={setZonaRutaActiva} />;
     if (activeView === "reporte") return <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />;
     return <CommandVialidadesView theme={theme} vialidades={vialidades} onVote={voteVialidad} />;
   };
@@ -7631,10 +7628,10 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       <CommandCenterStyles />
       <div className="cm-command-header">
         <div>
-          <div className="cm-command-kicker">TRÁFICO · CENTRO DE MANDO</div>
+          <div className="cm-command-kicker">REPORTE OPERATIVO GENERAL</div>
           <div className="cm-command-title">Mapa Maestro Operativo</div>
         </div>
-        <div className="cm-command-live">LIVE DATA</div>
+        <div className="cm-command-live">EN VIVO</div>
       </div>
 
       <div key={`map-${activeView}`} className="cm-active-map-slot">
@@ -10357,7 +10354,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   return (
     <div style={{ padding:"16px", paddingBottom:"80px" }}>
 
-      {/* Navegación interna obsoleta retirada: esta sección inicia directamente con Deep Port Sentinel. */}
+      {/* Navegación interna obsoleta retirada: esta sección inicia directamente con Reporte de Eventos Viales. */}
 
       {/* ══ VISTA: REPORTAR ══════════════════════════════════════════════════ */}
       {reporteView === "consolidado" && <ReporteAutomaticoPanel incidents={incidents} />}
@@ -10372,10 +10369,10 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               <MaterialIcon color="#00f2ea" size={25}>radar</MaterialIcon>
             </div>
             <div>
-              <h2 style={{ margin:0, color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"18px", fontWeight:800, letterSpacing:"0.04em", textTransform:"uppercase" }}>Deep Port Sentinel</h2>
+              <h2 style={{ margin:0, color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"18px", fontWeight:800, letterSpacing:"0.04em", textTransform:"uppercase" }}>Reporte de Eventos Viales</h2>
               <div style={{ display:"flex", alignItems:"center", gap:"8px", marginTop:"3px" }}>
                 <span className="deep-pulse-led" style={{ width:8, height:8, borderRadius:"999px", background:"#f97316", display:"inline-block" }} />
-                <span style={{ color:"#f97316", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", letterSpacing:"0.18em", textTransform:"uppercase" }}>Reporting Protocol: Enabled</span>
+                <span style={{ color:"#f97316", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", letterSpacing:"0.18em", textTransform:"uppercase" }}>Tiempo real</span>
               </div>
             </div>
           </div>
@@ -10386,10 +10383,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           <div className="deep-map-grid" style={{ position:"absolute", inset:0, opacity:.24, zIndex:3, pointerEvents:"none" }} />
           <div className="deep-scanline" style={{ position:"absolute", inset:0, zIndex:4 }} />
           <div style={{ position:"absolute", top:14, left:14, zIndex:6, display:"flex", flexDirection:"column", gap:"8px" }}>
-            <div style={{ background:"rgba(0,0,0,0.78)", padding:"6px 10px", borderRadius:"8px", border:"1px solid rgba(0,242,234,0.4)", color:"#00f2ea", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", display:"flex", alignItems:"center", gap:"8px" }}>
-              <span className="deep-pulse-led" style={{ width:7, height:7, borderRadius:"999px", background:"#00f2ea" }} />
-              GEO_LINK_ACTIVE: PORTAL_MAIN
-            </div>
             <div style={{ background:"rgba(0,0,0,0.58)", padding:"5px 10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"9px" }}>
               ACTIVE INCIDENTS: {incidents.filter(i => i.visible && !i.resolved).length}
             </div>
@@ -11134,7 +11127,7 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
         <div>
-          <div className="cm-panel-kicker">UNIFIED MAP</div>
+          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
           <div className="cm-panel-title">Capas operativas sincronizadas</div>
         </div>
         <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
@@ -11442,112 +11435,110 @@ function CommandAccesosView({ theme, accesos, onVote }) {
   );
 }
 
-function MapaTerminales({ zona, stMap }) {
+
+function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales }) {
   const theme = React.useContext(ThemeContext);
-  const mapRef    = useRef(null);
-  const leafRef   = useRef(null);
-  const polyRefs  = useRef({});
-  const tileRef   = useRef(null);
-  const labelRef  = useRef(null);
+  const mapRef = useRef(null);
+  const leafRef = useRef(null);
+  const layersRef = useRef([]);
   const labelMarkerRefs = useRef({});
-  const zonaRef   = useRef(zona); // Validado FIX: ref para acceder a zona actual en callbacks
-  const stMapRef  = useRef(stMap);
+  const tileRef = useRef(null);
+  const labelRef = useRef(null);
+  const zonaRef = useRef(zona);
+  const vistaRef = useRef(vista);
+  const stMapRef = useRef(stMap);
+  const rutasRef = useRef(rutasFiscales);
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                              subdomains: "abcd", labels: null },
-    { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                         subdomains: "abc",  labels: null },
-    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                              subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                             subdomains: "abcd", labels: null },
+    { id: "dark", label: "Nocturno", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
+    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
   ];
 
-  const getPolyColor = (id, sm) => {
-    const s = sm || stMapRef.current;
-    if (!s || !s[id]) return "#22c55e";
-    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === s[id].status);
-    return opt ? opt.color : "#22c55e";
+  const zoneLabel = zona === "norte" ? "Norte" : "Sur";
+  const zonaColor = zona === "norte" ? "#38bdf8" : "#a78bfa";
+  const isRutas = vista === "rutas_fiscales";
+  const legendOptions = isRutas ? RUTA_FISCAL_STATUS_OPTIONS : TERMINAL_STATUS_OPTIONS;
+
+  const clearOperationalLayers = () => {
+    const map = leafRef.current;
+    if (!map) return;
+    layersRef.current.forEach(layer => { try { map.removeLayer(layer); } catch {} });
+    Object.values(labelMarkerRefs.current).forEach(layer => { try { map.removeLayer(layer); } catch {} });
+    layersRef.current = [];
+    labelMarkerRefs.current = {};
   };
 
-  // Validado FIX: Helper para cargar polígonos de una zona en el mapa existente
-  const loadZonePolygons = (z, sm) => {
+  const loadZoneLayers = (z = zonaRef.current, v = vistaRef.current, terminalStatus = stMapRef.current, routeStatus = rutasRef.current) => {
     if (!leafRef.current || !window.L) return;
     const L = window.L;
     const map = leafRef.current;
+    clearOperationalLayers();
 
-    // Limpiar polígonos y etiquetas anteriores
-    Object.values(polyRefs.current).flat().forEach(layer => { try { map.removeLayer(layer); } catch {} });
-    Object.values(labelMarkerRefs.current).forEach(layer => { try { map.removeLayer(layer); } catch {} });
-    polyRefs.current = {};
-    labelMarkerRefs.current = {};
-
-    // Centro y zoom según zona
+    const zName = z === "norte" ? "Norte" : "Sur";
     const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
-    map.setView(center, 14, { animate: true, duration: 0.5 });
+    map.setView(center, z === "norte" ? 14 : 13, { animate: true, duration: 0.35 });
 
-    // Añadir polígonos de la nueva zona
-    const polys = TERM_POLYGONS[z] || [];
-    polys.forEach(poly => {
-      const color = getPolyColor(poly.id, sm);
-      const polygonColor = cmVividMapColor(color, poly.id);
-      const layer = L.polygon(poly.coords, cmMapPolygonStyle(polygonColor, {
-        key: poly.id,
-        weight: 3.5,
-        fillOpacity: 0.54,
-      })).addTo(map);
-      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === sm?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
+    if (v === "rutas_fiscales") {
+      const routeRows = RUTAS_FISCALES.filter(r => r.zona === zName);
+      routeRows.forEach(route => {
+        const st = routeStatus?.[route.id] || { status: "libre" };
+        const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+        const color = cmVividMapColor(opt.color, route.id);
+        const halo = L.polyline(route.coords, { color: "#020617", weight: 12, opacity: 0.78, lineCap: "round", lineJoin: "round" }).addTo(map);
+        const line = L.polyline(route.coords, { color, weight: 6, opacity: 0.98, lineCap: "round", lineJoin: "round" }).addTo(map);
+        line.bindTooltip(
+          `<b>${route.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
+          { sticky: true, className: "cm-tooltip", direction: "center" }
+        );
+        layersRef.current.push(halo, line);
+      });
+      const refs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zName);
+      labelMarkerRefs.current = addCmMapReferenceLabels(L, map, refs, {});
+      return;
+    }
+
+    const polygons = TERM_POLYGONS[z] || [];
+    polygons.forEach(poly => {
+      const st = terminalStatus?.[poly.id] || { status: "libre" };
+      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st.status) || TERMINAL_STATUS_OPTIONS[0];
+      const color = cmVividMapColor(opt.color, poly.id);
+      const layer = L.polygon(poly.coords, cmMapPolygonStyle(color, { key: poly.id, weight: 3.5, fillOpacity: 0.54 })).addTo(map);
       layer.bindTooltip(
         `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
         { sticky: true, className: "cm-tooltip", direction: "center" }
       );
-      if (!polyRefs.current[poly.id]) polyRefs.current[poly.id] = [];
-      polyRefs.current[poly.id].push(layer);
+      layersRef.current.push(layer);
     });
-
-    // ETIQUETAS COMPARTIDAS EN TERMINALES:
-    // Usa la misma función de la sección principal de Mapa para mostrar nombres como "Terminal SSA".
-    const zoneName = z === "norte" ? "Norte" : "Sur";
-    const terminalRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zoneName && r.tipo === "terminal");
+    const terminalRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zName && r.tipo === "terminal");
     labelMarkerRefs.current = addCmMapReferenceLabels(L, map, terminalRefs, {});
   };
 
-  // Validado FIX PRINCIPAL: Init solo una vez con []
   useEffect(() => {
     const init = () => {
       if (leafRef.current || !mapRef.current || !window.L) return;
       const L = window.L;
-      const z = zonaRef.current;
-      const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
-
+      const center = zonaRef.current === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
       const map = L.map(mapRef.current, {
         center,
-        zoom: 14,
+        zoom: zonaRef.current === "norte" ? 14 : 13,
         zoomControl: true,
         attributionControl: false,
         scrollWheelZoom: true,
       });
       tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains }).addTo(map);
       leafRef.current = map;
-
-      // Cargar polígonos de la zona inicial
-      loadZonePolygons(z, stMapRef.current);
-
-      if (!document.getElementById("cm-map-style")) {
-        const s = document.createElement("style");
-        s.id = "cm-map-style";
-        s.textContent = `
-          .cm-tooltip { background:rgba(4,12,24,0.95)!important; border:1px solid rgba(56,189,248,0.35)!important; border-radius:6px!important; color:rgba(255,255,255,0.9)!important; font-family:'DM Sans',sans-serif!important; font-size:12px!important; font-weight:600!important; padding:4px 9px!important; box-shadow:0 2px 12px rgba(0,0,0,0.5)!important; white-space:nowrap!important; }
-          .cm-tooltip::before { display:none!important; }
-          .leaflet-control-zoom a { background:rgba(4,12,24,0.9)!important; color:rgba(255,255,255,0.7)!important; border-color:rgba(255,255,255,0.1)!important; }
-          .leaflet-control-zoom a:hover { background:rgba(56,189,248,0.2)!important; }
-        `;
-        document.head.appendChild(s);
-      }
+      ensureCmMapSharedStyle();
+      loadZoneLayers(zonaRef.current, vistaRef.current, stMapRef.current, rutasRef.current);
     };
 
-    if (window.L) { init(); }
+    if (window.L) init();
     else {
       if (!document.querySelector('link[href*="leaflet"]')) {
-        const link = document.createElement("link"); link.rel = "stylesheet";
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(link);
       }
@@ -11560,90 +11551,63 @@ function MapaTerminales({ zona, stMap }) {
         const check = setInterval(() => { if (window.L) { clearInterval(check); init(); } }, 100);
       }
     }
-    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; polyRefs.current = {}; labelMarkerRefs.current = {}; } };
-  }, []); // Validado Solo [] — el mapa se crea una sola vez
 
-  // Validado FIX: Effect separado que reacciona al cambio de zona SIN recrear el mapa
+    return () => {
+      if (leafRef.current) {
+        leafRef.current.remove();
+        leafRef.current = null;
+        layersRef.current = [];
+        labelMarkerRefs.current = {};
+      }
+    };
+  }, []);
+
   useEffect(() => {
     zonaRef.current = zona;
+    vistaRef.current = vista;
     stMapRef.current = stMap;
-    if (leafRef.current && window.L) {
-      loadZonePolygons(zona, stMap);
-    }
-  }, [zona]); // eslint-disable-line
+    rutasRef.current = rutasFiscales;
+    loadZoneLayers(zona, vista, stMap, rutasFiscales);
+  }, [zona, vista, JSON.stringify(stMap || {}), JSON.stringify(rutasFiscales || {})]);
 
-  // Cambiar tile
   useEffect(() => {
     if (!leafRef.current || !tileRef.current || !window.L) return;
     const L = window.L;
-    const t = TILE_OPTIONS.find(t => t.id === tileMode);
-    if (!t) return;
+    const t = TILE_OPTIONS.find(x => x.id === tileMode) || TILE_OPTIONS[0];
     tileRef.current.setUrl(t.url);
     tileRef.current.options.subdomains = t.subdomains || "abc";
     if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
-    if (t.labels) {
-      labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
-    }
+    if (t.labels) labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
   }, [tileMode]);
-
-  // Validado FIX: Effect para actualizar colores cuando cambia stMap (sin recrear nada)
-  useEffect(() => {
-    stMapRef.current = stMap;
-    if (!leafRef.current || !stMap) return;
-    const polys = TERM_POLYGONS[zonaRef.current] || [];
-    polys.forEach(poly => {
-      const layers = polyRefs.current[poly.id];
-      if (!layers?.length) return;
-      const color = getPolyColor(poly.id, stMap);
-      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === stMap?.[poly.id]?.status) || TERMINAL_STATUS_OPTIONS[0];
-      layers.forEach(layer => {
-        const polygonColor = cmVividMapColor(color, poly.id);
-        layer.setStyle(cmMapPolygonStyle(polygonColor, {
-          key: poly.id,
-          weight: 3.5,
-          fillOpacity: 0.54,
-        }));
-        layer.bindTooltip(
-          `<b>${poly.name}</b><br><span style="color:${opt.color}">${leafletIconMarkup(opt.icon, opt.color, 14)} ${opt.label}</span>`,
-          { sticky: true, className: "cm-tooltip", direction: "center" }
-        );
-      });
-    });
-  }, [JSON.stringify(stMap)]);
-
-  const zonaColor = zona === "norte" ? "#38bdf8" : "#a78bfa";
 
   return (
     <div style={{ marginBottom: "16px" }}>
-      {/* Header */}
       <div style={{ borderRadius: "14px 14px 0 0", overflow: "hidden", border: `1px solid ${zonaColor}33`, borderBottom: "none" }}>
         <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "13px" }}>🗺️</span>
-          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>
-            Mapa Terminales <span style={{ color: zonaColor }}>Zona {zona === "norte" ? "Norte" : "Sur"}</span>
+          <AppIcon name={isRutas ? "route-road" : "anchor-port"} size={17} active />
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", fontWeight: 800 }}>
+            {isRutas ? "Mapa Rutas Fiscales" : "Mapa Terminales"} <span style={{ color: zonaColor }}>Zona {zoneLabel}</span>
           </span>
-          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>· estado en tiempo real</span>
+          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.34)" }}>· EN VIVO</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: "4px", flexWrap: "wrap" }}>
             {TILE_OPTIONS.map(t => (
               <button key={t.id} onClick={() => setTileMode(t.id)} style={{
                 padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
                 background: tileMode === t.id ? zonaColor : "rgba(255,255,255,0.08)",
-                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.5)",
-                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "700" : "400",
-              }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
+                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.55)",
+                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "800" : "500",
+              }}><AppIcon name={t.icon} size={14} active={tileMode === t.id} /> {t.label}</button>
             ))}
           </div>
         </div>
       </div>
-      {/* Mapa */}
       <div style={{ border: `1px solid ${zonaColor}33`, borderTop: "none", borderRadius: "0 0 14px 14px", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,0,0,0.5)" }}>
-        <div ref={mapRef} style={{ width: "100%", height: "300px", background: "#040c18" }} />
+        <div ref={mapRef} style={{ width: "100%", height: "320px", background: "#040c18" }} />
       </div>
-      {/* Leyenda */}
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px", padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)" }}>
-        {TERMINAL_STATUS_OPTIONS.map(o => (
+        {legendOptions.map(o => (
           <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
-            <span style={{ width: "14px", height: "14px", borderRadius: "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
+            <span style={{ width: "14px", height: "14px", borderRadius: isRutas ? "999px" : "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
             <span>{o.label}</span>
           </span>
         ))}
@@ -11653,6 +11617,290 @@ function MapaTerminales({ zona, stMap }) {
 }
 
 // ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
+
+function TerminalesTab({ myId, isAdmin = false }) {
+  const theme = React.useContext(ThemeContext);
+  const [zona, setZona] = useState(() => {
+    try { return sessionStorage.getItem("term_zona") || "norte"; } catch { return "norte"; }
+  });
+  const [vistaTerminalesPortuarias, setVistaTerminalesPortuarias] = useState("terminales");
+  const [stN, setStN] = useState(null);
+  const [stS, setStS] = useState(null);
+  const [rutasFiscales, setRutasFiscales] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [changeModal, setChangeModal] = useState(null);
+
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const setZonaPersist = (z) => { try { sessionStorage.setItem("term_zona", z); } catch {} setZona(z); };
+  const zonaLabel = zona === "norte" ? "Norte" : "Sur";
+  const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
+  const stMap = zona === "norte" ? (stN || {}) : (stS || {});
+  const setSt = zona === "norte" ? setStN : setStS;
+  const isRutasView = vistaTerminalesPortuarias === "rutas_fiscales";
+  const rutasZona = RUTAS_FISCALES.filter(r => r.zona === zonaLabel);
+
+  const segmentShell = { display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"12px", border:"1px solid rgba(255,255,255,0.15)", gap:"4px" };
+  const segmentButton = (active) => ({ flex:1, padding:"10px", background: active ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: active ? "#fff" : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer", transition:"all 0.2s", letterSpacing:"0.7px", textTransform:"uppercase" });
+
+  const tickerItems = useMemo(() => {
+    if (!stN || !stS || !rutasFiscales) return [];
+    if (isRutasView) {
+      return RUTAS_FISCALES.map(r => {
+        const st = rutasFiscales[r.id] || { status:"libre" };
+        const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
+        return { text: `${r.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+      });
+    }
+    return [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
+      const st = (TERMINALS_NORTE.find(x => x.id === t.id) ? stN : stS)[t.id];
+      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st?.status) || TERMINAL_STATUS_OPTIONS[0];
+      return { text: `${t.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+    });
+  }, [stN, stS, rutasFiscales, isRutasView]);
+
+  useEffect(() => {
+    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+    sb.from("terminals").select("*").then(async ({ data, error }) => {
+      if (error) {
+        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
+        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
+        return;
+      }
+      if (!data || data.length === 0) {
+        await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
+        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
+        return;
+      }
+      const mapN = {}; const mapS = {};
+      data.forEach(r => {
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
+        else mapS[r.id] = entry;
+      });
+      setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), mapN));
+      setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), mapS));
+    });
+    const chan = sb.channel("terminals-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
+        if (!r) return;
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_NORTE), { [r.id]: entry }));
+        else setStS(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_SUR), { [r.id]: entry }));
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  useEffect(() => {
+    sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
+      if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
+      if (!data || data.length === 0) {
+        await sb.from("rutas_fiscales").upsert(RUTAS_FISCALES.map(r => ({ id: r.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
+        setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {}));
+        return;
+      }
+      const map = {};
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+      setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
+    });
+    const chan = sb.channel("rutas-fiscales-terminales-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
+        sb.from("rutas_fiscales").select("*").then(({ data }) => {
+          if (!data) return;
+          const map = {};
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+          setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
+        });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const vote = async (termId, newStatus, forceChange = false) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
+    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
+    if (yaVoto && yaVoto.length > 0 && !forceChange) {
+      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "terminal", id: termId, newStatus, label });
+      return;
+    }
+    if (yaVoto && yaVoto.length > 0 && forceChange) await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
+    const key = `terminal_${termId}_${newStatus}`;
+    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
+    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
+    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
+    const conteo = {};
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+    const entry = { ...(stMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
+    setSt(prev => ({ ...(prev || {}), [termId]: entry }));
+    persistStatusEntry("terminals", termId, entry);
+    await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+    const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
+    await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+  };
+
+  const voteRutaFiscal = async (id, newStatus) => {
+    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const ruta = rutasFiscales?.[id];
+    if (!ruta) return;
+    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
+    if (!isAdmin) {
+      const rl = rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
+      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    }
+    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
+    persistStatusEntry("rutas_fiscales", id, entry);
+    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:newStatus }, actor });
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+  };
+
+  const resetAll = async () => {
+    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
+    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
+    notify("Todas las terminales marcadas como Libres", "#22c55e");
+  };
+
+  const resetRutasZona = async () => {
+    const now = Date.now();
+    const next = { ...(rutasFiscales || {}) };
+    rutasZona.forEach(r => { next[r.id] = { status:"libre", lastUpdate:now, updatedBy:"Reset" }; persistStatusEntry("rutas_fiscales", r.id, next[r.id]); });
+    setRutasFiscales(next);
+    await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id:r.id, status:"libre", last_update:now, updated_by:"Reset" })));
+    notify(`Rutas fiscales de Zona ${zonaLabel} marcadas como Libres`, "#22c55e");
+  };
+
+  const resetOne = async (id) => {
+    const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
+    setSt(prev => ({ ...(prev || {}), [id]: entry }));
+    persistStatusEntry("terminals", id, entry);
+    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
+    notify("Terminal marcada como Libre", "#22c55e");
+  };
+
+  const getTerminalOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o => o.id === id) || TERMINAL_STATUS_OPTIONS[0];
+  const getRutaOpt = (id) => RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === id) || RUTA_FISCAL_STATUS_OPTIONS[0];
+
+  const renderTerminalCards = () => {
+    if (!stN || !stS) return <SkeletonCard n={4}/>;
+    return terminals.map(terminal => {
+      const st = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema" };
+      const opt = getTerminalOpt(st.status);
+      return (
+        <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px", gap:"10px" }}>
+            <div>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"14px" }}>{terminal.name}</div>
+              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{terminal.fullName}</div>
+              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+              <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+              {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"800" }}>TODO NORMAL</button>}
+            </div>
+          </div>
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+            {TERMINAL_STATUS_OPTIONS.map(o => {
+              const isAct = st.status === o.id;
+              return <button key={o.id} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 800 : 600 }}>{o.label}</button>;
+            })}
+          </div>
+        </div>
+      );
+    });
+  };
+
+  const renderRutasFiscalesCards = () => {
+    if (!rutasFiscales) return <SkeletonCard n={3}/>;
+    return rutasZona.map(route => {
+      const st = rutasFiscales[route.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+      const opt = getRutaOpt(st.status);
+      return (
+        <div key={route.id} style={{ background:"rgba(255,255,255,0.06)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"12px", overflow:"hidden" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+            <div>
+              <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"800" }}>{route.name}</div>
+              <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+            </div>
+            <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", flexShrink:0 }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+            {RUTA_FISCAL_STATUS_OPTIONS.map(o => {
+              const isAct = st.status === o.id;
+              return <button key={o.id} onClick={() => voteRutaFiscal(route.id, o.id)} style={{ padding:"10px 8px", background:isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color:isAct ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:isAct ? "800" : "600" }}>{o.label}</button>;
+            })}
+          </div>
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <TypewriterTicker items={tickerItems} />
+
+      <div style={segmentShell} aria-label="Selector de zona">
+        {[{ id:"norte", label:"Zona Norte" }, { id:"sur", label:"Zona Sur" }].map(z => (
+          <button key={z.id} onClick={() => setZonaPersist(z.id)} style={segmentButton(zona === z.id)}>{z.label}</button>
+        ))}
+      </div>
+
+      <div style={segmentShell} aria-label="Selector de vista de Terminales Portuarias">
+        <button onClick={() => setVistaTerminalesPortuarias("terminales")} style={segmentButton(vistaTerminalesPortuarias === "terminales")}>Estatus Terminales</button>
+        <button onClick={() => setVistaTerminalesPortuarias("rutas_fiscales")} style={segmentButton(vistaTerminalesPortuarias === "rutas_fiscales")}>Estatus Rutas Fiscales</button>
+      </div>
+
+      <SectionLabel
+        text={`${isRutasView ? "RUTAS FISCALES" : "TERMINALES PORTUARIAS"} · ZONA ${zonaLabel.toUpperCase()}`}
+        rightBtn={<NormalBtn onClick={isRutasView ? resetRutasZona : resetAll} label={isRutasView ? "RUTAS LIBRES" : "TODAS LIBRES"} />}
+      />
+
+      <MapaTerminales zona={zona} vista={vistaTerminalesPortuarias} stMap={stMap} rutasFiscales={rutasFiscales} />
+
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {(isRutasView ? RUTA_FISCAL_STATUS_OPTIONS : TERMINAL_STATUS_OPTIONS).map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:800 }}>{o.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {isRutasView ? renderRutasFiscalesCards() : renderTerminalCards()}
+
+      <ToastBox toast={toast} />
+      {changeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
+            <div style={{ color:"#e2e8f0", fontFamily:getFont(theme, "secondary"), fontSize:"14px", fontWeight:"800", marginBottom:"8px" }}>Cambiar tu voto</div>
+            <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", marginBottom:"20px" }}>
+              Confirma el cambio a <span style={{ color:"#38bdf8", fontWeight:"800" }}>{changeModal.label}</span>.
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cambiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TICKER MÁQUINA DE ESCRIBIR ───────────────────────────────────────────────
 function TypewriterTicker({ items }) {
   const [idx,     setIdx]     = useState(0);
@@ -11728,186 +11976,6 @@ function TypewriterTicker({ items }) {
         {display}<span style={{ opacity: 0.7, animation: "blink 1s step-end infinite" }}>|</span>
       </span>
       <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
-    </div>
-  );
-}
-
-function TerminalesTab({ myId }) {
-  const theme = React.useContext(ThemeContext);
-  const [zona,   setZona]   = useState(() => {
-    try { return sessionStorage.getItem("term_zona") || "norte"; } catch { return "norte"; }
-  });
-  const setZonaPersist = (z) => {
-    try { sessionStorage.setItem("term_zona", z); } catch {}
-    setZona(z);
-  };
-  const [stN,         setStN]         = useState(null);  // null = loading
-  const [stS,         setStS]         = useState(null);  // null = loading
-  const [toast,       setToast]       = useState(null);
-  const [changeModal, setChangeModal] = useState(null);
-
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-  const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
-  const stMap     = zona === "norte" ? (stN || {}) : (stS || {});
-  const setSt     = zona === "norte" ? setStN : setStS;
-
-  // Ticker items — todas las terminales con su estado
-  const tickerItems = (!stN || !stS) ? [] : [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
-    const st = (TERMINALS_NORTE.find(x => x.id === t.id) ? stN : stS)[t.id];
-    const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st?.status) || TERMINAL_STATUS_OPTIONS[0];
-    return { text: `${t.name} — ${opt.label.toUpperCase()}`, color: opt.color };
-  });
-
-  useEffect(() => {
-    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    sb.from("terminals").select("*").then(async ({ data, error }) => {
-      if (error) {
-        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
-        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
-        return;
-      }
-      if (!data || data.length === 0) {
-        await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
-        setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), {}));
-        setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
-        return;
-      }
-      const mapN = {}; const mapS = {};
-      data.forEach(r => {
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
-        else mapS[r.id] = entry;
-      });
-      setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), mapN));
-      setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), mapS));
-    });
-    const chan = sb.channel("terminals-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
-        if (!r) return;
-        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_NORTE), { [r.id]: entry }));
-        else setStS(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_SUR), { [r.id]: entry }));
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
-
-  const vote = async (termId, newStatus, forceChange = false) => {
-    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
-    const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "terminal", id: termId, newStatus, label });
-      return;
-    }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    }
-    const key = `terminal_${termId}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
-    // Guardar voto del usuario en localStorage para sobrevivir la limpieza de 15 min
-    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
-    const [statusGanador, votosGanador] = ganadora;
-    // Optimistic update
-    const setSt2 = zona === "norte" ? setStN : setStS;
-    const entry = { ...(stMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
-    setSt2(prev => ({ ...(prev || {}), [termId]: entry }));
-    persistStatusEntry("terminals", termId, entry);
-    await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
-    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
-    await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
-  };
-
-  const resetAll = async () => {
-    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
-    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
-    setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
-    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
-    notify("✓ Todas las terminales marcadas como Libres", "#22c55e");
-  };
-
-  const resetOne = async (id) => {
-    const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
-    setSt(prev => ({ ...(prev || {}), [id]: entry }));
-    persistStatusEntry("terminals", id, entry);
-    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
-    notify("✓ Terminal marcada como Libre", "#22c55e");
-  };
-
-  const getOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o=>o.id===id) || TERMINAL_STATUS_OPTIONS[0];
-
-  return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <TypewriterTicker items={tickerItems} />
-      <div style={{ display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"14px", border:"1px solid rgba(255,255,255,0.15)" }}>
-        {["norte","sur"].map(z => (
-          <button key={z} onClick={() => setZonaPersist(z)} style={{ flex:1, padding:"10px", background: zona===z ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: zona===z ? "#fff" : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", letterSpacing:"1px" }}>ZONA {z.toUpperCase()}</button>
-        ))}
-      </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
-        {TERMINAL_STATUS_OPTIONS.map(o => (
-          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
-          </div>
-        ))}
-      </div>
-      <SectionLabel text={`TERMINALES ZONA ${zona.toUpperCase()}`} rightBtn={<NormalBtn onClick={resetAll} label="TODAS LIBRES" />} />
-      <MapaTerminales zona={zona} stMap={stMap} />
-      {(!stN || !stS) ? <SkeletonCard n={4}/> : terminals.map(terminal => {
-        const st  = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"..." };
-        const opt = getOpt(st.status);
-        return (
-          <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-              <div>
-                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px" }}>{terminal.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{terminal.fullName}</div>
-                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
-                {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>TODO NORMAL</button>}
-              </div>
-            </div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS: <span style={{ color:"#475569", fontSize:"9px", letterSpacing:"0px", fontWeight:"normal" }}>(doble click para cambiar)</span></div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-              {TERMINAL_STATUS_OPTIONS.map(o => {
-                const isAct = st.status === o.id;
-                return (
-                  <button key={o.id} onDoubleClick={() => vote(terminal.id, o.id)} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <span>{o.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      <ToastBox toast={toast} />
-      {changeModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:"28px", marginBottom:"10px" }}>🔄</div>
-            <div style={{ color:"#e2e8f0", fontFamily:getFont(theme, "secondary"), fontSize:"14px", fontWeight:"700", marginBottom:"8px" }}>¿Cambiar tu voto?</div>
-            <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", marginBottom:"20px" }}>
-              ¿Estás seguro que quieres cambiar tu voto a <span style={{ color:"#38bdf8", fontWeight:"700" }}>{changeModal.label}</span>?
-            </div>
-            <div style={{ display:"flex", gap:"10px" }}>
-              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Cancelar</button>
-              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Sí, cambiar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
