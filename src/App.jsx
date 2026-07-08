@@ -9504,8 +9504,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         </div>
       </div>
 
-      {/* Índice */}
-      {!compact && <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px", padding: "14px" }}>
+      {/* Índice: oculto en Reportar para que el mapa quede limpio y no invada los módulos inferiores */}
+      {!compact && !cleanReportMap && <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "14px", padding: "14px" }}>
         <div style={{ fontFamily: getFont(theme, "title"), fontSize: "13px", color: "rgba(255,255,255,0.7)", letterSpacing: "1px", marginBottom: "12px" }}>ÍNDICE DEL MAPA</div>
 
         {/* Rutas */}
