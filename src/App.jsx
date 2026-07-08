@@ -136,6 +136,7 @@ const TAB_PUBLIC_ICONS = {
   patio: "/patios.png",
   segundo: "/confinados.png",
   carriles: "/carriles.png",
+  accesos: "/carriles.png",
   noticias: "/noticias.png",
   donativos: "/posturas.png",
   tutorial: "/mas info.png",
@@ -153,10 +154,9 @@ const TABS = [
   { key: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio },
   { key: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
   { key: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte },
-  { key: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales },
-  { key: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio },
+  { key: "terminales",  label: "Terminales y Patios", icon: TAB_PUBLIC_ICONS.terminales },
   { key: "segundo",     label: "Confinados",  icon: TAB_PUBLIC_ICONS.segundo },
-  { key: "carriles",    label: "Carriles",    icon: TAB_PUBLIC_ICONS.carriles },
+  { key: "accesos",     label: "Accesos",     icon: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles },
   { key: "noticias",    label: "Noticias",    icon: TAB_PUBLIC_ICONS.noticias },
   { key: "donativos",   label: "Posturas",    icon: TAB_PUBLIC_ICONS.donativos },
   { key: "tutorial",    label: "Más Info",    icon: TAB_PUBLIC_ICONS.tutorial }
@@ -169,10 +169,12 @@ const TABS = [
 const VALID_TAB_KEYS = [...TABS.map(t => t.key), "portuario"];
 const TAB_ALIASES = {
   reportar: "reporte",
-  patio: "patio",
-  patios: "patio",
+  patio: "terminales",
+  patios: "terminales",
   terminal: "terminales",
   terminales: "terminales",
+  terminalesypatios: "terminales",
+  terminales_patios: "terminales",
   trafico: "trafico",
   tráfico: "trafico",
   segundoacceso: "segundo",
@@ -180,8 +182,11 @@ const TAB_ALIASES = {
   "2doacceso": "segundo",
   "2do_acceso": "segundo",
   confinados: "segundo",
+  carriles: "accesos",
+  controldecarriles: "accesos",
+  control_carriles: "accesos",
   mapa: "reporte",
-  accesos: "trafico"
+  accesos: "accesos"
 };
 const normalizeTabKey = (value) => {
   if (!value || typeof value !== "string") return null;
@@ -273,9 +278,8 @@ const DEFAULT_THEME = {
     trafico: { type: "image", value: TAB_PUBLIC_ICONS.trafico, size: 24 },
     reporte: { type: "image", value: TAB_PUBLIC_ICONS.reporte, size: 24 },
     terminales: { type: "image", value: TAB_PUBLIC_ICONS.terminales, size: 24 },
-    patio: { type: "image", value: TAB_PUBLIC_ICONS.patio, size: 24 },
     segundo: { type: "image", value: TAB_PUBLIC_ICONS.segundo, size: 24 },
-    carriles: { type: "image", value: TAB_PUBLIC_ICONS.carriles, size: 24 },
+    accesos: { type: "image", value: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles, size: 24 },
     noticias: { type: "image", value: TAB_PUBLIC_ICONS.noticias, size: 24 },
     donativos: { type: "image", value: TAB_PUBLIC_ICONS.donativos, size: 24 },
     tutorial: { type: "image", value: TAB_PUBLIC_ICONS.tutorial, size: 24 }
@@ -7103,141 +7107,87 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
 function NavBar({ active, set }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
-  const row1 = [
-    { id: "inicio",      label: "Inicio",      icon: TAB_PUBLIC_ICONS.inicio  },
-    { id: "trafico",     label: "Tráfico",     icon: TAB_PUBLIC_ICONS.trafico },
-    { id: "reporte",     label: "Reportar",    icon: TAB_PUBLIC_ICONS.reporte  },
-    { id: "terminales",  label: "Terminales",  icon: TAB_PUBLIC_ICONS.terminales  },
-    { id: "patio",       label: "Patios",      icon: TAB_PUBLIC_ICONS.patio  },
-  ];
-  const row2 = [
-    { id: "segundo",    label: "Confinados", icon: TAB_PUBLIC_ICONS.segundo  },
-    { id: "carriles",   label: "Carriles",   icon: TAB_PUBLIC_ICONS.carriles  },
-    { id: "noticias",   label: "Noticias",   icon: TAB_PUBLIC_ICONS.noticias  },
-    { id: "donativos",  label: "Posturas",   icon: TAB_PUBLIC_ICONS.donativos  },
-    { id: "tutorial",   label: "Más Info",   icon: TAB_PUBLIC_ICONS.tutorial  },
-  ];
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const TabBtn = (t) => {
-    const [isHovered, setIsHovered] = useState(false);
-    const isActive = active === t.id;
-    
-    return (
-      <button 
-        key={t.id} 
-        onClick={() => set(t.id)} 
-        onMouseDown={(e) => e.preventDefault()}
-        onTouchStart={(e) => {
-          // Evitar el comportamiento de hover en móviles
-          e.preventDefault();
-          set(t.id);
-        }}
-        style={{
-          flex: isActive ? 1.35 : 1,
-          padding: isActive
-            ? "clamp(8px, 2.2vw, 13px) clamp(3px, 1vw, 8px)"
-            : "clamp(9px, 2.4vw, 15px) clamp(2px, 1vw, 6px)",
-          background: isActive ? ui.tabActiveBg : (isHovered ? ui.tabHoverBg : ui.tabBg),
-          border: "none",
-          borderRadius: isActive ? "10px 10px 0 0" : "0",
-          borderBottom: isActive ? `2px solid ${ui.accent}` : "2px solid transparent",
-          boxShadow: isActive ? "0 -2px 10px rgba(0,0,0,0.10)" : "none",
-          color: isActive ? ui.primary : (isHovered ? ui.secondary : ui.muted),
-          fontSize: "clamp(9px, 2.35vw, 14px)",
-          fontFamily: getFont(theme, "secondary"),
-          fontWeight: isActive ? "800" : "600",
-          cursor: "pointer",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: isActive ? "clamp(3px, 1vw, 5px)" : "0",
-          transition: "all 0.22s ease",
-          letterSpacing: "clamp(0px, 0.08vw, 0.5px)",
-          whiteSpace: "normal",
-          minWidth: "0",
-          minHeight: isActive ? "clamp(62px, 11vw, 84px)" : "clamp(70px, 12vw, 92px)",
-          WebkitTapHighlightColor: "transparent",
-          MozTapHighlightColor: "transparent",
-          outline: "none",
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          touchAction: "manipulation"
-        }}
-        onFocus={(e) => { e.currentTarget.style.outline = "none"; }}
-        onMouseEnter={() => {
-          if (!isActive) setIsHovered(true);
-        }}
-        onMouseLeave={() => {
-          setIsHovered(false);
-        }}
-      >
-        <span
-          className={`cm-nav-icon-wrap ${isActive ? "cm-nav-icon-active" : "cm-nav-icon-inactive"}`}
-          style={{
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            width: isActive ? "clamp(26px, 5.6vw, 34px)" : "clamp(46px, 9vw, 58px)",
-            height: isActive ? "clamp(26px, 5.6vw, 34px)" : "clamp(46px, 9vw, 58px)",
-            maxWidth: "92%",
-            maxHeight: "92%",
-            overflow: "hidden",
-            borderRadius: "14px",
-            transform: isActive ? "scale(1)" : "scale(1.03)",
-            transition:"all 0.22s ease"
-          }}
-        >
-          <AppIcon
-            name={t.icon}
-            size={isActive ? 32 : 54}
-            active={isActive || isHovered}
-            style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain" }}
-          />
-        </span>
-        {isActive && (
-          <span className="cm-nav-label" style={{ display:"block", width:"100%", overflowWrap:"normal", lineHeight:1.15 }}>
-            {t.label.toUpperCase()}
-          </span>
-        )}
-      </button>
-    );
+  const handleSelect = (id) => {
+    set(id);
+    setMobileOpen(false);
   };
 
   return (
     <>
       <style>{`
-        .cm-nav-icon-wrap svg,.cm-nav-icon-wrap img{display:block;object-fit:contain;transition:all .22s ease;max-width:100%!important;max-height:100%!important;}
-        .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(26px,5.6vw,34px)!important;height:clamp(26px,5.6vw,34px)!important;}
-        .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(46px,9vw,58px)!important;height:clamp(46px,9vw,58px)!important;}
-        .cm-nav-label{font-size:clamp(9px,2.35vw,14px);}
-        @media (max-width: 520px){
-          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(40px,11vw,50px)!important;height:clamp(40px,11vw,50px)!important;}
-          .cm-nav-icon-active svg,.cm-nav-icon-active img{width:clamp(24px,6.6vw,30px)!important;height:clamp(24px,6.6vw,30px)!important;}
-        }
-        @media (max-width: 420px){
-          .cm-nav-label{font-size:9px!important;letter-spacing:0!important;}
-          .cm-nav-icon-inactive svg,.cm-nav-icon-inactive img{width:clamp(36px,10.5vw,46px)!important;height:clamp(36px,10.5vw,46px)!important;}
-        }
-        @media (max-width: 360px){
-          .cm-nav-label{font-size:8.3px!important;}
-        }
+        .cm-top-nav-shell{position:sticky;top:0;z-index:100;background:rgba(13,17,23,.92);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid rgba(255,255,255,.10);box-shadow:0 10px 30px rgba(0,0,0,.28)}
+        .cm-top-nav-inner{max-width:1440px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:12px}
+        .cm-pill-nav{display:flex;align-items:center;gap:6px;width:100%;overflow-x:auto;scrollbar-width:none;padding:3px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:rgba(255,255,255,.035)}
+        .cm-pill-nav::-webkit-scrollbar{display:none}
+        .cm-pill-tab{position:relative;min-height:46px;border:0;border-radius:999px;padding:0 15px;background:transparent;color:rgba(226,232,240,.72);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:800;letter-spacing:.2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;transition:color .2s ease,background .2s ease,transform .2s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+        .cm-pill-tab:hover{color:#fff;background:rgba(255,255,255,.06);transform:translateY(-1px)}
+        .cm-pill-tab.is-active{color:#fff;background:linear-gradient(135deg,rgba(0,98,140,.88),rgba(14,165,233,.38));box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 10px 24px rgba(14,165,233,.12)}
+        .cm-pill-tab.is-active:after{content:'';position:absolute;left:18px;right:18px;bottom:4px;height:2px;border-radius:99px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.75);animation:cmTabIndicator .18s ease-out}
+        .cm-pill-tab-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+        .cm-mobile-menu-btn{display:none;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;border-radius:14px;min-width:46px;height:46px;cursor:pointer;font-size:22px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        .cm-mobile-grid{display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:10px 14px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(13,17,23,.96)}
+        .cm-mobile-grid.is-open{display:grid}
+        .cm-mobile-tab{min-height:64px;border:1px solid rgba(255,255,255,.10);border-radius:16px;background:rgba(255,255,255,.045);color:rgba(226,232,240,.88);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:800;letter-spacing:.2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        .cm-mobile-tab.is-active{background:linear-gradient(135deg,rgba(0,98,140,.92),rgba(14,165,233,.28));border-color:rgba(136,206,255,.38);color:#fff;box-shadow:0 10px 22px rgba(0,98,140,.20)}
+        @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
+        @media (max-width: 980px){.cm-pill-nav{display:none}.cm-mobile-menu-btn{display:inline-flex;align-items:center;justify-content:center}.cm-top-nav-inner{justify-content:flex-end}.cm-mobile-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width: 420px){.cm-mobile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-mobile-tab{min-height:68px;font-size:10px}}
       `}</style>
-    <nav style={{
-      background: ui.navBg,
-      backdropFilter: "blur(20px)",
-      WebkitBackdropFilter: "blur(20px)",
-      borderBottom: `1px solid ${ui.border}`,
-      boxShadow: "0 6px 16px rgba(0,0,0,0.16)",
-      position: "sticky", top: 0, zIndex: 100,
-    }}>
-      <div style={{ display: "flex", borderBottom: `1px solid ${ui.subtleBorder}` }}>
-        {row1.map(TabBtn)}
-      </div>
-      <div style={{ display: "flex" }}>
-        {row2.map(TabBtn)}
-      </div>
-    </nav>
+      <nav className="cm-top-nav-shell" aria-label="Navegación principal" style={{ borderBottomColor: ui.border }}>
+        <div className="cm-top-nav-inner">
+          <div className="cm-pill-nav" role="tablist" aria-label="Secciones principales">
+            {TABS.map(tab => {
+              const isActive = active === tab.key;
+              const iconCfg = theme?.tabIcons?.[tab.key];
+              const iconValue = iconCfg?.type === "builtin" ? iconCfg.value : (iconCfg?.value || tab.icon);
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`cm-pill-tab ${isActive ? "is-active" : ""}`}
+                  onClick={() => handleSelect(tab.key)}
+                >
+                  <span className="cm-pill-tab-icon"><AppIcon name={iconValue} size={20} active={isActive} /></span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="cm-mobile-menu-btn"
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            onClick={() => setMobileOpen(v => !v)}
+          >
+            {mobileOpen ? "×" : "☰"}
+          </button>
+        </div>
+        <div className={`cm-mobile-grid ${mobileOpen ? "is-open" : ""}`} role="tablist" aria-label="Menú móvil">
+          {TABS.map(tab => {
+            const isActive = active === tab.key;
+            const iconCfg = theme?.tabIcons?.[tab.key];
+            const iconValue = iconCfg?.type === "builtin" ? iconCfg.value : (iconCfg?.value || tab.icon);
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`cm-mobile-tab ${isActive ? "is-active" : ""}`}
+                onClick={() => handleSelect(tab.key)}
+              >
+                <AppIcon name={iconValue} size={26} active={isActive} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </>
   );
 }
@@ -7456,17 +7406,18 @@ function SkeletonCard({ n = 3 }) {
 }
 
 
-function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
+function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = null, hideSubnav = false }) {
   const theme = React.useContext(ThemeContext);
   const [accesos,     setAccesos]     = useState(null);   // null = loading
   const [vialidades,  setVialidades]  = useState(null);  // null = loading
   const [rutasFiscales, setRutasFiscales] = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
+    if (defaultSection) return defaultSection;
     try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
   });
   const setActiveSectionPersist = (s) => {
-    try { sessionStorage.setItem("trafico_section", s); } catch {}
+    if (!defaultSection) { try { sessionStorage.setItem("trafico_section", s); } catch {} }
     setActiveSection(s);
   };
   useEffect(() => {
@@ -7699,22 +7650,24 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
           .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
         }
       `}</style>
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
-        {sections.map(s => (
-          <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
-            flex: 1, padding: "10px 4px", background: "transparent", border: "none",
-            borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
-            color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
-            fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
-            cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
-          }}>
-            <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
-              <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
-            </span>
-            {s.label.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      {!hideSubnav && (
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
+              flex: 1, padding: "10px 4px", background: "transparent", border: "none",
+              borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
+              color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
+              fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
+              cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
+            }}>
+              <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
+                <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
+              </span>
+              {s.label.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ══════════════════════════════════════
           SECCIÓN: MAPA
@@ -20895,9 +20848,14 @@ function EncuestaSatisfaccion({ isAdmin }) {
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
 function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSetActive }) {
   const theme = React.useContext(ThemeContext);
+  const canvasRef = useRef(null);
   const [qrVisible, setQrVisible] = useState(false);
-  const [clickCount, setClickCount] = useState(0);
-  const clickTimeoutRef = useRef(null);
+
+  const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
+  const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
+  const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
+  const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
+  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanillo";
 
   useEffect(() => {
     let showTimer, hideTimer;
@@ -20905,21 +20863,115 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
       setQrVisible(true);
       showTimer = setTimeout(() => {
         setQrVisible(false);
-        hideTimer = setTimeout(cycle, 3000);
-      }, 5000);
+        hideTimer = setTimeout(cycle, 3600);
+      }, 5200);
     }
     cycle();
     return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
   }, []);
 
-  const handleLogoClick = () => {
-    // El modo admin ahora se activa desde el logo superior izquierdo del header.
-  };
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
 
-  const WA_CHANNEL = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
-  const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
-  const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
-  const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
+    let raf = 0;
+    let width = 0;
+    let height = 0;
+    let particles = [];
+    const pointer = { x: -9999, y: -9999 };
+
+    const resize = () => {
+      const rect = canvas.parentElement?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight };
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = Math.max(1, Math.floor(rect.width));
+      height = Math.max(1, Math.floor(rect.height));
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const count = Math.max(36, Math.min(92, Math.floor((width * height) / 15000)));
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        r: Math.random() * 1.5 + 0.7
+      }));
+    };
+
+    const onPointerMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    };
+    const onPointerLeave = () => { pointer.x = -9999; pointer.y = -9999; };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, width, height);
+      const gradient = ctx.createRadialGradient(width * 0.52, height * 0.25, 0, width * 0.52, height * 0.25, Math.max(width, height) * 0.75);
+      gradient.addColorStop(0, "rgba(0, 98, 140, 0.18)");
+      gradient.addColorStop(0.45, "rgba(14, 165, 233, 0.06)");
+      gradient.addColorStop(1, "rgba(13, 17, 23, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > width) p.vx *= -1;
+        if (p.y < 0 || p.y > height) p.vy *= -1;
+      });
+
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const a = particles[i];
+          const b = particles[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 135) {
+            ctx.strokeStyle = `rgba(136, 206, 255, ${0.16 * (1 - dist / 135)})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+        const p = particles[i];
+        const pdx = p.x - pointer.x;
+        const pdy = p.y - pointer.y;
+        const pd = Math.sqrt(pdx * pdx + pdy * pdy);
+        if (pd < 170) {
+          ctx.strokeStyle = `rgba(0, 242, 234, ${0.22 * (1 - pd / 170)})`;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(pointer.x, pointer.y);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(200, 230, 255, 0.72)";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+
+    resize();
+    draw();
+    window.addEventListener("resize", resize);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+    };
+  }, []);
 
   const autoUI = getAutoUIColors(theme);
   const colors = (theme?.backgroundType === "color" && theme?.uiAutoAdjust !== false) ? {
@@ -20933,128 +20985,110 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
     muted: getTextColor(theme, "muted", "#94a3b8"),
     accent: getTextColor(theme, "accent", "#38bdf8"),
   };
-  const titleSize = Math.max(Number(theme?.titleFontSize) || 17, 28);
-  const bodySize = Math.max(Number(theme?.baseFontSize) || 14, 17);
 
-  const IconWA = ({ size = 22 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="16" fill="#25D366"/>
-      <path d="M22.7 9.3A9.5 9.5 0 0 0 7.1 21.7L6 26l4.4-1.2a9.5 9.5 0 0 0 12.3-14.5zm-6.7 14.6a7.9 7.9 0 0 1-4-1.1l-.3-.2-2.6.7.7-2.5-.2-.3a7.9 7.9 0 1 1 6.4 3.4zm4.3-5.9c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.7c-.1-.2 0-.4.1-.5l.4-.5c.1-.1.1-.2.2-.4 0-.1 0-.3-.1-.4l-.7-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.1 5 5 0 0 0 1.1 2.7 11.5 11.5 0 0 0 4.4 3.9c.6.3 1.1.4 1.5.3a2.6 2.6 0 0 0 1.7-1.2c.2-.4.2-.8 0-.9z" fill="white"/>
-    </svg>
-  );
-  const IconFB = ({ size = 22 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="16" fill="#1877F2"/>
-      <path d="M21 16h-3v10h-4V16h-2v-4h2v-2.3C14 7.6 15.3 6 18.1 6H21v4h-1.8c-.8 0-1.2.4-1.2 1.2V12H21l-.5 4z" fill="white"/>
-    </svg>
-  );
-  const IconIG = ({ size = 42 }) => (
-    <svg width={size} height={size} viewBox="0 0 42 42" fill="none">
-      <defs><radialGradient id="ig_grad_inicio" cx="30%" cy="107%" r="150%"><stop offset="0%" stopColor="#fdf497"/><stop offset="45%" stopColor="#fd5949"/><stop offset="65%" stopColor="#d6249f"/><stop offset="100%" stopColor="#285AEB"/></radialGradient></defs>
-      <rect width="42" height="42" rx="12" fill="url(#ig_grad_inicio)"/>
-      <rect x="11" y="11" width="20" height="20" rx="5.5" stroke="white" strokeWidth="2" fill="none"/>
-      <circle cx="21" cy="21" r="5" stroke="white" strokeWidth="2" fill="none"/>
-      <circle cx="27.5" cy="14.5" r="1.5" fill="white"/>
-    </svg>
-  );
+  const DockIcon = ({ type }) => {
+    if (type === "wa") return <AppIcon name="whatsapp" size={24} active />;
+    if (type === "fb") return <span style={{ fontSize: 24, fontWeight: 900, fontFamily: "Arial", color: "#1877F2" }}>f</span>;
+    if (type === "ig") return <span style={{ fontSize: 23 }}>◎</span>;
+    if (type === "tt") return <span className="cm-tiktok-glyph">♪</span>;
+    return <AppIcon name="web" size={24} active />;
+  };
 
-  const socialCards = [
-    { key:"wa", title:"Canal de Noticias", desc:"Recibe actualizaciones del puerto directamente en WhatsApp.", href:WA_CHANNEL, cta:"UNIRME AL CANAL", color:"#25D366", icon:<IconWA size={42}/>, qr:true },
-    { key:"fbGroup", title:"Grupo Conect Manzanillo", desc:"Participa con la comunidad logística y comparte información útil.", href:FB_GROUP, cta:"IR AL GRUPO", color:"#1877F2", icon:<IconFB size={42}/> },
-    { key:"fbPage", title:"Página Oficial", desc:"Sigue comunicados, publicaciones y novedades de Conect Manzanillo.", href:FB_PAGE, cta:"SEGUIR PÁGINA", color:"#1877F2", icon:<IconFB size={42}/> },
-    { key:"ig", title:"@conectmanzanillo", desc:"Fotos, videos y noticias del puerto en Instagram.", href:IG_PAGE, cta:"SEGUIR EN INSTAGRAM", color:"#f472b6", icon:<IconIG size={42}/> },
+  const dockItems = [
+    { key: "wa", label: "WhatsApp", href: WA_CHANNEL, color: "#25D366", qr: true },
+    { key: "fb", label: "Grupo", href: FB_GROUP, color: "#1877F2" },
+    { key: "page", label: "Página", href: FB_PAGE, color: "#1877F2", type: "fb" },
+    { key: "ig", label: "Instagram", href: IG_PAGE, color: "#f472b6", type: "ig" },
+    { key: "tt", label: "TikTok", href: TIKTOK_PAGE, color: "#00f2ea", type: "tt" },
   ];
 
   return (
-    <div style={{ padding:"24px 16px", paddingBottom:"100px" }}>
-      <section style={{
-        marginBottom:"28px",
-        background: theme?.backgroundType === "color" && theme?.contentBox?.autoAdjustWithSolidBackground !== false ? autoUI.panelBg : "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(167,139,250,0.08))",
-        border:`1px solid ${theme?.backgroundType === "color" && theme?.contentBox?.autoAdjustWithSolidBackground !== false ? autoUI.border : withAlpha(colors.accent, 0.32)}`,
-        borderRadius:"22px",
-        padding:"30px 22px",
-        textAlign:"center",
-        position:"relative",
-        overflow:"hidden",
-        boxShadow:autoUI.shadow
-      }}>
-        <div style={{ position:"absolute", top:"-55px", right:"-55px", width:"180px", height:"180px", background:`radial-gradient(circle, ${withAlpha(colors.accent,0.20)} 0%, transparent 70%)`, pointerEvents:"none" }} />
-        <div
-          style={{
-            width:"150px", height:"150px", margin:"0 auto 22px",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            userSelect:"none"
-          }}
-          title="Conect Manzanillo"
-        >
-          <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" style={{ width:"150px", height:"150px", objectFit:"contain", filter:"drop-shadow(0 16px 30px rgba(0,0,0,0.45))" }} />
-        </div>
-
-        <h1 style={{ margin:"0 0 14px", fontFamily:getFont(theme,"title"), fontSize:`clamp(30px, 7vw, ${titleSize + 16}px)`, lineHeight:1.05, color:colors.primary, fontWeight:900, letterSpacing:"0.4px" }}>
-          CONECT MANZANILLO
-        </h1>
-        <div style={{ fontFamily:getFont(theme,"secondary"), color:colors.accent, fontSize:`${Math.max(bodySize - 2, 15)}px`, fontWeight:800, letterSpacing:"2px", marginBottom:"20px" }}>
-          INFORMACIÓN PORTUARIA EN TIEMPO REAL
-        </div>
-        <p style={{ margin:"0 auto 18px", maxWidth:"720px", fontFamily:getFont(theme,"secondary"), fontSize:`clamp(17px, 4vw, ${bodySize + 4}px)`, lineHeight:1.75, color:colors.secondary, fontWeight:500 }}>
-          CONECT MANZANILLO es una plataforma digital diseñada para consultar, monitorear y reportar información operativa del puerto de Manzanillo en tiempo real. Desde un solo lugar, los usuarios pueden conocer el estatus de terminales, rutas fiscales, accesos, vialidades, comunicados oficiales e incidencias relevantes para la logística portuaria.
-        </p>
-        <p style={{ margin:"0 auto", maxWidth:"720px", fontFamily:getFont(theme,"secondary"), fontSize:`clamp(17px, 4vw, ${bodySize + 3}px)`, lineHeight:1.75, color:colors.secondary }}>
-          Nuestro objetivo es facilitar la toma de decisiones, mejorar la coordinación operativa y brindar información clara, actualizada y confiable para transportistas, operadores logísticos, terminales y usuarios del puerto.
-        </p>
-
-        {isAdmin && (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", marginTop:"22px", flexWrap:"wrap" }}>
-            <span style={{ background:withAlpha(colors.accent,0.16), border:`1px solid ${withAlpha(colors.accent,0.38)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800 }}>⚡ ADMIN</span>
-            <button onClick={onOpenThemeConfig} style={{ background:"rgba(139,92,246,0.16)", border:"1px solid rgba(139,92,246,0.42)", borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"#c4b5fd", fontWeight:800, cursor:"pointer" }}>🎨 TEMA</button>
-            <button onClick={() => { if (onSetActive) onSetActive("portuario"); }} style={{ background:withAlpha(colors.accent,0.12), border:`1px solid ${withAlpha(colors.accent,0.35)}`, borderRadius:"999px", padding:"6px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:colors.accent, fontWeight:800, cursor:"pointer" }}>CONTROL PORTUARIO</button>
-            <button onClick={logout} style={{ background:"none", border:"none", color:colors.muted, fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", padding:"6px" }}>✕ Salir</button>
+    <div className="cm-home-root">
+      <style>{`
+        .cm-home-root{position:relative;min-height:calc(100vh - 120px);overflow:hidden;background:#0d1117;padding:0 16px 96px;color:#fff}
+        #network-shader{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto;opacity:.72}
+        .cm-home-vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,17,23,.55) 0%,rgba(13,17,23,.18) 42%,#0d1117 100%);pointer-events:none}
+        .cm-home-content{position:relative;z-index:2;max-width:1180px;margin:0 auto;min-height:calc(100vh - 170px);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);align-items:center;gap:34px;padding:56px 0 24px}
+        .cm-hero-logo{width:132px;height:132px;object-fit:contain;filter:drop-shadow(0 18px 36px rgba(0,0,0,.55));animation:cmFadeUp .9s ease both}
+        .cm-reveal-title{font-family:'IBM Plex Sans','Noto Sans',sans-serif;font-size:clamp(42px,7vw,82px);line-height:.95;font-weight:900;letter-spacing:-.055em;margin:18px 0 18px;animation:cmReveal 1.1s cubic-bezier(.77,0,.175,1) both;background:linear-gradient(180deg,#fff 0%,#c8e6ff 55%,#88ceff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .cm-hero-copy{font-family:'DM Sans',sans-serif;font-size:clamp(16px,2.2vw,19px);line-height:1.75;color:rgba(226,232,240,.82);max-width:680px;margin:0 0 26px;font-weight:500}
+        .cm-hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;animation:cmFadeUp .9s .35s ease both;opacity:0}
+        .cm-hero-btn{border:0;border-radius:16px;padding:15px 22px;min-height:52px;font-family:'DM Sans',sans-serif;font-weight:900;letter-spacing:.2px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;transition:transform .2s ease,box-shadow .2s ease,background .2s ease;touch-action:manipulation}
+        .cm-hero-btn.primary{background:#00628c;color:#fff;box-shadow:0 14px 34px rgba(0,98,140,.28)}
+        .cm-hero-btn.secondary{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(16px)}
+        .cm-hero-btn:hover{transform:translateY(-2px)}
+        .cm-dock-panel{justify-self:center;width:min(100%,520px);border-radius:34px;background:rgba(13,17,23,.66);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.10);box-shadow:0 28px 80px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);padding:22px;animation:cmFadeUp 1s .55s ease both;opacity:0}
+        .cm-dock-title{font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:2px;font-size:11px;color:rgba(226,232,240,.54);font-weight:900;text-align:center;margin-bottom:18px}
+        .cm-dock-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+        .cm-dock-card{position:relative;min-height:92px;border-radius:22px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;transition:transform .25s cubic-bezier(.23,1,.32,1),box-shadow .25s ease,border-color .25s ease,background .25s ease;overflow:hidden;will-change:transform}
+        .cm-dock-card:before{content:'';position:absolute;inset:-40%;background:radial-gradient(circle,var(--dock-color) 0%,transparent 55%);opacity:.09;transition:opacity .25s ease,transform .25s ease}
+        .cm-dock-card:hover{transform:translateY(-8px) scale(1.035);box-shadow:0 22px 44px rgba(0,0,0,.32),0 0 26px color-mix(in srgb,var(--dock-color) 22%,transparent);border-color:color-mix(in srgb,var(--dock-color) 52%,rgba(255,255,255,.16));background:rgba(255,255,255,.075)}
+        .cm-dock-card:hover:before{opacity:.2;transform:scale(1.1)}
+        .cm-dock-icon{position:relative;z-index:1;width:44px;height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid color-mix(in srgb,var(--dock-color) 36%,rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+        .cm-dock-card span:last-child{position:relative;z-index:1;color:rgba(255,255,255,.86)}
+        .cm-tiktok-glyph{font-size:27px;color:#fff;filter:drop-shadow(-1px -1px 4px #00f2ea) drop-shadow(1px 1px 4px #ff0050)}
+        .cm-qr-dock{margin-top:18px;overflow:hidden;max-height:0;opacity:0;transition:max-height .55s ease,opacity .35s ease}
+        .cm-qr-dock.is-active{max-height:250px;opacity:1}
+        .cm-admin-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+        .cm-admin-strip button,.cm-admin-strip span{border-radius:999px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
+        @keyframes cmFadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes cmReveal{from{clip-path:polygon(0 0,0 0,0 100%,0 100%);opacity:.72}to{clip-path:polygon(0 0,100% 0,100% 100%,0 100%);opacity:1}}
+        @media (max-width: 900px){.cm-home-content{grid-template-columns:1fr;text-align:center;padding-top:36px}.cm-hero-copy{margin-left:auto;margin-right:auto}.cm-hero-actions{justify-content:center}.cm-admin-strip{justify-content:center}.cm-dock-panel{margin-top:4px}.cm-hero-logo{width:112px;height:112px}}
+        @media (max-width: 560px){.cm-home-root{padding-left:12px;padding-right:12px}.cm-home-content{gap:24px}.cm-dock-panel{border-radius:28px;padding:16px}.cm-dock-grid{grid-template-columns:repeat(5,1fr);gap:7px}.cm-dock-card{min-height:78px;border-radius:18px;font-size:9px}.cm-dock-icon{width:38px;height:38px}.cm-hero-btn{width:100%;justify-content:center}.cm-reveal-title{font-size:clamp(38px,13vw,54px)}}
+      `}</style>
+      <canvas id="network-shader" ref={canvasRef} aria-hidden="true" />
+      <div className="cm-home-vignette" />
+      <section className="cm-home-content" aria-label="Inicio Conect Manzanillo">
+        <div>
+          <img className="cm-hero-logo" src={CONECT_LOGO_SRC} alt="Conect Manzanillo" />
+          <h1 className="cm-reveal-title">Gestión Portuaria<br />Inteligente</h1>
+          <p className="cm-hero-copy">
+            CONECT MANZANILLO es una plataforma digital diseñada para consultar, monitorear y reportar información operativa del puerto de Manzanillo en tiempo real. Desde un solo lugar, los usuarios pueden conocer el estatus de terminales, rutas fiscales, accesos, vialidades, comunicados oficiales e incidencias relevantes para la logística portuaria.
+          </p>
+          <div className="cm-hero-actions">
+            <button type="button" className="cm-hero-btn primary" onClick={() => onSetActive?.("trafico")}>
+              <AppIcon name="window" size={22} active /> Panel de Control
+            </button>
+            <button type="button" className="cm-hero-btn secondary" onClick={() => onSetActive?.("reporte")}>
+              <AppIcon name="route" size={22} active /> Ver Rutas Live
+            </button>
           </div>
-        )}
-      </section>
-
-      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, letterSpacing:"2px", fontWeight:800, marginBottom:"14px", paddingLeft:"2px" }}>
-        SÍGUENOS · COMUNIDAD
-      </div>
-
-      <div style={{ display:"grid", gap:"14px" }}>
-        {socialCards.map(card => (
-          <div key={card.key} style={{ background:withAlpha(card.color,0.06), border:`1px solid ${withAlpha(card.color,0.22)}`, borderRadius:"18px", overflow:"hidden", boxShadow:"0 10px 26px rgba(0,0,0,0.18)" }}>
-            <div style={{ background:withAlpha(card.color,0.12), padding:"10px 16px", display:"flex", alignItems:"center", gap:"8px", borderBottom:`1px solid ${withAlpha(card.color,0.15)}` }}>
-              <div style={{ width:"8px", height:"8px", background:card.color, borderRadius:"50%" }} />
-              <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 5, 11)}px`, fontWeight:800, color:card.color, letterSpacing:"1.3px" }}>{card.title.toUpperCase()}</span>
+          {isAdmin && (
+            <div className="cm-admin-strip">
+              <span>⚡ ADMIN</span>
+              <button type="button" onClick={onOpenThemeConfig}>🎨 TEMA</button>
+              <button type="button" onClick={() => onSetActive?.("portuario")}>CONTROL PORTUARIO</button>
+              <button type="button" onClick={logout}>✕ Salir</button>
             </div>
-            <div style={{ padding:"18px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"14px" }}>
-                {card.icon}
-                <div>
-                  <div style={{ fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:`${Math.max(bodySize, 16)}px`, color:colors.primary }}>{card.title}</div>
-                  <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 3, 13)}px`, color:colors.muted, marginTop:"4px", lineHeight:1.5 }}>{card.desc}</div>
-                </div>
-              </div>
-              {card.qr && (
-                <div style={{ overflow:"hidden", maxHeight:qrVisible ? "220px" : "0px", transition:"max-height 0.7s ease", marginBottom:qrVisible ? "14px" : 0 }}>
-                  <div style={{ background:"white", borderRadius:"14px", padding:"12px", width:"180px", margin:"0 auto", boxShadow:"0 8px 24px rgba(0,0,0,0.25)" }}>
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(WA_CHANNEL)}`} alt="QR Canal WhatsApp" style={{ width:"100%", display:"block", borderRadius:"8px" }} />
-                  </div>
-                  <div style={{ textAlign:"center", fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 5, 11)}px`, color:colors.muted, marginTop:"8px" }}>Escanea para unirte al canal</div>
-                </div>
-              )}
-              <a href={card.href} target="_blank" rel="noopener noreferrer" style={{ textDecoration:"none" }}>
-                <button style={{ width:"100%", padding:"14px 16px", background:card.key === "ig" ? "linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)" : `linear-gradient(135deg, ${card.color}, ${card.color}cc)`, border:"none", borderRadius:"13px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 2, 13)}px`, fontWeight:900, cursor:"pointer", letterSpacing:"0.5px", boxShadow:`0 8px 22px ${withAlpha(card.color,0.32)}` }}>
-                  {card.cta}
-                </button>
+          )}
+        </div>
+
+        <aside className="cm-dock-panel" aria-label="Digital Hub Interactive Dock">
+          <div className="cm-dock-title">Digital Hub Interactive Dock</div>
+          <div className="cm-dock-grid">
+            {dockItems.map(item => (
+              <a
+                key={item.key}
+                className="cm-dock-card"
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ "--dock-color": item.color }}
+                onMouseEnter={() => { if (item.qr) setQrVisible(true); }}
+              >
+                <span className="cm-dock-icon"><DockIcon type={item.type || item.key} /></span>
+                <span>{item.label}</span>
               </a>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div style={{ textAlign:"center", marginTop:"24px", padding:"18px", background:autoUI.panelBg, backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", borderRadius:"14px", border:`1px solid ${autoUI.border}`, boxShadow:"0 8px 22px rgba(0,0,0,0.14)" }}>
-        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:`${Math.max(bodySize - 4, 12)}px`, color:colors.muted, lineHeight:1.9 }}>
-          Comunidad Conect Manzanillo · <span style={{ color:"#25D366", fontWeight:800 }}>WhatsApp</span> · <span style={{ color:"#1877F2", fontWeight:800 }}>Facebook</span> · <span style={{ color:"#f472b6", fontWeight:800 }}>Instagram</span>
-        </div>
-      </div>
+          <div className={`cm-qr-dock ${qrVisible ? "is-active" : ""}`}>
+            <div style={{ background:"white", borderRadius:"18px", padding:"12px", width:"174px", margin:"18px auto 8px", boxShadow:"0 16px 34px rgba(0,0,0,.35)" }}>
+              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(WA_CHANNEL)}`} alt="QR Canal WhatsApp" style={{ width:"100%", display:"block", borderRadius:"10px" }} />
+            </div>
+            <div style={{ textAlign:"center", fontFamily:getFont(theme,"secondary"), color:colors.muted, fontSize:12, fontWeight:700 }}>Escanea para unirte al canal de WhatsApp</div>
+          </div>
+        </aside>
+      </section>
     </div>
   );
 }
@@ -22328,6 +22362,91 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false }) {
 // Validado FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
 
+function SectionSubTabs({ tabs, active, onChange, title, subtitle }) {
+  const theme = React.useContext(ThemeContext);
+  return (
+    <div style={{ padding: "16px", paddingBottom: "100px" }}>
+      <style>{`
+        .cm-subtab-shell{max-width:1180px;margin:0 auto}
+        .cm-subtab-header{margin-bottom:14px;padding:16px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);box-shadow:0 14px 34px rgba(0,0,0,.18)}
+        .cm-subtab-control{display:flex;gap:8px;background:rgba(13,17,23,.55);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:6px;overflow:auto;scrollbar-width:none;margin-bottom:16px;position:sticky;top:78px;z-index:80;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+        .cm-subtab-control::-webkit-scrollbar{display:none}
+        .cm-subtab-btn{position:relative;min-height:48px;flex:1 0 210px;border:0;border-radius:14px;background:transparent;color:rgba(226,232,240,.70);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:900;letter-spacing:.2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .22s ease,color .22s ease,transform .22s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        .cm-subtab-btn:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateY(-1px)}
+        .cm-subtab-btn.is-active{background:linear-gradient(135deg,rgba(0,98,140,.92),rgba(14,165,233,.30));color:#fff;box-shadow:inset 0 0 0 1px rgba(136,206,255,.20),0 10px 22px rgba(0,98,140,.18)}
+        .cm-subtab-btn.is-active:after{content:'';position:absolute;left:18px;right:18px;bottom:5px;height:2px;border-radius:999px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.7)}
+        .cm-subtab-panel{animation:cmSubtabIn .22s ease both}
+        @keyframes cmSubtabIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @media(max-width:640px){.cm-subtab-control{top:68px}.cm-subtab-btn{flex:1 0 170px;min-height:54px;font-size:12px}.cm-subtab-header{padding:14px}.cm-subtab-shell{max-width:none}}
+      `}</style>
+      <div className="cm-subtab-shell">
+        <div className="cm-subtab-header">
+          <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"clamp(22px,4vw,34px)", fontWeight:900, lineHeight:1.1 }}>{title}</div>
+          {subtitle && <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(226,232,240,.62)", fontSize:13, marginTop:6, lineHeight:1.6 }}>{subtitle}</div>}
+        </div>
+        <div className="cm-subtab-control" role="tablist" aria-label={title}>
+          {tabs.map(tab => (
+            <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={`cm-subtab-btn ${active === tab.id ? "is-active" : ""}`} onClick={() => onChange(tab.id)}>
+              <AppIcon name={tab.icon} size={20} active={active === tab.id} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="cm-subtab-panel">
+          {tabs.find(tab => tab.id === active)?.render?.()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
+  const [activeSubtab, setActiveSubtab] = useState(() => {
+    try { return sessionStorage.getItem("accesos_subtab") || "estado"; } catch { return "estado"; }
+  });
+  const setPersisted = (id) => {
+    try { sessionStorage.setItem("accesos_subtab", id); } catch {}
+    setActiveSubtab(id);
+  };
+  const tabs = [
+    { id: "estado", label: "Estado de Accesos", icon: TAB_PUBLIC_ICONS.accesos || "access-gate", render: () => <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} defaultSection="accesos" hideSubnav /> },
+    { id: "carriles", label: "Control de Carriles", icon: TAB_PUBLIC_ICONS.carriles || "lane-control", render: () => <CarrilesTab /> },
+  ];
+  return (
+    <SectionSubTabs
+      title="Accesos"
+      subtitle="Consulta el estado de accesos principales y alterna al control operativo de carriles sin salir de la sección."
+      tabs={tabs}
+      active={activeSubtab}
+      onChange={setPersisted}
+    />
+  );
+}
+
+function TerminalesPatiosTab({ myId }) {
+  const [activeSubtab, setActiveSubtab] = useState(() => {
+    try { return sessionStorage.getItem("terminales_patios_subtab") || "terminales"; } catch { return "terminales"; }
+  });
+  const setPersisted = (id) => {
+    try { sessionStorage.setItem("terminales_patios_subtab", id); } catch {}
+    setActiveSubtab(id);
+  };
+  const tabs = [
+    { id: "terminales", label: "Terminales Portuarias", icon: TAB_PUBLIC_ICONS.terminales || "port-terminal", render: () => <TerminalesTab myId={myId} /> },
+    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} /> },
+  ];
+  return (
+    <SectionSubTabs
+      title="Terminales y Patios"
+      subtitle="Estado de terminales portuarias y patios reguladores en una sola sección con navegación rápida para turnos operativos."
+      tabs={tabs}
+      active={activeSubtab}
+      onChange={setPersisted}
+    />
+  );
+}
+
+
 function App() {
   const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
   const { subAdmin, subLogout, setShowLogin: setShowSubLogin, LoginModal } = useSubAdminSession();
@@ -22923,10 +23042,9 @@ function App() {
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
-        {active === "terminales" && <TerminalesTab myId={myId} />}
-        {active === "patio"      && <PatioReguladorTab myId={myId} />}
+        {active === "terminales" && <TerminalesPatiosTab myId={myId} />}
         {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
-        {active === "carriles"   && <CarrilesTab />}
+        {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
