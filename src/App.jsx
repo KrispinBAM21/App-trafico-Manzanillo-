@@ -7606,7 +7606,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const commandViews = defaultSection === "accesos"
     ? [{ id:"accesos", label:"Accesos", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.accesos }]
     : [
-        { id:"mapa_maestro", label:"Mapa maestra", icon:"map" },
+        { id:"mapa_maestro", label:"Mapa maestro", icon:"map" },
         { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
         { id:"rutas_fiscales", label:"Rutas fiscales", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
         { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
