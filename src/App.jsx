@@ -21005,42 +21005,47 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   return (
     <div className="cm-home-root">
       <style>{`
-        .cm-home-root{position:relative;min-height:calc(100vh - 120px);overflow:hidden;background:#0d1117;padding:0 16px 96px;color:#fff}
-        #network-shader{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto;opacity:.72}
-        .cm-home-vignette{position:absolute;inset:0;background:linear-gradient(180deg,rgba(13,17,23,.55) 0%,rgba(13,17,23,.18) 42%,#0d1117 100%);pointer-events:none}
-        .cm-home-content{position:relative;z-index:2;max-width:1180px;margin:0 auto;min-height:calc(100vh - 170px);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr);align-items:center;gap:34px;padding:56px 0 24px}
-        .cm-hero-logo{width:132px;height:132px;object-fit:contain;filter:drop-shadow(0 18px 36px rgba(0,0,0,.55));animation:cmFadeUp .9s ease both}
-        .cm-reveal-title{font-family:'IBM Plex Sans','Noto Sans',sans-serif;font-size:clamp(42px,7vw,82px);line-height:.95;font-weight:900;letter-spacing:-.055em;margin:18px 0 18px;animation:cmReveal 1.1s cubic-bezier(.77,0,.175,1) both;background:linear-gradient(180deg,#fff 0%,#c8e6ff 55%,#88ceff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-        .cm-hero-copy{font-family:'DM Sans',sans-serif;font-size:clamp(16px,2.2vw,19px);line-height:1.75;color:rgba(226,232,240,.82);max-width:680px;margin:0 0 26px;font-weight:500}
-        .cm-hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;animation:cmFadeUp .9s .35s ease both;opacity:0}
-        .cm-hero-btn{border:0;border-radius:16px;padding:15px 22px;min-height:52px;font-family:'DM Sans',sans-serif;font-weight:900;letter-spacing:.2px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;transition:transform .2s ease,box-shadow .2s ease,background .2s ease;touch-action:manipulation}
-        .cm-hero-btn.primary{background:#00628c;color:#fff;box-shadow:0 14px 34px rgba(0,98,140,.28)}
-        .cm-hero-btn.secondary{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(16px)}
-        .cm-hero-btn:hover{transform:translateY(-2px)}
-        .cm-dock-panel{justify-self:center;width:min(100%,520px);border-radius:34px;background:rgba(13,17,23,.66);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.10);box-shadow:0 28px 80px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);padding:22px;animation:cmFadeUp 1s .55s ease both;opacity:0}
-        .cm-dock-title{font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:2px;font-size:11px;color:rgba(226,232,240,.54);font-weight:900;text-align:center;margin-bottom:18px}
-        .cm-dock-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-        .cm-dock-card{position:relative;min-height:92px;border-radius:22px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;transition:transform .25s cubic-bezier(.23,1,.32,1),box-shadow .25s ease,border-color .25s ease,background .25s ease;overflow:hidden;will-change:transform}
-        .cm-dock-card:before{content:'';position:absolute;inset:-40%;background:radial-gradient(circle,var(--dock-color) 0%,transparent 55%);opacity:.09;transition:opacity .25s ease,transform .25s ease}
-        .cm-dock-card:hover{transform:translateY(-8px) scale(1.035);box-shadow:0 22px 44px rgba(0,0,0,.32),0 0 26px color-mix(in srgb,var(--dock-color) 22%,transparent);border-color:color-mix(in srgb,var(--dock-color) 52%,rgba(255,255,255,.16));background:rgba(255,255,255,.075)}
-        .cm-dock-card:hover:before{opacity:.2;transform:scale(1.1)}
-        .cm-dock-icon{position:relative;z-index:1;width:44px;height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid color-mix(in srgb,var(--dock-color) 36%,rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
-        .cm-dock-card span:last-child{position:relative;z-index:1;color:rgba(255,255,255,.86)}
-        .cm-tiktok-glyph{font-size:27px;color:#fff;filter:drop-shadow(-1px -1px 4px #00f2ea) drop-shadow(1px 1px 4px #ff0050)}
-        .cm-qr-dock{margin-top:18px;overflow:hidden;max-height:0;opacity:0;transition:max-height .55s ease,opacity .35s ease}
-        .cm-qr-dock.is-active{max-height:250px;opacity:1}
-        .cm-admin-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+        .cm-home-root{position:relative;min-height:calc(100vh - 72px);overflow:hidden;background:#0d1117;padding:0 16px 58px;color:#fff;display:flex;flex-direction:column;align-items:center}
+        #network-shader{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.42}
+        .cm-home-vignette{position:absolute;inset:0;background:radial-gradient(circle at 50% 22%,rgba(0,98,140,.20),transparent 30%),linear-gradient(180deg,rgba(13,17,23,.42) 0%,rgba(13,17,23,.20) 46%,#0d1117 100%);pointer-events:none}
+        .cm-home-content{position:relative;z-index:2;width:100%;max-width:980px;margin:0 auto;min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 0 0;gap:30px}
+        .cm-hero-stack{display:flex;flex-direction:column;align-items:center;width:100%}
+        .cm-hero-logo-wrap{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:22px;animation:cmFade 1s ease both}
+        .cm-hero-logo-wrap:before{content:'';position:absolute;inset:-34px;background:rgba(0,98,140,.25);filter:blur(56px);border-radius:999px;opacity:.75;transition:opacity .25s ease,transform .25s ease}
+        .cm-hero-logo-wrap:hover:before{opacity:1;transform:scale(1.08)}
+        .cm-hero-logo{position:relative;z-index:1;width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 0 28px rgba(0,98,140,.38)) drop-shadow(0 16px 30px rgba(0,0,0,.42));animation:cmFadeUp .85s ease both}
+        .cm-reveal-title{font-family:'IBM Plex Sans','Noto Sans',system-ui,sans-serif;font-size:clamp(32px,5vw,52px);line-height:.96;font-weight:900;letter-spacing:-.045em;margin:0 0 18px;animation:cmReveal 1.1s cubic-bezier(.77,0,.175,1) both;color:#fff;text-wrap:balance;text-shadow:0 10px 32px rgba(0,0,0,.36)}
+        .cm-hero-copy{font-family:'DM Sans','IBM Plex Sans',system-ui,sans-serif;font-size:clamp(12px,1.55vw,15px);line-height:1.62;color:rgba(226,232,240,.86);max-width:610px;margin:0 auto 26px;font-weight:700;text-wrap:pretty;animation:cmFadeUp 1s .24s ease both;opacity:0}
+        .cm-hero-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;align-items:center;animation:cmFadeUp .95s .45s ease both;opacity:0}
+        .cm-hero-btn{border:0;border-radius:8px;padding:13px 24px;min-height:48px;min-width:154px;font-family:'DM Sans','IBM Plex Sans',system-ui,sans-serif;font-size:13px;font-weight:900;letter-spacing:.05px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;transition:transform .2s ease,box-shadow .2s ease,background .2s ease,border-color .2s ease;touch-action:manipulation}
+        .cm-hero-btn.primary{background:#00628c;color:#fff;box-shadow:0 14px 30px rgba(0,98,140,.30)}
+        .cm-hero-btn.secondary{background:rgba(255,255,255,.055);color:#fff;border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+        .cm-hero-btn:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(0,0,0,.28)}
+        .cm-dock-panel{width:min(100%,520px);border-radius:18px 18px 0 0;background:rgba(13,17,23,.60);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.09);border-bottom:0;box-shadow:0 24px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.06);padding:18px 22px 20px;animation:cmFadeUp 1s .68s ease both;opacity:0;margin-top:2px}
+        .cm-dock-title{font-family:'DM Sans','IBM Plex Sans',system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;font-size:10px;color:rgba(226,232,240,.46);font-weight:900;text-align:center;margin-bottom:13px}
+        .cm-dock-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:center}
+        .cm-dock-card{position:relative;min-height:58px;border-radius:14px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-decoration:none;color:#fff;font-family:'DM Sans','IBM Plex Sans',system-ui,sans-serif;font-size:9px;font-weight:900;transition:transform .25s cubic-bezier(.23,1,.32,1),box-shadow .25s ease,border-color .25s ease,background .25s ease;overflow:hidden;will-change:transform;touch-action:manipulation}
+        .cm-dock-card:before{content:'';position:absolute;inset:-45%;background:radial-gradient(circle,var(--dock-color) 0%,transparent 58%);opacity:.08;transition:opacity .25s ease,transform .25s ease}
+        .cm-dock-card:hover{transform:translateY(-6px) scale(1.035);box-shadow:0 18px 36px rgba(0,0,0,.30),0 0 22px color-mix(in srgb,var(--dock-color) 22%,transparent);border-color:color-mix(in srgb,var(--dock-color) 52%,rgba(255,255,255,.16));background:rgba(255,255,255,.075)}
+        .cm-dock-card:hover:before{opacity:.20;transform:scale(1.1)}
+        .cm-dock-icon{position:relative;z-index:1;width:32px;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid color-mix(in srgb,var(--dock-color) 36%,rgba(255,255,255,.12));box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+        .cm-dock-card span:last-child{position:relative;z-index:1;color:rgba(255,255,255,.82);line-height:1.05}
+        .cm-tiktok-glyph{font-size:22px;color:#fff;filter:drop-shadow(-1px -1px 4px #00f2ea) drop-shadow(1px 1px 4px #ff0050)}
+        .cm-qr-dock{margin-top:12px;overflow:hidden;max-height:0;opacity:0;transition:max-height .55s ease,opacity .35s ease}
+        .cm-qr-dock.is-active{max-height:230px;opacity:1}
+        .cm-admin-strip{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:22px}
         .cm-admin-strip button,.cm-admin-strip span{border-radius:999px;padding:7px 12px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;cursor:pointer}
-        @keyframes cmFadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes cmFadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes cmFade{from{opacity:0}to{opacity:1}}
         @keyframes cmReveal{from{clip-path:polygon(0 0,0 0,0 100%,0 100%);opacity:.72}to{clip-path:polygon(0 0,100% 0,100% 100%,0 100%);opacity:1}}
-        @media (max-width: 900px){.cm-home-content{grid-template-columns:1fr;text-align:center;padding-top:36px}.cm-hero-copy{margin-left:auto;margin-right:auto}.cm-hero-actions{justify-content:center}.cm-admin-strip{justify-content:center}.cm-dock-panel{margin-top:4px}.cm-hero-logo{width:112px;height:112px}}
-        @media (max-width: 560px){.cm-home-root{padding-left:12px;padding-right:12px}.cm-home-content{gap:24px}.cm-dock-panel{border-radius:28px;padding:16px}.cm-dock-grid{grid-template-columns:repeat(5,1fr);gap:7px}.cm-dock-card{min-height:78px;border-radius:18px;font-size:9px}.cm-dock-icon{width:38px;height:38px}.cm-hero-btn{width:100%;justify-content:center}.cm-reveal-title{font-size:clamp(38px,13vw,54px)}}
-      `}</style>
+        @media (min-width: 1100px){.cm-home-content{max-width:1040px;padding-top:56px}.cm-hero-logo{width:166px;height:166px}.cm-reveal-title{font-size:58px}.cm-hero-copy{font-size:15px;max-width:650px}.cm-dock-panel{max-width:560px}}
+        @media (max-width: 720px){.cm-home-root{padding-left:12px;padding-right:12px}.cm-home-content{padding-top:38px;gap:26px}.cm-hero-logo{width:126px;height:126px}.cm-reveal-title{font-size:clamp(30px,8vw,42px)}.cm-hero-copy{max-width:520px;font-size:12px;line-height:1.55}.cm-dock-panel{width:min(100%,392px);padding:16px 18px 18px}.cm-dock-grid{gap:9px}.cm-dock-card{min-height:54px;border-radius:13px}.cm-dock-icon{width:30px;height:30px}.cm-hero-btn{min-width:154px}}
+        @media (max-width: 480px){.cm-home-content{justify-content:flex-start;min-height:calc(100vh - 92px);padding-top:30px}.cm-hero-actions{width:100%}.cm-hero-btn{width:100%;max-width:320px}.cm-dock-panel{border-radius:18px 18px 0 0;padding:14px 12px 16px}.cm-dock-title{font-size:9px;letter-spacing:1.4px}.cm-dock-grid{gap:6px}.cm-dock-card{min-height:52px;font-size:8px}.cm-dock-icon{width:28px;height:28px}.cm-hero-logo{width:112px;height:112px}}      `}</style>
       <canvas id="network-shader" ref={canvasRef} aria-hidden="true" />
       <div className="cm-home-vignette" />
       <section className="cm-home-content" aria-label="Inicio Conect Manzanillo">
-        <div>
-          <img className="cm-hero-logo" src={CONECT_LOGO_SRC} alt="Conect Manzanillo" />
+        <div className="cm-hero-stack">
+          <div className="cm-hero-logo-wrap"><img className="cm-hero-logo" src={CONECT_LOGO_SRC} alt="Conect Manzanillo" /></div>
           <h1 className="cm-reveal-title">Gestión Portuaria<br />Inteligente</h1>
           <p className="cm-hero-copy">
             CONECT MANZANILLO es una plataforma digital diseñada para consultar, monitorear y reportar información operativa del puerto de Manzanillo en tiempo real. Desde un solo lugar, los usuarios pueden conocer el estatus de terminales, rutas fiscales, accesos, vialidades, comunicados oficiales e incidencias relevantes para la logística portuaria.
