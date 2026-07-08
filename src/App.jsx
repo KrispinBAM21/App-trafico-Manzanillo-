@@ -11127,7 +11127,7 @@ function CommandMapAutoFit({ layerConfig }) {
 }
 
 
-// ─── DEEP PORT SENTINEL · CENTRO DE MANDO POR ZONAS ──────────────────────────
+// ─── CENTRO DE MANDO POR ZONAS ──────────────────────────────────────────────
 const SENTINEL_STATUS_OPTIONS = [
   { id: "libre", label: "Libre", color: "#22c55e", icon: "check_circle" },
   { id: "lento", label: "Lento", color: "#facc15", icon: "speed" },
@@ -12159,10 +12159,10 @@ function TerminalesTab({ myId, isAdmin = false }) {
         .sentinel-title{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:#f8fafc;letter-spacing:.2px;margin-top:2px;}
         .sentinel-action{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(34,211,238,.32);border-radius:999px;background:rgba(8,47,73,.45);color:#a5f3fc;padding:9px 12px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.9px;cursor:pointer;box-shadow:0 0 22px rgba(34,211,238,.12);}
         .sentinel-map-shell{position:relative;border:1px solid rgba(148,163,184,.18);border-radius:22px;overflow:hidden;background:rgba(2,6,23,.92);box-shadow:0 28px 80px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(18px);}
-        .sentinel-zone-selector{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:7px;padding:5px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(2,6,23,.78);backdrop-filter:blur(16px);box-shadow:0 16px 36px rgba(0,0,0,.38);}
+        .sentinel-zone-selector{position:static;z-index:3;display:flex;justify-content:center;width:max-content;max-width:100%;margin:0 auto 12px;gap:7px;padding:5px;border:1px solid rgba(34,211,238,.24);border-radius:999px;background:rgba(2,6,23,.78);backdrop-filter:blur(16px);box-shadow:0 16px 36px rgba(0,0,0,.38),0 0 24px rgba(34,211,238,.10);}
         .sentinel-zone-selector button{display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:999px;background:transparent;color:rgba(148,163,184,.82);padding:8px 13px;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .16s ease;white-space:nowrap;}
         .sentinel-zone-selector button.is-active{border-color:color-mix(in srgb,var(--zone-accent) 65%,transparent);background:color-mix(in srgb,var(--zone-accent) 20%,transparent);color:var(--zone-accent);box-shadow:0 0 22px color-mix(in srgb,var(--zone-accent) 28%,transparent);}
-        .sentinel-map-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:58px 16px 12px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.92),rgba(2,6,23,.72));}
+        .sentinel-map-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.92),rgba(2,6,23,.72));}
         .sentinel-zone-chip{border:1px solid;border-radius:999px;background:rgba(15,23,42,.64);padding:8px 11px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:1px;}
         .sentinel-master-svg{display:block;width:100%;height:clamp(420px,54vh,650px);background:#020617;}
         .sentinel-poly-group polygon{transition:opacity .18s ease,fill .18s ease,stroke .18s ease,stroke-width .18s ease;}
@@ -12175,8 +12175,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
         .sentinel-map-footer span{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:800;color:rgba(226,232,240,.76);text-transform:uppercase;letter-spacing:.65px;}
         .sentinel-map-footer i{width:20px;height:5px;border-radius:99px;box-shadow:0 0 12px currentColor;}
         .sentinel-leaflet-shell{overflow:visible;}
-        .sentinel-leaflet-shell .sentinel-zone-selector{z-index:900;}
-        .sentinel-leaflet-map-header{padding-top:58px;}
+        .sentinel-leaflet-map-header{padding-top:16px;}
         .sentinel-leaflet-map-slot{padding:0 14px 14px;background:rgba(2,6,23,.92);}
         .sentinel-leaflet-map-slot > div{margin-bottom:0!important;}
         .sentinel-leaflet-map-slot [style*="height: 320px"],.sentinel-leaflet-map-slot [style*="height:320px"]{height:clamp(420px,54vh,650px)!important;}
@@ -12231,14 +12230,13 @@ function TerminalesTab({ myId, isAdmin = false }) {
         .sentinel-modal-actions{display:flex;gap:10px;margin-top:18px;}
         .sentinel-modal-actions button{flex:1;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.84);color:#cbd5e1;padding:10px;font-size:11px;font-weight:900;text-transform:uppercase;cursor:pointer;}
         .sentinel-modal-actions button:last-child{border-color:rgba(34,211,238,.45);background:rgba(34,211,238,.14);color:#67e8f9;}
-        @media(max-width:720px){.sentinel-zone-selector{position:static;transform:none;margin:10px auto 0;width:max-content;max-width:calc(100% - 20px);overflow:auto}.sentinel-map-header,.sentinel-leaflet-map-header{padding-top:14px}.sentinel-view-tabs{border-radius:18px;align-items:stretch;flex-direction:column}.sentinel-view-tabs button{width:100%}.sentinel-segmented-control{grid-template-columns:1fr 1fr;border-radius:16px}.sentinel-card-grid{max-height:none;overflow:visible}.sentinel-footer-meta{margin-left:0}}
+        @media(max-width:720px){.sentinel-zone-selector{margin:10px auto 12px;width:max-content;max-width:calc(100% - 20px);overflow:auto}.sentinel-map-header,.sentinel-leaflet-map-header{padding-top:14px}.sentinel-view-tabs{border-radius:18px;align-items:stretch;flex-direction:column}.sentinel-view-tabs button{width:100%}.sentinel-segmented-control{grid-template-columns:1fr 1fr;border-radius:16px}.sentinel-card-grid{max-height:none;overflow:visible}.sentinel-footer-meta{margin-left:0}}
       `}</style>
 
       <TypewriterTicker items={tickerItems} />
 
       <div className="sentinel-topbar">
         <div>
-          <div className="sentinel-kicker">Deep Port Sentinel</div>
           <div className="sentinel-title">Terminales y Patios · Centro de Mando</div>
         </div>
         <button type="button" className="sentinel-action" onClick={isRutasView ? resetRutasZona : resetAllTerminales}>
@@ -12248,26 +12246,9 @@ function TerminalesTab({ myId, isAdmin = false }) {
       </div>
 
       <div className="sentinel-map-shell sentinel-leaflet-shell">
-        <div className="sentinel-zone-selector" aria-label="Selector de zona operativa">
-          {Object.values(ZONE_CONFIG).map(zone => {
-            const active = zona === zone.id;
-            return (
-              <button
-                key={zone.id}
-                type="button"
-                onClick={() => setZonaPersist(zone.id)}
-                className={active ? "is-active" : ""}
-                style={{ "--zone-accent": zone.accent }}
-              >
-                <span className="material-symbols-outlined">{zone.icon}</span>
-                <span>{zone.label}</span>
-              </button>
-            );
-          })}
-        </div>
         <div className="sentinel-map-header sentinel-leaflet-map-header">
           <div>
-            <div className="sentinel-kicker">Leaflet SVG Layer · Terminales y Rutas Fiscales</div>
+            <div className="sentinel-kicker">Terminales y Rutas Fiscales</div>
             <div className="sentinel-title">Centro de Mando por Zonas</div>
           </div>
           <div className="sentinel-zone-chip" style={{ borderColor: `${zoneCfg.accent}80`, color: zoneCfg.accent }}>
@@ -12293,6 +12274,24 @@ function TerminalesTab({ myId, isAdmin = false }) {
           <span className="material-symbols-outlined">alt_route</span>
           Estatus Rutas Fiscales
         </button>
+      </div>
+
+      <div className="sentinel-zone-selector" aria-label="Selector de zona operativa">
+        {Object.values(ZONE_CONFIG).map(zone => {
+          const active = zona === zone.id;
+          return (
+            <button
+              key={zone.id}
+              type="button"
+              onClick={() => setZonaPersist(zone.id)}
+              className={active ? "is-active" : ""}
+              style={{ "--zone-accent": zone.accent }}
+            >
+              <span className="material-symbols-outlined">{zone.icon}</span>
+              <span>{zone.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <section className="sentinel-dynamic-panel" key={`${zona}-${vista}`}>
