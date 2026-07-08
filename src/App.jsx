@@ -11120,257 +11120,83 @@ function CommandMapAutoFit({ layerConfig }) {
   return null;
 }
 
-
-// ─── DEEP PORT SENTINEL · CENTRO DE MANDO POR ZONAS ──────────────────────────
-const SENTINEL_STATUS_OPTIONS = [
-  { id: "libre", label: "Libre", color: "#22c55e", icon: "check_circle" },
-  { id: "lento", label: "Lento", color: "#facc15", icon: "speed_0_25" },
-  { id: "saturado", label: "Saturado", color: "#f97316", icon: "traffic_jam" },
-  { id: "cerrado", label: "Cerrado", color: "#ef4444", icon: "block" },
-];
-
-const SENTINEL_STATUS_ALIASES = {
-  llena: "saturado",
-  retorno_terminal: "lento",
-  retorno_asipona: "cerrado",
-  moderado: "lento",
-  detenido: "cerrado",
-};
-
-const normalizeSentinelStatus = (status) => SENTINEL_STATUS_ALIASES[status] || status || "libre";
-const getSentinelOption = (status) => SENTINEL_STATUS_OPTIONS.find(o => o.id === normalizeSentinelStatus(status)) || SENTINEL_STATUS_OPTIONS[0];
-
-const ZONE_CONFIG = {
-  norte: {
-    id: "norte",
-    label: "Zona Norte",
-    icon: "north",
-    accent: "#22d3ee",
-    terminalIds: ["contecon", "hazesa"],
-    rutaIds: ["contecon_ruta", "ruta_fiscal_norte"],
-  },
-  sur: {
-    id: "sur",
-    label: "Zona Sur",
-    icon: "south",
-    accent: "#d946ef",
-    terminalIds: ["timsa", "ssa", "ocupa", "multimodal", "friman", "lajunta", "cemex", "granelera", "asipona"],
-    rutaIds: [
-      "ruta_fiscal_sur",
-      "vialidad_ruta",
-      "vialidad_contra_ruta"
-    ],
-  },
-};
-
-const getPolygonZone = (type, id, fallbackZone = "sur") => {
-  const normalizedFallback = String(fallbackZone || "sur").toLowerCase();
-  return Object.values(ZONE_CONFIG).find(z => {
-    if (type === "terminal") return z.terminalIds.includes(id);
-    if (type === "ruta") return z.rutaIds.includes(id);
-    return false;
-  })?.id || normalizedFallback;
-};
-
-const POLYGON_MASTER = [
-  ...(TERM_POLYGONS?.norte || []).map(p => ({ ...p, type: "terminal", zone: "norte", label: p.name || p.id })),
-  ...(TERM_POLYGONS?.sur || []).map(p => ({ ...p, type: "terminal", zone: "sur", label: p.name || p.id })),
-  ...(RUTAS_FISCALES || []).map(p => ({ ...p, type: "ruta", zone: getPolygonZone("ruta", p.id, p.zona), label: p.name || p.id })),
-];
-
-const SENTINEL_PALETTE = {
-  terminal: "#22d3ee",
-  ruta: "#d946ef",
-  acceso: "#a3e635",
-  amber: "#f59e0b",
-};
-
-const projectLatLngToSvg = (coords, bounds, width = 1200, height = 560, pad = 54) => {
-  const [lat, lng] = coords;
-  const x = pad + ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * (width - pad * 2);
-  const y = pad + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat || 1)) * (height - pad * 2);
-  return [Number(x.toFixed(2)), Number(y.toFixed(2))];
-};
-
-const buildSvgBounds = (items) => {
-  const flat = items.flatMap(item => flattenCommandCoords(item.coords));
-  const lats = flat.map(([lat]) => lat);
-  const lngs = flat.map(([, lng]) => lng);
-  return {
-    minLat: Math.min(...lats),
-    maxLat: Math.max(...lats),
-    minLng: Math.min(...lngs),
-    maxLng: Math.max(...lngs),
-  };
-};
-
-const polygonCentroid = (points) => {
-  if (!points.length) return [0, 0];
-  const sum = points.reduce((acc, p) => [acc[0] + p[0], acc[1] + p[1]], [0, 0]);
-  return [sum[0] / points.length, sum[1] / points.length];
-};
-
-const getPolygonStatus = (poly, terminalStateMap, rutasFiscales, accesos = {}) => {
-  if (poly.type === "terminal") return terminalStateMap?.[poly.id]?.status || "libre";
-  if (poly.type === "ruta") return rutasFiscales?.[poly.id]?.status || "libre";
-  return "libre";
-};
-
-const getZoneItems = (zone) => {
-  const cfg = ZONE_CONFIG[zone] || ZONE_CONFIG.norte;
-  return {
-    terminales: TODAS_TERMINALES.filter(t => cfg.terminalIds.includes(t.id)),
-    rutas: RUTAS_FISCALES.filter(r => cfg.rutaIds.includes(r.id)),
-  };
-};
-
-
-function UnifiedMap({
-  accesos = {},
-  vialidades = {},
-  rutasFiscales = {},
-  incidents = [],
-  selectedZone = "norte",
-  onZoneChange,
-  activeView = "terminales",
-  terminalStateMap = {},
-}) {
-  const width = 1320;
-  const height = 650;
-  const zoneCfg = ZONE_CONFIG[selectedZone] || ZONE_CONFIG.norte;
-
-  const mapItems = useMemo(() => (
-    POLYGON_MASTER.map(item => ({ ...item, shape: "polygon" }))
-  ), []);
-
-  const bounds = useMemo(() => buildSvgBounds(mapItems), [mapItems]);
-
-  const zoneCounts = useMemo(() => ({
-    terminales: POLYGON_MASTER.filter(p => p.zone === selectedZone && p.type === "terminal").length,
-    rutas: POLYGON_MASTER.filter(p => p.zone === selectedZone && p.type === "ruta").length,
-  }), [selectedZone]);
-
-  const getPolyColor = (poly) => {
-    const status = getPolygonStatus(poly, terminalStateMap, rutasFiscales, accesos);
-    if (poly.type === "ruta") return getSentinelOption(rutasFiscales?.[poly.id]?.status).color || SENTINEL_PALETTE.ruta;
-    return getSentinelOption(status).color || SENTINEL_PALETTE[poly.type] || "#22d3ee";
-  };
-
-  const getLineColor = (line) => {
-    const opt = getCommandOption(VIALIDAD_STATUS_OPTIONS, vialidades?.[line.id]?.status);
-    return opt?.color || "#64748b";
-  };
-
-  const isActiveType = (item) => {
-    if (activeView === "rutas_fiscales") return item.type === "ruta";
-    return item.type === "terminal";
-  };
-
+function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
+  const theme = React.useContext(ThemeContext);
+  const layerConfig = useMemo(() => buildLayerConfig({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
+  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords));
   return (
-    <div className="sentinel-map-shell">
-      <div className="sentinel-zone-selector" aria-label="Selector de zona operativa">
-        {Object.values(ZONE_CONFIG).map(zone => {
-          const active = selectedZone === zone.id;
-          return (
-            <button
-              key={zone.id}
-              type="button"
-              onClick={() => onZoneChange?.(zone.id)}
-              className={active ? "is-active" : ""}
-              style={{ "--zone-accent": zone.accent }}
-            >
-              <span className="material-symbols-outlined">{zone.icon}</span>
-              <span>{zone.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="sentinel-map-header">
+    <div className="cm-unified-map-card">
+      <div className="cm-unified-map-toolbar">
         <div>
-          <div className="sentinel-kicker">SVG MAESTRO · TERMINALES Y RUTAS FISCALES</div>
-          <div className="sentinel-title">Centro de Mando por Zonas</div>
+          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
+          <div className="cm-panel-title">Capas operativas sincronizadas</div>
         </div>
-        <div className="sentinel-zone-chip" style={{ borderColor: `${zoneCfg.accent}80`, color: zoneCfg.accent }}>
-          {zoneCfg.label}
-        </div>
+        <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
       </div>
-
-      <svg className="sentinel-master-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Mapa SVG maestro de ${zoneCfg.label}`}>
-        <defs>
-          <pattern id="sentinel-grid" width="42" height="42" patternUnits="userSpaceOnUse">
-            <path d="M 42 0 L 0 0 0 42" fill="none" stroke="rgba(148,163,184,0.12)" strokeWidth="0.8" />
-          </pattern>
-          <filter id="sentinel-glow" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="3.4" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <linearGradient id="sentinel-bg" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#020617" />
-            <stop offset="58%" stopColor="#07111f" />
-            <stop offset="100%" stopColor="#020617" />
-          </linearGradient>
-        </defs>
-
-        <rect width="100%" height="100%" fill="url(#sentinel-bg)" />
-        <rect width="100%" height="100%" fill="url(#sentinel-grid)" opacity="0.75" />
-
-        {POLYGON_MASTER.map(poly => {
-          const projected = flattenCommandCoords(poly.coords).map(c => projectLatLngToSvg(c, bounds, width, height, 72));
-          if (!projected.length) return null;
-          const points = projected.map(([x, y]) => `${x},${y}`).join(" ");
-          const [cx, cy] = polygonCentroid(projected);
-          const sameZone = poly.zone === selectedZone;
-          const activeType = isActiveType(poly);
-          const visibleInZone = sameZone && activeType;
-          const baseColor = getPolyColor(poly);
-          const typeColor = SENTINEL_PALETTE[poly.type] || baseColor;
-          const status = getSentinelOption(getPolygonStatus(poly, terminalStateMap, rutasFiscales, accesos));
-          const stroke = visibleInZone ? baseColor : activeType ? `${typeColor}80` : "rgba(71,85,105,.55)";
-          const fill = visibleInZone ? `${baseColor}42` : sameZone ? `${typeColor}18` : "rgba(30,41,59,0.18)";
-          const opacity = visibleInZone ? 1 : sameZone ? 0.42 : 0.16;
-          const labelText = (poly.label || poly.name || poly.id).replace(/^Terminal\s+/i, "");
-          return (
-            <g
-              key={`${poly.type}-${poly.id}-${poly.name || ""}`}
-              className={`sentinel-poly-group ${visibleInZone ? "is-zone" : "is-muted"}`}
-              onClick={() => {
-                if (poly.zone !== selectedZone) onZoneChange?.(poly.zone);
-              }}
-            >
-              <polygon
-                points={points}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={visibleInZone ? 3.2 : sameZone ? 1.9 : 1.1}
-                opacity={opacity}
-                filter={visibleInZone ? "url(#sentinel-glow)" : undefined}
-              >
-                <title>{`${labelText} · ${status.label} · ${poly.zone === "norte" ? "Zona Norte" : "Zona Sur"}`}</title>
-              </polygon>
-              {(visibleInZone || sameZone) && (
-                <>
-                  <circle cx={cx} cy={cy} r={visibleInZone ? 4.5 : 2.6} fill={visibleInZone ? baseColor : typeColor} opacity={visibleInZone ? "0.95" : "0.45"} />
-                  <text x={cx + 8} y={cy - 7} className="sentinel-map-label" opacity={visibleInZone ? 1 : 0.58}>
-                    {labelText}
-                  </text>
-                  <text x={cx + 8} y={cy + 8} className="sentinel-map-status" fill={visibleInZone ? baseColor : typeColor} opacity={visibleInZone ? 1 : 0.58}>
-                    {status.label}
-                  </text>
-                </>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-
-      <div className="sentinel-map-footer">
-        <span><i style={{ background: "#22d3ee" }} />Terminales</span>
-        <span><i style={{ background: "#d946ef" }} />Rutas fiscales</span>
-        <span className="sentinel-footer-meta">{zoneCounts.terminales} terminales · {zoneCounts.rutas} rutas fiscales</span>
+      <MapContainer center={[19.081, -104.292]} zoom={14} scrollWheelZoom zoomControl attributionControl={false} className="cm-unified-map">
+        <CommandMapAutoFit layerConfig={layerConfig} />
+        <LayersControl position="topright" collapsed>
+          {COMMAND_BASE_LAYERS.map((base, index) => (
+            <LayersControl.BaseLayer key={base.id} checked={index === 0} name={base.label}>
+              <TileLayer url={base.url} maxZoom={20} subdomains={base.subdomains || "abc"} />
+            </LayersControl.BaseLayer>
+          ))}
+          {layerConfig.map(group => (
+            <LayersControl.Overlay key={group.id} checked={group.checked} name={group.label}>
+              <LayerGroup>
+                {group.items.map(item => {
+                  const vivid = cmVividMapColor(item.color, `${group.id}:${item.id}`);
+                  const tooltip = `${item.name || item.label || item.id} · ${item.statusLabel}`;
+                  if (group.type === "polyline") {
+                    return (
+                      <React.Fragment key={`${group.id}-${item.id}`}>
+                        <Polyline positions={item.coords} pathOptions={{ color:"#020617", weight:(item.weight || 7) + 5, opacity:0.35, lineCap:"round", lineJoin:"round" }} />
+                        <Polyline positions={item.coords} pathOptions={{ color:vivid, weight:item.weight || 7, opacity:0.96, lineCap:"round", lineJoin:"round" }}>
+                          <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                        </Polyline>
+                      </React.Fragment>
+                    );
+                  }
+                  return (
+                    <Polygon key={`${group.id}-${item.id}`} positions={item.coords} pathOptions={cmMapPolygonStyle(vivid, { key:item.id, weight:3.4, fillOpacity:0.5 })}>
+                      <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                    </Polygon>
+                  );
+                })}
+              </LayerGroup>
+            </LayersControl.Overlay>
+          ))}
+          <LayersControl.Overlay checked name="Etiquetas terminales / accesos">
+            <LayerGroup>
+              {RUTA_FISCAL_REFERENCIAS.filter(ref => ref.tipo === "terminal" || ref.tipo === "acceso").map(ref => (
+                <CommandReferenceMarker key={ref.id} refItem={ref} accesos={accesos} />
+              ))}
+            </LayerGroup>
+          </LayersControl.Overlay>
+          <LayersControl.Overlay checked={activeIncidents.length > 0} name="Eventos activos">
+            <LayerGroup>
+              {activeIncidents.map(inc => {
+                const cfg = INCIDENT_TYPES.find(t => t.id === inc.type) || INCIDENT_TYPES[0];
+                const icon = L.divIcon({
+                  className:"cm-incident-marker",
+                  html:`<div style="width:18px;height:18px;border-radius:999px;background:${cfg.color};border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 6px ${cfg.color}33,0 8px 20px rgba(0,0,0,.45)"></div>`,
+                  iconSize:[18,18],
+                  iconAnchor:[9,9],
+                });
+                return (
+                  <Marker key={inc.id} position={inc.coords} icon={icon}>
+                    <Popup className="cm-popup"><strong>{cfg.label}</strong><br />{inc.location || "Evento activo"}</Popup>
+                  </Marker>
+                );
+              })}
+            </LayerGroup>
+          </LayersControl.Overlay>
+        </LayersControl>
+      </MapContainer>
+      <div className="cm-map-legend">
+        {[...VIALIDAD_STATUS_OPTIONS, ...RUTA_FISCAL_STATUS_OPTIONS.filter(o => o.id !== "libre")].filter((o, i, arr) => arr.findIndex(x => x.id === o.id && x.label === o.label) === i).map(o => (
+          <span key={`${o.id}-${o.label}`}><i style={{ background:o.color }} />{o.label}</span>
+        ))}
       </div>
     </div>
   );
@@ -11793,73 +11619,45 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales }) {
 
 // ─── TAB: TERMINALES ──────────────────────────────────────────────────────────
 
-
 function TerminalesTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
   const [zona, setZona] = useState(() => {
-    try {
-      const saved = String(sessionStorage.getItem("term_zona") || "norte").toLowerCase();
-      return ZONE_CONFIG[saved] ? saved : "norte";
-    } catch { return "norte"; }
+    try { return sessionStorage.getItem("term_zona") || "norte"; } catch { return "norte"; }
   });
-  const [vista, setVista] = useState("terminales");
+  const [vistaTerminalesPortuarias, setVistaTerminalesPortuarias] = useState("terminales");
   const [stN, setStN] = useState(null);
   const [stS, setStS] = useState(null);
   const [rutasFiscales, setRutasFiscales] = useState(null);
   const [toast, setToast] = useState(null);
   const [changeModal, setChangeModal] = useState(null);
 
-  const zoneCfg = ZONE_CONFIG[zona] || ZONE_CONFIG.norte;
-  const zonaLabel = zoneCfg.label.replace("Zona ", "");
-  const terminalStateMap = zona === "norte" ? (stN || {}) : (stS || {});
-  const allTerminalStateMap = useMemo(() => ({ ...(stN || {}), ...(stS || {}) }), [stN, stS]);
-  const setTerminalState = zona === "norte" ? setStN : setStS;
-  const isRutasView = vista === "rutas_fiscales";
-  const zoneItems = getZoneItems(zona);
-  const terminals = zoneItems.terminales.map(t => {
-    const source = [...TERMINALS_NORTE, ...TERMINALS_SUR].find(x => x.id === t.id);
-    return source || t;
-  });
-  const rutasZona = zoneItems.rutas;
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const setZonaPersist = (z) => { try { sessionStorage.setItem("term_zona", z); } catch {} setZona(z); };
+  const zonaLabel = zona === "norte" ? "Norte" : "Sur";
+  const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
+  const stMap = zona === "norte" ? (stN || {}) : (stS || {});
+  const setSt = zona === "norte" ? setStN : setStS;
+  const isRutasView = vistaTerminalesPortuarias === "rutas_fiscales";
+  const rutasZona = RUTAS_FISCALES.filter(r => r.zona === zonaLabel);
 
-  const notify = (msg, color = "#22d3ee") => {
-    setToast({ msg, color });
-    setTimeout(() => setToast(null), 2800);
-  };
-
-  const setZonaPersist = (nextZone) => {
-    const safeZone = String(nextZone || "norte").toLowerCase();
-    const normalizedZone = ZONE_CONFIG[safeZone] ? safeZone : "norte";
-    try { sessionStorage.setItem("term_zona", normalizedZone); } catch {}
-    setZona(normalizedZone);
-  };
-
-  useEffect(() => {
-    try {
-      if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-25..0&family=JetBrains+Mono:wght@400;600;700;800&display=swap";
-        document.head.appendChild(link);
-      }
-    } catch {}
-  }, []);
+  const segmentShell = { display:"flex", background:"rgba(255,255,255,0.05)", borderRadius:"10px", padding:"4px", marginBottom:"12px", border:"1px solid rgba(255,255,255,0.15)", gap:"4px" };
+  const segmentButton = (active) => ({ flex:1, padding:"10px", background: active ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "transparent", border:"none", borderRadius:"8px", color: active ? "#fff" : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer", transition:"all 0.2s", letterSpacing:"0.7px", textTransform:"uppercase" });
 
   const tickerItems = useMemo(() => {
     if (!stN || !stS || !rutasFiscales) return [];
     if (isRutasView) {
-      return rutasZona.map(r => {
-        const st = rutasFiscales[r.id] || { status: "libre" };
-        const opt = getSentinelOption(st.status);
+      return RUTAS_FISCALES.map(r => {
+        const st = rutasFiscales[r.id] || { status:"libre" };
+        const opt = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === st.status) || RUTA_FISCAL_STATUS_OPTIONS[0];
         return { text: `${r.name} — ${opt.label.toUpperCase()}`, color: opt.color };
       });
     }
-    return terminals.map(t => {
-      const st = terminalStateMap[t.id] || { status: "libre" };
-      const opt = getSentinelOption(st.status);
+    return [...TERMINALS_NORTE, ...TERMINALS_SUR].map(t => {
+      const st = (TERMINALS_NORTE.find(x => x.id === t.id) ? stN : stS)[t.id];
+      const opt = TERMINAL_STATUS_OPTIONS.find(o => o.id === st?.status) || TERMINAL_STATUS_OPTIONS[0];
       return { text: `${t.name} — ${opt.label.toUpperCase()}`, color: opt.color };
     });
-  }, [stN, stS, rutasFiscales, isRutasView, zona]);
+  }, [stN, stS, rutasFiscales, isRutasView]);
 
   useEffect(() => {
     const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
@@ -11875,350 +11673,227 @@ function TerminalesTab({ myId, isAdmin = false }) {
         setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), {}));
         return;
       }
-      const mapN = {};
-      const mapS = {};
+      const mapN = {}; const mapS = {};
       data.forEach(r => {
-        const entry = { status: normalizeSentinelStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (ZONE_CONFIG.norte.terminalIds.includes(r.id)) mapN[r.id] = entry;
-        if (ZONE_CONFIG.sur.terminalIds.includes(r.id)) mapS[r.id] = entry;
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) mapN[r.id] = entry;
+        else mapS[r.id] = entry;
       });
       setStN(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_NORTE), mapN));
       setStS(mergeStatusMapsByLatest("terminals", mkTerminals(TERMINALS_SUR), mapS));
     });
-
-    const chan = sb.channel("terminals-zone-command-rt")
+    const chan = sb.channel("terminals-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "terminals" }, ({ new: r }) => {
         if (!r) return;
-        const entry = { status: normalizeSentinelStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
-        if (ZONE_CONFIG.norte.terminalIds.includes(r.id)) {
-          setStN(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_NORTE), { [r.id]: entry }));
-        }
-        if (ZONE_CONFIG.sur.terminalIds.includes(r.id)) {
-          setStS(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_SUR), { [r.id]: entry }));
-        }
+        const entry = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} };
+        if (TERMINALS_NORTE.find(t => t.id === r.id)) setStN(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_NORTE), { [r.id]: entry }));
+        else setStS(prev => mergeStatusMapsByLatest("terminals", prev || mkTerminals(TERMINALS_SUR), { [r.id]: entry }));
       }).subscribe();
-
     return () => sb.removeChannel(chan);
   }, []);
 
   useEffect(() => {
     sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
-      if (error) {
-        setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {}));
-        return;
-      }
+      if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
       if (!data || data.length === 0) {
         await sb.from("rutas_fiscales").upsert(RUTAS_FISCALES.map(r => ({ id: r.id, status: "libre", last_update: Date.now(), updated_by: "Sistema" })));
         setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {}));
         return;
       }
       const map = {};
-      data.forEach(r => { map[r.id] = { status: normalizeSentinelStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
       setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
     });
-
-    const chan = sb.channel("rutas-fiscales-zone-command-rt")
+    const chan = sb.channel("rutas-fiscales-terminales-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
         sb.from("rutas_fiscales").select("*").then(({ data }) => {
           if (!data) return;
           const map = {};
-          data.forEach(r => { map[r.id] = { status: normalizeSentinelStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
           setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
         });
       }).subscribe();
-
     return () => sb.removeChannel(chan);
   }, []);
 
   const vote = async (termId, newStatus, forceChange = false) => {
-    if (await notifyIfBlocked("vote", (m) => alert(m))) return;
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
-    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f59e0b");
-
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
     const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
     if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      setChangeModal({ type: "terminal", id: termId, newStatus, label: getSentinelOption(newStatus).label });
+      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "terminal", id: termId, newStatus, label });
       return;
     }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    }
-
+    if (yaVoto && yaVoto.length > 0 && forceChange) await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
     const key = `terminal_${termId}_${newStatus}`;
     await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
-
+    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
     const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
     const conteo = {};
-    (todosVotos || []).forEach(v => {
-      const normalized = normalizeSentinelStatus(v.status);
-      conteo[normalized] = (conteo[normalized] || 0) + 1;
-    });
-    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a, b) => b[1] - a[1])[0] || [newStatus, 1];
-    const entry = { ...(terminalStateMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo };
-
-    setTerminalState(prev => ({ ...(prev || {}), [termId]: entry }));
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+    const entry = { ...(stMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
+    setSt(prev => ({ ...(prev || {}), [termId]: entry }));
     persistStatusEntry("terminals", termId, entry);
     await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    await auditLog({ action: "votar_terminal", section: "terminales", entityId: termId, after: { status: statusGanador, votos: conteo }, actor: `Usuario_${myId.slice(-4)}` });
-
-    const label = getSentinelOption(statusGanador).label;
+    await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
     const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
-    notify(`Terminal ${termNombre}: ${label}`, getSentinelOption(statusGanador).color);
-    await publicarNoticia({ tipo: "terminal", icono: "port-terminal", color: getSentinelOption(statusGanador).color, titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
+    await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
-    if (!isAdmin && await notifyIfBlocked("vote", (m) => alert(m))) return;
-    const current = rutasFiscales?.[id] || { status: "libre" };
-    if (normalizeSentinelStatus(current.status) === newStatus) return notify("Ya tiene ese estado", "#f59e0b");
-
+    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const ruta = rutasFiscales?.[id];
+    if (!ruta) return;
+    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
     if (!isAdmin) {
       const rl = rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
-      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f59e0b");
+      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-
-    const entry = { ...current, status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
     setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
     persistStatusEntry("rutas_fiscales", id, entry);
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
-    await upsertOperationalStatus({ section: "rutas_fiscales", itemId: id, itemName: RUTAS_FISCALES.find(x => x.id === id)?.name || id, status: newStatus, zone: RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy: actor, source: isAdmin ? "admin" : "app" });
-    await auditLog({ action: isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section: "terminales", entityId: id, before: current, after: { status: newStatus }, actor });
-
-    const opt = getSentinelOption(newStatus);
-    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name || id;
-    notify(`${rutaName}: ${opt.label}`, opt.color);
-    await publicarNoticia({ tipo: "ruta_fiscal", icono: "alt_route", color: opt.color, titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${opt.label}` });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:newStatus }, actor });
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
-  const resetAllTerminales = async () => {
+  const resetAll = async () => {
     const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    const now = Date.now();
-    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status: "libre", lastUpdate: now, updatedBy: "Reset" }]));
-    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status: "libre", lastUpdate: now, updatedBy: "Reset" }]));
-    setStN(nextN);
-    setStS(nextS);
-    persistStatusMap("terminals", { ...nextN, ...nextS });
-    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: now, updated_by: "Reset" })));
-    notify("Terminales restablecidas a Libre", "#22c55e");
+    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
+    setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
+    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
+    notify("Todas las terminales marcadas como Libres", "#22c55e");
   };
 
   const resetRutasZona = async () => {
     const now = Date.now();
     const next = { ...(rutasFiscales || {}) };
-    rutasZona.forEach(r => {
-      next[r.id] = { status: "libre", lastUpdate: now, updatedBy: "Reset" };
-      persistStatusEntry("rutas_fiscales", r.id, next[r.id]);
-    });
+    rutasZona.forEach(r => { next[r.id] = { status:"libre", lastUpdate:now, updatedBy:"Reset" }; persistStatusEntry("rutas_fiscales", r.id, next[r.id]); });
     setRutasFiscales(next);
-    await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id: r.id, status: "libre", last_update: now, updated_by: "Reset" })));
-    notify(`Rutas fiscales de ${zoneCfg.label} restablecidas`, "#22c55e");
+    await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id:r.id, status:"libre", last_update:now, updated_by:"Reset" })));
+    notify(`Rutas fiscales de Zona ${zonaLabel} marcadas como Libres`, "#22c55e");
   };
 
-  const resetOneTerminal = async (id) => {
-    const entry = { ...(terminalStateMap?.[id] || {}), status: "libre", lastUpdate: Date.now(), updatedBy: "Reset" };
-    setTerminalState(prev => ({ ...(prev || {}), [id]: entry }));
+  const resetOne = async (id) => {
+    const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
+    setSt(prev => ({ ...(prev || {}), [id]: entry }));
     persistStatusEntry("terminals", id, entry);
-    await sb.from("terminals").upsert({ id, status: "libre", last_update: entry.lastUpdate, updated_by: "Reset" });
+    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
     notify("Terminal marcada como Libre", "#22c55e");
   };
 
-  const SentinelSegmented = ({ value, onChange }) => (
-    <div className="sentinel-segmented-control">
-      {SENTINEL_STATUS_OPTIONS.map(opt => {
-        const active = normalizeSentinelStatus(value) === opt.id;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => onChange(opt.id)}
-            className={active ? "is-active" : ""}
-            style={active ? { "--status-color": opt.color } : { "--status-color": opt.color }}
-          >
-            <span>{opt.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  const getTerminalOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o => o.id === id) || TERMINAL_STATUS_OPTIONS[0];
+  const getRutaOpt = (id) => RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === id) || RUTA_FISCAL_STATUS_OPTIONS[0];
 
-  const SentinelCard = ({ title, subtitle, state, onChange, onReset }) => {
-    const opt = getSentinelOption(state?.status);
-    return (
-      <div className="sentinel-status-card" style={{ "--status-color": opt.color }}>
-        <div className="sentinel-card-head">
-          <div>
-            <div className="sentinel-card-title">{title}</div>
-            <div className="sentinel-card-subtitle">{subtitle}</div>
-            <div className="sentinel-card-meta">{timeAgo(state?.lastUpdate)} · {state?.updatedBy || "Sistema"}</div>
+  const renderTerminalCards = () => {
+    if (!stN || !stS) return <SkeletonCard n={4}/>;
+    return terminals.map(terminal => {
+      const st = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema" };
+      const opt = getTerminalOpt(st.status);
+      return (
+        <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px", gap:"10px" }}>
+            <div>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"14px" }}>{terminal.name}</div>
+              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{terminal.fullName}</div>
+              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+              <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+              {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"800" }}>TODO NORMAL</button>}
+            </div>
           </div>
-          <div className="sentinel-state-pill">
-            <span className="material-symbols-outlined">{opt.icon}</span>
-            {opt.label}
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+            {TERMINAL_STATUS_OPTIONS.map(o => {
+              const isAct = st.status === o.id;
+              return <button key={o.id} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 800 : 600 }}>{o.label}</button>;
+            })}
           </div>
         </div>
-        <SentinelSegmented value={state?.status || "libre"} onChange={onChange} />
-        {onReset && normalizeSentinelStatus(state?.status) !== "libre" && (
-          <button type="button" className="sentinel-reset-one" onClick={onReset}>
-            <span className="material-symbols-outlined">restart_alt</span>
-            Restablecer a Libre
-          </button>
-        )}
-      </div>
-    );
+      );
+    });
   };
 
-  const renderTerminales = () => {
-    if (!stN || !stS) return <SkeletonCard n={4} />;
-    return (
-      <div className="sentinel-card-grid">
-        {terminals.map(terminal => {
-          const state = terminalStateMap[terminal.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          return (
-            <SentinelCard
-              key={terminal.id}
-              title={terminal.name}
-              subtitle={terminal.fullName || `${zoneCfg.label} · Terminal portuaria`}
-              state={state}
-              onChange={(status) => vote(terminal.id, status)}
-              onReset={() => resetOneTerminal(terminal.id)}
-            />
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderRutasFiscales = () => {
-    if (!rutasFiscales) return <SkeletonCard n={3} />;
-    return (
-      <div className="sentinel-card-grid">
-        {rutasZona.map(route => {
-          const state = rutasFiscales[route.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-          return (
-            <SentinelCard
-              key={route.id}
-              title={route.name}
-              subtitle={`${route.zona || zonaLabel} · Ruta fiscal`}
-              state={state}
-              onChange={(status) => voteRutaFiscal(route.id, status)}
-            />
-          );
-        })}
-      </div>
-    );
+  const renderRutasFiscalesCards = () => {
+    if (!rutasFiscales) return <SkeletonCard n={3}/>;
+    return rutasZona.map(route => {
+      const st = rutasFiscales[route.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+      const opt = getRutaOpt(st.status);
+      return (
+        <div key={route.id} style={{ background:"rgba(255,255,255,0.06)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"12px", overflow:"hidden" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+            <div>
+              <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"800" }}>{route.name}</div>
+              <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+            </div>
+            <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", flexShrink:0 }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+            {RUTA_FISCAL_STATUS_OPTIONS.map(o => {
+              const isAct = st.status === o.id;
+              return <button key={o.id} onClick={() => voteRutaFiscal(route.id, o.id)} style={{ padding:"10px 8px", background:isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color:isAct ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:isAct ? "800" : "600" }}>{o.label}</button>;
+            })}
+          </div>
+        </div>
+      );
+    });
   };
 
   return (
-    <div className="sentinel-command-root">
-      <style>{`
-        .sentinel-command-root{min-height:100vh;padding:16px 16px 84px;background:#020617;color:#e2e8f0;font-family:'JetBrains Mono','DM Sans',monospace;}
-        .material-symbols-outlined{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;font-size:18px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;}
-        .sentinel-topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:12px 0;}
-        .sentinel-kicker{font-size:10px;font-weight:900;letter-spacing:1.8px;color:#22d3ee;text-transform:uppercase;}
-        .sentinel-title{font-size:18px;font-weight:900;color:#f8fafc;letter-spacing:.2px;margin-top:2px;}
-        .sentinel-action{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(34,211,238,.32);border-radius:999px;background:rgba(8,47,73,.45);color:#a5f3fc;padding:9px 12px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.9px;cursor:pointer;box-shadow:0 0 22px rgba(34,211,238,.12);}
-        .sentinel-map-shell{position:relative;border:1px solid rgba(148,163,184,.18);border-radius:22px;overflow:hidden;background:rgba(2,6,23,.92);box-shadow:0 28px 80px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(18px);}
-        .sentinel-zone-selector{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:7px;padding:5px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(2,6,23,.78);backdrop-filter:blur(16px);box-shadow:0 16px 36px rgba(0,0,0,.38);}
-        .sentinel-zone-selector button{display:inline-flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:999px;background:transparent;color:rgba(148,163,184,.82);padding:8px 13px;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .16s ease;white-space:nowrap;}
-        .sentinel-zone-selector button.is-active{border-color:color-mix(in srgb,var(--zone-accent) 65%,transparent);background:color-mix(in srgb,var(--zone-accent) 20%,transparent);color:var(--zone-accent);box-shadow:0 0 22px color-mix(in srgb,var(--zone-accent) 28%,transparent);}
-        .sentinel-map-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:58px 16px 12px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.92),rgba(2,6,23,.72));}
-        .sentinel-zone-chip{border:1px solid;border-radius:999px;background:rgba(15,23,42,.64);padding:8px 11px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:1px;}
-        .sentinel-master-svg{display:block;width:100%;height:clamp(420px,54vh,650px);background:#020617;}
-        .sentinel-poly-group polygon{transition:opacity .18s ease,fill .18s ease,stroke .18s ease,stroke-width .18s ease;}
-        .sentinel-poly-group.is-zone polygon{cursor:pointer;}
-        .sentinel-poly-group.is-muted polygon{pointer-events:none;}
-        .sentinel-map-label{fill:#f8fafc;font-size:11px;font-weight:900;paint-order:stroke;stroke:#020617;stroke-width:4px;letter-spacing:.6px;text-transform:uppercase;}
-        .sentinel-map-status{font-size:9px;font-weight:900;paint-order:stroke;stroke:#020617;stroke-width:3px;letter-spacing:.5px;text-transform:uppercase;}
-        .sentinel-map-small-label{fill:rgba(226,232,240,.82);font-size:9px;font-weight:900;paint-order:stroke;stroke:#020617;stroke-width:3px;letter-spacing:.45px;text-transform:uppercase;}
-        .sentinel-map-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid rgba(148,163,184,.14);background:rgba(2,6,23,.88);}
-        .sentinel-map-footer span{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:800;color:rgba(226,232,240,.76);text-transform:uppercase;letter-spacing:.65px;}
-        .sentinel-map-footer i{width:20px;height:5px;border-radius:99px;box-shadow:0 0 12px currentColor;}
-        .sentinel-footer-meta{margin-left:auto;color:rgba(148,163,184,.7)!important;}
-        .sentinel-view-tabs{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;padding:5px;border:1px solid rgba(148,163,184,.16);border-radius:999px;background:rgba(15,23,42,.68);backdrop-filter:blur(14px);}
-        .sentinel-view-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:999px;background:transparent;color:rgba(148,163,184,.84);padding:10px 16px;font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .16s ease;}
-        .sentinel-view-tabs button.is-active{border-color:rgba(34,211,238,.62);background:rgba(34,211,238,.14);color:#67e8f9;box-shadow:0 0 28px rgba(34,211,238,.14);}
-        .sentinel-dynamic-panel{border:1px solid rgba(148,163,184,.18);border-radius:22px;background:linear-gradient(180deg,rgba(15,23,42,.72),rgba(2,6,23,.72));box-shadow:0 22px 60px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(18px);padding:14px;overflow:hidden;}
-        .sentinel-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
-        .sentinel-panel-title{font-size:14px;font-weight:900;color:#f8fafc;text-transform:uppercase;letter-spacing:.8px;}
-        .sentinel-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:12px;max-height:min(44vh,460px);overflow-y:auto;overflow-x:hidden;padding:2px 6px 2px 2px;}
-        .sentinel-status-card{min-width:0;border:1px solid color-mix(in srgb,var(--status-color) 38%,rgba(148,163,184,.18));border-radius:18px;background:rgba(2,6,23,.58);padding:12px;box-shadow:0 0 24px color-mix(in srgb,var(--status-color) 12%,transparent),inset 0 1px 0 rgba(255,255,255,.03);}
-        .sentinel-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:11px;}
-        .sentinel-card-title{font-size:14px;font-weight:900;color:#f8fafc;letter-spacing:.3px;}
-        .sentinel-card-subtitle{font-size:10px;color:rgba(148,163,184,.8);margin-top:3px;}
-        .sentinel-card-meta{font-size:10px;color:rgba(148,163,184,.55);margin-top:4px;}
-        .sentinel-state-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid color-mix(in srgb,var(--status-color) 58%,transparent);border-radius:999px;background:color-mix(in srgb,var(--status-color) 14%,transparent);color:var(--status-color);padding:7px 9px;font-size:10px;font-weight:900;text-transform:uppercase;white-space:nowrap;}
-        .sentinel-segmented-control{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:5px;border:1px solid rgba(148,163,184,.14);border-radius:999px;background:rgba(15,23,42,.82);width:100%;min-width:0;}
-        .sentinel-segmented-control button{min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:0;border:1px solid transparent;border-radius:999px;background:transparent;color:rgba(148,163,184,.82);padding:9px 6px;font-size:clamp(9px,.72vw,11px);font-weight:900;text-transform:uppercase;letter-spacing:.35px;cursor:pointer;transition:all .14s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-        .sentinel-segmented-control button.is-active{border-color:color-mix(in srgb,var(--status-color) 62%,transparent);background:color-mix(in srgb,var(--status-color) 20%,transparent);color:var(--status-color);box-shadow:0 0 18px color-mix(in srgb,var(--status-color) 20%,transparent);}
-        .sentinel-reset-one{margin-top:9px;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(34,197,94,.34);border-radius:999px;background:rgba(34,197,94,.10);color:#86efac;padding:7px 10px;font-size:10px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;cursor:pointer;}
-        .sentinel-modal{position:fixed;inset:0;background:rgba(0,0,0,.76);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;}
-        .sentinel-modal-card{width:min(340px,100%);border:1px solid rgba(34,211,238,.28);border-radius:20px;background:#020617;padding:22px;box-shadow:0 26px 80px rgba(0,0,0,.62);}
-        .sentinel-modal-actions{display:flex;gap:10px;margin-top:18px;}
-        .sentinel-modal-actions button{flex:1;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:rgba(15,23,42,.84);color:#cbd5e1;padding:10px;font-size:11px;font-weight:900;text-transform:uppercase;cursor:pointer;}
-        .sentinel-modal-actions button:last-child{border-color:rgba(34,211,238,.45);background:rgba(34,211,238,.14);color:#67e8f9;}
-        @media(max-width:720px){.sentinel-zone-selector{position:static;transform:none;margin:10px auto 0;width:max-content;max-width:calc(100% - 20px);overflow:auto}.sentinel-map-header{padding-top:14px}.sentinel-view-tabs{border-radius:18px;align-items:stretch;flex-direction:column}.sentinel-view-tabs button{width:100%}.sentinel-segmented-control{grid-template-columns:1fr 1fr;border-radius:16px}.sentinel-card-grid{max-height:none;overflow:visible}.sentinel-footer-meta{margin-left:0}}
-      `}</style>
-
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
       <TypewriterTicker items={tickerItems} />
 
-      <div className="sentinel-topbar">
-        <div>
-          <div className="sentinel-kicker">Deep Port Sentinel</div>
-          <div className="sentinel-title">Terminales y Patios · Centro de Mando</div>
-        </div>
-        <button type="button" className="sentinel-action" onClick={isRutasView ? resetRutasZona : resetAllTerminales}>
-          <span className="material-symbols-outlined">restart_alt</span>
-          {isRutasView ? "Rutas libres" : "Terminales libres"}
-        </button>
+      <div style={segmentShell} aria-label="Selector de zona">
+        {[{ id:"norte", label:"Zona Norte" }, { id:"sur", label:"Zona Sur" }].map(z => (
+          <button key={z.id} onClick={() => setZonaPersist(z.id)} style={segmentButton(zona === z.id)}>{z.label}</button>
+        ))}
       </div>
 
-      <UnifiedMap
-        selectedZone={zona}
-        onZoneChange={setZonaPersist}
-        activeView={vista}
-        terminalStateMap={allTerminalStateMap}
-        rutasFiscales={rutasFiscales || {}}
-        accesos={{}}
+      <div style={segmentShell} aria-label="Selector de vista de Terminales Portuarias">
+        <button onClick={() => setVistaTerminalesPortuarias("terminales")} style={segmentButton(vistaTerminalesPortuarias === "terminales")}>Estatus Terminales</button>
+        <button onClick={() => setVistaTerminalesPortuarias("rutas_fiscales")} style={segmentButton(vistaTerminalesPortuarias === "rutas_fiscales")}>Estatus Rutas Fiscales</button>
+      </div>
+
+      <SectionLabel
+        text={`${isRutasView ? "RUTAS FISCALES" : "TERMINALES PORTUARIAS"} · ZONA ${zonaLabel.toUpperCase()}`}
+        rightBtn={<NormalBtn onClick={isRutasView ? resetRutasZona : resetAll} label={isRutasView ? "RUTAS LIBRES" : "TODAS LIBRES"} />}
       />
 
-      <div className="sentinel-view-tabs" aria-label="Selector de vista dinámica">
-        <button type="button" className={vista === "terminales" ? "is-active" : ""} onClick={() => setVista("terminales")}>
-          <span className="material-symbols-outlined">hub</span>
-          Estatus Terminales
-        </button>
-        <button type="button" className={vista === "rutas_fiscales" ? "is-active" : ""} onClick={() => setVista("rutas_fiscales")}>
-          <span className="material-symbols-outlined">alt_route</span>
-          Estatus Rutas Fiscales
-        </button>
+      <MapaTerminales zona={zona} vista={vistaTerminalesPortuarias} stMap={stMap} rutasFiscales={rutasFiscales} />
+
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {(isRutasView ? RUTA_FISCAL_STATUS_OPTIONS : TERMINAL_STATUS_OPTIONS).map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:800 }}>{o.label}</span>
+          </div>
+        ))}
       </div>
 
-      <section className="sentinel-dynamic-panel" key={`${zona}-${vista}`}>
-        <div className="sentinel-panel-head">
-          <div>
-            <div className="sentinel-kicker">Vista dinámica · {zoneCfg.label}</div>
-            <div className="sentinel-panel-title">{isRutasView ? "Estatus Rutas Fiscales" : "Estatus Terminales"}</div>
-          </div>
-          <div className="sentinel-zone-chip" style={{ borderColor: `${zoneCfg.accent}80`, color: zoneCfg.accent }}>
-            {isRutasView ? `${rutasZona.length} rutas` : `${terminals.length} terminales`}
-          </div>
-        </div>
-        {isRutasView ? renderRutasFiscales() : renderTerminales()}
-      </section>
+      {isRutasView ? renderRutasFiscalesCards() : renderTerminalCards()}
 
       <ToastBox toast={toast} />
-
       {changeModal && (
-        <div className="sentinel-modal">
-          <div className="sentinel-modal-card">
-            <div className="sentinel-kicker">Confirmación operativa</div>
-            <div className="sentinel-title" style={{ fontSize: 16, marginTop: 4 }}>Cambiar tu voto</div>
-            <div style={{ color: "rgba(203,213,225,.78)", fontSize: 12, marginTop: 10, lineHeight: 1.55 }}>
-              Confirma el cambio de voto a <span style={{ color: "#67e8f9", fontWeight: 900 }}>{changeModal.label}</span>.
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:"#0f2037", border:"1px solid #1e3a5f", borderRadius:"14px", padding:"24px", maxWidth:"300px", width:"100%", textAlign:"center" }}>
+            <div style={{ color:"#e2e8f0", fontFamily:getFont(theme, "secondary"), fontSize:"14px", fontWeight:"800", marginBottom:"8px" }}>Cambiar tu voto</div>
+            <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", marginBottom:"20px" }}>
+              Confirma el cambio a <span style={{ color:"#38bdf8", fontWeight:"800" }}>{changeModal.label}</span>.
             </div>
-            <div className="sentinel-modal-actions">
-              <button type="button" onClick={() => setChangeModal(null)}>Cancelar</button>
-              <button type="button" onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }}>Cambiar</button>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cancelar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cambiar</button>
             </div>
           </div>
         </div>
@@ -12226,7 +11901,6 @@ function TerminalesTab({ myId, isAdmin = false }) {
     </div>
   );
 }
-
 
 // ─── TICKER MÁQUINA DE ESCRIBIR ───────────────────────────────────────────────
 function TypewriterTicker({ items }) {
@@ -12289,7 +11963,7 @@ function TypewriterTicker({ items }) {
       gap: "10px",
       minHeight: "42px",
     }}>
-      <span className="material-symbols-outlined" style={{ fontSize: "16px", flexShrink: 0, color: item.color || "#38bdf8" }}>radar</span>
+      <span style={{ fontSize: "14px", flexShrink: 0 }}>📡</span>
       <span style={{
         fontFamily: "'DM Sans', monospace",
         fontSize: "13px",
@@ -24048,7 +23722,7 @@ function App() {
           }}>
             <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
               <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
-              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}><img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"42px", height:"42px", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="block"; }} /><span style={{ display:"none", fontSize:"24px" }}>smart_toy</span></div>
+              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}><img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"42px", height:"42px", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="block"; }} /><span style={{ display:"none", fontSize:"24px" }}>✨</span></div>
             </div>
             {adminMessages.length > 0 && (
               <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
@@ -24370,7 +24044,7 @@ function App() {
               userSelect:"none"
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize:"16px", verticalAlign:"-3px", marginRight:"4px" }}>smart_toy</span>AI ConectMzo
+            ✨ AI ConectMzo
           </div>
         )}
 
@@ -24435,7 +24109,7 @@ function App() {
               onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
             />
           )}
-          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", fontSize:"28px", lineHeight:1 }}>smart_toy</span>}
+          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", fontSize:"28px", lineHeight:1 }}>✨</span>}
           {hasUnreadAdminMessages && !supportExpanded && (
             <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
           )}
@@ -24468,7 +24142,7 @@ function App() {
                   style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
                   onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "flex"; }}
                 />
-                <span style={{ display:"none", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"21px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)" }}>smart_toy</span>
+                <span style={{ display:"none", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"21px", background:"linear-gradient(135deg,#60a5fa,#a78bfa)" }}>✨</span>
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI ConectMzo</div>
