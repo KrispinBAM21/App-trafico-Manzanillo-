@@ -7631,7 +7631,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       <CommandCenterStyles />
       <div className="cm-command-header">
         <div>
-          <div className="cm-command-kicker">ESTATUS OPERATIVO GENERAL</div>
+          <div className="cm-command-kicker">TRÁFICO · CENTRO DE MANDO</div>
           <div className="cm-command-title">Mapa Maestro Operativo</div>
         </div>
         <div className="cm-command-live">LIVE DATA</div>
@@ -8229,47 +8229,170 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
   };
 
   const toggleAll = (val) => setInclude(Object.fromEntries(Object.keys(include).map(k => [k, val])));
+  const reportSourceCards = [
+    { id: "accesos", icon: "anchor-port", label: "Accesos\nPrincipales", desc: "Estado operativo de accesos" },
+    { id: "vialidades", icon: "route-road", label: "Vialidades\nExternas", desc: "Condición de vialidades" },
+    { id: "rutas_fiscales", icon: "route", label: "Rutas\nFiscales", desc: "Rutas norte y sur" },
+    { id: "terminales", icon: "port-terminal", label: "Estatus\nTerminales", desc: "Terminales norte y sur" },
+    { id: "patios", icon: "container-yard", label: "Patios\nReguladores", desc: "Patios y regulación" },
+    { id: "carriles", icon: "lane-control", label: "Gestión\nCarriles", desc: "Carriles Expo / Impo" },
+    { id: "confinados", icon: "lock", label: "Recintos\nConfinados", desc: "2° Acceso y confinada" },
+  ];
 
   return (
     <div style={{ padding:"16px" }}>
       <style>{`
-        @media(max-width:760px){.traffic-report-grid{grid-template-columns:1fr!important}.traffic-report-actions{grid-template-columns:1fr!important}.traffic-report-row{grid-template-columns:1fr auto!important;}}
+        @media(max-width:1080px){.traffic-report-matrix{grid-template-columns:repeat(4,1fr)!important}.traffic-report-builder-head{align-items:flex-start!important}.traffic-report-preview-row{grid-template-columns:1fr 130px!important;}}
+        @media(max-width:760px){.traffic-report-matrix{grid-template-columns:repeat(2,1fr)!important}.traffic-report-console{grid-template-columns:1fr!important}.traffic-report-builder-head{flex-direction:column!important}.traffic-report-preview-row{grid-template-columns:1fr auto!important;}.traffic-report-shell{padding:18px!important}.traffic-report-card{min-height:126px!important;}}
+        .traffic-report-card{position:relative;overflow:hidden;min-height:138px;}
+        .traffic-report-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(56,189,248,.14),transparent 58%);opacity:0;transition:opacity .18s ease;pointer-events:none;}
+        .traffic-report-card:hover:before,.traffic-report-card.is-selected:before{opacity:1;}
+        .traffic-report-card.is-selected{border-color:rgba(56,189,248,.72)!important;background:linear-gradient(180deg,rgba(56,189,248,.18),rgba(2,8,23,.62))!important;box-shadow:0 18px 48px rgba(56,189,248,.12),inset 0 1px 0 rgba(255,255,255,.08)!important;}
+        .traffic-report-card.is-selected .traffic-report-card-label{color:#f8fafc!important;}
+        .traffic-report-card.is-selected .traffic-report-card-check{opacity:1!important;transform:scale(1)!important;}
+        .traffic-report-card.is-selected .traffic-report-card-glow{opacity:1!important;}
       `}</style>
-      <div style={{ background:"linear-gradient(135deg,rgba(56,189,248,0.14),rgba(15,23,42,0.96))", border:"1px solid rgba(56,189,248,0.28)", borderRadius:"18px", padding:"16px", marginBottom:"14px", boxShadow:"0 16px 42px rgba(0,0,0,.28)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"10px", justifyContent:"space-between", flexWrap:"wrap" }}>
-          <div>
-            <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"20px", fontWeight:"900" }}>📄 Reporte operativo</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(226,232,240,.72)", fontSize:"12px", marginTop:"4px" }}>Selecciona las secciones que quieres incluir y descarga un PDF formal con marca de agua.</div>
-          </div>
-          <button onClick={refreshData} disabled={loading} style={{ padding:"10px 13px", borderRadius:"12px", border:"1px solid rgba(56,189,248,.45)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", cursor:"pointer" }}>{loading ? "Actualizando…" : "🔄 Actualizar datos"}</button>
-        </div>
-      </div>
 
-      <div className="traffic-report-actions" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px", marginBottom:"14px" }}>
-        <button onClick={() => toggleAll(true)} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #22c55e55", background:"#22c55e18", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:"800", cursor:"pointer" }}>Validado Seleccionar todo</button>
-        <button onClick={() => toggleAll(false)} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #64748b55", background:"rgba(100,116,139,.16)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:"800", cursor:"pointer" }}>☐ Limpiar</button>
-        <button onClick={generatePdf} disabled={busyPdf || !totalItems} style={{ padding:"12px", borderRadius:"12px", border:"1px solid #f59e0b66", background:busyPdf ? "rgba(100,116,139,.22)" : "linear-gradient(135deg,#f59e0b,#f97316)", color:"#07111f", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:busyPdf ? "wait" : "pointer", boxShadow:"0 10px 24px rgba(249,115,22,.22)" }}>{busyPdf ? "Generando PDF…" : "⬇️ Generar PDF"}</button>
-      </div>
+      <div
+        className="traffic-report-shell"
+        style={{
+          position:"relative",
+          overflow:"hidden",
+          borderRadius:"22px",
+          padding:"26px",
+          marginBottom:"16px",
+          background:"linear-gradient(180deg,rgba(13,17,23,.96),rgba(2,8,23,.92))",
+          border:"1px solid rgba(255,255,255,.10)",
+          borderTop:"2px solid rgba(249,115,22,.52)",
+          boxShadow:"0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05)",
+          backdropFilter:"blur(22px)",
+          WebkitBackdropFilter:"blur(22px)",
+        }}
+      >
+        <div style={{ position:"absolute", inset:"-20% -10% auto auto", width:"320px", height:"320px", background:"radial-gradient(circle,rgba(249,115,22,.16),transparent 64%)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", inset:"auto auto -24% -10%", width:"360px", height:"360px", background:"radial-gradient(circle,rgba(56,189,248,.12),transparent 66%)", pointerEvents:"none" }} />
 
-      <div className="traffic-report-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"10px", marginBottom:"16px" }}>
-        {[
-          ["accesos", "⚓", "Accesos", "Estado de accesos principales"],
-          ["vialidades", "🛣️", "Vialidades", "Carreteras y vialidades"],
-          ["rutas_fiscales", "🚛", "Rutas fiscales", "Rutas fiscal norte/sur"],
-          ["terminales", "🏭", "Terminales", "Terminales norte y sur"],
-          ["patios", "📦", "Patios", "Patios reguladores"],
-          ["carriles", "🚦", "Carriles", "Expo / Impo"],
-          ["confinados", "🔒", "Confinados", "2° Acceso y vialidad confinada"],
-        ].map(([id, icon, title, desc]) => (
-          <label key={id} style={{ display:"flex", gap:"10px", alignItems:"center", padding:"12px", borderRadius:"14px", border:`1px solid ${include[id] ? "rgba(56,189,248,.5)" : "rgba(255,255,255,.1)"}`, background: include[id] ? "rgba(56,189,248,.12)" : "rgba(255,255,255,.045)", cursor:"pointer" }}>
-            <input type="checkbox" checked={!!include[id]} onChange={e => setInclude(prev => ({ ...prev, [id]: e.target.checked }))} />
-            <div style={{ fontSize:"22px" }}>{icon}</div>
-            <div>
-              <div style={{ color:include[id] ? "#38bdf8" : "#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"900" }}>{title}</div>
-              <div style={{ color:"rgba(226,232,240,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{desc}</div>
+        <div className="traffic-report-builder-head" style={{ position:"relative", zIndex:1, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"18px", marginBottom:"26px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"14px", minWidth:0 }}>
+            <div style={{ width:"50px", height:"50px", borderRadius:"16px", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(249,115,22,.18)", border:"1px solid rgba(249,115,22,.34)", boxShadow:"inset 0 1px 0 rgba(255,255,255,.08)" }}>
+              <AppIcon name="stats" size={28} active />
             </div>
-          </label>
-        ))}
+            <div style={{ minWidth:0 }}>
+              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Tactical Report Builder</h3>
+              <p style={{ margin:"6px 0 0", color:"rgba(255,255,255,.42)", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", fontWeight:800, letterSpacing:".20em", textTransform:"uppercase" }}>Seleccionar fuentes de datos</p>
+            </div>
+          </div>
+
+          <div style={{ display:"flex", alignItems:"center", gap:"10px", flexWrap:"wrap" }}>
+            <button
+              onClick={refreshData}
+              disabled={loading}
+              style={{
+                padding:"10px 14px",
+                borderRadius:"999px",
+                border:"1px solid rgba(56,189,248,.32)",
+                background:"rgba(2,8,23,.48)",
+                color:loading ? "rgba(255,255,255,.42)" : "#38bdf8",
+                fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace",
+                fontSize:"10px",
+                fontWeight:900,
+                letterSpacing:".08em",
+                textTransform:"uppercase",
+                cursor:loading ? "wait" : "pointer",
+              }}
+            >{loading ? "Actualizando" : "Actualizar datos"}</button>
+            <div style={{ padding:"10px 16px", background:"rgba(0,0,0,.42)", borderRadius:"999px", border:"1px solid rgba(255,255,255,.10)", boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)" }}>
+              <span style={{ color:"#38bdf8", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", fontWeight:900, letterSpacing:".02em", textTransform:"uppercase" }}>Fuentes seleccionadas: <span>{selectedCount}</span> de 7</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="traffic-report-matrix" style={{ position:"relative", zIndex:1, display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:"12px", marginBottom:"24px" }}>
+          {reportSourceCards.map(card => {
+            const active = !!include[card.id];
+            return (
+              <button
+                key={card.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setInclude(prev => ({ ...prev, [card.id]: !prev[card.id] }))}
+                className={`traffic-report-card ${active ? "is-selected" : ""}`}
+                title={card.desc}
+                style={{
+                  appearance:"none",
+                  border:"2px solid rgba(255,255,255,.06)",
+                  background:"rgba(255,255,255,.045)",
+                  borderRadius:"16px",
+                  padding:"18px 12px",
+                  cursor:"pointer",
+                  transition:"border-color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease",
+                  display:"flex",
+                  flexDirection:"column",
+                  alignItems:"center",
+                  justifyContent:"center",
+                  gap:"12px",
+                  textAlign:"center",
+                  color:"#fff",
+                  backdropFilter:"blur(14px)",
+                  WebkitBackdropFilter:"blur(14px)",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                <span className="traffic-report-card-glow" style={{ position:"absolute", top:"8px", right:"8px", width:"7px", height:"7px", borderRadius:"999px", background:"#38bdf8", boxShadow:"0 0 18px rgba(56,189,248,.95)", opacity:0, transition:"opacity .18s ease" }} />
+                <span style={{ opacity:active ? 1 : .42, transition:"opacity .18s ease" }}><AppIcon name={card.icon} size={30} active={active} /></span>
+                <span className="traffic-report-card-label" style={{ whiteSpace:"pre-line", color:"rgba(255,255,255,.62)", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", lineHeight:1.25, fontWeight:900, letterSpacing:".08em", textTransform:"uppercase", transition:"color .18s ease" }}>{card.label}</span>
+                <span className="traffic-report-card-check" style={{ position:"absolute", left:"10px", top:"10px", width:"18px", height:"18px", borderRadius:"999px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.18)", color:"#e0f2fe", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"11px", fontWeight:900, opacity:0, transform:"scale(.82)", transition:"opacity .18s ease, transform .18s ease" }}>✓</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="traffic-report-console" style={{ position:"relative", zIndex:1, display:"grid", gridTemplateColumns:"2fr 1fr", gap:"14px" }}>
+          <button
+            type="button"
+            onClick={generatePdf}
+            disabled={busyPdf || !totalItems}
+            style={{
+              padding:"15px 18px",
+              borderRadius:"14px",
+              border:"1px solid rgba(56,189,248,.35)",
+              background:(busyPdf || !totalItems) ? "rgba(71,85,105,.26)" : "linear-gradient(90deg,#00628c,#007cb0)",
+              color:"#fff",
+              fontFamily:getFont(theme,"secondary"),
+              fontSize:"12px",
+              fontWeight:900,
+              letterSpacing:".08em",
+              textTransform:"uppercase",
+              cursor:(busyPdf || !totalItems) ? "not-allowed" : "pointer",
+              boxShadow:(busyPdf || !totalItems) ? "none" : "0 0 32px rgba(56,189,248,.18)",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              gap:"10px",
+            }}
+          >
+            <AppIcon name="document" size={20} active />
+            {busyPdf ? "Generando reporte" : "Generar reporte PDF táctico"}
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleAll(false)}
+            style={{
+              padding:"15px 18px",
+              borderRadius:"14px",
+              border:"1px solid rgba(255,255,255,.10)",
+              background:"transparent",
+              color:"rgba(255,255,255,.46)",
+              fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace",
+              fontSize:"10px",
+              fontWeight:900,
+              letterSpacing:".14em",
+              textTransform:"uppercase",
+              cursor:"pointer",
+            }}
+          >Limpiar selección</button>
+        </div>
       </div>
 
       <SectionLabel text={`VISTA PREVIA · ${totalItems} REGISTROS`} />
@@ -8284,7 +8407,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
                 <div style={{ color:"rgba(226,232,240,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{g.items.length} registros</div>
               </div>
               {g.items.slice(0, 10).map((it, idx) => (
-                <div className="traffic-report-row" key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 130px", gap:"10px", alignItems:"baseline", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,.045)", fontFamily:getFont(theme,"secondary") }}>
+                <div className="traffic-report-preview-row" key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 130px", gap:"10px", alignItems:"baseline", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,.045)", fontFamily:getFont(theme,"secondary") }}>
                   <div style={{ minWidth:0 }}>
                     <span style={{ color:"#fff", fontSize:"12.5px", fontWeight:"800" }}>{cleanReportText(it.nombre)}</span>
                     {it.detalle && <span style={{ color:"rgba(226,232,240,.42)", fontSize:"11px", marginLeft:"8px" }}>{cleanReportText(it.detalle)}</span>}
@@ -10887,7 +11010,7 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
         <div>
-          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
+          <div className="cm-panel-kicker">UNIFIED MAP</div>
           <div className="cm-panel-title">Capas operativas sincronizadas</div>
         </div>
         <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
