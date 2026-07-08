@@ -8278,7 +8278,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
               <AppIcon name="stats" size={28} active />
             </div>
             <div style={{ minWidth:0 }}>
-              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Generar Reporte Operativo</h3>
+              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Tactical Report Builder</h3>
               <p style={{ margin:"6px 0 0", color:"rgba(255,255,255,.42)", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", fontWeight:800, letterSpacing:".20em", textTransform:"uppercase" }}>Seleccionar fuentes de datos</p>
             </div>
           </div>
@@ -10077,7 +10077,39 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const [grupoOpen, setGrupoOpen] = useState(null);
   const [toast,          setToast]          = useState(null);
   const [confirmDelete,  setConfirmDelete]  = useState(null);
+  const [tacticalPanelOpen, setTacticalPanelOpen] = useState(false);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!document.getElementById("cm-material-symbols")) {
+      const link = document.createElement("link");
+      link.id = "cm-material-symbols";
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap";
+      document.head.appendChild(link);
+    }
+    if (!document.getElementById("deep-port-sentinel-style")) {
+      const style = document.createElement("style");
+      style.id = "deep-port-sentinel-style";
+      style.textContent = `
+        .material-symbols-outlined{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;font-size:24px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;}
+        .deep-glass-panel{background:rgba(10,22,40,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(0,242,234,.1);}
+        .deep-active-module{border-color:#00f2ea!important;box-shadow:0 0 15px rgba(0,242,234,.3);background:rgba(0,242,234,.05)!important;}
+        .deep-pulse-led{animation:deepPulse 1.5s cubic-bezier(.4,0,.6,1) infinite;}
+        .deep-pulse-orange{animation:deepPulseOrange 2s infinite;}
+        .deep-pulse-red{animation:deepPulseRed 2s infinite;}
+        .deep-scanline{background:linear-gradient(to bottom,transparent 0%,rgba(0,242,234,.05) 50%,transparent 100%);background-size:100% 4px;pointer-events:none;}
+        .deep-map-grid{background-image:radial-gradient(circle,rgba(0,242,234,.15) 1px,transparent 1px);background-size:20px 20px;}
+        .deep-sentinel-gradient-orange{background:linear-gradient(135deg,rgba(249,115,22,.1) 0%,rgba(10,22,40,.95) 100%);}
+        .deep-sentinel-gradient-red{background:linear-gradient(135deg,rgba(239,68,68,.1) 0%,rgba(10,22,40,.95) 100%);}
+        @keyframes deepPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.9)}}
+        @keyframes deepPulseOrange{0%{box-shadow:0 0 0 0 rgba(249,115,22,.4)}70%{box-shadow:0 0 0 10px rgba(249,115,22,0)}100%{box-shadow:0 0 0 0 rgba(249,115,22,0)}}
+        @keyframes deepPulseRed{0%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 10px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
 
   const allIncidentSubcats = {
     incidente: [...(INCIDENT_SUBCATEGORIAS.incidente || []), ...customIncidentTypes.filter(t => t.category === "incidente").map(t => ({ id:t.id, label:t.label, icon:t.icon || "warning-triangle" }))],
@@ -10086,6 +10118,20 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const subcats   = allIncidentSubcats[categoria] || [];
   const catObj    = INCIDENT_CATEGORIAS.find(c => c.id === categoria) || INCIDENT_CATEGORIAS[0];
   const subcatObj = subcats.find(s => s.id === subcat);
+  const openTacticalPanel = (type) => {
+    setCategoria(type);
+    setSubcat("");
+    setTacticalPanelOpen(true);
+  };
+  const closeTacticalPanel = () => setTacticalPanelOpen(false);
+  const MaterialIcon = ({ children, color = "#94a3b8", size = 24, fill = 0, style = {} }) => (
+    <span
+      className="material-symbols-outlined"
+      style={{ color, fontSize:size, fontVariationSettings:`'FILL' ${fill}, 'wght' 500, 'GRAD' 0, 'opsz' 24`, ...style }}
+    >
+      {children}
+    </span>
+  );
 
   // Procesar link de Google Maps o coordenadas directas
   const handleGmapsInput = async (val) => {
@@ -10229,164 +10275,175 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       {reporteView === "reportar" && (<>
       {isAdmin && <AdminIncidentTypesManager customIncidentTypes={customIncidentTypes} reload={loadCustomIncidentTypes} />}
 
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"20px", textAlign:"center" }}>
-        <div style={{ fontSize:"32px", marginBottom:"8px" }}>📍</div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>REPORTAR INCIDENTE</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px" }}>Necesita 3 confirmaciones · expira en 1h si no se verifica</div>
-      </div>
-
-      {/* Mapa de referencia con pin del reporte actual */}
-      <div style={{ marginBottom:"16px" }}>
-        <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
-      </div>
-
-      {/* Paso 1: Categoría */}
-      <div style={{ marginBottom:"16px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 1 · CATEGORÍA</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-          {INCIDENT_CATEGORIAS.map(cat => (
-            <button key={cat.id} onClick={() => { setCategoria(cat.id); setSubcat(""); }}
-              style={{ padding:"14px 8px", border:`1px solid ${categoria===cat.id ? cat.color : "#1e3a5f"}`, background: categoria===cat.id ? cat.color+"22" : "#0d1b2e", borderRadius:"10px", color: categoria===cat.id ? cat.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer", transition:"all 0.15s", display:"flex", flexDirection:"column", alignItems:"center", gap:"6px", fontWeight: categoria===cat.id ? "700" : "400" }}>
-              <AppIcon name={cat.icon} size={28} active={categoria===cat.id} />{cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 2: Subcategoría */}
-      <div style={{ marginBottom:"16px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>PASO 2 · TIPO ESPECÍFICO</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-          {subcats.map(s => (
-            <button key={s.id} onClick={() => setSubcat(s.id)}
-              style={{ padding:"11px 14px", border:`1px solid ${subcat===s.id ? catObj.color : "#1e3a5f"}`, background: subcat===s.id ? catObj.color+"22" : "#0a1628", borderRadius:"10px", color: subcat===s.id ? catObj.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", gap:"10px", fontWeight: subcat===s.id ? "700" : "400", textAlign:"left" }}>
-              <AppIcon name={s.icon} size={20} active={subcat===s.id} />{s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paso 3: Ubicación */}
-      <div style={{ marginBottom:"14px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>PASO 3 · UBICACIÓN *</div>
-
-        {/* Selector predefinido */}
-        <button onClick={() => setShowUbic(p => !p)}
-          style={{
-            width:"100%", padding:"11px 14px",
-            background: showUbic ? "rgba(56,189,248,0.08)" : "rgba(255,255,255,0.05)",
-            backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-            border:`1px solid ${showUbic ? "#38bdf8" : "rgba(255,255,255,0.15)"}`,
-            borderRadius: showUbic ? "10px 10px 0 0" : "10px",
-            color: "rgba(255,255,255,0.85)",
-            fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer",
-            display:"flex", justifyContent:"space-between", alignItems:"center",
-            marginBottom:"0", boxSizing:"border-box", transition:"all 0.2s"
-          }}>
-          <span>{location ? `Ubicación: ${location}` : "Seleccionar ubicación predefinida"}</span>
-          <span style={{ fontSize:"10px", color:"#38bdf8", transform: showUbic ? "rotate(180deg)" : "none", transition:"transform 0.2s" }}>▼</span>
-        </button>
-
-        {showUbic && (
-          <div style={{ background:"#060e1a", border:"1px solid #38bdf855", borderTop:"none", borderRadius:"0 0 10px 10px", maxHeight:"320px", overflowY:"auto", marginBottom:"8px" }}>
-            {UBICACIONES_REPORTE.map(grupo => (
-              <div key={grupo.grupo}>
-                <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)}
-                  style={{ width:"100%", padding:"10px 14px", background: grupoOpen===grupo.grupo ? "#1e3a5f" : "transparent", border:"none", borderBottom:"1px solid #1e3a5f22", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
-                  <AppIcon name={grupo.icon} size={16} active={grupoOpen===grupo.grupo} />
-                  <span style={{ flex:1 }}>{grupo.grupo}</span>
-                  <span style={{ fontSize:"9px", opacity:0.6 }}>{grupoOpen===grupo.grupo ? "▲" : "▼"}</span>
-                </button>
-                {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
-                  <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }}
-                    style={{ width:"100%", padding:"9px 14px 9px 34px", background: location===op ? "#38bdf822" : "transparent", border:"none", borderBottom:"1px solid #0d1b2e", color: location===op ? "#38bdf8" : "rgba(255,255,255,0.65)", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:"6px" }}>
-                    {location===op && <span style={{ color:"#38bdf8", fontSize:"10px" }}>✓</span>}
-                    {op}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Paso 4: Link de Google Maps (obligatorio) */}
-      <div style={{ marginBottom:"18px" }}>
-        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>
-          PASO 4 · ENLACE DE GOOGLE MAPS *
-        </div>
-        <div style={{ background:"rgba(56,189,248,0.06)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"10px", padding:"10px 12px", marginBottom:"8px", display:"flex", alignItems:"flex-start", gap:"8px" }}>
-          <span style={{ fontSize:"16px", flexShrink:0 }}>Info</span>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)", lineHeight:1.7 }}>
-            <b style={{ color:"rgba(255,255,255,0.85)" }}>Opción A (recomendada):</b> En Google Maps mantén presionado el lugar → aparecen las coordenadas abajo → cópialas y pégalas aquí.<br/>
-            <span style={{ color:"#22c55e" }}>Ej: 19.092788, -104.276555</span><br/>
-            <b style={{ color:"rgba(255,255,255,0.85)" }}>Opción B:</b> Pega el enlace compartido de Google Maps.<br/>
-            <span style={{ color:"#38bdf8" }}>Ej: https://maps.app.goo.gl/...</span>
-          </div>
-        </div>
-
-        <div style={{ position:"relative" }}>
-          <input
-            value={gmapsLink}
-            onChange={e => handleGmapsInput(e.target.value)}
-            placeholder="19.092788, -104.276555  —ó—  https://maps.app.goo.gl/..."
-            style={{
-              width:"100%", padding:"11px 40px 11px 14px",
-              background: coords ? "rgba(34,197,94,0.08)" : coordsError ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.08)",
-              backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
-              border:`1px solid ${coords ? "#22c55e66" : coordsError ? "#ef444466" : "rgba(255,255,255,0.15)"}`,
-              borderRadius:"10px",
-              color:"rgba(255,255,255,0.95)",
-              fontFamily:getFont(theme, "secondary"), fontSize:"12px",
-              boxSizing:"border-box", outline:"none",
-            }}
-          />
-          <span style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", fontSize:"16px", pointerEvents:"none" }}>
-            {coordsLoading ? "Procesando" : coords ? "Validado" : coordsError ? "Error" : "Enlace"}
-          </span>
-        </div>
-
-        {/* Feedback */}
-        {coordsLoading && (
-          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#38bdf8" }}>
-            Procesando Obteniendo coordenadas...
-          </div>
-        )}
-        {coords && !coordsLoading && (
-          <div style={{ marginTop:"6px", display:"flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e" }}>
-            Validado Coordenadas obtenidas: {coords[0].toFixed(5)}, {coords[1].toFixed(5)}
-            <span style={{ color:"rgba(255,255,255,0.4)" }}>— pin visible en el mapa ↑</span>
-          </div>
-        )}
-        {coordsError && !coordsLoading && (
-          <div style={{ marginTop:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#f97316", lineHeight:1.5 }}>
-            Error {coordsError}
-            <div style={{ marginTop:"5px", color:"rgba(255,255,255,0.5)", fontSize:"10px" }}>
-              Tip: Tip rápido: en Google Maps mantén presionado el punto → copia los números que aparecen abajo (ej: 19.0927, -104.2765) y pégalos aquí.
+      <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+        <header className="deep-glass-panel" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"14px", padding:"14px", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ width:42, height:42, borderRadius:"12px", background:"rgba(0,242,234,0.08)", border:"1px solid rgba(0,242,234,0.24)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <MaterialIcon color="#00f2ea" size={25}>radar</MaterialIcon>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Vista previa */}
-      {subcat && location && (
-        <div style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${catObj.color}44`, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}>
-          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"6px" }}>VISTA PREVIA</div>
-          <div style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
-            <AppIcon name={subcatObj?.icon || "incident-pin"} size={22} active={true} />
             <div>
-              <div style={{ color:catObj.color, fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", marginBottom:"2px" }}>{catObj.label.toUpperCase()} · {subcatObj?.label}</div>
-              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
-              {coords && <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"3px" }}>Pin en mapa: {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>}
+              <h2 style={{ margin:0, color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"18px", fontWeight:800, letterSpacing:"0.04em", textTransform:"uppercase" }}>Deep Port Sentinel</h2>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px", marginTop:"3px" }}>
+                <span className="deep-pulse-led" style={{ width:8, height:8, borderRadius:"999px", background:"#f97316", display:"inline-block" }} />
+                <span style={{ color:"#f97316", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", letterSpacing:"0.18em", textTransform:"uppercase" }}>Reporting Protocol: Enabled</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+          <div style={{ padding:"6px 10px", borderRadius:"8px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"11px" }}>SENTINEL_V4</div>
+        </header>
 
-      <button onClick={submit}
-        style={{ width:"100%", padding:"14px", background: (subcat && location && coords) ? "linear-gradient(135deg,#0369a1,#0ea5e9)" : "rgba(255,255,255,0.08)", border:"none", borderRadius:"12px", color: (subcat && location && coords) ? "#fff" : "rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", cursor: (subcat && location && coords) ? "pointer" : "not-allowed", letterSpacing:"1px", marginBottom:"20px", transition:"all 0.2s" }}>
-        ENVIAR REPORTE →
-      </button>
+        <nav style={{ display:"grid", gridTemplateColumns:"repeat(4, minmax(0,1fr))", gap:"8px" }}>
+          {[
+            ["Accesos", "gate", "MOD_01"],
+            ["Vialidades", "alt_route", "MOD_02"],
+            ["Rutas Fiscales", "security", "MOD_03"],
+            ["Reporte", "report", "MOD_04"],
+          ].map(([label, icon, mod]) => {
+            const active = label === "Reporte";
+            return (
+              <button key={label} className={`deep-glass-panel ${active ? "deep-active-module" : ""}`} style={{ minWidth:0, padding:"12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,0.08)", background:"rgba(2,6,23,0.46)", textAlign:"left", position:"relative", overflow:"hidden" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px", marginBottom:"8px" }}>
+                  <div style={{ width:38, height:38, borderRadius:"10px", background:active ? "rgba(0,242,234,0.1)" : "rgba(255,255,255,0.05)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <MaterialIcon color={active ? "#00f2ea" : "#94a3b8"} size={22}>{icon}</MaterialIcon>
+                  </div>
+                  <span style={{ color:active ? "#00f2ea" : "#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px" }}>{mod}</span>
+                </div>
+                <p style={{ margin:0, color:active ? "#00f2ea" : "#cbd5e1", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.02em" }}>{label}</p>
+                {active && <div style={{ position:"absolute", left:0, bottom:0, width:"100%", height:3, background:"#00f2ea" }} />}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="deep-glass-panel" style={{ position:"relative", height:"clamp(260px, 42vh, 430px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", flexShrink:0 }}>
+          <div className="deep-map-grid" style={{ position:"absolute", inset:0, opacity:.24, zIndex:3, pointerEvents:"none" }} />
+          <div className="deep-scanline" style={{ position:"absolute", inset:0, zIndex:4 }} />
+          <div style={{ position:"absolute", top:14, left:14, zIndex:6, display:"flex", flexDirection:"column", gap:"8px" }}>
+            <div style={{ background:"rgba(0,0,0,0.78)", padding:"6px 10px", borderRadius:"8px", border:"1px solid rgba(0,242,234,0.4)", color:"#00f2ea", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", display:"flex", alignItems:"center", gap:"8px" }}>
+              <span className="deep-pulse-led" style={{ width:7, height:7, borderRadius:"999px", background:"#00f2ea" }} />
+              GEO_LINK_ACTIVE: PORTAL_MAIN
+            </div>
+            <div style={{ background:"rgba(0,0,0,0.58)", padding:"5px 10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"9px" }}>
+              ACTIVE INCIDENTS: {incidents.filter(i => i.visible && !i.resolved).length}
+            </div>
+          </div>
+          <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
+          <div style={{ position:"absolute", inset:0, pointerEvents:"none", zIndex:5, padding:"14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /></div>
+            <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /></div>
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:"14px" }}>
+          <button className="deep-sentinel-gradient-orange" onClick={() => openTacticalPanel("incidente")} style={{ border:"1px solid rgba(249,115,22,.32)", borderRadius:"16px", padding:"24px 14px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px", cursor:"pointer", position:"relative", overflow:"hidden", transition:"transform .15s" }}>
+            <div className="deep-pulse-orange" style={{ width:64, height:64, borderRadius:"999px", background:"rgba(249,115,22,.1)", border:"1px solid rgba(249,115,22,.42)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <MaterialIcon color="#f97316" size={38}>warning</MaterialIcon>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <span style={{ display:"block", color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"20px", fontWeight:900, letterSpacing:"-0.03em", textTransform:"uppercase" }}>INCIDENTE</span>
+              <span style={{ color:"rgba(249,115,22,.68)", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase" }}>Minor Obstruction / Delay</span>
+            </div>
+            <div style={{ position:"absolute", top:0, left:0, width:"100%", height:3, background:"rgba(249,115,22,.45)" }} />
+          </button>
+
+          <button className="deep-sentinel-gradient-red" onClick={() => openTacticalPanel("accidente")} style={{ border:"1px solid rgba(239,68,68,.32)", borderRadius:"16px", padding:"24px 14px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px", cursor:"pointer", position:"relative", overflow:"hidden", transition:"transform .15s" }}>
+            <div className="deep-pulse-red" style={{ width:64, height:64, borderRadius:"999px", background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.42)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <MaterialIcon color="#ef4444" size={38} fill={1} style={{ filter:"drop-shadow(0 0 8px rgba(239,68,68,.6))" }}>collision</MaterialIcon>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <span style={{ display:"block", color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"20px", fontWeight:900, letterSpacing:"-0.03em", textTransform:"uppercase" }}>ACCIDENTE</span>
+              <span style={{ color:"rgba(239,68,68,.68)", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase" }}>Critical Collision / Emergency</span>
+            </div>
+            <div style={{ position:"absolute", top:0, left:0, width:"100%", height:3, background:"rgba(239,68,68,.45)" }} />
+          </button>
+        </div>
+
+        {tacticalPanelOpen && (
+          <div onClick={closeTacticalPanel} style={{ position:"fixed", inset:0, zIndex:100000, background:"rgba(0,0,0,.82)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", display:"flex", alignItems:"flex-end", justifyContent:"center", padding:"14px" }}>
+            <div className="deep-glass-panel" onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", borderRadius:"22px", border:"1px solid rgba(255,255,255,.2)", boxShadow:"0 24px 80px rgba(0,0,0,.55)" }}>
+              <div style={{ padding:"16px", borderBottom:"1px solid rgba(255,255,255,.1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,.05)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                  <MaterialIcon color={catObj.color} size={24}>{categoria === "accidente" ? "collision" : "warning"}</MaterialIcon>
+                  <h3 style={{ margin:0, color:"#fff", fontFamily:"JetBrains Mono, monospace", fontSize:"13px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.08em" }}>Reportar {categoria === "accidente" ? "Accidente" : "Incidente"}</h3>
+                </div>
+                <button onClick={closeTacticalPanel} style={{ width:34, height:34, borderRadius:"10px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.05)", color:"#94a3b8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MaterialIcon color="#94a3b8" size={20}>close</MaterialIcon></button>
+              </div>
+
+              <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+                <div>
+                  <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Tipo Específico</label>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+                    {subcats.map(s => (
+                      <button key={s.id} onClick={() => setSubcat(s.id)} style={{ width:"100%", padding:"12px 13px", borderRadius:"11px", border:`1px solid ${subcat===s.id ? catObj.color : "rgba(255,255,255,.1)"}`, background:subcat===s.id ? `${catObj.color}22` : "rgba(2,6,23,.48)", color:subcat===s.id ? catObj.color : "#cbd5e1", display:"flex", alignItems:"center", gap:"10px", fontFamily:"IBM Plex Sans, sans-serif", fontWeight:700, fontSize:"12px", textAlign:"left", cursor:"pointer" }}>
+                        <AppIcon name={s.icon} size={20} active={subcat===s.id} />
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Ubicación / Referencia</label>
+                  <button onClick={() => setShowUbic(p => !p)} style={{ width:"100%", padding:"12px 13px", background:"#0a1628", border:`1px solid ${showUbic ? catObj.color : "rgba(255,255,255,.1)"}`, borderRadius:showUbic ? "11px 11px 0 0" : "11px", color:location ? "#fff" : "#64748b", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", cursor:"pointer", textAlign:"left" }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:"8px" }}><MaterialIcon color="#64748b" size={19}>location_on</MaterialIcon>{location || "Seleccionar ubicación predefinida"}</span>
+                    <MaterialIcon color={catObj.color} size={18}>{showUbic ? "expand_less" : "expand_more"}</MaterialIcon>
+                  </button>
+                  {showUbic && (
+                    <div style={{ background:"#060e1a", border:`1px solid ${catObj.color}66`, borderTop:"none", borderRadius:"0 0 11px 11px", maxHeight:260, overflowY:"auto" }}>
+                      {UBICACIONES_REPORTE.map(grupo => (
+                        <div key={grupo.grupo}>
+                          <button onClick={() => setGrupoOpen(p => p === grupo.grupo ? null : grupo.grupo)} style={{ width:"100%", padding:"10px 13px", background:grupoOpen===grupo.grupo ? "rgba(255,255,255,.06)" : "transparent", border:"none", borderBottom:"1px solid rgba(255,255,255,.06)", color:catObj.color, fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", textAlign:"left" }}>
+                            <AppIcon name={grupo.icon} size={16} active={grupoOpen===grupo.grupo} />
+                            <span style={{ flex:1 }}>{grupo.grupo}</span>
+                            <MaterialIcon color={catObj.color} size={16}>{grupoOpen===grupo.grupo ? "expand_less" : "expand_more"}</MaterialIcon>
+                          </button>
+                          {grupoOpen === grupo.grupo && grupo.opciones.map(op => (
+                            <button key={op} onClick={() => { setLocation(op); setShowUbic(false); setGrupoOpen(null); }} style={{ width:"100%", padding:"9px 13px 9px 34px", background:location===op ? `${catObj.color}22` : "transparent", border:"none", borderBottom:"1px solid rgba(255,255,255,.04)", color:location===op ? catObj.color : "rgba(255,255,255,.68)", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"11px", cursor:"pointer", textAlign:"left" }}>
+                              {op}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <input value={location} onChange={e => setLocation(sanitize(e.target.value))} placeholder="O escribe una referencia operativa" style={{ width:"100%", marginTop:"8px", boxSizing:"border-box", padding:"12px 13px", background:"#0a1628", border:"1px solid rgba(255,255,255,.1)", borderRadius:"11px", color:"#fff", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", outline:"none" }} />
+                </div>
+
+                <div>
+                  <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Coordenadas / Google Maps Link</label>
+                  <div style={{ position:"relative" }}>
+                    <MaterialIcon color="#64748b" size={19} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)" }}>pincode</MaterialIcon>
+                    <input value={gmapsLink} onChange={e => handleGmapsInput(e.target.value)} placeholder="Pega el link o coordenadas" style={{ width:"100%", boxSizing:"border-box", padding:"12px 38px 12px 40px", background:"#0a1628", border:`1px solid ${coords ? "rgba(34,197,94,.55)" : coordsError ? "rgba(239,68,68,.55)" : "rgba(255,255,255,.1)"}`, borderRadius:"11px", color:coords ? "#22c55e" : "#00f2ea", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", outline:"none" }} />
+                    <MaterialIcon color={coords ? "#22c55e" : coordsError ? "#ef4444" : "#64748b"} size={19} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)" }}>{coordsLoading ? "sync" : coords ? "verified" : coordsError ? "error" : "link"}</MaterialIcon>
+                  </div>
+                  <p style={{ margin:"6px 0 0", color:coords ? "#22c55e" : coordsError ? "#f97316" : "#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px", textTransform:"uppercase", lineHeight:1.5 }}>
+                    {coordsLoading ? "Automatic Lat/Long extraction running" : coords ? `LAT ${coords[0].toFixed(5)} / LNG ${coords[1].toFixed(5)}` : coordsError || "Automatic Lat/Long extraction enabled"}
+                  </p>
+                </div>
+
+                {subcat && location && (
+                  <div style={{ background:"rgba(255,255,255,.05)", border:`1px solid ${catObj.color}44`, borderRadius:"12px", padding:"13px" }}>
+                    <div style={{ color:"#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px", letterSpacing:"0.14em", marginBottom:"7px", textTransform:"uppercase" }}>Vista previa</div>
+                    <div style={{ display:"flex", gap:"10px", alignItems:"flex-start" }}>
+                      <AppIcon name={subcatObj?.icon || "incident-pin"} size={22} active />
+                      <div>
+                        <div style={{ color:catObj.color, fontFamily:"JetBrains Mono, monospace", fontSize:"10px", fontWeight:800, textTransform:"uppercase" }}>{catObj.label} · {subcatObj?.label}</div>
+                        <div style={{ color:"#fff", fontFamily:"IBM Plex Sans, sans-serif", fontSize:"12px", marginTop:"3px" }}>{acceso ? `${acceso} — ${location}` : location}</div>
+                        {coords && <div style={{ color:"#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px", marginTop:"4px" }}>Pin: {coords[0].toFixed(4)}, {coords[1].toFixed(4)}</div>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={async () => { await submit(); if (subcat && location && coords) closeTacticalPanel(); }} disabled={!(subcat && location && coords)} style={{ width:"100%", padding:"15px", borderRadius:"14px", border:"none", background:(subcat && location && coords) ? "#00f2ea" : "rgba(255,255,255,.08)", color:(subcat && location && coords) ? "#020617" : "rgba(255,255,255,.32)", fontFamily:"JetBrains Mono, monospace", fontSize:"12px", fontWeight:900, letterSpacing:"0.16em", textTransform:"uppercase", cursor:(subcat && location && coords) ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px" }}>
+                  <MaterialIcon color={(subcat && location && coords) ? "#020617" : "rgba(255,255,255,.32)"} size={20}>send</MaterialIcon>
+                  Transmitir Reporte
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
       {pendingAll.length > 0 && (
