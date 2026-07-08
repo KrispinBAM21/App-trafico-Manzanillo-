@@ -9425,13 +9425,14 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     <div>
       {/* Mapa */}
       <div style={{ borderRadius: "14px", overflow: cleanReportMap ? "visible" : "hidden", position:"relative", zIndex: reportLayerControlOpen ? 80 : 1, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 32px rgba(0,0,0,0.5)", marginBottom: reportLayerControlOpen ? "92px" : "14px" }}>
-        <div style={{ padding: "10px 14px", background: cleanReportMap ? "rgba(2,6,23,0.86)" : "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px", flexWrap:"wrap" }}>
-          <AppIcon name={cleanReportMap ? "radar" : "map"} size={16} active />
-          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", textTransform: cleanReportMap ? "uppercase" : "none", letterSpacing: cleanReportMap ? "0.06em" : 0 }}>
-            {cleanReportMap ? "Mapa del Puerto"}
+        {!cleanReportMap && (
+        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px", flexWrap:"wrap" }}>
+          <AppIcon name="map" size={16} active />
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)" }}>
+            Mapa del Puerto
           </span>
           <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>
-            {cleanReportMap ? "· incidentes georreferenciados" : "· tráfico en tiempo real"}
+            · tráfico en tiempo real
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: "7px", alignItems: "center", flexWrap:"wrap", justifyContent:"flex-end" }}>
             {activeIncidents.length > 0 && (
@@ -9441,8 +9442,9 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
             )}
           </div>
         </div>
+        )}
         <div style={{ position:"relative" }}>
-          <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18", borderRadius: cleanReportMap ? "0 0 14px 14px" : 0, overflow:"hidden" }} />
+          <div ref={mapRef} style={{ width: "100%", height: cleanReportMap ? "clamp(360px, 48vh, 560px)" : (compact ? "220px" : "320px"), background: "#040c18", borderRadius: cleanReportMap ? "14px" : 0, overflow:"hidden" }} />
           {cleanReportMap && (
             <div
               onMouseEnter={openReportLayerControl}
@@ -10376,10 +10378,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               </div>
             </div>
           </div>
-          <div style={{ padding:"6px 10px", borderRadius:"8px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"11px" }}>SENTINEL_V4</div>
         </header>
 
-        <div className="deep-glass-panel" style={{ position:"relative", height:"clamp(260px, 42vh, 430px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden", flexShrink:0 }}>
+        <div className="deep-glass-panel" style={{ position:"relative", height:"clamp(360px, 48vh, 560px)", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)", overflow:"visible", flexShrink:0 }}>
           <div className="deep-map-grid" style={{ position:"absolute", inset:0, opacity:.24, zIndex:3, pointerEvents:"none" }} />
           <div className="deep-scanline" style={{ position:"absolute", inset:0, zIndex:4 }} />
           <div style={{ position:"absolute", top:14, left:14, zIndex:6, display:"flex", flexDirection:"column", gap:"8px" }}>
@@ -10387,7 +10388,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               ACTIVE INCIDENTS: {incidents.filter(i => i.visible && !i.resolved).length}
             </div>
           </div>
-          <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} compact cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
+          <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
           <div style={{ position:"absolute", inset:0, pointerEvents:"none", zIndex:5, padding:"14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /></div>
             <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /></div>
