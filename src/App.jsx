@@ -19460,99 +19460,570 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
   const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
 
+  const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
+
+  const authFont = "'IBM Plex Sans', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const pageBg = "#f7fafc";
+  const panelBorder = "#e2e8f0";
+  const textMain = "#2d3748";
+  const textMuted = "#718096";
+  const steel = "#4a5568";
+  const red = "#c52222";
+
+  const formLabel = {
+    display: "block",
+    color: textMain,
+    fontFamily: authFont,
+    fontSize: "12px",
+    fontWeight: 700,
+    marginBottom: "7px"
+  };
+
+  const fieldWrap = {
+    position: "relative",
+    marginBottom: "16px"
+  };
+
+  const fieldIcon = {
+    position: "absolute",
+    left: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "#718096",
+    fontSize: "15px",
+    pointerEvents: "none"
+  };
+
+  const cleanInput = {
+    width: "100%",
+    height: "44px",
+    boxSizing: "border-box",
+    border: `1px solid ${panelBorder}`,
+    borderRadius: "6px",
+    background: "#ffffff",
+    color: textMain,
+    padding: "0 42px 0 38px",
+    fontFamily: authFont,
+    fontSize: "14px",
+    outline: "none",
+    transition: "border-color .18s ease, box-shadow .18s ease"
+  };
+
+  const plainInput = {
+    ...cleanInput,
+    padding: "0 12px"
+  };
+
+  const primaryAuthBtn = {
+    width: "100%",
+    minHeight: "44px",
+    border: "none",
+    borderRadius: "4px",
+    background: red,
+    color: "#ffffff",
+    fontFamily: authFont,
+    fontSize: "12px",
+    fontWeight: 800,
+    letterSpacing: ".9px",
+    textTransform: "uppercase",
+    cursor: loading ? "wait" : "pointer",
+    opacity: loading ? 0.72 : 1,
+    transition: "filter .18s ease, transform .18s ease"
+  };
+
+  const outlineAuthBtn = {
+    width: "100%",
+    minHeight: "42px",
+    border: `1px solid ${steel}`,
+    borderRadius: "4px",
+    background: "#ffffff",
+    color: steel,
+    fontFamily: authFont,
+    fontSize: "12px",
+    fontWeight: 800,
+    letterSpacing: ".8px",
+    textTransform: "uppercase",
+    cursor: "pointer",
+    transition: "background .18s ease, color .18s ease, border-color .18s ease"
+  };
+
+  const miniLinkBtn = {
+    border: "none",
+    background: "transparent",
+    color: steel,
+    fontFamily: authFont,
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+    padding: 0,
+    textDecoration: "none"
+  };
+
+  const AuthMsgBox = ({ msg }) => msg ? (
+    <div style={{
+      padding: "10px 12px",
+      borderRadius: "6px",
+      marginBottom: "16px",
+      fontSize: "12px",
+      fontFamily: authFont,
+      background: msg.type === "ok" ? "#f0fff4" : "#fff5f5",
+      border: `1px solid ${msg.type === "ok" ? "#9ae6b4" : "#feb2b2"}`,
+      color: msg.type === "ok" ? "#276749" : "#c53030",
+      lineHeight: 1.45
+    }}>
+      {msg.type === "ok" ? "✓ " : "⚠️ "}{msg.text}
+    </div>
+  ) : null;
+
+  const AuthCheckbox = ({ checked, onToggle, label }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "9px",
+        border: "none",
+        background: "transparent",
+        padding: 0,
+        color: steel,
+        fontFamily: authFont,
+        fontSize: "12px",
+        cursor: "pointer",
+        textAlign: "left"
+      }}
+    >
+      <span style={{
+        width: "16px",
+        height: "16px",
+        borderRadius: "3px",
+        border: `1px solid ${checked ? red : "#cbd5e0"}`,
+        background: checked ? red : "#ffffff",
+        color: "#ffffff",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "11px",
+        fontWeight: 900,
+        flex: "0 0 auto"
+      }}>
+        {checked ? "✓" : ""}
+      </span>
+      {label}
+    </button>
+  );
+
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:99999, background:"rgba(0,0,0,0.74)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", display:"flex", alignItems:"flex-start", justifyContent:"flex-end", padding:"84px 18px 18px" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:"430px", maxHeight:"calc(100vh - 110px)", overflowY:"auto", background:"linear-gradient(135deg,#0d1b2e,#071426)", border:"1px solid rgba(56,189,248,0.28)", borderRadius:"18px", padding:"16px", boxShadow:"0 24px 80px rgba(0,0,0,0.55)" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"12px" }}>
-          <div>
-            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"17px", fontWeight:"900", color:"#fff" }}>{authMode === "login" ? "Iniciar sesión" : authMode === "registro" ? "Crear cuenta" : "Recuperar contraseña"}</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.45)", marginTop:"3px" }}>Puedes continuar dentro de esta misma pantalla.</div>
-          </div>
-          <button onClick={onClose} style={{ width:"34px", height:"34px", borderRadius:"50%", border:"1px solid rgba(255,255,255,0.14)", background:"rgba(255,255,255,0.07)", color:"#fff", cursor:"pointer", fontSize:"16px" }}>✕</button>
-        </div>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        background: pageBg,
+        display: "flex",
+        flexDirection: "column",
+        overflowY: "auto",
+        fontFamily: authFont
+      }}
+    >
+      <style>{`
+        @media (max-width: 760px) {
+          .cm-auth-shell { padding: 18px !important; }
+          .cm-auth-grid { grid-template-columns: 1fr !important; }
+          .cm-auth-marketing { display: none !important; }
+          .cm-auth-card { padding: 24px !important; }
+        }
+      `}</style>
 
-        {authMode !== "forgot" && (
-          <div style={{ display:"flex", gap:"4px", background:"rgba(255,255,255,0.04)", borderRadius:"12px", padding:"4px", marginBottom:"14px" }}>
-            {[{id:"login", label:"Iniciar sesión"}, {id:"registro", label:"Crear cuenta"}].map(t => (
-              <button key={t.id} onClick={() => { setAuthMode(t.id); setLoginMsg(null); setRegMsg(null); }} style={{ flex:1, padding:"9px", borderRadius:"9px", border:"none", background:authMode===t.id ? "linear-gradient(135deg,#38bdf8,#0ea5e9)" : "transparent", color:authMode===t.id ? "#0a1628" : "rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>{t.label}</button>
-            ))}
-          </div>
-        )}
+      <header
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "18px clamp(18px, 5vw, 48px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: `1px solid ${panelBorder}`,
+          background: "#ffffff"
+        }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            border: "none",
+            background: "transparent",
+            color: steel,
+            fontFamily: authFont,
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "7px"
+          }}
+        >
+          ← Volver al Inicio
+        </button>
 
-        {authMode === "login" && (
-          <div>
-            <MsgBox msg={loginMsg} />
-            <input value={loginUser} onChange={e=>setLoginUser(e.target.value)} placeholder="tu@correo.com" style={inputStyle} />
-            <div style={{ position:"relative" }}>
-              <input type={showLoginPass ? "text" : "password"} value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Tu contraseña" style={{...inputStyle, paddingRight:"38px"}} onKeyDown={e=>e.key==="Enter"&&handleLogin()} />
-              <button onClick={()=>setShowLoginPass(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showLoginPass?"🙈":"👁️"}</button>
+        <img
+          src="/reporte.png"
+          alt="Conect Manzanillo"
+          style={{
+            height: "42px",
+            maxWidth: "180px",
+            objectFit: "contain"
+          }}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      </header>
+
+      <main
+        className="cm-auth-shell"
+        style={{
+          flex: 1,
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "42px 22px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}
+      >
+        <div
+          className="cm-auth-grid"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: "100%",
+            maxWidth: "980px",
+            display: "grid",
+            gridTemplateColumns: "minmax(320px, 430px) minmax(280px, 1fr)",
+            gap: "28px",
+            alignItems: "stretch"
+          }}
+        >
+          <section
+            className="cm-auth-card"
+            style={{
+              background: "#ffffff",
+              border: `1px solid ${panelBorder}`,
+              borderRadius: "12px",
+              padding: "32px",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, .08)"
+            }}
+          >
+            {authMode === "login" && (
+              <>
+                <div style={{ marginBottom: "26px" }}>
+                  <h1 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "28px", fontWeight: 800, letterSpacing: "-.4px" }}>
+                    Iniciar Sesión
+                  </h1>
+                  <p style={{ margin: "8px 0 0", color: textMuted, fontFamily: authFont, fontSize: "14px", lineHeight: 1.45 }}>
+                    Ingresa tus credenciales para continuar
+                  </p>
+                </div>
+
+                <AuthMsgBox msg={loginMsg} />
+
+                <label htmlFor="cm-login-email" style={formLabel}>Correo Electrónico</label>
+                <div style={fieldWrap}>
+                  <span style={fieldIcon}>@</span>
+                  <input
+                    id="cm-login-email"
+                    type="email"
+                    autoComplete="email"
+                    value={loginUser}
+                    onChange={e => setLoginUser(e.target.value)}
+                    placeholder="tu@correo.com"
+                    style={cleanInput}
+                    onFocus={e => { e.currentTarget.style.borderColor = red; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(197,34,34,.10)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = panelBorder; e.currentTarget.style.boxShadow = "none"; }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                  <label htmlFor="cm-login-password" style={formLabel}>Contraseña</label>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode("forgot"); setForgotMsg(null); }}
+                    style={{ ...miniLinkBtn, marginBottom: "7px" }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+
+                <div style={fieldWrap}>
+                  <span style={fieldIcon}>🔒</span>
+                  <input
+                    id="cm-login-password"
+                    type={showLoginPass ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={loginPass}
+                    onChange={e => setLoginPass(e.target.value)}
+                    placeholder="Ingresa tu contraseña"
+                    style={cleanInput}
+                    onKeyDown={e => e.key === "Enter" && handleLogin()}
+                    onFocus={e => { e.currentTarget.style.borderColor = red; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(197,34,34,.10)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = panelBorder; e.currentTarget.style.boxShadow = "none"; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPass(v => !v)}
+                    aria-label={showLoginPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      border: "none",
+                      background: "transparent",
+                      color: steel,
+                      cursor: "pointer",
+                      fontSize: "15px"
+                    }}
+                  >
+                    {showLoginPass ? "🙈" : "👁️"}
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: "22px" }}>
+                  <AuthCheckbox
+                    checked={loginRemember}
+                    onToggle={() => setLoginRemember(v => !v)}
+                    label="Recordar mi sesión por 30 días"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogin}
+                  disabled={loading}
+                  style={primaryAuthBtn}
+                  onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = "brightness(.94)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                >
+                  {loading ? "Entrando..." : "ENTRAR AL PANEL"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLoginGoogle}
+                  disabled={loading}
+                  style={{
+                    ...outlineAuthBtn,
+                    marginTop: "10px",
+                    borderColor: panelBorder,
+                    color: textMain
+                  }}
+                >
+                  CONTINUAR CON GOOGLE
+                </button>
+
+                <div style={{ height: "1px", background: panelBorder, margin: "26px 0 18px" }} />
+
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ color: textMuted, fontFamily: authFont, fontSize: "13px", marginBottom: "12px" }}>
+                    ¿No tienes una cuenta?
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode("registro"); setRegMsg(null); setRegStep(1); }}
+                    style={outlineAuthBtn}
+                  >
+                    CREAR CUENTA NUEVA
+                  </button>
+                </div>
+              </>
+            )}
+
+            {authMode === "registro" && (
+              <>
+                <div style={{ marginBottom: "22px" }}>
+                  <h1 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "26px", fontWeight: 800, letterSpacing: "-.3px" }}>
+                    Crear Cuenta Nueva
+                  </h1>
+                  <p style={{ margin: "8px 0 0", color: textMuted, fontFamily: authFont, fontSize: "14px", lineHeight: 1.45 }}>
+                    Completa tu registro seguro para participar en la comunidad.
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                  {stepLabels.map((s, i) => (
+                    <div key={s} style={{ flex: 1, height: "5px", borderRadius: "999px", background: i + 1 <= regStep ? red : panelBorder }} />
+                  ))}
+                </div>
+
+                <div style={{ color: steel, fontFamily: authFont, fontWeight: 800, fontSize: "12px", marginBottom: "14px" }}>
+                  Paso {regStep}/4 · {stepLabels[regStep - 1]}
+                </div>
+
+                <AuthMsgBox msg={regMsg} />
+
+                {regStep === 1 && (
+                  <>
+                    <label style={formLabel}>Nombre(s)</label>
+                    <input value={regNombre} onChange={e => setRegNombre(e.target.value)} placeholder="Ej. Juan Carlos" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <label style={formLabel}>Apellidos</label>
+                    <input value={regApellidos} onChange={e => setRegApellidos(e.target.value)} placeholder="Ej. Pérez López" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <label style={formLabel}>Nombre de usuario</label>
+                    <input value={regUsername} onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/\s/g, ""))} placeholder="usuario_sin_espacios" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <label style={formLabel}>Fecha de nacimiento</label>
+                    <input type="date" value={regFecha} onChange={e => setRegFecha(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div>
+                        <label style={formLabel}>País</label>
+                        <input value={regPais} onChange={e => setRegPais(e.target.value)} placeholder="México" style={{ ...plainInput, marginBottom: "12px" }} />
+                      </div>
+                      <div>
+                        <label style={formLabel}>Ciudad</label>
+                        <input value={regCiudad} onChange={e => setRegCiudad(e.target.value)} placeholder="Manzanillo" style={{ ...plainInput, marginBottom: "12px" }} />
+                      </div>
+                    </div>
+                    <label style={formLabel}>Tipo de usuario</label>
+                    <select value={regTipoUsuario} onChange={e => setRegTipoUsuario(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }}>
+                      <option value="visualizador_votante">Visualizador / votante</option>
+                      <option value="operador">Operador</option>
+                      <option value="empresa">Empresa</option>
+                      <option value="transportista">Transportista</option>
+                    </select>
+                  </>
+                )}
+
+                {regStep === 2 && (
+                  <>
+                    <label style={formLabel}>Teléfono</label>
+                    <input value={regTel} onChange={e => setRegTel(e.target.value)} placeholder="+5213140000000" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <button type="button" onClick={handleEnviarOtp} disabled={loading} style={primaryAuthBtn}>
+                      {otpEnviado ? "REENVIAR SMS" : "ENVIAR SMS"}
+                    </button>
+                    {otpEnviado && (
+                      <>
+                        <label style={{ ...formLabel, marginTop: "14px" }}>Código de verificación</label>
+                        <input value={regOtp} onChange={e => setRegOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <button type="button" onClick={handleVerificarOtp} disabled={loading} style={outlineAuthBtn}>VERIFICAR TELÉFONO</button>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {regStep === 3 && (
+                  <>
+                    <label style={formLabel}>Correo electrónico</label>
+                    <input value={regCorreo} onChange={e => setRegCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <label style={formLabel}>Confirmar correo</label>
+                    <input value={regCorreo2} onChange={e => setRegCorreo2(e.target.value)} placeholder="Repite tu correo" style={{ ...plainInput, marginBottom: "12px" }} />
+                  </>
+                )}
+
+                {regStep === 4 && (
+                  <>
+                    <label style={formLabel}>Contraseña segura</label>
+                    <div style={fieldWrap}>
+                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="Mín. 10 caracteres, mayúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <button type="button" onClick={() => setShowRegPass(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass ? "🙈" : "👁️"}</button>
+                    </div>
+                    <label style={formLabel}>Confirmar contraseña</label>
+                    <div style={fieldWrap}>
+                      <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <button type="button" onClick={() => setShowRegPass2(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass2 ? "🙈" : "👁️"}</button>
+                    </div>
+                    <label style={formLabel}>Verificación humana</label>
+                    <input value={regAntibot} onChange={e => setRegAntibot(e.target.value)} placeholder="¿Cuánto es 3 + 5?" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <div style={{ display: "grid", gap: "9px", marginBottom: "12px" }}>
+                      <AuthCheckbox checked={regTerminos} onToggle={() => setRegTerminos(v => !v)} label="Acepto términos y condiciones" />
+                      <AuthCheckbox checked={regPrivacidad} onToggle={() => setRegPrivacidad(v => !v)} label="Acepto política de privacidad" />
+                    </div>
+                  </>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                  {regStep > 1 && (
+                    <button type="button" onClick={() => setRegStep(s => Math.max(1, s - 1))} style={{ ...outlineAuthBtn, flex: 1 }}>
+                      ATRÁS
+                    </button>
+                  )}
+                  <button type="button" onClick={handleRegStep} disabled={loading} style={{ ...primaryAuthBtn, flex: 1 }}>
+                    {loading ? "Procesando..." : regStep === 4 ? "CREAR CUENTA" : "CONTINUAR"}
+                  </button>
+                </div>
+
+                <div style={{ height: "1px", background: panelBorder, margin: "24px 0 16px" }} />
+                <button type="button" onClick={() => setAuthMode("login")} style={outlineAuthBtn}>
+                  YA TENGO CUENTA
+                </button>
+              </>
+            )}
+
+            {authMode === "forgot" && (
+              <>
+                <div style={{ marginBottom: "22px" }}>
+                  <h1 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "26px", fontWeight: 800 }}>
+                    Recuperar contraseña
+                  </h1>
+                  <p style={{ margin: "8px 0 0", color: textMuted, fontFamily: authFont, fontSize: "14px", lineHeight: 1.45 }}>
+                    Te enviaremos un enlace para restablecer tu acceso.
+                  </p>
+                </div>
+
+                <AuthMsgBox msg={forgotMsg} />
+
+                <label style={formLabel}>Correo electrónico</label>
+                <input value={forgotCorreo} onChange={e => setForgotCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "16px" }} />
+                <button type="button" onClick={handleForgot} disabled={loading} style={primaryAuthBtn}>
+                  {loading ? "ENVIANDO..." : "ENVIAR ENLACE DE RECUPERACIÓN"}
+                </button>
+                <button type="button" onClick={() => { setAuthMode("login"); setForgotMsg(null); }} style={{ ...outlineAuthBtn, marginTop: "12px" }}>
+                  VOLVER AL INICIO DE SESIÓN
+                </button>
+              </>
+            )}
+          </section>
+
+          <aside
+            className="cm-auth-marketing"
+            style={{
+              background: "#ffffff",
+              border: `1px solid ${panelBorder}`,
+              borderRadius: "12px",
+              padding: "30px",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, .05)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center"
+            }}
+          >
+            <div style={{ color: steel, fontFamily: authFont, fontSize: "12px", fontWeight: 800, letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: "12px" }}>
+              Marine Logistics Framework
             </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px", gap:"10px" }}>
-              <div onClick={()=>setLoginRemember(v=>!v)} style={{ display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", color:"rgba(255,255,255,0.45)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>
-                <div style={checkboxBox(loginRemember)}>{loginRemember && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}</div> Recordarme
+            <h2 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "30px", lineHeight: 1.1, fontWeight: 800, letterSpacing: "-.5px" }}>
+              Gestión Portuaria en Tiempo Real
+            </h2>
+            <p style={{ margin: "14px 0 24px", color: textMuted, fontFamily: authFont, fontSize: "14px", lineHeight: 1.65 }}>
+              Monitorea terminales, comunicados, reportes e información logística crítica desde una plataforma diseñada para la operación diaria del puerto.
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div style={{ background: "#ffffff", border: `1px solid ${panelBorder}`, borderRadius: "10px", padding: "16px" }}>
+                <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "#fff5f5", color: red, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "10px", fontSize: "18px" }}>⚡</div>
+                <div style={{ color: textMain, fontFamily: authFont, fontSize: "13px", fontWeight: 800 }}>Velocidad</div>
+                <div style={{ color: textMuted, fontFamily: authFont, fontSize: "12px", lineHeight: 1.45, marginTop: "4px" }}>Alertas y comunicados operativos al instante.</div>
               </div>
-              <button onClick={()=>{ setAuthMode("forgot"); setForgotMsg(null); }} style={btnSecondary}>¿Olvidaste tu contraseña?</button>
+              <div style={{ background: "#ffffff", border: `1px solid ${panelBorder}`, borderRadius: "10px", padding: "16px" }}>
+                <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "#edf2f7", color: steel, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "10px", fontSize: "18px" }}>🔒</div>
+                <div style={{ color: textMain, fontFamily: authFont, fontSize: "13px", fontWeight: 800 }}>Seguridad</div>
+                <div style={{ color: textMuted, fontFamily: authFont, fontSize: "12px", lineHeight: 1.45, marginTop: "4px" }}>Acceso protegido y cuentas verificadas.</div>
+              </div>
             </div>
-            <button onClick={handleLogin} disabled={loading} style={btnPrimary()}>{loading ? "Entrando..." : "Entrar"}</button>
-            <button onClick={handleLoginGoogle} disabled={loading} style={{ ...btnPrimary("#ffffff"), color:"#0a1628", marginTop:"8px" }}>Continuar con Google</button>
-          </div>
-        )}
-
-        {authMode === "registro" && (
-          <div>
-            <div style={{ display:"flex", gap:"4px", marginBottom:"12px" }}>{stepLabels.map((s,i)=><div key={s} style={{ flex:1, height:"4px", borderRadius:"999px", background:i+1<=regStep ? "#38bdf8" : "rgba(255,255,255,0.1)" }} />)}</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), color:"#38bdf8", fontWeight:"800", fontSize:"11px", marginBottom:"10px" }}>Paso {regStep}/4 · {stepLabels[regStep-1]}</div>
-            <MsgBox msg={regMsg} />
-            {regStep === 1 && <>
-              <input value={regNombre} onChange={e=>setRegNombre(e.target.value)} placeholder="Nombre(s)" style={inputStyle} />
-              <input value={regApellidos} onChange={e=>setRegApellidos(e.target.value)} placeholder="Apellidos" style={inputStyle} />
-              <input value={regUsername} onChange={e=>setRegUsername(e.target.value.toLowerCase().replace(/\s/g,""))} placeholder="Nombre de usuario" style={inputStyle} />
-              <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} style={inputStyle} />
-              <input value={regPais} onChange={e=>setRegPais(e.target.value)} placeholder="País" style={inputStyle} />
-              <input value={regCiudad} onChange={e=>setRegCiudad(e.target.value)} placeholder="Ciudad" style={inputStyle} />
-              <select value={regTipoUsuario} onChange={e=>setRegTipoUsuario(e.target.value)} style={inputStyle}>
-                <option value="visualizador_votante">Visualizador / votante</option>
-                <option value="operador">Operador</option>
-                <option value="empresa">Empresa</option>
-                <option value="transportista">Transportista</option>
-              </select>
-            </>}
-            {regStep === 2 && <>
-              <input value={regTel} onChange={e=>setRegTel(e.target.value)} placeholder="Teléfono internacional, ej. +5213140000000" style={inputStyle} />
-              <button onClick={handleEnviarOtp} disabled={loading} style={btnPrimary("#22c55e")}>{otpEnviado ? "Reenviar SMS" : "Enviar SMS"}</button>
-              {otpEnviado && <>
-                <input value={regOtp} onChange={e=>setRegOtp(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="Código de 6 dígitos" style={{...inputStyle, marginTop:"10px"}} />
-                <button onClick={handleVerificarOtp} disabled={loading} style={btnPrimary()}>Verificar teléfono</button>
-              </>}
-            </>}
-            {regStep === 3 && <>
-              <input value={regCorreo} onChange={e=>setRegCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
-              <input value={regCorreo2} onChange={e=>setRegCorreo2(e.target.value)} placeholder="Confirmar correo" style={inputStyle} />
-            </>}
-            {regStep === 4 && <>
-              <div style={{ position:"relative" }}><input type={showRegPass?"text":"password"} value={regPass} onChange={e=>setRegPass(e.target.value)} placeholder="Contraseña segura" style={{...inputStyle, paddingRight:"38px"}} /><button onClick={()=>setShowRegPass(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showRegPass?"🙈":"👁️"}</button></div>
-              <div style={{ position:"relative" }}><input type={showRegPass2?"text":"password"} value={regPass2} onChange={e=>setRegPass2(e.target.value)} placeholder="Confirmar contraseña" style={{...inputStyle, paddingRight:"38px"}} /><button onClick={()=>setShowRegPass2(v=>!v)} style={{ position:"absolute", right:"8px", top:"8px", background:"none", border:"none", color:"rgba(255,255,255,0.45)", cursor:"pointer" }}>{showRegPass2?"🙈":"👁️"}</button></div>
-              <input value={regAntibot} onChange={e=>setRegAntibot(e.target.value)} placeholder="Antibot: ¿cuánto es 3 + 5?" style={inputStyle} />
-              {[{label:"Acepto términos y condiciones", val:regTerminos, set:setRegTerminos}, {label:"Acepto política de privacidad", val:regPrivacidad, set:setRegPrivacidad}].map(x=><div key={x.label} onClick={()=>x.set(v=>!v)} style={{ display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", color:"rgba(255,255,255,0.55)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginBottom:"8px" }}><div style={checkboxBox(x.val)}>{x.val && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}</div>{x.label}</div>)}
-            </>}
-            <div style={{ display:"flex", gap:"8px", marginTop:"8px" }}>
-              {regStep > 1 && <button onClick={()=>setRegStep(s=>Math.max(1,s-1))} style={{ ...btnPrimary("#64748b"), flex:1 }}>Atrás</button>}
-              <button onClick={handleRegStep} disabled={loading} style={{ ...btnPrimary(regStep===4 ? "#22c55e" : "#38bdf8"), flex:1 }}>{loading ? "Procesando..." : regStep===4 ? "Crear cuenta" : "Continuar"}</button>
-            </div>
-          </div>
-        )}
-
-        {authMode === "forgot" && (
-          <div>
-            <MsgBox msg={forgotMsg} />
-            <input value={forgotCorreo} onChange={e=>setForgotCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
-            <button onClick={handleForgot} disabled={loading} style={btnPrimary("#fbbf24")}>{loading ? "Enviando..." : "Enviar enlace de recuperación"}</button>
-            <button onClick={()=>{ setAuthMode("login"); setForgotMsg(null); }} style={{...btnSecondary, marginTop:"10px"}}>← Volver al inicio de sesión</button>
-          </div>
-        )}
-      </div>
+          </aside>
+        </div>
+      </main>
     </div>
   );
+
 }
 
 function TutorialTab({ setActive, isAdmin, authIntent }) {
