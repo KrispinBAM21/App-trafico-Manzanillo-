@@ -19460,8 +19460,6 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
   const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
 
-  const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
-
   const authFont = "'IBM Plex Sans', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const pageBg = "#f7fafc";
   const panelBorder = "#e2e8f0";
