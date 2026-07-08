@@ -9428,7 +9428,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         <div style={{ padding: "10px 14px", background: cleanReportMap ? "rgba(2,6,23,0.86)" : "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px", flexWrap:"wrap" }}>
           <AppIcon name={cleanReportMap ? "radar" : "map"} size={16} active />
           <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", textTransform: cleanReportMap ? "uppercase" : "none", letterSpacing: cleanReportMap ? "0.06em" : 0 }}>
-            {cleanReportMap ? "Visor Sentinel" : "Mapa del Puerto"}
+            {cleanReportMap ? "Mapa del Puerto"}
           </span>
           <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>
             {cleanReportMap ? "· incidentes georreferenciados" : "· tráfico en tiempo real"}
