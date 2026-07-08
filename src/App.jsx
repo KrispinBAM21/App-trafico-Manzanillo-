@@ -7428,397 +7428,28 @@ function SkeletonCard({ n = 3 }) {
 }
 
 
-const TrafficDataContext = React.createContext(null);
-
-const OPERATIONAL_STATUS_OPTIONS = [
-  { id: "libre", label: "Libre", shortLabel: "LIBRE", color: "#22c55e", icon: "check_circle", level: 18 },
-  { id: "lento", label: "Lento", shortLabel: "LENTO", color: "#eab308", icon: "speed", level: 46 },
-  { id: "saturado", label: "Saturado", shortLabel: "SATURADO", color: "#f97316", icon: "traffic", level: 78 },
-  { id: "detenido", label: "Detenido", shortLabel: "STOP", color: "#ef4444", icon: "block", level: 100 },
-];
-
-const TRAFFIC_STATUS_ALIASES = {
-  moderado: "lento",
-  cerrado: "detenido",
-  bloqueado: "detenido",
-  stop: "detenido",
-};
-
-const normalizeTrafficStatus = (status) => TRAFFIC_STATUS_ALIASES[status] || status || "libre";
-const getOperationalOption = (status) => OPERATIONAL_STATUS_OPTIONS.find(o => o.id === normalizeTrafficStatus(status)) || OPERATIONAL_STATUS_OPTIONS[0];
-
-const MAP_CONFIG = {
-  viewBox: "0 0 1000 620",
-  vialidades: [
-    { id: "jalipa_puerto", label: "Jalipa - Puerto", points: "88,440 205,398 332,365 452,333 572,302 690,268 836,232", width: 18 },
-    { id: "puerto_jalipa", label: "Puerto - Jalipa", points: "835,262 690,298 574,333 455,366 335,397 208,431 92,474", width: 18 },
-    { id: "libramiento", label: "Cihuatlan - Manzanillo", points: "115,520 245,485 372,443 496,405 640,363 796,330 934,312", width: 14 },
-    { id: "mzllo_colima", label: "Manzanillo - Colima", points: "178,170 300,202 424,230 545,255 668,280 805,306", width: 12 },
-    { id: "colima_mzllo", label: "Colima - Manzanillo", points: "804,338 665,314 542,286 420,260 296,236 175,204", width: 12 },
-    { id: "algodones", label: "Calle Algodones", points: "315,480 356,424 403,384 456,354", width: 10 },
-    { id: "antonio_suarez", label: "Antonio Suarez", points: "435,505 470,452 516,410 570,378", width: 10 },
-    { id: "av_trabajo", label: "Av. del Trabajo", points: "525,520 555,468 603,425 662,392", width: 10 },
-  ],
-  rutas_fiscales: [
-    { id: "contecon_ruta", label: "CONTECON", points: "675,157 712,188 744,224 770,267 798,307", width: 9 },
-  ],
-  accesos: [
-    { id: "pezvela", label: "Pez Vela", x: 827, y: 248, r: 17 },
-    { id: "puerta15", label: "Puerta 15", x: 752, y: 285, r: 15 },
-    { id: "zonanorte", label: "Zona Norte", x: 682, y: 160, r: 15 },
-    { id: "patio", label: "Patio Regulador", x: 612, y: 394, r: 15 },
-  ],
-  terminales: [
-    { id: "contecon", label: "CONTECON", x: 708, y: 118, w: 54, h: 35 },
-    { id: "hazesa", label: "HAZESA", x: 775, y: 150, w: 54, h: 35 },
-    { id: "timsa", label: "TIMSA", x: 716, y: 348, w: 48, h: 32 },
-    { id: "ssa", label: "SSA", x: 777, y: 342, w: 48, h: 32 },
-    { id: "ocupa", label: "OCUPA", x: 836, y: 334, w: 48, h: 32 },
-    { id: "asipona", label: "ASIPONA", x: 625, y: 318, w: 58, h: 34 },
-  ],
-};
-
-function OperationalSelector({ value, onChange, ariaLabel = "Selector operativo", compact = false }) {
-  const current = normalizeTrafficStatus(value);
-  return (
-    <div className="cm-segmented-control" role="radiogroup" aria-label={ariaLabel}>
-      {OPERATIONAL_STATUS_OPTIONS.map(option => {
-        const active = current === option.id;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(option.id)}
-            className={`cm-segment-option ${active ? "is-active" : ""}`}
-            style={{
-              "--segment-color": option.color,
-              padding: compact ? "7px 10px" : "9px 14px",
-              minWidth: compact ? 64 : 82,
-            }}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">{option.icon}</span>
-            <span>{option.shortLabel}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function TrafficSectionHeader({ icon, title, subtitle, color = "#88ceff" }) {
-  return (
-    <div className="cm-command-section-header">
-      <div className="cm-command-section-icon" style={{ color, borderColor: `${color}55`, background: `${color}18` }}>
-        <span className="material-symbols-outlined" aria-hidden="true">{icon}</span>
-      </div>
-      <div>
-        <h2>{title}</h2>
-        {subtitle && <p>{subtitle}</p>}
-      </div>
-    </div>
-  );
-}
-
-function TrafficStatusPill({ status }) {
-  const option = getOperationalOption(status);
-  return (
-    <span className="cm-status-pill" style={{ color: option.color, borderColor: `${option.color}55`, background: `${option.color}18` }}>
-      <span className="material-symbols-outlined" aria-hidden="true">{option.icon}</span>
-      {option.shortLabel}
-    </span>
-  );
-}
-
-function MasterTrafficMap({ reportStatus = "libre" }) {
-  const ctx = React.useContext(TrafficDataContext) || {};
-  const { trafficData = {}, selectedMapItem, setSelectedMapItem } = ctx;
-  const getStatus = (section, id) => {
-    if (section === "terminales") return "libre";
-    return trafficData?.[section]?.[id]?.status || "libre";
-  };
-  const mapItems = [
-    ...MAP_CONFIG.vialidades.map(item => ({ ...item, section: "vialidades", type: "polyline" })),
-    ...MAP_CONFIG.rutas_fiscales.map(item => ({ ...item, section: "rutas_fiscales", type: "polyline" })),
-    ...MAP_CONFIG.accesos.map(item => ({ ...item, section: "accesos", type: "access" })),
-    ...MAP_CONFIG.terminales.map(item => ({ ...item, section: "terminales", type: "terminal" })),
-  ];
-  const selected = selectedMapItem ? mapItems.find(item => item.section === selectedMapItem.section && item.id === selectedMapItem.id) : null;
-  const selectedStatus = selected ? getOperationalOption(getStatus(selected.section, selected.id)) : null;
-  const reportOption = getOperationalOption(reportStatus);
-  return (
-    <div className="cm-master-map glass-panel">
-      <div className="cm-map-topbar">
-        <div>
-          <span className="cm-kicker">MAPA MAESTRO SVG</span>
-          <strong>Vista unificada de tráfico portuario</strong>
-        </div>
-        <div className="cm-live-chip"><span /> DATA FEED ACTIVO</div>
-      </div>
-      <svg viewBox={MAP_CONFIG.viewBox} className="cm-map-svg" role="img" aria-label="Mapa maestro de tráfico">
-        <defs>
-          <radialGradient id="cmPortGlow" cx="72%" cy="45%" r="50%">
-            <stop offset="0%" stopColor="#007cb0" stopOpacity="0.28" />
-            <stop offset="65%" stopColor="#007cb0" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="#007cb0" stopOpacity="0" />
-          </radialGradient>
-          <filter id="cmMapGlow" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="5" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <rect width="1000" height="620" fill="#071426" />
-        <rect width="1000" height="620" fill="url(#cmPortGlow)" />
-        {Array.from({ length: 17 }).map((_, i) => <line key={`v-${i}`} x1={i * 62} y1="0" x2={i * 62} y2="620" stroke="rgba(136,206,255,0.045)" strokeWidth="1" />)}
-        {Array.from({ length: 11 }).map((_, i) => <line key={`h-${i}`} x1="0" y1={i * 62} x2="1000" y2={i * 62} stroke="rgba(136,206,255,0.045)" strokeWidth="1" />)}
-        <path d="M54 540 C190 478 255 465 365 430 C514 382 620 365 735 318 C825 280 880 246 955 235 L960 575 L54 575 Z" fill="rgba(0,98,140,0.08)" stroke="rgba(136,206,255,0.16)" strokeWidth="2" />
-        <path d="M610 112 C724 82 824 98 904 168 C832 175 742 168 650 142 Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
-        {MAP_CONFIG.vialidades.map(item => {
-          const option = getOperationalOption(getStatus("vialidades", item.id));
-          const isSelected = selectedMapItem?.section === "vialidades" && selectedMapItem?.id === item.id;
-          return (
-            <g key={item.id} className="cm-map-clickable" onClick={() => setSelectedMapItem?.({ section: "vialidades", id: item.id })}>
-              <polyline points={item.points} fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth={item.width + 8} strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points={item.points} fill="none" stroke={option.color} strokeWidth={isSelected ? item.width + 4 : item.width} strokeLinecap="round" strokeLinejoin="round" filter="url(#cmMapGlow)" opacity={isSelected ? 1 : 0.86} />
-              <polyline points={item.points} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="8 14" opacity="0.6" />
-            </g>
-          );
-        })}
-        {MAP_CONFIG.rutas_fiscales.map(item => {
-          const option = getOperationalOption(getStatus("rutas_fiscales", item.id));
-          const isSelected = selectedMapItem?.section === "rutas_fiscales" && selectedMapItem?.id === item.id;
-          return (
-            <g key={item.id} className="cm-map-clickable" onClick={() => setSelectedMapItem?.({ section: "rutas_fiscales", id: item.id })}>
-              <polyline points={item.points} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={item.width + 8} strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points={item.points} fill="none" stroke={option.color} strokeWidth={isSelected ? item.width + 4 : item.width} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="16 10" filter="url(#cmMapGlow)" />
-            </g>
-          );
-        })}
-        {MAP_CONFIG.terminales.map(item => {
-          const isSelected = selectedMapItem?.section === "terminales" && selectedMapItem?.id === item.id;
-          return (
-            <g key={item.id} className="cm-map-clickable" onClick={() => setSelectedMapItem?.({ section: "terminales", id: item.id })}>
-              <rect x={item.x} y={item.y} width={item.w} height={item.h} rx="6" fill={isSelected ? "rgba(136,206,255,0.22)" : "rgba(136,206,255,0.10)"} stroke={isSelected ? "#88ceff" : "rgba(136,206,255,0.42)"} strokeWidth={isSelected ? 3 : 2} />
-              <text x={item.x + item.w / 2} y={item.y + item.h + 15} textAnchor="middle" fill="rgba(255,255,255,0.58)" fontSize="10" fontFamily="JetBrains Mono, monospace">{item.label}</text>
-            </g>
-          );
-        })}
-        {MAP_CONFIG.accesos.map(item => {
-          const option = getOperationalOption(getStatus("accesos", item.id));
-          const isSelected = selectedMapItem?.section === "accesos" && selectedMapItem?.id === item.id;
-          return (
-            <g key={item.id} className="cm-map-clickable" onClick={() => setSelectedMapItem?.({ section: "accesos", id: item.id })}>
-              <circle cx={item.x} cy={item.y} r={isSelected ? item.r + 8 : item.r + 4} fill={`${option.color}20`} stroke={`${option.color}55`} strokeWidth="2" />
-              <circle cx={item.x} cy={item.y} r={item.r} fill={option.color} filter="url(#cmMapGlow)" />
-              <text x={item.x} y={item.y + 4} textAnchor="middle" fill="#fff" fontSize="14" fontFamily="Material Symbols Outlined">gate</text>
-            </g>
-          );
-        })}
-        <g transform="translate(126 84)">
-          <circle cx="0" cy="0" r="9" fill={reportOption.color} opacity="0.86" />
-          <circle cx="0" cy="0" r="18" fill="none" stroke={reportOption.color} strokeWidth="2" opacity="0.35" />
-          <text x="28" y="5" fill="rgba(255,255,255,0.6)" fontSize="12" fontFamily="JetBrains Mono, monospace">REPORTE {reportOption.shortLabel}</text>
-        </g>
-      </svg>
-      <div className="cm-map-legend">
-        {OPERATIONAL_STATUS_OPTIONS.map(option => <span key={option.id}><i style={{ background: option.color }} />{option.shortLabel}</span>)}
-      </div>
-      {selected && (
-        <div className="cm-map-selection">
-          <span className="cm-kicker">SELECCIONADO</span>
-          <strong>{selected.label}</strong>
-          {selectedStatus && <TrafficStatusPill status={selectedStatus.id} />}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TrafficIndexPanel({ reportStatus }) {
-  const { trafficData } = React.useContext(TrafficDataContext) || {};
-  const rows = [
-    ...VIALIDADES.slice(0, 5).map(v => ({ id: v.id, section: "vialidades", name: v.name, status: trafficData?.vialidades?.[v.id]?.status || "libre" })),
-    ...RUTAS_FISCALES.slice(0, 4).map(r => ({ id: r.id, section: "rutas_fiscales", name: r.name, status: trafficData?.rutasFiscales?.[r.id]?.status || "libre" })),
-    ...ACCESOS_PRINCIPALES.map(a => ({ id: a.id, section: "accesos", name: a.label, status: trafficData?.accesos?.[a.id]?.status || "libre" })),
-  ];
-  const criticalCount = rows.filter(r => ["saturado", "detenido", "cerrado"].includes(normalizeTrafficStatus(r.status))).length;
-  return (
-    <aside className="cm-index-panel glass-panel">
-      <div className="cm-index-head">
-        <div>
-          <span className="cm-kicker">INDICE OPERATIVO</span>
-          <strong>{criticalCount} puntos críticos</strong>
-        </div>
-        <TrafficStatusPill status={reportStatus} />
-      </div>
-      <div className="cm-index-list">
-        {rows.map(row => {
-          const option = getOperationalOption(row.status);
-          return (
-            <div key={`${row.section}-${row.id}`} className="cm-index-row">
-              <div>
-                <strong>{row.name}</strong>
-                <span>{row.section.replace("_", " ").toUpperCase()}</span>
-              </div>
-              <div className="cm-index-meter"><i style={{ width: `${option.level}%`, background: option.color }} /></div>
-              <TrafficStatusPill status={row.status} />
-            </div>
-          );
-        })}
-      </div>
-    </aside>
-  );
-}
-
-function OperationalStatusCard({ item, section, metaLabel, metaValue, status, onChange }) {
-  const option = getOperationalOption(status);
-  return (
-    <article className="cm-command-card" style={{ "--status-color": option.color }}>
-      <div className="cm-command-card-main">
-        <div>
-          <span className="cm-kicker">{section === "rutas_fiscales" ? "ID RUTA" : section === "accesos" ? "ACCESO" : "SEGMENTO"}</span>
-          <strong>{item.name || item.label}</strong>
-        </div>
-        <div className="cm-command-divider" />
-        <div>
-          <span className="cm-kicker">{metaLabel}</span>
-          <em>{metaValue}</em>
-        </div>
-      </div>
-      <div className="cm-command-card-control">
-        <span className="cm-kicker">VOTACION OPERATIVA</span>
-        <OperationalSelector value={status} onChange={onChange} ariaLabel={`Estado operativo de ${item.name || item.label}`} />
-      </div>
-    </article>
-  );
-}
-
-function VialidadesCommandSection() {
-  const { trafficData, updateTrafficStatus } = React.useContext(TrafficDataContext) || {};
-  return (
-    <section className="cm-command-section">
-      <TrafficSectionHeader icon="road" title="Control de Vialidades" subtitle="Estados operativos sincronizados con el mapa maestro" />
-      <div className="cm-command-list">
-        {VIALIDADES.map((v, index) => (
-          <OperationalStatusCard
-            key={v.id}
-            item={v}
-            section="vialidades"
-            metaLabel="EXTENSION"
-            metaValue={index === 0 ? "8.4 KM" : index === 1 ? "8.4 KM" : index === 2 ? "45.0 KM" : "SEGMENTO"}
-            status={trafficData?.vialidades?.[v.id]?.status || "libre"}
-            onChange={(status) => updateTrafficStatus?.("vialidades", v.id, status)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function RutasFiscalesCommandSection() {
-  const { trafficData, updateTrafficStatus } = React.useContext(TrafficDataContext) || {};
-  return (
-    <section className="cm-command-section">
-      <TrafficSectionHeader icon="route" title="Rutas Fiscales Operativas" subtitle="Control táctico de corredores fiscales" color="#c084fc" />
-      <div className="cm-command-list">
-        {RUTAS_FISCALES.map((r, index) => (
-          <OperationalStatusCard
-            key={r.id}
-            item={r}
-            section="rutas_fiscales"
-            metaLabel="ZONA"
-            metaValue={r.zona || `RUTA ${index + 1}`}
-            status={trafficData?.rutasFiscales?.[r.id]?.status || "libre"}
-            onChange={(status) => updateTrafficStatus?.("rutas_fiscales", r.id, status)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function AccesosCommandSection() {
-  const { trafficData, updateTrafficStatus } = React.useContext(TrafficDataContext) || {};
-  return (
-    <section className="cm-command-section">
-      <TrafficSectionHeader icon="gate" title="Estado de Accesos" subtitle="Accesos principales integrados al mapa maestro" color="#38bdf8" />
-      <div className="cm-command-list">
-        {ACCESOS_PRINCIPALES.map(a => (
-          <OperationalStatusCard
-            key={a.id}
-            item={{ ...a, name: a.label }}
-            section="accesos"
-            metaLabel="ZONA"
-            metaValue={a.zona || "General"}
-            status={trafficData?.accesos?.[a.id]?.status || "libre"}
-            onChange={(status) => updateTrafficStatus?.("accesos", a.id, status)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ReportCommandSection({ reportStatus, setReportStatus, incidents = [] }) {
-  const { trafficData } = React.useContext(TrafficDataContext) || {};
-  const allItems = [
-    ...VIALIDADES.map(v => trafficData?.vialidades?.[v.id]?.status || "libre"),
-    ...RUTAS_FISCALES.map(r => trafficData?.rutasFiscales?.[r.id]?.status || "libre"),
-    ...ACCESOS_PRINCIPALES.map(a => trafficData?.accesos?.[a.id]?.status || "libre"),
-  ];
-  const summary = OPERATIONAL_STATUS_OPTIONS.map(option => ({
-    ...option,
-    count: allItems.filter(status => normalizeTrafficStatus(status) === option.id).length,
-  }));
-  const activeIncidents = incidents.filter(i => i.visible && !i.resolved).length;
-  return (
-    <section className="cm-command-section">
-      <TrafficSectionHeader icon="analytics" title="Centro de Reportes Operativos" subtitle="Consolidado táctico generado desde el estado centralizado" color="#fb923c" />
-      <div className="cm-report-grid">
-        <div className="cm-report-card glass-panel">
-          <span className="cm-kicker">CONDICION CONSOLIDADA</span>
-          <strong>Estado general del turno</strong>
-          <p>Este selector reutiliza el mismo control operativo y actualiza el indicador del mapa maestro sin recargar la página.</p>
-          <OperationalSelector value={reportStatus} onChange={setReportStatus} ariaLabel="Estado general del reporte" />
-        </div>
-        <div className="cm-report-card glass-panel">
-          <span className="cm-kicker">RESUMEN</span>
-          <div className="cm-report-summary">
-            {summary.map(item => <div key={item.id}><i style={{ background: item.color }} /> <span>{item.shortLabel}</span><strong>{item.count}</strong></div>)}
-          </div>
-          <div className="cm-report-incidents"><span className="material-symbols-outlined">crisis_alert</span>{activeIncidents} incidencias activas</div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = null, hideSubnav = false }) {
-  const [accesos, setAccesos] = useState(null);
-  const [vialidades, setVialidades] = useState(null);
-  const [rutasFiscales, setRutasFiscales] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [selectedMapItem, setSelectedMapItem] = useState(null);
-  const [reportStatus, setReportStatus] = useState("libre");
+  const theme = React.useContext(ThemeContext);
+  const [accesos,     setAccesos]     = useState(null);   // null = loading
+  const [vialidades,  setVialidades]  = useState(null);  // null = loading
+  const [rutasFiscales, setRutasFiscales] = useState(null);  // null = loading
+  const [toast,       setToast]       = useState(null);
   const [activeSection, setActiveSection] = useState(() => {
     if (defaultSection) return defaultSection;
-    try {
-      const saved = sessionStorage.getItem("trafico_section") || "mapa";
-      return saved === "accesos" ? "mapa" : saved;
-    } catch { return "mapa"; }
+    try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
   });
-
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-  const persistSection = (section) => {
-    if (!defaultSection) { try { sessionStorage.setItem("trafico_section", section); } catch {} }
-    setActiveSection(section);
+  const setActiveSectionPersist = (s) => {
+    if (!defaultSection) { try { sessionStorage.setItem("trafico_section", s); } catch {} }
+    setActiveSection(s);
   };
-
   useEffect(() => {
-    if (!defaultSection && activeSection === "accesos") persistSection("mapa");
+    if (["incidentes", "accidentes"].includes(activeSection)) setActiveSectionPersist("mapa");
+    if (!defaultSection && activeSection === "accesos") setActiveSectionPersist("mapa");
   }, []);
 
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
+
+  // ── Accesos ──
   useEffect(() => {
     sb.from("accesos").select("*").then(async ({ data, error }) => {
       if (error) { setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {})); return; }
@@ -7828,21 +7459,22 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         return;
       }
       const map = {};
-      data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+      data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
       setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), map));
     });
-    const chan = sb.channel("accesos-command-center")
+    const chan = sb.channel("accesos-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
         sb.from("accesos").select("*").then(({ data }) => {
           if (!data) return;
           const map = {};
-          data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+          data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
           setAccesos(prev => mergeStatusMapsByLatest("accesos", prev || mkAccesos(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
 
+  // ── Vialidades ──
   useEffect(() => {
     sb.from("vialidades").select("*").then(async ({ data, error }) => {
       if (error) { setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {})); return; }
@@ -7852,21 +7484,22 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         return;
       }
       const map = {};
-      data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
       setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), map));
     });
-    const chan = sb.channel("vialidades-command-center")
+    const chan = sb.channel("vialidades-rt2")
       .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
         sb.from("vialidades").select("*").then(({ data }) => {
           if (!data) return;
           const map = {};
-          data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
           setVialidades(prev => mergeStatusMapsByLatest("vialidades", prev || mkVialidades(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
 
+  // ── Rutas fiscales ──
   useEffect(() => {
     sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
       if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
@@ -7876,151 +7509,333 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         return;
       }
       const map = {};
-      data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+      data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
       setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
     });
-    const chan = sb.channel("rutas-fiscales-command-center")
+    const chan = sb.channel("rutas-fiscales-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
         sb.from("rutas_fiscales").select("*").then(({ data }) => {
           if (!data) return;
           const map = {};
-          data.forEach(r => { map[r.id] = { status: normalizeTrafficStatus(r.status), lastUpdate: r.last_update, updatedBy: r.updated_by }; });
+          data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
           setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
         });
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
 
-  const trafficData = useMemo(() => ({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
-
-  const updateTrafficStatus = useCallback(async (section, id, newStatus) => {
-    const normalizedStatus = normalizeTrafficStatus(newStatus);
-    if (await notifyIfBlocked("vote", (m) => alert(m))) return;
-    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
-    const table = section;
-    const setter = section === "vialidades" ? setVialidades : section === "rutas_fiscales" ? setRutasFiscales : setAccesos;
-    const currentMap = section === "vialidades" ? vialidades : section === "rutas_fiscales" ? rutasFiscales : accesos;
-    const current = currentMap?.[id] || { status: "libre" };
-    if (normalizeTrafficStatus(current.status) === normalizedStatus) {
-      notify("El punto ya tiene ese estado", "#f97316");
+  const voteAcceso = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const acc = accesos?.[id];
+    if (!acc) return;
+    if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    if (isAdmin) {
+      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setAccesos(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("accesos", id, entry);
+      await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"⚡ Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
+      await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
+      notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
       return;
     }
-    const rateKey = `${section}_${myId}_${id}`;
-    const rl = isAdmin ? { allowed: true } : rateLimiter.check(rateKey, 20000);
-    if (!rl.allowed) { notify(`Espera ${rl.remaining}s`, "#f97316"); return; }
-    const entry = { ...current, status: normalizedStatus, lastUpdate: Date.now(), updatedBy: actor };
-    setter(prev => ({ ...(prev || {}), [id]: entry }));
-    persistStatusEntry(section, id, entry);
-    const row = section === "accesos"
-      ? { id, status: normalizedStatus, retornos: current.retornos || "none", last_update: Date.now(), updated_by: actor, pending_voters: {} }
-      : { id, status: normalizedStatus, last_update: Date.now(), updated_by: actor, pending_voters: {} };
-    await sb.from(table).upsert(row);
-    const itemName = section === "vialidades"
-      ? VIALIDADES.find(x => x.id === id)?.name || id
-      : section === "rutas_fiscales"
-        ? RUTAS_FISCALES.find(x => x.id === id)?.name || id
-        : ACCESOS_PRINCIPALES.find(x => x.id === id)?.label || id;
-    const zone = section === "rutas_fiscales"
-      ? RUTAS_FISCALES.find(x => x.id === id)?.zona || null
-      : section === "accesos"
-        ? ACCESOS_PRINCIPALES.find(x => x.id === id)?.zona || null
-        : null;
-    await upsertOperationalStatus({ section, itemId: id, itemName, status: normalizedStatus, zone, updatedBy: actor, source: isAdmin ? "admin" : "app", metadata: section === "accesos" ? { retornos: current.retornos || "none" } : undefined });
-    await auditLog({ action: isAdmin ? `actualizar_${section}` : `votar_${section}`, section: "trafico", entityId: id, before: current, after: { status: normalizedStatus }, actor });
-    const label = getOperationalOption(normalizedStatus).label;
-    notify(`${itemName}: ${label}`, getOperationalOption(normalizedStatus).color);
-    await publicarNoticia({ tipo: section, icono: section === "accesos" ? "access" : "road", color: "#38bdf8", titulo: "Estado operativo actualizado", detalle: `${itemName}: ${label}` });
-  }, [accesos, vialidades, rutasFiscales, isAdmin, myId]);
+    const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+    // Optimistic update — refleja el cambio al instante
+    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setAccesos(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("accesos", id, entry);
+    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app", metadata:{ retornos: acc.retornos || "none" } });
+    await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
+    notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
+  };
 
-  const contextValue = useMemo(() => ({ trafficData, updateTrafficStatus, selectedMapItem, setSelectedMapItem }), [trafficData, updateTrafficStatus, selectedMapItem]);
+  const voteVialidad = async (id, newStatus) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const v = vialidades?.[id];
+    if (!v) return;
+    if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    if (isAdmin) {
+      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
+      setVialidades(prev => ({ ...prev, [id]: entry }));
+      persistStatusEntry("vialidades", id, entry);
+      await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
+      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"⚡ Admin", source:"admin" });
+      await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
+      notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
+      return;
+    }
+    const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const vName = VIALIDADES.find(x => x.id === id)?.name;
+    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    // Optimistic update
+    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    setVialidades(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("vialidades", id, entry);
+    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
+    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app" });
+    await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
+    notify(`✓ ${vName}: ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
+  };
 
-  const sections = defaultSection === "accesos"
-    ? [{ id: "accesos", label: "Estado de Accesos" }]
-    : [
-        { id: "mapa", label: "Mapa Maestro" },
-        { id: "vialidades", label: "Vialidades" },
-        { id: "rutas_fiscales", label: "Rutas fiscales" },
-        { id: "reporte", label: "Reporte" },
-      ];
+  const voteRutaFiscal = async (id, newStatus) => {
+    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
+    const ruta = rutasFiscales?.[id];
+    if (!ruta) return;
+    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const actor = isAdmin ? "⚡ Admin" : `Usuario_${myId.slice(-4)}`;
+    const rl = isAdmin ? { allowed:true } : rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
+    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    setRutasFiscales(prev => ({ ...prev, [id]: entry }));
+    persistStatusEntry("rutas_fiscales", id, entry);
+    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
+    notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+  };
 
-  const loading = !accesos || !vialidades || !rutasFiscales;
+  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+
+  // Helper para renderizar tarjeta de incidente/accidente
+  const renderIncidentCard = (inc) => {
+    const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
+    const conf = Object.values(inc.votes).filter(v => v === 1).length;
+    return (
+      <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
+          <AppIcon name={t.icon} size={24} active={true} />
+          <div style={{ flex: 1 }}>
+            <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
+            <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
+            {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
+          </div>
+          <Badge color={t.color} small>ACTIVO</Badge>
+        </div>
+        <VoteBar count={conf} needed={15} color={t.color} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
+          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>CONFIRMAR</button>
+          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>RESUELTO</button>
+        </div>
+      </div>
+    );
+  };
+
+  const voteConfirm = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const votes = { ...inc.votes, [myId]: 1 };
+    const conf = Object.values(votes).filter(v => v === 1).length;
+    const visible = conf >= 15;
+    await sb.from("incidents").update({ votes, visible }).eq("id", id);
+    notify(visible ? "Verificado" : `✓ ${conf}/15`, "#22c55e");
+  };
+  const voteResolve = async (id) => {
+    const inc = incidents.find(i => i.id === id);
+    if (!inc) return;
+    const rv = { ...inc.resolveVotes, [myId]: 1 };
+    const resolved = Object.keys(rv).length >= 3;
+    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
+    notify(resolved ? "✓ Resuelto" : `Voto ${Object.keys(rv).length}/3`, "#38bdf8");
+  };
+
+  const sections = [
+    { id: "mapa",        label: "Mapa",        icon: "map" },
+    { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+    { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
+  ];
 
   return (
-    <TrafficDataContext.Provider value={contextValue}>
-      <div className="cm-command-center">
-        <style>{`
-          .cm-command-center{min-height:calc(100vh - 80px);padding:18px 16px 96px;background:#0a1628;color:#fff;background-image:radial-gradient(circle,rgba(136,206,255,.07) 1px,transparent 1px);background-size:24px 24px;font-family:'IBM Plex Sans','DM Sans',sans-serif;}
-          .cm-command-shell{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:24px;}
-          .glass-panel{background:rgba(255,255,255,.045);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);box-shadow:0 18px 50px rgba(0,0,0,.22);}
-          .cm-traffic-nav{display:flex;gap:8px;overflow-x:auto;padding:6px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08);border-radius:16px;width:fit-content;max-width:100%;}
-          .cm-traffic-nav button{min-height:42px;padding:0 16px;border:0;border-radius:12px;background:transparent;color:rgba(255,255,255,.58);font-weight:800;letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:.2s ease;}
-          .cm-traffic-nav button.is-active{background:rgba(0,124,176,.28);color:#fff;box-shadow:inset 0 -2px 0 #88ceff,0 0 18px rgba(0,124,176,.22);}
-          .cm-command-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;}
-          .cm-command-title h1{margin:0;color:#fff;font-size:clamp(24px,3vw,38px);font-weight:800;letter-spacing:.02em;text-transform:uppercase;}
-          .cm-command-title p{margin:6px 0 0;color:rgba(255,255,255,.55);font-size:14px;max-width:720px;line-height:1.55;}
-          .cm-kicker{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.2;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.42);font-style:normal;font-weight:800;}
-          .cm-map-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:stretch;}
-          .cm-master-map{position:relative;border-radius:22px;overflow:hidden;min-height:520px;}
-          .cm-map-topbar{position:absolute;top:16px;left:16px;right:16px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none;}
-          .cm-map-topbar strong{display:block;font-size:15px;color:#fff;margin-top:3px;}
-          .cm-live-chip{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(0,0,0,.38);border:1px solid rgba(136,206,255,.18);font-family:'JetBrains Mono',monospace;font-size:10px;color:#88ceff;white-space:nowrap;}
-          .cm-live-chip span{width:8px;height:8px;border-radius:999px;background:#22c55e;box-shadow:0 0 14px #22c55e;}
-          .cm-map-svg{display:block;width:100%;height:520px;}
-          .cm-map-clickable{cursor:pointer;transition:.2s ease;}.cm-map-clickable:hover{opacity:.88;}
-          .cm-map-legend{position:absolute;left:16px;bottom:16px;display:flex;gap:8px;flex-wrap:wrap;z-index:2;}
-          .cm-map-legend span{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.65);}
-          .cm-map-legend i{width:8px;height:8px;border-radius:99px;display:block;}
-          .cm-map-selection{position:absolute;right:16px;bottom:16px;z-index:2;min-width:190px;padding:12px;border-radius:14px;background:rgba(0,0,0,.48);border:1px solid rgba(255,255,255,.12);}.cm-map-selection strong{display:block;margin:4px 0 8px;color:#fff;}
-          .cm-index-panel{border-radius:22px;padding:18px;min-height:520px;overflow:hidden;}.cm-index-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;}.cm-index-head strong{display:block;color:#fff;margin-top:4px;}.cm-index-list{display:flex;flex-direction:column;gap:10px;max-height:440px;overflow:auto;padding-right:3px;}.cm-index-row{display:grid;grid-template-columns:1fr;gap:8px;padding:12px;border-radius:14px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);}.cm-index-row strong{display:block;font-size:13px;color:#fff;}.cm-index-row span{font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(255,255,255,.38);}.cm-index-meter{height:5px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden;}.cm-index-meter i{display:block;height:100%;border-radius:999px;}
-          .cm-status-pill{display:inline-flex;align-items:center;gap:5px;width:max-content;padding:4px 8px;border:1px solid;border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:900;letter-spacing:.04em;}.cm-status-pill .material-symbols-outlined{font-size:14px;}
-          .cm-command-section{display:flex;flex-direction:column;gap:14px;}.cm-command-section-header{display:flex;align-items:center;gap:12px;margin-top:12px;}.cm-command-section-icon{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;border:1px solid;}.cm-command-section-header h2{margin:0;color:#fff;font-size:20px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;}.cm-command-section-header p{margin:4px 0 0;color:rgba(255,255,255,.48);font-size:13px;}.cm-command-list{display:flex;flex-direction:column;gap:12px;}.cm-command-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px;border-radius:16px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.09);box-shadow:inset 3px 0 0 var(--status-color);}.cm-command-card-main{display:flex;align-items:center;gap:22px;min-width:0;}.cm-command-card-main strong{display:block;color:#fff;font-size:17px;margin-top:4px;}.cm-command-card-main em{display:block;margin-top:4px;color:#88ceff;font-family:'JetBrains Mono',monospace;font-style:normal;font-size:13px;font-weight:900;}.cm-command-divider{width:1px;height:42px;background:rgba(255,255,255,.1);}.cm-command-card-control{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
-          .cm-segmented-control{display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);width:max-content;}.cm-segment-option{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;border-radius:999px;background:transparent;color:rgba(255,255,255,.34);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:900;letter-spacing:.03em;cursor:pointer;transition:all .2s ease;}.cm-segment-option .material-symbols-outlined{font-size:15px;}.cm-segment-option.is-active{background:var(--segment-color);color:#fff;box-shadow:0 0 16px color-mix(in srgb,var(--segment-color) 62%,transparent);}.cm-segment-option:not(.is-active):hover{color:#fff;background:rgba(255,255,255,.08);}
-          .cm-report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}.cm-report-card{border-radius:18px;padding:20px;}.cm-report-card strong{display:block;color:#fff;font-size:18px;margin:8px 0;}.cm-report-card p{color:rgba(255,255,255,.55);font-size:13px;line-height:1.55;margin:0 0 18px;}.cm-report-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}.cm-report-summary div{display:flex;align-items:center;gap:8px;padding:10px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);}.cm-report-summary i{width:10px;height:10px;border-radius:99px;}.cm-report-summary span{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.6);}.cm-report-summary strong{margin:0 0 0 auto;font-size:18px;}.cm-report-incidents{margin-top:14px;display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.65);font-weight:800;}
-          @media(max-width:980px){.cm-map-layout{grid-template-columns:1fr}.cm-index-panel{min-height:auto}.cm-command-head{align-items:flex-start;flex-direction:column}.cm-command-card{align-items:stretch;flex-direction:column}.cm-command-card-main{justify-content:space-between}.cm-command-card-control{align-items:flex-start}.cm-report-grid{grid-template-columns:1fr}}
-          @media(max-width:620px){.cm-command-center{padding:14px 12px 90px}.cm-master-map{min-height:430px}.cm-map-svg{height:430px}.cm-map-topbar{position:relative;top:auto;left:auto;right:auto;padding:14px;background:rgba(0,0,0,.22)}.cm-live-chip{display:none}.cm-map-legend{position:relative;left:auto;bottom:auto;padding:0 14px 14px}.cm-map-selection{position:relative;right:auto;bottom:auto;margin:0 14px 14px}.cm-command-card-main{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cm-command-divider{display:none}.cm-segmented-control{width:100%;display:grid;grid-template-columns:repeat(4,1fr)}.cm-segment-option{min-width:0!important;padding:9px 5px!important;font-size:9px}.cm-segment-option .material-symbols-outlined{display:none}.cm-traffic-nav{width:100%}.cm-traffic-nav button{flex:1}}
-        `}</style>
-        <div className="cm-command-shell">
-          <div className="cm-command-head">
-            <div className="cm-command-title">
-              <span className="cm-kicker">LOGISTICS COMMAND CENTER</span>
-              <h1>Tráfico en tiempo real</h1>
-              <p>Estado centralizado para vialidades, rutas fiscales, accesos y referencias portuarias. Cada cambio actualiza el mapa maestro SVG y los paneles tácticos desde una sola fuente de verdad.</p>
-            </div>
-            {!hideSubnav && (
-              <nav className="cm-traffic-nav" aria-label="Secciones de tráfico">
-                {sections.map(section => (
-                  <button key={section.id} type="button" className={activeSection === section.id ? "is-active" : ""} onClick={() => persistSection(section.id)}>{section.label}</button>
-                ))}
-              </nav>
-            )}
-          </div>
+    <div style={{ paddingBottom: "80px" }}>
 
-          {loading ? <SkeletonCard n={4} /> : (
-            <>
-              <div className="cm-map-layout">
-                <MasterTrafficMap reportStatus={reportStatus} />
-                <TrafficIndexPanel reportStatus={reportStatus} />
-              </div>
-
-              {(activeSection === "mapa" && !defaultSection) && (
-                <>
-                  <VialidadesCommandSection />
-                  <RutasFiscalesCommandSection />
-                </>
-              )}
-              {activeSection === "vialidades" && <VialidadesCommandSection />}
-              {activeSection === "rutas_fiscales" && <RutasFiscalesCommandSection />}
-              {activeSection === "accesos" && <AccesosCommandSection />}
-              {activeSection === "reporte" && <ReportCommandSection reportStatus={reportStatus} setReportStatus={setReportStatus} incidents={incidents || []} />}
-            </>
-          )}
+      {/* ── Sub-tabs ── */}
+      <style>{`
+        .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{
+          width:30px!important;
+          height:30px!important;
+          object-fit:contain!important;
+          display:block!important;
+        }
+        @media (max-width: 480px){
+          .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
+        }
+      `}</style>
+      {!hideSubnav && (
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
+              flex: 1, padding: "10px 4px", background: "transparent", border: "none",
+              borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
+              color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
+              fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
+              cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
+            }}>
+              <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
+                <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
+              </span>
+              {s.label.toUpperCase()}
+            </button>
+          ))}
         </div>
-        <ToastBox toast={toast} />
-      </div>
-    </TrafficDataContext.Provider>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: MAPA
+      ══════════════════════════════════════ */}
+      {activeSection === "mapa" && (
+        <div style={{ padding: "16px" }}>
+          <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCESOS
+      ══════════════════════════════════════ */}
+      {activeSection === "accesos" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaAccesos accesos={accesos} />
+          <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre" };
+            const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
+          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
+            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
+            return (
+              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div>
+                    <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
+                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+                </div>
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
+                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {ACCESO_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: VIALIDADES
+      ══════════════════════════════════════ */}
+      {activeSection === "vialidades" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <MapaVialidades vialidades={vialidades} />
+          <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre" };
+            const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
+          })} />
+          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
+            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
+            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
+            return (
+              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+                  </div>
+                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+                </div>
+                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
+                  {VIALIDAD_STATUS_OPTIONS.map(o => (
+                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
+                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: RUTAS FISCALES
+      ══════════════════════════════════════ */}
+      {activeSection === "rutas_fiscales" && (
+        <div style={{ padding: "16px" }}>
+          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;} }`}</style>
+          <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: REPORTE
+      ══════════════════════════════════════ */}
+      {activeSection === "reporte" && (
+        <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {/* ══════════════════════════════════════
+          SECCIÓN: INCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "incidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con incidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin incidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          SECCIÓN: ACCIDENTES
+      ══════════════════════════════════════ */}
+      {activeSection === "accidentes" && (
+        <div style={{ padding: "16px" }}>
+          {/* Mapa solo con accidentes */}
+          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
+          <div style={{ marginTop: "16px" }}>
+            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
+                Sin accidentes activos en este momento
+              </div>
+            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
+          </div>
+        </div>
+      )}
+
+      <ToastBox toast={toast} />
+
+    </div>
   );
 }
-
 
 
 
