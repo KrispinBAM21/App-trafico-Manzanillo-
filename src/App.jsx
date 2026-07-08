@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap } from "react-leaflet";
+
+if (typeof window !== "undefined" && !window.L) window.L = L;
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
 const sanitize = (str) => {
@@ -7428,28 +7433,36 @@ function SkeletonCard({ n = 3 }) {
 }
 
 
+
 function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = null, hideSubnav = false }) {
   const theme = React.useContext(ThemeContext);
-  const [accesos,     setAccesos]     = useState(null);   // null = loading
-  const [vialidades,  setVialidades]  = useState(null);  // null = loading
-  const [rutasFiscales, setRutasFiscales] = useState(null);  // null = loading
-  const [toast,       setToast]       = useState(null);
-  const [activeSection, setActiveSection] = useState(() => {
-    if (defaultSection) return defaultSection;
-    try { return sessionStorage.getItem("trafico_section") || "mapa"; } catch { return "mapa"; }
+  const [accesos, setAccesos] = useState(null);
+  const [vialidades, setVialidades] = useState(null);
+  const [rutasFiscales, setRutasFiscales] = useState(null);
+  const [toast, setToast] = useState(null);
+  const initialView = defaultSection === "accesos" ? "accesos" : (defaultSection || "vialidades");
+  const [activeView, setActiveView] = useState(() => {
+    if (defaultSection) return initialView;
+    try {
+      const saved = sessionStorage.getItem("trafico_command_view");
+      return ["vialidades", "rutas_fiscales", "reporte"].includes(saved) ? saved : "vialidades";
+    } catch {
+      return "vialidades";
+    }
   });
-  const setActiveSectionPersist = (s) => {
-    if (!defaultSection) { try { sessionStorage.setItem("trafico_section", s); } catch {} }
-    setActiveSection(s);
+
+  const setActiveViewPersist = (view) => {
+    if (!defaultSection) {
+      try { sessionStorage.setItem("trafico_command_view", view); } catch {}
+    }
+    setActiveView(view);
   };
-  useEffect(() => {
-    if (["incidentes", "accidentes"].includes(activeSection)) setActiveSectionPersist("mapa");
-    if (!defaultSection && activeSection === "accesos") setActiveSectionPersist("mapa");
-  }, []);
 
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
+  const notify = (msg, color = "#38bdf8") => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  // ── Accesos ──
   useEffect(() => {
     sb.from("accesos").select("*").then(async ({ data, error }) => {
       if (error) { setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {})); return; }
@@ -7462,7 +7475,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
       setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), map));
     });
-    const chan = sb.channel("accesos-rt2")
+    const chan = sb.channel("accesos-command-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
         sb.from("accesos").select("*").then(({ data }) => {
           if (!data) return;
@@ -7474,7 +7487,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     return () => sb.removeChannel(chan);
   }, []);
 
-  // ── Vialidades ──
   useEffect(() => {
     sb.from("vialidades").select("*").then(async ({ data, error }) => {
       if (error) { setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), {})); return; }
@@ -7487,7 +7499,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
       setVialidades(mergeStatusMapsByLatest("vialidades", mkVialidades(), map));
     });
-    const chan = sb.channel("vialidades-rt2")
+    const chan = sb.channel("vialidades-command-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "vialidades" }, () => {
         sb.from("vialidades").select("*").then(({ data }) => {
           if (!data) return;
@@ -7499,7 +7511,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     return () => sb.removeChannel(chan);
   }, []);
 
-  // ── Rutas fiscales ──
   useEffect(() => {
     sb.from("rutas_fiscales").select("*").then(async ({ data, error }) => {
       if (error) { setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), {})); return; }
@@ -7512,7 +7523,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
       setRutasFiscales(mergeStatusMapsByLatest("rutas_fiscales", mkRutasFiscales(), map));
     });
-    const chan = sb.channel("rutas-fiscales-rt")
+    const chan = sb.channel("rutas-fiscales-command-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
         sb.from("rutas_fiscales").select("*").then(({ data }) => {
           if (!data) return;
@@ -7529,30 +7540,21 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     const acc = accesos?.[id];
     if (!acc) return;
     if (acc.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    if (isAdmin) {
-      const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
-      setAccesos(prev => ({ ...prev, [id]: entry }));
-      persistStatusEntry("accesos", id, entry);
-      await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
-      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:"⚡ Admin", source:"admin", metadata:{ retornos: acc.retornos || "none" } });
-      await auditLog({ action:"actualizar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:"Admin" });
-      notify(`⚡ ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
-      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado (Admin)", detalle: `${ACCESOS_PRINCIPALES.find(a => a.id === id)?.label}: ${ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}` });
-      return;
+    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
+    if (!isAdmin) {
+      const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
+      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-    const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
-    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
-    // Optimistic update — refleja el cambio al instante
-    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
     setAccesos(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("accesos", id, entry);
-    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
-    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app", metadata:{ retornos: acc.retornos || "none" } });
-    await auditLog({ action:"votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
-    notify(`✓ Acceso actualizado: ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: `Acceso actualizado`, detalle: `${accLabel}: ${label}` });
+    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: actor, pending_voters: {} });
+    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app", metadata:{ retornos: acc.retornos || "none" } });
+    await auditLog({ action:isAdmin ? "actualizar_acceso" : "votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor });
+    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+    notify(`Actualizado: ${accLabel} · ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado", detalle: `${accLabel}: ${label}` });
   };
 
   const voteVialidad = async (id, newStatus) => {
@@ -7560,29 +7562,21 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     const v = vialidades?.[id];
     if (!v) return;
     if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    if (isAdmin) {
-      const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: "⚡ Admin" };
-      setVialidades(prev => ({ ...prev, [id]: entry }));
-      persistStatusEntry("vialidades", id, entry);
-      await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: "⚡ Admin", pending_voters: {} });
-      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:"⚡ Admin", source:"admin" });
-      await auditLog({ action:"actualizar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:"Admin" });
-      notify(`⚡ ${VIALIDADES.find(x => x.id === id)?.name}: ${VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label}`, "#38bdf8");
-      return;
+    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
+    if (!isAdmin) {
+      const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
+      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-    const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
-    const vName = VIALIDADES.find(x => x.id === id)?.name;
-    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    // Optimistic update
-    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: `Usuario_${myId.slice(-4)}` };
+    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
     setVialidades(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("vialidades", id, entry);
-    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: `Usuario_${myId.slice(-4)}`, pending_voters: {} });
-    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:`Usuario_${myId.slice(-4)}`, source:"app" });
-    await auditLog({ action:"votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor:`Usuario_${myId.slice(-4)}` });
-    notify(`✓ ${vName}: ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: `Vialidad actualizada`, detalle: `${vName}: ${label}` });
+    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor, pending_voters: {} });
+    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+    await auditLog({ action:isAdmin ? "actualizar_vialidad" : "votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor });
+    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const vName = VIALIDADES.find(x => x.id === id)?.name;
+    notify(`Actualizado: ${vName} · ${label}`, "#22c55e");
+    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: "Vialidad actualizada", detalle: `${vName}: ${label}` });
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
@@ -7590,252 +7584,82 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
     if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
-    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const actor = isAdmin ? "⚡ Admin" : `Usuario_${myId.slice(-4)}`;
-    const rl = isAdmin ? { allowed:true } : rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
+    if (!isAdmin) {
+      const rl = rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
+      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    }
     const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
     setRutasFiscales(prev => ({ ...prev, [id]: entry }));
     persistStatusEntry("rutas_fiscales", id, entry);
     await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
     await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
     await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
-    notify(`✓ ${rutaName}: ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+    notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
     await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
   };
 
-  const activeIncidents = incidents.filter(i => i.visible && !i.resolved);
+  const commandViews = defaultSection === "accesos"
+    ? [{ id:"accesos", label:"Accesos", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.accesos }]
+    : [
+        { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
+        { id:"rutas_fiscales", label:"Rutas fiscales", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
+        { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
+      ];
 
-  // Helper para renderizar tarjeta de incidente/accidente
-  const renderIncidentCard = (inc) => {
-    const t = INCIDENT_TYPES.find(x => x.id === inc.type) || INCIDENT_TYPES[0];
-    const conf = Object.values(inc.votes).filter(v => v === 1).length;
-    return (
-      <div key={inc.id} style={{ background: "rgba(255,255,255,0.06)", border: `2px solid ${t.color}55`, borderRadius: "12px", padding: "12px", marginBottom: "10px" }}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginBottom: "10px" }}>
-          <AppIcon name={t.icon} size={24} active={true} />
-          <div style={{ flex: 1 }}>
-            <div style={{ color: t.color, fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700" }}>{t.label.toUpperCase()}</div>
-            <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", marginTop: "2px" }}>{inc.location}</div>
-            {inc.desc && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", marginTop: "2px" }}>{inc.desc}</div>}
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "4px" }}>{timeAgo(inc.ts)}</div>
-          </div>
-          <Badge color={t.color} small>ACTIVO</Badge>
-        </div>
-        <VoteBar count={conf} needed={15} color={t.color} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginTop: "10px" }}>
-          <button onClick={() => voteConfirm(inc.id)} style={{ padding: "8px", background: "#22c55e15", border: "1px solid #22c55e44", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>CONFIRMAR</button>
-          <button onClick={() => voteResolve(inc.id)} style={{ padding: "8px", background: "#6b728015", border: "1px solid #6b728044", borderRadius: "8px", color: "#94a3b8", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: "700" }}>RESUELTO</button>
-        </div>
-      </div>
-    );
+  const renderActiveView = () => {
+    if (activeView === "accesos") return <CommandAccesosView theme={theme} accesos={accesos} onVote={voteAcceso} />;
+    if (activeView === "rutas_fiscales") return <CommandRutasFiscalesView theme={theme} rutasFiscales={rutasFiscales} onVote={voteRutaFiscal} />;
+    if (activeView === "reporte") return <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />;
+    return <CommandVialidadesView theme={theme} vialidades={vialidades} onVote={voteVialidad} />;
   };
-
-  const voteConfirm = async (id) => {
-    const inc = incidents.find(i => i.id === id);
-    if (!inc) return;
-    const votes = { ...inc.votes, [myId]: 1 };
-    const conf = Object.values(votes).filter(v => v === 1).length;
-    const visible = conf >= 15;
-    await sb.from("incidents").update({ votes, visible }).eq("id", id);
-    notify(visible ? "Verificado" : `✓ ${conf}/15`, "#22c55e");
-  };
-  const voteResolve = async (id) => {
-    const inc = incidents.find(i => i.id === id);
-    if (!inc) return;
-    const rv = { ...inc.resolveVotes, [myId]: 1 };
-    const resolved = Object.keys(rv).length >= 3;
-    await sb.from("incidents").update({ resolve_votes: rv, resolved }).eq("id", id);
-    notify(resolved ? "✓ Resuelto" : `Voto ${Object.keys(rv).length}/3`, "#38bdf8");
-  };
-
-  const sections = [
-    { id: "mapa",        label: "Mapa",        icon: "map" },
-    { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
-    { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
-    { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
-  ];
 
   return (
-    <div style={{ paddingBottom: "80px" }}>
+    <div className="cm-command-shell" style={{ padding:"12px 12px 80px" }}>
+      <CommandCenterStyles />
+      <div className="cm-command-header">
+        <div>
+          <div className="cm-command-kicker">TRÁFICO · CENTRO DE MANDO</div>
+          <div className="cm-command-title">Mapa Maestro Operativo</div>
+        </div>
+        <div className="cm-command-live">LIVE DATA</div>
+      </div>
 
-      {/* ── Sub-tabs ── */}
-      <style>{`
-        .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{
-          width:30px!important;
-          height:30px!important;
-          object-fit:contain!important;
-          display:block!important;
-        }
-        @media (max-width: 480px){
-          .cm-trafico-subtab-icon img,.cm-trafico-subtab-icon svg{width:26px!important;height:26px!important;}
-        }
-      `}</style>
+      <UnifiedMap
+        accesos={accesos}
+        vialidades={vialidades}
+        rutasFiscales={rutasFiscales}
+        incidents={incidents}
+      />
+
       {!hideSubnav && (
-        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", position: "sticky", top: 0, zIndex: 50 }}>
-          {sections.map(s => (
-            <button key={s.id} onClick={() => setActiveSectionPersist(s.id)} style={{
-              flex: 1, padding: "10px 4px", background: "transparent", border: "none",
-              borderBottom: activeSection === s.id ? "2px solid #38bdf8" : "2px solid transparent",
-              color: activeSection === s.id ? "#38bdf8" : "rgba(255,255,255,0.4)",
-              fontSize: "12px", fontFamily: getFont(theme, "secondary"), fontWeight: activeSection === s.id ? "700" : "400",
-              cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
-            }}>
-              <span className="cm-trafico-subtab-icon" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"34px", height:"34px", overflow:"hidden" }}>
-                <AppIcon name={s.icon} size={30} active={activeSection === s.id} />
-              </span>
-              {s.label.toUpperCase()}
+        <div className="cm-command-nav" role="tablist" aria-label="Vistas de tráfico">
+          {commandViews.map(view => (
+            <button
+              key={view.id}
+              role="tab"
+              aria-selected={activeView === view.id}
+              className={`cm-command-tab ${activeView === view.id ? "is-active" : ""}`}
+              onClick={() => setActiveViewPersist(view.id)}
+            >
+              <span className="cm-command-tab-icon"><AppIcon name={view.icon} size={22} active={activeView === view.id} /></span>
+              <span>{view.label}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* ══════════════════════════════════════
-          SECCIÓN: MAPA
-      ══════════════════════════════════════ */}
-      {activeSection === "mapa" && (
-        <div style={{ padding: "16px" }}>
-          <MapaTrafico incidents={incidents} accesos={accesos} vialidades={vialidades} />
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: ACCESOS
-      ══════════════════════════════════════ */}
-      {activeSection === "accesos" && (
-        <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
-          <MapaAccesos accesos={accesos} />
-          <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
-            const st = accesos[acc.id] || { status: "libre" };
-            const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-            return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
-          })} />
-          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
-            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
-            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-            return (
-              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <div>
-                    <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                  </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
-                </div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
-                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  {ACCESO_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
-                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: VIALIDADES
-      ══════════════════════════════════════ */}
-      {activeSection === "vialidades" && (
-        <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
-          <MapaVialidades vialidades={vialidades} />
-          <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
-            const st = vialidades[v.id] || { status: "libre" };
-            const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-            return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
-          })} />
-          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
-            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-            return (
-              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <div>
-                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                  </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
-                </div>
-                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
-                  {VIALIDAD_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
-                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: RUTAS FISCALES
-      ══════════════════════════════════════ */}
-      {activeSection === "rutas_fiscales" && (
-        <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.ruta-fiscal-btn-grid{grid-template-columns:repeat(3,1fr)!important;} }`}</style>
-          <RutasFiscalesSection rutasFiscales={rutasFiscales} voteRutaFiscal={voteRutaFiscal} />
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: REPORTE
-      ══════════════════════════════════════ */}
-      {activeSection === "reporte" && (
-        <TrafficStatusReport accesos={accesos} vialidades={vialidades} rutasFiscales={rutasFiscales} />
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
-      {/* ══════════════════════════════════════
-          SECCIÓN: INCIDENTES
-      ══════════════════════════════════════ */}
-      {activeSection === "incidentes" && (
-        <div style={{ padding: "16px" }}>
-          {/* Mapa solo con incidentes */}
-          <MapaEventos incidents={activeIncidents.filter(i => i.type === "incidente")} />
-          <div style={{ marginTop: "16px" }}>
-            {activeIncidents.filter(i => i.type === "incidente").length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
-                Sin incidentes activos en este momento
-              </div>
-            ) : activeIncidents.filter(i => i.type === "incidente").map(inc => renderIncidentCard(inc))}
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════
-          SECCIÓN: ACCIDENTES
-      ══════════════════════════════════════ */}
-      {activeSection === "accidentes" && (
-        <div style={{ padding: "16px" }}>
-          {/* Mapa solo con accidentes */}
-          <MapaEventos incidents={activeIncidents.filter(i => i.type === "accidente")} />
-          <div style={{ marginTop: "16px" }}>
-            {activeIncidents.filter(i => i.type === "accidente").length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.25)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "12px" }}>Validado</div>
-                Sin accidentes activos en este momento
-              </div>
-            ) : activeIncidents.filter(i => i.type === "accidente").map(inc => renderIncidentCard(inc))}
-          </div>
-        </div>
-      )}
+      <div key={activeView} className="cm-dynamic-view">
+        {renderActiveView()}
+      </div>
 
       <ToastBox toast={toast} />
-
     </div>
   );
 }
+
 
 
 
@@ -10918,7 +10742,313 @@ const TERM_POLYGONS = {
       ],
     },
   ],
+
 };
+
+const COMMAND_VIALIDAD_LINES = [
+  { id:"jalipa_puerto", name:"Jalipa → Puerto", weight:7, coords:[[19.0784475939701,-104.2870646514312],[19.07978906323311,-104.2859805863696],[19.08200682268578,-104.2845777271611],[19.08310055029634,-104.2837587822707],[19.08598466199735,-104.281676375662],[19.0884984010515,-104.2799251205925],[19.09060087644081,-104.2784138436524],[19.09283447000849,-104.2766822449047],[19.09623158161623,-104.2742192725376],[19.09825929348696,-104.2728701193078],[19.1002813406189,-104.2714096449672],[19.10636260878762,-104.2671088606022]] },
+  { id:"puerto_jalipa", name:"Puerto → Jalipa", weight:7, coords:[[19.10620158984666,-104.2669703199962],[19.10315310269971,-104.2692144154645],[19.09796761098305,-104.272941096177],[19.09504274656729,-104.274944709486],[19.09264140909514,-104.2766809402058],[19.08809625688808,-104.2799566541513],[19.08483992945358,-104.2822163712893],[19.08085053345084,-104.2851332224212],[19.0797046494737,-104.2859202174179],[19.07887745343695,-104.286142720049],[19.0776861498863,-104.28650575281]] },
+  { id:"libramiento", name:"Cihuatlán-Manzanillo", weight:7, coords:[[19.09426886580907,-104.275893188039],[19.09717476920536,-104.2782234757976],[19.09787484730029,-104.2795237753191],[19.09855656321739,-104.2822022597094],[19.09897027846576,-104.2840776241292],[19.09884619877892,-104.2855238490435]] },
+  { id:"mzllo_colima", name:"Manzanillo → Colima", weight:7, coords:[[19.07513237214499,-104.2847467000724],[19.07387080844731,-104.282476735095],[19.07270304793202,-104.2804010684781],[19.07200223558479,-104.2791014884412],[19.07160549162992,-104.278454764291],[19.07099626326914,-104.2762233320208]] },
+  { id:"colima_mzllo", name:"Colima → Manzanillo", weight:7, coords:[[19.07115254996702,-104.2762001284719],[19.07144897704953,-104.2774832253349],[19.0716652443332,-104.2783467743601],[19.07263908079699,-104.2800186694388],[19.0741621236607,-104.2828124229572],[19.0750515019934,-104.2843004152151]] },
+  { id:"algodones", name:"Calle Algodones", weight:7, coords:[[19.09051167248701,-104.2787068361492],[19.09269669726169,-104.2819435088931],[19.09374142813102,-104.2834496954496],[19.09660945127452,-104.2877128809602]] },
+  { id:"antonio_suarez", name:"Antonio Suárez", weight:7, coords:[[19.08621155065439,-104.2956155458168],[19.08591359885211,-104.2948151552219],[19.08351233172974,-104.2928127939532],[19.07808926571032,-104.2884105001789]] },
+  { id:"av_trabajo", name:"Av. del Trabajo", weight:7, coords:[[19.07420139717458,-104.2826615811781],[19.07697086498353,-104.2819707930699],[19.08080436211426,-104.2810388376526],[19.08924016049061,-104.2789227969467]] },
+];
+
+const COMMAND_BASE_LAYERS = [
+  { id:"dark", label:"Nocturno", url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
+  { id:"streets", label:"Calles", url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains:"abc" },
+  { id:"light", label:"Claro", url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
+  { id:"satellite", label:"Satélite", url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains:"" },
+];
+
+const getCommandOption = (options, status, fallbackIndex = 0) => options.find(o => o.id === status) || options[fallbackIndex];
+const getCommandStatusColor = (options, stateMap, id, fallback = "#22c55e") => {
+  const opt = getCommandOption(options, stateMap?.[id]?.status);
+  return opt?.color || fallback;
+};
+const getTerminalCommandColor = (id) => getTerminalBrandColor(id) || "#38bdf8";
+const flattenCommandCoords = (coords) => (coords || []).flatMap(c => Array.isArray(c?.[0]) ? flattenCommandCoords(c) : [c]).filter(c => Array.isArray(c) && c.length >= 2);
+const buildLayerConfig = ({ accesos, vialidades, rutasFiscales }) => ([
+  {
+    id:"accesos",
+    label:"Accesos",
+    checked:true,
+    type:"polygon",
+    items:ACCESO_POLYGONS.map(poly => {
+      const opt = getCommandOption(ACCESO_STATUS_OPTIONS, accesos?.[poly.id]?.status);
+      return { ...poly, color:opt?.color || poly.color || "#22c55e", statusLabel:opt?.label || "Libre / Fluido", statusIcon:opt?.icon || "check" };
+    }),
+  },
+  {
+    id:"vialidades",
+    label:"Vialidades",
+    checked:true,
+    type:"polyline",
+    items:COMMAND_VIALIDAD_LINES.map(line => {
+      const opt = getCommandOption(VIALIDAD_STATUS_OPTIONS, vialidades?.[line.id]?.status);
+      return { ...line, color:opt?.color || "#22c55e", statusLabel:opt?.label || "Libre", statusIcon:opt?.icon || "check" };
+    }),
+  },
+  {
+    id:"rutas_fiscales",
+    label:"Rutas fiscales",
+    checked:true,
+    type:"polygon",
+    items:RUTAS_FISCALES.map(route => {
+      const opt = getCommandOption(RUTA_FISCAL_STATUS_OPTIONS, rutasFiscales?.[route.id]?.status);
+      return { ...route, color:opt?.color || "#22c55e", statusLabel:opt?.label || "Libre", statusIcon:opt?.icon || "check" };
+    }),
+  },
+  {
+    id:"terminales",
+    label:"Terminales",
+    checked:false,
+    type:"polygon",
+    items:[...(TERM_POLYGONS.norte || []), ...(TERM_POLYGONS.sur || [])].map(poly => ({ ...poly, color:getTerminalCommandColor(poly.id), statusLabel:"Capa de referencia", statusIcon:"port-terminal" })),
+  },
+]);
+
+function CommandMapAutoFit({ layerConfig }) {
+  const map = useMap();
+  useEffect(() => {
+    const coords = layerConfig.flatMap(group => group.items.flatMap(item => flattenCommandCoords(item.coords)));
+    if (!coords.length) return;
+    const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
+    map.fitBounds(bounds, { padding:[28, 28], maxZoom:15 });
+    setTimeout(() => map.invalidateSize(), 160);
+  }, [map, layerConfig]);
+  return null;
+}
+
+function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
+  const theme = React.useContext(ThemeContext);
+  const layerConfig = useMemo(() => buildLayerConfig({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
+  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords));
+  return (
+    <div className="cm-unified-map-card">
+      <div className="cm-unified-map-toolbar">
+        <div>
+          <div className="cm-panel-kicker">UNIFIED MAP</div>
+          <div className="cm-panel-title">Capas operativas sincronizadas</div>
+        </div>
+        <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
+      </div>
+      <MapContainer center={[19.081, -104.292]} zoom={14} scrollWheelZoom zoomControl attributionControl={false} className="cm-unified-map">
+        <CommandMapAutoFit layerConfig={layerConfig} />
+        <LayersControl position="topright" collapsed>
+          {COMMAND_BASE_LAYERS.map((base, index) => (
+            <LayersControl.BaseLayer key={base.id} checked={index === 0} name={base.label}>
+              <TileLayer url={base.url} maxZoom={20} subdomains={base.subdomains || "abc"} />
+            </LayersControl.BaseLayer>
+          ))}
+          {layerConfig.map(group => (
+            <LayersControl.Overlay key={group.id} checked={group.checked} name={group.label}>
+              <LayerGroup>
+                {group.items.map(item => {
+                  const vivid = cmVividMapColor(item.color, `${group.id}:${item.id}`);
+                  const tooltip = `${item.name || item.label || item.id} · ${item.statusLabel}`;
+                  if (group.type === "polyline") {
+                    return (
+                      <React.Fragment key={`${group.id}-${item.id}`}>
+                        <Polyline positions={item.coords} pathOptions={{ color:"#020617", weight:(item.weight || 7) + 5, opacity:0.35, lineCap:"round", lineJoin:"round" }} />
+                        <Polyline positions={item.coords} pathOptions={{ color:vivid, weight:item.weight || 7, opacity:0.96, lineCap:"round", lineJoin:"round" }}>
+                          <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                        </Polyline>
+                      </React.Fragment>
+                    );
+                  }
+                  return (
+                    <Polygon key={`${group.id}-${item.id}`} positions={item.coords} pathOptions={cmMapPolygonStyle(vivid, { key:item.id, weight:3.4, fillOpacity:0.5 })}>
+                      <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                    </Polygon>
+                  );
+                })}
+              </LayerGroup>
+            </LayersControl.Overlay>
+          ))}
+          <LayersControl.Overlay checked={activeIncidents.length > 0} name="Eventos activos">
+            <LayerGroup>
+              {activeIncidents.map(inc => {
+                const cfg = INCIDENT_TYPES.find(t => t.id === inc.type) || INCIDENT_TYPES[0];
+                const icon = L.divIcon({
+                  className:"cm-incident-marker",
+                  html:`<div style="width:18px;height:18px;border-radius:999px;background:${cfg.color};border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 6px ${cfg.color}33,0 8px 20px rgba(0,0,0,.45)"></div>`,
+                  iconSize:[18,18],
+                  iconAnchor:[9,9],
+                });
+                return (
+                  <Marker key={inc.id} position={inc.coords} icon={icon}>
+                    <Popup className="cm-popup"><strong>{cfg.label}</strong><br />{inc.location || "Evento activo"}</Popup>
+                  </Marker>
+                );
+              })}
+            </LayerGroup>
+          </LayersControl.Overlay>
+        </LayersControl>
+      </MapContainer>
+      <div className="cm-map-legend">
+        {[...VIALIDAD_STATUS_OPTIONS, ...RUTA_FISCAL_STATUS_OPTIONS.filter(o => o.id !== "libre")].filter((o, i, arr) => arr.findIndex(x => x.id === o.id && x.label === o.label) === i).map(o => (
+          <span key={`${o.id}-${o.label}`}><i style={{ background:o.color }} />{o.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommandCenterStyles() {
+  return <style>{`
+    .cm-command-shell{background:linear-gradient(180deg,rgba(2,6,23,.52),rgba(8,18,32,.18));font-family:'DM Sans',sans-serif;}
+    .cm-command-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:14px 15px;border:1px solid rgba(148,163,184,.16);border-radius:18px;background:linear-gradient(135deg,rgba(15,23,42,.78),rgba(2,6,23,.52));box-shadow:0 18px 50px rgba(0,0,0,.28);backdrop-filter:blur(18px);}
+    .cm-command-kicker,.cm-panel-kicker{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;font-weight:800;letter-spacing:1.8px;color:#38bdf8;text-transform:uppercase;}
+    .cm-command-title,.cm-panel-title{font-family:'DM Sans',sans-serif;font-size:17px;font-weight:800;color:#f8fafc;letter-spacing:.2px;margin-top:2px;}
+    .cm-command-live{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;font-weight:900;color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.34);border-radius:999px;padding:7px 10px;box-shadow:0 0 20px rgba(34,197,94,.14);}
+    .cm-unified-map-card{border:1px solid rgba(56,189,248,.25);border-radius:20px;overflow:hidden;background:rgba(2,6,23,.72);box-shadow:0 24px 60px rgba(0,0,0,.38);backdrop-filter:blur(16px);}
+    .cm-unified-map-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(8,47,73,.38));}
+    .cm-map-hint{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.56);text-transform:uppercase;letter-spacing:.8px;}
+    .cm-unified-map{width:100%;height:clamp(360px,48vh,560px);background:#020617;}
+    .cm-map-legend{display:flex;gap:8px;flex-wrap:wrap;padding:9px 12px;border-top:1px solid rgba(148,163,184,.14);background:rgba(2,6,23,.8);}
+    .cm-map-legend span{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.75);}
+    .cm-map-legend i{width:18px;height:4px;border-radius:99px;box-shadow:0 0 10px currentColor;}
+    .cm-command-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0;}
+    .cm-command-tab{min-height:56px;border:1px solid rgba(148,163,184,.16);border-radius:16px;background:rgba(15,23,42,.54);color:rgba(226,232,240,.58);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;letter-spacing:.45px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:transform .15s ease,border-color .15s ease,background .15s ease,color .15s ease;}
+    .cm-command-tab:hover{transform:translateY(-1px);border-color:rgba(56,189,248,.38);color:#e0f2fe;}
+    .cm-command-tab.is-active{background:linear-gradient(135deg,rgba(56,189,248,.22),rgba(99,102,241,.14));border-color:rgba(56,189,248,.72);color:#e0f2fe;box-shadow:0 0 0 1px rgba(56,189,248,.12),0 14px 36px rgba(14,165,233,.14);}
+    .cm-command-tab-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;}
+    .cm-dynamic-view{border:1px solid rgba(148,163,184,.16);border-radius:20px;background:linear-gradient(180deg,rgba(15,23,42,.72),rgba(2,6,23,.54));box-shadow:0 18px 44px rgba(0,0,0,.28);backdrop-filter:blur(16px);padding:14px;animation:cmViewIn .18s ease-out;}
+    @keyframes cmViewIn{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .cm-view-topline{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
+    .cm-view-title{font-size:15px;font-weight:900;color:#f8fafc;letter-spacing:.3px;}
+    .cm-grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:10px;}
+    .cm-status-card{border:1px solid rgba(148,163,184,.14);border-radius:16px;background:rgba(2,6,23,.5);padding:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03);}
+    .cm-status-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;}
+    .cm-status-name{font-size:13px;font-weight:900;color:#f8fafc;}
+    .cm-status-meta{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(148,163,184,.72);margin-top:3px;}
+    .cm-status-pill{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;font-weight:900;border-radius:999px;padding:6px 8px;white-space:nowrap;}
+    .cm-segmented{display:flex;gap:6px;flex-wrap:wrap;background:rgba(15,23,42,.72);border:1px solid rgba(148,163,184,.14);border-radius:999px;padding:5px;}
+    .cm-segmented button{border:1px solid transparent;border-radius:999px;background:transparent;color:rgba(148,163,184,.9);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;padding:8px 10px;cursor:pointer;min-width:82px;transition:all .14s ease;}
+    .cm-segmented button.is-active{color:#020617;box-shadow:0 10px 24px rgba(0,0,0,.28);}
+    .leaflet-control-layers{border:1px solid rgba(56,189,248,.32)!important;border-radius:12px!important;background:rgba(2,6,23,.88)!important;box-shadow:0 12px 36px rgba(0,0,0,.38)!important;color:#e2e8f0!important;font-family:'JetBrains Mono','DM Sans',monospace!important;font-size:11px!important;backdrop-filter:blur(14px);}
+    .leaflet-control-layers-toggle{filter:invert(1) hue-rotate(165deg);}
+    .leaflet-control-layers-expanded{padding:10px 12px!important;}
+    .leaflet-control-layers label{margin:5px 0!important;}
+    .leaflet-control-zoom a{background:rgba(2,6,23,.86)!important;color:#e2e8f0!important;border-color:rgba(148,163,184,.16)!important;}
+    .cm-tooltip{background:rgba(2,6,23,.94)!important;border:1px solid rgba(56,189,248,.42)!important;border-radius:8px!important;color:#f8fafc!important;font-family:'JetBrains Mono','DM Sans',monospace!important;font-size:11px!important;font-weight:800!important;padding:6px 9px!important;box-shadow:0 8px 24px rgba(0,0,0,.42)!important;}
+    .cm-tooltip::before{display:none!important;}
+    @media(max-width:640px){.cm-command-nav{grid-template-columns:1fr}.cm-command-header,.cm-unified-map-toolbar,.cm-view-topline{align-items:flex-start;flex-direction:column}.cm-unified-map{height:390px}.cm-segmented{border-radius:16px}.cm-segmented button{flex:1;min-width:unset}.cm-dynamic-view{padding:10px}}
+  `}</style>;
+}
+
+function CommandSegmentedControl({ options, value, onChange }) {
+  return (
+    <div className="cm-segmented">
+      {options.map(opt => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            className={active ? "is-active" : ""}
+            onClick={() => onChange(opt.id)}
+            style={active ? { background:opt.color, borderColor:opt.color } : {}}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CommandStatusCard({ title, meta, statusOption, options, onChange }) {
+  return (
+    <div className="cm-status-card">
+      <div className="cm-status-card-head">
+        <div>
+          <div className="cm-status-name">{title}</div>
+          <div className="cm-status-meta">{meta}</div>
+        </div>
+        <div className="cm-status-pill" style={{ color:statusOption.color, background:statusOption.color + "1f", border:`1px solid ${statusOption.color}55` }}>
+          {statusOption.label}
+        </div>
+      </div>
+      <CommandSegmentedControl options={options} value={statusOption.id} onChange={onChange} />
+    </div>
+  );
+}
+
+function CommandVialidadesView({ theme, vialidades, onVote }) {
+  if (!vialidades) return <SkeletonCard n={3} />;
+  return (
+    <div>
+      <div className="cm-view-topline">
+        <div>
+          <div className="cm-panel-kicker">VISTA DINÁMICA</div>
+          <div className="cm-view-title">Vialidades operativas</div>
+        </div>
+        <div className="cm-map-hint">Cambio inmediato en Supabase y mapa</div>
+      </div>
+      <div className="cm-grid-cards">
+        {VIALIDADES.map(v => {
+          const st = vialidades[v.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+          const curOpt = getCommandOption(VIALIDAD_STATUS_OPTIONS, st.status);
+          return <CommandStatusCard key={v.id} title={v.name} meta={`${timeAgo(st.lastUpdate)} · ${st.updatedBy}`} statusOption={curOpt} options={VIALIDAD_STATUS_OPTIONS} onChange={(status) => onVote(v.id, status)} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CommandRutasFiscalesView({ theme, rutasFiscales, onVote }) {
+  const [zonaActiva, setZonaActiva] = useState("Norte");
+  if (!rutasFiscales) return <SkeletonCard n={3} />;
+  const rutas = RUTAS_FISCALES.filter(r => r.zona === zonaActiva);
+  return (
+    <div>
+      <div className="cm-view-topline">
+        <div>
+          <div className="cm-panel-kicker">VISTA DINÁMICA</div>
+          <div className="cm-view-title">Rutas fiscales · Zona {zonaActiva}</div>
+        </div>
+        <CommandSegmentedControl
+          options={[{ id:"Norte", label:"Zona Norte", color:"#38bdf8" }, { id:"Sur", label:"Zona Sur", color:"#a78bfa" }]}
+          value={zonaActiva}
+          onChange={setZonaActiva}
+        />
+      </div>
+      <div className="cm-grid-cards">
+        {rutas.map(r => {
+          const st = rutasFiscales[r.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
+          const curOpt = getCommandOption(RUTA_FISCAL_STATUS_OPTIONS, st.status);
+          return <CommandStatusCard key={r.id} title={r.name} meta={`${r.zona || "General"} · ${timeAgo(st.lastUpdate)} · ${st.updatedBy}`} statusOption={curOpt} options={RUTA_FISCAL_STATUS_OPTIONS} onChange={(status) => onVote(r.id, status)} />;
+        })}
+      </div>
+      {rutas.length === 0 && <div className="cm-status-card"><div className="cm-status-name">Sin rutas configuradas para esta zona</div><div className="cm-status-meta">La capa sigue disponible en el mapa maestro si existen geometrías globales.</div></div>}
+    </div>
+  );
+}
+
+function CommandAccesosView({ theme, accesos, onVote }) {
+  if (!accesos) return <SkeletonCard n={3} />;
+  return (
+    <div>
+      <div className="cm-view-topline">
+        <div>
+          <div className="cm-panel-kicker">VISTA DINÁMICA</div>
+          <div className="cm-view-title">Accesos operativos</div>
+        </div>
+        <div className="cm-map-hint">Estado sincronizado con mapa maestro</div>
+      </div>
+      <div className="cm-grid-cards">
+        {ACCESOS_PRINCIPALES.map(a => {
+          const st = accesos[a.id] || { status:"libre", retornos:"none", lastUpdate:Date.now(), updatedBy:"Sistema" };
+          const curOpt = getCommandOption(ACCESO_STATUS_OPTIONS, st.status);
+          return <CommandStatusCard key={a.id} title={a.label} meta={`${a.zona} · ${timeAgo(st.lastUpdate)} · ${st.updatedBy}`} statusOption={curOpt} options={ACCESO_STATUS_OPTIONS} onChange={(status) => onVote(a.id, status)} />;
+        })}
+      </div>
+    </div>
+  );
+}
 
 function MapaTerminales({ zona, stMap }) {
   const theme = React.useContext(ThemeContext);
