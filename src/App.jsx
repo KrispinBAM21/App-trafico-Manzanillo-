@@ -59,7 +59,7 @@ const saveCookieConsent = (val) => {
 // ─── FIX: Aplicar fondo INMEDIATAMENTE antes del primer render de React ────────
 // Evita el flash blanco/gris que aparece unos frames antes de que React monte
 (function applyDefaultBackground() {
-  const bg = CM_HOME_BACKGROUND_BASE || "#0d1117";
+  const bg = "linear-gradient(135deg, #0a1628 0%, #1a2942 100%)";
   document.documentElement.style.cssText += "background:" + bg + ";margin:0;padding:0;";
   document.body.style.cssText += "background:" + bg + ";margin:0;padding:0;";
 })();
@@ -114,149 +114,6 @@ const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // Logo oficial de Conect Manzanillo
 const CONECT_LOGO_SRC = "/logo.png";
-
-
-// ─── FONDO GLOBAL INICIO ─────────────────────────────────────────────────────
-// Fondo visual de la sección Inicio aplicado como base para todas las secciones.
-const CM_HOME_BACKGROUND_BASE = "#0d1117";
-const CM_HOME_VIGNETTE_BACKGROUND = "radial-gradient(circle at 50% 22%,rgba(0,98,140,.20),transparent 30%),linear-gradient(180deg,rgba(13,17,23,.42) 0%,rgba(13,17,23,.20) 46%,#0d1117 100%)";
-
-function CmNetworkBackground({ fixed = false }) {
-  const canvasRef = React.useRef(null);
-
-  React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
-
-    let raf = 0;
-    let width = 0;
-    let height = 0;
-    let particles = [];
-    const pointer = { x: -9999, y: -9999 };
-
-    const resize = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect?.() || { width: window.innerWidth, height: window.innerHeight };
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = Math.max(1, Math.floor(rect.width || window.innerWidth));
-      height = Math.max(1, Math.floor(rect.height || window.innerHeight));
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.max(36, Math.min(92, Math.floor((width * height) / 15000)));
-      particles = Array.from({ length: count }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.22,
-        vy: (Math.random() - 0.5) * 0.22,
-        r: Math.random() * 1.25 + 0.55,
-      }));
-    };
-
-    const movePointer = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      pointer.x = event.clientX - rect.left;
-      pointer.y = event.clientY - rect.top;
-    };
-    const leavePointer = () => {
-      pointer.x = -9999;
-      pointer.y = -9999;
-    };
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-      const gradient = ctx.createRadialGradient(width * 0.5, height * 0.22, 0, width * 0.5, height * 0.22, Math.max(width, height) * 0.62);
-      gradient.addColorStop(0, "rgba(0,98,140,0.14)");
-      gradient.addColorStop(0.42, "rgba(13,17,23,0.04)");
-      gradient.addColorStop(1, "rgba(13,17,23,0)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-
-      for (const particle of particles) {
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        if (particle.x < -20) particle.x = width + 20;
-        if (particle.x > width + 20) particle.x = -20;
-        if (particle.y < -20) particle.y = height + 20;
-        if (particle.y > height + 20) particle.y = -20;
-      }
-
-      const linkDistance = Math.min(150, Math.max(80, width * 0.13));
-      for (let i = 0; i < particles.length; i += 1) {
-        const a = particles[i];
-        for (let j = i + 1; j < particles.length; j += 1) {
-          const b = particles[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < linkDistance) {
-            const alpha = (1 - dist / linkDistance) * 0.13;
-            ctx.strokeStyle = `rgba(56,189,248,${alpha})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-
-        const pdx = a.x - pointer.x;
-        const pdy = a.y - pointer.y;
-        const pd = Math.hypot(pdx, pdy);
-        if (pd < 180) {
-          ctx.strokeStyle = `rgba(0,98,140,${(1 - pd / 180) * 0.22})`;
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-          ctx.lineTo(pointer.x, pointer.y);
-          ctx.stroke();
-        }
-
-        ctx.fillStyle = "rgba(148,220,255,.56)";
-        ctx.beginPath();
-        ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      raf = requestAnimationFrame(render);
-    };
-
-    resize();
-    render();
-    window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", movePointer, { passive: true });
-    window.addEventListener("pointerleave", leavePointer, { passive: true });
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", movePointer);
-      window.removeEventListener("pointerleave", leavePointer);
-    };
-  }, []);
-
-  return (
-    <div
-      className="cm-global-home-bg"
-      aria-hidden="true"
-      style={{
-        position: fixed ? "fixed" : "absolute",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        overflow: "hidden",
-        background: CM_HOME_BACKGROUND_BASE,
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.42 }}
-      />
-      <div style={{ position: "absolute", inset: 0, background: CM_HOME_VIGNETTE_BACKGROUND }} />
-    </div>
-  );
-}
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 // Error DEPRECATED - Usar getFont(theme, "secondary") en su lugar
@@ -22209,9 +22066,9 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   return (
     <div className="cm-home-root">
       <style>{`
-        .cm-home-root{position:relative;min-height:calc(100vh - 72px);overflow:hidden;background:${CM_HOME_BACKGROUND_BASE};padding:0 16px 58px;color:#fff;display:flex;flex-direction:column;align-items:center}
+        .cm-home-root{position:relative;min-height:calc(100vh - 72px);overflow:hidden;background:#0d1117;padding:0 16px 58px;color:#fff;display:flex;flex-direction:column;align-items:center}
         #network-shader{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.42}
-        .cm-home-vignette{position:absolute;inset:0;background:${CM_HOME_VIGNETTE_BACKGROUND};pointer-events:none}
+        .cm-home-vignette{position:absolute;inset:0;background:radial-gradient(circle at 50% 22%,rgba(0,98,140,.20),transparent 30%),linear-gradient(180deg,rgba(13,17,23,.42) 0%,rgba(13,17,23,.20) 46%,#0d1117 100%);pointer-events:none}
         .cm-home-content{position:relative;z-index:2;width:100%;max-width:980px;margin:0 auto;min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 0 0;gap:30px}
         .cm-hero-stack{display:flex;flex-direction:column;align-items:center;width:100%}
         .cm-hero-logo-wrap{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:22px;animation:cmFade 1s ease both}
@@ -24024,19 +23881,25 @@ function App() {
   
   // Validado Aplicar fondo según configuración
   const getBackgroundStyle = () => {
-    // El fondo base de Inicio queda aplicado a todo el shell.
-    // Si el administrador elige explícitamente una imagen de fondo, se respeta.
-    if (theme.backgroundType === "image" && theme.backgroundImage) {
-      return {
-        backgroundColor: CM_HOME_BACKGROUND_BASE,
-        backgroundImage: `url(${theme.backgroundImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundAttachment: "fixed"
-      };
+    switch (theme.backgroundType) {
+      case "color":
+        return { 
+          background: theme.backgroundColor 
+        };
+      case "image":
+        return { 
+          backgroundImage: `url(${theme.backgroundImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment: "fixed"
+        };
+      case "gradient":
+      default:
+        return { 
+          background: theme.backgroundGradient 
+        };
     }
-    return { background: CM_HOME_BACKGROUND_BASE };
   };
 
   // Validado CORRECCIÓN: Estilos completos del contenedor principal (fondo + tipografía + color)
@@ -24123,7 +23986,6 @@ function App() {
           pointerEvents: "none"
         }} />
       )}
-      {active !== "inicio" && <CmNetworkBackground fixed />}
       <div style={{ position:"relative", zIndex:2 }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
