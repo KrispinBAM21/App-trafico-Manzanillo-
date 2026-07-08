@@ -7136,17 +7136,19 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
-        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:0;background:transparent;color:#fff;border-radius:10px;font-size:24px;cursor:pointer;touch-action:manipulation;overflow:hidden}
-        .cm-menu-logo{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 0 9px rgba(0,98,140,.45))}
-        .cm-menu-btn:hover{background:rgba(255,255,255,.07)}
+        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.07);color:#fff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+        .cm-menu-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(136,206,255,.24);transform:translateY(-1px)}
+        .cm-hamburger{width:19px;height:14px;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch}
+        .cm-hamburger span{display:block;height:2px;border-radius:99px;background:#ffffff;box-shadow:0 0 8px rgba(136,206,255,.28)}
+        .cm-menu-close{font-size:28px;line-height:1;font-weight:800;color:#ffffff;transform:translateY(-1px)}
         .cm-mobile-nav{display:none;background:#0d1117;border-top:1px solid rgba(191,199,208,.16);padding:12px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
         .cm-mobile-nav.is-open{display:grid}
-        .cm-mobile-nav-btn{min-height:68px;border:1px solid rgba(255,255,255,.10);border-radius:12px;background:rgba(255,255,255,.045);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease}
-        .cm-mobile-nav-btn:hover{background:rgba(255,255,255,.075);transform:translateY(-1px)}
+        .cm-mobile-nav-btn{min-height:52px;border:1px solid rgba(255,255,255,.10);border-radius:10px;background:rgba(255,255,255,.045);color:rgba(224,227,229,.88);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:800;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 8px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease}
+        .cm-mobile-nav-btn:hover{background:rgba(255,255,255,.075);transform:translateY(-1px);color:#fff}
         .cm-mobile-nav-btn.is-active{background:rgba(0,98,140,.25);border-color:rgba(136,206,255,.45);color:#88ceff}
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px}.cm-topbar-title{font-size:15px}.cm-login-btn{padding:0 12px;font-size:11px}.cm-mobile-nav{grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;gap:7px}.cm-mobile-nav-btn{min-height:64px;font-size:9px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px}.cm-topbar-title{font-size:15px}.cm-login-btn{padding:0 12px;font-size:11px}.cm-mobile-nav{grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;gap:7px}.cm-mobile-nav-btn{min-height:50px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
         @media (max-width: 365px){.cm-login-btn{display:none}.cm-mobile-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
@@ -7187,15 +7189,13 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
               aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(v => !v)}
             >
-              {mobileOpen ? "×" : <img className="cm-menu-logo" src={CONECT_LOGO_SRC} alt="Menú" />}
+              {mobileOpen ? <span className="cm-menu-close" aria-hidden="true">×</span> : <span className="cm-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>}
             </button>
           </div>
         </div>
 
         <nav className={`cm-mobile-nav ${mobileOpen ? "is-open" : ""}`} aria-label="Menú móvil">
           {TABS.map(tab => {
-            const iconCfg = theme?.tabIcons?.[tab.key];
-            const iconValue = iconCfg?.type === "builtin" ? iconCfg.value : (iconCfg?.value || tab.icon);
             const isActive = active === tab.key;
             return (
               <button
@@ -7204,8 +7204,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
                 className={`cm-mobile-nav-btn ${isActive ? "is-active" : ""}`}
                 onClick={() => handleSelect(tab.key)}
               >
-                <AppIcon name={iconValue} size={24} active={isActive} />
-                <span>{tab.label}</span>
+                {tab.label}
               </button>
             );
           })}
@@ -20878,7 +20877,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
-  const TIKTOK_PAGE = "https://vt.tiktok.com/ZSCw9bhVS/";
+  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanillo";
 
   useEffect(() => {
     let showTimer, hideTimer;
