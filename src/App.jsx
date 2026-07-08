@@ -9736,7 +9736,7 @@ function parseCoordsFromText(text) {
 async function extractCoordsFromGMapsLink(url) {
   try {
     const res = await fetch(
-      "https://wnchrhglwsrzrcrhhukg.supabase.co/functions/v1/resolve-maps",
+      "https://wnchrhglwszrrcrhhukg.supabase.co/functions/v1/resolve-maps",
       {
         method: "POST",
         headers: {
@@ -9765,6 +9765,108 @@ function isValidInput(str) {
   // Coordenadas directas: "19.092788, -104.276555"
   return /^-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}$/.test(str.trim());
 }
+
+const CM_MANZANILLO_GEOCODE_FALLBACKS = [
+  { keys:["jalipa", "puerto"], coords:[19.07592, -104.30292], label:"Vialidad Jalipa - Puerto / Puerto - Jalipa" },
+  { keys:["vialidad externa", "jalipa", "puerto"], coords:[19.07692, -104.30168], label:"Vialidad externa Jalipa - Puerto" },
+  { keys:["pez vela"], coords:[19.07195, -104.29715], label:"Acceso Pez Vela" },
+  { keys:["puerta 15"], coords:[19.08021, -104.29674], label:"Acceso Puerta 15" },
+  { keys:["zona norte"], coords:[19.09273, -104.27755], label:"Acceso Zona Norte / Segundo Acceso" },
+  { keys:["fondeport"], coords:[19.09273, -104.27755], label:"Fondeport" },
+  { keys:["tapeixtles"], coords:[19.10792, -104.29204], label:"Tapeixtles" },
+  { keys:["algodones"], coords:[19.08916, -104.28625], label:"Calle Algodones" },
+  { keys:["antonio suarez"], coords:[19.08808, -104.28728], label:"Calle Antonio Suárez" },
+  { keys:["glorieta san pedrito"], coords:[19.05792, -104.31302], label:"Glorieta San Pedrito" },
+];
+
+const normalizeAiText = (value = "") => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
+const slugifyEventType = (value = "evento") => String(value || "evento")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "_")
+  .replace(/^_|_$/g, "") || "evento";
+
+const findFallbackCoordsForLocation = (location = "") => {
+  const haystack = normalizeAiText(location);
+  const ordered = [...CM_MANZANILLO_GEOCODE_FALLBACKS].sort((a,b) => b.keys.length - a.keys.length);
+  const hit = ordered.find(item => item.keys.every(k => haystack.includes(normalizeAiText(k))));
+  return hit ? { coords: hit.coords, source: `aproximado:${hit.label}` } : null;
+};
+
+const geocodeEventLocation = async (locationText = "") => {
+  const q = String(locationText || "").trim();
+  if (!q) return null;
+  const direct = parseCoordsFromText(q);
+  if (direct) return { coords: direct, source:"texto" };
+
+  // Edge Function opcional para geocodificación con internet. Si no existe, usamos referencias locales.
+  try {
+    if (sb?.functions?.invoke) {
+      const { data, error } = await sb.functions.invoke("geocode-location", {
+        body: { query: `${q}, Manzanillo, Colima, México`, region: "mx", source: "admin_ai_event_reader" }
+      });
+      const lat = Number(data?.lat ?? data?.latitude ?? data?.coords?.lat);
+      const lng = Number(data?.lng ?? data?.lon ?? data?.longitude ?? data?.coords?.lng);
+      if (!error && Number.isFinite(lat) && Number.isFinite(lng)) return { coords:[lat, lng], source:data?.provider || "geocode-location" };
+    }
+  } catch (e) {
+    console.warn("geocode-location no disponible; usando referencias locales.", e?.message || e);
+  }
+  return findFallbackCoordsForLocation(q);
+};
+
+const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
+  const text = String(rawText || "").replace(/\r/g, "").trim();
+  const lower = normalizeAiText(text);
+  const getMatch = (re) => { const m = text.match(re); return m ? String(m[1] || "").replace(/[#*]+$/g, "").trim() : ""; };
+  let location = getMatch(/Ubicaci[oó]n\s*:\s*([^\.\n#]+(?:\s*-\s*[^\.\n#]+)?)/i);
+  if (!location) location = getMatch(/(?:en la|en el|sobre la|sobre el)\s+((?:Vialidad|Carretera|Libramiento|Acceso|Calle|Av\.?|Avenida)[^\.\n#]+)/i);
+  location = location.replace(/\s+Se atiende.*$/i, "").replace(/\s+Registrado.*$/i, "").trim();
+
+  const registeredAt = getMatch(/Registrad[oa]\s+a\s+las\s+([0-2]?\d\s*:\s*\d{2})/i).replace(/\s+/g, "");
+  const source = lower.includes("asipona") ? "ASIPONA" : "Captura / comunicado";
+  let category = /accidente|choque|volcadura|atropell|herido|lesionad/.test(lower) ? "accidente" : "incidente";
+  let subtypeLabel = "Afectación al flujo vehicular";
+  let icon = "warning-triangle";
+
+  if (/reencarpet|recarpet|asfalt/.test(lower)) { subtypeLabel = "Obra / recarpetamiento asfáltico"; icon = "construction"; category = "incidente"; }
+  else if (/falla mecanica|falla mec|descompost|averiad/.test(lower)) { subtypeLabel = "Camión con falla mecánica"; icon = "mechanic"; category = "incidente"; }
+  else if (/gasolinera|gocsa|combustible|diesel/.test(lower)) { subtypeLabel = "Afectación por gasolinera / fila vehicular"; icon = "fuel"; category = "incidente"; }
+  else if (/bloqueo|cerrad|corte/.test(lower)) { subtypeLabel = "Bloqueo / corte vial"; icon = "blockade"; category = "incidente"; }
+  else if (/choque|colision/.test(lower)) { subtypeLabel = "Choque entre vehículos"; icon = "collision"; category = "accidente"; }
+  else if (/volcadura|volcado/.test(lower)) { subtypeLabel = "Camión volcado"; icon = "turnover"; category = "accidente"; }
+
+  const existing = [
+    ...(INCIDENT_SUBCATEGORIAS[category] || []),
+    ...(customIncidentTypes || []).filter(t => t.category === category),
+  ].find(t => normalizeAiText(t.label) === normalizeAiText(subtypeLabel) || normalizeAiText(subtypeLabel).includes(normalizeAiText(t.label)) || normalizeAiText(t.label).includes(normalizeAiText(subtypeLabel)));
+  const subtypeId = existing?.id || `${category}_${slugifyEventType(subtypeLabel)}`;
+  const needsNewType = !existing;
+
+  const cleanLines = text.split("\n").map(x => x.trim()).filter(Boolean);
+  const description = cleanLines.find(line => /generando|continua|realizando|afectaci/i.test(line)) || text.slice(0, 260);
+  const confidence = Math.min(98, Math.max(42, 45 + (location ? 22 : 0) + (registeredAt ? 10 : 0) + (subtypeLabel ? 14 : 0) + (source === "ASIPONA" ? 7 : 0)));
+
+  return {
+    source,
+    category,
+    subtype_id: subtypeId,
+    subtype_label: subtypeLabel,
+    subtype_icon: existing?.icon || icon,
+    needs_new_type: needsNewType,
+    location: location || "",
+    registered_at: registeredAt || "",
+    description: description || text,
+    recommendation: /precauciones/i.test(text) ? "Extremar precauciones y considerar impacto en el tráfico." : "",
+    confidence,
+    raw_text: text,
+  };
+};
 
 
 // ─── MAPA DE EVENTOS (solo incidentes/accidentes con GPS, sin terminales ni vialidades) ──
@@ -9969,6 +10071,224 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
       </span>)}
     </div>
   </div>;
+}
+
+
+function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved }) {
+  const theme = React.useContext(ThemeContext);
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [draft, setDraft] = useState(null);
+  const [rawText, setRawText] = useState("");
+  const [coordsBusy, setCoordsBusy] = useState(false);
+  const [approvedBusy, setApprovedBusy] = useState(false);
+
+  const inputStyle = { width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.72)", border:"1px solid rgba(255,255,255,.12)", borderRadius:10, padding:"10px 11px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, outline:"none" };
+  const labelStyle = { display:"block", color:"rgba(255,255,255,.58)", fontFamily:getFont(theme,"secondary"), fontSize:10, fontWeight:900, letterSpacing:".12em", textTransform:"uppercase", marginBottom:6 };
+
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
+  const updateDraft = (patch) => setDraft(prev => ({ ...(prev || {}), ...patch }));
+
+  const handleFile = (f) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(f || null);
+    setPreviewUrl(f ? URL.createObjectURL(f) : "");
+    setDraft(null);
+    setRawText("");
+    setMessage("");
+  };
+
+  const analizar = async () => {
+    if (!file) return setMessage("Selecciona una imagen o captura primero.");
+    setBusy(true);
+    setMessage("Analizando imagen con OCR/IA…");
+    try {
+      let aiData = null;
+      let text = "";
+
+      // 1) Edge Function opcional con visión/IA. Si existe, puede devolver JSON ya estructurado.
+      try {
+        if (sb?.functions?.invoke) {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const { data, error } = await sb.functions.invoke("analyze-event-image", {
+            body: { image: base64, filename: file.name, mime_type: file.type, context: "Conect Manzanillo admin report reader" }
+          });
+          if (!error && data?.ok !== false && (data?.event || data?.raw_text || data?.text)) {
+            aiData = data?.event || data;
+            text = String(data?.raw_text || data?.text || aiData?.raw_text || "").trim();
+          }
+        }
+      } catch (e) {
+        console.warn("analyze-event-image no disponible; usando OCR local.", e?.message || e);
+      }
+
+      // 2) Fallback actual de la app: OCR local / media-process.
+      if (!text) {
+        const localUrl = URL.createObjectURL(file);
+        try {
+          const result = await callMediaProcessor({ action:"image_ocr", sourceUrl:localUrl, fileType:file.type, title:file.name, bucketPath:"reportes/ai-reader" });
+          text = String(result?.text || "").trim();
+        } finally {
+          setTimeout(() => URL.revokeObjectURL(localUrl), 800);
+        }
+      }
+
+      const parsed = { ...parseAsiponaEventText(text, customIncidentTypes), ...(aiData || {}) };
+      if (!parsed.raw_text) parsed.raw_text = text;
+      if (!parsed.description && text) parsed.description = text.slice(0, 260);
+      if (!parsed.category) parsed.category = "incidente";
+      if (!parsed.subtype_label) parsed.subtype_label = "Afectación al flujo vehicular";
+      if (!parsed.subtype_id) parsed.subtype_id = `${parsed.category}_${slugifyEventType(parsed.subtype_label)}`;
+      if (!parsed.subtype_icon) parsed.subtype_icon = parsed.category === "accidente" ? "emergency" : "warning-triangle";
+
+      setRawText(parsed.raw_text || text || "");
+      setDraft(parsed);
+      setMessage(text ? "Análisis listo. Revisa y aprueba antes de publicar." : "No se detectó texto claro. Puedes completar los campos manualmente.");
+
+      if (parsed.location) {
+        setCoordsBusy(true);
+        const geo = await geocodeEventLocation(parsed.location);
+        if (geo?.coords) setDraft(prev => ({ ...prev, coords: geo.coords, coords_source: geo.source }));
+        setCoordsBusy(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setMessage("No se pudo analizar la imagen. Revisa la captura o completa los campos manualmente.");
+    } finally {
+      setBusy(false);
+      setCoordsBusy(false);
+    }
+  };
+
+  const regeocodificar = async () => {
+    if (!draft?.location) return setMessage("Primero escribe una ubicación.");
+    setCoordsBusy(true);
+    try {
+      const geo = await geocodeEventLocation(draft.location);
+      if (geo?.coords) {
+        updateDraft({ coords: geo.coords, coords_source: geo.source });
+        setMessage("Coordenadas actualizadas. Verifica el pin antes de aprobar.");
+      } else {
+        setMessage("No se encontraron coordenadas automáticas. Pega coordenadas manualmente.");
+      }
+    } finally { setCoordsBusy(false); }
+  };
+
+  const setCoordsFromText = (value) => {
+    const parsed = parseCoordsFromText(value);
+    updateDraft({ coords_text:value, coords: parsed || draft?.coords || null, coords_source: parsed ? "manual" : draft?.coords_source });
+  };
+
+  const aprobar = async () => {
+    if (!draft?.category) return setMessage("Falta la categoría.");
+    if (!draft?.subtype_label) return setMessage("Falta el tipo específico.");
+    if (!draft?.location) return setMessage("Falta la ubicación.");
+    if (!draft?.coords?.length) return setMessage("Faltan coordenadas. Geocodifica o pégalas manualmente.");
+    setApprovedBusy(true);
+    try {
+      await onApproved?.({ ...draft, raw_text: rawText || draft.raw_text || "" });
+      await reloadTypes?.();
+      setMessage("Reporte generado y publicado en el mapa.");
+      setDraft(null);
+      setRawText("");
+      setFile(null);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl("");
+    } catch (e) {
+      console.error(e);
+      setMessage(e?.message || "No se pudo aprobar el análisis.");
+    } finally { setApprovedBusy(false); }
+  };
+
+  return (
+    <div style={{ background:"linear-gradient(135deg, rgba(14,165,233,.10), rgba(168,85,247,.08))", border:"1px solid rgba(56,189,248,.28)", borderRadius:14, padding:14, marginBottom:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, flexWrap:"wrap", marginBottom:12 }}>
+        <div>
+          <div style={{ color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:900, letterSpacing:".08em", textTransform:"uppercase" }}>🤖 Admin · Lector IA de eventos</div>
+          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:11, marginTop:4 }}>Sube una captura tipo ASIPONA, extrae el evento, obtiene coordenadas y deja todo en aprobación.</div>
+        </div>
+        <button onClick={analizar} disabled={!file || busy} style={{ padding:"9px 12px", borderRadius:10, border:"1px solid rgba(56,189,248,.42)", background:(!file || busy) ? "rgba(255,255,255,.06)" : "rgba(56,189,248,.18)", color:(!file || busy) ? "rgba(255,255,255,.35)" : "#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:(!file || busy) ? "not-allowed" : "pointer" }}>{busy ? "Analizando…" : "Analizar imagen"}</button>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 170px) minmax(0, 1fr)", gap:12, alignItems:"start" }}>
+        <div>
+          <input type="file" accept="image/*" onChange={e => handleFile(e.target.files?.[0])} style={{ ...inputStyle, padding:8 }} />
+          {previewUrl && <img src={previewUrl} alt="Captura a analizar" style={{ width:"100%", marginTop:10, borderRadius:10, border:"1px solid rgba(255,255,255,.12)", objectFit:"cover", maxHeight:220 }} />}
+          {message && <div style={{ marginTop:8, color:message.includes("No ") || message.includes("Falta") ? "#fbbf24" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:10, lineHeight:1.45 }}>{message}</div>}
+        </div>
+
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <div>
+            <label style={labelStyle}>Texto detectado</label>
+            <textarea value={rawText} onChange={e => { const t = e.target.value; setRawText(t); if (t && !draft) setDraft(parseAsiponaEventText(t, customIncidentTypes)); }} rows={5} placeholder="Aquí aparecerá el OCR. También puedes pegar el texto del comunicado." style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+          </div>
+
+          {draft && <>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div>
+                <label style={labelStyle}>Categoría</label>
+                <select value={draft.category || "incidente"} onChange={e => updateDraft({ category:e.target.value })} style={inputStyle}>
+                  <option value="incidente">Incidente</option>
+                  <option value="accidente">Accidente</option>
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Confianza IA</label>
+                <div style={{ ...inputStyle, color:(draft.confidence || 0) >= 70 ? "#86efac" : "#fbbf24" }}>{Math.round(draft.confidence || 0)}% · {draft.source || "captura"}</div>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 110px", gap:10 }}>
+              <div>
+                <label style={labelStyle}>Tipo específico</label>
+                <input value={draft.subtype_label || ""} onChange={e => updateDraft({ subtype_label:e.target.value, subtype_id:`${draft.category || "incidente"}_${slugifyEventType(e.target.value)}`, needs_new_type:true })} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Nuevo tipo</label>
+                <div style={{ ...inputStyle, color:draft.needs_new_type ? "#fbbf24" : "#86efac", textAlign:"center" }}>{draft.needs_new_type ? "Sí" : "No"}</div>
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Ubicación</label>
+              <input value={draft.location || ""} onChange={e => updateDraft({ location:e.target.value })} style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Descripción operativa</label>
+              <textarea value={draft.description || ""} onChange={e => updateDraft({ description:e.target.value })} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"end" }}>
+              <div>
+                <label style={labelStyle}>Coordenadas</label>
+                <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(e.target.value)} placeholder="19.0927, -104.2765" style={inputStyle} />
+                <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "Puedes pegar coordenadas manuales si la ubicación es ambigua."}</div>
+              </div>
+              <button onClick={regeocodificar} disabled={coordsBusy} style={{ padding:"10px 12px", borderRadius:10, border:"1px solid rgba(125,211,252,.35)", background:"rgba(125,211,252,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>{coordsBusy ? "…" : "Geocodificar"}</button>
+            </div>
+
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap", background:"rgba(2,6,23,.42)", border:"1px solid rgba(255,255,255,.10)", borderRadius:12, padding:10 }}>
+              <div style={{ color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11, lineHeight:1.45 }}>
+                Se creará como <b style={{ color:draft.category === "accidente" ? "#fca5a5" : "#fed7aa" }}>{draft.category}</b>{draft.needs_new_type ? " y se intentará guardar el tipo nuevo en catálogo." : "."}
+              </div>
+              <button onClick={aprobar} disabled={approvedBusy} style={{ padding:"11px 14px", borderRadius:11, border:"none", background:approvedBusy ? "rgba(255,255,255,.12)" : "#22c55e", color:approvedBusy ? "rgba(255,255,255,.45)" : "#022c22", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:1000, cursor:approvedBusy ? "wait" : "pointer" }}>{approvedBusy ? "Generando…" : "Aprobar y generar reporte"}</button>
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ReportStatsDashboard({ incidents, customIncidentTypes = [], compactTitle = "📊 Estadística" }) {
@@ -10343,6 +10663,100 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     notify("📍 Reporte enviado — pin agregado al mapa", "#22c55e");
   };
 
+  const approveAiEventDraft = async (draft) => {
+    if (!isAdmin) throw new Error("Solo el administrador puede aprobar análisis IA.");
+    const category = draft.category === "accidente" ? "accidente" : "incidente";
+    const subtypeLabel = sanitize(draft.subtype_label || "Afectación al flujo vehicular");
+    const subtypeId = draft.subtype_id || `${category}_${slugifyEventType(subtypeLabel)}`;
+    const subtypeIcon = draft.subtype_icon || (category === "accidente" ? "emergency" : "warning-triangle");
+    const safeLoc = sanitize(draft.location || "");
+    const coordPair = Array.isArray(draft.coords) ? draft.coords : null;
+    if (!safeLoc) throw new Error("Falta ubicación para generar el reporte.");
+    if (!coordPair?.length) throw new Error("Faltan coordenadas para generar el reporte.");
+
+    const existsType = [
+      ...(INCIDENT_SUBCATEGORIAS[category] || []),
+      ...(customIncidentTypes || []).filter(t => t.category === category),
+    ].some(t => normalizeAiText(t.label) === normalizeAiText(subtypeLabel) || t.id === subtypeId);
+
+    if (!existsType) {
+      const typeRow = { id: subtypeId, category, label: subtypeLabel, icon: subtypeIcon, active:true, created_at:new Date().toISOString(), created_by_ai:true };
+      const { error: typeError } = await sb.from("admin_incident_types").insert(typeRow);
+      // Compatibilidad si la tabla no tiene created_by_ai.
+      if (typeError) {
+        const { error: fallbackTypeError } = await sb.from("admin_incident_types").insert({ id: subtypeId, category, label: subtypeLabel, icon: subtypeIcon, active:true, created_at:new Date().toISOString() });
+        if (fallbackTypeError && !String(fallbackTypeError.message || "").toLowerCase().includes("duplicate")) {
+          console.warn("No se pudo guardar el nuevo tipo IA; se continuará con el reporte.", fallbackTypeError.message);
+        }
+      }
+      await auditLog({ action:"crear_tipo_reporte_ia", section:"reporte_admin_ai", entityId:subtypeId, after:{ category, label:subtypeLabel, icon:subtypeIcon, summary:`IA propuso y admin aprobó tipo ${subtypeLabel}` }, actor:"Admin" });
+      await loadCustomIncidentTypes();
+    }
+
+    const detailLines = [
+      `${subtypeIcon || ""} ${subtypeLabel}`.trim(),
+      draft.description ? `Detalle: ${sanitize(draft.description)}` : "",
+      draft.registered_at ? `Hora ASIPONA: ${sanitize(draft.registered_at)}` : "",
+      draft.source ? `Fuente: ${sanitize(draft.source)}` : "",
+    ].filter(Boolean);
+
+    const newIncident = {
+      type: category,
+      location: safeLoc,
+      description: detailLines.join("\n"),
+      votes: {}, resolve_votes: {}, false_votes: {},
+      visible: true, resolved: false, ts: Date.now(),
+      coords: { lat: Number(coordPair[0]), lng: Number(coordPair[1]) },
+    };
+
+    const { data: insertedRows, error: insertError } = await sb.from("incidents").insert(newIncident).select();
+    if (insertError) throw new Error("Error al crear reporte IA: " + insertError.message);
+    const inserted = insertedRows?.[0];
+    if (inserted) {
+      setIncidents(prev => [{
+        id: inserted.id,
+        type: inserted.type,
+        location: inserted.location,
+        desc: inserted.description,
+        description: inserted.description,
+        votes: inserted.votes || {},
+        false_votes: inserted.false_votes || {},
+        resolve_votes: inserted.resolve_votes || {},
+        resolveVotes: inserted.resolve_votes || {},
+        visible: inserted.visible,
+        resolved: inserted.resolved,
+        ts: inserted.ts,
+        coords: inserted.coords || null,
+        subcategory: subtypeId,
+      }, ...prev]);
+    }
+
+    try {
+      await sb.from("ai_event_drafts").insert({
+        incident_id: inserted?.id || null,
+        raw_text: draft.raw_text || null,
+        extracted_json: draft,
+        confidence: draft.confidence || null,
+        status: "approved",
+        approved_by: "admin",
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn("Tabla ai_event_drafts no disponible; omitiendo bitácora IA.", e?.message || e);
+    }
+
+    await auditLog({ action:"crear_reporte_ia", section:"reporte_admin_ai", entityId: inserted?.id || null, after:{ ...newIncident, subtype_id:subtypeId, subtype_label:subtypeLabel, confidence:draft.confidence, coords_source:draft.coords_source, summary:`Admin aprobó reporte IA ${subtypeLabel} en ${safeLoc}` }, actor:"Admin" });
+    await publicarNoticia({
+      tipo: category,
+      icono: category === "accidente" ? "🚨" : "⚠️",
+      color: category === "accidente" ? "#ef4444" : "#f97316",
+      titulo: `${category === "accidente" ? "Accidente" : "Incidente"}: ${subtypeLabel}`,
+      detalle: safeLoc,
+      origen: "admin_ai_event_reader",
+    });
+    notify("🤖 Reporte IA aprobado y publicado", "#22c55e");
+  };
+
   const incType    = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
   const pendingAll = incidents.filter(i => !i.visible && !i.resolved);
 
@@ -10363,6 +10777,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
       {reporteView === "reportar" && (<>
       {isAdmin && <AdminIncidentTypesManager customIncidentTypes={customIncidentTypes} reload={loadCustomIncidentTypes} />}
+      {isAdmin && <AdminAIEventReader customIncidentTypes={customIncidentTypes} reloadTypes={loadCustomIncidentTypes} onApproved={approveAiEventDraft} />}
 
       <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
         <header className="deep-glass-panel" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"14px", padding:"14px", borderRadius:"14px", border:"1px solid rgba(255,255,255,0.1)" }}>
