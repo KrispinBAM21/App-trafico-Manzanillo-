@@ -7631,7 +7631,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       <CommandCenterStyles />
       <div className="cm-command-header">
         <div>
-          <div className="cm-command-kicker">TRÁFICO · CENTRO DE MANDO</div>
+          <div className="cm-command-kicker">ESTATUS OPERATIVO GENERAL</div>
           <div className="cm-command-title">Mapa Maestro Operativo</div>
         </div>
         <div className="cm-command-live">LIVE DATA</div>
@@ -10887,7 +10887,7 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
         <div>
-          <div className="cm-panel-kicker">UNIFIED MAP</div>
+          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
           <div className="cm-panel-title">Capas operativas sincronizadas</div>
         </div>
         <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
