@@ -7684,6 +7684,246 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
     { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
   ];
 
+  const trafficUx = {
+    bg: "linear-gradient(135deg, rgba(7,20,38,.96), rgba(10,37,64,.92))",
+    card: "rgba(255,255,255,.065)",
+    cardStrong: "rgba(255,255,255,.092)",
+    border: "rgba(148,163,184,.18)",
+    text: "#f8fafc",
+    muted: "#cbd5e1",
+    faint: "rgba(203,213,225,.68)",
+    green: "#22c55e",
+    yellow: "#facc15",
+    orange: "#f97316",
+    red: "#ef4444",
+    gray: "#94a3b8",
+    blue: "#38bdf8",
+  };
+
+  const trafficSeverityRank = {
+    libre: 0,
+    none: 0,
+    lento: 1,
+    intermitente: 1,
+    saturado: 2,
+    detenido: 3,
+    cerrado: 3,
+  };
+
+  const trafficStatusMeta = (status, options = []) => {
+    const opt = options.find(o => o.id === status) || options[0] || {};
+    const rank = trafficSeverityRank[status] ?? 0;
+    const severity =
+      rank >= 3 ? "CRÍTICO" :
+      rank === 2 ? "ALTO FLUJO" :
+      rank === 1 ? "PRECAUCIÓN" :
+      "NORMAL";
+    return {
+      ...opt,
+      rank,
+      severity,
+      color: opt.color || trafficUx.gray,
+      label: opt.label || status || "Sin dato",
+      icon: opt.icon || "status-live"
+    };
+  };
+
+  const trafficSummaryCounts = (rows, options, statusGetter) => {
+    const base = Object.fromEntries(options.map(o => [o.id, 0]));
+    rows.forEach(row => {
+      const status = statusGetter(row);
+      base[status] = (base[status] || 0) + 1;
+    });
+    return base;
+  };
+
+  const getTopCriticalItem = (rows, options, statusGetter, labelGetter) => {
+    if (!rows.length) return null;
+    return rows
+      .map(row => {
+        const status = statusGetter(row);
+        const meta = trafficStatusMeta(status, options);
+        return { row, status, meta, label: labelGetter(row) };
+      })
+      .sort((a, b) => b.meta.rank - a.meta.rank)[0];
+  };
+
+  const accessRecommendation = (status, retornos) => {
+    if (status === "cerrado") return "Evitar ingreso. Esperar instrucción operativa.";
+    if (status === "saturado") return "Evitar ingreso temporalmente y coordinar alternativa.";
+    if (status === "lento") return retornos && retornos !== "none" ? "Precaución: avance lento con retornos activos." : "Precaución: considerar margen adicional.";
+    return retornos && retornos !== "none" ? "Flujo normal, vigilar retornos activos." : "Operación normal.";
+  };
+
+  const vialidadRecommendation = (status) => {
+    if (status === "detenido") return "Evitar esta ruta; buscar alternativa operativa.";
+    if (status === "saturado") return "Usar solo si es indispensable; prever demora.";
+    if (status === "lento") return "Ruta transitable con precaución.";
+    return "Ruta recomendada para operación normal.";
+  };
+
+  const TrafficSectionHeader = ({ eyebrow, title, description, summary, critical }) => (
+    <div style={{
+      background: trafficUx.bg,
+      border: `1px solid ${trafficUx.border}`,
+      borderRadius: "18px",
+      padding: "16px",
+      marginBottom: "14px",
+      boxShadow: "0 18px 44px rgba(0,0,0,.22)"
+    }}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            color: trafficUx.blue,
+            fontFamily: getFont(theme, "secondary"),
+            fontSize: "10px",
+            fontWeight: 900,
+            letterSpacing: "1.2px",
+            textTransform: "uppercase",
+            marginBottom: "6px"
+          }}>{eyebrow}</div>
+          <div style={{ color: trafficUx.text, fontFamily: getFont(theme, "title"), fontSize: "21px", fontWeight: 900, lineHeight: 1.08 }}>{title}</div>
+          <div style={{ color: trafficUx.muted, fontFamily: getFont(theme, "secondary"), fontSize: "12px", lineHeight: 1.45, marginTop: "7px", maxWidth: "680px" }}>{description}</div>
+        </div>
+        {critical && (
+          <div style={{
+            border: `1px solid ${critical.meta.color}66`,
+            background: `${critical.meta.color}18`,
+            color: critical.meta.color,
+            borderRadius: "14px",
+            padding: "10px 12px",
+            minWidth: "170px"
+          }}>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:900, letterSpacing:"1px", color: trafficUx.faint }}>PUNTO MÁS CRÍTICO</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, marginTop:"4px" }}>{critical.label}</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{critical.meta.label}</div>
+          </div>
+        )}
+      </div>
+      {summary && <div style={{ marginTop:"14px" }}>{summary}</div>}
+    </div>
+  );
+
+  const TrafficStatusPill = ({ meta, size = "md" }) => (
+    <div style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "7px",
+      padding: size === "lg" ? "8px 12px" : "6px 10px",
+      borderRadius: "999px",
+      background: `${meta.color}18`,
+      border: `1px solid ${meta.color}66`,
+      color: meta.color,
+      fontFamily: getFont(theme, "secondary"),
+      fontSize: size === "lg" ? "12px" : "11px",
+      fontWeight: 900,
+      whiteSpace: "nowrap"
+    }}>
+      <IconText icon={meta.icon} label={meta.label} size={size === "lg" ? 16 : 14} />
+    </div>
+  );
+
+  const TrafficSummaryBar = ({ items }) => (
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))", gap:"8px" }}>
+      {items.map(item => (
+        <div key={item.label} style={{
+          background: item.color + "13",
+          border: `1px solid ${item.color}44`,
+          borderRadius: "12px",
+          padding: "10px 11px"
+        }}>
+          <div style={{ color:item.color, fontFamily:getFont(theme,"title"), fontSize:"20px", fontWeight:900, lineHeight:1 }}>{item.value}</div>
+          <div style={{ color:trafficUx.muted, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, marginTop:"4px", textTransform:"uppercase", letterSpacing:".7px" }}>{item.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const OperationalCard = ({ icon, title, subtitle, meta, updatedText, recommendation, children, accentColor }) => (
+    <div style={{
+      background: `linear-gradient(135deg, ${accentColor || meta.color}15, rgba(255,255,255,.045))`,
+      border: `1px solid ${accentColor || meta.color}44`,
+      borderRadius: "16px",
+      padding: "14px",
+      marginBottom: "12px",
+      overflow: "hidden",
+      boxShadow: "0 12px 30px rgba(0,0,0,.16)"
+    }}>
+      <div style={{ display:"flex", gap:"12px", alignItems:"flex-start", justifyContent:"space-between", marginBottom:"12px" }}>
+        <div style={{ display:"flex", gap:"11px", minWidth:0 }}>
+          <div style={{
+            width:"42px",
+            height:"42px",
+            borderRadius:"13px",
+            background: `${accentColor || meta.color}18`,
+            border:`1px solid ${accentColor || meta.color}55`,
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            color: accentColor || meta.color,
+            flex:"0 0 auto",
+            fontSize:"22px"
+          }}>{icon}</div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ color:trafficUx.text, fontFamily:getFont(theme,"title"), fontSize:"16px", fontWeight:900, lineHeight:1.12 }}>{title}</div>
+            <div style={{ color:trafficUx.faint, fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"4px" }}>{subtitle}</div>
+            <div style={{ color:trafficUx.faint, fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{updatedText}</div>
+          </div>
+        </div>
+        <TrafficStatusPill meta={meta} />
+      </div>
+      <div style={{
+        display:"flex",
+        alignItems:"center",
+        gap:"8px",
+        background:"rgba(2,6,23,.28)",
+        border:"1px solid rgba(148,163,184,.13)",
+        borderRadius:"12px",
+        padding:"9px 10px",
+        color: trafficUx.muted,
+        fontFamily:getFont(theme,"secondary"),
+        fontSize:"11px",
+        lineHeight:1.35,
+        marginBottom:"11px"
+      }}>
+        <span style={{ color:meta.color, fontWeight:900 }}>Acción sugerida:</span>
+        <span>{recommendation}</span>
+      </div>
+      {children}
+    </div>
+  );
+
+  const AccessActionButton = ({ option, active, onClick }) => (
+    <button
+      type="button"
+      aria-label={`Reportar estado ${option.label}`}
+      onClick={onClick}
+      style={{
+        minHeight:"44px",
+        padding:"10px 8px",
+        background: active ? option.color + "28" : "rgba(2,6,23,.46)",
+        border: `1px solid ${active ? option.color : "rgba(148,163,184,.18)"}`,
+        borderRadius:"11px",
+        color: active ? option.color : trafficUx.muted,
+        fontFamily:getFont(theme,"secondary"),
+        fontSize:"12px",
+        cursor:"pointer",
+        fontWeight: active ? 900 : 700,
+        display:"flex",
+        alignItems:"center",
+        justifyContent:"center",
+        gap:"6px",
+        transition:"all .15s ease"
+      }}
+    >
+      <IconText icon={option.icon} label={option.label} size={15} active={active} />
+    </button>
+  );
+
+  const vialidadesPrincipalesIds = new Set(["jalipa_puerto", "puerto_jalipa", "libramiento", "mzllo_colima", "colima_mzllo"]);
+  const vialidadesPrincipales = VIALIDADES.filter(v => vialidadesPrincipalesIds.has(v.id));
+  const vialidadesUrbanas = VIALIDADES.filter(v => !vialidadesPrincipalesIds.has(v.id));
+
   return (
     <div style={{ paddingBottom: "80px" }}>
 
@@ -7726,77 +7966,177 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin }) {
       )}
 
       {/* ══════════════════════════════════════
-          SECCIÓN: ACCESOS
+          SECCIÓN: ACCESOS — FASE 1 UX/UI
       ══════════════════════════════════════ */}
       {activeSection === "accesos" && (
         <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.acc-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <style>{`
+            @media(min-width:720px){
+              .cm-access-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+              .cm-traffic-action-grid{grid-template-columns:repeat(4,1fr)!important;}
+            }
+          `}</style>
+
+          <TrafficSectionHeader
+            eyebrow="Access Control Board"
+            title="Accesos portuarios"
+            description="Vista rápida para decidir ingreso, espera o cambio de ruta en los accesos principales del puerto."
+            critical={accesos ? getTopCriticalItem(
+              ACCESOS_PRINCIPALES,
+              ACCESO_STATUS_OPTIONS,
+              acc => (accesos?.[acc.id] || { status:"libre" }).status,
+              acc => acc.label
+            ) : null}
+            summary={accesos && (
+              <TrafficSummaryBar items={ACCESO_STATUS_OPTIONS.map(o => ({
+                label: o.label.replace(" / Fluido", ""),
+                value: trafficSummaryCounts(ACCESOS_PRINCIPALES, ACCESO_STATUS_OPTIONS, acc => (accesos?.[acc.id] || { status:"libre" }).status)[o.id] || 0,
+                color: o.color
+              }))} />
+            )}
+          />
+
           <MapaAccesos accesos={accesos} />
+
           <TypewriterTicker items={!accesos ? [] : ACCESOS_PRINCIPALES.map(acc => {
             const st = accesos[acc.id] || { status: "libre" };
             const opt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
             return { text: `${acc.label} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {!accesos ? <SkeletonCard n={3}/> : ACCESOS_PRINCIPALES.map(acc => {
-            const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
-            const curOpt = ACCESO_STATUS_OPTIONS.find(o => o.id === st.status) || ACCESO_STATUS_OPTIONS[0];
-            return (
-              <div key={acc.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${acc.color}33`, borderRadius: "14px", padding: "14px", marginBottom: "12px", overflow: "hidden" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <div>
-                    <div style={{ color: acc.color, fontFamily: getFont(theme, "title"), fontSize: "15px", fontWeight: "700" }}>{acc.label}</div>
-                    <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{acc.zona} · {timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                  </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "5px 12px", borderRadius: "8px", fontFamily: getFont(theme, "secondary"), fontSize: "13px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
-                </div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "8px" }}>REPORTAR ESTADO:</div>
-                <div className="acc-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  {ACCESO_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteAcceso(acc.id, o.id)} style={{ padding: "11px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "8px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "13px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", transition: "all 0.15s" }}>
-                      <IconText icon={o.icon} label={o.label} size={16} active={st.status === o.id} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+
+          {!accesos ? <SkeletonCard n={3}/> : (
+            <div className="cm-access-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"12px" }}>
+              {ACCESOS_PRINCIPALES.map(acc => {
+                const st = accesos[acc.id] || { status: "libre", retornos: "none", lastUpdate: Date.now(), updatedBy: "Sistema" };
+                const curMeta = trafficStatusMeta(st.status, ACCESO_STATUS_OPTIONS);
+                const retornoOpt = RETORNO_OPTIONS.find(o => o.id === (st.retornos || "none")) || RETORNO_OPTIONS[0];
+                return (
+                  <OperationalCard
+                    key={acc.id}
+                    icon={acc.id === "patio" ? "🅿️" : acc.id === "zonanorte" ? "🚧" : "🚚"}
+                    title={acc.label}
+                    subtitle={`${acc.zona} · ${curMeta.severity}`}
+                    meta={curMeta}
+                    updatedText={`${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`}
+                    recommendation={accessRecommendation(st.status, st.retornos)}
+                    accentColor={acc.color}
+                  >
+                    <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"11px" }}>
+                      <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"7px 10px", borderRadius:"999px", background:`${retornoOpt.color}14`, border:`1px solid ${retornoOpt.color}44`, color:retornoOpt.color, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900 }}>
+                        <IconText icon={retornoOpt.icon} label={retornoOpt.label} size={14} />
+                      </div>
+                      <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"7px 10px", borderRadius:"999px", background:"rgba(56,189,248,.10)", border:"1px solid rgba(56,189,248,.26)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800 }}>
+                        Señalética: puerta · retornos · cola de camiones
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize:"10px", color:trafficUx.faint, fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:900, marginBottom:"8px", textTransform:"uppercase" }}>Reportar estado del acceso</div>
+                    <div className="cm-traffic-action-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                      {ACCESO_STATUS_OPTIONS.map(o => (
+                        <AccessActionButton key={o.id} option={o} active={st.status === o.id} onClick={() => voteAcceso(acc.id, o.id)} />
+                      ))}
+                    </div>
+                  </OperationalCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {/* ══════════════════════════════════════
-          SECCIÓN: VIALIDADES
+          SECCIÓN: VIALIDADES — FASE 1 UX/UI
       ══════════════════════════════════════ */}
       {activeSection === "vialidades" && (
         <div style={{ padding: "16px" }}>
-          <style>{`@media(min-width:640px){.vial-btn-grid{grid-template-columns:repeat(4,1fr)!important;}}`}</style>
+          <style>{`
+            @media(min-width:760px){
+              .cm-vial-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+              .cm-traffic-action-grid{grid-template-columns:repeat(4,1fr)!important;}
+            }
+          `}</style>
+
+          <TrafficSectionHeader
+            eyebrow="Route Status Board"
+            title="Vialidades y corredores logísticos"
+            description="Lectura rápida para identificar la ruta más crítica y la mejor alternativa hacia o desde el puerto."
+            critical={vialidades ? getTopCriticalItem(
+              VIALIDADES,
+              VIALIDAD_STATUS_OPTIONS,
+              v => (vialidades?.[v.id] || { status:"libre" }).status,
+              v => v.name
+            ) : null}
+            summary={vialidades && (
+              <TrafficSummaryBar items={VIALIDAD_STATUS_OPTIONS.map(o => ({
+                label: o.label.replace("Tráfico ", ""),
+                value: trafficSummaryCounts(VIALIDADES, VIALIDAD_STATUS_OPTIONS, v => (vialidades?.[v.id] || { status:"libre" }).status)[o.id] || 0,
+                color: o.color
+              }))} />
+            )}
+          />
+
           <MapaVialidades vialidades={vialidades} />
+
           <TypewriterTicker items={!vialidades ? [] : VIALIDADES.map(v => {
             const st = vialidades[v.id] || { status: "libre" };
             const opt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
             return { text: `${v.name} — ${opt.label.toUpperCase()}`, color: opt.color };
           })} />
-          {!vialidades ? <SkeletonCard n={3}/> : VIALIDADES.map(v => {
-            const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
-            const curOpt = VIALIDAD_STATUS_OPTIONS.find(o => o.id === st.status) || VIALIDAD_STATUS_OPTIONS[0];
-            return (
-              <div key={v.id} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${curOpt.color}44`, borderRadius: "12px", padding: "12px", marginBottom: "10px", overflow: "hidden" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <div>
-                    <div style={{ color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "14px", fontWeight: "600" }}>{v.name}</div>
-                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", fontFamily: getFont(theme, "secondary"), marginTop: "2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+
+          {!vialidades ? <SkeletonCard n={3}/> : (
+            <>
+              {[
+                { id:"principales", title:"Corredores principales", icon:"🛣️", rows:vialidadesPrincipales },
+                { id:"urbanas", title:"Conectores urbanos", icon:"🏙️", rows:vialidadesUrbanas },
+              ].map(group => (
+                <div key={group.id} style={{ marginBottom:"16px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"9px", margin:"8px 0 10px" }}>
+                    <div style={{ width:"32px", height:"32px", borderRadius:"10px", background:"rgba(56,189,248,.12)", border:"1px solid rgba(56,189,248,.28)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"18px" }}>{group.icon}</div>
+                    <div>
+                      <div style={{ color:trafficUx.text, fontFamily:getFont(theme,"title"), fontSize:"16px", fontWeight:900 }}>{group.title}</div>
+                      <div style={{ color:trafficUx.faint, fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{group.rows.length} rutas monitoreadas</div>
+                    </div>
                   </div>
-                  <div style={{ background: curOpt.color + "22", border: `1px solid ${curOpt.color}66`, color: curOpt.color, padding: "4px 10px", borderRadius: "6px", fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "700", flexShrink: 0 }}><IconText icon={curOpt.icon} label={curOpt.label} size={16} /></div>
+
+                  <div className="cm-vial-grid" style={{ display:"grid", gridTemplateColumns:"1fr", gap:"12px" }}>
+                    {group.rows.map(v => {
+                      const st = vialidades[v.id] || { status: "libre", lastUpdate: Date.now(), updatedBy: "Sistema" };
+                      const curMeta = trafficStatusMeta(st.status, VIALIDAD_STATUS_OPTIONS);
+                      const isPortDirection = /puerto/i.test(v.name);
+                      return (
+                        <OperationalCard
+                          key={v.id}
+                          icon={vialidadesPrincipalesIds.has(v.id) ? (isPortDirection ? "🚚" : "🛣️") : "🛻"}
+                          title={v.name}
+                          subtitle={`${v.fullName || v.name} · ${curMeta.severity}`}
+                          meta={curMeta}
+                          updatedText={`${timeAgo(st.lastUpdate)} · ${st.updatedBy || "Sistema"}`}
+                          recommendation={vialidadRecommendation(st.status)}
+                          accentColor={curMeta.color}
+                        >
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", alignItems:"center", marginBottom:"10px" }}>
+                            <div style={{ height:"8px", borderRadius:"999px", background:"rgba(148,163,184,.16)", overflow:"hidden" }}>
+                              <div style={{ width:`${Math.max(18, (curMeta.rank + 1) * 25)}%`, height:"100%", borderRadius:"999px", background:`linear-gradient(90deg, ${curMeta.color}, ${curMeta.color}99)` }} />
+                            </div>
+                            <div style={{ color:curMeta.color, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, letterSpacing:".8px" }}>
+                              {curMeta.rank === 0 ? "ESTABLE" : curMeta.rank === 1 ? "VIGILAR" : curMeta.rank === 2 ? "DEMANDA ALTA" : "NO RECOMENDADA"}
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize:"10px", color:trafficUx.faint, fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:900, marginBottom:"8px", textTransform:"uppercase" }}>Reportar flujo vial</div>
+                          <div className="cm-traffic-action-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                            {VIALIDAD_STATUS_OPTIONS.map(o => (
+                              <AccessActionButton key={o.id} option={o} active={st.status === o.id} onClick={() => voteVialidad(v.id, o.id)} />
+                            ))}
+                          </div>
+                        </OperationalCard>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="vial-btn-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px" }}>
-                  {VIALIDAD_STATUS_OPTIONS.map(o => (
-                    <button key={o.id} onClick={() => voteVialidad(v.id, o.id)} style={{ padding: "10px 8px", background: st.status === o.id ? o.color + "33" : "#0a1628", border: `1px solid ${st.status === o.id ? o.color : "#1e3a5f"}`, borderRadius: "7px", color: st.status === o.id ? o.color : "#64748b", fontFamily: getFont(theme, "secondary"), fontSize: "12px", cursor: "pointer", fontWeight: st.status === o.id ? "700" : "400", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.15s" }}>
-                      <IconText icon={o.icon} label={o.label} size={15} active={st.status === o.id} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+              ))}
+            </>
+          )}
         </div>
       )}
 
@@ -19995,7 +20335,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
             }}
           >
             <div style={{ color: steel, fontFamily: authFont, fontSize: "12px", fontWeight: 800, letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: "12px" }}>
-              CONECT MANZANILLO
+              Marine Logistics Framework
             </div>
             <h2 style={{ margin: 0, color: textMain, fontFamily: authFont, fontSize: "30px", lineHeight: 1.1, fontWeight: 800, letterSpacing: "-.5px" }}>
               Gestión Portuaria en Tiempo Real
