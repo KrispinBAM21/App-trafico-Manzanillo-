@@ -7104,7 +7104,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
   );
 }
 
-function NavBar({ active, set }) {
+function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -7112,82 +7112,103 @@ function NavBar({ active, set }) {
   const handleSelect = (id) => {
     set(id);
     setMobileOpen(false);
+    try { updateUrlForTab(id); } catch {}
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   };
 
   return (
     <>
       <style>{`
-        .cm-top-nav-shell{position:sticky;top:0;z-index:100;background:rgba(13,17,23,.92);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid rgba(255,255,255,.10);box-shadow:0 10px 30px rgba(0,0,0,.28)}
-        .cm-top-nav-inner{max-width:1440px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:12px}
-        .cm-pill-nav{display:flex;align-items:center;gap:6px;width:100%;overflow-x:auto;scrollbar-width:none;padding:3px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:rgba(255,255,255,.035)}
-        .cm-pill-nav::-webkit-scrollbar{display:none}
-        .cm-pill-tab{position:relative;min-height:46px;border:0;border-radius:999px;padding:0 15px;background:transparent;color:rgba(226,232,240,.72);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:800;letter-spacing:.2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;transition:color .2s ease,background .2s ease,transform .2s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-        .cm-pill-tab:hover{color:#fff;background:rgba(255,255,255,.06);transform:translateY(-1px)}
-        .cm-pill-tab.is-active{color:#fff;background:linear-gradient(135deg,rgba(0,98,140,.88),rgba(14,165,233,.38));box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 10px 24px rgba(14,165,233,.12)}
-        .cm-pill-tab.is-active:after{content:'';position:absolute;left:18px;right:18px;bottom:4px;height:2px;border-radius:99px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.75);animation:cmTabIndicator .18s ease-out}
-        .cm-pill-tab-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-        .cm-mobile-menu-btn{display:none;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;border-radius:14px;min-width:46px;height:46px;cursor:pointer;font-size:22px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-        .cm-mobile-grid{display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:10px 14px 14px;border-top:1px solid rgba(255,255,255,.08);background:rgba(13,17,23,.96)}
-        .cm-mobile-grid.is-open{display:grid}
-        .cm-mobile-tab{min-height:64px;border:1px solid rgba(255,255,255,.10);border-radius:16px;background:rgba(255,255,255,.045);color:rgba(226,232,240,.88);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:800;letter-spacing:.2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-        .cm-mobile-tab.is-active{background:linear-gradient(135deg,rgba(0,98,140,.92),rgba(14,165,233,.28));border-color:rgba(136,206,255,.38);color:#fff;box-shadow:0 10px 22px rgba(0,98,140,.20)}
+        .cm-topbar{position:sticky;top:0;left:0;right:0;z-index:100;background:#0d1117;border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+        .cm-topbar-inner{width:100%;max-width:1440px;margin:0 auto;min-height:54px;padding:8px 16px;display:flex;align-items:center;gap:14px}
+        .cm-topbar-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:0 0 auto;background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 2px;border-radius:8px;touch-action:manipulation}
+        .cm-topbar-anchor{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:#00628c;filter:drop-shadow(0 0 8px rgba(0,98,140,.35))}
+        .cm-topbar-title{font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:16px;line-height:20px;font-weight:800;letter-spacing:-.02em;color:#ffffff;white-space:nowrap}
+        .cm-topbar-nav{margin-left:auto;display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px 4px}
+        .cm-topbar-nav::-webkit-scrollbar{display:none}
+        .cm-topbar-link{position:relative;border:0;background:transparent;color:rgba(224,227,229,.82);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:20px;font-weight:700;white-space:nowrap;cursor:pointer;padding:9px 10px;border-radius:999px;transition:color .18s ease,background .18s ease,transform .18s ease;touch-action:manipulation}
+        .cm-topbar-link:hover{color:#fff;background:rgba(255,255,255,.06);transform:translateY(-1px)}
+        .cm-topbar-link.is-active{color:#88ceff;background:rgba(0,98,140,.16)}
+        .cm-topbar-link.is-active:after{content:'';position:absolute;left:14px;right:14px;bottom:4px;height:2px;border-radius:99px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.75);animation:cmTabIndicator .18s ease-out}
+        .cm-topbar-actions{display:flex;align-items:center;gap:8px;margin-left:10px;flex:0 0 auto}
+        .cm-login-btn{min-height:36px;border:0;border-radius:4px;background:#00628c;color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 16px;cursor:pointer;box-shadow:0 8px 18px rgba(0,98,140,.22);transition:background .18s ease,transform .18s ease;touch-action:manipulation}
+        .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
+        .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
+        .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
+        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:0;background:transparent;color:#fff;border-radius:10px;font-size:24px;cursor:pointer;touch-action:manipulation}
+        .cm-menu-btn:hover{background:rgba(255,255,255,.07)}
+        .cm-mobile-nav{display:none;background:#0d1117;border-top:1px solid rgba(191,199,208,.16);padding:12px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+        .cm-mobile-nav.is-open{display:grid}
+        .cm-mobile-nav-btn{min-height:68px;border:1px solid rgba(255,255,255,.10);border-radius:12px;background:rgba(255,255,255,.045);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+        .cm-mobile-nav-btn:hover{background:rgba(255,255,255,.075);transform:translateY(-1px)}
+        .cm-mobile-nav-btn.is-active{background:rgba(0,98,140,.25);border-color:rgba(136,206,255,.45);color:#88ceff}
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
-        @media (max-width: 980px){.cm-pill-nav{display:none}.cm-mobile-menu-btn{display:inline-flex;align-items:center;justify-content:center}.cm-top-nav-inner{justify-content:flex-end}.cm-mobile-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media (max-width: 420px){.cm-mobile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-mobile-tab{min-height:68px;font-size:10px}}
+        @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px}.cm-topbar-title{font-size:15px}.cm-login-btn{padding:0 12px;font-size:11px}.cm-mobile-nav{grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;gap:7px}.cm-mobile-nav-btn{min-height:64px;font-size:9px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 365px){.cm-login-btn{display:none}.cm-mobile-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
-      <nav className="cm-top-nav-shell" aria-label="Navegación principal" style={{ borderBottomColor: ui.border }}>
-        <div className="cm-top-nav-inner">
-          <div className="cm-pill-nav" role="tablist" aria-label="Secciones principales">
-            {TABS.map(tab => {
-              const isActive = active === tab.key;
-              const iconCfg = theme?.tabIcons?.[tab.key];
-              const iconValue = iconCfg?.type === "builtin" ? iconCfg.value : (iconCfg?.value || tab.icon);
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`cm-pill-tab ${isActive ? "is-active" : ""}`}
-                  onClick={() => handleSelect(tab.key)}
-                >
-                  <span className="cm-pill-tab-icon"><AppIcon name={iconValue} size={20} active={isActive} /></span>
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="cm-mobile-menu-btn"
-            aria-expanded={mobileOpen}
-            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
-            onClick={() => setMobileOpen(v => !v)}
-          >
-            {mobileOpen ? "×" : "☰"}
+      <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
+        <div className="cm-topbar-inner">
+          <button type="button" className="cm-topbar-brand" onClick={onLogoTap} title="Conect Manzanillo">
+            <span className="cm-topbar-anchor"><AppIcon name="anchor" size={22} active /></span>
+            <span className="cm-topbar-title">Conect Manzanillo</span>
           </button>
+
+          <nav className="cm-topbar-nav" aria-label="Navegación principal">
+            {TABS.map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                className={`cm-topbar-link ${active === tab.key ? "is-active" : ""}`}
+                onClick={() => handleSelect(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="cm-topbar-actions">
+            {isAdmin ? (
+              <button type="button" className="cm-login-btn" onClick={logout}>ADMIN · Salir</button>
+            ) : authUser ? (
+              <button type="button" className="cm-login-btn" onClick={onAccountClick}>{showSessionMenu ? "Cerrar menú" : "Mi cuenta"}</button>
+            ) : (
+              <>
+                <button type="button" className="cm-login-btn" onClick={onLogin}>Iniciar sesión</button>
+                <button type="button" className="cm-register-btn" onClick={onRegister}>Crear cuenta</button>
+              </>
+            )}
+            <button
+              type="button"
+              className="cm-menu-btn"
+              aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={mobileOpen}
+              onClick={() => setMobileOpen(v => !v)}
+            >
+              {mobileOpen ? "×" : "☰"}
+            </button>
+          </div>
         </div>
-        <div className={`cm-mobile-grid ${mobileOpen ? "is-open" : ""}`} role="tablist" aria-label="Menú móvil">
+
+        <nav className={`cm-mobile-nav ${mobileOpen ? "is-open" : ""}`} aria-label="Menú móvil">
           {TABS.map(tab => {
-            const isActive = active === tab.key;
             const iconCfg = theme?.tabIcons?.[tab.key];
             const iconValue = iconCfg?.type === "builtin" ? iconCfg.value : (iconCfg?.value || tab.icon);
+            const isActive = active === tab.key;
             return (
               <button
                 key={tab.key}
                 type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`cm-mobile-tab ${isActive ? "is-active" : ""}`}
+                className={`cm-mobile-nav-btn ${isActive ? "is-active" : ""}`}
                 onClick={() => handleSelect(tab.key)}
               >
-                <AppIcon name={iconValue} size={26} active={isActive} />
+                <AppIcon name={iconValue} size={24} active={isActive} />
                 <span>{tab.label}</span>
               </button>
             );
           })}
-        </div>
-      </nav>
+        </nav>
+      </header>
     </>
   );
 }
@@ -22962,87 +22983,24 @@ function App() {
 
         `}</style>
 
-        {/* Header */}
-        <div style={{ background:getAutoUIColors(theme).headerBg, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", padding:"16px 20px", borderBottom:`1px solid ${getAutoUIColors(theme).border}`, display:"flex", alignItems:"center", gap:"12px" }}>
-          <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" onClick={handleLogoTap} title="Modo admin: 5 clics" style={{ width:"52px", height:"52px", objectFit:"contain", flexShrink:0, cursor:"pointer", filter:"drop-shadow(0 4px 10px rgba(0,0,0,0.35))" }} />
-          <div>
-            <div style={{ fontFamily:getFont(theme, "title"), fontWeight:"700", fontSize:"17px", letterSpacing:"0.5px", color:getAutoUIColors(theme).primary }}>Conect Manzanillo</div>
-            <div style={{ fontSize:"10px", color:getAutoUIColors(theme).muted, fontFamily:"'DM Sans',sans-serif", letterSpacing:"1px", fontWeight:"300" }}>INFORMACIÓN PORTUARIA EN TIEMPO REAL</div>
-          </div>
-          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:"8px", flexShrink:0 }}>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={logout}
-                title="Cerrar sesión de administrador"
-                style={{
-                  display:"flex",
-                  alignItems:"center",
-                  gap:"4px",
-                  background:"rgba(148,163,184,0.14)",
-                  border:"1px solid rgba(148,163,184,0.32)",
-                  borderRadius:"7px",
-                  padding:"5px 9px",
-                  cursor:"pointer",
-                  color:"#e2e8f0",
-                  fontFamily:"'DM Sans',sans-serif",
-                  transition:"background 0.2s, border-color 0.2s"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(248,113,113,0.18)";
-                  e.currentTarget.style.borderColor = "rgba(248,113,113,0.45)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(148,163,184,0.14)";
-                  e.currentTarget.style.borderColor = "rgba(148,163,184,0.32)";
-                }}
-              >
-                <span style={{ fontSize:"12px" }}>🔑</span>
-                <span style={{ fontSize:"10px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontWeight:"700", letterSpacing:"0.5px" }}>ADMIN</span>
-              </button>
-            )}
-
-            {!isAdmin && authUser && (
-              <div
-                onClick={() => setShowSessionMenu(v => !v)}
-                style={{ display:"flex", alignItems:"center", gap:"5px", background: showSessionMenu ? "rgba(148,163,184,0.18)" : "rgba(148,163,184,0.10)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"8px", padding:"7px 11px", cursor:"pointer", userSelect:"none", transition:"background 0.2s", boxShadow:"0 2px 6px rgba(0,0,0,0.18)" }}
-              >
-                <span style={{ fontSize:"12px" }}>👤</span>
-                <span style={{ fontSize:"10px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontWeight:"600", letterSpacing:"0.3px" }}>Mi cuenta</span>
-                <span style={{ fontSize:"8px", color:"#94a3b8", marginLeft:"1px" }}>{showSessionMenu ? "▲" : "▼"}</span>
-              </div>
-            )}
-
-            {!isAdmin && !authUser && (
-              <>
-                <button
-                  onClick={() => setAuthQuickMode("login")}
-                  style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(148,163,184,0.35)", borderRadius:"8px", padding:"8px 14px", color:"#e2e8f0", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"600", letterSpacing:"0.3px", cursor:"pointer", transition:"background 0.2s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
-                >
-                  Iniciar sesión
-                </button>
-                <button
-                  onClick={() => setAuthQuickMode("registro")}
-                  style={{ background:"#1e40af", border:"1px solid #1e40af", borderRadius:"8px", padding:"8px 14px", color:"#ffffff", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", fontWeight:"700", letterSpacing:"0.3px", cursor:"pointer", boxShadow:"0 3px 10px rgba(30,64,175,0.35)", transition:"filter 0.2s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.1)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.filter = "brightness(1)"; }}
-                >
-                  Crear cuenta
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <NavBar
+          active={active}
+          set={setActive}
+          isAdmin={isAdmin}
+          logout={logout}
+          authUser={authUser}
+          onLogin={() => setAuthQuickMode("login")}
+          onRegister={() => setAuthQuickMode("registro")}
+          onAccountClick={() => setShowSessionMenu(v => !v)}
+          showSessionMenu={showSessionMenu}
+          onLogoTap={handleLogoTap}
+        />
 
         {authQuickMode && <AuthQuickModal initialMode={authQuickMode} onClose={() => setAuthQuickMode(null)} />}
 
-        <NavBar active={active} set={setActive} />
-
-        <AnunciosBanner isAdmin={isAdmin} />
-        <HorizontalAdSenseSection sectionKey={active} />
-        {["inicio", "donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
+        {active !== "inicio" && <AnunciosBanner isAdmin={isAdmin} />}
+        {active !== "inicio" && <HorizontalAdSenseSection sectionKey={active} />}
+        {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
