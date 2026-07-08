@@ -7443,7 +7443,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     setActiveSection(s);
   };
   useEffect(() => {
-    if (["incidentes","accidentes"].includes(activeSection)) setActiveSectionPersist("mapa");
+    if (["incidentes", "accidentes"].includes(activeSection)) setActiveSectionPersist("mapa");
+    if (!defaultSection && activeSection === "accesos") setActiveSectionPersist("mapa");
   }, []);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
@@ -7651,7 +7652,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
 
   const sections = [
     { id: "mapa",        label: "Mapa",        icon: "map" },
-    { id: "accesos",     label: "Accesos",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.accesos },
     { id: "vialidades",  label: "Vialidades",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
     { id: "rutas_fiscales",  label: "Rutas fiscales",  icon: TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
     { id: "reporte",     label: "Reporte",     icon: TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
