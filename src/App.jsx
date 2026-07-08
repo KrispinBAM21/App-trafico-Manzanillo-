@@ -4630,7 +4630,7 @@ function AnunciosBanner({ isAdmin }) {
       <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
       <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-        <div style={{ position:"relative" }}>
+        <div style={{ position:"relative", isolation:"isolate" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="whatsapp" size={18} /></span>
           <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
         </div>
@@ -8920,6 +8920,21 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   const [tileMode, setTileMode] = useState("dark");
   const [reportMapFilter, setReportMapFilter] = useState("ambos");
   const [reportLayerControlOpen, setReportLayerControlOpen] = useState(false);
+  const reportLayerCloseTimerRef = useRef(null);
+  const openReportLayerControl = useCallback(() => {
+    if (reportLayerCloseTimerRef.current) {
+      clearTimeout(reportLayerCloseTimerRef.current);
+      reportLayerCloseTimerRef.current = null;
+    }
+    setReportLayerControlOpen(true);
+  }, []);
+  const closeReportLayerControlSoon = useCallback(() => {
+    if (reportLayerCloseTimerRef.current) clearTimeout(reportLayerCloseTimerRef.current);
+    reportLayerCloseTimerRef.current = setTimeout(() => setReportLayerControlOpen(false), 220);
+  }, []);
+  useEffect(() => () => {
+    if (reportLayerCloseTimerRef.current) clearTimeout(reportLayerCloseTimerRef.current);
+  }, []);
   const [mapReady, setMapReady] = useState(false);
 
   // Sync preview props to refs immediately (synchronous, before any effects run)
@@ -9412,7 +9427,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
   return (
     <div>
       {/* Mapa */}
-      <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 32px rgba(0,0,0,0.5)", marginBottom: "14px" }}>
+      <div style={{ borderRadius: "14px", overflow: cleanReportMap ? "visible" : "hidden", position:"relative", zIndex: reportLayerControlOpen ? 80 : 1, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 4px 32px rgba(0,0,0,0.5)", marginBottom: reportLayerControlOpen ? "92px" : "14px" }}>
         <div style={{ padding: "10px 14px", background: cleanReportMap ? "rgba(2,6,23,0.86)" : "rgba(4,12,24,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: "8px", flexWrap:"wrap" }}>
           <AppIcon name={cleanReportMap ? "radar" : "map"} size={16} active />
           <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", textTransform: cleanReportMap ? "uppercase" : "none", letterSpacing: cleanReportMap ? "0.06em" : 0 }}>
@@ -9430,17 +9445,17 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
           </div>
         </div>
         <div style={{ position:"relative" }}>
-          <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18" }} />
+          <div ref={mapRef} style={{ width: "100%", height: compact ? "220px" : "320px", background: "#040c18", borderRadius: cleanReportMap ? "0 0 14px 14px" : 0, overflow:"hidden" }} />
           {cleanReportMap && (
             <div
-              onMouseEnter={() => setReportLayerControlOpen(true)}
-              onMouseLeave={() => setReportLayerControlOpen(false)}
-              style={{ position:"absolute", top:16, right:16, zIndex:1000, fontFamily:"JetBrains Mono, DM Sans, monospace" }}
+              onMouseEnter={openReportLayerControl}
+              onMouseLeave={closeReportLayerControlSoon}
+              style={{ position:"absolute", top:16, right:16, zIndex:9999, fontFamily:"JetBrains Mono, DM Sans, monospace", paddingBottom:14 }}
             >
               <button
                 type="button"
                 aria-label="Control de capas del mapa de reportes"
-                onFocus={() => setReportLayerControlOpen(true)}
+                onFocus={openReportLayerControl}
                 onClick={() => setReportLayerControlOpen(v => !v)}
                 style={{
                   width:58, height:58, borderRadius:"18px",
@@ -9455,19 +9470,20 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
               </button>
               {reportLayerControlOpen && (
                 <div
-                  onMouseEnter={() => setReportLayerControlOpen(true)}
-                  style={{ position:"absolute", right:0, top:66, width:286, maxWidth:"calc(100vw - 48px)", padding:"13px 14px", borderRadius:"16px", border:"1px solid rgba(56,189,248,.38)", background:"rgba(2,6,23,.94)", color:"#e2e8f0", boxShadow:"0 18px 44px rgba(0,0,0,.48)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}
+                  onMouseEnter={openReportLayerControl}
+                  onMouseLeave={closeReportLayerControlSoon}
+                  style={{ position:"absolute", right:0, top:60, width:286, maxWidth:"calc(100vw - 48px)", maxHeight: compact ? 260 : 310, overflowY:"auto", padding:"13px 14px", borderRadius:"16px", border:"1px solid rgba(56,189,248,.38)", background:"rgba(2,6,23,.96)", color:"#e2e8f0", boxShadow:"0 22px 56px rgba(0,0,0,.62)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", zIndex:10000, pointerEvents:"auto" }}
                 >
                   {MAP_TILES.map(t => (
                     <label key={t.id} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:800 }}>
-                      <input type="radio" name="report-map-tile" checked={tileMode === t.id} onChange={() => setTileMode(t.id)} style={{ width:17, height:17, accentColor:"#38bdf8" }} />
+                      <input type="radio" name="report-map-tile" checked={tileMode === t.id} onChange={() => { setTileMode(t.id); openReportLayerControl(); }} style={{ width:17, height:17, accentColor:"#38bdf8" }} />
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"7px" }}><AppIcon name={t.icon} size={15} active={tileMode === t.id} />{t.label}</span>
                     </label>
                   ))}
                   <div style={{ height:1, background:"rgba(226,232,240,.72)", margin:"8px 0 9px" }} />
                   {REPORT_MAP_FILTERS.map(f => (
                     <label key={f.id} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"7px 2px", cursor:"pointer", fontFamily:"DM Sans, sans-serif", fontSize:"14px", fontWeight:900 }}>
-                      <input type="radio" name="report-map-filter" checked={reportMapFilter === f.id} onChange={() => setReportMapFilter(f.id)} style={{ width:17, height:17, accentColor:f.color }} />
+                      <input type="radio" name="report-map-filter" checked={reportMapFilter === f.id} onChange={() => { setReportMapFilter(f.id); openReportLayerControl(); }} style={{ width:17, height:17, accentColor:f.color }} />
                       <span style={{ display:"inline-flex", alignItems:"center", gap:"7px", color: reportMapFilter === f.id ? f.color : "#e2e8f0" }}>
                         {f.id === "accidente" ? (
                           <svg width="17" height="17" viewBox="0 0 64 64" fill="none" aria-hidden="true" style={{ display:"block", filter: reportMapFilter === f.id ? "drop-shadow(0 0 7px rgba(239,68,68,.62))" : "none" }}>
