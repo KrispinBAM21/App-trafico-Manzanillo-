@@ -7606,7 +7606,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const commandViews = defaultSection === "accesos"
     ? [{ id:"accesos", label:"Accesos", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.accesos }]
     : [
-        { id:"mapa_maestro", label:"Mapa maestro", icon:"map" },
+        { id:"mapa_maestro", label:"Mapa maestra", icon:"map" },
         { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
         { id:"rutas_fiscales", label:"Rutas fiscales", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.rutas_fiscales },
         { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
@@ -7631,7 +7631,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       <CommandCenterStyles />
       <div className="cm-command-header">
         <div>
-          <div className="cm-command-kicker">TRÁFICO · CONECT MANZANILLO</div>
+          <div className="cm-command-kicker">TRÁFICO · CENTRO DE MANDO</div>
           <div className="cm-command-title">Mapa Maestro Operativo</div>
         </div>
         <div className="cm-command-live">LIVE DATA</div>
@@ -10817,6 +10817,56 @@ const buildLayerConfig = ({ accesos, vialidades, rutasFiscales }) => ([
   },
 ]);
 
+const MASTER_REFERENCE_TO_ACCESO_ID = {
+  ref_pezvela: "pezvela",
+  ref_puerta15: "puerta15",
+  ref_acceso_norte: "zonanorte",
+  ref_patio: "patio",
+};
+
+const MASTER_REFERENCE_TO_TERMINAL_ID = {
+  ref_contecon: "contecon",
+  ref_hazesa: "hazesa",
+  ref_ssa: "ssa",
+  ref_granelera: "granelera",
+  ref_lajunta: "lajunta",
+  ref_timsa: "timsa",
+  ref_multimodal: "multimodal",
+  ref_friman: "friman",
+  ref_ocupa: "ocupa",
+  ref_cemex: "cemex",
+  ref_asipona: "asipona",
+};
+
+const getMasterReferenceColor = (ref, accesos = {}) => {
+  if (ref.tipo === "acceso") {
+    const accesoId = MASTER_REFERENCE_TO_ACCESO_ID[ref.id];
+    const opt = getCommandOption(ACCESO_STATUS_OPTIONS, accesos?.[accesoId]?.status);
+    return opt?.color || cmVividMapColor("#facc15", ref.id);
+  }
+  const terminalId = MASTER_REFERENCE_TO_TERMINAL_ID[ref.id];
+  return cmVividMapColor(getTerminalCommandColor(terminalId) || "#38bdf8", ref.id);
+};
+
+function CommandReferenceMarker({ refItem, accesos }) {
+  const color = getMasterReferenceColor(refItem, accesos);
+  const label = refItem.name || refItem.short || refItem.id;
+  const icon = useMemo(() => L.divIcon({
+    className: "cm-map-ref-icon",
+    html: `<div class="cm-map-ref-dot" style="--cm-ref-color:${color}"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  }), [color]);
+
+  return (
+    <Marker position={refItem.coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
+      <Tooltip permanent direction="top" offset={[0, -10]} className="cm-tooltip-permanent">
+        <b>{label}</b>
+      </Tooltip>
+    </Marker>
+  );
+}
+
 function CommandMapAutoFit({ layerConfig }) {
   const map = useMap();
   useEffect(() => {
@@ -10837,7 +10887,7 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
         <div>
-          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
+          <div className="cm-panel-kicker">UNIFIED MAP</div>
           <div className="cm-panel-title">Capas operativas sincronizadas</div>
         </div>
         <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
@@ -10875,6 +10925,13 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
               </LayerGroup>
             </LayersControl.Overlay>
           ))}
+          <LayersControl.Overlay checked name="Etiquetas terminales / accesos">
+            <LayerGroup>
+              {RUTA_FISCAL_REFERENCIAS.filter(ref => ref.tipo === "terminal" || ref.tipo === "acceso").map(ref => (
+                <CommandReferenceMarker key={ref.id} refItem={ref} accesos={accesos} />
+              ))}
+            </LayerGroup>
+          </LayersControl.Overlay>
           <LayersControl.Overlay checked={activeIncidents.length > 0} name="Eventos activos">
             <LayerGroup>
               {activeIncidents.map(inc => {
@@ -10951,6 +11008,10 @@ function CommandCenterStyles() {
     .leaflet-control-zoom a{background:rgba(2,6,23,.86)!important;color:#e2e8f0!important;border-color:rgba(148,163,184,.16)!important;}
     .cm-tooltip{background:rgba(2,6,23,.94)!important;border:1px solid rgba(56,189,248,.42)!important;border-radius:8px!important;color:#f8fafc!important;font-family:'JetBrains Mono','DM Sans',monospace!important;font-size:11px!important;font-weight:800!important;padding:6px 9px!important;box-shadow:0 8px 24px rgba(0,0,0,.42)!important;}
     .cm-tooltip::before{display:none!important;}
+    .cm-tooltip-permanent{background:rgba(2,6,23,.9)!important;border:1px solid rgba(56,189,248,.42)!important;border-radius:7px!important;color:rgba(248,250,252,.96)!important;font-family:'JetBrains Mono','DM Sans',monospace!important;font-size:10px!important;font-weight:900!important;letter-spacing:.25px!important;padding:3px 7px!important;box-shadow:0 8px 22px rgba(0,0,0,.44)!important;white-space:nowrap!important;pointer-events:none!important;text-transform:uppercase;}
+    .cm-tooltip-permanent::before{display:none!important;}
+    .cm-map-ref-icon{background:transparent!important;border:none!important;}
+    .cm-map-ref-dot{width:14px;height:14px;border-radius:999px;background:var(--cm-ref-color);border:2.5px solid rgba(255,255,255,.92);box-shadow:0 0 0 5px color-mix(in srgb,var(--cm-ref-color) 24%,transparent),0 0 10px var(--cm-ref-color),0 8px 18px rgba(0,0,0,.45);}
     @media(max-width:640px){.cm-command-nav{grid-template-columns:1fr}.cm-command-header,.cm-unified-map-toolbar,.cm-view-topline{align-items:flex-start;flex-direction:column}.cm-unified-map{height:390px}.cm-segmented{border-radius:16px}.cm-segmented button{flex:1;min-width:unset}.cm-dynamic-view{padding:10px}}
   `}</style>;
 }
