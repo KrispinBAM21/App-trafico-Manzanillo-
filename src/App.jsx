@@ -14210,6 +14210,150 @@ function SegundoAccesoTab({ myId }) {
     );
   };
 
+  const renderConfinadaCard = (carril) => {
+    const st = confinada[carril.id];
+    const laneOpt = getCarrilEstadoOpt(st);
+    const isSinUso = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
+    const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
+    const termColor = isSinUso ? "#71717a" : st.terminal === "general" ? "#fbbf24" : "#a78bfa";
+    const accent = isSinUso ? "#71717a" : st.transferencia ? "#fbbf24" : laneOpt.id !== "libre" ? laneOpt.color : getTerminalBrandColor(st.terminal || "general");
+    const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+    const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
+    const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+    const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal === "general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || !!st.expo_contenedor;
+    return (
+      <div key={carril.id} style={laneCardShell(accent)}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ background:"#a78bfa18", border:"1px solid #a78bfa44", borderRadius:"999px", padding:"4px 10px", color:"#c4b5fd", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{carril.label}</div>
+              {isSinUso ? <Badge color="#6b7280" small>SIN USO</Badge> : <Badge color="#22c55e" small>INGRESO</Badge>}
+              {st.transferencia && !isSinUso && <Badge color="#fbbf24" small>2° ACCESO</Badge>}
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+            <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
+            {st.retornos && <Badge color="#f97316" small>CON RETORNOS</Badge>}
+            {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
+            {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
+            {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
+            {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"5px 10px", background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.34)", borderRadius:"999px", color:"#c4b5fd", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>NORMAL</button>}
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))", gap:"12px" }}>
+          <div style={laneBlockStyle(termColor)}>
+            {laneHeaderNode("terminal-crane", "Terminal", isSinUso ? "Sin uso / sin operación" : st.terminal === "general" ? "General" : (termObj?.name || "Terminal no asignada"), termColor, 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Asignación actual</div>
+            <div style={{ ...laneHeroTitleStyle, color:termColor, fontSize:"16px", marginBottom:"2px" }}>{isSinUso ? "SIN USO" : st.terminal === "general" ? "GENERAL" : (termObj?.name || getTermName(st.terminal))}</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:"10px" }}>{isSinUso ? "Carril no disponible" : st.terminal === "general" ? "Todas las terminales" : `Zona ${termObj?.zona || getTermZona(st.terminal)}`}</div>
+            <WheelPickerSelect
+              value={st.terminal || carril.defaultTerminal}
+              options={terminalOptionsConfinada}
+              onChange={(v) => updateConfinada(carril.id,"terminal",v)}
+              pending={!!pendingKeys[`${carril.id}:terminal`]}
+              theme={theme}
+              title={`Confinada ${carril.label} · Terminal / uso`}
+            />
+          </div>
+
+          <div style={laneBlockStyle(laneOpt.color)}>
+            {laneHeaderNode("lane-status-monitor", "Estado del carril", laneOpt.label, laneOpt.color, 30)}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px" }}>
+              <div>
+                <div style={{ ...laneMiniLabelStyle, marginBottom:"3px" }}>Estado vigente</div>
+                <div style={{ ...laneHeroTitleStyle, color:laneOpt.color }}>{laneOpt.label}</div>
+              </div>
+              <Badge color={laneOpt.color} small>{laneOpt.id === "sin_especificar" ? "N/A" : laneOpt.label.toUpperCase()}</Badge>
+            </div>
+            <WheelPickerSelect
+              value={getCarrilEstadoId(st)}
+              options={CARRIL_ESTADO_OPTS}
+              onChange={(v) => updateConfinadaEstado(carril.id, v || "libre")}
+              pending={!!pendingKeys[`${carril.id}:estado_carril`]}
+              theme={theme}
+              title={`Confinada ${carril.label} · Estado del carril`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("truck-export", "Exportación", expoOpt?.label || "Libre", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de exportación</div>
+            <WheelPickerSelect
+              value={st.expo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateConfinada(carril.id,"expo",v)}
+              pending={!!pendingKeys[`${carril.id}:expo`]}
+              theme={theme}
+              title={`Confinada ${carril.label} · Exportación`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#38bdf8") }>
+            {laneHeaderNode("truck-import", "Importación", impoOpt?.label || "Libre", "#38bdf8", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de importación</div>
+            <WheelPickerSelect
+              value={st.impo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateConfinada(carril.id,"impo",v)}
+              pending={!!pendingKeys[`${carril.id}:impo`]}
+              theme={theme}
+              title={`Confinada ${carril.label} · Importación`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("container-expo-open", "Contenedor Expo", expoContOpt?.label || "Sin especificar", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Condición del contenedor</div>
+            <WheelPickerSelect
+              value={st.expo_contenedor}
+              options={SEGUNDO_CONTENEDOR_OPTS}
+              onChange={(v) => updateConfinada(carril.id,"expo_contenedor", v)}
+              placeholder="— Sin especificar —"
+              allowClear
+              pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+              theme={theme}
+              title={`Confinada ${carril.label} · Contenedor expo`}
+            />
+          </div>
+
+          <div style={{ ...laneBlockStyle(st.retornos ? "#f97316" : "#22c55e"), gridColumn:"1 / -1" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
+              {laneHeaderNode("return-route", "Modalidad de retornos", st.retornos ? "Con retornos" : "Sin retornos", st.retornos ? "#f97316" : "#22c55e", 26)}
+              <div style={{ minWidth:"260px", flex:"1 1 260px" }}>
+                <SegmentedToggle
+                  value={!!st.retornos}
+                  onChange={(v) => updateConfinada(carril.id,"retornos",v)}
+                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+                  leftColor="#22c55e" rightColor="#f97316"
+                  pending={!!pendingKeys[`${carril.id}:retornos`]}
+                  theme={theme}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ ...laneBlockStyle(st.transferencia ? "#fbbf24" : "#a78bfa"), gridColumn:"1 / -1" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
+              {laneHeaderNode("turnover", "Segundo Acceso", st.transferencia ? "Transferencia activa" : "Operación normal", st.transferencia ? "#fbbf24" : "#a78bfa", 26)}
+              <div style={{ minWidth:"260px", flex:"1 1 260px" }}>
+                <SegmentedToggle
+                  value={!!st.transferencia}
+                  onChange={(v) => updateConfinada(carril.id,"transferencia",v)}
+                  leftLabel="NORMAL" rightLabel="TRANSFERENCIA"
+                  leftColor="#22c55e" rightColor="#fbbf24"
+                  pending={!!pendingKeys[`${carril.id}:transferencia`]}
+                  theme={theme}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
 
@@ -14554,134 +14698,7 @@ function SegundoAccesoTab({ myId }) {
         })()}
 
         <SectionLabel text="CARRILES DE INGRESO (C1–C3) · ZONA SUR" rightBtn={<NormalBtn onClick={resetAllConfinada} label="TODO NORMAL" />} />
-
-        {CONFINADA_CARRILES.map(carril => {
-          const st = confinada[carril.id];
-          const laneOpt = getCarrilEstadoOpt(st);
-          const isSinUso = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
-          const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
-          const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const borderColor = isSinUso ? "#71717a" : st.transferencia ? "#d97706" : laneOpt.id !== "libre" ? laneOpt.color : getTerminalBrandColor(st.terminal || "general");
-          const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.transferencia || st.terminal !== carril.defaultTerminal || st.terminal==="general" || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
-          return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${borderColor}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-              {/* Header carril */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
-                <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                    <div style={{ background:"#a78bfa22", border:"1px solid #a78bfa44", borderRadius:"6px", padding:"3px 10px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    {isSinUso
-                      ? <Badge color="#6b7280" small>🚫 SIN USO</Badge>
-                      : <Badge color="#22c55e" small>INGRESO</Badge>
-                    }
-                    {st.transferencia && !isSinUso && <Badge color="#fbbf24" small>🔄 2° ACCESO</Badge>}
-                  </div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                  <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
-                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
-                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
-                  </div>
-                  {isChanged && <button onClick={() => resetOneConfinada(carril.id)} style={{ padding:"3px 8px", background:"#a78bfa15", border:"1px solid #a78bfa44", borderRadius:"5px", color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
-                </div>
-              </div>
-
-              {/* Terminal asignada */}
-              <div style={{ background: isSinUso ? "#6b728011" : st.terminal==="general" ? "#fbbf2411" : "#a78bfa11", border:`1px solid ${isSinUso?"#6b728033":st.terminal==="general"?"#fbbf2433":"#a78bfa33"}`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  {isSinUso
-                    ? <><div style={{ color:"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>SIN USO</div><div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div></>
-                    : st.terminal === "general"
-                    ? <><div style={{ color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>GENERAL</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todas las terminales</div></>
-                    : <><div style={{ color:"#a78bfa", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div><div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Zona {termObj?.zona}</div></>
-                  }
-                </div>
-                <span style={{ fontSize:"22px" }}>{isSinUso ? "🚫" : "🚛"}</span>
-              </div>
-
-              {/* Cambiar terminal — selector de rueda compacto */}
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
-              <div style={{ marginBottom:"12px" }}>
-                <WheelPickerSelect
-                  value={st.terminal || carril.defaultTerminal}
-                  options={terminalOptionsConfinada}
-                  onChange={(v) => updateConfinada(carril.id,"terminal",v)}
-                  pending={!!pendingKeys[`${carril.id}:terminal`]}
-                  theme={theme}
-                  title={`Confinada ${carril.label} · Terminal / uso`}
-                />
-              </div>
-
-              {/* Estado del carril */}
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>ESTADO DEL CARRIL:</div>
-              <div style={{ marginBottom:"6px" }}>
-                <WheelPickerSelect
-                  value={getCarrilEstadoId(st)}
-                  options={CARRIL_ESTADO_OPTS}
-                  onChange={(v) => updateConfinadaEstado(carril.id, v || "libre")}
-                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
-                  theme={theme}
-                  title={`Confinada ${carril.label} · Estado del carril`}
-                />
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"10px" }}>
-                <button onClick={() => updateConfinada(carril.id,"retornos",false)} style={{ padding:"9px", background: !st.retornos?"#22c55e22":"#0a1628", border:`1px solid ${!st.retornos?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.retornos?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.retornos?"700":"400" }}>SIN RETORNOS</button>
-                <button onClick={() => updateConfinada(carril.id,"retornos",true)}  style={{ padding:"9px", background: st.retornos?"#f9731622":"#0a1628",  border:`1px solid ${st.retornos?"#f97316":"#1e3a5f"}`,  borderRadius:"8px", color: st.retornos?"#f97316":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.retornos?"700":"400"  }}>CON RETORNOS</button>
-              </div>
-
-              {/* Tráfico expo/impo */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <WheelPickerSelect
-                    value={st.expo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateConfinada(carril.id,"expo",v)}
-                    pending={!!pendingKeys[`${carril.id}:expo`]}
-                    theme={theme}
-                  />
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <WheelPickerSelect
-                    value={st.expo_contenedor}
-                    options={SEGUNDO_CONTENEDOR_OPTS}
-                    onChange={(v) => updateConfinada(carril.id,"expo_contenedor", v)}
-                    placeholder="— Sin especificar —"
-                    allowClear
-                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
-                    theme={theme}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <WheelPickerSelect
-                    value={st.impo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateConfinada(carril.id,"impo",v)}
-                    pending={!!pendingKeys[`${carril.id}:impo`]}
-                    theme={theme}
-                  />
-                </div>
-              </div>
-
-              {/* Transferencia de Aduana — al final */}
-              <div style={{ background: st.transferencia ? "#fbbf2415" : "rgba(255,255,255,0.03)", border:`1px solid ${st.transferencia?"#fbbf2466":"rgba(255,255,255,0.08)"}`, borderRadius:"10px", padding:"12px" }}>
-                <div style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px", fontWeight:"700" }}>🔄 SEGUNDO ACCESO</div>
-                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), marginBottom:"8px" }}>Indica si este carril opera como Segundo Acceso.</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-                  <button onClick={() => updateConfinada(carril.id,"transferencia",false)} style={{ padding:"10px", background: !st.transferencia?"#22c55e22":"#0a1628", border:`1px solid ${!st.transferencia?"#22c55e":"#1e3a5f"}`, borderRadius:"8px", color: !st.transferencia?"#22c55e":"#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: !st.transferencia?"700":"400" }}>NORMAL</button>
-                  <button onClick={() => updateConfinada(carril.id,"transferencia",true)}  style={{ padding:"10px", background: st.transferencia?"#fbbf2422":"#0a1628",  border:`1px solid ${st.transferencia?"#fbbf24":"#1e3a5f"}`,  borderRadius:"8px", color: st.transferencia?"#fbbf24":"#64748b",  fontFamily:getFont(theme, "secondary"), fontSize:"11px", cursor:"pointer", fontWeight: st.transferencia?"700":"400"  }}>🔄 TRANSFERENCIA</button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {CONFINADA_CARRILES.map(renderConfinadaCard)}
       </>}
 
       <ToastBox toast={toast} />
