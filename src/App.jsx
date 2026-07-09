@@ -9791,8 +9791,55 @@ const slugifyEventType = (value = "evento") => String(value || "evento")
   .replace(/[^a-z0-9]+/g, "_")
   .replace(/^_|_$/g, "") || "evento";
 
+const eventTypeMatches = (candidate = {}, label = "", id = "") => {
+  const candLabel = normalizeAiText(candidate.label || "");
+  const candId = String(candidate.id || "").trim();
+  const targetLabel = normalizeAiText(label || "");
+  const targetId = String(id || "").trim();
+  const targetSlug = slugifyEventType(label || id || "");
+  if (!candLabel && !candId) return false;
+  if (targetId && candId === targetId) return true;
+  if (targetSlug && (candId === targetSlug || candId.endsWith(`_${targetSlug}`))) return true;
+  if (!targetLabel) return false;
+  if (candLabel === targetLabel) return true;
+  if (candLabel.includes(targetLabel) || targetLabel.includes(candLabel)) return true;
+  const a = new Set(candLabel.split(/\s+/).filter(w => w.length > 3));
+  const b = targetLabel.split(/\s+/).filter(w => w.length > 3);
+  return b.length > 0 && b.filter(w => a.has(w)).length >= Math.min(2, b.length);
+};
+
+const resolveKnownEventSubtype = (category = "incidente", label = "", id = "", customIncidentTypes = []) => {
+  const pool = [
+    ...(INCIDENT_SUBCATEGORIAS[category] || []),
+    ...(customIncidentTypes || []).filter(t => t.category === category),
+  ];
+  return pool.find(t => eventTypeMatches(t, label, id)) || null;
+};
+
+const getRouteMidpointCoords = (routeId, ratio = 0.5) => {
+  try {
+    const line = (COMMAND_VIALIDAD_LINES || []).find(r => r.id === routeId);
+    const coords = (line?.coords || []).filter(c => Array.isArray(c) && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])));
+    if (!coords.length) return null;
+    const index = Math.max(0, Math.min(coords.length - 1, Math.round((coords.length - 1) * ratio)));
+    return [Number(coords[index][0]), Number(coords[index][1])];
+  } catch { return null; }
+};
+
 const findFallbackCoordsForLocation = (location = "") => {
   const haystack = normalizeAiText(location);
+
+  // Prioridad: detectar el sentido exacto para no mandar Jalipa → Puerto al punto opuesto.
+  if (/jalipa\s*[-–—>]\s*puerto|sentido\s+jalipa\s*[-–—>]\s*puerto|jalipa\s+a\s+puerto/i.test(haystack)) {
+    return { coords: getRouteMidpointCoords("jalipa_puerto", 0.45) || [19.08598, -104.28168], source:"ruta:Vialidad Jalipa → Puerto" };
+  }
+  if (/puerto\s*[-–—>]\s*jalipa|sentido\s+puerto\s*[-–—>]\s*jalipa|puerto\s+a\s+jalipa/i.test(haystack)) {
+    return { coords: getRouteMidpointCoords("puerto_jalipa", 0.55) || [19.08484, -104.28222], source:"ruta:Vialidad Puerto → Jalipa" };
+  }
+  if (haystack.includes("vialidad externa") && haystack.includes("jalipa") && haystack.includes("puerto")) {
+    return { coords: getRouteMidpointCoords("jalipa_puerto", 0.42) || [19.08310, -104.28376], source:"ruta:Vialidad externa Jalipa → Puerto" };
+  }
+
   const ordered = [...CM_MANZANILLO_GEOCODE_FALLBACKS].sort((a,b) => b.keys.length - a.keys.length);
   const hit = ordered.find(item => item.keys.every(k => haystack.includes(normalizeAiText(k))));
   return hit ? { coords: hit.coords, source: `aproximado:${hit.label}` } : null;
@@ -9804,7 +9851,11 @@ const geocodeEventLocation = async (locationText = "") => {
   const direct = parseCoordsFromText(q);
   if (direct) return { coords: direct, source:"texto" };
 
-  // Edge Function opcional para geocodificación con internet. Si no existe, usamos referencias locales.
+  // Primero se usan referencias operativas locales: son más confiables para vialidades internas que un geocoder general.
+  const local = findFallbackCoordsForLocation(q);
+  if (local?.coords) return local;
+
+  // Edge Function opcional para geocodificación con internet. Si no existe, se mantiene manual.
   try {
     if (sb?.functions?.invoke) {
       const { data, error } = await sb.functions.invoke("geocode-location", {
@@ -9815,9 +9866,9 @@ const geocodeEventLocation = async (locationText = "") => {
       if (!error && Number.isFinite(lat) && Number.isFinite(lng)) return { coords:[lat, lng], source:data?.provider || "geocode-location" };
     }
   } catch (e) {
-    console.warn("geocode-location no disponible; usando referencias locales.", e?.message || e);
+    console.warn("geocode-location no disponible; requiere coordenadas manuales.", e?.message || e);
   }
-  return findFallbackCoordsForLocation(q);
+  return null;
 };
 
 const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
@@ -9841,10 +9892,7 @@ const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
   else if (/choque|colision/.test(lower)) { subtypeLabel = "Choque entre vehículos"; icon = "collision"; category = "accidente"; }
   else if (/volcadura|volcado/.test(lower)) { subtypeLabel = "Camión volcado"; icon = "turnover"; category = "accidente"; }
 
-  const existing = [
-    ...(INCIDENT_SUBCATEGORIAS[category] || []),
-    ...(customIncidentTypes || []).filter(t => t.category === category),
-  ].find(t => normalizeAiText(t.label) === normalizeAiText(subtypeLabel) || normalizeAiText(subtypeLabel).includes(normalizeAiText(t.label)) || normalizeAiText(t.label).includes(normalizeAiText(subtypeLabel)));
+  const existing = resolveKnownEventSubtype(category, subtypeLabel, "", customIncidentTypes);
   const subtypeId = existing?.id || `${category}_${slugifyEventType(subtypeLabel)}`;
   const needsNewType = !existing;
 
@@ -10084,6 +10132,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
   const [rawText, setRawText] = useState("");
   const [coordsBusy, setCoordsBusy] = useState(false);
   const [approvedBusy, setApprovedBusy] = useState(false);
+  const fileInputRef = useRef(null);
 
   const inputStyle = { width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.72)", border:"1px solid rgba(255,255,255,.12)", borderRadius:10, padding:"10px 11px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, outline:"none" };
   const labelStyle = { display:"block", color:"rgba(255,255,255,.58)", fontFamily:getFont(theme,"secondary"), fontSize:10, fontWeight:900, letterSpacing:".12em", textTransform:"uppercase", marginBottom:6 };
@@ -10093,6 +10142,16 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
   }, [previewUrl]);
 
   const updateDraft = (patch) => setDraft(prev => ({ ...(prev || {}), ...patch }));
+
+  const resetReader = (msg = "") => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(null);
+    setPreviewUrl("");
+    setDraft(null);
+    setRawText("");
+    setMessage(msg);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleFile = (f) => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -10148,7 +10207,16 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
       if (!parsed.description && text) parsed.description = text.slice(0, 260);
       if (!parsed.category) parsed.category = "incidente";
       if (!parsed.subtype_label) parsed.subtype_label = "Afectación al flujo vehicular";
-      if (!parsed.subtype_id) parsed.subtype_id = `${parsed.category}_${slugifyEventType(parsed.subtype_label)}`;
+      const knownType = resolveKnownEventSubtype(parsed.category, parsed.subtype_label, parsed.subtype_id, customIncidentTypes);
+      if (knownType) {
+        parsed.subtype_id = knownType.id;
+        parsed.subtype_label = knownType.label;
+        parsed.subtype_icon = knownType.icon || parsed.subtype_icon;
+        parsed.needs_new_type = false;
+      } else {
+        if (!parsed.subtype_id) parsed.subtype_id = `${parsed.category}_${slugifyEventType(parsed.subtype_label)}`;
+        parsed.needs_new_type = true;
+      }
       if (!parsed.subtype_icon) parsed.subtype_icon = parsed.category === "accidente" ? "emergency" : "warning-triangle";
 
       setRawText(parsed.raw_text || text || "");
@@ -10198,12 +10266,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
     try {
       await onApproved?.({ ...draft, raw_text: rawText || draft.raw_text || "" });
       await reloadTypes?.();
-      setMessage("Reporte generado y publicado en el mapa.");
-      setDraft(null);
-      setRawText("");
-      setFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl("");
+      resetReader("Reporte generado y publicado en el mapa. Campos restablecidos.");
     } catch (e) {
       console.error(e);
       setMessage(e?.message || "No se pudo aprobar el análisis.");
@@ -10222,7 +10285,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
 
       <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 170px) minmax(0, 1fr)", gap:12, alignItems:"start" }}>
         <div>
-          <input type="file" accept="image/*" onChange={e => handleFile(e.target.files?.[0])} style={{ ...inputStyle, padding:8 }} />
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={e => handleFile(e.target.files?.[0])} style={{ ...inputStyle, padding:8 }} />
           {previewUrl && <img src={previewUrl} alt="Captura a analizar" style={{ width:"100%", marginTop:10, borderRadius:10, border:"1px solid rgba(255,255,255,.12)", objectFit:"cover", maxHeight:220 }} />}
           {message && <div style={{ marginTop:8, color:message.includes("No ") || message.includes("Falta") ? "#fbbf24" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:10, lineHeight:1.45 }}>{message}</div>}
         </div>
@@ -10237,7 +10300,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={labelStyle}>Categoría</label>
-                <select value={draft.category || "incidente"} onChange={e => updateDraft({ category:e.target.value })} style={inputStyle}>
+                <select value={draft.category || "incidente"} onChange={e => { const cat = e.target.value; const known = resolveKnownEventSubtype(cat, draft.subtype_label, draft.subtype_id, customIncidentTypes); updateDraft({ category:cat, subtype_id:known?.id || `${cat}_${slugifyEventType(draft.subtype_label || "evento")}`, subtype_label:known?.label || draft.subtype_label, subtype_icon:known?.icon || draft.subtype_icon, needs_new_type:!known }); }} style={inputStyle}>
                   <option value="incidente">Incidente</option>
                   <option value="accidente">Accidente</option>
                 </select>
@@ -10251,7 +10314,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 110px", gap:10 }}>
               <div>
                 <label style={labelStyle}>Tipo específico</label>
-                <input value={draft.subtype_label || ""} onChange={e => updateDraft({ subtype_label:e.target.value, subtype_id:`${draft.category || "incidente"}_${slugifyEventType(e.target.value)}`, needs_new_type:true })} style={inputStyle} />
+                <input value={draft.subtype_label || ""} onChange={e => { const label = e.target.value; const cat = draft.category || "incidente"; const known = resolveKnownEventSubtype(cat, label, "", customIncidentTypes); updateDraft({ subtype_label: known?.label || label, subtype_id: known?.id || `${cat}_${slugifyEventType(label)}`, subtype_icon: known?.icon || draft.subtype_icon, needs_new_type: !known }); }} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Nuevo tipo</label>
@@ -10674,12 +10737,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     if (!safeLoc) throw new Error("Falta ubicación para generar el reporte.");
     if (!coordPair?.length) throw new Error("Faltan coordenadas para generar el reporte.");
 
-    const existsType = [
-      ...(INCIDENT_SUBCATEGORIAS[category] || []),
-      ...(customIncidentTypes || []).filter(t => t.category === category),
-    ].some(t => normalizeAiText(t.label) === normalizeAiText(subtypeLabel) || t.id === subtypeId);
+    const existingType = resolveKnownEventSubtype(category, subtypeLabel, subtypeId, customIncidentTypes);
 
-    if (!existsType) {
+    if (!existingType) {
       const typeRow = { id: subtypeId, category, label: subtypeLabel, icon: subtypeIcon, active:true, created_at:new Date().toISOString(), created_by_ai:true };
       const { error: typeError } = await sb.from("admin_incident_types").insert(typeRow);
       // Compatibilidad si la tabla no tiene created_by_ai.
@@ -10707,6 +10767,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       votes: {}, resolve_votes: {}, false_votes: {},
       visible: true, resolved: false, ts: Date.now(),
       coords: { lat: Number(coordPair[0]), lng: Number(coordPair[1]) },
+      subcategory: existingType?.id || subtypeId,
     };
 
     const { data: insertedRows, error: insertError } = await sb.from("incidents").insert(newIncident).select();
@@ -10731,19 +10792,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       }, ...prev]);
     }
 
-    try {
-      await sb.from("ai_event_drafts").insert({
-        incident_id: inserted?.id || null,
-        raw_text: draft.raw_text || null,
-        extracted_json: draft,
-        confidence: draft.confidence || null,
-        status: "approved",
-        approved_by: "admin",
-        created_at: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn("Tabla ai_event_drafts no disponible; omitiendo bitácora IA.", e?.message || e);
-    }
 
     await auditLog({ action:"crear_reporte_ia", section:"reporte_admin_ai", entityId: inserted?.id || null, after:{ ...newIncident, subtype_id:subtypeId, subtype_label:subtypeLabel, confidence:draft.confidence, coords_source:draft.coords_source, summary:`Admin aprobó reporte IA ${subtypeLabel} en ${safeLoc}` }, actor:"Admin" });
     await publicarNoticia({
@@ -10759,6 +10807,17 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
   const incType    = (id) => INCIDENT_TYPES.find(t => t.id === id) || INCIDENT_TYPES[0];
   const pendingAll = incidents.filter(i => !i.visible && !i.resolved);
+
+  const deleteIncidentAdmin = async (inc) => {
+    if (!isAdmin || !inc?.id) return;
+    if (!confirm("¿Eliminar este evento del mapa y de la lista?")) return;
+    const before = { id:inc.id, type:inc.type, location:inc.location, description:inc.description || inc.desc, coords:inc.coords };
+    const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+    if (error) return notify("Error al eliminar: " + error.message, "#ef4444");
+    setIncidents(prev => prev.filter(i => i.id !== inc.id));
+    await auditLog({ action:"eliminar_evento_admin", section:"reporte_eventos", entityId:inc.id, before, after:{ summary:`Admin eliminó evento en ${inc.location || "sin ubicación"}` }, actor:"Admin" });
+    notify("Evento eliminado por admin", "#f97316");
+  };
 
   const tiempoRestante = (ts) => {
     const resta = 3600000 - (Date.now() - ts);
@@ -10992,7 +11051,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
                   {/* CONFIRMAR */}
                   <button onClick={async () => {
-                    if (myVote === 1) return notify("Ya confirmaste este reporte", "#38bdf8");
+                    if (myVote === 1) return notify("Ya validaste este reporte", "#38bdf8");
                     const newVotes = { ...votes, [myId]: 1 };
                     const newConf  = Object.values(newVotes).filter(v => v === 1).length;
                     const visible  = newConf >= 3;
@@ -11001,17 +11060,17 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                     setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes, visible } : i));
                     await auditLog({ action:"votar_reporte_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, visible, summary:`${getDeviceId()} confirmó reporte ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
                     if (visible) notify("Validado ¡Reporte verificado y publicado!", "#22c55e");
-                    else         notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
+                    else         notify(`✓ Validado (${newConf}/3)`, "#22c55e");
                   }}
                     style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>Validado</span>
-                    <span>CONFIRMO</span>
+                    <span>SÍ, SIGUE</span>
                     <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
                   </button>
 
                   {/* FALSO — 3 votos eliminan el reporte */}
                   <button onClick={async () => {
-                    if (myFalse) return notify("Ya lo marcaste como falso", "#38bdf8");
+                    if (myFalse) return notify("Ya marcaste que no coincide", "#38bdf8");
                     const newFalse = { ...falseV, [myId]: 1 };
                     const count    = Object.values(newFalse).length;
                     if (count >= 3) {
@@ -11025,18 +11084,18 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
                       await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, summary:`${getDeviceId()} marcó falso reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
-                      notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                      notify(`Aviso no coincide (${count}/3)`, "#ef4444");
                     }
                   }}
                     style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>Error</span>
-                    <span>FALSO</span>
+                    <span>NO COINCIDE</span>
                     <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
                   </button>
 
                   {/* RESUELTO — 3 votos cierran el incidente */}
                   <button onClick={async () => {
-                    if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                    if (myResolve) return notify("Ya marcaste que quedó libre", "#38bdf8");
                     const newResolve = { ...resolveV, [myId]: 1 };
                     const count      = Object.values(newResolve).length;
                     if (count >= 3) {
@@ -11050,12 +11109,12 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       if (error) return notify("Error al votar: " + error.message, "#ef4444");
                       setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
                       await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, summary:`${getDeviceId()} votó resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
-                      notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                      notify(`🏁 Ya quedó libre (${count}/3)`, "#6b7280");
                     }
                   }}
                     style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                     <span style={{ fontSize:"16px" }}>🏁</span>
-                    <span>RESUELTO</span>
+                    <span>YA QUEDÓ LIBRE</span>
                     <span style={{ fontSize:"11px", background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{resueltos}</span>
                   </button>
                 </div>
@@ -11064,9 +11123,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                 {(myVote || myFalse || myResolve) && (
                   <div style={{ fontSize:"9px", fontFamily:getFont(theme, "secondary"), marginTop:"6px", textAlign:"center",
                     color: myVote===1 ? "#22c55e" : myFalse ? "#ef4444" : "#94a3b8" }}>
-                    {myVote===1  ? "✓ Confirmaste este reporte"
-                    : myFalse   ? "✗ Lo marcaste como falso"
-                    :             "🏁 Votaste como resuelto"}
+                    {myVote===1  ? "✓ Validaste este reporte"
+                    : myFalse   ? "Marcaste que no coincide"
+                    :             "🏁 Marcaste que ya quedó libre"}
                   </div>
                 )}
               </div>
@@ -11138,12 +11197,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"5px" }}>{timeAgo(inc.ts)}</div>
                         </div>
                         {isAdmin && (
-                          <button onClick={async () => {
-                            const { error } = await sb.from("incidents").delete().eq("id", inc.id);
-                            if (error) { notify("Error: " + error.message, "#ef4444"); return; }
-                            setIncidents(prev => prev.filter(i => i.id !== inc.id));
-                            notify("Eliminar Evento eliminado", "#f97316");
-                          }}
+                          <button onClick={() => deleteIncidentAdmin(inc)}
                             style={{ padding:"4px 8px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", flexShrink:0 }}>
                             Eliminar
                           </button>
@@ -11158,61 +11212,61 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
 
                         {/* CONFIRMAR */}
                         <button onClick={async () => {
-                          if (myVote === 1) return notify("Ya confirmaste este evento", "#38bdf8");
+                          if (myVote === 1) return notify("Ya validaste este evento", "#38bdf8");
                           const newVotes = { ...votes, [myId]: 1 };
                           const newConf  = Object.values(newVotes).filter(v => v === 1).length;
                           await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
                           setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
                           await auditLog({ action:"votar_evento_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, subsection:"eventos_confirmados", summary:`${getDeviceId()} confirmó evento ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
-                          notify(`✓ Confirmado (${newConf}/3)`, "#22c55e");
+                          notify(`✓ Validado (${newConf}/3)`, "#22c55e");
                         }}
                           style={{ padding:"9px 4px", background: myVote===1?"#22c55e33":"#16a34a15", border:`1px solid ${myVote===1?"#22c55e":"#16a34a44"}`, borderRadius:"8px", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                           <span style={{ fontSize:"16px" }}>Validado</span>
-                          <span>CONFIRMO</span>
+                          <span>SÍ, SIGUE</span>
                           <span style={{ fontSize:"11px", background:"rgba(34,197,94,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{conf}</span>
                         </button>
 
                         {/* FALSO — 3 votos eliminan el evento */}
                         <button onClick={async () => {
-                          if (myFalse) return notify("Ya lo marcaste como falso", "#38bdf8");
+                          if (myFalse) return notify("Ya marcaste que no coincide", "#38bdf8");
                           const newFalse = { ...falseV, [myId]: 1 };
                           const count    = Object.values(newFalse).length;
                           if (count >= 3) {
                             await sb.from("incidents").delete().eq("id", inc.id);
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
-                            notify("Error Evento eliminado — 3 votos falsos", "#ef4444");
+                            notify("Error Evento eliminado — 3 reportes no coinciden", "#ef4444");
                           } else {
                             await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
                             await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, summary:`${getDeviceId()} marcó falso reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
-                      notify(`✗ Marcado como falso (${count}/3)`, "#ef4444");
+                      notify(`Aviso no coincide (${count}/3)`, "#ef4444");
                           }
                         }}
                           style={{ padding:"9px 4px", background: myFalse?"#ef444433":"#ef444415", border:`1px solid ${myFalse?"#ef4444":"#ef444444"}`, borderRadius:"8px", color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                           <span style={{ fontSize:"16px" }}>Error</span>
-                          <span>FALSO</span>
+                          <span>NO COINCIDE</span>
                           <span style={{ fontSize:"11px", background:"rgba(239,68,68,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{falsos}</span>
                         </button>
 
                         {/* RESUELTO — 3 votos cierran el evento */}
                         <button onClick={async () => {
-                          if (myResolve) return notify("Ya votaste como resuelto", "#38bdf8");
+                          if (myResolve) return notify("Ya marcaste que quedó libre", "#38bdf8");
                           const newResolve = { ...resolveV, [myId]: 1 };
                           const count      = Object.values(newResolve).length;
                           if (count >= 3) {
                             await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
-                            notify("🏁 Evento cerrado como resuelto", "#6b7280");
+                            notify("🏁 Evento cerrado: ya quedó libre", "#6b7280");
                           } else {
                             await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
                             await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, summary:`${getDeviceId()} votó resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
-                      notify(`🏁 Voto resuelto (${count}/3)`, "#6b7280");
+                      notify(`🏁 Ya quedó libre (${count}/3)`, "#6b7280");
                           }
                         }}
                           style={{ padding:"9px 4px", background: myResolve?"#6b728033":"#6b728015", border:`1px solid ${myResolve?"#6b7280":"#6b728044"}`, borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700", display:"flex", flexDirection:"column", alignItems:"center", gap:"3px" }}>
                           <span style={{ fontSize:"16px" }}>🏁</span>
-                          <span>RESUELTO</span>
+                          <span>YA QUEDÓ LIBRE</span>
                           <span style={{ fontSize:"11px", background:"rgba(107,114,128,0.2)", borderRadius:"4px", padding:"1px 6px", minWidth:"18px", textAlign:"center" }}>{resueltos}</span>
                         </button>
                       </div>
@@ -11221,9 +11275,9 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       {(myVote || myFalse || myResolve) && (
                         <div style={{ fontSize:"9px", fontFamily:getFont(theme,"secondary"), marginTop:"6px", textAlign:"center",
                           color: myVote===1 ? "#22c55e" : myFalse ? "#ef4444" : "#94a3b8" }}>
-                          {myVote===1  ? "✓ Confirmaste este evento"
-                          : myFalse   ? "✗ Lo marcaste como falso"
-                          :             "🏁 Votaste como resuelto"}
+                          {myVote===1  ? "✓ Validaste este evento"
+                          : myFalse   ? "Marcaste que no coincide"
+                          :             "🏁 Marcaste que ya quedó libre"}
                         </div>
                       )}
                     </div>
