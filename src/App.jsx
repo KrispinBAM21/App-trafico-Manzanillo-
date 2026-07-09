@@ -20851,10 +20851,12 @@ function Pagination({ total, page, setPage, pageSize }) {
 // ─── TAB: DONATIVOS ───────────────────────────────────────────────────────────
 function DonativosTab() {
   const theme = React.useContext(ThemeContext);
+  const isMobile = useWindowWidth() < 760;
   const [copied, setCopied] = useState(false);
   const [copiedAlbo, setCopiedAlbo] = useState(false);
   const CLABE = "042180010045965913";
   const CLABE_ALBO = "721180100036945704";
+
   const copyClabe = () => {
     navigator.clipboard.writeText(CLABE).then(() => {
       setCopied(true);
@@ -20867,105 +20869,293 @@ function DonativosTab() {
       setTimeout(() => setCopiedAlbo(false), 2500);
     });
   };
+
+  const iconCommon = { fill:"none", strokeLinecap:"round", strokeLinejoin:"round", style:{ display:"block", flexShrink:0 } };
+  const DonationHeaderIcon = ({ size = 40 }) => (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" {...iconCommon}>
+      <path d="M24 42s-16-9.8-16-23.2A9.2 9.2 0 0 1 24 12.6a9.2 9.2 0 0 1 16-1.8C40 32.2 24 42 24 42Z" fill="rgba(59,130,246,.12)" stroke="#3b82f6" strokeWidth="2.2" />
+      <path d="M17 24h14" stroke="#10b981" strokeWidth="2.6" />
+      <path d="M24 17v14" stroke="#10b981" strokeWidth="2.6" />
+    </svg>
+  );
+  const BankIcon = ({ color = "#3b82f6", size = 22 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M4 10h16" stroke={color} strokeWidth="1.8" />
+      <path d="M6 10v8M10 10v8M14 10v8M18 10v8" stroke={color} strokeWidth="1.8" />
+      <path d="M3.5 20h17" stroke={color} strokeWidth="1.8" />
+      <path d="M12 4 4 8h16l-8-4Z" fill={`${color}22`} stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const WalletIcon = ({ color = "#10b981", size = 22 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v10.5a2.5 2.5 0 0 1-2.5 2.5H6.5A2.5 2.5 0 0 1 4 17.5v-10Z" fill={`${color}18`} stroke={color} strokeWidth="1.8" />
+      <path d="M16 12h4v4h-4a2 2 0 1 1 0-4Z" stroke={color} strokeWidth="1.8" />
+      <path d="M7 8h8" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const BoxIcon = ({ color = "#60a5fa", size = 28 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M4 7h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" fill={`${color}14`} stroke={color} strokeWidth="1.8" />
+      <path d="M8 7V5h8v2M4 13h5.5l1.3 2h2.4l1.3-2H20" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const LockIcon = ({ color = "#475569", size = 28 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <rect x="5" y="10" width="14" height="10" rx="2" fill={`${color}18`} stroke={color} strokeWidth="1.8" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke={color} strokeWidth="1.8" />
+      <path d="M12 14v2" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const TruckIcon = ({ color = "#10b981", size = 28 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M3.5 8h10v8h-10Z" fill={`${color}16`} stroke={color} strokeWidth="1.8" />
+      <path d="M13.5 10h4l3 3v3h-7" stroke={color} strokeWidth="1.8" />
+      <circle cx="7" cy="18" r="1.7" stroke={color} strokeWidth="1.8" />
+      <circle cx="17" cy="18" r="1.7" stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const CopyIcon = ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <rect x="8" y="8" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M5 15V7a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="1.9" />
+    </svg>
+  );
+  const ArrowIcon = ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="2" />
+      <path d="m13 6 6 6-6 6" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+  const BoltIcon = ({ color = "#f59e0b", size = 24 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M13 2 5 14h6l-1 8 9-13h-6l0-7Z" fill={`${color}22`} stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const HeartIcon = ({ color = "#fb7185", size = 24 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M12 20s-8-5-8-11a4.8 4.8 0 0 1 8-3.4A4.8 4.8 0 0 1 20 9c0 6-8 11-8 11Z" fill={`${color}20`} stroke={color} strokeWidth="1.8" />
+    </svg>
+  );
+  const CoffeeIcon = ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
+      <path d="M5 8h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8Z" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M16 10h2.2a2.2 2.2 0 0 1 0 4.4H16" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M7 4v1M11 4v1M15 4v1" stroke="currentColor" strokeWidth="1.9" />
+    </svg>
+  );
+
+  const pageStyle = {
+    padding: isMobile ? "24px 14px 96px" : "44px 24px 96px",
+    maxWidth:"1120px",
+    margin:"0 auto",
+    color:"#f1f5f9",
+    fontFamily:getFont(theme, "secondary"),
+    boxSizing:"border-box"
+  };
+  const glass = {
+    background:"rgba(30,41,59,.70)",
+    border:"1px solid rgba(255,255,255,.08)",
+    backdropFilter:"blur(12px)",
+    WebkitBackdropFilter:"blur(12px)",
+    borderRadius:"12px",
+    boxShadow:"0 20px 40px rgba(0,0,0,.28)"
+  };
+  const smallLabel = {
+    fontSize:"11px",
+    color:"#64748b",
+    textTransform:"uppercase",
+    letterSpacing:".12em",
+    fontWeight:"800",
+    marginBottom:"8px"
+  };
+
+  const BankCard = ({ bank, clabe, copiedState, onCopy, accent, gradient, icon, footerIcon, footerText }) => (
+    <article style={{
+      background: gradient,
+      border:`1px solid ${accent}33`,
+      borderRadius:"12px",
+      padding:isMobile ? "22px" : "30px",
+      transition:"all .2s ease",
+      boxShadow:"0 14px 34px rgba(2,6,23,.26)",
+      minWidth:0
+    }}>
+      <header style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:isMobile ? "24px" : "30px" }}>
+        {icon}
+        <span style={{ fontSize:"11px", fontWeight:"900", letterSpacing:".16em", color:accent, textTransform:"uppercase" }}>Transferencia Bancaria</span>
+      </header>
+      <div style={{ marginBottom:isMobile ? "22px" : "30px" }}>
+        <p style={{ ...smallLabel, marginBottom:"4px" }}>Institución</p>
+        <h2 style={{ margin:0, fontSize:isMobile ? "34px" : "42px", lineHeight:1, fontWeight:"950", letterSpacing:"-.03em", color:"#fff" }}>{bank}</h2>
+      </div>
+      <div style={{ marginBottom:isMobile ? "22px" : "30px" }}>
+        <p style={{ ...smallLabel, marginBottom:"12px" }}>CLABE Interbancaria</p>
+        <div style={{
+          display:"flex",
+          alignItems:isMobile ? "stretch" : "center",
+          justifyContent:"space-between",
+          gap:"12px",
+          flexDirection:isMobile ? "column" : "row",
+          background:"rgba(2,6,23,.58)",
+          border:"1px solid rgba(30,41,59,.95)",
+          borderRadius:"12px",
+          padding:isMobile ? "16px" : "18px",
+          minWidth:0
+        }}>
+          <span style={{
+            color:accent,
+            fontFamily:"'Courier New', monospace",
+            fontWeight:"900",
+            fontSize:isMobile ? "18px" : "23px",
+            letterSpacing:".05em",
+            overflowX:"auto",
+            whiteSpace:"nowrap",
+            maxWidth:"100%"
+          }}>{clabe}</span>
+          <button onClick={onCopy} style={{
+            display:"inline-flex",
+            alignItems:"center",
+            justifyContent:"center",
+            gap:"8px",
+            padding:"11px 16px",
+            borderRadius:"10px",
+            border:`1px solid ${accent}55`,
+            background:copiedState ? "rgba(16,185,129,.18)" : accent,
+            color:copiedState ? "#10b981" : "#ffffff",
+            fontSize:"11px",
+            fontWeight:"900",
+            textTransform:"uppercase",
+            cursor:"pointer",
+            boxShadow:copiedState ? "none" : `0 4px 14px ${accent}4d`,
+            flexShrink:0
+          }}>
+            <CopyIcon size={15} />
+            {copiedState ? "Copiado" : "Copiar"}
+          </button>
+        </div>
+      </div>
+      <footer style={{
+        display:"flex",
+        alignItems:"center",
+        gap:"14px",
+        background:`${accent}0f`,
+        border:`1px solid ${accent}1f`,
+        borderRadius:"12px",
+        padding:"16px"
+      }}>
+        <div style={{ width:"40px", height:"40px", borderRadius:"999px", background:`${accent}16`, display:"grid", placeItems:"center", color:accent, flexShrink:0 }}>{footerIcon}</div>
+        <p style={{ margin:0, color:"#cbd5e1", fontSize:"12px", fontWeight:"700", lineHeight:1.35 }}>{footerText}</p>
+      </footer>
+    </article>
+  );
+
+  const ActionCard = ({ href, accent, title, desc, cta, icon, trailingIcon }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" style={{
+      display:"flex",
+      flexDirection:"column",
+      gap:"16px",
+      minHeight:isMobile ? "auto" : "186px",
+      textDecoration:"none",
+      background:"rgba(15,23,42,.92)",
+      border:`1px solid ${accent}33`,
+      borderRadius:"12px",
+      padding:"22px",
+      color:"#fff",
+      boxShadow:"0 12px 26px rgba(2,6,23,.24)",
+      transition:"all .2s ease"
+    }}>
+      <div style={{ width:"48px", height:"48px", borderRadius:"12px", background:`${accent}16`, display:"grid", placeItems:"center", border:`1px solid ${accent}22`, color:accent }}>{icon}</div>
+      <div>
+        <h3 style={{ margin:0, color:"#fff", fontSize:"13px", textTransform:"uppercase", letterSpacing:".10em", fontWeight:"900", lineHeight:1.35 }}>{title}</h3>
+        <p style={{ margin:"8px 0 0", color:"#94a3b8", fontSize:"12px", lineHeight:1.45 }}>{desc}</p>
+      </div>
+      <div style={{ marginTop:"auto", display:"flex", alignItems:"center", color:accent, gap:"8px", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em" }}>
+        <span>{cta}</span>
+        {trailingIcon || <ArrowIcon size={15} />}
+      </div>
+    </a>
+  );
+
   return (
-    <div style={{ padding:"20px 24px", paddingBottom:"80px", maxWidth:"960px", margin:"0 auto" }}>
-      <div style={{ textAlign:"center", marginBottom:"32px" }}>
-        <div style={{ display:"flex", justifyContent:"center", marginBottom:"12px" }}><AppIcon name="anchor-port" size={48} active={true} /></div>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"16px", letterSpacing:"2px", color:"rgba(255,255,255,0.95)", marginBottom:"8px" }}>JUNTOS SOMOS MÁS FUERTES</div>
-        <div style={{ width:"48px", height:"2px", background:"linear-gradient(90deg,#38bdf8,#a78bfa)", margin:"0 auto 16px" }} />
-      </div>
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a1628)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"16px", padding:"20px", marginBottom:"20px" }}>
-        <div style={{ fontSize:"22px", textAlign:"center", marginBottom:"14px" }}>💙🚛💙</div>
-        <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Puerto Tráfico nació de la comunidad y <span style={{ color:"#38bdf8", fontWeight:"700" }}>para la comunidad</span>. Cada operador, transportista y trabajador portuario que comparte información en tiempo real hace que este sistema funcione.</p>
-        <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9", marginBottom:"12px" }}>Mantener esta plataforma activa tiene costos reales: servidores, desarrollo y mejoras constantes. Si Puerto Tráfico te ha ahorrado tiempo, considera apoyar con lo que puedas.</p>
-        <p style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.9" }}>No importa el monto — cada aportación es un <span style={{ color:"#a78bfa", fontWeight:"700" }}>voto de confianza</span> en que podemos construir algo mejor, juntos. 🙏</p>
-      </div>
-      <div style={{ textAlign:"center", fontSize:"13px", color:"#1e3a5f", marginBottom:"20px", letterSpacing:"6px" }}>♥ ♥ ♥</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px", marginBottom:"16px" }}>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #38bdf855", borderRadius:"16px", padding:"20px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
-          <div style={{ width:"8px", height:"8px", background:"#38bdf8", borderRadius:"50%", boxShadow:"0 0 8px #38bdf8" }} />
-          <span style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#38bdf8" }}>DATOS PARA DONATIVO</span>
-        </div>
-        <div style={{ marginBottom:"14px" }}>
-          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>MIFEL</div>
-        </div>
-        <div style={{ marginBottom:"18px" }}>
-          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
-          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <span style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", color:"#38bdf8", letterSpacing:"2px" }}>{CLABE}</span>
-            <button onClick={copyClabe} style={{ padding:"6px 12px", background: copied ? "#22c55e22" : "#38bdf822", border:`1px solid ${copied ? "#22c55e" : "#38bdf855"}`, borderRadius:"7px", color: copied ? "#22c55e" : "#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copied ? "✓ COPIADO" : "📋 COPIAR"}</button>
+    <div style={pageStyle}>
+      <header style={{ textAlign:"center", marginBottom:isMobile ? "34px" : "48px" }}>
+        <div style={{ display:"flex", justifyContent:"center", marginBottom:"20px" }}>
+          <div style={{ padding:"12px", background:"rgba(59,130,246,.10)", borderRadius:"999px", border:"1px solid rgba(59,130,246,.20)", display:"grid", placeItems:"center" }}>
+            <DonationHeaderIcon size={isMobile ? 36 : 42} />
           </div>
         </div>
-        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
+        <h1 style={{ margin:"0 0 12px", color:"#fff", fontWeight:"950", letterSpacing:"-.04em", fontSize:isMobile ? "34px" : "52px", lineHeight:1.02 }}>Juntos somos más fuertes</h1>
+        <p style={{ margin:0, color:"#94a3b8", fontSize:isMobile ? "15px" : "18px", lineHeight:1.5 }}>Apoya la infraestructura que mueve a la comunidad</p>
+        <div style={{ width:"80px", height:"6px", borderRadius:"999px", background:"linear-gradient(90deg,#3b82f6,#10b981)", margin:"24px auto 0" }} />
+      </header>
+
+      <section style={{ marginBottom:isMobile ? "34px" : "56px" }}>
+        <div style={{ ...glass, padding:isMobile ? "24px 18px" : "44px" }}>
+          <div style={{ display:"flex", justifyContent:"center", gap:isMobile ? "18px" : "26px", marginBottom:isMobile ? "26px" : "32px" }}>
+            <BoxIcon color="#60a5fa" size={32} />
+            <LockIcon color="#475569" size={32} />
+            <TruckIcon color="#34d399" size={32} />
+          </div>
+          <div style={{ maxWidth:"760px", margin:"0 auto", textAlign:"center", display:"grid", gap:isMobile ? "16px" : "22px", color:"#cbd5e1", fontSize:isMobile ? "16px" : "20px", lineHeight:1.72 }}>
+            <p style={{ margin:0 }}>Conect Manzanillo nació de la comunidad y <span style={{ color:"#60a5fa", fontWeight:"900" }}>para la comunidad</span>. Cada dato compartido en tiempo real fortalece nuestra red logística.</p>
+            <p style={{ margin:0 }}>Mantener esta plataforma activa requiere recursos técnicos constantes. Si nuestro sistema te ha servido, tu aportación asegura que sigamos operando.</p>
+            <p style={{ margin:0, color:"#fff", fontWeight:"700" }}>Cada contribución es un <span style={{ padding:"4px 8px", background:"rgba(245,158,11,.10)", color:"#f59e0b", borderRadius:"8px", border:"1px solid rgba(245,158,11,.20)", whiteSpace:"nowrap" }}>voto de confianza</span> en nuestro futuro compartido.</p>
+          </div>
         </div>
+      </section>
+
+      <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap:isMobile ? "18px" : "28px", marginBottom:isMobile ? "34px" : "56px" }}>
+        <BankCard
+          bank="MIFEL"
+          clabe={CLABE}
+          copiedState={copied}
+          onCopy={copyClabe}
+          accent="#3b82f6"
+          gradient="linear-gradient(135deg, rgba(59,130,246,.15) 0%, rgba(15,23,42,1) 100%)"
+          icon={<BankIcon color="#60a5fa" />}
+          footerIcon={<HeartIcon color="#60a5fa" size={22} />}
+          footerText="Tu apoyo directo financia nuestros servidores de alta disponibilidad."
+        />
+        <BankCard
+          bank="ALBO"
+          clabe={CLABE_ALBO}
+          copiedState={copiedAlbo}
+          onCopy={copyClabeAlbo}
+          accent="#10b981"
+          gradient="linear-gradient(135deg, rgba(16,185,129,.15) 0%, rgba(15,23,42,1) 100%)"
+          icon={<WalletIcon color="#34d399" />}
+          footerIcon={<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}><path d="M12 3.5 19 6v5c0 4.6-3 7.4-7 9-4-1.6-7-4.4-7-9V6l7-2.5Z" fill="rgba(16,185,129,.18)" stroke="#34d399" strokeWidth="1.8"/><path d="m9 12 2 2 4-5" stroke="#34d399" strokeWidth="2"/></svg>}
+          footerText="Gracias por ser parte esencial del crecimiento de Puerto Tráfico."
+        />
       </div>
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"2px solid #a78bfa55", borderRadius:"16px", padding:"20px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"16px" }}>
-          <div style={{ width:"8px", height:"8px", background:"#a78bfa", borderRadius:"50%", boxShadow:"0 0 8px #a78bfa" }} />
-          <span style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", letterSpacing:"2px", color:"#a78bfa" }}>DATOS PARA DONATIVO</span>
-        </div>
-        <div style={{ marginBottom:"14px" }}>
-          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px" }}>BANCO</div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"16px", color:"rgba(255,255,255,0.95)", letterSpacing:"2px" }}>ALBO</div>
-        </div>
-        <div style={{ marginBottom:"18px" }}>
-          <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>CUENTA CLABE</div>
-          <div style={{ background:"#060e1a", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <span style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", color:"#a78bfa", letterSpacing:"2px" }}>{CLABE_ALBO}</span>
-            <button onClick={copyClabeAlbo} style={{ padding:"6px 12px", background: copiedAlbo ? "#22c55e22" : "#a78bfa22", border:`1px solid ${copiedAlbo ? "#22c55e" : "#a78bfa55"}`, borderRadius:"7px", color: copiedAlbo ? "#22c55e" : "#a78bfa", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s", flexShrink:0, marginLeft:"10px" }}>{copiedAlbo ? "✓ COPIADO" : "📋 COPIAR"}</button>
-          </div>
-        </div>
-        <div style={{ background:"#22c55e11", border:"1px solid #22c55e33", borderRadius:"10px", padding:"12px", textAlign:"center" }}>
-          <div style={{ fontSize:"20px", marginBottom:"4px" }}>🙏</div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#22c55e", fontWeight:"700" }}>GRACIAS POR MANTENER VIVA LA COMUNIDAD</div>
-        </div>
-      </div>
-      </div>{/* end grid */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:"12px", marginBottom:"16px" }}>
-      <a href="https://link.mercadopago.com.mx/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
-        <div style={{ background:"linear-gradient(135deg,#00b1ea22,#009ee322)", border:"2px solid #00b1ea88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>💳</div>
-            <div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONAR CON MERCADO PAGO</div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Tú eliges cuánto aportar</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      <a href="https://mpago.la/1okB3a4" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
-        <div style={{ background:"linear-gradient(135deg,#00b1ea11,#009ee311)", border:"1px solid #00b1ea44", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>⚡</div>
-            <div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", color:"#00b1ea", letterSpacing:"1px", marginBottom:"3px" }}>DONACIÓN RÁPIDA</div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Mercado Pago · Rápido y seguro</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#00b1ea", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      <a href="https://ko-fi.com/conectmanzanillo" target="_blank" rel="noopener noreferrer" style={{ display:"block", textDecoration:"none" }}>
-        <div style={{ background:"linear-gradient(135deg,#ff5e5b22,#ff914d22)", border:"2px solid #ff5e5b88", borderRadius:"16px", padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", transition:"all 0.2s" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-            <div style={{ fontSize:"28px" }}>☕</div>
-            <div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", color:"#ff5e5b", letterSpacing:"1px", marginBottom:"3px" }}>DONAR EN KO-FI</div>
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", letterSpacing:"0.5px" }}>Anónimo · Internacional · Fácil</div>
-            </div>
-          </div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#ff5e5b", fontWeight:"700", letterSpacing:"1px" }}>→</div>
-        </div>
-      </a>
-      </div>{/* end payment grid */}
-      <div style={{ textAlign:"center", padding:"12px" }}>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px" }}>Hecho con ❤️ por y para los que mueven el puerto</div>
-      </div>
+
+      <section style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap:isMobile ? "14px" : "22px" }}>
+        <ActionCard
+          href="https://link.mercadopago.com.mx/conectmanzanillo"
+          accent="#3b82f6"
+          title="Donar con Mercado Pago"
+          desc="Personaliza el monto de tu aportación"
+          cta="Continuar"
+          icon={<img src="/mercadopago.png" alt="" draggable={false} style={{ width:"32px", height:"32px", objectFit:"contain", display:"block" }} />}
+        />
+        <ActionCard
+          href="https://mpago.la/1okB3a4"
+          accent="#f59e0b"
+          title="Donación Rápida"
+          desc="Acceso directo vía Mercado Pago"
+          cta="Express"
+          icon={<BoltIcon color="#f59e0b" size={28} />}
+          trailingIcon={<BoltIcon color="currentColor" size={15} />}
+        />
+        <ActionCard
+          href="https://ko-fi.com/conectmanzanillo"
+          accent="#fb7185"
+          title="Apóyanos en Ko-fi"
+          desc="Ideal para donativos internacionales"
+          cta="Ko-fi"
+          icon={<HeartIcon color="#fb7185" size={28} />}
+          trailingIcon={<CoffeeIcon size={15} />}
+        />
+      </section>
     </div>
   );
 }
