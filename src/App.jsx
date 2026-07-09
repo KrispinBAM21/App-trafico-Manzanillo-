@@ -9874,6 +9874,49 @@ const normalizeAiText = (value = "") => String(value || "")
   .replace(/[\u0300-\u036f]/g, "")
   .toLowerCase();
 
+
+// Extrae la ubicación literal cuando el comunicado trae la etiqueta "Ubicación:".
+// Esto debe pesar más que la IA: en capturas ASIPONA suele venir como
+// "Ubicación: Vialidad\nJalipa - Puerto. Se atiende..." y el salto de línea
+// no debe cortar la referencia.
+const extractExplicitLocationFromReportText = (rawText = "") => {
+  const original = String(rawText || "").replace(/\r/g, "\n");
+  const label = original.match(/ubicaci[oó]n\s*:?\s*/i);
+  if (!label) return "";
+
+  const tail = original.slice((label.index || 0) + label[0].length);
+  const stopPatterns = [
+    /\bSe\s+atiende\b/i,
+    /\bSe\s+solicita\b/i,
+    /\bRegistrad[oa]\b/i,
+    /#\s*CCTT/i,
+    /#\s*CCTTASIPONA/i,
+    /\bASIPONA\s+informa\b/i,
+    /\n\s*\n/,
+  ];
+
+  let stopAt = tail.length;
+  for (const re of stopPatterns) {
+    const m = tail.match(re);
+    if (m && m.index !== undefined) stopAt = Math.min(stopAt, m.index);
+  }
+
+  let candidate = tail.slice(0, stopAt)
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[\s:.-]+/, "")
+    .replace(/[\s.;,:-]+$/, "");
+
+  // Si quedó una oración completa por OCR, cortar después del primer punto solo
+  // cuando ya se alcanzó una referencia operativa suficiente.
+  candidate = candidate.replace(/\.\s.*$/, "").trim();
+
+  // Evita aceptar basura muy corta, pero permite referencias como "Entrada 1".
+  if (candidate.length < 6) return "";
+  return candidate;
+};
+
 const slugifyEventType = (value = "evento") => String(value || "evento")
   .normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "")
@@ -9966,7 +10009,7 @@ const CCTT_AI_EVENT_ANALYSIS_PROMPT = `Actúa como el motor de análisis intelig
 
 Reglas de análisis:
 
-Ubicación: Si el reporte contiene una ubicación textual (ej. "Tramo Jalipa", "Entrada 1"), extráela tal cual. Si NO contiene, analiza el contexto del evento y sugiere la ubicación más probable basándote en la infraestructura portuaria conocida.
+Ubicación: Si el reporte contiene una ubicación textual después de la etiqueta "Ubicación:" o "Ubicacion:", extráela LITERALMENTE tal cual, incluso si continúa en la siguiente línea. Ejemplo: si dice "Ubicación: Vialidad\nJalipa - Puerto", la ubicación correcta es "Vialidad Jalipa - Puerto". No resumas como "Vialidad" y no inventes otra zona. Si NO contiene etiqueta de ubicación, analiza el contexto del evento y sugiere la ubicación más probable basándote en la infraestructura portuaria conocida.
 
 Coordenadas: NO son obligatorias en la extracción. Si el texto permite inferir una zona, no fuerces coordenadas numéricas; devuelve el nombre del lugar. Si hay coordenadas, inclúyelas; si no, devuelve null.
 
@@ -10031,9 +10074,10 @@ const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
   const text = String(rawText || "").replace(/\r/g, "").trim();
   const lower = normalizeAiText(text);
   const getMatch = (re) => { const m = text.match(re); return m ? String(m[1] || "").replace(/[#*]+$/g, "").trim() : ""; };
-  let location = getMatch(/Ubicaci[oó]n\s*:\s*([^\.\n#]+(?:\s*-\s*[^\.\n#]+)?)/i);
+  const explicitLocation = extractExplicitLocationFromReportText(text);
+  let location = explicitLocation;
   if (!location) location = getMatch(/(?:en la|en el|sobre la|sobre el)\s+((?:Vialidad|Carretera|Libramiento|Acceso|Calle|Av\.?|Avenida)[^\.\n#]+)/i);
-  location = location.replace(/\s+Se atiende.*$/i, "").replace(/\s+Registrado.*$/i, "").trim();
+  location = location.replace(/\s+Se atiende.*$/i, "").replace(/\s+Registrado.*$/i, "").replace(/\s+/g, " ").trim();
 
   const registeredAt = getMatch(/Registrad[oa]\s+a\s+las\s+([0-2]?\d\s*:\s*\d{2})/i).replace(/\s+/g, "");
   const source = lower.includes("asipona") ? "ASIPONA" : "Captura / comunicado";
@@ -10064,6 +10108,7 @@ const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
     subtype_icon: existing?.icon || icon,
     needs_new_type: needsNewType,
     location: location || "",
+    explicit_location_detected: Boolean(explicitLocation),
     registered_at: registeredAt || "",
     description: description || text,
     recommendation: /precauciones/i.test(text) ? "Extremar precauciones y considerar impacto en el tráfico." : "",
@@ -10358,7 +10403,24 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
         }
       }
 
-      const parsed = { ...parseAsiponaEventText(text, customIncidentTypes), ...normalizeAiEventPayload(aiData || {}) };
+      const ocrParsed = parseAsiponaEventText(text, customIncidentTypes);
+      const aiParsed = normalizeAiEventPayload(aiData || {});
+      const parsed = { ...ocrParsed, ...aiParsed };
+
+      // Regla crítica: cuando el OCR detecta explícitamente "Ubicación:", esa referencia
+      // gana sobre cualquier resumen de la IA. Ej.: si OCR entrega Ubicación: Vialidad + salto de línea + Jalipa - Puerto,
+      // debe quedar como "Vialidad Jalipa - Puerto", no como "Vialidad".
+      if (ocrParsed.explicit_location_detected && ocrParsed.location) {
+        parsed.location = ocrParsed.location;
+        // No conservar coordenadas inventadas por IA si la ubicación textual exacta fue corregida.
+        if (parsed.coords_source === "ia" || parsed.coords_source === undefined) {
+          parsed.coords = null;
+          parsed.coords_text = "";
+        }
+      } else if (ocrParsed.location && (!parsed.location || String(parsed.location).trim().length < ocrParsed.location.length)) {
+        parsed.location = ocrParsed.location;
+      }
+
       if (!parsed.raw_text) parsed.raw_text = text;
       if (!parsed.description && text) parsed.description = text.slice(0, 260);
       if (!parsed.category) parsed.category = "incidente";
