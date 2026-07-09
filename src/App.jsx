@@ -17204,12 +17204,19 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setSubiendo(false);
   };
 
+  const comunicadoInputStyle = { width: "100%", background: "#010f1f", border: "1px solid #2c3a4c", borderRadius: "8px", padding: "13px 14px", color: "#ffffff", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "12px", boxSizing: "border-box", outline: "none", transition: "border-color .2s, box-shadow .2s" };
+  const comunicadoTextareaStyle = (active = false) => ({ width: "100%", background: "#010f1f", border: active ? "1px solid rgba(0,150,255,.55)" : "1px solid #2c3a4c", borderRadius: "8px", padding: "13px 14px", color: "#ffffff", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "12px", boxSizing: "border-box", outline: "none", resize: "vertical", lineHeight: "1.55", minHeight: active ? "124px" : "90px", transition: "border-color .2s, box-shadow .2s" });
+  const comunicadoLabelStyle = { display: "block", fontSize: "11px", color: "rgba(148,163,184,.86)", fontFamily: getFont(theme, "secondary"), marginBottom: "7px", letterSpacing: ".04em", fontWeight: 700 };
+  const comunicadoToolButtonStyle = (accent, disabled = false) => ({ padding:"12px", borderRadius:"8px", border:`1px solid ${accent}66`, background: disabled ? "rgba(44,58,76,.18)" : "rgba(44,58,76,.30)", color: disabled ? "rgba(148,163,184,.62)" : accent, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:disabled?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", transition:"all .2s" });
+
   return (
-    <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "14px", padding: "16px", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-        <span style={{ fontSize: "18px" }}>📎</span>
-        <span style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "12px", letterSpacing: "1px", color: "#fbbf24" }}>
-          {isAdmin ? "SUBIR COMUNICADO (Admin)" : "PROPONER COMUNICADO"}
+    <div style={{ background: "rgba(18,33,49,0.72)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border: "1px solid #2c3a4c", borderRadius: "8px", padding: "24px", marginBottom: "16px", boxShadow:"0 18px 44px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingBottom:"14px", marginBottom: "22px", borderBottom:"1px solid #2c3a4c" }}>
+        <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:"32px", height:"32px", borderRadius:"8px", color:"#f59e0b", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.25)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </span>
+        <span style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "800", fontSize: "12px", letterSpacing: "1.5px", color: "#f59e0b", textTransform:"uppercase" }}>
+          {isAdmin ? "Subir comunicado (Admin)" : "Proponer comunicado"}
         </span>
       </div>
 
@@ -17236,35 +17243,41 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         </div>
       )}
       
-      <input
-        type="text"
-        placeholder="Título del comunicado *"
-        value={titulo}
-        onChange={(e) => {
-          const v = e.target.value;
-          setTitulo(v);
-          if (v.trim()) ensureFechaInicio();
-        }}
-        maxLength={120}
-        style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "8px", boxSizing: "border-box", outline: "none" }}
-      />
+      <div>
+        <label style={comunicadoLabelStyle}>Título del comunicado <span style={{ color:"#f59e0b" }}>*</span></label>
+        <input
+          type="text"
+          placeholder="Ingrese el título..."
+          value={titulo}
+          onChange={(e) => {
+            const v = e.target.value;
+            setTitulo(v);
+            if (v.trim()) ensureFechaInicio();
+          }}
+          maxLength={120}
+          style={comunicadoInputStyle}
+        />
+      </div>
       
       <button
         type="button"
         onClick={() => setAiAssistOpen(prev => !prev)}
-        style={{ width:"100%", padding:"10px 12px", borderRadius:"9px", border:`1px solid ${aiAssistOpen ? "#a78bfa" : "rgba(167,139,250,.45)"}`, background: aiAssistOpen ? "rgba(167,139,250,.18)" : "rgba(167,139,250,.10)", color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", marginBottom:"8px", display:"flex", justifyContent:"center", alignItems:"center", gap:"6px" }}
+        style={{ width:"100%", padding:"10px 12px", borderRadius:"8px", border:`1px solid ${aiAssistOpen ? "#0096ff" : "rgba(0,150,255,.30)"}`, background: aiAssistOpen ? "rgba(0,150,255,.20)" : "rgba(0,150,255,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:"pointer", marginBottom:"12px", display:"flex", justifyContent:"center", alignItems:"center", gap:"8px" }}
       >
         ✨ Resumir o crear texto con IA
       </button>
 
-      <textarea
-        placeholder={aiAssistOpen ? "Redacta tu texto que deseas resumir o las especificaciones para generar un texto" : "Descripción breve (opcional)"}
-        aria-label={aiAssistOpen ? "Texto para resumir o especificaciones para crear con IA" : "Descripción breve"}
-        value={detalle}
-        onChange={(e) => setDetalle(e.target.value)}
-        rows={aiAssistOpen ? 5 : 3}
-        style={{ width: "100%", background: "#060e1a", border: aiAssistOpen ? "1px solid rgba(167,139,250,.55)" : "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 12px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "12px", marginBottom: "10px", boxSizing: "border-box", outline: "none", resize: "vertical", lineHeight: "1.45", minHeight: aiAssistOpen ? "112px" : "74px" }}
-      />
+      <div>
+        <label style={comunicadoLabelStyle}>{aiAssistOpen ? "Texto para IA" : "Descripción breve (opcional)"}</label>
+        <textarea
+          placeholder={aiAssistOpen ? "Redacta tu texto que deseas resumir o las especificaciones para generar un texto" : "Escriba el contenido aquí..."}
+          aria-label={aiAssistOpen ? "Texto para resumir o especificaciones para crear con IA" : "Descripción breve"}
+          value={detalle}
+          onChange={(e) => setDetalle(e.target.value)}
+          rows={aiAssistOpen ? 5 : 4}
+          style={comunicadoTextareaStyle(aiAssistOpen)}
+        />
+      </div>
 
       {aiAssistOpen && (
         <div style={{ background:"rgba(167,139,250,.07)", border:"1px solid rgba(167,139,250,.24)", borderRadius:"10px", padding:"10px", marginBottom:"10px" }}>
@@ -17314,18 +17327,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       )}
 
       {/* Fechas de vigencia: solo fechas, sin horas */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "18px", marginBottom: "14px" }}>
         <div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA INICIO *</div>
+          <div style={comunicadoLabelStyle}>FECHA INICIO <span style={{ color:"#f59e0b" }}>*</span></div>
           <input
             type="date"
             value={fechaInicio}
             onChange={(e) => setFechaInicio(e.target.value)}
-            style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+            style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
           />
         </div>
         <div>
-          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)", fontFamily: getFont(theme, "secondary"), marginBottom: "4px", letterSpacing: "1px" }}>FECHA FIN *</div>
+          <div style={comunicadoLabelStyle}>FECHA FIN <span style={{ color:"#f59e0b" }}>*</span></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px", marginBottom: "6px" }}>
             <button
               type="button"
@@ -17352,7 +17365,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
                 setFechaFinHora(e.target.value);
                 if (e.target.value) setFechaFin(e.target.value.slice(0, 10));
               }}
-              style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+              style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
             />
           ) : (
             <input
@@ -17363,19 +17376,19 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
                 setFechaFin(e.target.value);
                 if (fechaFinHora) setFechaFinHora(`${e.target.value}T${fechaFinHora.slice(11, 16) || "23:59"}`);
               }}
-              style={{ width: "100%", background: "#060e1a", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 8px", color: "rgba(255,255,255,0.9)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", boxSizing: "border-box", outline: "none" }}
+              style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
             />
           )}
         </div>
       </div>
-      <div style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", padding: "8px 10px", marginBottom: "10px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(226,232,240,0.48)", lineHeight: "1.5" }}>
+      <div style={{ background: "rgba(0,150,255,0.05)", borderLeft: "2px solid #0096ff", borderTop:"1px solid rgba(0,150,255,.12)", borderRight:"1px solid rgba(0,150,255,.12)", borderBottom:"1px solid rgba(0,150,255,.12)", borderRadius: "8px", padding: "12px 14px", marginBottom: "14px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(226,232,240,0.58)", lineHeight: "1.55" }}>
         La fecha de inicio se llena automáticamente con el día actual al escribir el título. En "Solo fecha", el comunicado permanece vigente hasta terminar el día seleccionado; en "Fecha y hora", finaliza exactamente en la hora indicada.
       </div>
 
       {/* Zona de archivo */}
       <div
         onClick={() => inputRef.current?.click()}
-        style={{ border: "2px dashed #1e3a5f", borderRadius: "10px", padding: "16px", textAlign: "center", cursor: "pointer", marginBottom: "10px", background: archivo ? "#22c55e08" : "transparent", borderColor: archivo ? "#22c55e55" : "#1e3a5f", transition: "all 0.2s" }}
+        style={{ border: "2px dashed #2c3a4c", borderRadius: "8px", padding: "30px 18px", textAlign: "center", cursor: "pointer", marginBottom: "14px", background: archivo ? "rgba(34,197,94,.08)" : "rgba(1,15,31,.50)", borderColor: archivo ? "rgba(34,197,94,.55)" : "#2c3a4c", transition: "all 0.2s" }}
       >
         {preview && preview !== "pdf" && (
           <img src={preview} alt="preview" style={{ maxWidth: "100%", maxHeight: "160px", objectFit: "contain", borderRadius: "6px", marginBottom: "8px", display: "block", margin: "0 auto 8px" }} />
@@ -17387,18 +17400,18 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display: "none" }} />
       </div>
 
-      <div style={{ background:"rgba(255,255,255,0.055)", border:"1px solid rgba(148,163,184,0.18)", borderRadius:"10px", padding:"10px", marginBottom:"10px" }}>
+      <div style={{ background:"rgba(1,15,31,.45)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"14px", marginBottom:"14px" }}>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", marginBottom:"8px", lineHeight:"1.45" }}>
           Herramientas opcionales para preparar el comunicado. El texto extraído se agregará automáticamente en <b style={{ color:"rgba(255,255,255,0.78)" }}>Descripción breve</b>.
         </div>
         {toolMsg && <div style={{ padding:"8px 10px", borderRadius:"8px", background:toolMsg.color+"18", border:`1px solid ${toolMsg.color}55`, color:toolMsg.color, fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginBottom:"8px" }}>{toolMsg.message}</div>}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))", gap:"8px" }}>
-          <button type="button" onClick={procesarArchivoComunicado} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>{toolBusy ? "Procesando…" : "Convertir / extraer texto"}</button>
-          <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
-          <button type="button" onClick={()=>setConverterOpen(true)} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.12)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Conversor PDF / imagen</button>
-          {isAdmin && <button type="button" onClick={()=>setScreenshotOpen(true)} disabled={toolBusy} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:toolBusy?"not-allowed":"pointer" }}>Captura web / recorte</button>}
-          {isAdmin && <button type="button" onClick={crearComunicadoPorFormato} disabled={graphicBusy || !detalle.trim() || !titulo.trim()} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:(graphicBusy || !detalle.trim() || !titulo.trim())?"rgba(100,116,139,.16)":"rgba(236,72,153,.12)", color:(graphicBusy || !detalle.trim() || !titulo.trim())?"#94a3b8":"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(graphicBusy || !detalle.trim() || !titulo.trim())?"not-allowed":"pointer" }}>{graphicBusy ? "Generando formato…" : "Crear comunicado por formato"}</button>}
-          {isAdmin && <button type="button" onClick={publicarArchivoEnNoticias} disabled={toolBusy || !archivo} style={{ padding:"10px", borderRadius:"9px", border:"1px solid #2563eb", background:"#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:(toolBusy || !archivo)?"not-allowed":"pointer" }}>Publicar en Noticias</button>}
+          <button type="button" onClick={procesarArchivoComunicado} disabled={toolBusy || !archivo} style={comunicadoToolButtonStyle("#0096ff", toolBusy || !archivo)}>{toolBusy ? "Procesando…" : "Convertir / extraer texto"}</button>
+          <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={toolBusy || !archivo} style={comunicadoToolButtonStyle("#f59e0b", toolBusy || !archivo)}>Elegir zonas de extracción</button>
+          <button type="button" onClick={()=>setConverterOpen(true)} disabled={toolBusy || !archivo} style={comunicadoToolButtonStyle("#38bdf8", toolBusy || !archivo)}>Conversor PDF / imagen</button>
+          {isAdmin && <button type="button" onClick={()=>setScreenshotOpen(true)} disabled={toolBusy} style={comunicadoToolButtonStyle("#22c55e", toolBusy)}>Captura web / recorte</button>}
+          {isAdmin && <button type="button" onClick={crearComunicadoPorFormato} disabled={graphicBusy || !detalle.trim() || !titulo.trim()} style={comunicadoToolButtonStyle("#ec4899", graphicBusy || !detalle.trim() || !titulo.trim())}>{graphicBusy ? "Generando formato…" : "Crear comunicado por formato"}</button>}
+          {isAdmin && <button type="button" onClick={publicarArchivoEnNoticias} disabled={toolBusy || !archivo} style={comunicadoToolButtonStyle("#0096ff", toolBusy || !archivo)}>Publicar en Noticias</button>}
         </div>
       </div>
 
@@ -17518,7 +17531,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       {isAdmin && screenshotOpen && <ScreenshotCropModal onClose={()=>setScreenshotOpen(false)} onApply={aplicarCapturaWebRecortada} />}
       
       {!isAdmin && (
-        <div style={{ background: "#fbbf2411", border: "1px solid #fbbf2433", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px", fontSize: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6" }}>
+        <div style={{ background: "rgba(0,150,255,.08)", border: "1px solid rgba(0,150,255,.32)", borderRadius: "8px", padding: "12px 14px", marginBottom: "14px", fontSize: "11px", color: "#bfdbfe", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6", display:"flex", gap:"10px", alignItems:"flex-start" }}>
           Info Tu comunicado será enviado a revisión y aparecerá después de ser aprobado por un administrador.
         </div>
       )}
@@ -17537,9 +17550,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       <button
         onClick={handleSubir}
         disabled={subiendo}
-        style={{ width: "100%", padding: "11px", background: subiendo ? "#0a1628" : "linear-gradient(135deg,#fbbf24,#f59e0b)", border: "none", borderRadius: "9px", color: subiendo ? "rgba(255,255,255,0.4)" : "#0a1628", fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.5px" }}
+        style={{ width: "100%", padding: "15px 18px", background: subiendo ? "rgba(44,58,76,.45)" : "linear-gradient(135deg,#f59e0b,#fbbf24)", border: "1px solid rgba(245,158,11,.55)", borderRadius: "8px", color: subiendo ? "rgba(255,255,255,0.45)" : "#010f1f", fontFamily: getFont(theme, "secondary"), fontWeight: "900", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.8px", boxShadow: subiendo ? "none" : "0 14px 32px rgba(245,158,11,.22)" }}
       >
-        {subiendo ? "Procesando Subiendo..." : isAdmin ? "📤 PUBLICAR COMUNICADO" : "📤 ENVIAR A REVISIÓN"}
+        {subiendo ? "Procesando subida..." : isAdmin ? "PUBLICAR COMUNICADO" : "ENVIAR A REVISIÓN"}
       </button>
     </div>
   );
