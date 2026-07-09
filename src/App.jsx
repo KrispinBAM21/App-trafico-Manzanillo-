@@ -7224,23 +7224,34 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
-        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.07);color:#fff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease}
-        .cm-menu-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(136,206,255,.24);transform:translateY(-1px)}
+        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .cm-menu-btn:hover{background:rgba(161,201,255,.10);border-color:rgba(161,201,255,.46);transform:translateY(-1px)}
+        .cm-menu-btn-left{flex:0 0 auto;margin-right:2px}
         .cm-hamburger{width:19px;height:14px;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch}
         .cm-hamburger span{display:block;height:2px;border-radius:99px;background:#ffffff;box-shadow:0 0 8px rgba(136,206,255,.28)}
         .cm-menu-close{font-size:28px;line-height:1;font-weight:800;color:#ffffff;transform:translateY(-1px)}
-        .cm-mobile-nav{display:none;background:#0d1117;border-top:1px solid rgba(191,199,208,.16);padding:12px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-        .cm-mobile-nav.is-open{display:grid}
-        .cm-mobile-nav-btn{min-height:52px;border:1px solid rgba(255,255,255,.10);border-radius:10px;background:rgba(255,255,255,.045);color:rgba(224,227,229,.88);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:800;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 8px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease}
-        .cm-mobile-nav-btn:hover{background:rgba(255,255,255,.075);transform:translateY(-1px);color:#fff}
-        .cm-mobile-nav-btn.is-active{background:rgba(0,98,140,.25);border-color:rgba(136,206,255,.45);color:#88ceff}
+        .cm-mobile-nav{display:none;position:fixed;top:68px;left:16px;right:16px;z-index:10000;background:rgba(13,28,45,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(161,201,255,.22);border-radius:18px;padding:12px;grid-template-columns:1fr;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);max-height:calc(100dvh - 92px);overflow-y:auto}
+        .cm-mobile-nav.is-open{display:grid;animation:cmFloatingMenu .18s ease-out}
+        .cm-mobile-nav-btn{min-height:54px;border:1px solid rgba(63,71,83,.70);border-radius:14px;background:rgba(39,54,71,.72);color:rgba(212,228,250,.90);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;text-align:left;padding:0 16px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease;letter-spacing:.08em;text-transform:uppercase}
+        .cm-mobile-nav-btn:hover{background:rgba(161,201,255,.10);transform:translateY(-1px);color:#fff;border-color:rgba(161,201,255,.36)}
+        .cm-mobile-nav-btn.is-active{background:rgba(0,150,255,.12);border-color:rgba(161,201,255,.65);color:#a1c9ff;box-shadow:0 0 0 1px rgba(161,201,255,.12) inset}
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
+        @keyframes cmFloatingMenu{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px}.cm-topbar-title{font-size:15px}.cm-login-btn{padding:0 12px;font-size:11px}.cm-mobile-nav{grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;gap:7px}.cm-mobile-nav-btn{min-height:50px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
-        @media (max-width: 365px){.cm-login-btn{display:none}.cm-mobile-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-mobile-nav{top:74px;left:14px;right:14px;padding:12px;gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 365px){.cm-login-btn{padding:0 12px;font-size:12px}.cm-topbar-brand{max-width:30vw}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
         <div className="cm-topbar-inner">
+          <button
+            type="button"
+            className="cm-menu-btn cm-menu-btn-left"
+            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(v => !v)}
+          >
+            {mobileOpen ? <span className="cm-menu-close" aria-hidden="true">×</span> : <span className="cm-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>}
+          </button>
           <button type="button" className="cm-topbar-brand" onClick={onLogoTap} title="Conect Manzanillo">
             <span className="cm-topbar-anchor"><img className="cm-topbar-logo" src={CONECT_LOGO_SRC} alt="" aria-hidden="true" /></span>
             <span className="cm-topbar-title">Conect Manzanillo</span>
@@ -7270,15 +7281,6 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
                 <button type="button" className="cm-register-btn" onClick={onRegister}>Crear cuenta</button>
               </>
             )}
-            <button
-              type="button"
-              className="cm-menu-btn"
-              aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
-              aria-expanded={mobileOpen}
-              onClick={() => setMobileOpen(v => !v)}
-            >
-              {mobileOpen ? <span className="cm-menu-close" aria-hidden="true">×</span> : <span className="cm-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>}
-            </button>
           </div>
         </div>
 
@@ -25274,6 +25276,11 @@ function App() {
   // Validado El tema activo: usa supabaseTheme (que ahora se inicializa con DEFAULT_THEME)
   // El fallback || DEFAULT_THEME es redundante pero mantiene seguridad adicional
   const theme = supabaseTheme || DEFAULT_THEME;
+  const appVw = useWindowWidth();
+  const isMobileViewport = appVw <= 768;
+  const isPosturasMobile = isMobileViewport && active === "donativos";
+  const floatingWidgetBottom = isPosturasMobile ? "104px" : "20px";
+  const floatingWidgetRight = isMobileViewport ? "14px" : "20px";
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
   
@@ -25836,9 +25843,10 @@ function App() {
       <div 
         style={{
           position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          zIndex: 9998
+          bottom: floatingWidgetBottom,
+          right: floatingWidgetRight,
+          zIndex: 9998,
+          transition: "bottom 0.25s ease, right 0.25s ease"
         }}
       >
         {/* Burbujas expandibles */}
