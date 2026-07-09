@@ -14880,15 +14880,39 @@ function CarrilesTab() {
           ))}
         </div>
       </div>
-      <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3, minmax(0,1fr))", gap:"12px", marginBottom:"16px" }}>
         {ACCESOS_CARRILES.map(acc => {
           const active = accView===acc.id;
           return (
-            <button key={acc.id} onClick={() => setAccViewPersist(acc.id)} style={{ flex:1, padding:"10px 6px", background: active ? `linear-gradient(180deg, ${acc.color}20, rgba(10,22,40,0.96))` : "#0a1628", border:`1px solid ${active ? acc.color : "#1e3a5f"}`, borderRadius:"12px", color: active ? acc.color : "#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"9px", fontWeight: active?"800":"700", cursor:"pointer", transition:"all 0.15s", textAlign:"center", boxShadow: active ? `0 10px 24px ${acc.color}20` : "none" }}>
-              <div style={{ width:"34px", height:"34px", margin:"0 auto 6px", borderRadius:"10px", display:"grid", placeItems:"center", background: active ? `${acc.color}16` : "rgba(255,255,255,0.04)", border:`1px solid ${active ? acc.color+"55" : "rgba(255,255,255,0.10)"}` }}>
-                <img src={ACCESS_CONTROL_ICON} alt="Acceso" style={{ width:"20px", height:"20px", objectFit:"contain", opacity: active ? 1 : 0.82, filter: active ? `drop-shadow(0 0 6px ${acc.color}66)` : "none" }} />
+            <button
+              key={acc.id}
+              onClick={() => setAccViewPersist(acc.id)}
+              style={{
+                display:"flex",
+                alignItems:"center",
+                gap:"12px",
+                width:"100%",
+                minHeight:"66px",
+                padding:"10px 14px",
+                background: active ? `linear-gradient(180deg, ${acc.color}12, rgba(2,12,27,0.96))` : "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(2,12,27,0.96))",
+                border:`1px solid ${active ? acc.color : "rgba(56,189,248,0.26)"}`,
+                borderRadius:"16px",
+                color: active ? "#e2f3ff" : "#cbd5e1",
+                fontFamily:getFont(theme, "secondary"),
+                cursor:"pointer",
+                transition:"all 0.18s ease",
+                boxShadow: active ? `0 10px 24px ${acc.color}18, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.05)",
+                textAlign:"left"
+              }}
+            >
+              <div style={{ flex:"0 0 auto", width:"42px", height:"42px", borderRadius:"14px", display:"grid", placeItems:"center", background: active ? `${acc.color}18` : "rgba(255,255,255,0.03)", border:`1px solid ${active ? acc.color+"50" : "rgba(255,255,255,0.10)"}`, boxShadow: active ? `0 8px 18px ${acc.color}16` : "none" }}>
+                <img src={ACCESS_CONTROL_ICON} alt="Acceso" style={{ width:"24px", height:"24px", objectFit:"contain", opacity: active ? 1 : 0.9, filter: active ? `drop-shadow(0 0 6px ${acc.color}66)` : "none" }} />
               </div>
-              <div style={{ lineHeight:1.15 }}>{acc.label}</div>
+              <div style={{ minWidth:0, flex:1 }}>
+                <div style={{ fontSize:"10px", color: active ? acc.color : "rgba(148,163,184,0.8)", letterSpacing:".12em", textTransform:"uppercase", marginBottom:"3px", fontWeight:"800" }}>Control de acceso</div>
+                <div style={{ fontSize:"13px", lineHeight:1.15, fontWeight:"800", color: active ? "#f8fafc" : "#dbe7f5" }}>{acc.label}</div>
+              </div>
+              <div style={{ flex:"0 0 auto", color: active ? acc.color : "rgba(148,163,184,0.72)", fontSize:"24px", lineHeight:1, paddingLeft:"6px" }}>≡</div>
             </button>
           );
         })}
