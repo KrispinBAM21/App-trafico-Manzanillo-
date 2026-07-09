@@ -19370,12 +19370,61 @@ function NoticiasTab({ isAdmin }) {
               </div>
             </div>
           </div>
-          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
-            <button onClick={() => setSeccion("noticias")} style={{ padding:"11px 16px", borderRadius:"999px", border:`1px solid ${seccion==="noticias"?"rgba(56,189,248,.45)":"rgba(148,163,184,.22)"}`, background: seccion==="noticias"?"rgba(56,189,248,.12)":"rgba(15,23,42,.64)", color: seccion==="noticias"?"#e0f2fe":"#cbd5e1", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", boxShadow:seccion==="noticias"?"0 0 20px rgba(56,189,248,.14)":"none" }}>
-              <NoticiasBoletinIcon size={17} color="#ffffff" /> Noticias
+          <div style={{ display:"flex", flexWrap:"wrap", alignItems:"stretch", border:"1px solid rgba(255,255,255,.18)", borderRadius:"18px", overflow:"hidden", background:"rgba(18,33,49,.78)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", boxShadow:"0 18px 42px rgba(2,6,23,.24), inset 0 1px 0 rgba(255,255,255,.06)" }}>
+            <button
+              onClick={() => setSeccion("noticias")}
+              style={{
+                position:"relative",
+                minWidth:"210px",
+                padding:"18px 26px",
+                border:"none",
+                borderRight:"1px solid rgba(255,255,255,.12)",
+                background: seccion==="noticias" ? "linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.07))" : "linear-gradient(180deg, rgba(255,255,255,.06), rgba(2,12,27,.18))",
+                color:"#ffffff",
+                fontFamily:getFont(theme, "secondary"),
+                cursor:"pointer",
+                display:"flex",
+                alignItems:"center",
+                gap:"16px",
+                textAlign:"left",
+                transition:"all .25s ease",
+                boxShadow:seccion==="noticias" ? "0 0 24px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.16)" : "inset 0 1px 0 rgba(255,255,255,.06)"
+              }}
+            >
+              <div style={{ width:"42px", height:"42px", borderRadius:"12px", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(255,255,255,.08)", border:"1px solid rgba(255,255,255,.20)", boxShadow:seccion==="noticias" ? "0 0 20px rgba(255,255,255,.10)" : "none" }}>
+                <NoticiasBoletinIcon size={23} color="#ffffff" />
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1.1 }}>
+                <span style={{ color:"#ffffff", fontSize:"20px", fontWeight:900, letterSpacing:"-.02em" }}>Noticias</span>
+                <span style={{ color:"rgba(255,255,255,.62)", fontSize:"10px", marginTop:"5px", fontWeight:800, letterSpacing:".14em", textTransform:"uppercase" }}>Latest News</span>
+              </div>
             </button>
-            <button onClick={() => setSeccion("comunicados")} style={{ padding:"11px 16px", borderRadius:"999px", border:`1px solid ${seccion==="comunicados"?"rgba(251,191,36,.45)":"rgba(148,163,184,.22)"}`, background: seccion==="comunicados"?"rgba(251,191,36,.10)":"rgba(15,23,42,.64)", color: seccion==="comunicados"?"#fde68a":"#cbd5e1", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px" }}>
-              <AppIcon name="document" size={16} active={seccion==="comunicados"} /> Comunicados
+            <button
+              onClick={() => setSeccion("comunicados")}
+              style={{
+                position:"relative",
+                minWidth:"230px",
+                padding:"18px 26px",
+                border:"none",
+                background: seccion==="comunicados" ? "linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.07))" : "linear-gradient(180deg, rgba(255,255,255,.06), rgba(2,12,27,.18))",
+                color:"#ffffff",
+                fontFamily:getFont(theme, "secondary"),
+                cursor:"pointer",
+                display:"flex",
+                alignItems:"center",
+                gap:"16px",
+                textAlign:"left",
+                transition:"all .25s ease",
+                boxShadow:seccion==="comunicados" ? "0 0 24px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.16)" : "inset 0 1px 0 rgba(255,255,255,.06)"
+              }}
+            >
+              <div style={{ width:"42px", height:"42px", borderRadius:"12px", display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(255,255,255,.08)", border:"1px solid rgba(255,255,255,.20)", boxShadow:seccion==="comunicados" ? "0 0 20px rgba(255,255,255,.10)" : "none" }}>
+                <NoticiasComunicadoMiniIcon size={23} color="#ffffff" />
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1.1 }}>
+                <span style={{ color:"#ffffff", fontSize:"20px", fontWeight:900, letterSpacing:"-.02em" }}>Comunicados</span>
+                <span style={{ color:"rgba(255,255,255,.62)", fontSize:"10px", marginTop:"5px", fontWeight:800, letterSpacing:".14em", textTransform:"uppercase" }}>Announcements</span>
+              </div>
             </button>
           </div>
         </div>
