@@ -19606,6 +19606,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
+  const [pisDonateOpen, setPisDonateOpen] = useState(false);
   const [savedPosturas, setSavedPosturas] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
   });
@@ -20273,126 +20274,260 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   const copyPisEmail = () => copyPisText(PIS_ASIPONA_EMAIL, "email");
 
-  const renderBoletinadosTab = () => (
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap:"14px", alignItems:"start", width:"100%", maxWidth:"100%", overflow:"hidden" }}>
-      <div style={{ ...card, minWidth:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:"10px", marginBottom:"10px", minWidth:0, flexWrap:"wrap" }}>
-          <div style={{ width:"38px", height:"38px", borderRadius:"12px", background:"rgba(56,189,248,.14)", border:"1px solid rgba(56,189,248,.35)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><AppIcon name="document-check" size={18} active /></div>
-          <div style={{ minWidth:0, flex:"1 1 220px" }}>
-            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(17px, 5vw, 22px)", lineHeight:1.12, color:"#fff", fontWeight:"900", overflowWrap:"anywhere" }}>Boletinados · Verificación PIS</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.62)", lineHeight:1.45, overflowWrap:"break-word" }}>Consulta documentos electrónicos públicos del portal PIS/SEMAR desde Conect Manzanillo.</div>
-          </div>
-        </div>
 
-        <div style={{ color:"rgba(255,255,255,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.5vw, 13px)", lineHeight:1.55, marginBottom:"13px", maxWidth:"100%", overflowWrap:"break-word" }}>
-          El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
-        </div>
+  const renderBoletinadosTab = () => {
+    const whiteWhatsappIcon = (
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
+        <path fill="#fff" d="M20.52 3.48A11.82 11.82 0 0 0 12.08 0C5.56 0 .25 5.3.25 11.82c0 2.08.54 4.12 1.57 5.92L0 24l6.46-1.7a11.82 11.82 0 0 0 5.62 1.44h.01c6.52 0 11.83-5.3 11.83-11.82 0-3.16-1.23-6.13-3.4-8.44Zm-8.44 18.26h-.01a9.85 9.85 0 0 1-5.03-1.38l-.36-.21-3.83 1 1.02-3.74-.23-.39a9.82 9.82 0 0 1-1.51-5.21c0-5.42 4.41-9.83 9.84-9.83 2.63 0 5.1 1.02 6.95 2.88a9.78 9.78 0 0 1 2.88 6.96c0 5.42-4.41 9.82-9.82 9.82Zm5.39-7.35c-.29-.14-1.72-.85-1.99-.95-.27-.1-.46-.14-.66.14-.19.29-.76.95-.93 1.14-.17.19-.34.22-.63.07-.29-.14-1.21-.45-2.31-1.43-.86-.77-1.43-1.71-1.59-2-.17-.29-.02-.44.12-.58.13-.13.29-.34.43-.51.14-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.14-.66-1.59-.9-2.17-.24-.58-.48-.49-.66-.5l-.56-.01c-.19 0-.5.07-.77.36-.26.29-1 1-.99 2.43 0 1.43 1.03 2.81 1.18 3 .14.19 2.02 3.08 4.89 4.32.68.29 1.22.47 1.63.61.69.22 1.31.19 1.81.12.55-.08 1.72-.7 1.96-1.38.24-.68.24-1.26.17-1.38-.07-.12-.26-.19-.55-.34Z"/>
+      </svg>
+    );
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:"10px", marginBottom:"12px", minWidth:0 }}>
-          <div><div style={label}>ASIPONA</div><select style={input} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
-          <div><div style={label}>Tipo</div><select style={input} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
-          <div><div style={label}>ID</div><input style={input} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Ej. 2" value={pisForm.id} onChange={e=>{ const nextId = e.currentTarget.value.replace(/[^0-9]/g, ""); setPisForm(f=>({...f, id:nextId})); }} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} /></div>
-        </div>
+    const pisActionBtn = {
+      display:"inline-flex",
+      alignItems:"center",
+      justifyContent:"center",
+      gap:"8px",
+      minHeight:"48px",
+      borderRadius:"12px",
+      padding:"12px 16px",
+      fontFamily:getFont(theme,"secondary"),
+      fontSize:"12px",
+      fontWeight:"900",
+      letterSpacing:".02em",
+      textTransform:"uppercase",
+      cursor:"pointer",
+      textDecoration:"none",
+      transition:"all .18s ease",
+      border:"1px solid transparent",
+      boxSizing:"border-box"
+    };
 
-        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", minWidth:0 }}>
-          <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...btn("#22c55e"), opacity:pisLoading?.75:1, minWidth:"min(100%, 180px)", flex:"1 1 180px" }}>{pisLoading ? "Consultando…" : "Verificar documento"}</button>
-          <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); }} style={{ ...btn("#94a3b8"), flex:"1 1 110px" }}>Limpiar</button>
-          <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...btn("#38bdf8"), textDecoration:"none", display:"inline-flex", alignItems:"center", justifyContent:"center", flex:"1 1 150px" }}>Abrir PIS oficial</a>
-        </div>
+    const resultTone = !pisResult
+      ? null
+      : pisResult.ok
+        ? (pisResult.valid
+            ? { bg:"linear-gradient(180deg, rgba(4,44,49,.96) 0%, rgba(1,31,40,.96) 100%)", border:"rgba(16,185,129,.72)", title:"#34d399", icon:"check" }
+            : { bg:"linear-gradient(180deg, rgba(59,14,18,.95) 0%, rgba(31,8,11,.96) 100%)", border:"rgba(239,68,68,.72)", title:"#f87171", icon:"xmark" })
+        : { bg:"linear-gradient(180deg, rgba(74,56,13,.95) 0%, rgba(38,28,6,.96) 100%)", border:"rgba(251,191,36,.62)", title:"#fbbf24", icon:"alert" };
 
-        {pisResult && (
-          <div style={{ marginTop:"14px", borderRadius:"14px", padding:"clamp(12px, 4vw, 18px)", background:pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)") : "rgba(251,191,36,.10)", border:`1px solid ${pisResult.ok ? (pisResult.valid ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)") : "rgba(251,191,36,.42)"}`, minWidth:0, overflow:"hidden", boxSizing:"border-box" }}>
-            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(23px, 8vw, 34px)", lineHeight:1.1, color:pisResult.ok ? (pisResult.valid ? "#22c55e" : "#ef4444") : "#fbbf24", fontWeight:"900", marginBottom:"8px", overflowWrap:"anywhere" }}>
-              {pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")}
-            </div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", color:"rgba(255,255,255,.78)", lineHeight:1.55, overflowWrap:"break-word" }}>{pisResult.message}</div>
-            {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
-            <div style={{ marginTop:"14px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
-              {!pisContactUnlocked && (
-                <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(11px, 3.4vw, 13px)", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"10px", overflowWrap:"break-word" }}>
-                  Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar. Esta validación quedará guardada en este usuario o dispositivo para futuras consultas.
-                </div>
-              )}
+    return (
+      <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,1fr) 318px", gap:"14px", alignItems:"start", width:"100%", maxWidth:"100%", overflow:"visible" }}>
+        <div style={{ display:"grid", gap:"14px", minWidth:0 }}>
+          <section style={{ ...card, padding:posturasMobile ? "16px" : "22px", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:"-52px", right:"-44px", width:"150px", height:"150px", borderRadius:"999px", background:"radial-gradient(circle, rgba(56,189,248,.20), rgba(56,189,248,0))" }} />
 
-              {!pisUnlockRequested && !pisContactUnlocked && (
-                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"10px" }}>
-                  <a
-                    href={PIS_WHATSAPP_CHANNEL_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => { setPisUnlockRequested(true); setPisContactUnlocked(false); setPisUnlockSeconds(30); }}
-                    style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}
-                  >
-                    <AppIcon name="whatsapp" size={14} active /> Aceptar y seguir canal
-                  </a>
-                </div>
-              )}
-
-              {pisUnlockRequested && !pisContactUnlocked && (
-                <div style={{ border:"1px dashed rgba(251,191,36,.36)", background:"rgba(251,191,36,.08)", borderRadius:"12px", padding:"10px 12px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.70)", lineHeight:1.55, marginBottom:"10px" }}>
-                  Verificando acceso al canal. Entra al canal, presiona seguir y regresa a esta pantalla para habilitar los datos de contacto.
-                </div>
-              )}
-
-              {pisContactUnlocked && (
-                <>
-                  <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.76)", lineHeight:1.6, marginBottom:"8px" }}>
-                    Datos de contacto para información específica de boletinaje:
-                  </div>
-                  <div style={{ border:"1px solid rgba(56,189,248,.28)", background:"rgba(56,189,248,.08)", borderRadius:"12px", padding:"10px", marginBottom:"10px", fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.82)", display:"grid", gap:"8px" }}>
-                    {[
-                      { label:"Teléfono principal", value:PIS_ASIPONA_MAIN_PHONE, field:"mainPhone", copied:"Teléfono copiado" },
-                      { label:"Extensión", value:PIS_ASIPONA_EXTENSION, field:"extension", copied:"Extensión copiada" },
-                      { label:"Correo electrónico", value:PIS_ASIPONA_EMAIL, field:"email", copied:"Correo copiado" },
-                    ].map(row => (
-                      <div key={row.field} style={{ display:"grid", gridTemplateColumns:"minmax(120px, 1fr) minmax(0, 1.25fr) auto", alignItems:"center", gap:"8px", padding:"8px 9px", borderRadius:"10px", background:"rgba(2,6,23,.25)", border:"1px solid rgba(255,255,255,.08)", minWidth:0 }}>
-                        <div style={{ fontSize:"11px", color:"rgba(255,255,255,.62)", fontWeight:"800" }}>{row.label}</div>
-                        <button onClick={() => copyPisText(row.value, row.field)} style={{ minWidth:0, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:"transparent", border:"none", color:pisCopiedField === row.field ? "#22c55e" : "#ffffff", fontWeight:"900", cursor:"pointer", padding:0, fontFamily:"inherit", fontSize:"12px" }} title="Copiar">
-                          {pisCopiedField === row.field ? row.copied : row.value}
-                        </button>
-                        <button onClick={() => copyPisText(row.value, row.field)} style={{ border:"1px solid rgba(56,189,248,.35)", background:pisCopiedField === row.field ? "rgba(34,197,94,.15)" : "rgba(56,189,248,.12)", color:pisCopiedField === row.field ? "#22c55e" : "#38bdf8", borderRadius:"999px", padding:"5px 9px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", cursor:"pointer", whiteSpace:"nowrap" }}>
-                          {pisCopiedField === row.field ? "Copiado" : "Copiar"}
-                        </button>
-                      </div>
-                    ))}
-                    <div style={{ color:"rgba(255,255,255,.48)", fontSize:"10px", lineHeight:1.45 }}>Pulsa el dato o la pestaña de copiar para guardarlo en el portapapeles.</div>
-                  </div>
-                  <textarea
-                    value={pisContactMessage}
-                    onChange={e=>setPisContactMessage(e.target.value)}
-                    placeholder="Escribe aquí tu consulta específica para ASIPONA..."
-                    rows={3}
-                    style={{ ...input, resize:"vertical", minHeight:"74px", marginBottom:"9px" }}
-                  />
-                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                    <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn("#25D366"), textDecoration:"none", display:"inline-flex", alignItems:"center", gap:"6px" }}><AppIcon name="whatsapp" size={14} active /> WhatsApp ASIPONA</a>
-                  </div>
-                </>
-              )}
-
-              <div style={{ marginTop:"7px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"rgba(255,255,255,.42)" }}>
-                Esta información de contacto se ocultará automáticamente 2 minutos después de la consulta.
+            <div style={{ display:"flex", alignItems:"flex-start", gap:"14px", marginBottom:"16px", minWidth:0 }}>
+              <div style={{ width:posturasMobile ? "44px" : "52px", height:posturasMobile ? "44px" : "52px", borderRadius:"14px", background:"rgba(161,201,255,.08)", border:"1px solid rgba(161,201,255,.22)", display:"grid", placeItems:"center", boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}>
+                <MS name="gavel" size={posturasMobile ? 18 : 20} active />
+              </div>
+              <div style={{ minWidth:0, flex:1 }}>
+                <div style={{ fontFamily:getFont(theme,"title"), fontSize:posturasMobile ? "clamp(20px, 6.2vw, 24px)" : "clamp(28px, 2.4vw, 34px)", lineHeight:1.08, color:"#e8f2ff", fontWeight:"900", letterSpacing:"-.02em", overflowWrap:"anywhere" }}>Boletinados · Verificación PIS</div>
+                <div style={{ marginTop:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", color:"rgba(255,255,255,.70)", lineHeight:1.5, overflowWrap:"break-word" }}>Consulta documentos electrónicos públicos del portal PIS/SEMAR desde Conect Manzanillo.</div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      <div style={{ ...card, minWidth:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
-        <div style={{ color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"clamp(11px, 3.4vw, 12px)", letterSpacing:"1px", marginBottom:"10px", overflowWrap:"break-word" }}>ÚLTIMAS CONSULTAS EN ESTE DISPOSITIVO</div>
-        {pisHistory.length === 0 ? <div style={{ color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.6 }}>Aún no hay consultas guardadas localmente.</div> : pisHistory.map((h, idx) => (
-          <div key={idx} style={{ padding:"10px 0", borderTop:idx ? "1px solid rgba(255,255,255,.08)" : "none" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", alignItems:"center" }}>
-              <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900" }}>{h.query?.asipona || "ASIPONA"} · {h.query?.tipo || "DOC"}-{h.query?.id || "ID"}</div>
-              <span style={{ color:h.valid ? "#22c55e" : "#ef4444", border:`1px solid ${h.valid ? "#22c55e55" : "#ef444455"}`, borderRadius:"999px", padding:"3px 7px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900" }}>{h.valid ? "VÁLIDO" : "NO VÁLIDO"}</span>
+            <div style={{ background:"rgba(12,24,39,.84)", border:"1px solid rgba(63,71,83,.55)", borderRadius:"12px", padding:posturasMobile ? "14px" : "16px", marginBottom:"18px", color:"rgba(255,255,255,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", lineHeight:1.6 }}>
+              El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
             </div>
-            <div style={{ marginTop:"4px", color:"rgba(255,255,255,.45)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{h.checked_at ? new Date(h.checked_at).toLocaleString("es-MX") : ""}</div>
+
+            <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px", minWidth:0 }}>
+              <div>
+                <div style={label}>ASIPONA</div>
+                <select style={{ ...input, background:"rgba(39,54,71,.96)" }} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
+              </div>
+              <div>
+                <div style={label}>Tipo</div>
+                <select style={{ ...input, border:"1px solid rgba(161,201,255,.88)", background:"rgba(51,68,91,.95)" }} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select>
+              </div>
+              <div style={{ gridColumn:"1 / -1" }}>
+                <div style={label}>ID</div>
+                <input style={{ ...input, background:"rgba(39,54,71,.96)" }} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Ej. 36938" value={pisForm.id} onChange={e=>{ const nextId = e.currentTarget.value.replace(/[^0-9]/g, ""); setPisForm(f=>({...f, id:nextId})); }} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} />
+              </div>
+            </div>
+
+            <div style={{ display:"flex", flexWrap:"wrap", gap:"12px", alignItems:"center" }}>
+              <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...pisActionBtn, background:"#1295f0", color:"#07223d", border:"1px solid rgba(56,189,248,.92)", boxShadow:"0 12px 24px rgba(0,150,255,.20)", opacity:pisLoading ? 0.75 : 1, flex:posturasMobile ? "1 1 100%" : "0 1 288px" }}>
+                <MS name="gavel" size={16} color="#07223d" />
+                {pisLoading ? "Consultando…" : "Verificar documento"}
+              </button>
+              <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
+              <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...pisActionBtn, background:"transparent", color:"#d4e4fa", border:"1px solid rgba(161,201,255,.38)", flex:posturasMobile ? "1 1 100%" : "0 1 220px" }}>
+                <AppIcon name="web" size={16} active />
+                Abrir PIS oficial
+              </a>
+            </div>
+          </section>
+
+          {pisResult && (
+            <section style={{ borderRadius:"18px", padding:posturasMobile ? "18px 16px" : "20px 20px 22px", background:resultTone.bg, border:`1px solid ${resultTone.border}`, boxShadow:"0 18px 40px rgba(0,0,0,.24)", minWidth:0, overflow:"hidden" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", marginBottom:"8px" }}>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ fontFamily:getFont(theme,"title"), fontSize:posturasMobile ? "clamp(26px, 9vw, 40px)" : "clamp(40px, 4vw, 54px)", lineHeight:1.02, color:resultTone.title, fontWeight:"900", letterSpacing:"-.03em", overflowWrap:"anywhere" }}>
+                    {pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")}
+                  </div>
+                  <div style={{ marginTop:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(13px, 3.7vw, 15px)", color:resultTone.title, lineHeight:1.55, fontWeight:"500", overflowWrap:"break-word" }}>{pisResult.message}</div>
+                  {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.46)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
+                </div>
+                <div style={{ width:posturasMobile ? "52px" : "64px", height:posturasMobile ? "52px" : "64px", flexShrink:0, borderRadius:"999px", display:"grid", placeItems:"center", background: pisResult.ok ? (pisResult.valid ? "rgba(52,211,153,.16)" : "rgba(248,113,113,.16)") : "rgba(251,191,36,.14)", border:`1px solid ${resultTone.border}` }}>
+                  <AppIcon name={resultTone.icon} size={posturasMobile ? 24 : 28} active />
+                </div>
+              </div>
+
+              <div style={{ marginTop:"18px", paddingTop:"18px", borderTop:"1px solid rgba(255,255,255,.12)" }}>
+                {!pisContactUnlocked && (
+                  <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.6vw, 14px)", color:"rgba(255,255,255,.82)", lineHeight:1.65, marginBottom:"16px", overflowWrap:"break-word" }}>
+                    Si requieres información más específica del boletinaje, como el teléfono y correo de Boletinados, primero debes seguir el canal oficial de WhatsApp de Conect Manzanillo. Presiona aceptar para abrir el canal, síguelo y regresa a esta pantalla para continuar. Esta validación quedará guardada en este usuario o dispositivo para futuras consultas.
+                  </div>
+                )}
+
+                {!pisUnlockRequested && !pisContactUnlocked && (
+                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center", marginBottom:"14px" }}>
+                    <a
+                      href={PIS_WHATSAPP_CHANNEL_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => { setPisUnlockRequested(true); setPisContactUnlocked(false); setPisUnlockSeconds(30); }}
+                      style={{ display:"inline-flex", alignItems:"center", gap:"10px", background:"#10b981", color:"#fff", border:"1px solid rgba(52,211,153,.78)", borderRadius:"12px", padding:"14px 18px", textDecoration:"none", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"900", lineHeight:1.1, textTransform:"uppercase", boxShadow:"0 10px 24px rgba(16,185,129,.16)" }}
+                    >
+                      {whiteWhatsappIcon}
+                      Aceptar y seguir canal
+                    </a>
+                  </div>
+                )}
+
+                {pisUnlockRequested && !pisContactUnlocked && (
+                  <div style={{ border:"1px dashed rgba(251,191,36,.36)", background:"rgba(251,191,36,.08)", borderRadius:"12px", padding:"12px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.76)", lineHeight:1.55, marginBottom:"12px" }}>
+                    Verificando acceso al canal. Entra al canal, presiona seguir y regresa a esta pantalla para habilitar los datos de contacto.
+                  </div>
+                )}
+
+                {pisContactUnlocked && (
+                  <>
+                    <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,.82)", lineHeight:1.6, marginBottom:"10px" }}>
+                      Datos de contacto para información específica de boletinaje:
+                    </div>
+                    <div style={{ border:"1px solid rgba(56,189,248,.24)", background:"rgba(56,189,248,.08)", borderRadius:"14px", padding:"10px", marginBottom:"12px", fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.82)", display:"grid", gap:"8px" }}>
+                      {[
+                        { label:"Teléfono principal", value:PIS_ASIPONA_MAIN_PHONE, field:"mainPhone", copied:"Teléfono copiado" },
+                        { label:"Extensión", value:PIS_ASIPONA_EXTENSION, field:"extension", copied:"Extensión copiada" },
+                        { label:"Correo electrónico", value:PIS_ASIPONA_EMAIL, field:"email", copied:"Correo copiado" },
+                      ].map(row => (
+                        <div key={row.field} style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr auto" : "minmax(120px, 1fr) minmax(0, 1.25fr) auto", alignItems:"center", gap:"8px", padding:"10px", borderRadius:"10px", background:"rgba(2,6,23,.25)", border:"1px solid rgba(255,255,255,.08)", minWidth:0 }}>
+                          {!posturasMobile && <div style={{ fontSize:"11px", color:"rgba(255,255,255,.62)", fontWeight:"800" }}>{row.label}</div>}
+                          <button onClick={() => copyPisText(row.value, row.field)} style={{ minWidth:0, textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", background:"transparent", border:"none", color:pisCopiedField === row.field ? "#22c55e" : "#ffffff", fontWeight:"900", cursor:"pointer", padding:0, fontFamily:"inherit", fontSize:"12px" }} title="Copiar">
+                            {posturasMobile ? `${row.label}: ` : ""}{pisCopiedField === row.field ? row.copied : row.value}
+                          </button>
+                          <button onClick={() => copyPisText(row.value, row.field)} style={{ border:"1px solid rgba(56,189,248,.35)", background:pisCopiedField === row.field ? "rgba(34,197,94,.15)" : "rgba(56,189,248,.12)", color:pisCopiedField === row.field ? "#22c55e" : "#38bdf8", borderRadius:"999px", padding:"6px 10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", cursor:"pointer", whiteSpace:"nowrap" }}>
+                            {pisCopiedField === row.field ? "Copiado" : "Copiar"}
+                          </button>
+                        </div>
+                      ))}
+                      <div style={{ color:"rgba(255,255,255,.48)", fontSize:"10px", lineHeight:1.45 }}>Pulsa el dato o la pestaña de copiar para guardarlo en el portapapeles.</div>
+                    </div>
+                    <textarea
+                      value={pisContactMessage}
+                      onChange={e=>setPisContactMessage(e.target.value)}
+                      placeholder="Escribe aquí tu consulta específica para ASIPONA..."
+                      rows={3}
+                      style={{ ...input, resize:"vertical", minHeight:"78px", marginBottom:"10px" }}
+                    />
+                    <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                      <a href={`${PIS_ASIPONA_WHATSAPP_URL}?text=${encodeURIComponent(pisContactMessage || `Hola, solicito información específica sobre boletinaje. Consulta: ${pisForm.asipona} · ${pisForm.tipo}-${pisForm.id}.`)}`} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"12px 16px", borderRadius:"12px", border:"1px solid rgba(37,211,102,.72)", background:"rgba(37,211,102,.14)", color:"#25D366", textDecoration:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", textTransform:"uppercase" }}>
+                        <AppIcon name="whatsapp" size={16} active />
+                        WhatsApp ASIPONA
+                      </a>
+                    </div>
+                  </>
+                )}
+
+                <div style={{ marginTop:"12px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.54)", fontStyle:"italic", lineHeight:1.45 }}>
+                  Esta información de contacto se ocultará automáticamente 2 minutos después de la consulta.
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+
+        <aside style={{ ...card, padding:posturasMobile ? "16px" : "18px", position:"relative", minWidth:0, overflow:"visible", boxSizing:"border-box", top: posturasMobile ? "auto" : "84px", alignSelf:"start" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"14px" }}>
+            <div style={{ color:"#c0dafe", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"11px", letterSpacing:".09em", lineHeight:1.35, textTransform:"uppercase" }}>Últimas consultas en este dispositivo</div>
+            <AppIcon name="document" size={18} active />
           </div>
-        ))}
-        {pisHistory.length > 0 && <button onClick={()=>{ setPisHistory([]); try{localStorage.removeItem("cm_pis_verificaciones");}catch{} }} style={{...btn("#ef4444"), marginTop:"12px"}}>Borrar historial local</button>}
+
+          <div style={{ display:"grid", gap:"0px" }}>
+            {pisHistory.length === 0 ? (
+              <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6, padding:"4px 0 12px" }}>Aún no hay consultas guardadas localmente.</div>
+            ) : pisHistory.map((h, idx) => (
+              <div key={idx} style={{ padding:"14px 0", borderTop:idx ? "1px solid rgba(255,255,255,.08)" : "none" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", lineHeight:1.35, overflowWrap:"anywhere" }}>{h.query?.asipona || "ASIPONA"} · {h.query?.tipo || "DOC"}-{h.query?.id || "ID"}</div>
+                    <div style={{ marginTop:"4px", color:"rgba(255,255,255,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.45 }}>{h.checked_at ? new Date(h.checked_at).toLocaleString("es-MX") : ""}</div>
+                  </div>
+                  <span style={{ flexShrink:0, color:h.valid ? "#34d399" : "#fca5a5", border:`1px solid ${h.valid ? "rgba(52,211,153,.34)" : "rgba(248,113,113,.34)"}`, background:h.valid ? "rgba(52,211,153,.10)" : "rgba(248,113,113,.10)", borderRadius:"8px", padding:"5px 8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".04em" }}>{h.valid ? "Válido" : "Inválido"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={()=>{ setPisHistory([]); try{localStorage.removeItem("cm_pis_verificaciones");}catch{} }} style={{ ...pisActionBtn, width:"100%", marginTop:"18px", background:"transparent", color:"#fca5a5", border:"1px solid rgba(248,113,113,.28)" }}>
+            <AppIcon name="xmark" size={16} active={false} style={{ ['--cm-icon-muted']:'#fca5a5', ['--cm-accent']:'#fca5a5', filter:'none' }} />
+            Borrar historial local
+          </button>
+
+          <div style={{ marginTop:"14px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.06)", background:"rgba(10,22,36,.55)", padding:"12px", display:"flex", gap:"10px", alignItems:"flex-start" }}>
+            <div style={{ width:"28px", height:"28px", borderRadius:"999px", display:"grid", placeItems:"center", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.18)", flexShrink:0 }}>
+              <AppIcon name="info" size={14} active />
+            </div>
+            <div style={{ color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.45 }}>
+              El historial local se almacena únicamente en tu navegador y no se comparte con el servidor central.
+            </div>
+          </div>
+
+          <button onClick={() => setPisDonateOpen(v => !v)} style={{ ...pisActionBtn, width:"100%", marginTop:"14px", background:"rgba(56,189,248,.08)", color:"#c8defd", border:"1px solid rgba(161,201,255,.35)" }}>
+            <AppIcon name="donate" size={16} active />
+            Donar / apoyar proyecto
+          </button>
+
+          {pisDonateOpen && (
+            <div style={{ position:posturasMobile ? "fixed" : "absolute", right:posturasMobile ? "16px" : "0px", left:posturasMobile ? "16px" : "auto", top:posturasMobile ? "50%" : "calc(100% - 18px)", bottom:posturasMobile ? "auto" : "auto", transform:posturasMobile ? "translateY(-50%)" : "none", zIndex:40, background:"rgba(13,31,60,.98)", border:"1px solid rgba(168,85,247,.32)", borderRadius:"18px", padding:"18px", minWidth:posturasMobile ? "auto" : "296px", maxWidth:posturasMobile ? "calc(100vw - 32px)" : "320px", boxShadow:"0 18px 42px rgba(0,0,0,.52)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px", paddingBottom:"12px", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
+                <div style={{ width:"38px", height:"38px", borderRadius:"999px", display:"grid", placeItems:"center", background:"linear-gradient(135deg, rgba(168,85,247,.24), rgba(124,58,237,.30))", border:"1px solid rgba(168,85,247,.30)" }}>
+                  <AppIcon name="donate" size={18} active />
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontSize:"16px", fontWeight:"800", lineHeight:1.2 }}>Apoya el proyecto</div>
+                  <div style={{ color:"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>Ventana flotante de donación</div>
+                </div>
+                <button onClick={() => setPisDonateOpen(false)} style={{ width:"28px", height:"28px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.10)", background:"rgba(255,255,255,.06)", display:"grid", placeItems:"center", cursor:"pointer" }}>
+                  <AppIcon name="xmark" size={14} active={false} />
+                </button>
+              </div>
+
+              <div style={{ background:"rgba(168,85,247,.08)", border:"1px solid rgba(168,85,247,.22)", borderRadius:"14px", padding:"14px", marginBottom:"14px" }}>
+                <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"700", marginBottom:"10px", textAlign:"center" }}>Datos para transferencia:</div>
+                {[
+                  { label:"Banco", value:"Mifel", mono:false },
+                  { label:"Titular", value:"Ramon Romero", mono:false },
+                  { label:"CLABE", value:"014028090014825779", mono:true },
+                ].map(({ label: rowLabel, value, mono }) => (
+                  <CopyRow key={rowLabel} label={rowLabel} value={value} mono={mono} theme={theme} getFont={getFont} />
+                ))}
+                <div style={{ textAlign:"center", marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,.36)" }}>
+                  Toca cualquier dato para copiarlo al portapapeles.
+                </div>
+              </div>
+
+              <div style={{ textAlign:"center", color:"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.45 }}>
+                Tu apoyo ayuda a mantener disponible este módulo y sus mejoras visuales.
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
-    </div>
-  );
+    );
+  };
+
 
   const ProfileEditorView = () => (
     <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
