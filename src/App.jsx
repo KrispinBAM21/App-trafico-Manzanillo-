@@ -18546,6 +18546,24 @@ function NoticiasBoletinIcon({ size = 18, color = "#ffffff" }) {
   );
 }
 
+function NoticiasComunicadoMiniIcon({ size = 18, color = "#ffffff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M14 10H42C44.8 10 47 12.2 47 15V26.5L56 35.5V49C56 51.8 53.8 54 51 54H14C11.2 54 9 51.8 9 49V15C9 12.2 11.2 10 14 10Z" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M43 10L56 23" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <circle cx="25" cy="21" r="8.5" stroke={color} strokeWidth="3"/>
+      <path d="M22 21.5L29.5 18.5V24.5L22 21.5Z" fill={color}/>
+      <path d="M20.5 24.5L22.5 29.5" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M17 36H38" stroke={color} strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M17 43H38" stroke={color} strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M17 50H30" stroke={color} strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M50 39L54 36" stroke="#fbbf24" strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M51 45H56" stroke="#fbbf24" strokeWidth="3.2" strokeLinecap="round"/>
+      <path d="M50 51L54 54" stroke="#fbbf24" strokeWidth="3.2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
   const reportCacheRef = useRef(getNoticiasAutoReportCache());
@@ -19348,7 +19366,7 @@ function NoticiasTab({ isAdmin }) {
           {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Cargando noticias...</div>}
           {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>Sin noticias visibles para este filtro.</div>}
           {!loading && filtered.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px", alignItems:"start" }}>
               {filtered.map((n) => {
                 const media = getMedia(n);
                 const pdfs = getPdfs(n);
@@ -19356,9 +19374,10 @@ function NoticiasTab({ isAdmin }) {
                 const leadVisuals = media.slice(0, 2);
                 const accent = n.color || "#38bdf8";
                 return (
-                  <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", minHeight:"100%", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
-                    <div style={{ display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-                      {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}><NoticiasBoletinIcon size={28} color="#ffffff" /></div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
+                  <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
+                    <div style={{ position:"relative", display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+                      {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
+                      {origen === "comunicados" && <div style={{ position:"absolute", top:"10px", right:"10px", width:"34px", height:"34px", borderRadius:"12px", background:"rgba(7,16,30,.72)", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", boxShadow:"0 10px 24px rgba(2,6,23,.28)" }}><NoticiasComunicadoMiniIcon size={18} color="#ffffff" /></div>}
                     </div>
 
                     <div style={{ padding:"16px", display:"flex", flexDirection:"column", gap:"10px", flex:1 }}>
@@ -19367,24 +19386,26 @@ function NoticiasTab({ isAdmin }) {
                           <span style={{ display:"inline-flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"999px", background:`${accent}16`, border:`1px solid ${accent}33`, color:accent, fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800, textTransform:"uppercase" }}>
                             <AppIcon name={n.icono || "news"} size={14} active={true} /> {n.tipo}
                           </span>
-                          {origen === "comunicados" && <span style={{ padding:"6px 10px", borderRadius:"999px", background:"rgba(37,99,235,.12)", border:"1px solid rgba(37,99,235,.28)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Origen: Comunicados</span>}
                         </div>
                         <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
                       </div>
 
-                      <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", lineHeight:1.25 }}>{n.titulo}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                        {origen === "comunicados" && <div style={{ flex:"0 0 auto", width:"32px", height:"32px", borderRadius:"10px", background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.10)", display:"flex", alignItems:"center", justifyContent:"center" }}><NoticiasComunicadoMiniIcon size={18} color="#ffffff" /></div>}
+                        <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", lineHeight:1.25 }}>{n.titulo}</div>
+                      </div>
 
                       {n.detalle && <div style={{ color:"rgba(226,232,240,.70)", fontSize:"12px", lineHeight:1.6, fontFamily:getFont(theme, "secondary"), display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{n.detalle}</div>}
 
                       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"auto" }}>
-                        {n.detalle && <details style={{ flex:"1 1 100%" }}><summary style={{ listStyle:"none", cursor:"pointer", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(148,163,184,.24)", background:"rgba(5,15,28,.72)", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.68)", fontSize:"11px", lineHeight:1.55, marginTop:"8px", padding:"10px 12px", borderRadius:"12px", background:"rgba(6,20,40,.72)", border:"1px solid rgba(148,163,184,.16)", maxHeight:"180px", overflowY:"auto", wordBreak:"break-word" }}>{n.detalle}</div></details>}
+                        {n.detalle && <details style={{ flex:"1 1 100%", alignSelf:"flex-start" }}><summary style={{ listStyle:"none", cursor:"pointer", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(148,163,184,.24)", background:"rgba(5,15,28,.72)", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.68)", fontSize:"11px", lineHeight:1.55, marginTop:"8px", padding:"10px 12px", borderRadius:"12px", background:"rgba(6,20,40,.72)", border:"1px solid rgba(148,163,184,.16)", maxHeight:"180px", overflowY:"auto", wordBreak:"break-word" }}>{n.detalle}</div></details>}
                         {media.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:media[0], archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(56,189,248,.10)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}><span>👁</span> Ver imagen{media.length > 1 ? "es" : ""}</button>}
                         {pdfs.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:pdfs[0], archivo_tipo:"application/pdf" }, pdfs.map((pu)=>({ ...n, archivo_url:pu, archivo_tipo:"application/pdf" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(37,99,235,.10)", border:"1px solid rgba(37,99,235,.28)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}>Ver PDF{pdfs.length > 1 ? ` (${pdfs.length})` : ""}</button>}
                       </div>
 
                       <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", paddingTop:"2px" }}>
-                        <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>Origen: {origen === "comunicados" ? "Comunicados" : "Sistema"}</span>
-                        <span style={{ width:"4px", height:"4px", background:"#334155", borderRadius:"50%" }} />
+                        {origen !== "comunicados" && <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>Origen: Sistema</span>}
+                        {origen !== "comunicados" && <span style={{ width:"4px", height:"4px", background:"#334155", borderRadius:"50%" }} />}
                         <span style={{ fontSize:"10px", color:accent, fontFamily:getFont(theme, "secondary"), fontWeight:"800", textTransform:"uppercase" }}>{n.tipo}</span>
                       </div>
                     </div>
