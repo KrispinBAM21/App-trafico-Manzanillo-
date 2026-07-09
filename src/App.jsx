@@ -19590,6 +19590,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [pisHistory, setPisHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
+  const [savedPosturas, setSavedPosturas] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
+  });
   const PAGE_SIZE = 8;
 
   const getPisContactUnlockKey = useCallback(() => {
@@ -19628,10 +19631,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const [editingTrabId, setEditingTrabId] = useState(null);
   const [editingEmpId, setEditingEmpId] = useState(null);
 
-  const card = { background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"15px", padding:"16px", boxShadow:"0 10px 26px rgba(0,0,0,0.18)" };
-  const input = { width:"100%", boxSizing:"border-box", background:"rgba(3,10,22,0.72)", border:"1px solid rgba(56,189,248,0.22)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,0.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
-  const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,0.45)", fontWeight:"800", letterSpacing:"1px", textTransform:"uppercase", marginBottom:"5px" };
-  const btn = (color="#38bdf8") => ({ border:`1px solid ${color}66`, background:`${color}18`, color, borderRadius:"10px", padding:"10px 13px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" });
+  const card = { background:"rgba(18,33,49,0.88)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,0.55)", borderRadius:"18px", padding:"18px", boxShadow:"0 18px 42px rgba(1,15,31,0.28), inset 0 1px 0 rgba(255,255,255,0.04)" };
+  const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
+  const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
+  const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
 
   const avgFor = (type, id) => {
     const rows = ratings.filter(r => r.profile_type === type && String(r.profile_id) === String(id));
@@ -19639,6 +19642,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     return { avg: rows.reduce((a,r)=>a+Number(r.stars||0),0)/rows.length, count: rows.length };
   };
   const commentsFor = (id) => ratings.filter(r => r.profile_type === "trabajador" && String(r.profile_id) === String(id) && (r.comment || "").trim());
+  const posturasProfileKey = (type, id) => `${type}:${id}`;
+  const isSavedProfile = (type, id) => savedPosturas.includes(posturasProfileKey(type, id));
+  const toggleSavedProfile = (type, row) => {
+    const key = posturasProfileKey(type, row.id);
+    const next = savedPosturas.includes(key) ? savedPosturas.filter(x => x !== key) : [key, ...savedPosturas];
+    setSavedPosturas(next);
+    try { localStorage.setItem("cm_posturas_guardadas", JSON.stringify(next)); } catch {}
+    setMsg({ type:"ok", text:savedPosturas.includes(key) ? "Perfil retirado del archivo local." : "Perfil guardado en archivo local." });
+  };
 
   const loadPosturas = async () => {
     setLoading(true);
@@ -19810,17 +19822,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     boxShadow:"0 18px 44px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05)"
   };
   const ProfileHeader = () => (
-    <div style={{ ...posturasGlass, marginBottom:"18px", borderRadius:"18px", padding:"22px", borderLeft:"4px solid #a1c9ff", display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap", position:"relative", overflow:"hidden" }}>
-      <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at 0% 0%, rgba(0,150,255,.10), transparent 42%), radial-gradient(circle at 100% 0%, rgba(188,199,222,.07), transparent 45%)", pointerEvents:"none" }} />
-      <div style={{ position:"relative", zIndex:1, maxWidth:"680px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"6px" }}>
-          <div style={{ width:"48px", height:"48px", borderRadius:"14px", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.24)", display:"grid", placeItems:"center", boxShadow:"0 0 26px rgba(161,201,255,.10)" }}>
-            <AppIcon name="anchor-port" size={30} active />
+    <div style={{ ...posturasGlass, marginBottom:"18px", borderRadius:"18px", padding:"24px", borderLeft:"4px solid #a1c9ff", display:"flex", justifyContent:"space-between", gap:"18px", alignItems:"center", flexWrap:"wrap", position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(at 0% 0%, rgba(0,150,255,.08), transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.045), transparent 50%)", pointerEvents:"none" }} />
+      <div style={{ position:"relative", zIndex:1, maxWidth:"760px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"13px", marginBottom:"8px" }}>
+          <div style={{ width:"50px", height:"50px", borderRadius:"14px", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.24)", display:"grid", placeItems:"center", boxShadow:"0 0 28px rgba(161,201,255,.10)" }}>
+            <AppIcon name="anchor-port" size={31} active />
           </div>
-          <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(24px,4vw,32px)", lineHeight:1, color:"#d4e4fa", fontWeight:"900", letterSpacing:"-.02em" }}>Posturas</div>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#a1c9ff", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", marginBottom:"3px" }}>Control de puente</div>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(24px,4vw,32px)", lineHeight:1, color:"#d4e4fa", fontWeight:"900", letterSpacing:"-.02em" }}>Centro de Talento</div>
+          </div>
         </div>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"13px", color:"rgba(212,228,250,0.72)", lineHeight:1.65 }}>
-          Perfiles de trabajadores y empresas visibles para la comunidad portuaria. Gestión centralizada de credenciales, reputación operativa y apoyo al proyecto.
+          Gestión activa de vacantes, perfiles especializados, reputación por estrellas y archivo de perfiles guardados.
         </div>
       </div>
       <button onClick={() => setActive && setActive("tutorial")} style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:`1px solid ${authUser ? "rgba(34,197,94,.46)" : "rgba(161,201,255,.34)"}`, background:authUser ? "rgba(34,197,94,.14)" : "rgba(44,58,76,.46)", color:authUser ? "#86efac" : "#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:authUser ? "0 0 22px rgba(34,197,94,.12)" : "0 0 22px rgba(161,201,255,.13)" }}>
@@ -19830,35 +19845,82 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     </div>
   );
 
-  const Filters = () => <div style={{ ...card, marginBottom:"14px" }}>
+  const Filters = () => <div style={{ ...card, marginBottom:"16px", padding:"16px" }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+      <div>
+        <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontSize:"20px", fontWeight:"900" }}>Perfiles publicados</div>
+        <div style={{ color:"rgba(191,199,213,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Busca por nombre, cargo, RFC o palabra clave. Guarda perfiles para verlos después en tu archivo local.</div>
+      </div>
+      <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.24)", background:"rgba(161,201,255,.08)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
+        <AppIcon name="bookmark" size={14} active /> {savedPosturas.length} guardados
+      </div>
+    </div>
+    <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"10px", alignItems:"center", marginBottom:"10px" }}>
+      <div style={{ position:"relative" }}>
+        <span style={{ position:"absolute", left:"13px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><AppIcon name="search" size={17} /></span>
+        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"42px"}} />
+      </div>
+      <div style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", gap:"7px", padding:"12px 14px", whiteSpace:"nowrap" }}><AppIcon name="filter-list" size={16} active /> Filtros</div>
+    </div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px" }}>
-      <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, RFC, licencia, ciudad..." style={input} />
       <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
       <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
       <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
     </div>
   </div>;
 
+  const ProfileMetric = ({ label, value }) => (
+    <div style={{ background:"rgba(13,28,45,.74)", border:"1px solid rgba(63,71,83,.42)", borderRadius:"13px", padding:"13px 14px", minWidth:0 }}>
+      <div style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", marginBottom:"4px" }}>{label}</div>
+      <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontSize:"16px", fontWeight:"850", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value || "—"}</div>
+    </div>
+  );
+
   const TrabCard = ({ row }) => {
     const r = avgFor("trabajador", row.id);
     const [myStars, setMyStars] = useState(0);
     const [comment, setComment] = useState("");
-    return <div style={card}>
-      <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}>
-        <div><div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"14px" }}>{row.nombre_completo}</div><div style={{ color:"rgba(255,255,255,0.45)", fontSize:"11px", marginTop:"4px" }}>{row.edad} años · {row.licencia}</div></div>
-        <span style={{ padding:"5px 9px", borderRadius:"999px", background:row.disponible?"#22c55e18":"#ef444418", color:row.disponible?"#22c55e":"#ef4444", fontSize:"10px", fontWeight:"900" }}>{row.disponible?"Disponible":"No disponible"}</span>
+    const saved = isSavedProfile("trabajador", row.id);
+    const initials = String(row.nombre_completo || "P").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+    return <div style={{ ...card, padding:"0", overflow:"hidden", borderColor:"rgba(63,71,83,.58)" }}>
+      <div style={{ padding:"22px" }}>
+        <div style={{ display:"flex", gap:"20px", alignItems:"flex-start", minWidth:0, flexWrap:"wrap" }}>
+          <div style={{ width:"86px", height:"86px", borderRadius:"16px", flexShrink:0, overflow:"hidden", border:"1px solid rgba(63,71,83,.75)", background:"linear-gradient(135deg, rgba(161,201,255,.22), rgba(13,28,45,.92))", display:"grid", placeItems:"center", color:"#a1c9ff", fontFamily:getFont(theme,"title"), fontWeight:"900", fontSize:"26px" }}>{initials}</div>
+          <div style={{ flex:1, minWidth:"260px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"flex-start", flexWrap:"wrap" }}>
+              <div>
+                <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"title"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>{row.nombre_completo}</div>
+                <div style={{ marginTop:"5px", display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", color:"#a1c9ff" }}>
+                  <StarRating value={r.avg} small />
+                  <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{r.avg ? `(${r.avg.toFixed(1)})` : "Sin calificaciones"} · {r.count}</span>
+                </div>
+                <div style={{ marginTop:"6px", color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{row.licencia}</div>
+              </div>
+              <span style={{ padding:"6px 12px", borderRadius:"999px", background:row.disponible?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", border:`1px solid ${row.disponible?"rgba(34,197,94,.32)":"rgba(239,68,68,.32)"}`, color:row.disponible?"#22c55e":"#ef4444", fontSize:"10px", fontWeight:"900", fontFamily:getFont(theme,"secondary") }}>{row.disponible?"Disponible":"No disponible"}</span>
+            </div>
+            <div style={{ marginTop:"16px", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"12px" }}>
+              <ProfileMetric label="Experiencia" value={row.edad ? `${row.edad} años` : "No indicada"} />
+              <ProfileMetric label="Especialidad" value={row.maniobra} />
+              <ProfileMetric label="Ubicación" value={row.alcance} />
+            </div>
+            <div style={{ marginTop:"12px", color:"rgba(212,228,250,.66)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.65 }}>📞 {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}{row.correo ? <><br/>✉️ {row.correo}</> : null}</div>
+          </div>
+        </div>
+        <div style={{ marginTop:"18px", display:"flex", justifyContent:"flex-end", gap:"10px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px" }}>
+          <button onClick={()=>toggleSavedProfile("trabajador", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><AppIcon name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
+          {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar mi perfil</button>}
+          <button onClick={()=>setMsg({type:"ok", text:`Más información de ${row.nombre_completo}: ${row.maniobra} · ${row.alcance}.`})} style={btn("#bcc7de")}>MÁS INFO</button>
+          <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{...btn("#a1c9ff"), background:"#a1c9ff", color:"#002d52"}}>CONTACTAR</button>
+        </div>
+        <AdminProfileActions row={row} type="trabajador" />
+        <div style={{ marginTop:"16px", padding:"13px", border:"1px solid rgba(251,191,36,.22)", background:"rgba(251,191,36,.06)", borderRadius:"14px" }}>
+          <div style={{ color:"rgba(255,255,255,0.62)", fontSize:"10px", fontWeight:"900", marginBottom:"7px", fontFamily:getFont(theme,"secondary"), textTransform:"uppercase", letterSpacing:".08em" }}>Calificar trabajo</div>
+          <StarRating value={myStars} onRate={setMyStars} />
+          <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"8px", minHeight:"58px"}} />
+          <button disabled={!myStars} onClick={()=>rate("trabajador", row.id, myStars, comment)} style={{...btn("#fbbf24"), opacity:myStars?1:.45, marginTop:"8px"}}>Guardar calificación</button>
+        </div>
+        {commentsFor(row.id).slice(0,3).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.62)", fontSize:"10px", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"9px" }}>★ {c.stars} · {c.comment}</div>)}
       </div>
-      <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.maniobra} · {row.alcance}<br/>📞 {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}{row.correo ? <><br/>✉️ {row.correo}</> : null}</div>
-      <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
-      {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar mi perfil</button>}
-      <AdminProfileActions row={row} type="trabajador" />
-      <div style={{ marginTop:"12px", paddingTop:"10px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ color:"rgba(255,255,255,0.55)", fontSize:"10px", fontWeight:"800", marginBottom:"6px" }}>Calificar trabajo</div>
-        <StarRating value={myStars} onRate={setMyStars} />
-        <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"7px", minHeight:"54px"}} />
-        <button disabled={!myStars} onClick={()=>rate("trabajador", row.id, myStars, comment)} style={{...btn("#fbbf24"), opacity:myStars?1:.45, marginTop:"7px"}}>Guardar calificación</button>
-      </div>
-      {commentsFor(row.id).slice(0,3).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(255,255,255,0.04)", borderRadius:"8px", padding:"8px" }}>★ {c.stars} · {c.comment}</div>)}
     </div>;
   };
 
@@ -19866,17 +19928,31 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     const r = avgFor("empresa", row.id);
     const [myStars, setMyStars] = useState(0);
     const aprobadas = quejas.filter(q => q.empresa_id === row.id && q.aprobado);
-    return <div style={card}>
-      <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}>
-        <div><div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"14px" }}>{row.razon_social}</div><div style={{ color:"rgba(255,255,255,0.45)", fontSize:"11px", marginTop:"4px" }}>{row.tipo_empresa} · RFC {row.rfc}</div></div>
-        <span style={{ padding:"5px 9px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"#22c55e18":"#ef444418", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", fontSize:"10px", fontWeight:"900" }}>{row.estatus==="tiene_trabajo"?"Tiene trabajo":"Lleno"}</span>
+    const saved = isSavedProfile("empresa", row.id);
+    return <div style={{ ...card, padding:"0", overflow:"hidden", borderLeft:"4px solid #a1c9ff", borderColor:"rgba(63,71,83,.58)" }}>
+      <div style={{ padding:"22px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap", marginBottom:"14px" }}>
+          <div>
+            <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>Búsqueda: {row.razon_social}</div>
+            <div style={{ marginTop:"5px", display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", color:"#a1c9ff" }}><StarRating value={r.avg} small /><span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{r.avg ? `(${r.avg.toFixed(1)})` : "Sin calificaciones"} · {r.count}</span></div>
+            <div style={{ marginTop:"6px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".05em", textTransform:"uppercase" }}>{row.tipo_empresa} · RFC {row.rfc}</div>
+          </div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"6px 12px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", border:`1px solid ${row.estatus==="tiene_trabajo"?"rgba(34,197,94,.28)":"rgba(239,68,68,.28)"}`, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase" }}><span style={{ width:"7px", height:"7px", borderRadius:"50%", background:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444" }} />{row.estatus==="tiene_trabajo"?"Activa":"Llena"}</div>
+        </div>
+        <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. ✉️ {row.correo}{row.telefono ? ` · 📞 ${row.telefono}` : ""}</div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"9px", marginTop:"16px" }}>{[row.tipo_empresa, row.alcance, row.estatus === "tiene_trabajo" ? "Trabajo activo" : "Sin cupo"].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.8)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"8px 12px", borderRadius:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px", marginTop:"18px" }}>
+          <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Publicado: {timeAgo(row.updated_at || row.created_at)}</span>
+          <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+            <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><AppIcon name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
+            {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
+            <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <AppIcon name="arrow-right" size={13} active /></button>
+          </div>
+        </div>
+        <AdminProfileActions row={row} type="empresa" />
+        <div style={{ marginTop:"16px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"13px" }}><span style={{ color:"rgba(255,255,255,0.62)", fontSize:"10px", fontWeight:"900", fontFamily:getFont(theme,"secondary"), textTransform:"uppercase" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>Queja</button></div>
+        {aprobadas.slice(0,2).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.62)", fontSize:"10px", background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", borderRadius:"10px", padding:"9px" }}>Queja aprobada: {c.comentario}</div>)}
       </div>
-      <div style={{ marginTop:"9px", color:"rgba(255,255,255,0.64)", fontSize:"11px", lineHeight:1.7 }}>{row.ubicacion} · {row.alcance}<br/>Representante: {row.representante}<br/>Contacto técnico: {row.contacto_tecnico || "No especificado"}<br/>✉️ {row.correo}{row.telefono ? ` · 📞 ${row.telefono}` : ""}</div>
-      <div style={{ marginTop:"10px", display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><StarRating value={r.avg} small /> <span style={{ color:"rgba(255,255,255,0.45)", fontSize:"10px" }}>{r.avg ? r.avg.toFixed(1) : "Sin calificaciones"} · {r.count}</span></div>
-      {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={{...btn("#a78bfa"), marginTop:"10px"}}>👤 Editar empresa</button>}
-      <AdminProfileActions row={row} type="empresa" />
-      <div style={{ marginTop:"12px", display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"10px" }}><span style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", fontWeight:"800" }}>Calificar empresa</span><StarRating value={myStars} onRate={setMyStars} /><button disabled={!myStars} onClick={()=>rate("empresa", row.id, myStars)} style={{...btn("#fbbf24"), opacity:myStars?1:.45}}>Guardar</button><button onClick={()=>sendQueja(row)} style={btn("#ef4444")}>Queja</button></div>
-      {aprobadas.slice(0,2).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.58)", fontSize:"10px", background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", borderRadius:"8px", padding:"8px" }}>Queja aprobada: {c.comentario}</div>)}
     </div>;
   };
 
@@ -20166,7 +20242,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
 
-  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1180px", margin:"0 auto", backgroundImage:"radial-gradient(at 0% 0%, rgba(0,150,255,.05) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.035) 0px, transparent 50%)", backgroundSize:"100% 100%, 100% 100%" }}>
+  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1240px", margin:"0 auto", backgroundImage:"radial-gradient(at 0% 0%, rgba(0,150,255,.05) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.035) 0px, transparent 50%)", backgroundSize:"100% 100%, 100% 100%" }}>
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
@@ -20212,7 +20288,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       <Filters />
       {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
       {vista === "postular" && <><div style={{ color:"#38bdf8", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary") }}>Trabajadores ({trabFiltrados.length})</div><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px" }}>{paginate(trabFiltrados, pageTrab).map(row => <TrabCard key={row.id} row={row}/>)}</div><Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} /></>}
-      {vista === "empresario" && <><div style={{ color:"#38bdf8", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary") }}>Empresas ({empFiltradas.length})</div><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px" }}>{paginate(empFiltradas, pageEmp).map(row => <EmpresaCard key={row.id} row={row}/>)}</div><Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} /><AdminQuejas /></>}
+      {vista === "empresario" && <><div style={{ color:"#a1c9ff", fontWeight:"900", margin:"14px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Empresas ({empFiltradas.length})</div><div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"14px" }}>{paginate(empFiltradas, pageEmp).map(row => <EmpresaCard key={row.id} row={row}/>)}</div><Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} /><AdminQuejas /></>}
     </>}
   </div>;
 }
