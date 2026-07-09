@@ -18500,6 +18500,52 @@ const getNoticiasAutoReportCache = () => {
   return window.__cmNoticiasAutoReportCache;
 };
 
+function NoticiasPuertoIcon({ size = 34, color = "#ffffff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 50H34L30 37L20 33L10 37L8 50Z" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M26 18H41L34 27H30L26 18Z" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M18 47C22 45 26 45 30 47" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M12 53C18 55 24 55 30 53" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M10 18H18V50" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <path d="M18 18L26 10" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M18 25L28 33" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M18 33L28 41" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M26 10V29" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M26 10L44 18" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M26 18H48" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M44 18V28" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      <path d="M40 28L44 24L48 28" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      <rect x="36" y="33" width="22" height="21" rx="3" stroke={color} strokeWidth="3"/>
+      <path d="M39 38H46" stroke={color} strokeWidth="2.6" strokeLinecap="round"/>
+      <path d="M39 43H55" stroke={color} strokeWidth="2.6" strokeLinecap="round"/>
+      <path d="M39 48H55" stroke={color} strokeWidth="2.6" strokeLinecap="round"/>
+      <path d="M51 9C55 10.2 58.1 13.3 59.2 17.1" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round"/>
+      <path d="M49 14.5C51.2 15.3 52.8 16.9 53.6 19.1" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round"/>
+      <circle cx="48" cy="12" r="2.5" fill="#f59e0b"/>
+    </svg>
+  );
+}
+
+function NoticiasBoletinIcon({ size = 18, color = "#ffffff" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="9" y="10" width="42" height="44" rx="6" stroke={color} strokeWidth="3"/>
+      <path d="M51 14H55C57.2 14 59 15.8 59 18V48C59 50.2 57.2 52 55 52H51" stroke={color} strokeWidth="3"/>
+      <path d="M21 20H40" stroke={color} strokeWidth="3.4" strokeLinecap="round"/>
+      <path d="M21 27H40" stroke={color} strokeWidth="3.4" strokeLinecap="round"/>
+      <path d="M21 34H40" stroke={color} strokeWidth="3.4" strokeLinecap="round"/>
+      <path d="M17 45H43" stroke={color} strokeWidth="3.4" strokeLinecap="round"/>
+      <rect x="16" y="17" width="11" height="11" rx="2" stroke={color} strokeWidth="3"/>
+      <path d="M21.5 19V25" stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M18.5 24.5C19.9 23.2 20.5 23.2 21.5 24.2C22.5 25.2 23.2 25.2 24.5 24" stroke={color} strokeWidth="2.4" strokeLinecap="round"/>
+      <path d="M46.5 5C50.5 6.1 53.8 8.9 55.4 12.7" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round"/>
+      <path d="M46.5 11C48.5 11.5 50.1 13.1 50.8 15.1" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round"/>
+      <circle cx="45" cy="9" r="2.5" fill="#f59e0b"/>
+    </svg>
+  );
+}
+
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
   const reportCacheRef = useRef(getNoticiasAutoReportCache());
@@ -18668,14 +18714,12 @@ function NoticiasAutoJpegReport() {
     savePdfDocumentClient(doc, `reporte-operativo-conect-${now.toISOString().slice(0,10)}.pdf`);
   };
 
-  const descargarReporte = async () => {
+  const descargarReporte = async (forcedFormat = downloadFormat) => {
+    setDownloadFormat(forcedFormat);
     setDownloading(true);
     setError("");
     try {
-      if (downloadFormat === "pdf") {
-        // CORRECCIÓN PDF NOTICIAS: el PDF no debe reconstruir canvases/JPEG antes de descargar.
-        // Ese paso agregaba promesas e imágenes innecesarias y podía disparar el mensaje genérico
-        // "No se pudo descargar..." aunque la generación PDF fuera independiente.
+      if (forcedFormat === "pdf") {
         const now = new Date();
         const groups = reportCacheRef.current.groups || (await cargarSnapshot());
         await downloadGroupsAsPdf(groups, now);
@@ -18750,11 +18794,8 @@ function NoticiasAutoJpegReport() {
         </div>
         <div style={{ display:"flex", gap:"7px", flexWrap:"wrap", alignItems:"center" }}>
           <button onClick={generarJpeg} disabled={loading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.45)", background:"rgba(56,189,248,.12)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:loading?"wait":"pointer" }}>{loading ? "Generando…" : "Generar ahora"}</button>
-          <select value={downloadFormat} onChange={e=>setDownloadFormat(e.target.value)} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(2,6,23,.72)", color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, outline:"none" }}>
-            <option value="jpeg">Descargar como JPEG</option>
-            <option value="pdf">Descargar como PDF</option>
-          </select>
-          <button onClick={descargarReporte} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.4)", background:downloading ? "rgba(100,116,139,.18)" : "rgba(34,197,94,.12)", color:downloading ? "#94a3b8" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:downloading?"not-allowed":"pointer" }}>{downloading ? "Descargando…" : "Descargar"}</button>
+          <button onClick={() => descargarReporte("jpeg")} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.4)", background:downloading ? "rgba(100,116,139,.18)" : "rgba(34,197,94,.12)", color:downloading ? "#94a3b8" : "#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:downloading?"not-allowed":"pointer" }}>{downloading && downloadFormat !== "pdf" ? "Descargando…" : "JPEG"}</button>
+          <button onClick={() => descargarReporte("pdf")} disabled={downloading} style={{ padding:"9px 10px", borderRadius:"9px", border:"1px solid rgba(37,99,235,.4)", background:downloading ? "rgba(100,116,139,.18)" : "rgba(37,99,235,.12)", color:downloading ? "#94a3b8" : "#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:downloading?"not-allowed":"pointer" }}>{downloading && downloadFormat === "pdf" ? "Descargando…" : "PDF"}</button>
         </div>
       </div>
       {error && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(239,68,68,.12)", border:"1px solid rgba(239,68,68,.35)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px" }}>{error}</div>}
@@ -19263,23 +19304,31 @@ function NoticiasTab({ isAdmin }) {
         setVisorIndex(0);
       }} />}
 
-      <div style={{ background:"linear-gradient(135deg,#0d1b2e,#0a2540)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"16px", marginBottom:"16px", textAlign:"center" }}>
-        <div style={{ display:"flex", justifyContent:"center", marginBottom:"8px" }}><AppIcon name="dispatch-news" size={34} active={true} /></div>
-        <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", letterSpacing:"1px" }}>Noticias del puerto</div>
-        <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary") }}>Actualizaciones oficiales y operativas, sin ruido de votos automáticos.</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"16px", marginTop:"8px" }}>
-          <span style={{ fontSize:"10px", color:"#93c5fd", fontFamily:getFont(theme, "secondary") }}>{noticiasVisibles.length} noticias visibles</span>
-          <span style={{ fontSize:"10px", color:"#fbbf24", fontFamily:getFont(theme, "secondary") }}>{comunicados.filter(c => isComunicadoAprobado(c.aprobado)).length} comunicados</span>
+      <div style={{ background:"linear-gradient(135deg, rgba(11,24,43,.98), rgba(10,33,58,.96))", border:"1px solid rgba(148,163,184,.18)", borderRadius:"18px", padding:"18px", marginBottom:"16px", position:"relative", overflow:"hidden", boxShadow:"0 18px 44px rgba(2,6,23,.28)" }}>
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at top right, rgba(56,189,248,.12), transparent 38%), radial-gradient(circle at bottom left, rgba(37,99,235,.10), transparent 34%)", pointerEvents:"none" }} />
+        <div style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"14px", flexWrap:"wrap" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"14px", minWidth:0 }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"16px", border:"1px solid rgba(255,255,255,.12)", background:"linear-gradient(180deg, rgba(15,23,42,.86), rgba(8,15,28,.96))", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 0 1px rgba(56,189,248,.10) inset, 0 10px 30px rgba(0,0,0,.22)" }}>
+              <NoticiasPuertoIcon size={38} color="#ffffff" />
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", letterSpacing:".4px" }}>Noticias del puerto</div>
+              <div style={{ color:"rgba(226,232,240,.68)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary"), lineHeight:1.45 }}>Actualizaciones oficiales, comunicados y vista operativa con un diseño renovado. Se conserva intacto el reporte automático.</div>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
+                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(14,165,233,.12)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{noticiasVisibles.length} noticias visibles</span>
+                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.24)", color:"#fbbf24", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{comunicados.filter(c => isComunicadoAprobado(c.aprobado)).length} comunicados</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+            <button onClick={() => setSeccion("noticias")} style={{ padding:"11px 16px", borderRadius:"999px", border:`1px solid ${seccion==="noticias"?"rgba(56,189,248,.45)":"rgba(148,163,184,.22)"}`, background: seccion==="noticias"?"rgba(56,189,248,.12)":"rgba(15,23,42,.64)", color: seccion==="noticias"?"#e0f2fe":"#cbd5e1", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px", boxShadow:seccion==="noticias"?"0 0 20px rgba(56,189,248,.14)":"none" }}>
+              <NoticiasBoletinIcon size={17} color="#ffffff" /> Noticias
+            </button>
+            <button onClick={() => setSeccion("comunicados")} style={{ padding:"11px 16px", borderRadius:"999px", border:`1px solid ${seccion==="comunicados"?"rgba(251,191,36,.45)":"rgba(148,163,184,.22)"}`, background: seccion==="comunicados"?"rgba(251,191,36,.10)":"rgba(15,23,42,.64)", color: seccion==="comunicados"?"#fde68a":"#cbd5e1", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", gap:"8px" }}>
+              <AppIcon name="document" size={16} active={seccion==="comunicados"} /> Comunicados
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
-        <button onClick={() => setSeccion("noticias")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="noticias"?"#38bdf8":"#1e3a5f"}`, background: seccion==="noticias"?"#38bdf822":"#0a1628", color: seccion==="noticias"?"#38bdf8":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-          <AppIcon name="news" size={16} active={seccion==="noticias"} /> Noticias
-        </button>
-        <button onClick={() => setSeccion("comunicados")} style={{ flex:1, padding:"10px", borderRadius:"10px", border:`1px solid ${seccion==="comunicados"?"#fbbf24":"#1e3a5f"}`, background: seccion==="comunicados"?"#fbbf2422":"#0a1628", color: seccion==="comunicados"?"#fbbf24":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-          <AppIcon name="document" size={16} active={seccion==="comunicados"} /> Comunicados
-        </button>
       </div>
 
       {seccion === "noticias" && (
@@ -19287,46 +19336,64 @@ function NoticiasTab({ isAdmin }) {
           <NoticiasAutoJpegReport />
           {isAdmin && <NoticiasAdminCleanup onCleaned={cargarNoticias} />}
           {isAdmin && <NoticiasAdminPublisher isAdmin={true} onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
-          <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"16px" }}>
+
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
-              <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"6px 10px", borderRadius:"10px", border:`1px solid ${filtro===f.id?"#38bdf8":"#1e3a5f"}`, background: filtro===f.id?"#38bdf822":"#0a1628", color: filtro===f.id?"#38bdf8":"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"700":"500", display:"flex", alignItems:"center", gap:"4px" }}>
-                <AppIcon name={f.icon} size={15} active={filtro === f.id} /> {f.label}
+              <button key={f.id} onClick={() => setFiltro(f.id)} style={{ padding:"9px 12px", borderRadius:"999px", border:`1px solid ${filtro===f.id?"rgba(56,189,248,.42)":"rgba(148,163,184,.18)"}`, background: filtro===f.id?"rgba(56,189,248,.12)":"rgba(10,22,40,.82)", color: filtro===f.id?"#e0f2fe":"#cbd5e1", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: filtro===f.id?"800":"600", display:"flex", alignItems:"center", gap:"6px", boxShadow:filtro===f.id?"0 0 18px rgba(56,189,248,.10)":"none" }}>
+                {f.id === "todos" ? <NoticiasBoletinIcon size={15} color="#ffffff" /> : <AppIcon name={f.icon} size={15} active={filtro === f.id} />} {f.label}
               </button>
             ))}
           </div>
+
           {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Cargando noticias...</div>}
-          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed #1e3a5f", borderRadius:"12px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Sin noticias visibles para este filtro.</div>}
-          {filtered.map((n) => {
-            const media = getMedia(n);
-            const pdfs = getPdfs(n);
-            const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
-            return (
-              <div key={n.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${n.color || "#1e3a5f"}33`, borderLeft:`3px solid ${n.color || "#38bdf8"}`, borderRadius:"12px", padding:"12px 14px", marginBottom:"10px" }}>
-                <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
-                  <div style={{ width:"34px", height:"34px", flexShrink:0, background:(n.color||"#38bdf8")+"22", border:`1px solid ${n.color||"#38bdf8"}44`, borderRadius:"9px", display:"flex", alignItems:"center", justifyContent:"center" }}><AppIcon name={n.icono || "news"} size={18} active={true} /></div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap", marginBottom:"3px" }}>
-                      <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px" }}>{n.titulo}</div>
-                      {origen === "comunicados" && <Badge color="#2563eb" small>Origen: Comunicados</Badge>}
+          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>Sin noticias visibles para este filtro.</div>}
+          {!loading && filtered.length > 0 && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px" }}>
+              {filtered.map((n) => {
+                const media = getMedia(n);
+                const pdfs = getPdfs(n);
+                const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
+                const leadVisuals = media.slice(0, 2);
+                const accent = n.color || "#38bdf8";
+                return (
+                  <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", minHeight:"100%", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
+                    <div style={{ display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
+                      {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}><NoticiasBoletinIcon size={28} color="#ffffff" /></div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
                     </div>
-                    {n.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800 }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.62)", fontSize:"11px", lineHeight:1.45, marginTop:"6px", maxHeight:"130px", overflowY:"auto", overflowX:"hidden", wordBreak:"normal", overflowWrap:"break-word" }}>{n.detalle}</div></details>}
-                    {media.length > 0 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))", gap:"8px", marginBottom:"8px" }}>
-                      {media.slice(0, 8).map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ padding:0, border:"1px solid rgba(255,255,255,.12)", borderRadius:"9px", overflow:"hidden", background:"#061428", cursor:"pointer" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"76px", objectFit:"cover", display:"block" }} /></button>)}
-                    </div>}
-                    {pdfs.length > 0 && <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>{pdfs.map((u,i)=><button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"application/pdf" }, pdfs.map((pu)=>({ ...n, archivo_url:pu, archivo_tipo:"application/pdf" })), i)} style={{ padding:"6px 9px", borderRadius:"8px", background:"rgba(37,99,235,.14)", border:"1px solid rgba(37,99,235,.35)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textDecoration:"none", fontWeight:700, cursor:"pointer" }}>Ver PDF {i+1}</button>)}</div>}
-                    <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap" }}>
-                      <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
-                      <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
-                      <span style={{ fontSize:"9px", color:(n.color||"#38bdf8"), fontFamily:getFont(theme, "secondary"), fontWeight:"700", textTransform:"uppercase" }}>{n.tipo}</span>
-                      <span style={{ width:"3px", height:"3px", background:"#334155", borderRadius:"50%" }} />
-                      <span style={{ fontSize:"9px", color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary") }}>Origen: {origen === "comunicados" ? "Comunicados" : "Sistema"}</span>
+
+                    <div style={{ padding:"16px", display:"flex", flexDirection:"column", gap:"10px", flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", flexWrap:"wrap" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:"6px", padding:"6px 10px", borderRadius:"999px", background:`${accent}16`, border:`1px solid ${accent}33`, color:accent, fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800, textTransform:"uppercase" }}>
+                            <AppIcon name={n.icono || "news"} size={14} active={true} /> {n.tipo}
+                          </span>
+                          {origen === "comunicados" && <span style={{ padding:"6px 10px", borderRadius:"999px", background:"rgba(37,99,235,.12)", border:"1px solid rgba(37,99,235,.28)", color:"#93c5fd", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Origen: Comunicados</span>}
+                        </div>
+                        <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
+                      </div>
+
+                      <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", lineHeight:1.25 }}>{n.titulo}</div>
+
+                      {n.detalle && <div style={{ color:"rgba(226,232,240,.70)", fontSize:"12px", lineHeight:1.6, fontFamily:getFont(theme, "secondary"), display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{n.detalle}</div>}
+
+                      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"auto" }}>
+                        {n.detalle && <details style={{ flex:"1 1 100%" }}><summary style={{ listStyle:"none", cursor:"pointer", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(148,163,184,.24)", background:"rgba(5,15,28,.72)", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.68)", fontSize:"11px", lineHeight:1.55, marginTop:"8px", padding:"10px 12px", borderRadius:"12px", background:"rgba(6,20,40,.72)", border:"1px solid rgba(148,163,184,.16)", maxHeight:"180px", overflowY:"auto", wordBreak:"break-word" }}>{n.detalle}</div></details>}
+                        {media.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:media[0], archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(56,189,248,.10)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}><span>👁</span> Ver imagen{media.length > 1 ? "es" : ""}</button>}
+                        {pdfs.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:pdfs[0], archivo_tipo:"application/pdf" }, pdfs.map((pu)=>({ ...n, archivo_url:pu, archivo_tipo:"application/pdf" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(37,99,235,.10)", border:"1px solid rgba(37,99,235,.28)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}>Ver PDF{pdfs.length > 1 ? ` (${pdfs.length})` : ""}</button>}
+                      </div>
+
+                      <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", paddingTop:"2px" }}>
+                        <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary") }}>Origen: {origen === "comunicados" ? "Comunicados" : "Sistema"}</span>
+                        <span style={{ width:"4px", height:"4px", background:"#334155", borderRadius:"50%" }} />
+                        <span style={{ fontSize:"10px", color:accent, fontFamily:getFont(theme, "secondary"), fontWeight:"800", textTransform:"uppercase" }}>{n.tipo}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {filtered.length > 0 && <div style={{ textAlign:"center", padding:"16px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px" }}>— Mostrando {filtered.length} noticias —</div>}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          {filtered.length > 0 && <div style={{ textAlign:"center", padding:"18px 12px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px" }}>— Mostrando {filtered.length} noticias —</div>}
         </>
       )}
 
