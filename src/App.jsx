@@ -10005,6 +10005,72 @@ const geocodeEventLocation = async (locationText = "") => {
 };
 
 
+
+function ManualEventPinPicker({ initialCoords, locationLabel = "", category = "incidente", onConfirm, onCancel }) {
+  const theme = React.useContext(ThemeContext);
+  const safeInitial = Array.isArray(initialCoords) && initialCoords.length === 2
+    ? [Number(initialCoords[0]), Number(initialCoords[1])]
+    : [19.081, -104.292];
+  const [pin, setPin] = useState(Number.isFinite(safeInitial[0]) && Number.isFinite(safeInitial[1]) ? safeInitial : [19.081, -104.292]);
+  const markerRef = useRef(null);
+  const markerIcon = useMemo(() => L.divIcon({
+    className: "cm-manual-event-pin",
+    html: `<div style="width:34px;height:34px;border-radius:50%;background:${category === "accidente" ? "#ef4444" : "#f97316"};border:3px solid white;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:900;transform:translate(-1px,-1px)">${category === "accidente" ? "✚" : "!"}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  }), [category]);
+  const MiniMapFix = () => {
+    const map = useMap();
+    useEffect(() => {
+      const t = setTimeout(() => {
+        try {
+          map.invalidateSize();
+          map.setView(pin, map.getZoom() || 15, { animate:false });
+        } catch {}
+      }, 120);
+      return () => clearTimeout(t);
+    }, [map]);
+    return null;
+  };
+  return (
+    <div style={{ marginTop:10, background:"rgba(2,6,23,.55)", border:"1px solid rgba(125,211,252,.25)", borderRadius:14, padding:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
+        <div>
+          <div style={{ color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:1000 }}>📍 Colocar pin manual</div>
+          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:10, marginTop:2 }}>Arrastra el pin hasta el punto exacto. Al confirmar, esas coordenadas serán las del evento.</div>
+        </div>
+        <div style={{ color:"rgba(255,255,255,.62)", fontFamily:getFont(theme,"secondary"), fontSize:10, fontWeight:800 }}>{pin[0].toFixed(6)}, {pin[1].toFixed(6)}</div>
+      </div>
+      <div style={{ height:300, borderRadius:12, overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", position:"relative" }}>
+        <MapContainer center={pin} zoom={15} scrollWheelZoom={true} attributionControl={false} style={{ height:"100%", width:"100%" }}>
+          <MiniMapFix />
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <Marker
+            position={pin}
+            draggable={true}
+            icon={markerIcon}
+            ref={markerRef}
+            eventHandlers={{
+              dragend: () => {
+                const marker = markerRef.current;
+                if (!marker) return;
+                const next = marker.getLatLng();
+                setPin([next.lat, next.lng]);
+              }
+            }}
+          >
+            <Popup>{locationLabel || "Punto manual del evento"}</Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginTop:10, flexWrap:"wrap" }}>
+        <button onClick={onCancel} style={{ padding:"9px 12px", borderRadius:10, border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.05)", color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>Cancelar pin</button>
+        <button onClick={() => onConfirm?.(pin)} style={{ padding:"10px 13px", borderRadius:10, border:"none", background:"#22c55e", color:"#022c22", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:1000, cursor:"pointer" }}>Confirmar este punto</button>
+      </div>
+    </div>
+  );
+}
+
 const CCTT_AI_EVENT_ANALYSIS_PROMPT = `Actúa como el motor de análisis inteligente para el CCTT. Tu objetivo es procesar reportes viales.
 
 Reglas de análisis:
@@ -10333,6 +10399,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
   const [rawText, setRawText] = useState("");
   const [coordsBusy, setCoordsBusy] = useState(false);
   const [approvedBusy, setApprovedBusy] = useState(false);
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const inputStyle = { width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.72)", border:"1px solid rgba(255,255,255,.12)", borderRadius:10, padding:"10px 11px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:12, outline:"none" };
@@ -10351,6 +10418,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
     setDraft(null);
     setRawText("");
     setMessage(msg);
+    setPinPickerOpen(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -10361,6 +10429,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
     setDraft(null);
     setRawText("");
     setMessage("");
+    setPinPickerOpen(false);
   };
 
   const analizar = async () => {
@@ -10554,10 +10623,26 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
               <div>
                 <label style={labelStyle}>Coordenadas</label>
                 <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(e.target.value)} placeholder="19.0927, -104.2765" style={inputStyle} />
-                <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "La IA puede dejar esto sin coordenadas; valida el punto antes de aprobar."}</div>
+                <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "Puedes geocodificar o colocar un pin manual; valida el punto antes de aprobar."}</div>
               </div>
-              <button onClick={regeocodificar} disabled={coordsBusy} style={{ padding:"10px 12px", borderRadius:10, border:"1px solid rgba(125,211,252,.35)", background:"rgba(125,211,252,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>{coordsBusy ? "…" : "Geocodificar"}</button>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
+                <button onClick={regeocodificar} disabled={coordsBusy} style={{ padding:"10px 12px", borderRadius:10, border:"1px solid rgba(125,211,252,.35)", background:"rgba(125,211,252,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:coordsBusy ? "wait" : "pointer" }}>{coordsBusy ? "…" : "Geocodificar"}</button>
+                <button onClick={() => setPinPickerOpen(v => !v)} style={{ padding:"10px 12px", borderRadius:10, border:"1px solid rgba(34,197,94,.35)", background:pinPickerOpen ? "rgba(34,197,94,.18)" : "rgba(34,197,94,.10)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>{pinPickerOpen ? "Ocultar pin" : "Añadir pin"}</button>
+              </div>
             </div>
+
+            {pinPickerOpen && <ManualEventPinPicker
+              initialCoords={draft.coords}
+              locationLabel={draft.location}
+              category={draft.category}
+              onCancel={() => setPinPickerOpen(false)}
+              onConfirm={(pin) => {
+                const nextText = `${pin[0].toFixed(6)}, ${pin[1].toFixed(6)}`;
+                updateDraft({ coords:pin, coords_text:nextText, coords_source:"pin_manual" });
+                setPinPickerOpen(false);
+                setMessage("Pin confirmado. Ese punto será donde aparecerá el evento al aprobar.");
+              }}
+            />}
 
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap", background:"rgba(2,6,23,.42)", border:"1px solid rgba(255,255,255,.10)", borderRadius:12, padding:10 }}>
               <div style={{ color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11, lineHeight:1.45 }}>
