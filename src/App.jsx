@@ -14827,6 +14827,7 @@ function SegundoAccesoTab({ myId }) {
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
 function CarrilesTab() {
   const theme = React.useContext(ThemeContext);
+  const carrilesMobile = useWindowWidth() < 720;
   const [estado,  setEstado]  = useState(mkCarrilesState);
   const [accView, setAccView] = useState(() => {
     try { return sessionStorage.getItem("carriles_acc") || "pezvela"; } catch { return "pezvela"; }
@@ -14947,7 +14948,7 @@ function CarrilesTab() {
           <Badge color={abierto ? "#22c55e" : "#6b7280"} small>{abierto ? "ABIERTO" : "CERRADO"}</Badge>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
           <div style={laneBlockStyle(accent)}>
             {laneHeaderNode(iconName, `Control de ${tipoLabel.toLowerCase()}`, abierto ? `${tipoLabel} habilitada` : `${tipoLabel} detenida`, accent, 30)}
             <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Acceso asignado</div>
@@ -14991,7 +14992,7 @@ function CarrilesTab() {
   };
 
   return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+    <div style={{ padding:carrilesMobile ? "12px" : "16px", paddingBottom:"96px", minHeight:"100vh", overflowX:"hidden" }}>
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
         <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"4px" }}>CARRILES — PUERTO MANZANILLO</div>
         <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estado de carriles de exportación e importación por acceso.</div>
@@ -15023,7 +15024,7 @@ function CarrilesTab() {
           ))}
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3, minmax(0,1fr))", gap:"12px", marginBottom:"16px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap:"12px", marginBottom:"16px" }}>
         {ACCESOS_CARRILES.map(acc => {
           const active = accView===acc.id;
           return (
@@ -15063,8 +15064,8 @@ function CarrilesTab() {
       </div>
       {currentAcc && (
         <>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:carrilesMobile ? "flex-start" : "center", marginBottom:"14px", gap:"10px", flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
               <div style={{ width:"10px", height:"10px", background:currentAcc.color, borderRadius:"50%", boxShadow:`0 0 8px ${currentAcc.color}` }} />
               <span style={{ color:currentAcc.color, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px" }}>{currentAcc.label}</span>
               <Badge color={currentAcc.zona==="Norte"?"#38bdf8":"#a78bfa"} small>ZONA {currentAcc.zona.toUpperCase()}</Badge>
@@ -15074,7 +15075,7 @@ function CarrilesTab() {
           {expoCarriles.length > 0 && (
             <>
               <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>EXPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: expoCarriles.length===1?"1fr":"1fr 1fr", gap:"12px", marginBottom:"16px" }}>
+              <div style={{ display:"grid", gridTemplateColumns: carrilesMobile || expoCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"16px" }}>
                 {expoCarriles.map(carril => renderCarrilVoteCard(carril, EXPO_COLOR, "Exportación", "truck-export"))}
               </div>
             </>
@@ -15082,7 +15083,7 @@ function CarrilesTab() {
           {impoCarriles.length > 0 && (
             <>
               <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>IMPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: impoCarriles.length===1?"1fr":"1fr 1fr", gap:"12px", marginBottom:"14px" }}>
+              <div style={{ display:"grid", gridTemplateColumns: carrilesMobile || impoCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px" }}>
                 {impoCarriles.map(carril => renderCarrilVoteCard(carril, IMPO_COLOR, "Importación", "truck-import"))}
               </div>
             </>
@@ -17561,6 +17562,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 // ─── SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ──────────────────────
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDownloadItem, downloadingItemUrl, timeAgo, isPdf }) {
   const theme = React.useContext(ThemeContext);
+  const comunicadosMobile = useWindowWidth() < 720;
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
@@ -17782,7 +17784,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   return (
     <>
       {/* Sub-tabs: Ver comunicado / Proponer comunicado */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", background: "rgba(2,6,23,0.78)", borderRadius: "16px", padding: "6px", border: "1px solid rgba(30,58,95,0.78)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+      <div style={{ display: "flex", flexDirection: comunicadosMobile ? "column" : "row", gap: "8px", marginBottom: "16px", background: "rgba(2,6,23,0.78)", borderRadius: "16px", padding: "6px", border: "1px solid rgba(30,58,95,0.78)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
         <button
           onClick={() => setSubTab("ver")}
           style={comunicadoTabButtonStyle(subTab === "ver", "#fbbf24")}
@@ -17878,27 +17880,27 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
             <>
               {comunicadoActivo && (
                 <div style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "16px", overflow: "hidden", marginBottom: "14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", padding: "14px 14px 10px" }}>
+                  <div style={{ display: "flex", flexDirection: comunicadosMobile ? "column" : "row", justifyContent: "space-between", alignItems: comunicadosMobile ? "stretch" : "flex-start", gap: "12px", padding: comunicadosMobile ? "12px" : "14px 14px 10px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "rgba(255,255,255,0.95)", marginBottom: "4px" }}>{comunicadoActivo.titulo}</div>
-                      {comunicadoActivo.detalle && <details style={{ marginBottom:"8px" }}><summary style={{ cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#93c5fd", fontWeight:800 }}>Ver descripción</summary><div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.62)", lineHeight: "1.45", marginTop:"6px", maxHeight:"120px", overflowY:"auto", overflowX:"hidden", whiteSpace:"pre-wrap", wordBreak:"normal", overflowWrap:"break-word" }}>{comunicadoActivo.detalle}</div></details>}
+                      {comunicadoActivo.detalle && <details style={{ marginBottom:"8px", maxWidth:"100%" }}><summary style={{ cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#93c5fd", fontWeight:800 }}>Ver descripción</summary><div style={{ fontFamily: getFont(theme, "secondary"), fontSize: comunicadosMobile ? "12px" : "11px", color: "rgba(255,255,255,0.68)", lineHeight: "1.55", marginTop:"6px", maxHeight:comunicadosMobile ? "180px" : "120px", overflowY:"auto", overflowX:"hidden", whiteSpace:"pre-wrap", wordBreak:"break-word", overflowWrap:"anywhere", width:"100%", boxSizing:"border-box", padding:"8px 10px", borderRadius:"10px", background:"rgba(2,6,23,.28)", border:"1px solid rgba(255,255,255,.08)" }}>{comunicadoActivo.detalle}</div></details>}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700" }}>Documento {selectedIndex + 1} de {totalVigentes}</span>
                         <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>🕐 Vence: {formatDateTime(comunicadoActivo.fecha_fin)}</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: comunicadosMobile ? "stretch" : "flex-end" }}>
                       <button onClick={abrirComunicadoActivo} style={{ padding: "9px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>Pantalla completa</button>
                       <a href={comunicadoActivo.archivo_url} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Abrir</a>
                       {onDownloadItem ? (<button onClick={() => onDownloadItem(comunicadoActivo)} disabled={downloadingItemUrl === comunicadoActivo.archivo_url} style={{ padding: "9px 12px", background: downloadingItemUrl === comunicadoActivo.archivo_url ? "rgba(100,116,139,.18)" : "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: downloadingItemUrl === comunicadoActivo.archivo_url ? "#94a3b8" : "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: downloadingItemUrl === comunicadoActivo.archivo_url ? "not-allowed" : "pointer" }}>{downloadingItemUrl === comunicadoActivo.archivo_url ? "Preparando descarga…" : "Descargar con marca de agua"}</button>) : (<a href={comunicadoActivo.archivo_url} download style={{ padding: "9px 12px", background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Descargar</a>)}
                     </div>
                   </div>
 
-                  <div style={{ position: "relative", width: "100%", minHeight: "480px", maxHeight: "70vh", background: "#06101d", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ position: "relative", width: "100%", minHeight: comunicadosMobile ? "280px" : "480px", maxHeight: comunicadosMobile ? "56vh" : "70vh", background: "#06101d", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {isPdf(comunicadoActivo.archivo_url) ? (
-                      <iframe src={comunicadoActivo.archivo_url} title={comunicadoActivo.titulo} style={{ width: "100%", height: "68vh", border: "none", background: "#fff" }} />
+                      <iframe src={comunicadoActivo.archivo_url} title={comunicadoActivo.titulo} style={{ width: "100%", height: comunicadosMobile ? "54vh" : "68vh", border: "none", background: "#fff" }} />
                     ) : (
-                      <img src={comunicadoActivo.archivo_url} alt={comunicadoActivo.titulo} style={{ width: "100%", height: "68vh", objectFit: "contain", display: "block", background: "#061428" }} loading="lazy" />
+                      <img src={comunicadoActivo.archivo_url} alt={comunicadoActivo.titulo} style={{ width: "100%", height: comunicadosMobile ? "54vh" : "68vh", objectFit: "contain", display: "block", background: "#061428" }} loading="lazy" />
                     )}
 
                     {totalVigentes > 1 && (
@@ -17914,7 +17916,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: comunicadosMobile ? "1fr" : "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px" }}>
                 {vigentes.map((c, idx) => {
                   const activo = idx === selectedIndex;
                   return (
@@ -17940,7 +17942,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                           <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "rgba(255,255,255,0.9)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{c.titulo}</div>
                           {activo && <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700", color: "#fbbf24" }}>ACTIVO</span>}
                         </div>
-                        {c.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: "4px" }}>{c.detalle}</div>}
+                        {c.detalle && <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: comunicadosMobile ? "normal" : "nowrap", wordBreak:"break-word", overflowWrap:"anywhere", lineHeight:1.4, marginBottom: "4px" }}>{c.detalle}</div>}
                         <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>🕐 Vence: {formatDateTime(c.fecha_fin)}</div>
                       </div>
                       {isAdmin && (
@@ -19572,6 +19574,7 @@ function StarRating({ value=0, onRate=null, small=false }) {
 
 function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const theme = React.useContext(ThemeContext);
+  const posturasMobile = useWindowWidth() < 760;
   const [sub, setSub] = useState("posturas");
   const [vista, setVista] = useState("postular");
   const [posturasMode, setPosturasMode] = useState("list");
@@ -20392,8 +20395,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const ProfileEditorView = () => (
     <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
       <ProfileHeader />
-      <div style={{ display:"grid", gridTemplateColumns:"minmax(280px,340px) minmax(0,1fr)", gap:"18px", alignItems:"start" }}>
-        <div style={{ ...card, padding:"22px", position:"sticky", top:"84px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(280px,340px) minmax(0,1fr)", gap:"18px", alignItems:"start" }}>
+        <div style={{ ...card, padding:"22px", position:posturasMobile ? "relative" : "sticky", top:posturasMobile ? "auto" : "84px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"14px" }}>
             <div style={{ width:"58px", height:"58px", borderRadius:"16px", display:"grid", placeItems:"center", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.25)" }}><MS name="person_circle" size={30} active /></div>
             <div>
@@ -20498,7 +20501,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     const avgEmp = empFiltradas.length ? empFiltradas.reduce((acc, row) => acc + avgFor("empresa", row.id).avg, 0) / empFiltradas.length : 0;
     return <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
       <ProfileHeader />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,minmax(0,1fr))", gap:"14px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap:"14px" }}>
         <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Perfiles con reputación</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{trabFiltrados.length}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"8px", color:"#a1c9ff" }}><MS name="groups" size={16} active /> <span style={{ fontSize:"11px", fontWeight:"800" }}>Talento clasificado</span></div></div>
         <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Empresas calificadas</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{empFiltradas.length}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"8px", color:"#7dd3fc" }}><MS name="apartment" size={16} active /> <span style={{ fontSize:"11px", fontWeight:"800" }}>Vacantes y marcas</span></div></div>
         <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Promedio talento</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{avgTrab ? avgTrab.toFixed(1) : "0.0"}</div><div style={{ marginTop:"8px" }}><StarRating value={avgTrab} small /></div></div>
@@ -20517,7 +20520,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           </div>
         </div>
         <CommandSearch />
-        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.1fr) minmax(320px,.9fr)", gap:"18px", alignItems:"start" }}>
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,1.1fr) minmax(320px,.9fr)", gap:"18px", alignItems:"start" }}>
           <div style={{ display:"grid", gap:"14px" }}>
             {dashboardRows.length === 0 ? <div style={{ ...card, padding:"28px", color:"rgba(212,228,250,.48)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>No hay resultados para los filtros seleccionados.</div> : dashboardRows.slice(0, 8).map(row => <DashboardEntityRow key={`${dashboardTarget}-${row.id}`} row={row} type={dashboardTarget === "perfiles" ? "trabajador" : "empresa"} />)}
           </div>
@@ -20562,22 +20565,48 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     </div>
   );
 
+  const MobileMetric = ({ label, value }) => <div style={{ textAlign:"center", minWidth:0 }}><div style={{ color:"#89919e", fontSize:"10px", textTransform:"uppercase", letterSpacing:".06em", marginBottom:"4px" }}>{label}</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{value || "—"}</div></div>;
+  const MobileTrabCard = ({ row }) => { const r = avgFor("trabajador", row.id); const initials = String(row.nombre_completo || "P").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase(); return <article style={{ ...card, padding:"16px", borderRadius:"16px" }}>
+    <div style={{ display:"flex", gap:"14px" }}><div style={{ width:"76px", height:"90px", borderRadius:"12px", flexShrink:0, display:"grid", placeItems:"center", background:"linear-gradient(135deg, rgba(161,201,255,.22), rgba(13,28,45,.92))", border:"1px solid rgba(63,71,83,.65)", color:"#a1c9ff", fontSize:"22px", fontWeight:"900" }}>{initials}</div><div style={{ flex:1, minWidth:0 }}><div style={{ display:"flex", justifyContent:"space-between", gap:"8px", alignItems:"flex-start" }}><div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", lineHeight:1.15 }}>{row.nombre_completo}</div><div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#fbbf24", flexShrink:0 }}><StarRating value={r.avg} small /><span style={{ fontSize:"11px", color:"#fbbf24", fontWeight:"900" }}>{r.avg ? r.avg.toFixed(1) : "0.0"}</span></div></div><div style={{ marginTop:"5px", color:"rgba(212,228,250,.62)", fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".10em" }}>{row.licencia}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"6px", padding:"4px 8px", borderRadius:"999px", border:`1px solid ${row.disponible ? "rgba(16,185,129,.25)" : "rgba(239,68,68,.25)"}`, color:row.disponible ? "#10b981" : "#ef4444", background:row.disponible ? "rgba(16,185,129,.10)" : "rgba(239,68,68,.10)", fontSize:"10px", fontWeight:"900" }}><MS name="check_circle" size={14} active /> {row.disponible ? "Disponible" : "No disponible"}</div></div></div>
+    <div style={{ marginTop:"14px", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px" }}><MobileMetric label="Experiencia" value={row.edad ? `${row.edad} años` : "—"}/><MobileMetric label="Especialidad" value={row.maniobra}/><MobileMetric label="Ubicación" value={row.alcance}/></div>
+    <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{ width:"100%", marginTop:"14px", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.55)", background:"rgba(161,201,255,.10)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"11px", letterSpacing:".12em", textTransform:"uppercase" }}>Ver expediente</button>
+  </article>; };
+  const MobileEmpresaCard = ({ row }) => { const r = avgFor("empresa", row.id); return <article style={{ ...card, padding:"16px", borderRadius:"16px", borderLeft:"4px solid #10b981" }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", marginBottom:"10px" }}><div style={{ display:"inline-flex", alignItems:"center", gap:"7px", color:"#10b981", fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".12em" }}><span style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#10b981" }} /> {row.estatus === "tiene_trabajo" ? "Activa" : "Llena"}</div><div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#fbbf24" }}><StarRating value={r.avg} small /><span style={{ fontSize:"11px", color:"#fbbf24", fontWeight:"900" }}>{r.avg ? r.avg.toFixed(1) : "0.0"}</span></div></div>
+    <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", lineHeight:1.25 }}>Búsqueda: {row.razon_social}</div><div style={{ marginTop:"5px", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", display:"flex", alignItems:"center", gap:"5px" }}><MS name="apartment" size={14} active /> {row.tipo_empresa}</div>
+    <div style={{ marginTop:"11px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.55, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante || "—"}. Contacto técnico: {row.contacto_tecnico || "—"}.</div>
+    <div style={{ marginTop:"12px", display:"flex", flexWrap:"wrap", gap:"8px" }}>{[row.tipo_empresa, row.alcance].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.85)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"6px 9px", borderRadius:"8px", fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
+    <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ marginTop:"12px", color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button>
+  </article>; };
+
+  const MobilePosturasShell = () => {
+    if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
+    if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
+    if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileHeader /><div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"local_shipping"},{id:"empresario", label:"Empresario", icon:"business"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900" }}><MS name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>{vista === "postular" ? <WorkerForm /> : <CompanyForm />}</div>;
+    const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
+    return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
+      <div style={{ display:"grid", gap:"10px", marginBottom:"16px" }}><div style={{ position:"relative" }}><span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={18} /></span><input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar puestos, talentos..." style={{ ...input, paddingLeft:"40px", background:"rgba(28,43,60,.86)", borderRadius:"14px", minHeight:"46px" }} /></div><button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.64)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}><MS name="filter_list" size={17} active /> Filtros avanzados</button></div>
+      <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
+      {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
+      {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
+      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["archivo","inventory_2","Archivo"],["perfil","person_circle","Perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="archivo"){setSub("posturas"); setPosturasMode("archive");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
+    </div>;
+  };
+
+  if (posturasMobile) return <MobilePosturasShell />;
+
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
       <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
-        <div style={{ padding:"0 18px", marginBottom:"20px" }}>
-          <div style={{ ...posturasGlass, borderRadius:"18px", padding:"16px", border:"1px solid rgba(63,71,83,.46)" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"12px" }}>
-              <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"rgba(161,201,255,.12)", border:"1px solid rgba(161,201,255,.22)", display:"grid", placeItems:"center", flexShrink:0 }}><MS name="person_circle" size={24} active /></div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".15em", textTransform:"uppercase" }}>Mi perfil</div>
-                <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"16px", fontWeight:"900", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{profileDisplayName}</div>
-                <div style={{ color:"rgba(212,228,250,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{profileDisplayRole}</div>
-              </div>
+        <div style={{ padding:"0 24px", marginBottom:"28px" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"12px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>
+              <MS name="person_circle" size={22} active /> Mi Perfil
             </div>
-            <div style={{ color:"rgba(212,228,250,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginBottom:"12px" }}>{profileDisplayEmail}</div>
-            <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ width:"100%", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"10px", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.16)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer" }}><MS name="edit" size={16} active /> Editar información</button>
+            <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ marginLeft:"34px", display:"inline-flex", alignItems:"center", gap:"8px", background:"transparent", border:"none", padding:0, color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} /> Editar perfil</button>
           </div>
         </div>
         <nav style={{ display:"grid", gap:"4px", flex:1 }}>
