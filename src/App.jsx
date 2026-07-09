@@ -4199,7 +4199,7 @@ function AdminRegistrosPanel() {
     return acc;
   }, {});
   return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
-    <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
     <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
     <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} />
     <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
@@ -4261,7 +4261,7 @@ function AdminCalculadoraPanel() {
   return (
     <div style={{ padding:"16px", background:"rgba(249,115,22,0.045)" }}>
       <div style={{ marginBottom:"12px" }}>
-        <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800" }}>⛽ Calculadora de costo de ruta</div>
+        <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"800" }}>⛽ Calculadora de costo de ruta</div>
         <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.48)", fontSize:"11px", marginTop:"4px" }}>Herramienta privada del administrador principal. Calcula rutas dentro de Manzanillo usando Google Maps.</div>
       </div>
       {GOOGLE_MAPS_API_KEY === "TU_API_KEY_AQUI" && (
@@ -19637,9 +19637,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
   const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
-  const MS = ({ name, size = 20, active = false, color = "currentColor" }) => (
-    <span className="material-symbols-outlined" style={{ fontSize:size, lineHeight:1, color, fontVariationSettings:`'FILL' ${active ? 1 : 0}, 'wght' 300, 'GRAD' 0, 'opsz' 24` }}>{name}</span>
-  );
 
   const avgFor = (type, id) => {
     const rows = ratings.filter(r => r.profile_type === type && String(r.profile_id) === String(id));
@@ -19827,16 +19824,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
     boxShadow:"0 18px 44px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05)"
   };
   const ProfileHeader = () => (
-    <div style={{ ...posturasGlass, marginBottom:"24px", borderRadius:"16px", padding:"32px", borderLeft:"4px solid #a1c9ff", display:"flex", justifyContent:"space-between", gap:"18px", alignItems:"center", flexWrap:"wrap", position:"relative", overflow:"hidden" }}>
+    <div style={{ ...posturasGlass, marginBottom:"18px", borderRadius:"18px", padding:"24px", borderLeft:"4px solid #a1c9ff", display:"flex", justifyContent:"space-between", gap:"18px", alignItems:"center", flexWrap:"wrap", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, background:"radial-gradient(at 0% 0%, rgba(0,150,255,.08), transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.045), transparent 50%)", pointerEvents:"none" }} />
       <div style={{ position:"relative", zIndex:1, maxWidth:"760px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"13px", marginBottom:"8px" }}>
           <div style={{ width:"50px", height:"50px", borderRadius:"14px", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.24)", display:"grid", placeItems:"center", boxShadow:"0 0 28px rgba(161,201,255,.10)" }}>
-            <MS name="anchor" size={31} active />
+            <AppIcon name="anchor-port" size={31} active />
           </div>
           <div>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#a1c9ff", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", marginBottom:"3px" }}>Control de puente</div>
-            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(24px,4vw,32px)", lineHeight:1, color:"#d4e4fa", fontWeight:"900", letterSpacing:"-.02em" }}>Centro de Talento</div>
+            <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(24px,4vw,32px)", lineHeight:1, color:"#d4e4fa", fontWeight:"900", letterSpacing:"-.02em" }}>Centro de Talento</div>
           </div>
         </div>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"13px", color:"rgba(212,228,250,0.72)", lineHeight:1.65 }}>
@@ -19844,7 +19841,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
         </div>
       </div>
       <button onClick={() => setActive && setActive("tutorial")} style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:`1px solid ${authUser ? "rgba(34,197,94,.46)" : "rgba(161,201,255,.34)"}`, background:authUser ? "rgba(34,197,94,.14)" : "rgba(44,58,76,.46)", color:authUser ? "#86efac" : "#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:authUser ? "0 0 22px rgba(34,197,94,.12)" : "0 0 22px rgba(161,201,255,.13)" }}>
-        <MS name={authUser ? "check_circle" : "login"} size={18} active />
+        <AppIcon name={authUser ? "circle-check" : "login"} size={18} active />
         {authUser ? "Cuenta activa" : "Crear cuenta / Iniciar sesión"}
       </button>
     </div>
@@ -19853,7 +19850,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const Filters = () => <div style={{ ...card, marginBottom:"16px", padding:"16px" }}>
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
       <div>
-        <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"20px", fontWeight:"900" }}>Perfiles publicados</div>
+        <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontSize:"20px", fontWeight:"900" }}>Perfiles publicados</div>
         <div style={{ color:"rgba(191,199,213,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"3px" }}>Busca por nombre, cargo, RFC o palabra clave. Guarda perfiles para verlos después en tu archivo local.</div>
       </div>
       <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.24)", background:"rgba(161,201,255,.08)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
@@ -19877,7 +19874,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const ProfileMetric = ({ label, value }) => (
     <div style={{ background:"rgba(13,28,45,.74)", border:"1px solid rgba(63,71,83,.42)", borderRadius:"13px", padding:"13px 14px", minWidth:0 }}>
       <div style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", marginBottom:"4px" }}>{label}</div>
-      <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"16px", fontWeight:"850", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value || "—"}</div>
+      <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontSize:"16px", fontWeight:"850", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{value || "—"}</div>
     </div>
   );
 
@@ -19894,7 +19891,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           <div style={{ flex:1, minWidth:"260px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"flex-start", flexWrap:"wrap" }}>
               <div>
-                <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>{row.nombre_completo}</div>
+                <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"title"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>{row.nombre_completo}</div>
                 <div style={{ marginTop:"5px", display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", color:"#a1c9ff" }}>
                   <StarRating value={r.avg} small />
                   <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{r.avg ? `(${r.avg.toFixed(1)})` : "Sin calificaciones"} · {r.count}</span>
@@ -19908,11 +19905,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
               <ProfileMetric label="Especialidad" value={row.maniobra} />
               <ProfileMetric label="Ubicación" value={row.alcance} />
             </div>
-            <div style={{ marginTop:"12px", color:"rgba(212,228,250,.66)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.65 }}><span style={{display:"inline-flex",alignItems:"center",gap:"6px"}}><MS name="call" size={14} /> {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}</span>{row.correo ? <><br/><span style={{display:"inline-flex",alignItems:"center",gap:"6px"}}><MS name="mail" size={14} /> {row.correo}</span></> : null}</div>
+            <div style={{ marginTop:"12px", color:"rgba(212,228,250,.66)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.65 }}>📞 {row.telefono_llamadas} · WhatsApp: {row.telefono_whatsapp}{row.correo ? <><br/>✉️ {row.correo}</> : null}</div>
           </div>
         </div>
         <div style={{ marginTop:"18px", display:"flex", justifyContent:"flex-end", gap:"10px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px" }}>
-          <button onClick={()=>toggleSavedProfile("trabajador", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
+          <button onClick={()=>toggleSavedProfile("trabajador", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><AppIcon name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
           {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar mi perfil</button>}
           <button onClick={()=>setMsg({type:"ok", text:`Más información de ${row.nombre_completo}: ${row.maniobra} · ${row.alcance}.`})} style={btn("#bcc7de")}>MÁS INFO</button>
           <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{...btn("#a1c9ff"), background:"#a1c9ff", color:"#002d52"}}>CONTACTAR</button>
@@ -19938,20 +19935,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       <div style={{ padding:"22px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap", marginBottom:"14px" }}>
           <div>
-            <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>Búsqueda: {row.razon_social}</div>
+            <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"title"), fontWeight:"900", fontSize:"clamp(20px,4vw,25px)", lineHeight:1.15 }}>Búsqueda: {row.razon_social}</div>
             <div style={{ marginTop:"5px", display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", color:"#a1c9ff" }}><StarRating value={r.avg} small /><span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{r.avg ? `(${r.avg.toFixed(1)})` : "Sin calificaciones"} · {r.count}</span></div>
             <div style={{ marginTop:"6px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".05em", textTransform:"uppercase" }}>{row.tipo_empresa} · RFC {row.rfc}</div>
           </div>
           <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"6px 12px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", border:`1px solid ${row.estatus==="tiene_trabajo"?"rgba(34,197,94,.28)":"rgba(239,68,68,.28)"}`, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase" }}><span style={{ width:"7px", height:"7px", borderRadius:"50%", background:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444" }} />{row.estatus==="tiene_trabajo"?"Activa":"Llena"}</div>
         </div>
-        <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. Correo: {row.correo}{row.telefono ? ` · Teléfono: ${row.telefono}` : ""}</div>
+        <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. ✉️ {row.correo}{row.telefono ? ` · 📞 ${row.telefono}` : ""}</div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"9px", marginTop:"16px" }}>{[row.tipo_empresa, row.alcance, row.estatus === "tiene_trabajo" ? "Trabajo activo" : "Sin cupo"].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.8)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"8px 12px", borderRadius:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px", marginTop:"18px" }}>
           <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Publicado: {timeAgo(row.updated_at || row.created_at)}</span>
           <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-            <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
+            <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><AppIcon name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
             {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
-            <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <MS name="arrow_forward" size={13} active /></button>
+            <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <AppIcon name="arrow-right" size={13} active /></button>
           </div>
         </div>
         <AdminProfileActions row={row} type="empresa" />
@@ -19962,7 +19959,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   };
 
   const WorkerForm = () => <div style={card}>
-    <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Postular como trabajador</div>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Postular como trabajador</div>
     <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Para guardar y editar tu perfil necesitas crear usuario en Más info. Todos podrán ver tu perfil público.</div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
       <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
@@ -19979,7 +19976,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   </div>;
 
   const CompanyForm = () => <div style={card}>
-    <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Empresario</div>
+    <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Empresario</div>
     <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Registra empresa, contactos y disponibilidad de trabajo. Las quejas requieren aprobación admin antes de mostrarse.</div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
       <div><div style={label}>Razón social / nombre</div><input style={input} value={empForm.razon_social} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))}/></div>
@@ -20253,10 +20250,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const savedEmpresas = empFiltradas.filter(row => isSavedProfile("empresa", row.id));
   const sidebarNav = [
     { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
-    { id:"posturas", label:"Posturas", icon:"work", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    { id:"posturas", label:"Posturas", icon:"briefcase", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
-    { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
-    { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
+    { id:"donativos", label:"Donativos", icon:"support-heart", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
+    { id:"archivo", label:"Archivo", icon:"archive-box", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
   ];
   const activeSidebarId = posturasMode === "archive" ? "archivo" : sub;
   const segmentButton = (id, label) => {
@@ -20266,17 +20263,22 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const CommandSearch = () => (
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"14px", marginBottom:"22px", padding:"16px", background:"rgba(13,28,45,.52)", border:"1px solid rgba(63,71,83,.32)", borderRadius:"16px" }}>
       <div style={{ flex:1, minWidth:"260px", position:"relative" }}>
-        <span style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={20} /></span>
+        <span style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><AppIcon name="search" size={20} /></span>
         <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
       </div>
-      <button type="button" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 24px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.72)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"default" }}><MS name="filter_list" size={18} /> Filtros</button>
+      <button type="button" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 24px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.72)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"default" }}><AppIcon name="filter-list" size={18} /> Filtros</button>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:"10px", width:"100%" }}>
+        <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+        <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+        <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+      </div>
     </div>
   );
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
-      <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
+      <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"260px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
         <div style={{ padding:"0 24px", marginBottom:"28px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>
             <span style={{ width:"8px", height:"8px", borderRadius:"999px", background:"#a1c9ff", boxShadow:"0 0 16px rgba(161,201,255,.7)" }} /> Control de puente
@@ -20286,31 +20288,31 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
             return <button key={item.id} onClick={item.onClick} style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
-              <MS name={item.icon} size={22} active={active} /> {item.label}
+              <AppIcon name={item.icon} size={22} active={active} /> {item.label}
             </button>;
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setVista("postular"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="person_add" size={18} /> Publicar perfil</button>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
-          <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="work" size={18} /> Publicar Vacante</button>
+          <button onClick={()=>{ setSub("posturas"); setVista("postular"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="user-plus" size={18} /> Publicar perfil</button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="search" size={18} /> Buscar postura</button>
+          <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="briefcase" size={18} /> Publicar Vacante</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><AppIcon name="help-circle" size={16} /> Soporte</div>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><AppIcon name="shield-check" size={16} /> Protocolo de seguridad</div>
           </div>
         </div>
       </aside>
 
-      <main style={{ position:"relative", zIndex:1, marginLeft:"264px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
+      <main style={{ position:"relative", zIndex:1, marginLeft:"260px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
-        {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
+        {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
 
         {sub === "donativos" && <DonativosTab embedded />}
         {sub === "boletinados" && renderBoletinadosTab()}
         {sub === "posturas" && posturasMode === "form" && (
           <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
             <ProfileHeader />
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"13px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><MS name={t.icon === "freight-truck" ? "local_shipping" : "business"} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"13px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
             {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
           </div>
         )}
@@ -20319,7 +20321,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           <section style={{ maxWidth:"1280px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"18px", flexWrap:"wrap", marginBottom:"26px" }}>
               <div>
-                <h2 style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(28px,4vw,38px)", lineHeight:1.05, color:"#d4e4fa", fontWeight:"900", margin:"0 0 8px" }}>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
+                <h2 style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(28px,4vw,38px)", lineHeight:1.05, color:"#d4e4fa", fontWeight:"900", margin:"0 0 8px" }}>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
                 <p style={{ color:"rgba(212,228,250,.76)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", margin:0 }}>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados."}</p>
               </div>
               {posturasMode !== "archive" && <div style={{ display:"flex", gap:"4px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>{[segmentButton("posturas","Posturas"), segmentButton("todos","Todos"), segmentButton("perfiles","Perfiles"), segmentButton("busquedas","Búsquedas")]}</div>}
