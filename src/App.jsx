@@ -19789,13 +19789,31 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const empFiltradas = filterRows(empresas, "empresa");
   const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
+  const posturasGlass = {
+    background:"rgba(18,33,49,0.62)",
+    backdropFilter:"blur(14px)",
+    WebkitBackdropFilter:"blur(14px)",
+    border:"1px solid rgba(63,71,83,0.42)",
+    boxShadow:"0 18px 44px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05)"
+  };
   const ProfileHeader = () => (
-    <div style={{ ...card, marginBottom:"14px", display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"center", flexWrap:"wrap" }}>
-      <div>
-        <div style={{ fontFamily:getFont(theme,"title"), fontSize:"20px", color:"#fff", fontWeight:"900" }}>🤝 Posturas</div>
-        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,0.52)", marginTop:"3px" }}>Perfiles de trabajadores y empresas visibles para la comunidad.</div>
+    <div style={{ ...posturasGlass, marginBottom:"18px", borderRadius:"18px", padding:"22px", borderLeft:"4px solid #a1c9ff", display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap", position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at 0% 0%, rgba(0,150,255,.10), transparent 42%), radial-gradient(circle at 100% 0%, rgba(188,199,222,.07), transparent 45%)", pointerEvents:"none" }} />
+      <div style={{ position:"relative", zIndex:1, maxWidth:"680px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"6px" }}>
+          <div style={{ width:"48px", height:"48px", borderRadius:"14px", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.24)", display:"grid", placeItems:"center", boxShadow:"0 0 26px rgba(161,201,255,.10)" }}>
+            <AppIcon name="anchor-port" size={30} active />
+          </div>
+          <div style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(24px,4vw,32px)", lineHeight:1, color:"#d4e4fa", fontWeight:"900", letterSpacing:"-.02em" }}>Posturas</div>
+        </div>
+        <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"13px", color:"rgba(212,228,250,0.72)", lineHeight:1.65 }}>
+          Perfiles de trabajadores y empresas visibles para la comunidad portuaria. Gestión centralizada de credenciales, reputación operativa y apoyo al proyecto.
+        </div>
       </div>
-      <button onClick={() => setActive && setActive("tutorial")} style={btn(authUser ? "#22c55e" : "#fbbf24")}>{authUser ? "👤 Cuenta activa" : "👤 Crear cuenta / iniciar sesión"}</button>
+      <button onClick={() => setActive && setActive("tutorial")} style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:`1px solid ${authUser ? "rgba(34,197,94,.46)" : "rgba(161,201,255,.34)"}`, background:authUser ? "rgba(34,197,94,.14)" : "rgba(44,58,76,.46)", color:authUser ? "#86efac" : "#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:authUser ? "0 0 22px rgba(34,197,94,.12)" : "0 0 22px rgba(161,201,255,.13)" }}>
+        <AppIcon name={authUser ? "circle-check" : "login"} size={18} active />
+        {authUser ? "Cuenta activa" : "Crear cuenta / Iniciar sesión"}
+      </button>
     </div>
   );
 
@@ -20135,11 +20153,44 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
 
-  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1120px", margin:"0 auto" }}>
+  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1180px", margin:"0 auto", backgroundImage:"radial-gradient(at 0% 0%, rgba(0,150,255,.05) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.035) 0px, transparent 50%)", backgroundSize:"100% 100%, 100% 100%" }}>
     <ProfileHeader />
     {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
     {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 170px),1fr))", gap:"8px", marginBottom:"12px", minWidth:0 }}>{[{id:"donativos", label:"Donativos", icon:"support-heart"},{id:"posturas", label:"Posturas Conect", icon:"logistics-handshake"},{id:"boletinados", label:"Boletinados", icon:"document-check"}].map(t=><button key={t.id} onClick={()=>setSub(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${sub===t.id?"#38bdf8":"rgba(255,255,255,.12)"}`, background:sub===t.id?"rgba(56,189,248,.16)":"rgba(255,255,255,.04)", color:sub===t.id?"#38bdf8":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={sub===t.id} /> {t.label}</button>)}</div>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap:"14px", marginBottom:"18px", minWidth:0 }}>
+      {[
+        {id:"posturas", label:"Posturas Conect", subtitle:"Búsqueda y propuesta de talento operativo en tiempo real.", icon:"logistics-handshake", module:"Módulo 01", color:"#a1c9ff", action1:"Buscar Trabajo", action2:"Proponer Trabajo"},
+        {id:"boletinados", label:"Boletinados", subtitle:"Consulta oficial, registros y notificaciones de cumplimiento normativo.", icon:"document-check", module:"Live update", color:"#bcc7de", action1:"Consultar Información"},
+        {id:"donativos", label:"Donativos", subtitle:"Apoya el desarrollo y sostenibilidad del proyecto Conect Manzanillo.", icon:"support-heart", module:"Comunidad", color:"#bec6e0", action1:"Apoyar Proyecto"},
+      ].map((t, idx) => {
+        const active = sub === t.id;
+        return (
+          <button key={t.id} onClick={()=>setSub(t.id)} style={{ ...posturasGlass, textAlign:"left", borderRadius:"18px", padding:"18px", minHeight:"210px", display:"flex", flexDirection:"column", justifyContent:"space-between", gap:"16px", cursor:"pointer", border:`1px solid ${active ? `${t.color}7a` : "rgba(63,71,83,.42)"}`, background:active ? `linear-gradient(180deg, ${t.color}14, rgba(18,33,49,.74))` : "rgba(18,33,49,.60)", boxShadow:active ? `0 18px 44px ${t.color}18, inset 0 1px 0 rgba(255,255,255,.07)` : "0 12px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.04)", color:"#d4e4fa", transition:"all .22s ease", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", inset:0, background:active ? `radial-gradient(circle at top left, ${t.color}16, transparent 42%)` : "transparent", pointerEvents:"none" }} />
+            <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px" }}>
+              <div style={{ width:"48px", height:"48px", borderRadius:"13px", background:`${t.color}14`, border:`1px solid ${t.color}30`, display:"grid", placeItems:"center", boxShadow:active ? `0 0 24px ${t.color}18` : "none" }}>
+                <AppIcon name={t.icon} size={26} active={active} />
+              </div>
+              <div style={{ padding:"4px 8px", borderRadius:"999px", background:idx === 1 ? "rgba(147,0,10,.18)" : `${t.color}12`, border:`1px solid ${idx === 1 ? "rgba(255,180,171,.25)" : `${t.color}24`}`, color:idx === 1 ? "#ffb4ab" : t.color, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}>{t.module}</div>
+            </div>
+            <div style={{ position:"relative", zIndex:1, flex:1 }}>
+              <div style={{ fontFamily:getFont(theme,"title"), fontSize:"20px", color:"#f8fafc", fontWeight:"900", marginBottom:"8px" }}>{t.label}</div>
+              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(212,228,250,.64)", lineHeight:1.55 }}>{t.subtitle}</div>
+            </div>
+            <div style={{ position:"relative", zIndex:1, paddingTop:"12px", borderTop:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", gap:"10px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", color:active ? t.color : "rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
+                <span>{t.action1}</span>
+                <AppIcon name={t.id === "boletinados" ? "external-link" : t.id === "donativos" ? "heart" : "search"} size={15} active={active} />
+              </div>
+              {t.action2 && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", color:active ? t.color : "rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
+                <span>{t.action2}</span>
+                <AppIcon name="plus-circle" size={15} active={active} />
+              </div>}
+            </div>
+          </button>
+        );
+      })}
+    </div>
     {sub === "donativos" && <DonativosTab embedded />}
     {sub === "boletinados" && renderBoletinadosTab()}
     {sub === "posturas" && <>
