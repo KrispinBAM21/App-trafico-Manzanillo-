@@ -13754,6 +13754,8 @@ function TerminalSearchBox({ value, onChange, theme }) {
 function SegundoAccesoTab({ myId }) {
   const theme = React.useContext(ThemeContext);
   const [subTab, setSubTab] = useState("segundo");
+  const [segundoLegendOpen, setSegundoLegendOpen] = useState(false);
+  const [selectedSecondLane, setSelectedSecondLane] = useState("c4");
   const [terminalSearch, setTerminalSearch] = useState({}); // { [carrilId]: string } — filtro en vivo del buscador de terminal
   const [pendingKeys, setPendingKeys] = useState({}); // { "carrilId:field": true } — feedback optimista mientras confirma el servidor
 
@@ -13995,106 +13997,174 @@ function SegundoAccesoTab({ myId }) {
           SUB-TAB: 2DO ACCESO
       ════════════════════════════════════════════════════ */}
       {subTab === "segundo" && <>
-        {/* ── Diagrama visual de carriles ── */}
-        <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"14px", padding:"14px", marginBottom:"18px", overflow:"hidden" }}>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"12px" }}>DIAGRAMA — VISTA DE CARRILES (PUENTE 2DO ACCESO)</div>
-
-          {/* Carretera con carriles */}
-          <div style={{ background:"#1a1a2e", borderRadius:"10px", padding:"14px 10px 10px", position:"relative", border:"1px solid rgba(255,255,255,0.08)" }}>
-
-            {/* Líneas amarillas del pavimento */}
-            <div style={{ position:"absolute", top:0, bottom:0, left:"50%", width:"3px", background:"repeating-linear-gradient(to bottom, #f59e0b 0px, #f59e0b 12px, transparent 12px, transparent 22px)", transform:"translateX(-50%)", opacity:0.7 }} />
-            <div style={{ position:"absolute", top:0, bottom:0, left:"calc(50% - 80px)", width:"2px", background:"repeating-linear-gradient(to bottom, #4b5563 0px, #4b5563 10px, transparent 10px, transparent 20px)", transform:"translateX(-50%)", opacity:0.5 }} />
-            <div style={{ position:"absolute", top:0, bottom:0, left:"calc(50% + 80px)", width:"2px", background:"repeating-linear-gradient(to bottom, #4b5563 0px, #4b5563 10px, transparent 10px, transparent 20px)", transform:"translateX(-50%)", opacity:0.5 }} />
-
-            {/* Flechas de carriles */}
-<div style={{ display:"flex", gap:"6px", position:"relative", zIndex:1 }}>
-
-  {/* C4 — SALIDA (ciudad, verde/rojo) */}
-  {(() => {
-    const c4Opt = getCarrilEstadoOpt(carriles?.c4);
-    const c4col = c4Opt.color;
-    return (
-      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-        
-        {/* Flecha hacia ABAJO (ciudad) */}
-        <div style={{ position:"relative", width:"52px" }}>
-          <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${c4col}88)` }}>
-            <polygon
-              points="26,56 48,32 36,32 36,4 16,4 16,32 4,32"
-              fill={c4col}
-              opacity="0.9"
-            />
-          </svg>
-        </div>
-
-        <div style={{ background:c4col+"22", border:`1.5px solid ${c4col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
-          <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>C4</div>
-          <div style={{ color:c4col, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"700", letterSpacing:"1px" }}>SALIDA</div>
-          <div style={{ color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", marginTop:"2px" }}>
-            {c4Opt.label.toUpperCase()}
-          </div>
-        </div>
-      </div>
-    );
-  })()}
-
-  {/* C1, C2, C3 — INGRESO (puerto) */}
-  {[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
-    const st  = carriles?.[c.id];
-    const laneOpt = getCarrilEstadoOpt(st);
-    const col = laneOpt.id === "libre" ? "#14b8a6" : laneOpt.color;
-    const tz  = getTermZona(st?.terminal);
-    const tc  = tz === "Sin uso" ? "#6b7280" : tz === "Todas" ? "#fbbf24" : tz === "Norte" ? "#38bdf8" : "#a78bfa";
-
-    return (
-      <div key={c.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"6px" }}>
-        
-        {/* Flecha hacia ARRIBA (puerto) */}
-        <div style={{ position:"relative", width:"52px" }}>
-          <svg viewBox="0 0 52 60" style={{ width:"52px", height:"60px", filter:`drop-shadow(0 0 8px ${col}88)` }}>
-            <polygon
-              points="26,4 48,28 36,28 36,56 16,56 16,28 4,28"
-              fill={col}
-              opacity="0.9"
-            />
-          </svg>
-        </div>
-
-        <div style={{ background:col+"22", border:`1.5px solid ${col}`, borderRadius:"8px", padding:"4px 6px", textAlign:"center", width:"100%" }}>
-          <div style={{ color:col, fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800" }}>
-            {c.label}
-          </div>
-
-          <div style={{ background:tc+"33", borderRadius:"4px", padding:"2px 3px", marginTop:"3px" }}>
-            <div style={{ color:tc, fontFamily:getFont(theme,"secondary"), fontSize:"8px", fontWeight:"700", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-              {getTermName(st?.terminal)}
+        {/* ── Diagrama visual de carriles · rediseño industrial 3D ── */}
+        <div className="cm-2do-diagram-shell">
+          <style>{`
+            .cm-2do-diagram-shell{position:relative;margin-bottom:18px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:radial-gradient(circle at 50% 0%,rgba(56,189,248,.10),transparent 42%),linear-gradient(180deg,rgba(15,23,42,.82),rgba(2,8,23,.94));box-shadow:0 24px 56px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden;padding:14px;}
+            .cm-2do-diagram-shell::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.035),transparent 42%),repeating-linear-gradient(0deg,rgba(255,255,255,.028) 0 1px,transparent 1px 8px);pointer-events:none;opacity:.7;}
+            .cm-2do-header{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+            .cm-2do-kicker{color:#67e8f9;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;}
+            .cm-2do-title{margin-top:4px;color:#f8fafc;font-family:'DM Sans',sans-serif;font-size:clamp(18px,2.6vw,28px);font-weight:900;letter-spacing:-.04em;}
+            .cm-2do-sub{margin-top:3px;color:rgba(226,232,240,.58);font-size:11px;font-family:'DM Sans',sans-serif;}
+            .cm-2do-perspective{position:relative;z-index:1;perspective:1100px;padding:10px 4px 18px;overflow:visible;}
+            .cm-2do-road{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;min-height:420px;transform:rotateX(34deg) skewX(-2deg);transform-style:preserve-3d;transform-origin:center bottom;padding:10px;}
+            .cm-2do-lane{position:relative;min-height:390px;border-radius:16px;border:3px solid rgba(148,163,184,.18);background:linear-gradient(180deg,#1a2233 0%,#0b1220 100%);box-shadow:0 20px 36px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -18px 32px rgba(0,0,0,.26);overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:28px 12px 22px;transition:transform .28s ease,border-color .22s ease,box-shadow .22s ease;}
+            .cm-2do-lane::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.42));pointer-events:none;}
+            .cm-2do-lane::after{content:"";position:absolute;inset:0;opacity:.22;background-image:linear-gradient(90deg,transparent 44%,#facc15 44%,#facc15 56%,transparent 56%);background-size:100% 44px;pointer-events:none;}
+            .cm-2do-lane:hover,.cm-2do-lane.is-selected{transform:translateZ(30px) scale(1.035);border-color:var(--lane-color);box-shadow:0 28px 48px rgba(0,0,0,.50),0 0 28px color-mix(in srgb,var(--lane-color) 45%,transparent),inset 0 0 0 2px color-mix(in srgb,var(--lane-color) 58%,transparent);z-index:4;}
+            .cm-2do-lane-chip{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;min-width:78px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.10);color:#fff;font-family:'DM Sans',sans-serif;font-size:18px;font-weight:900;letter-spacing:-.02em;box-shadow:inset 0 1px 0 rgba(255,255,255,.10);}
+            .cm-2do-arrow{position:relative;z-index:1;width:66px;height:66px;border-radius:999px;border:4px solid var(--lane-color);display:grid;place-items:center;box-shadow:0 0 24px color-mix(in srgb,var(--lane-color) 55%,transparent),inset 0 0 14px color-mix(in srgb,var(--lane-color) 18%,transparent);animation:cm2doPulse 1.55s ease-in-out infinite;}
+            .cm-2do-arrow span{font-size:40px;line-height:1;color:var(--lane-color);font-weight:900;}
+            @keyframes cm2doPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.68;transform:scale(.94)}}
+            .cm-2do-dir{position:relative;z-index:1;color:#f8fafc;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;text-align:center;}
+            .cm-2do-status{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px;}
+            .cm-2do-status-pill{padding:6px 13px;border-radius:7px;background:var(--lane-color);color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 10px 22px color-mix(in srgb,var(--lane-color) 30%,transparent);}
+            .cm-2do-trucks{display:flex;justify-content:center;gap:4px;color:rgba(255,255,255,.34);font-size:32px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}
+            .cm-2do-terminal{position:relative;z-index:1;width:100%;padding:7px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--terminal-color) 42%,transparent);background:color-mix(in srgb,var(--terminal-color) 16%,rgba(15,23,42,.92));text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.08);}
+            .cm-2do-terminal strong{display:block;color:var(--terminal-color);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+            .cm-2do-terminal span{display:block;margin-top:2px;color:rgba(226,232,240,.48);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
+            .cm-2do-direction-row{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px;margin-top:-2px;padding:0 8px 6px;}
+            .cm-2do-direction-row span{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;}
+            .cm-2do-legend-area{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;margin-top:4px;}
+            .cm-2do-legend-btn{width:48px;height:48px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
+            .cm-2do-legend-btn:hover{transform:translateY(-2px);background:rgba(30,41,59,.86);}
+            .cm-2do-legend-panel{width:min(100%,360px);margin-top:12px;padding:14px;border-radius:16px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.90);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:top center;}
+            .cm-2do-legend-title{color:#fff;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px;}
+            .cm-2do-legend-row{display:flex;align-items:center;gap:10px;margin:9px 0;}
+            .cm-2do-legend-color{width:13px;height:13px;border-radius:4px;box-shadow:0 0 12px currentColor;}
+            .cm-2do-legend-row strong{display:block;color:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
+            .cm-2do-legend-row span{display:block;color:rgba(226,232,240,.48);font-size:10px;margin-top:1px;}
+            @media (max-width:760px){
+              .cm-2do-diagram-shell{padding:12px;border-radius:16px;margin-left:-2px;margin-right:-2px;}
+              .cm-2do-header{margin-bottom:8px;}
+              .cm-2do-perspective{perspective:none;overflow-x:auto;overflow-y:hidden;padding:4px 0 12px;-webkit-overflow-scrolling:touch;}
+              .cm-2do-road{width:max-content;min-width:100%;grid-template-columns:repeat(4,136px);gap:10px;min-height:300px;transform:none;padding:4px 4px 10px;}
+              .cm-2do-lane{min-height:282px;border-width:2px;border-radius:14px;padding:18px 9px 16px;}
+              .cm-2do-lane:hover,.cm-2do-lane.is-selected{transform:translateY(-2px) scale(1.01);}
+              .cm-2do-lane-chip{min-width:62px;padding:6px 10px;font-size:14px;}
+              .cm-2do-arrow{width:50px;height:50px;border-width:3px;}
+              .cm-2do-arrow span{font-size:31px;}
+              .cm-2do-dir{font-size:10px;letter-spacing:.10em;}
+              .cm-2do-status-pill{font-size:9px;padding:5px 9px;letter-spacing:.08em;}
+              .cm-2do-trucks{font-size:24px;}
+              .cm-2do-terminal strong{font-size:9px;}
+              .cm-2do-terminal span{font-size:8px;}
+              .cm-2do-direction-row span{font-size:8px;letter-spacing:.08em;}
+            }
+          `}</style>
+          <div className="cm-2do-header">
+            <div>
+              <div className="cm-2do-kicker">DIAGRAMA · VISTA DE CARRILES</div>
+              <div className="cm-2do-title">Puente 2DO Acceso</div>
+              <div className="cm-2do-sub">Vista 3D operativa basada en el diseño industrial propuesto, manteniendo la lógica actual de carriles.</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"999px", border:"1px solid rgba(52,211,153,.30)", background:"rgba(52,211,153,.10)", color:"#34d399", fontSize:"10px", fontWeight:900, letterSpacing:".12em" }}>
+              <AppIcon name="status-live" size={14} active /> EN VIVO
             </div>
           </div>
 
-          {st?.retornos && (
-            <div style={{ color:"#f97316", fontSize:"10px", marginTop:"2px" }}>↩</div>
-          )}
-        </div>
-      </div>
-    );
-  })}
-</div>
-            {/* Etiquetas de dirección */}
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:"8px", padding:"0 4px" }}>
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↓ HACIA CIUDAD</div>
-              <div style={{ fontSize:"9px", color:"#14b8a6", fontFamily:getFont(theme,"secondary"), letterSpacing:"1px", fontWeight:"700" }}>↑ HACIA EL PUERTO</div>
+          <div className="cm-2do-perspective">
+            <div className="cm-2do-road">
+              {(() => {
+                const statusBrief = {
+                  libre: "Flujo óptimo",
+                  lento: "Avance lento",
+                  moderado: "Densidad media",
+                  saturado: "Alta ocupación",
+                  bloqueo: "Bloqueo operativo",
+                  cerrado: "Cierre temporal",
+                  sin_uso: "Sin operación",
+                };
+                const truckCount = (id) => id === "libre" ? 1 : id === "lento" || id === "moderado" ? 2 : id === "sin_uso" ? 0 : 3;
+                const c4Opt = getCarrilEstadoOpt(carriles?.c4);
+                const lanes = [
+                  {
+                    id: "c4",
+                    label: "C4",
+                    direction: "SALIDA",
+                    arrow: "↓",
+                    color: c4Opt.color,
+                    status: c4Opt.label,
+                    brief: statusBrief[c4Opt.id] || c4Opt.label,
+                    terminal: "Salida general",
+                    terminalMeta: "Hacia ciudad",
+                    terminalColor: "#f97316",
+                    trucks: truckCount(c4Opt.id),
+                    retornos: carriles?.c4?.retornos,
+                  },
+                  ...[...SEGUNDO_CARRILES_INGRESO].reverse().map((c) => {
+                    const st = carriles?.[c.id] || {};
+                    const opt = getCarrilEstadoOpt(st);
+                    const zona = getTermZona(st?.terminal);
+                    const terminalColor = zona === "Sin uso" ? "#6b7280" : zona === "Todas" ? "#fbbf24" : zona === "Norte" ? "#38bdf8" : "#a78bfa";
+                    return {
+                      id: c.id,
+                      label: c.label.replace("Carril ", "C"),
+                      direction: getTermName(st?.terminal),
+                      arrow: "↑",
+                      color: opt.id === "libre" ? "#14b8a6" : opt.color,
+                      status: opt.label,
+                      brief: statusBrief[opt.id] || opt.label,
+                      terminal: getTermName(st?.terminal),
+                      terminalMeta: zona === "Todas" ? "Todas las terminales" : zona ? `Zona ${zona}` : "Ingreso puerto",
+                      terminalColor,
+                      trucks: truckCount(opt.id),
+                      retornos: st?.retornos,
+                    };
+                  })
+                ];
+                return lanes.map((lane) => (
+                  <button
+                    key={lane.id}
+                    type="button"
+                    className={`cm-2do-lane ${selectedSecondLane === lane.id ? "is-selected" : ""}`}
+                    onClick={() => setSelectedSecondLane(lane.id)}
+                    style={{ "--lane-color": lane.color, "--terminal-color": lane.terminalColor }}
+                    title={`${lane.label} · ${lane.status}`}
+                  >
+                    <div className="cm-2do-lane-chip">{lane.label}</div>
+                    <div className="cm-2do-arrow"><span>{lane.arrow}</span></div>
+                    <div className="cm-2do-dir">{lane.direction}</div>
+                    <div className="cm-2do-terminal">
+                      <strong>{lane.terminal}</strong>
+                      <span>{lane.retornos ? "Con retornos" : lane.terminalMeta}</span>
+                    </div>
+                    <div className="cm-2do-status">
+                      <div className="cm-2do-status-pill">{lane.status}</div>
+                      <div className="cm-2do-trucks" aria-hidden="true">
+                        {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => <span key={i}>▰</span>) : <span>—</span>}
+                      </div>
+                      <span style={{ color:"rgba(226,232,240,.46)", fontSize:"10px", fontWeight:800, letterSpacing:".08em", textTransform:"uppercase" }}>{lane.brief}</span>
+                    </div>
+                  </button>
+                ));
+              })()}
             </div>
           </div>
 
-          {/* Leyenda */}
-          <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
-            {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
-              <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-                <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
-                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
+          <div className="cm-2do-direction-row">
+            <span style={{ color:"#f97316" }}>↓ Hacia ciudad</span>
+            <span style={{ color:"#14b8a6" }}>↑ Hacia el puerto</span>
+          </div>
+
+          <div className="cm-2do-legend-area">
+            <button className="cm-2do-legend-btn" type="button" onClick={() => setSegundoLegendOpen(v => !v)} title="Mostrar índice del diagrama">
+              <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={24} active />
+            </button>
+            {segundoLegendOpen && (
+              <div className="cm-2do-legend-panel">
+                <div className="cm-2do-legend-title">Índice del diagrama</div>
+                {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
+                  <div className="cm-2do-legend-row" key={id}>
+                    <div className="cm-2do-legend-color" style={{ background:color, color }} />
+                    <div>
+                      <strong>{label}</strong>
+                      <span>{id === "libre" ? "Operación normal" : id === "lento" ? "Alta densidad con avance" : id === "moderado" ? "Tránsito medio" : id === "saturado" ? "Demora fuerte" : id === "bloqueo" ? "Obstrucción o bloqueo" : id === "cerrado" ? "No disponible temporalmente" : "Carril sin operación"}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
