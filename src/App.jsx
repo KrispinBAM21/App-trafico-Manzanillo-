@@ -20970,14 +20970,29 @@ function DonativosTab() {
   };
 
   const BankCard = ({ bank, clabe, copiedState, onCopy, accent, gradient, icon, footerIcon, footerText }) => (
-    <article style={{
+    <article
+      onMouseEnter={(e)=>{
+        e.currentTarget.style.transform = "translateY(-6px)";
+        e.currentTarget.style.borderColor = `${accent}88`;
+        e.currentTarget.style.boxShadow = `0 24px 54px ${accent}22, 0 14px 34px rgba(2,6,23,.38)`;
+      }}
+      onMouseLeave={(e)=>{
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = `${accent}33`;
+        e.currentTarget.style.boxShadow = "0 14px 34px rgba(2,6,23,.26)";
+      }}
+      onTouchStart={(e)=>{ e.currentTarget.style.transform = "scale(.985)"; e.currentTarget.style.borderColor = `${accent}88`; }}
+      onTouchEnd={(e)=>{ e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = `${accent}33`; }}
+      style={{
       background: gradient,
       border:`1px solid ${accent}33`,
       borderRadius:"12px",
       padding:isMobile ? "22px" : "30px",
-      transition:"all .2s ease",
+      transition:"transform .22s ease, border-color .22s ease, box-shadow .22s ease, background .22s ease",
       boxShadow:"0 14px 34px rgba(2,6,23,.26)",
-      minWidth:0
+      minWidth:0,
+      willChange:"transform",
+      touchAction:"manipulation"
     }}>
       <header style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:isMobile ? "24px" : "30px" }}>
         {icon}
@@ -21049,7 +21064,39 @@ function DonativosTab() {
   );
 
   const ActionCard = ({ href, accent, title, desc, cta, icon, trailingIcon }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" style={{
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onMouseEnter={(e)=>{
+        e.currentTarget.style.transform = "translateY(-6px)";
+        e.currentTarget.style.borderColor = accent;
+        e.currentTarget.style.boxShadow = `0 22px 48px ${accent}22, 0 14px 30px rgba(2,6,23,.38)`;
+        const iconBox = e.currentTarget.querySelector('[data-donativo-icon-box]');
+        if (iconBox) {
+          iconBox.style.background = accent;
+          iconBox.style.color = "#ffffff";
+          iconBox.style.borderColor = `${accent}AA`;
+        }
+        const ctaEl = e.currentTarget.querySelector('[data-donativo-cta]');
+        if (ctaEl) ctaEl.style.gap = "14px";
+      }}
+      onMouseLeave={(e)=>{
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = `${accent}33`;
+        e.currentTarget.style.boxShadow = "0 12px 26px rgba(2,6,23,.24)";
+        const iconBox = e.currentTarget.querySelector('[data-donativo-icon-box]');
+        if (iconBox) {
+          iconBox.style.background = `${accent}16`;
+          iconBox.style.color = accent;
+          iconBox.style.borderColor = `${accent}22`;
+        }
+        const ctaEl = e.currentTarget.querySelector('[data-donativo-cta]');
+        if (ctaEl) ctaEl.style.gap = "8px";
+      }}
+      onTouchStart={(e)=>{ e.currentTarget.style.transform = "scale(.985)"; e.currentTarget.style.borderColor = accent; }}
+      onTouchEnd={(e)=>{ e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = `${accent}33`; }}
+      style={{
       display:"flex",
       flexDirection:"column",
       gap:"16px",
@@ -21061,14 +21108,16 @@ function DonativosTab() {
       padding:"22px",
       color:"#fff",
       boxShadow:"0 12px 26px rgba(2,6,23,.24)",
-      transition:"all .2s ease"
+      transition:"transform .22s ease, border-color .22s ease, box-shadow .22s ease, background .22s ease",
+      willChange:"transform",
+      touchAction:"manipulation"
     }}>
-      <div style={{ width:"48px", height:"48px", borderRadius:"12px", background:`${accent}16`, display:"grid", placeItems:"center", border:`1px solid ${accent}22`, color:accent }}>{icon}</div>
+      <div data-donativo-icon-box="true" style={{ width:"48px", height:"48px", borderRadius:"12px", background:`${accent}16`, display:"grid", placeItems:"center", border:`1px solid ${accent}22`, color:accent, transition:"all .22s ease" }}>{icon}</div>
       <div>
         <h3 style={{ margin:0, color:"#fff", fontSize:"13px", textTransform:"uppercase", letterSpacing:".10em", fontWeight:"900", lineHeight:1.35 }}>{title}</h3>
         <p style={{ margin:"8px 0 0", color:"#94a3b8", fontSize:"12px", lineHeight:1.45 }}>{desc}</p>
       </div>
-      <div style={{ marginTop:"auto", display:"flex", alignItems:"center", color:accent, gap:"8px", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em" }}>
+      <div data-donativo-cta="true" style={{ marginTop:"auto", display:"flex", alignItems:"center", color:accent, gap:"8px", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", transition:"gap .22s ease" }}>
         <span>{cta}</span>
         {trailingIcon || <ArrowIcon size={15} />}
       </div>
