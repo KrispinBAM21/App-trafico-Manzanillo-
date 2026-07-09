@@ -372,6 +372,7 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "traffic-control": return <svg {...common}><path d="M4 19c2.8-5.2 13.2-5.2 16 0" stroke={accent} strokeWidth="2" strokeLinecap="round"/><path d="M7 15l1.6-5.2h6.8L17 15" fill="rgba(56,189,248,.16)" stroke={stroke} strokeWidth="1.7" strokeLinejoin="round"/><circle cx="8.7" cy="15.5" r="1.35" fill="#38bdf8"/><circle cx="15.3" cy="15.5" r="1.35" fill="#38bdf8"/><path d="M11 9V5.5h2V9" stroke="#fbbf24" strokeWidth="1.8" strokeLinecap="round"/></svg>;
     case "incident-pin": return <svg {...common}><path d="M12 21s6.8-5 6.8-10.8a6.8 6.8 0 1 0-13.6 0C5.2 16 12 21 12 21Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M12 7v4.2" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="14.2" r="1" fill="#f97316"/></svg>;
     case "port-terminal": return <svg {...common}><path d="M3.5 19.5h17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M5 18.5V9l7-3.5L19 9v9.5" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.6"/><path d="M7.5 18.5v-5.2h9v5.2" fill="rgba(15,23,42,.35)" stroke={accent} strokeWidth="1.5"/><path d="M8.2 10.2h2M11.2 10.2h2M14.2 10.2h2" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round"/></svg>;
+    case "terminal-crane": return <svg {...common} viewBox="0 0 64 64"><g stroke={stroke} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none"><path d="M8 56h20"/><path d="M9 54l1-44h8l1 44"/><path d="M11 18h8M11 27h8M11 36h8M11 45h8"/><path d="M9 10h-3V6h11l1-4h7l1 4h34l3 6H9z"/><path d="M24 6v4M29 6v4M34 6v4M39 6v4M44 6v4M49 6v4M54 6v4"/><path d="M45 10v12"/><circle cx="45" cy="24" r="2.7" fill={accent} stroke={stroke}/><path d="M45 24l-10 7"/><path d="M45 24l12 8"/><path d="M35 31h22v16H30V35l5-4"/><path d="M35 37v7M39 37v7M43 37v7M47 37v7M51 37v7M55 37v7"/></g></svg>;
     case "container-yard": return <svg {...common}><path d="M4 9h16v9H4z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.7"/><path d="M7 9V6h10v3M8 12h8M8 15h8" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/><path d="M4 18h16" stroke="#f59e0b" strokeWidth="1.7"/></svg>;
     case "access-gate": return <svg {...common}><path d="M5 20V8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5V20" stroke={stroke} strokeWidth="1.8"/><path d="M7 12h10M9 20v-8M15 20v-8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="m10 8 2-2 2 2" stroke="#fbbf24" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     case "lane-control": return <svg {...common}><path d="M6 21 9 3M18 21 15 3" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><path d="M4 21h16" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
@@ -551,7 +552,7 @@ const ensureTerminalesPortuariasPremiumStyle = () => {
     .terminal-card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 0%,rgba(148,163,184,.12),transparent 34%),linear-gradient(90deg,rgba(255,255,255,.03),transparent 45%);pointer-events:none;}
     .terminal-card:hover{transform:translateY(-2px);box-shadow:0 30px 58px rgba(0,0,0,.5),0 0 28px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.1);}
     .terminal-card-header{position:relative;z-index:1;display:flex;align-items:center;gap:14px;margin-bottom:22px;}
-    .terminal-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;color:#cbd5e1;background:rgba(15,23,42,.78);border:1px solid rgba(148,163,184,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 22px rgba(0,0,0,.3);}
+    .terminal-icon{display:grid;place-items:center;flex:0 0 auto;width:56px;height:56px;border-radius:16px;color:#e2e8f0;background:linear-gradient(180deg,rgba(15,23,42,.82),rgba(2,8,23,.88));border:1px solid rgba(148,163,184,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 14px 28px rgba(0,0,0,.34),0 0 18px rgba(34,211,238,.08);}
     .terminal-card h3{margin:0;color:#f8fafc;font-size:22px;font-weight:700;letter-spacing:-.03em;}
     .terminal-card p{margin:4px 0 0;color:#94a3b8;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
     .terminal-current{position:relative;z-index:1;margin:-6px 0 16px;display:flex;justify-content:space-between;gap:10px;align-items:center;color:#94a3b8;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
@@ -12695,7 +12696,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
       return (
         <article key={terminal.id} className="terminal-card">
           <header className="terminal-card-header">
-            <div className="terminal-icon"><AppIcon name="port-terminal" size={28} active /></div>
+            <div className="terminal-icon"><AppIcon name="terminal-crane" size={34} active style={{ opacity:.98 }} /></div>
             <div style={{ minWidth:0 }}>
               <h3>{terminal.name}</h3>
               <p>{terminal.fullName || `Zona ${zonaLabel}`}</p>
