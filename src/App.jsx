@@ -15955,6 +15955,11 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     throw new Error(detail || "gemini-chat no devolvió una respuesta utilizable");
   };
 
+  const respuestaIATituloInvalida = (value) => {
+    const s = String(value || "").toLowerCase();
+    return !s.trim() || /no\s+tengo\s+la\s+capacidad|b[uú]squedas?\s+en\s+tiempo\s+real|no\s+puedo\s+(acceder|realizar|buscar)|como\s+modelo\s+de\s+lenguaje|no\s+tengo\s+acceso\s+a\s+internet/i.test(s);
+  };
+
   const limpiarTituloGeneradoIA = (value) => {
     const firstLine = String(value || "")
       .trim()
@@ -15964,9 +15969,49 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       .split("\n")[0]
       .trim();
 
-    const words = firstLine.split(/\s+/).filter(Boolean);
-    if (words.length <= 10) return firstLine;
+    if (respuestaIATituloInvalida(firstLine)) return "";
 
+    const words = firstLine.split(/\s+/).filter(Boolean);
+    const title = words.length <= 10 ? firstLine : words.slice(0, 10).join(" ");
+    return title.replace(/[.,;:]+$/g, "").trim();
+  };
+
+  const generarTituloLocalDesdeTextoExtraido = (textoExtraido) => {
+    const raw = String(textoExtraido || "")
+      .replace(/https?:\/\/\S+/gi, " ")
+      .replace(/#[\wÁÉÍÓÚÑáéíóúñ-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!raw) return "";
+
+    let title = "";
+
+    if (/pospon(er|e|dr[aá]|iendo)|pospuesto|pospone/i.test(raw) && /conten(eriz|edor)/i.test(raw) && /exportaci[oó]n/i.test(raw)) {
+      title = "Posponen envío de contenerizados de exportación";
+    } else if (/mantenimiento/i.test(raw)) {
+      title = "Aviso de mantenimiento operativo";
+    } else if (/horario\s+especial|horario/i.test(raw)) {
+      title = "Horario especial de atención";
+    } else if (/tarifa/i.test(raw)) {
+      title = "Tarifa pública actualizada";
+    } else if (/comunicado/i.test(raw)) {
+      title = "Comunicado operativo importante";
+    } else if (/aviso/i.test(raw)) {
+      title = "Aviso operativo importante";
+    } else if (/zona\s+sur/i.test(raw) && /19:00|19\s*horas/i.test(raw)) {
+      title = "Ajuste operativo para zona sur";
+    } else {
+      title = raw
+        .replace(/^por\s+medio\s+del\s+presente\s*/i, "")
+        .replace(/^(el\s+)?centro\s+de\s+control\s+de\s+tr[aá]fico\s+terrestre\s*\(?cctt\)?[,\s]*/i, "")
+        .replace(/^solicita\s+(de\s+)?la\s+colaboraci[oó]n\s+para\s*/i, "")
+        .replace(/^se\s+solicita\s*/i, "")
+        .split(/[.\n]/)[0]
+        .trim();
+    }
+
+    const words = title.split(/\s+/).filter(Boolean);
     return words.slice(0, 10).join(" ").replace(/[.,;:]+$/g, "").trim();
   };
 
@@ -15975,8 +16020,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     if (!inputText) return "";
 
     const prompt =
-      "Analiza el siguiente texto extraído de una imagen y genera un título formal, descriptivo y directo para un comunicado operativo. " +
-      "El título debe tener un máximo de 8 a 10 palabras. " +
+      "Genera un título para un comunicado operativo usando únicamente el texto proporcionado. " +
+      "No hagas búsquedas en internet, no menciones limitaciones ni digas que no puedes buscar; esto no requiere información en tiempo real. " +
+      "El título debe ser formal, descriptivo, directo y tener máximo 8 a 10 palabras. " +
       "Devuelve estrictamente solo el título, sin comillas, sin viñetas y sin texto introductorio.\n\n" +
       inputText;
 
@@ -15987,10 +16033,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         actionLabel: "titulo",
       });
 
-      return limpiarTituloGeneradoIA(reply);
+      const aiTitle = limpiarTituloGeneradoIA(reply);
+      if (aiTitle) return aiTitle;
+
+      return generarTituloLocalDesdeTextoExtraido(inputText);
     } catch (err) {
       console.warn("No se pudo generar título automático desde OCR:", err);
-      return "";
+      return generarTituloLocalDesdeTextoExtraido(inputText);
     }
   };
 
