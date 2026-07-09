@@ -12392,7 +12392,7 @@ function CommandAccesosView({ theme, accesos, onVote }) {
                 </div>
 
                 <div style={blockStyle(curOpt.color, true)}>
-                  {headerNode("access-gate", "Sistema de selección", "Replica visual de 2DO ACCESO", curOpt.color, 28)}
+                  {headerNode("access-gate", "Sistema de selección", curOpt.label, curOpt.color, 28)}
                   <div style={{ ...fieldTitleStyle, marginBottom: "8px" }}>Selecciona el estado del acceso</div>
                   <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
                     {ACCESO_STATUS_OPTIONS.map(opt => {
@@ -14950,16 +14950,16 @@ function CarrilesTab() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
           <div style={laneBlockStyle(accent)}>
             {laneHeaderNode(iconName, `Control de ${tipoLabel.toLowerCase()}`, abierto ? `${tipoLabel} habilitada` : `${tipoLabel} detenida`, accent, 30)}
-            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Carril operativo</div>
-            <div style={{ ...laneHeroTitleStyle, color:accent, fontSize:"16px", marginBottom:"2px" }}>{carril.label}</div>
-            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:"10px" }}>{currentAcc?.label || "Acceso actual"} · Zona {currentAcc?.zona || "—"}</div>
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Acceso asignado</div>
+            <div style={{ ...laneHeroTitleStyle, color:accent, fontSize:"16px", marginBottom:"2px" }}>{currentAcc?.label || "Acceso actual"}</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:"10px" }}>Zona {currentAcc?.zona || "—"} · {tipoLabel}</div>
             <div style={{ padding:"8px 10px", background: abierto ? "rgba(34,197,94,.10)" : "rgba(107,114,128,.12)", border:`1px solid ${abierto ? "rgba(34,197,94,.28)" : "rgba(148,163,184,.20)"}`, borderRadius:"10px", color: abierto ? "#22c55e" : "#9ca3af", fontSize:"11px", fontFamily:getFont(theme, "secondary"), fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase" }}>
               {abierto ? "Operando con normalidad" : "Temporalmente cerrado"}
             </div>
           </div>
 
           <div style={laneBlockStyle(abierto ? "#14b8a6" : "#64748b")}>
-            {laneHeaderNode(iconName, "Sistema de selección", "Replica visual de 2DO ACCESO", abierto ? "#14b8a6" : "#64748b", 28)}
+            {laneHeaderNode(iconName, "Sistema de selección", abierto ? "Carril abierto" : "Carril cerrado", abierto ? "#14b8a6" : "#64748b", 28)}
             <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Selecciona el estado del carril</div>
             <div style={{ display:"grid", gap:"10px", marginBottom:"10px" }}>
               <button onClick={() => toggle(carril.id, true)} style={selectorButtonStyle(abierto, "#22c55e")}>
