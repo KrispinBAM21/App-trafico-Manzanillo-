@@ -20282,6 +20282,27 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
       </svg>
     );
 
+    const pisShieldIcon = ({ size = 18, withBadge = false }) => (
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
+        <path d="M32 4 56 10.8v16.4c0 15.2-10.2 27.7-24 31.8C18.2 54.9 8 42.4 8 27.2V10.8L32 4Z" fill="rgba(255,255,255,.96)" stroke="#a3a3a3" strokeWidth="3.5" strokeLinejoin="round"/>
+        <path d="M27.8 18.5c-4.5 1.3-8.2 4.8-9.8 9.4" fill="none" stroke="#7cc300" strokeWidth="5" strokeLinecap="round"/>
+        <path d="m14.8 25.4 1.9 4.7 4.8-1.7" fill="none" stroke="#7cc300" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M36.2 18.5c4.5 1.3 8.2 4.8 9.8 9.4" fill="none" stroke="#16bfd2" strokeWidth="5" strokeLinecap="round"/>
+        <path d="m49.2 25.4-1.9 4.7-4.8-1.7" fill="none" stroke="#16bfd2" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+        {withBadge && <circle cx="10" cy="54" r="7" fill="#0f172a" opacity=".0"/>}
+      </svg>
+    );
+
+    const pisDocumentCheckIcon = ({ size = 18, color = "#fff" }) => (
+      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display:"block", flexShrink:0 }}>
+        <path d="M18 6h22l12 12v36a4 4 0 0 1-4 4H18a6 6 0 0 1-6-6V12a6 6 0 0 1 6-6Z" fill="none" stroke={color} strokeWidth="4" strokeLinejoin="round"/>
+        <path d="M40 6v14h12" fill="none" stroke={color} strokeWidth="4" strokeLinejoin="round"/>
+        <path d="M23 18h18" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"/>
+        <path d="m22 36 8 8 14-16" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M20 54h24" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"/>
+      </svg>
+    );
+
     const pisActionBtn = {
       display:"inline-flex",
       alignItems:"center",
@@ -20318,7 +20339,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
             <div style={{ display:"flex", alignItems:"flex-start", gap:"14px", marginBottom:"16px", minWidth:0 }}>
               <div style={{ width:posturasMobile ? "44px" : "52px", height:posturasMobile ? "44px" : "52px", borderRadius:"14px", background:"rgba(161,201,255,.08)", border:"1px solid rgba(161,201,255,.22)", display:"grid", placeItems:"center", boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}>
-                <MS name="gavel" size={posturasMobile ? 18 : 20} active />
+                {pisShieldIcon({ size: posturasMobile ? 20 : 24 })}
               </div>
               <div style={{ minWidth:0, flex:1 }}>
                 <div style={{ fontFamily:getFont(theme,"title"), fontSize:posturasMobile ? "clamp(20px, 6.2vw, 24px)" : "clamp(28px, 2.4vw, 34px)", lineHeight:1.08, color:"#e8f2ff", fontWeight:"900", letterSpacing:"-.02em", overflowWrap:"anywhere" }}>Boletinados · Verificación PIS</div>
@@ -20347,12 +20368,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
             <div style={{ display:"flex", flexWrap:"wrap", gap:"12px", alignItems:"center" }}>
               <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...pisActionBtn, background:"#1295f0", color:"#07223d", border:"1px solid rgba(56,189,248,.92)", boxShadow:"0 12px 24px rgba(0,150,255,.20)", opacity:pisLoading ? 0.75 : 1, flex:posturasMobile ? "1 1 100%" : "0 1 288px" }}>
-                <MS name="gavel" size={16} color="#07223d" />
+                {pisDocumentCheckIcon({ size: 18, color: "#ffffff" })}
                 {pisLoading ? "Consultando…" : "Verificar documento"}
               </button>
               <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
               <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...pisActionBtn, background:"transparent", color:"#d4e4fa", border:"1px solid rgba(161,201,255,.38)", flex:posturasMobile ? "1 1 100%" : "0 1 220px" }}>
-                <AppIcon name="web" size={16} active />
+                {pisShieldIcon({ size: 18 })}
                 Abrir PIS oficial
               </a>
             </div>
