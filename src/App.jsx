@@ -566,8 +566,11 @@ const ensureTerminalesPortuariasPremiumStyle = () => {
     .status-llena.is-active{background:linear-gradient(180deg,#fbbf24 0%,#f59e0b 54%,#b45309 100%);border-color:rgba(253,230,138,.48);box-shadow:0 12px 28px rgba(245,158,11,.28),0 0 26px rgba(251,191,36,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(180,83,9,.34);}
     .status-retorno_terminal.is-active{background:linear-gradient(180deg,#93c5fd 0%,#64748b 55%,#334155 100%);border-color:rgba(191,219,254,.42);box-shadow:0 12px 28px rgba(96,165,250,.2),0 0 26px rgba(147,197,253,.13),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(51,65,85,.38);}
     .status-retorno_asipona.is-active{background:linear-gradient(180deg,#a78bfa 0%,#7c3aed 56%,#4c1d95 100%);border-color:rgba(196,181,253,.48);box-shadow:0 12px 28px rgba(124,58,237,.28),0 0 28px rgba(167,139,250,.2),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(76,29,149,.38);}
+    .route-status-buttons{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+    .status-moderado.is-active{background:linear-gradient(180deg,#fb923c 0%,#f97316 54%,#9a3412 100%);border-color:rgba(253,186,116,.48);box-shadow:0 12px 28px rgba(249,115,22,.28),0 0 26px rgba(251,146,60,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(154,52,18,.34);}
+    .status-detenido.is-active{background:linear-gradient(180deg,#f87171 0%,#ef4444 54%,#991b1b 100%);border-color:rgba(252,165,165,.48);box-shadow:0 12px 28px rgba(239,68,68,.30),0 0 26px rgba(248,113,113,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(127,29,29,.36);}
     .route-card-premium .terminal-status-buttons{grid-template-columns:1fr;}
-    @media(max-width:760px){.port-dashboard-shell{padding:12px 12px 86px}.port-map-stage{min-height:360px;border-radius:18px}.zone-floating-control{top:14px;gap:8px;width:calc(100% - 88px);left:14px;right:auto;transform:none}.zone-pill{min-width:0;flex:1;padding:13px 10px;font-size:11px}.layer-floating-trigger{top:14px;right:14px;width:50px;height:50px}.layer-floating-control{top:74px;right:14px;width:120px}.port-map-legend{left:12px;right:12px;bottom:12px}.terminal-status-grid{grid-template-columns:1fr}.terminal-card{padding:20px}.terminal-status-buttons{grid-template-columns:1fr}.status-monitor-header{align-items:stretch}.status-view-switch{width:100%;}.status-view-btn{flex:1;padding:12px 10px;font-size:10px}}
+    @media(max-width:760px){.port-dashboard-shell{padding:12px 12px 86px}.port-map-stage{min-height:360px;border-radius:18px}.zone-floating-control{top:14px;gap:8px;width:calc(100% - 88px);left:14px;right:auto;transform:none}.zone-pill{min-width:0;flex:1;padding:13px 10px;font-size:11px}.layer-floating-trigger{top:14px;right:14px;width:50px;height:50px}.layer-floating-control{top:74px;right:14px;width:120px}.port-map-legend{left:12px;right:12px;bottom:12px}.terminal-status-grid{grid-template-columns:1fr}.terminal-card{padding:20px}.terminal-status-buttons{grid-template-columns:1fr}.route-status-buttons{grid-template-columns:1fr}.status-monitor-header{align-items:stretch}.status-view-switch{width:100%;}.status-view-btn{flex:1;padding:12px 10px;font-size:10px}}
   `;
   document.head.appendChild(s);
 };
@@ -12638,26 +12641,36 @@ function TerminalesTab({ myId, isAdmin = false }) {
     await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
-  const voteRutaFiscal = async (id, newStatus) => {
-    if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
+  const voteRutaFiscal = async (id, newStatus, forceChange = false) => {
+    if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
-    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
-    const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
-    if (!isAdmin) {
-      const rl = rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
-      if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
+    const rl = rateLimiter.check(`ruta_fiscal_vote_${myId}`, 30000);
+    if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
+    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", id).eq("tipo", "ruta_fiscal");
+    if (yaVoto && yaVoto.length > 0 && !forceChange) {
+      const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+      setChangeModal({ type: "ruta_fiscal", id, newStatus, label });
+      return;
     }
-    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
+    if (yaVoto && yaVoto.length > 0 && forceChange) await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", id).eq("tipo", "ruta_fiscal");
+    const key = `ruta_fiscal_${id}_${newStatus}`;
+    await sb.from("votos").insert({ key, user_id: myId, terminal_id: id, status: newStatus, tipo: "ruta_fiscal" });
+    try { localStorage.setItem(`last_vote_ruta_fiscal_${id}_${myId}`, newStatus); } catch {}
+    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", id).eq("tipo", "ruta_fiscal");
+    const conteo = {};
+    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
+    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+    const entry = { ...(rutasFiscales?.[id] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
     setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
     persistStatusEntry("rutas_fiscales", id, entry);
-    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
-    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
-    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:newStatus }, actor });
-    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
-    notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
-    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+    await sb.from("rutas_fiscales").upsert({ id, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
+    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:statusGanador, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:`${votosGanador} votos`, source:"app" });
+    await auditLog({ action:"votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
+    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name || id;
+    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, statusGanador === "libre" ? "#22c55e" : statusGanador === "moderado" ? "#f97316" : "#ef4444");
+    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: `${rutaName} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const resetAll = async () => {
@@ -12676,6 +12689,14 @@ function TerminalesTab({ myId, isAdmin = false }) {
     setRutasFiscales(next);
     await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id:r.id, status:"libre", last_update:now, updated_by:"Reset" })));
     notify(`Rutas fiscales de Zona ${zonaLabel} marcadas como Libres`, "#22c55e");
+  };
+
+  const resetOneRutaFiscal = async (id) => {
+    const entry = { ...(rutasFiscales?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
+    setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
+    persistStatusEntry("rutas_fiscales", id, entry);
+    await sb.from("rutas_fiscales").upsert({ id, status:"libre", last_update:Date.now(), updated_by:"Reset" });
+    notify("Ruta fiscal marcada como Libre", "#22c55e");
   };
 
   const resetOne = async (id) => {
@@ -12746,8 +12767,9 @@ function TerminalesTab({ myId, isAdmin = false }) {
           <div className="terminal-current">
             <span style={{ color: opt.color }}><IconText icon={opt.icon} label={opt.label} size={15} /></span>
             <span>{timeAgo(st.lastUpdate)} · {st.updatedBy}</span>
+            {st.status !== "libre" && <button className="terminal-reset-btn" onClick={() => resetOneRutaFiscal(route.id)}>TODO NORMAL</button>}
           </div>
-          <div className="terminal-status-buttons" style={{ gridTemplateColumns:"1fr", gap:"9px" }}>
+          <div className="terminal-status-buttons route-status-buttons">
             {RUTA_FISCAL_STATUS_OPTIONS.map(o => {
               const isAct = st.status === o.id;
               return (
@@ -12815,7 +12837,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
             </div>
             <div style={{ display:"flex", gap:"10px" }}>
               <button onClick={() => setChangeModal(null)} style={{ flex:1, padding:"10px", background:"#1e3a5f", border:"1px solid #2d4a6f", borderRadius:"8px", color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cancelar</button>
-              <button onClick={async () => { const m = changeModal; setChangeModal(null); await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cambiar</button>
+              <button onClick={async () => { const m = changeModal; setChangeModal(null); if (m.type === "ruta_fiscal") await voteRutaFiscal(m.id, m.newStatus, true); else await vote(m.id, m.newStatus, true); }} style={{ flex:1, padding:"10px", background:"#1d4ed822", border:"1px solid #3b82f6", borderRadius:"8px", color:"#60a5fa", fontFamily:getFont(theme, "secondary"), fontSize:"12px", cursor:"pointer", fontWeight:"800" }}>Cambiar</button>
             </div>
           </div>
         </div>
