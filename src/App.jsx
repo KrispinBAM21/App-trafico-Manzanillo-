@@ -14017,12 +14017,10 @@ function SegundoAccesoTab({ myId }) {
             .cm-2do-arrow span{font-size:40px;line-height:1;color:var(--lane-color);font-weight:900;}
             @keyframes cm2doPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.68;transform:scale(.94)}}
             .cm-2do-dir{position:relative;z-index:1;color:#f8fafc;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;text-align:center;}
-            .cm-2do-status{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:10px;}
+            .cm-2do-status{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;}
             .cm-2do-status-pill{padding:6px 13px;border-radius:7px;background:var(--lane-color);color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 10px 22px color-mix(in srgb,var(--lane-color) 30%,transparent);}
-            .cm-2do-trucks{display:flex;justify-content:center;gap:4px;color:rgba(255,255,255,.34);font-size:32px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}
-            .cm-2do-terminal{position:relative;z-index:1;width:100%;padding:7px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--terminal-color) 42%,transparent);background:color-mix(in srgb,var(--terminal-color) 16%,rgba(15,23,42,.92));text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.08);}
-            .cm-2do-terminal strong{display:block;color:var(--terminal-color);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-            .cm-2do-terminal span{display:block;margin-top:2px;color:rgba(226,232,240,.48);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
+            .cm-2do-trucks{display:flex;justify-content:center;align-items:center;gap:6px;min-height:28px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}.cm-2do-truck-icon{display:grid;place-items:center;width:24px;height:24px;opacity:.92;}
+            
             .cm-2do-bottom-row{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:-12px;padding:0 8px 2px;}
             .cm-2do-left-controls{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;}
             .cm-2do-direction-row{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px;min-width:0;}
@@ -14048,7 +14046,7 @@ function SegundoAccesoTab({ myId }) {
               .cm-2do-arrow span{font-size:31px;}
               .cm-2do-dir{font-size:10px;letter-spacing:.10em;}
               .cm-2do-status-pill{font-size:9px;padding:5px 9px;letter-spacing:.08em;}
-              .cm-2do-trucks{font-size:24px;}
+              .cm-2do-trucks{min-height:22px;}.cm-2do-truck-icon{width:20px;height:20px;}
               .cm-2do-terminal strong{font-size:9px;}
               .cm-2do-terminal span{font-size:8px;}
               .cm-2do-bottom-row{align-items:flex-start;gap:12px;margin-top:0;padding:2px 4px 0;}
@@ -14082,7 +14080,7 @@ function SegundoAccesoTab({ myId }) {
                   cerrado: "Cierre temporal",
                   sin_uso: "Sin operación",
                 };
-                const truckCount = (id) => id === "libre" ? 1 : id === "lento" || id === "moderado" ? 2 : id === "sin_uso" ? 0 : 3;
+                const truckCount = (id) => ({ libre:1, lento:2, moderado:2, saturado:3, bloqueo:3, cerrado:0, sin_uso:0 }[id] ?? 1);
                 const c4Opt = getCarrilEstadoOpt(carriles?.c4);
                 const lanes = [
                   {
@@ -14132,16 +14130,15 @@ function SegundoAccesoTab({ myId }) {
                     <div className="cm-2do-lane-chip">{lane.label}</div>
                     <div className="cm-2do-arrow"><span>{lane.arrow}</span></div>
                     <div className="cm-2do-dir">{lane.direction}</div>
-                    <div className="cm-2do-terminal">
-                      <strong>{lane.terminal}</strong>
-                      <span>{lane.retornos ? "Con retornos" : lane.terminalMeta}</span>
-                    </div>
                     <div className="cm-2do-status">
                       <div className="cm-2do-status-pill">{lane.status}</div>
                       <div className="cm-2do-trucks" aria-hidden="true">
-                        {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => <span key={i}>▰</span>) : <span>—</span>}
+                        {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => (
+                          <span key={i} className="cm-2do-truck-icon" style={{ color: lane.color }}>
+                            <AppIcon name="freight-truck" size={22} active />
+                          </span>
+                        )) : <span style={{ color:"rgba(226,232,240,.36)", fontSize:"18px", fontWeight:900 }}>—</span>}
                       </div>
-                      <span style={{ color:"rgba(226,232,240,.46)", fontSize:"10px", fontWeight:800, letterSpacing:".08em", textTransform:"uppercase" }}>{lane.brief}</span>
                     </div>
                   </button>
                 ));
