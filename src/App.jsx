@@ -12286,6 +12286,73 @@ function CommandRutasFiscalesView({ theme, rutasFiscales, onVote, zonaActiva = "
 
 function CommandAccesosView({ theme, accesos, onVote }) {
   if (!accesos) return <SkeletonCard n={3} />;
+
+  const shellStyle = (accent) => ({
+    background: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
+    border: `1px solid ${accent}52`,
+    borderRadius: "22px",
+    padding: "16px",
+    boxShadow: `0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`
+  });
+  const fieldTitleStyle = {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.54)",
+    fontFamily: getFont(theme, "secondary"),
+    letterSpacing: "1.1px",
+    textTransform: "uppercase"
+  };
+  const blockStyle = (accent, soft = true) => ({
+    background: soft ? `linear-gradient(180deg, ${accent}10, rgba(7,17,31,0.92))` : "rgba(7,17,31,0.92)",
+    border: `1px solid ${accent}3f`,
+    borderRadius: "16px",
+    padding: "13px",
+    boxShadow: `0 8px 22px ${accent}16`
+  });
+  const statusCopy = {
+    libre: "Acceso libre y con tránsito fluido",
+    lento: "Carga operativa con tráfico lento",
+    saturado: "Alta demanda y flujo saturado",
+    cerrado: "Acceso cerrado o con corte temporal"
+  };
+  const statusGlyph = {
+    libre: "✓",
+    lento: "↗",
+    saturado: "!",
+    cerrado: "⛔"
+  };
+  const buttonStyle = (active, accent) => ({
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "11px 14px",
+    background: active ? `linear-gradient(180deg, ${accent}14, rgba(2,12,27,0.96))` : "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(2,12,27,0.96))",
+    border: `1px solid ${active ? accent : "rgba(56,189,248,0.24)"}`,
+    borderRadius: "14px",
+    boxShadow: active ? `0 10px 22px ${accent}16, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
+    color: active ? "#f8fafc" : "#cbd5e1",
+    cursor: "pointer",
+    transition: "all 0.18s ease",
+    textAlign: "left"
+  });
+  const buttonMenuIcon = (active, accent) => (
+    <div style={{ color: active ? accent : "rgba(148,163,184,0.72)", fontSize: "22px", lineHeight: 1, paddingLeft: "8px" }}>≡</div>
+  );
+  const headerNode = (iconName, title, subtitle, accent, iconSize = 26) => (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+      <div style={{ width: "44px", height: "44px", borderRadius: "12px", display: "grid", placeItems: "center", background: `linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border: `1px solid ${accent}44`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
+        <AppIcon name={iconName} size={iconSize} active />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={fieldTitleStyle}>{title}</div>
+        <div style={{ color: "#f8fafc", fontFamily: getFont(theme, "secondary"), fontWeight: "800", fontSize: "13px", lineHeight: 1.15 }}>{subtitle}</div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <div className="cm-view-topline">
@@ -12293,13 +12360,64 @@ function CommandAccesosView({ theme, accesos, onVote }) {
           <div className="cm-panel-kicker">VISTA DINÁMICA</div>
           <div className="cm-view-title">Accesos operativos</div>
         </div>
-        <div className="cm-map-hint">Estado sincronizado con mapa maestro</div>
+        <div className="cm-map-hint">Diseño replicado desde 2DO ACCESO</div>
       </div>
-      <div className="cm-grid-cards">
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
         {ACCESOS_PRINCIPALES.map(a => {
           const st = accesos[a.id] || { status:"libre", retornos:"none", lastUpdate:Date.now(), updatedBy:"Sistema" };
           const curOpt = getCommandOption(ACCESO_STATUS_OPTIONS, st.status);
-          return <CommandStatusCard key={a.id} title={a.label} meta={`${a.zona} · ${timeAgo(st.lastUpdate)} · ${st.updatedBy}`} statusOption={curOpt} options={ACCESO_STATUS_OPTIONS} onChange={(status) => onVote(a.id, status)} />;
+          return (
+            <div key={a.id} style={shellStyle(a.color)}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <div style={{ background: `${a.color}18`, border: `1px solid ${a.color}44`, borderRadius: "999px", padding: "4px 10px", color: a.color, fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: "800", letterSpacing: ".05em", textTransform: "uppercase" }}>{a.label}</div>
+                    <Badge color={a.zona === "Zona Norte" ? "#38bdf8" : "#a78bfa"} small>{a.zona.toUpperCase()}</Badge>
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px", fontFamily: getFont(theme, "secondary"), marginTop: "5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy || "Sistema"}</div>
+                </div>
+                <Badge color={curOpt.color} small>{curOpt.label.toUpperCase()}</Badge>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
+                <div style={blockStyle(a.color)}>
+                  {headerNode("access-gate", "Estado del acceso", curOpt.label, a.color, 28)}
+                  <div style={{ ...fieldTitleStyle, marginBottom: "4px" }}>Acceso operativo</div>
+                  <div style={{ color: a.color, fontFamily: getFont(theme, "title"), fontWeight: "800", fontSize: "16px", letterSpacing: "-.01em", marginBottom: "2px" }}>{a.label}</div>
+                  <div style={{ color: "rgba(255,255,255,0.46)", fontSize: "11px", marginBottom: "10px" }}>{a.zona} · Estado sincronizado</div>
+                  <div style={{ padding: "8px 10px", background: `${curOpt.color}14`, border: `1px solid ${curOpt.color}44`, borderRadius: "10px", color: curOpt.color, fontSize: "11px", fontFamily: getFont(theme, "secondary"), fontWeight: "800", letterSpacing: ".04em", textTransform: "uppercase" }}>
+                    {statusCopy[curOpt.id] || curOpt.label}
+                  </div>
+                </div>
+
+                <div style={blockStyle(curOpt.color, true)}>
+                  {headerNode("access-gate", "Sistema de selección", "Replica visual de 2DO ACCESO", curOpt.color, 28)}
+                  <div style={{ ...fieldTitleStyle, marginBottom: "8px" }}>Selecciona el estado del acceso</div>
+                  <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
+                    {ACCESO_STATUS_OPTIONS.map(opt => {
+                      const active = st.status === opt.id;
+                      return (
+                        <button key={opt.id} onClick={() => onVote(a.id, opt.id)} style={buttonStyle(active, opt.color)}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                            <div style={{ width: "28px", height: "28px", borderRadius: "10px", display: "grid", placeItems: "center", background: active ? `${opt.color}1f` : "rgba(255,255,255,.04)", border: `1px solid ${active ? `${opt.color}66` : "rgba(255,255,255,.10)"}` }}>
+                              <span style={{ color: active ? opt.color : "#94a3b8", fontWeight: "900", fontSize: "18px", lineHeight: 1 }}>{statusGlyph[opt.id] || "•"}</span>
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: "10px", color: active ? opt.color : "rgba(148,163,184,0.78)", letterSpacing: ".12em", textTransform: "uppercase", fontWeight: "800", marginBottom: "2px" }}>{active ? "Estado seleccionado" : "Cambiar estado"}</div>
+                              <div style={{ fontSize: "14px", color: active ? "#f8fafc" : "#cbd5e1", fontWeight: "800" }}>{opt.label}</div>
+                            </div>
+                          </div>
+                          {buttonMenuIcon(active, opt.color)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.42)", fontSize: "10px", fontFamily: getFont(theme, "secondary") }}>Última actualización: {timeAgo(st.lastUpdate)}</div>
+                </div>
+              </div>
+            </div>
+          );
         })}
       </div>
     </div>
