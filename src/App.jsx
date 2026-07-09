@@ -9961,6 +9961,72 @@ const geocodeEventLocation = async (locationText = "") => {
   return null;
 };
 
+
+const CCTT_AI_EVENT_ANALYSIS_PROMPT = `Actúa como el motor de análisis inteligente para el CCTT. Tu objetivo es procesar reportes viales.
+
+Reglas de análisis:
+
+Ubicación: Si el reporte contiene una ubicación textual (ej. "Tramo Jalipa", "Entrada 1"), extráela tal cual. Si NO contiene, analiza el contexto del evento y sugiere la ubicación más probable basándote en la infraestructura portuaria conocida.
+
+Coordenadas: NO son obligatorias en la extracción. Si el texto permite inferir una zona, no fuerces coordenadas numéricas; devuelve el nombre del lugar. Si hay coordenadas, inclúyelas; si no, devuelve null.
+
+Modo Admin: Tu respuesta debe ser tratada como una sugerencia. Incluye un campo llamado confianza_ia (0-1) para que el administrador sepa qué tan seguro estás del análisis.
+
+Resolución de eventos: Si el evento no encaja en incidentes/accidentes, crea una etiqueta técnica corta (ej: "demora_operativa", "bloqueo_acceso").
+
+Formato de salida: JSON puro.`;
+
+const normalizeAiEventPayload = (payload = {}) => {
+  const src = payload?.event || payload || {};
+  const out = { ...src };
+
+  const pick = (...keys) => keys.map(k => src?.[k]).find(v => v !== undefined && v !== null && String(v).trim?.() !== "");
+  const normCat = normalizeAiText(pick("category", "categoria", "tipo_evento", "tipo") || "");
+  if (normCat) out.category = /accidente|accident|choque|colision|colisi|volcadura|emergencia/.test(normCat) ? "accidente" : "incidente";
+
+  const label = pick("subtype_label", "tipo_especifico", "subtipo", "evento", "event_label", "label");
+  if (label) out.subtype_label = String(label).trim();
+
+  const tech = pick("subtype_id", "etiqueta_tecnica", "technical_tag", "tag");
+  if (tech && !out.subtype_id) out.subtype_id = `${out.category || "incidente"}_${slugifyEventType(String(tech))}`;
+
+  const loc = pick("location", "ubicacion", "ubicación", "referencia", "lugar", "zona");
+  if (loc) out.location = String(loc).trim();
+
+  const desc = pick("description", "descripcion", "descripción", "descripcion_operativa", "resumen");
+  if (desc) out.description = String(desc).trim();
+
+  const source = pick("source", "fuente", "autoridad");
+  if (source) out.source = String(source).trim();
+
+  const hour = pick("registered_at", "hora", "hora_registro", "registrado_a_las");
+  if (hour) out.registered_at = String(hour).trim();
+
+  const raw = pick("raw_text", "texto", "texto_extraido", "ocr", "raw");
+  if (raw) out.raw_text = String(raw).trim();
+
+  const conf = pick("confidence", "confianza", "confianza_ia", "confidence_score");
+  const confNum = Number(conf);
+  if (Number.isFinite(confNum)) out.confidence = confNum <= 1 ? Math.round(confNum * 100) : Math.round(confNum);
+
+  const c = src?.coords ?? src?.coordinates ?? src?.coordenadas ?? src?.gps ?? null;
+  if (Array.isArray(c) && c.length >= 2) {
+    const lat = Number(c[0]);
+    const lng = Number(c[1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) out.coords = [lat, lng];
+  } else if (c && typeof c === "object") {
+    const lat = Number(c.lat ?? c.latitude);
+    const lng = Number(c.lng ?? c.lon ?? c.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) out.coords = [lat, lng];
+  } else if (typeof c === "string") {
+    const parsed = parseCoordsFromText(c);
+    if (parsed) out.coords = parsed;
+  }
+  if (out.coords) out.coords_source = out.coords_source || "ia";
+
+  return out;
+};
+
 const parseAsiponaEventText = (rawText = "", customIncidentTypes = []) => {
   const text = String(rawText || "").replace(/\r/g, "").trim();
   const lower = normalizeAiText(text);
@@ -10270,7 +10336,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             reader.readAsDataURL(file);
           });
           const { data, error } = await sb.functions.invoke("analyze-event-image", {
-            body: { image: base64, filename: file.name, mime_type: file.type, context: "Conect Manzanillo admin report reader" }
+            body: { image: base64, filename: file.name, mime_type: file.type, context: "Conect Manzanillo admin report reader", prompt: CCTT_AI_EVENT_ANALYSIS_PROMPT, system_prompt: CCTT_AI_EVENT_ANALYSIS_PROMPT, output_format: "json" }
           });
           if (!error && data?.ok !== false && (data?.event || data?.raw_text || data?.text)) {
             aiData = data?.event || data;
@@ -10292,7 +10358,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
         }
       }
 
-      const parsed = { ...parseAsiponaEventText(text, customIncidentTypes), ...(aiData || {}) };
+      const parsed = { ...parseAsiponaEventText(text, customIncidentTypes), ...normalizeAiEventPayload(aiData || {}) };
       if (!parsed.raw_text) parsed.raw_text = text;
       if (!parsed.description && text) parsed.description = text.slice(0, 260);
       if (!parsed.category) parsed.category = "incidente";
@@ -10368,7 +10434,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10, flexWrap:"wrap", marginBottom:12 }}>
         <div>
           <div style={{ color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:900, letterSpacing:".08em", textTransform:"uppercase" }}>🤖 Admin · Lector IA de eventos</div>
-          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:11, marginTop:4 }}>Sube una captura tipo ASIPONA, extrae el evento, obtiene coordenadas y deja todo en aprobación.</div>
+          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:11, marginTop:4 }}>Sube una captura tipo ASIPONA; la IA sugiere evento y referencia. El admin valida ubicación/coordenadas antes de publicar.</div>
         </div>
         <button onClick={analizar} disabled={!file || busy} style={{ padding:"9px 12px", borderRadius:10, border:"1px solid rgba(56,189,248,.42)", background:(!file || busy) ? "rgba(255,255,255,.06)" : "rgba(56,189,248,.18)", color:(!file || busy) ? "rgba(255,255,255,.35)" : "#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:(!file || busy) ? "not-allowed" : "pointer" }}>{busy ? "Analizando…" : "Analizar imagen"}</button>
       </div>
@@ -10396,7 +10462,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Confianza IA</label>
+                <label style={labelStyle}>confianza_ia</label>
                 <div style={{ ...inputStyle, color:(draft.confidence || 0) >= 70 ? "#86efac" : "#fbbf24" }}>{Math.round(draft.confidence || 0)}% · {draft.source || "captura"}</div>
               </div>
             </div>
@@ -10413,7 +10479,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             </div>
 
             <div>
-              <label style={labelStyle}>Ubicación</label>
+              <label style={labelStyle}>Ubicación / referencia sugerida</label>
               <input value={draft.location || ""} onChange={e => updateDraft({ location:e.target.value })} style={inputStyle} />
             </div>
 
@@ -10426,7 +10492,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
               <div>
                 <label style={labelStyle}>Coordenadas</label>
                 <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(e.target.value)} placeholder="19.0927, -104.2765" style={inputStyle} />
-                <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "Puedes pegar coordenadas manuales si la ubicación es ambigua."}</div>
+                <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "La IA puede dejar esto sin coordenadas; valida el punto antes de aprobar."}</div>
               </div>
               <button onClick={regeocodificar} disabled={coordsBusy} style={{ padding:"10px 12px", borderRadius:10, border:"1px solid rgba(125,211,252,.35)", background:"rgba(125,211,252,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>{coordsBusy ? "…" : "Geocodificar"}</button>
             </div>
