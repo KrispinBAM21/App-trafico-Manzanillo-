@@ -14028,12 +14028,12 @@ function SegundoAccesoTab({ myId }) {
             .cm-2do-legend-area{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;}
             .cm-2do-legend-btn{width:38px;height:38px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
             .cm-2do-legend-btn:hover{transform:translateY(-2px);background:rgba(30,41,59,.86);}
-            .cm-2do-legend-panel{position:absolute;left:0;top:50%;transform:translateY(-50%);margin-left:54px;width:min(92vw,620px);padding:14px 16px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.92);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:left center;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;}
+            .cm-2do-legend-panel{position:absolute;left:0;bottom:calc(100% + 10px);top:auto;transform:none;width:min(calc(100vw - 44px),760px);max-width:calc(100vw - 44px);padding:14px 16px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.94);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:bottom left;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;box-sizing:border-box;overflow:visible;z-index:30;}
             .cm-2do-legend-title{grid-column:1 / -1;color:#fff;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px;}
-            .cm-2do-legend-row{display:flex;align-items:flex-start;gap:10px;margin:0;min-width:0;}
+            .cm-2do-legend-row{display:flex;align-items:flex-start;gap:10px;margin:0;min-width:0;overflow:hidden;}
             .cm-2do-legend-color{width:13px;height:13px;border-radius:4px;box-shadow:0 0 12px currentColor;}
-            .cm-2do-legend-row strong{display:block;color:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
-            .cm-2do-legend-row span{display:block;color:rgba(226,232,240,.48);font-size:10px;margin-top:1px;}
+            .cm-2do-legend-row strong{display:block;color:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.08em;line-height:1.2;word-break:break-word;}
+            .cm-2do-legend-row span{display:block;color:rgba(226,232,240,.48);font-size:10px;margin-top:2px;line-height:1.25;word-break:break-word;}
             @media (max-width:760px){
               .cm-2do-diagram-shell{padding:12px;border-radius:16px;margin-left:-2px;margin-right:-2px;}
               .cm-2do-header{margin-bottom:8px;}
@@ -14054,7 +14054,7 @@ function SegundoAccesoTab({ myId }) {
               .cm-2do-direction-row{gap:6px;}
               .cm-2do-direction-row span{font-size:8px;letter-spacing:.08em;}
               .cm-2do-legend-btn{width:36px;height:36px;}
-              .cm-2do-legend-panel{left:0;top:auto;bottom:calc(100% + 10px);transform:none;margin-left:0;width:min(94vw,340px);grid-template-columns:1fr;gap:9px;padding:12px 13px;}
+              .cm-2do-legend-panel{left:0;top:auto;bottom:calc(100% + 8px);transform:none;margin-left:0;width:min(calc(100vw - 24px),340px);max-width:calc(100vw - 24px);grid-template-columns:1fr;gap:9px;padding:12px 13px;box-sizing:border-box;}
             }
           `}</style>
           <div className="cm-2do-header">
