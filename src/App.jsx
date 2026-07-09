@@ -373,6 +373,7 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "incident-pin": return <svg {...common}><path d="M12 21s6.8-5 6.8-10.8a6.8 6.8 0 1 0-13.6 0C5.2 16 12 21 12 21Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M12 7v4.2" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="14.2" r="1" fill="#f97316"/></svg>;
     case "port-terminal": return <svg {...common}><path d="M3.5 19.5h17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M5 18.5V9l7-3.5L19 9v9.5" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.6"/><path d="M7.5 18.5v-5.2h9v5.2" fill="rgba(15,23,42,.35)" stroke={accent} strokeWidth="1.5"/><path d="M8.2 10.2h2M11.2 10.2h2M14.2 10.2h2" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round"/></svg>;
     case "terminal-crane": return <svg {...common} viewBox="0 0 64 64"><g stroke={stroke} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none"><path d="M8 56h20"/><path d="M9 54l1-44h8l1 44"/><path d="M11 18h8M11 27h8M11 36h8M11 45h8"/><path d="M9 10h-3V6h11l1-4h7l1 4h34l3 6H9z"/><path d="M24 6v4M29 6v4M34 6v4M39 6v4M44 6v4M49 6v4M54 6v4"/><path d="M45 10v12"/><circle cx="45" cy="24" r="2.7" fill={accent} stroke={stroke}/><path d="M45 24l-10 7"/><path d="M45 24l12 8"/><path d="M35 31h22v16H30V35l5-4"/><path d="M35 37v7M39 37v7M43 37v7M47 37v7M51 37v7M55 37v7"/></g></svg>;
+    case "route-fiscal-monitor": return <svg {...common} viewBox="0 0 64 64"><path d="M13 55h31.5L30.7 3h-5.1L13 55Z" fill="rgba(226,232,240,.96)" opacity=".12"/><path d="M19.2 55h31.1L37.6 3h-6.8L19.2 55Z" fill="rgba(226,232,240,.96)" opacity=".16"/><path d="M25.7 55h25.1L39.6 3H31L25.7 55Z" fill="rgba(226,232,240,.92)" opacity=".95"/><path d="M35.2 6.5h1.4c1 0 1.8.8 1.8 1.8v3.2c0 1-.8 1.8-1.8 1.8h-1.4c-1 0-1.8-.8-1.8-1.8V8.3c0-1 .8-1.8 1.8-1.8Zm-1 9.6h3.4c1 0 1.8.8 1.8 1.8v5.2c0 1-.8 1.8-1.8 1.8h-3.4c-1 0-1.8-.8-1.8-1.8v-5.2c0-1 .8-1.8 1.8-1.8Zm-.7 12.1h4.8c1 0 1.8.8 1.8 1.8v6.8c0 1-.8 1.8-1.8 1.8h-4.8c-1 0-1.8-.8-1.8-1.8V30c0-1 .8-1.8 1.8-1.8Zm-.2 13.3h5.2c1 0 1.8.8 1.8 1.8v8.3c0 1-.8 1.8-1.8 1.8h-5.2c-1 0-1.8-.8-1.8-1.8v-8.3c0-1 .8-1.8 1.8-1.8Z" fill="#07111f"/><circle cx="47.5" cy="46.5" r="13.2" fill="rgba(255,255,255,.96)" stroke="#334155" strokeWidth="2.7"/><rect x="41.2" y="44.2" width="3.3" height="7.6" rx="1.4" fill="#64c83b"/><rect x="45.9" y="40.2" width="3.3" height="11.6" rx="1.4" fill="#f4c131"/><rect x="50.6" y="36.2" width="3.3" height="15.6" rx="1.4" fill="#ef4444"/></svg>;
     case "container-yard": return <svg {...common}><path d="M4 9h16v9H4z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.7"/><path d="M7 9V6h10v3M8 12h8M8 15h8" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/><path d="M4 18h16" stroke="#f59e0b" strokeWidth="1.7"/></svg>;
     case "access-gate": return <svg {...common}><path d="M5 20V8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5V20" stroke={stroke} strokeWidth="1.8"/><path d="M7 12h10M9 20v-8M15 20v-8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="m10 8 2-2 2 2" stroke="#fbbf24" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     case "lane-control": return <svg {...common}><path d="M6 21 9 3M18 21 15 3" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><path d="M4 21h16" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
@@ -12734,21 +12735,36 @@ function TerminalesTab({ myId, isAdmin = false }) {
       const st = rutasFiscales[route.id] || { status:"libre", lastUpdate:Date.now(), updatedBy:"Sistema" };
       const opt = getRutaOpt(st.status);
       return (
-        <div key={route.id} style={{ background:"rgba(255,255,255,0.06)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"12px", overflow:"hidden" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
-            <div>
-              <div style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"800" }}>{route.name}</div>
-              <div style={{ color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"2px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+        <article key={route.id} className="terminal-card" style={{ borderColor:`${opt.color}33` }}>
+          <header className="terminal-card-header">
+            <div className="terminal-icon"><AppIcon name="route-fiscal-monitor" size={36} active style={{ opacity:.98 }} /></div>
+            <div style={{ minWidth:0 }}>
+              <h3>{route.name}</h3>
+              <p>{route.zona ? `Zona ${route.zona}` : "Ruta fiscal"}</p>
             </div>
-            <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", flexShrink:0 }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+          </header>
+          <div className="terminal-current">
+            <span style={{ color: opt.color }}><IconText icon={opt.icon} label={opt.label} size={15} /></span>
+            <span>{timeAgo(st.lastUpdate)} · {st.updatedBy}</span>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
+          <div className="terminal-status-buttons" style={{ gridTemplateColumns:"1fr", gap:"9px" }}>
             {RUTA_FISCAL_STATUS_OPTIONS.map(o => {
               const isAct = st.status === o.id;
-              return <button key={o.id} onClick={() => voteRutaFiscal(route.id, o.id)} style={{ padding:"10px 8px", background:isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color:isAct ? o.color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"12px", cursor:"pointer", fontWeight:isAct ? "800" : "600" }}>{o.label}</button>;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => voteRutaFiscal(route.id, o.id)}
+                  className={`status-btn status-${o.id} ${isAct ? "is-active" : ""}`}
+                  title={`Reportar ${route.name}: ${o.label}`}
+                  style={!isAct ? { color:"#94a3b8" } : undefined}
+                >
+                  {o.label}
+                </button>
+              );
             })}
           </div>
-        </div>
+        </article>
       );
     });
   };
