@@ -14021,14 +14021,14 @@ function SegundoAccesoTab({ myId }) {
             .cm-2do-status-pill{padding:6px 13px;border-radius:7px;background:var(--lane-color);color:#fff;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 10px 22px color-mix(in srgb,var(--lane-color) 30%,transparent);}
             .cm-2do-trucks{display:flex;justify-content:center;align-items:center;gap:6px;min-height:28px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35));}.cm-2do-truck-icon{display:grid;place-items:center;width:24px;height:24px;opacity:.92;}
             
-            .cm-2do-bottom-row{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:-12px;padding:0 8px 2px;}
-            .cm-2do-left-controls{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;}
-            .cm-2do-direction-row{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px;min-width:0;}
-            .cm-2do-direction-row span{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;}
-            .cm-2do-legend-area{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;}
-            .cm-2do-legend-btn{width:44px;height:44px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
+            .cm-2do-bottom-row{position:relative;z-index:2;display:grid;grid-template-columns:1fr auto;align-items:center;gap:14px;margin-top:-8px;padding:0 26px 2px 18px;}
+            .cm-2do-left-controls{display:flex;align-items:center;gap:10px;min-width:0;position:relative;}
+            .cm-2do-direction-row{position:relative;z-index:1;display:flex;align-items:center;gap:8px;min-width:0;}
+            .cm-2do-direction-row span{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;line-height:1.1;} .cm-2do-direction-row.is-right{justify-self:end;padding-right:10px;}
+            .cm-2do-legend-area{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;}
+            .cm-2do-legend-btn{width:38px;height:38px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
             .cm-2do-legend-btn:hover{transform:translateY(-2px);background:rgba(30,41,59,.86);}
-            .cm-2do-legend-panel{position:absolute;left:0;bottom:56px;width:min(92vw,620px);padding:14px 16px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.92);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:bottom left;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;}
+            .cm-2do-legend-panel{position:absolute;left:0;top:50%;transform:translateY(-50%);margin-left:54px;width:min(92vw,620px);padding:14px 16px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.92);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:left center;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;}
             .cm-2do-legend-title{grid-column:1 / -1;color:#fff;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px;}
             .cm-2do-legend-row{display:flex;align-items:flex-start;gap:10px;margin:0;min-width:0;}
             .cm-2do-legend-color{width:13px;height:13px;border-radius:4px;box-shadow:0 0 12px currentColor;}
@@ -14049,12 +14049,12 @@ function SegundoAccesoTab({ myId }) {
               .cm-2do-trucks{min-height:22px;}.cm-2do-truck-icon{width:20px;height:20px;}
               .cm-2do-terminal strong{font-size:9px;}
               .cm-2do-terminal span{font-size:8px;}
-              .cm-2do-bottom-row{align-items:flex-start;gap:12px;margin-top:0;padding:2px 4px 0;}
+              .cm-2do-bottom-row{grid-template-columns:1fr auto;align-items:center;gap:10px;margin-top:0;padding:2px 6px 0 4px;}
               .cm-2do-left-controls{gap:8px;}
-              .cm-2do-direction-row{flex-direction:column;gap:4px;}
+              .cm-2do-direction-row{gap:6px;}
               .cm-2do-direction-row span{font-size:8px;letter-spacing:.08em;}
-              .cm-2do-legend-btn{width:40px;height:40px;}
-              .cm-2do-legend-panel{left:0;bottom:50px;width:min(94vw,360px);grid-template-columns:1fr;gap:9px;padding:12px 13px;}
+              .cm-2do-legend-btn{width:36px;height:36px;}
+              .cm-2do-legend-panel{left:0;top:auto;bottom:calc(100% + 10px);transform:none;margin-left:0;width:min(94vw,340px);grid-template-columns:1fr;gap:9px;padding:12px 13px;}
             }
           `}</style>
           <div className="cm-2do-header">
@@ -14150,28 +14150,40 @@ function SegundoAccesoTab({ myId }) {
             <div className="cm-2do-left-controls">
               <div className="cm-2do-direction-row">
                 <span style={{ color:"#f97316" }}>↓ Hacia ciudad</span>
-              </div>
-              <div className="cm-2do-legend-area">
-                <button className="cm-2do-legend-btn" type="button" onClick={() => setSegundoLegendOpen(v => !v)} title="Mostrar índice del diagrama">
-                  <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={22} active />
-                </button>
-                {segundoLegendOpen && (
-                  <div className="cm-2do-legend-panel">
-                    <div className="cm-2do-legend-title">Índice del diagrama</div>
-                    {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
-                      <div className="cm-2do-legend-row" key={id}>
-                        <div className="cm-2do-legend-color" style={{ background:color, color }} />
-                        <div>
-                          <strong>{label}</strong>
-                          <span>{id === "libre" ? "Operación normal" : id === "lento" ? "Alta densidad con avance" : id === "moderado" ? "Tránsito medio" : id === "saturado" ? "Demora fuerte" : id === "bloqueo" ? "Obstrucción o bloqueo" : id === "cerrado" ? "No disponible temporalmente" : "Carril sin operación"}</span>
+                <div
+                  className="cm-2do-legend-area"
+                  onMouseEnter={() => setSegundoLegendOpen(true)}
+                  onMouseLeave={() => setSegundoLegendOpen(false)}
+                >
+                  <button
+                    className="cm-2do-legend-btn"
+                    type="button"
+                    onClick={() => setSegundoLegendOpen(v => !v)}
+                    onFocus={() => setSegundoLegendOpen(true)}
+                    onBlur={() => setSegundoLegendOpen(false)}
+                    onTouchStart={() => setSegundoLegendOpen(true)}
+                    title="Mostrar índice del diagrama"
+                  >
+                    <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={20} active />
+                  </button>
+                  {segundoLegendOpen && (
+                    <div className="cm-2do-legend-panel">
+                      <div className="cm-2do-legend-title">Índice del diagrama</div>
+                      {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
+                        <div className="cm-2do-legend-row" key={id}>
+                          <div className="cm-2do-legend-color" style={{ background:color, color }} />
+                          <div>
+                            <strong>{label}</strong>
+                            <span>{id === "libre" ? "Operación normal" : id === "lento" ? "Alta densidad con avance" : id === "moderado" ? "Tránsito medio" : id === "saturado" ? "Demora fuerte" : id === "bloqueo" ? "Obstrucción o bloqueo" : id === "cerrado" ? "No disponible temporalmente" : "Carril sin operación"}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="cm-2do-direction-row">
+            <div className="cm-2do-direction-row is-right">
               <span style={{ color:"#14b8a6" }}>↑ Hacia el puerto</span>
             </div>
           </div>
