@@ -14006,8 +14006,8 @@ function SegundoAccesoTab({ myId }) {
             .cm-2do-kicker{color:#67e8f9;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;}
             .cm-2do-title{margin-top:4px;color:#f8fafc;font-family:'DM Sans',sans-serif;font-size:clamp(18px,2.6vw,28px);font-weight:900;letter-spacing:-.04em;}
             .cm-2do-sub{margin-top:3px;color:rgba(226,232,240,.58);font-size:11px;font-family:'DM Sans',sans-serif;}
-            .cm-2do-perspective{position:relative;z-index:1;perspective:1100px;padding:10px 4px 18px;overflow:visible;}
-            .cm-2do-road{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;min-height:420px;transform:rotateX(34deg) skewX(-2deg);transform-style:preserve-3d;transform-origin:center bottom;padding:10px;}
+            .cm-2do-perspective{position:relative;z-index:1;perspective:1180px;padding:0 0 10px;overflow:visible;}
+            .cm-2do-road{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;min-height:390px;transform:translateY(-26px) rotateX(31deg) skewX(-2deg);transform-style:preserve-3d;transform-origin:center bottom;padding:6px 10px 0;align-items:stretch;}
             .cm-2do-lane{position:relative;min-height:390px;border-radius:16px;border:3px solid rgba(148,163,184,.18);background:linear-gradient(180deg,#1a2233 0%,#0b1220 100%);box-shadow:0 20px 36px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -18px 32px rgba(0,0,0,.26);overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:28px 12px 22px;transition:transform .28s ease,border-color .22s ease,box-shadow .22s ease;}
             .cm-2do-lane::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.42));pointer-events:none;}
             .cm-2do-lane::after{content:"";position:absolute;inset:0;opacity:.22;background-image:linear-gradient(90deg,transparent 44%,#facc15 44%,#facc15 56%,transparent 56%);background-size:100% 44px;pointer-events:none;}
@@ -14023,22 +14023,24 @@ function SegundoAccesoTab({ myId }) {
             .cm-2do-terminal{position:relative;z-index:1;width:100%;padding:7px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--terminal-color) 42%,transparent);background:color-mix(in srgb,var(--terminal-color) 16%,rgba(15,23,42,.92));text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.08);}
             .cm-2do-terminal strong{display:block;color:var(--terminal-color);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
             .cm-2do-terminal span{display:block;margin-top:2px;color:rgba(226,232,240,.48);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
-            .cm-2do-direction-row{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px;margin-top:-2px;padding:0 8px 6px;}
+            .cm-2do-bottom-row{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:-12px;padding:0 8px 2px;}
+            .cm-2do-left-controls{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;}
+            .cm-2do-direction-row{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px;min-width:0;}
             .cm-2do-direction-row span{font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;}
-            .cm-2do-legend-area{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;margin-top:4px;}
-            .cm-2do-legend-btn{width:48px;height:48px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
+            .cm-2do-legend-area{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;}
+            .cm-2do-legend-btn{width:44px;height:44px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.76);backdrop-filter:blur(14px);color:#e2e8f0;display:grid;place-items:center;cursor:pointer;box-shadow:0 16px 32px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .16s ease,background .16s ease;}
             .cm-2do-legend-btn:hover{transform:translateY(-2px);background:rgba(30,41,59,.86);}
-            .cm-2do-legend-panel{width:min(100%,360px);margin-top:12px;padding:14px;border-radius:16px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.90);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:top center;}
-            .cm-2do-legend-title{color:#fff;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px;}
-            .cm-2do-legend-row{display:flex;align-items:center;gap:10px;margin:9px 0;}
+            .cm-2do-legend-panel{position:absolute;left:0;bottom:56px;width:min(92vw,620px);padding:14px 16px;border-radius:18px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.92);backdrop-filter:blur(18px);box-shadow:0 22px 44px rgba(0,0,0,.40);transform-origin:bottom left;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;}
+            .cm-2do-legend-title{grid-column:1 / -1;color:#fff;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px;}
+            .cm-2do-legend-row{display:flex;align-items:flex-start;gap:10px;margin:0;min-width:0;}
             .cm-2do-legend-color{width:13px;height:13px;border-radius:4px;box-shadow:0 0 12px currentColor;}
             .cm-2do-legend-row strong{display:block;color:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
             .cm-2do-legend-row span{display:block;color:rgba(226,232,240,.48);font-size:10px;margin-top:1px;}
             @media (max-width:760px){
               .cm-2do-diagram-shell{padding:12px;border-radius:16px;margin-left:-2px;margin-right:-2px;}
               .cm-2do-header{margin-bottom:8px;}
-              .cm-2do-perspective{perspective:none;overflow-x:auto;overflow-y:hidden;padding:4px 0 12px;-webkit-overflow-scrolling:touch;}
-              .cm-2do-road{width:max-content;min-width:100%;grid-template-columns:repeat(4,136px);gap:10px;min-height:300px;transform:none;padding:4px 4px 10px;}
+              .cm-2do-perspective{perspective:none;overflow-x:auto;overflow-y:hidden;padding:2px 0 8px;-webkit-overflow-scrolling:touch;}
+              .cm-2do-road{width:max-content;min-width:100%;grid-template-columns:repeat(4,144px);gap:10px;min-height:286px;transform:none;padding:2px 4px 6px;}
               .cm-2do-lane{min-height:282px;border-width:2px;border-radius:14px;padding:18px 9px 16px;}
               .cm-2do-lane:hover,.cm-2do-lane.is-selected{transform:translateY(-2px) scale(1.01);}
               .cm-2do-lane-chip{min-width:62px;padding:6px 10px;font-size:14px;}
@@ -14049,7 +14051,12 @@ function SegundoAccesoTab({ myId }) {
               .cm-2do-trucks{font-size:24px;}
               .cm-2do-terminal strong{font-size:9px;}
               .cm-2do-terminal span{font-size:8px;}
+              .cm-2do-bottom-row{align-items:flex-start;gap:12px;margin-top:0;padding:2px 4px 0;}
+              .cm-2do-left-controls{gap:8px;}
+              .cm-2do-direction-row{flex-direction:column;gap:4px;}
               .cm-2do-direction-row span{font-size:8px;letter-spacing:.08em;}
+              .cm-2do-legend-btn{width:40px;height:40px;}
+              .cm-2do-legend-panel{left:0;bottom:50px;width:min(94vw,360px);grid-template-columns:1fr;gap:9px;padding:12px 13px;}
             }
           `}</style>
           <div className="cm-2do-header">
@@ -14142,29 +14149,34 @@ function SegundoAccesoTab({ myId }) {
             </div>
           </div>
 
-          <div className="cm-2do-direction-row">
-            <span style={{ color:"#f97316" }}>↓ Hacia ciudad</span>
-            <span style={{ color:"#14b8a6" }}>↑ Hacia el puerto</span>
-          </div>
-
-          <div className="cm-2do-legend-area">
-            <button className="cm-2do-legend-btn" type="button" onClick={() => setSegundoLegendOpen(v => !v)} title="Mostrar índice del diagrama">
-              <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={24} active />
-            </button>
-            {segundoLegendOpen && (
-              <div className="cm-2do-legend-panel">
-                <div className="cm-2do-legend-title">Índice del diagrama</div>
-                {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
-                  <div className="cm-2do-legend-row" key={id}>
-                    <div className="cm-2do-legend-color" style={{ background:color, color }} />
-                    <div>
-                      <strong>{label}</strong>
-                      <span>{id === "libre" ? "Operación normal" : id === "lento" ? "Alta densidad con avance" : id === "moderado" ? "Tránsito medio" : id === "saturado" ? "Demora fuerte" : id === "bloqueo" ? "Obstrucción o bloqueo" : id === "cerrado" ? "No disponible temporalmente" : "Carril sin operación"}</span>
-                    </div>
-                  </div>
-                ))}
+          <div className="cm-2do-bottom-row">
+            <div className="cm-2do-left-controls">
+              <div className="cm-2do-direction-row">
+                <span style={{ color:"#f97316" }}>↓ Hacia ciudad</span>
               </div>
-            )}
+              <div className="cm-2do-legend-area">
+                <button className="cm-2do-legend-btn" type="button" onClick={() => setSegundoLegendOpen(v => !v)} title="Mostrar índice del diagrama">
+                  <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={22} active />
+                </button>
+                {segundoLegendOpen && (
+                  <div className="cm-2do-legend-panel">
+                    <div className="cm-2do-legend-title">Índice del diagrama</div>
+                    {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
+                      <div className="cm-2do-legend-row" key={id}>
+                        <div className="cm-2do-legend-color" style={{ background:color, color }} />
+                        <div>
+                          <strong>{label}</strong>
+                          <span>{id === "libre" ? "Operación normal" : id === "lento" ? "Alta densidad con avance" : id === "moderado" ? "Tránsito medio" : id === "saturado" ? "Demora fuerte" : id === "bloqueo" ? "Obstrucción o bloqueo" : id === "cerrado" ? "No disponible temporalmente" : "Carril sin operación"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="cm-2do-direction-row">
+              <span style={{ color:"#14b8a6" }}>↑ Hacia el puerto</span>
+            </div>
           </div>
         </div>
 
