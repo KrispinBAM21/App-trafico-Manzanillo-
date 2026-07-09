@@ -506,63 +506,6 @@ const ensureCmMapSharedStyle = () => {
   document.head.appendChild(s);
 };
 
-
-
-// ─── TERMINALES PORTUARIAS · REDISEÑO PREMIUM / PROFESSIONAL GRID ────────────
-const ensureTerminalesPortuariasPremiumStyle = () => {
-  if (typeof document === "undefined" || document.getElementById("cm-terminales-premium-style")) return;
-  const s = document.createElement("style");
-  s.id = "cm-terminales-premium-style";
-  s.textContent = `
-    .port-dashboard-shell{width:100%;padding:16px 16px 90px;min-height:100vh;background:radial-gradient(circle at 18% 0%,rgba(34,211,238,.08),transparent 34%),radial-gradient(circle at 82% 14%,rgba(99,102,241,.09),transparent 36%),linear-gradient(180deg,#07111f 0%,#0b1730 50%,#061120 100%);color:#f8fafc;overflow:hidden;}
-    .port-dashboard-ticker{margin-bottom:16px;}
-    .port-map-stage{position:relative;width:100%;min-height:420px;border-radius:22px;overflow:hidden;background:rgba(2,8,23,.74);border:1px solid rgba(148,163,184,.18);box-shadow:0 28px 70px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.08);isolation:isolate;}
-    .port-map-stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(2,8,23,.14),rgba(2,8,23,.24));box-shadow:inset 0 0 90px rgba(0,0,0,.42);z-index:2;}
-    .port-leaflet-map{position:absolute;inset:0;width:100%;height:100%;z-index:1;background:#040c18;}
-    .zone-floating-control{position:absolute;top:24px;left:50%;z-index:22;transform:translateX(-50%);display:flex;gap:20px;padding:6px;border-radius:999px;background:rgba(15,23,42,.46);border:1px solid rgba(148,163,184,.18);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);box-shadow:0 18px 40px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);pointer-events:auto;}
-    .zone-pill{min-width:190px;padding:17px 30px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.92));color:rgba(241,245,249,.86);font-size:15px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 10px 22px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .18s ease,box-shadow .18s ease,background .18s ease,border-color .18s ease;}
-    .zone-pill:hover{transform:translateY(-2px);box-shadow:0 16px 32px rgba(0,0,0,.42),0 0 22px rgba(45,212,191,.14),inset 0 1px 0 rgba(255,255,255,.12);}
-    .zone-pill.is-active{background:linear-gradient(180deg,#2dd4bf 0%,#14b8a6 48%,#0f766e 100%);color:#ecfeff;border-color:rgba(153,246,228,.55);box-shadow:0 18px 38px rgba(20,184,166,.34),0 0 34px rgba(45,212,191,.22),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(15,118,110,.35);}
-    .layer-floating-trigger{position:absolute;top:24px;right:24px;z-index:24;width:56px;height:56px;border-radius:18px;border:1px solid rgba(148,163,184,.24);background:linear-gradient(180deg,rgba(30,41,59,.86),rgba(15,23,42,.92));box-shadow:0 18px 36px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1);display:grid;place-items:center;color:#e2e8f0;pointer-events:auto;}
-    .layer-floating-control{position:absolute;top:88px;right:24px;z-index:23;width:142px;padding:10px;border-radius:18px;background:rgba(15,23,42,.76);border:1px solid rgba(148,163,184,.24);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);box-shadow:0 22px 46px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);pointer-events:auto;}
-    .layer-option{width:100%;padding:13px 14px;border:0;border-radius:12px;background:transparent;color:rgba(226,232,240,.88);font-size:14px;font-weight:700;cursor:pointer;transition:background .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease;}
-    .layer-option:hover{transform:translateY(-1px);background:rgba(148,163,184,.12);}
-    .layer-option.is-active{color:#f8fafc;background:linear-gradient(180deg,#2dd4bf 0%,#14b8a6 100%);box-shadow:0 10px 22px rgba(20,184,166,.26),inset 0 1px 0 rgba(255,255,255,.24);}
-    .port-map-legend{position:absolute;left:22px;right:22px;bottom:18px;z-index:22;display:flex;gap:13px;flex-wrap:wrap;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(2,8,23,.64);border:1px solid rgba(148,163,184,.16);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 16px 30px rgba(0,0,0,.28);pointer-events:auto;}
-    .port-legend-item{display:inline-flex;align-items:center;gap:7px;color:#e2e8f0;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;}
-    .port-legend-chip{width:14px;height:14px;border-radius:4px;display:inline-block;box-shadow:0 0 10px currentColor;}
-    .status-monitor-panel{margin-top:28px;padding:clamp(20px,2.4vw,34px);border-radius:26px;background:linear-gradient(180deg,rgba(15,23,42,.74),rgba(2,8,23,.82)),radial-gradient(circle at 50% 0%,rgba(45,212,191,.08),transparent 40%);border:1px solid rgba(148,163,184,.15);box-shadow:0 28px 70px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.07);}
-    .status-monitor-header{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px;}
-    .status-kicker{display:block;margin-bottom:8px;color:#67e8f9;font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;}
-    .status-monitor-header h2{margin:0;font-size:clamp(26px,3vw,44px);font-weight:600;letter-spacing:-.04em;color:#f8fafc;}
-    .status-view-switch{display:flex;gap:10px;padding:6px;border-radius:18px;background:rgba(15,23,42,.56);border:1px solid rgba(148,163,184,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
-    .status-view-btn{padding:14px 20px;border-radius:14px;border:1px solid rgba(148,163,184,.16);background:linear-gradient(180deg,rgba(30,41,59,.72),rgba(15,23,42,.86));color:rgba(226,232,240,.78);font-weight:900;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .16s ease;}
-    .status-view-btn:hover{transform:translateY(-1px);color:#fff;border-color:rgba(148,163,184,.32);}
-    .status-view-btn.is-active{background:linear-gradient(180deg,#2dd4bf,#0f766e);border-color:rgba(153,246,228,.5);color:#ecfeff;box-shadow:0 12px 28px rgba(20,184,166,.26),inset 0 1px 0 rgba(255,255,255,.2);}
-    .terminal-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:22px;}
-    .terminal-card{position:relative;padding:24px;min-height:205px;border-radius:18px;background:linear-gradient(145deg,rgba(15,23,42,.82),rgba(2,8,23,.9));border:1px solid rgba(148,163,184,.24);box-shadow:0 24px 46px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -18px 32px rgba(0,0,0,.18);overflow:hidden;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;}
-    .terminal-card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 0%,rgba(148,163,184,.12),transparent 34%),linear-gradient(90deg,rgba(255,255,255,.03),transparent 45%);pointer-events:none;}
-    .terminal-card:hover{transform:translateY(-2px);box-shadow:0 30px 58px rgba(0,0,0,.5),0 0 28px rgba(59,130,246,.08),inset 0 1px 0 rgba(255,255,255,.1);}
-    .terminal-card-header{position:relative;z-index:1;display:flex;align-items:center;gap:14px;margin-bottom:22px;}
-    .terminal-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;color:#cbd5e1;background:rgba(15,23,42,.78);border:1px solid rgba(148,163,184,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 22px rgba(0,0,0,.3);}
-    .terminal-card h3{margin:0;color:#f8fafc;font-size:22px;font-weight:700;letter-spacing:-.03em;}
-    .terminal-card p{margin:4px 0 0;color:#94a3b8;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
-    .terminal-current{position:relative;z-index:1;margin:-6px 0 16px;display:flex;justify-content:space-between;gap:10px;align-items:center;color:#94a3b8;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
-    .terminal-reset-btn{padding:7px 10px;border-radius:999px;border:1px solid rgba(34,197,94,.35);background:rgba(34,197,94,.11);color:#86efac;font-size:10px;font-weight:900;letter-spacing:.08em;cursor:pointer;}
-    .terminal-status-buttons{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
-    .status-btn{min-height:46px;border:1px solid rgba(148,163,184,.13);border-radius:999px;color:rgba(226,232,240,.56);background:linear-gradient(180deg,rgba(15,23,42,.82),rgba(2,8,23,.9));font-size:14px;font-weight:800;cursor:pointer;box-shadow:inset 0 2px 5px rgba(0,0,0,.45),inset 0 -1px 0 rgba(255,255,255,.04);transition:transform .16s ease,box-shadow .16s ease,color .16s ease,border-color .16s ease,background .16s ease;}
-    .status-btn:hover{transform:translateY(-2px);color:#f8fafc;border-color:rgba(148,163,184,.32);box-shadow:0 12px 24px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.08);}
-    .status-btn.is-active{color:#f8fafc;transform:translateY(-1px);}
-    .status-libre.is-active{background:linear-gradient(180deg,#5eead4 0%,#14b8a6 52%,#0f766e 100%);border-color:rgba(153,246,228,.5);box-shadow:0 12px 28px rgba(20,184,166,.28),0 0 26px rgba(45,212,191,.22),inset 0 2px 0 rgba(255,255,255,.26),inset 0 -8px 14px rgba(15,118,110,.38);}
-    .status-llena.is-active{background:linear-gradient(180deg,#fbbf24 0%,#f59e0b 54%,#b45309 100%);border-color:rgba(253,230,138,.48);box-shadow:0 12px 28px rgba(245,158,11,.28),0 0 26px rgba(251,191,36,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(180,83,9,.34);}
-    .status-retorno_terminal.is-active{background:linear-gradient(180deg,#93c5fd 0%,#64748b 55%,#334155 100%);border-color:rgba(191,219,254,.42);box-shadow:0 12px 28px rgba(96,165,250,.2),0 0 26px rgba(147,197,253,.13),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(51,65,85,.38);}
-    .status-retorno_asipona.is-active{background:linear-gradient(180deg,#a78bfa 0%,#7c3aed 56%,#4c1d95 100%);border-color:rgba(196,181,253,.48);box-shadow:0 12px 28px rgba(124,58,237,.28),0 0 28px rgba(167,139,250,.2),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(76,29,149,.38);}
-    .route-card-premium .terminal-status-buttons{grid-template-columns:1fr;}
-    @media(max-width:760px){.port-dashboard-shell{padding:12px 12px 86px}.port-map-stage{min-height:360px;border-radius:18px}.zone-floating-control{top:14px;gap:8px;width:calc(100% - 88px);left:14px;right:auto;transform:none}.zone-pill{min-width:0;flex:1;padding:13px 10px;font-size:11px}.layer-floating-trigger{top:14px;right:14px;width:50px;height:50px}.layer-floating-control{top:74px;right:14px;width:120px}.port-map-legend{left:12px;right:12px;bottom:12px}.terminal-status-grid{grid-template-columns:1fr}.terminal-card{padding:20px}.terminal-status-buttons{grid-template-columns:1fr}.status-monitor-header{align-items:stretch}.status-view-switch{width:100%;}.status-view-btn{flex:1;padding:12px 10px;font-size:10px}}
-  `;
-  document.head.appendChild(s);
-};
-
 const bindCmMapPermanentLabel = (layer, name) => {
   ensureCmMapSharedStyle();
   return layer.bindTooltip(`<b>${sanitize(name)}</b>`, CM_MAP_PERMANENT_LABEL_OPTIONS).openTooltip();
@@ -8106,7 +8049,6 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
   const [toast, setToast] = useState(null);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-  useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
   const cleanReportText = (text) => String(text ?? "")
@@ -12281,7 +12223,7 @@ function CommandAccesosView({ theme, accesos, onVote }) {
 }
 
 
-function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZonaActiva }) {
+function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales }) {
   const theme = React.useContext(ThemeContext);
   const mapRef = useRef(null);
   const leafRef = useRef(null);
@@ -12426,55 +12368,33 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
   }, [tileMode]);
 
   return (
-    <div className="port-map-stage" aria-label={`Mapa operativo de ${isRutas ? "rutas fiscales" : "terminales"}`}>
-      <div ref={mapRef} className="port-leaflet-map" />
-
-      <div className="zone-floating-control" aria-label="Selector de zona sobre mapa">
-        {[{ id:"norte", label:"ZONA NORTE" }, { id:"sur", label:"ZONA SUR" }].map(z => (
-          <button
-            key={z.id}
-            type="button"
-            className={`zone-pill ${zona === z.id ? "is-active" : ""}`}
-            onClick={() => setZonaActiva?.(z.id)}
-          >
-            {z.label}
-          </button>
-        ))}
+    <div style={{ marginBottom: "16px" }}>
+      <div style={{ borderRadius: "14px 14px 0 0", overflow: "hidden", border: `1px solid ${zonaColor}33`, borderBottom: "none" }}>
+        <div style={{ padding: "10px 14px", background: "rgba(4,12,24,0.95)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <AppIcon name={isRutas ? "route-road" : "anchor-port"} size={17} active />
+          <span style={{ fontFamily: getFont(theme, "title"), fontSize: "14px", color: "rgba(255,255,255,0.9)", fontWeight: 800 }}>
+            {isRutas ? "Mapa Rutas Fiscales" : "Mapa Terminales"} <span style={{ color: zonaColor }}>Zona {zoneLabel}</span>
+          </span>
+          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.34)" }}>· EN VIVO</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            {TILE_OPTIONS.map(t => (
+              <button key={t.id} onClick={() => setTileMode(t.id)} style={{
+                padding: "3px 8px", borderRadius: "6px", border: "none", cursor: "pointer",
+                background: tileMode === t.id ? zonaColor : "rgba(255,255,255,0.08)",
+                color: tileMode === t.id ? "#0a0f1e" : "rgba(255,255,255,0.55)",
+                fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: tileMode === t.id ? "800" : "500",
+              }}><AppIcon name={t.icon} size={14} active={tileMode === t.id} /> {t.label}</button>
+            ))}
+          </div>
+        </div>
       </div>
-
-      <div className="layer-floating-trigger" aria-hidden="true">
-        <AppIcon name="satellite" size={26} active />
+      <div style={{ border: `1px solid ${zonaColor}33`, borderTop: "none", borderRadius: "0 0 14px 14px", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,0,0,0.5)" }}>
+        <div ref={mapRef} style={{ width: "100%", height: "320px", background: "#040c18" }} />
       </div>
-
-      <div className="layer-floating-control" aria-label="Capas del mapa">
-        {[
-          { id:"satellite", label:"Satellite" },
-          { id:"streets", label:"Terrain" },
-          { id:"dark", label:"Night" },
-        ].map(t => (
-          <button
-            key={t.id}
-            type="button"
-            className={`layer-option ${tileMode === t.id ? "is-active" : ""}`}
-            onClick={() => setTileMode(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="port-map-legend">
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px", padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)" }}>
         {legendOptions.map(o => (
-          <span key={o.id} className="port-legend-item">
-            <span
-              className="port-legend-chip"
-              style={{
-                color: o.color,
-                background: o.color + "55",
-                border: `2px solid ${o.color}`,
-                borderRadius: isRutas ? "999px" : "4px",
-              }}
-            />
+          <span key={o.id} style={{ display: "flex", alignItems: "center", gap: "5px", fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#e2e8f0" }}>
+            <span style={{ width: "14px", height: "14px", borderRadius: isRutas ? "999px" : "3px", background: o.color + "55", border: `2px solid ${o.color}`, display: "inline-block", boxShadow: `0 0 6px ${o.color}70` }} />
             <span>{o.label}</span>
           </span>
         ))}
@@ -12668,36 +12588,26 @@ function TerminalesTab({ myId, isAdmin = false }) {
       const st = stMap[terminal.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema" };
       const opt = getTerminalOpt(st.status);
       return (
-        <article key={terminal.id} className="terminal-card">
-          <header className="terminal-card-header">
-            <div className="terminal-icon"><AppIcon name="port-terminal" size={28} active /></div>
-            <div style={{ minWidth:0 }}>
-              <h3>{terminal.name}</h3>
-              <p>{terminal.fullName || `Zona ${zonaLabel}`}</p>
+        <div key={terminal.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px", gap:"10px" }}>
+            <div>
+              <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"14px" }}>{terminal.name}</div>
+              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{terminal.fullName}</div>
+              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
             </div>
-          </header>
-          <div className="terminal-current">
-            <span style={{ color: opt.color }}><IconText icon={opt.icon} label={opt.label} size={15} /></span>
-            <span>{timeAgo(st.lastUpdate)} · {st.updatedBy}</span>
-            {st.status !== "libre" && <button className="terminal-reset-btn" onClick={() => resetOne(terminal.id)}>TODO NORMAL</button>}
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
+              <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"800", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
+              {st.status !== "libre" && <button onClick={() => resetOne(terminal.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"800" }}>TODO NORMAL</button>}
+            </div>
           </div>
-          <div className="terminal-status-buttons">
+          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
             {TERMINAL_STATUS_OPTIONS.map(o => {
               const isAct = st.status === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => vote(terminal.id, o.id)}
-                  className={`status-btn status-${o.id} ${isAct ? "is-active" : ""}`}
-                  title={`Reportar ${terminal.name}: ${o.label}`}
-                >
-                  {o.label}
-                </button>
-              );
+              return <button key={o.id} onClick={() => vote(terminal.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontWeight:isAct ? 800 : 600 }}>{o.label}</button>;
             })}
           </div>
-        </article>
+        </div>
       );
     });
   };
@@ -12728,40 +12638,36 @@ function TerminalesTab({ myId, isAdmin = false }) {
   };
 
   return (
-    <div className="port-dashboard-shell">
-      <div className="port-dashboard-ticker"><TypewriterTicker items={tickerItems} /></div>
+    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+      <TypewriterTicker items={tickerItems} />
 
-      <MapaTerminales zona={zona} vista={vistaTerminalesPortuarias} stMap={stMap} rutasFiscales={rutasFiscales} setZonaActiva={setZonaPersist} />
+      <div style={segmentShell} aria-label="Selector de zona">
+        {[{ id:"norte", label:"Zona Norte" }, { id:"sur", label:"Zona Sur" }].map(z => (
+          <button key={z.id} onClick={() => setZonaPersist(z.id)} style={segmentButton(zona === z.id)}>{z.label}</button>
+        ))}
+      </div>
 
-      <section className="status-monitor-panel" aria-label="Professional Grid Status Monitor">
-        <div className="status-monitor-header">
-          <div>
-            <span className="status-kicker">CONTROL OPERATIVO · ZONA {zonaLabel.toUpperCase()}</span>
-            <h2>{isRutasView ? "Rutas Fiscales" : "Terminales Portuarias"}</h2>
+      <div style={segmentShell} aria-label="Selector de vista de Terminales Portuarias">
+        <button onClick={() => setVistaTerminalesPortuarias("terminales")} style={segmentButton(vistaTerminalesPortuarias === "terminales")}>Estatus Terminales</button>
+        <button onClick={() => setVistaTerminalesPortuarias("rutas_fiscales")} style={segmentButton(vistaTerminalesPortuarias === "rutas_fiscales")}>Estatus Rutas Fiscales</button>
+      </div>
+
+      <SectionLabel
+        text={`${isRutasView ? "RUTAS FISCALES" : "TERMINALES PORTUARIAS"} · ZONA ${zonaLabel.toUpperCase()}`}
+        rightBtn={<NormalBtn onClick={isRutasView ? resetRutasZona : resetAll} label={isRutasView ? "RUTAS LIBRES" : "TODAS LIBRES"} />}
+      />
+
+      <MapaTerminales zona={zona} vista={vistaTerminalesPortuarias} stMap={stMap} rutasFiscales={rutasFiscales} />
+
+      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
+        {(isRutasView ? RUTA_FISCAL_STATUS_OPTIONS : TERMINAL_STATUS_OPTIONS).map(o => (
+          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
+            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:800 }}>{o.label}</span>
           </div>
-          <div className="status-view-switch" aria-label="Selector de vista de Terminales Portuarias">
-            <button
-              type="button"
-              onClick={() => setVistaTerminalesPortuarias("terminales")}
-              className={`status-view-btn ${vistaTerminalesPortuarias === "terminales" ? "is-active" : ""}`}
-            >
-              Estatus Terminales
-            </button>
-            <button
-              type="button"
-              onClick={() => setVistaTerminalesPortuarias("rutas_fiscales")}
-              className={`status-view-btn ${vistaTerminalesPortuarias === "rutas_fiscales" ? "is-active" : ""}`}
-            >
-              Estatus Rutas Fiscales
-            </button>
-          </div>
-          <NormalBtn onClick={isRutasView ? resetRutasZona : resetAll} label={isRutasView ? "RUTAS LIBRES" : "TODAS LIBRES"} />
-        </div>
+        ))}
+      </div>
 
-        <div className="terminal-status-grid">
-          {isRutasView ? renderRutasFiscalesCards() : renderTerminalCards()}
-        </div>
-      </section>
+      {isRutasView ? renderRutasFiscalesCards() : renderTerminalCards()}
 
       <ToastBox toast={toast} />
       {changeModal && (
