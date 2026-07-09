@@ -19565,6 +19565,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
   const theme = React.useContext(ThemeContext);
   const [sub, setSub] = useState("posturas");
   const [vista, setVista] = useState("postular");
+  const [posturasMode, setPosturasMode] = useState("list");
+  const [talentView, setTalentView] = useState("todos");
   const [trabajadores, setTrabajadores] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [ratings, setRatings] = useState([]);
@@ -20242,55 +20244,117 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
 
   const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
 
-  return <div style={{ padding:"20px 24px", paddingBottom:"90px", maxWidth:"1240px", margin:"0 auto", backgroundImage:"radial-gradient(at 0% 0%, rgba(0,150,255,.05) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(188,199,222,.035) 0px, transparent 50%)", backgroundSize:"100% 100%, 100% 100%" }}>
-    <ProfileHeader />
-    {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
-    {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap:"14px", marginBottom:"18px", minWidth:0 }}>
-      {[
-        {id:"posturas", label:"Posturas Conect", subtitle:"Búsqueda y propuesta de talento operativo en tiempo real.", icon:"logistics-handshake", module:"Módulo 01", color:"#a1c9ff", action1:"Buscar Trabajo", action2:"Proponer Trabajo"},
-        {id:"boletinados", label:"Boletinados", subtitle:"Consulta oficial, registros y notificaciones de cumplimiento normativo.", icon:"document-check", module:"Live update", color:"#bcc7de", action1:"Consultar Información"},
-        {id:"donativos", label:"Donativos", subtitle:"Apoya el desarrollo y sostenibilidad del proyecto Conect Manzanillo.", icon:"support-heart", module:"Comunidad", color:"#bec6e0", action1:"Apoyar Proyecto"},
-      ].map((t, idx) => {
-        const active = sub === t.id;
-        return (
-          <button key={t.id} onClick={()=>setSub(t.id)} style={{ ...posturasGlass, textAlign:"left", borderRadius:"18px", padding:"18px", minHeight:"210px", display:"flex", flexDirection:"column", justifyContent:"space-between", gap:"16px", cursor:"pointer", border:`1px solid ${active ? `${t.color}7a` : "rgba(63,71,83,.42)"}`, background:active ? `linear-gradient(180deg, ${t.color}14, rgba(18,33,49,.74))` : "rgba(18,33,49,.60)", boxShadow:active ? `0 18px 44px ${t.color}18, inset 0 1px 0 rgba(255,255,255,.07)` : "0 12px 32px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.04)", color:"#d4e4fa", transition:"all .22s ease", position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", inset:0, background:active ? `radial-gradient(circle at top left, ${t.color}16, transparent 42%)` : "transparent", pointerEvents:"none" }} />
-            <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px" }}>
-              <div style={{ width:"48px", height:"48px", borderRadius:"13px", background:`${t.color}14`, border:`1px solid ${t.color}30`, display:"grid", placeItems:"center", boxShadow:active ? `0 0 24px ${t.color}18` : "none" }}>
-                <AppIcon name={t.icon} size={26} active={active} />
-              </div>
-              <div style={{ padding:"4px 8px", borderRadius:"999px", background:idx === 1 ? "rgba(147,0,10,.18)" : `${t.color}12`, border:`1px solid ${idx === 1 ? "rgba(255,180,171,.25)" : `${t.color}24`}`, color:idx === 1 ? "#ffb4ab" : t.color, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}>{t.module}</div>
-            </div>
-            <div style={{ position:"relative", zIndex:1, flex:1 }}>
-              <div style={{ fontFamily:getFont(theme,"title"), fontSize:"20px", color:"#f8fafc", fontWeight:"900", marginBottom:"8px" }}>{t.label}</div>
-              <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(212,228,250,.64)", lineHeight:1.55 }}>{t.subtitle}</div>
-            </div>
-            <div style={{ position:"relative", zIndex:1, paddingTop:"12px", borderTop:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", gap:"10px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", color:active ? t.color : "rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
-                <span>{t.action1}</span>
-                <AppIcon name={t.id === "boletinados" ? "external-link" : t.id === "donativos" ? "heart" : "search"} size={15} active={active} />
-              </div>
-              {t.action2 && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", color:active ? t.color : "rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
-                <span>{t.action2}</span>
-                <AppIcon name="plus-circle" size={15} active={active} />
-              </div>}
-            </div>
-          </button>
-        );
-      })}
+  const trabajadoresPage = paginate(trabFiltrados, pageTrab);
+  const empresasPage = paginate(empFiltradas, pageEmp);
+  const savedTrabajadores = trabFiltrados.filter(row => isSavedProfile("trabajador", row.id));
+  const savedEmpresas = empFiltradas.filter(row => isSavedProfile("empresa", row.id));
+  const sidebarNav = [
+    { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    { id:"posturas", label:"Posturas", icon:"briefcase", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
+    { id:"donativos", label:"Donativos", icon:"support-heart", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
+    { id:"archivo", label:"Archivo", icon:"archive-box", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
+  ];
+  const activeSidebarId = posturasMode === "archive" ? "archivo" : sub;
+  const segmentButton = (id, label) => {
+    const active = talentView === id && posturasMode === "list" && sub === "posturas";
+    return <button key={id} onClick={() => { setSub("posturas"); setPosturasMode("list"); setTalentView(id); if (id === "perfiles") setVista("postular"); if (id === "busquedas") setVista("empresario"); }} style={{ padding:"10px 22px", borderRadius:"10px", border:"none", background:active ? "#a1c9ff" : "transparent", color:active ? "#002d52" : "rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer", transition:"all .18s ease" }}>{label}</button>;
+  };
+  const CommandSearch = () => (
+    <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"14px", marginBottom:"22px", padding:"16px", background:"rgba(13,28,45,.52)", border:"1px solid rgba(63,71,83,.32)", borderRadius:"16px" }}>
+      <div style={{ flex:1, minWidth:"260px", position:"relative" }}>
+        <span style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><AppIcon name="search" size={20} /></span>
+        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
+      </div>
+      <button type="button" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 24px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.72)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"default" }}><AppIcon name="filter-list" size={18} /> Filtros</button>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:"10px", width:"100%" }}>
+        <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+        <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+        <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+      </div>
     </div>
-    {sub === "donativos" && <DonativosTab embedded />}
-    {sub === "boletinados" && renderBoletinadosTab()}
-    {sub === "posturas" && <>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"11px", borderRadius:"11px", border:`1px solid ${vista===t.id?"#a78bfa":"rgba(255,255,255,.12)"}`, background:vista===t.id?"rgba(167,139,250,.16)":"rgba(255,255,255,.04)", color:vista===t.id?"#a78bfa":"rgba(255,255,255,.56)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
-      {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
-      <Filters />
-      {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
-      {vista === "postular" && <><div style={{ color:"#38bdf8", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary") }}>Trabajadores ({trabFiltrados.length})</div><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px" }}>{paginate(trabFiltrados, pageTrab).map(row => <TrabCard key={row.id} row={row}/>)}</div><Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} /></>}
-      {vista === "empresario" && <><div style={{ color:"#a1c9ff", fontWeight:"900", margin:"14px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Empresas ({empFiltradas.length})</div><div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"14px" }}>{paginate(empFiltradas, pageEmp).map(row => <EmpresaCard key={row.id} row={row}/>)}</div><Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} /><AdminQuejas /></>}
-    </>}
-  </div>;
+  );
+
+  return (
+    <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
+      <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"260px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
+        <div style={{ padding:"0 24px", marginBottom:"28px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>
+            <span style={{ width:"8px", height:"8px", borderRadius:"999px", background:"#a1c9ff", boxShadow:"0 0 16px rgba(161,201,255,.7)" }} /> Control de puente
+          </div>
+        </div>
+        <nav style={{ display:"grid", gap:"4px", flex:1 }}>
+          {sidebarNav.map(item => {
+            const active = activeSidebarId === item.id;
+            return <button key={item.id} onClick={item.onClick} style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
+              <AppIcon name={item.icon} size={22} active={active} /> {item.label}
+            </button>;
+          })}
+        </nav>
+        <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
+          <button onClick={()=>{ setSub("posturas"); setVista("postular"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="user-plus" size={18} /> Publicar perfil</button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="search" size={18} /> Buscar postura</button>
+          <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><AppIcon name="briefcase" size={18} /> Publicar Vacante</button>
+          <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><AppIcon name="help-circle" size={16} /> Soporte</div>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><AppIcon name="shield-check" size={16} /> Protocolo de seguridad</div>
+          </div>
+        </div>
+      </aside>
+
+      <main style={{ position:"relative", zIndex:1, marginLeft:"260px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
+        {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
+        {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>⏰ Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
+
+        {sub === "donativos" && <DonativosTab embedded />}
+        {sub === "boletinados" && renderBoletinadosTab()}
+        {sub === "posturas" && posturasMode === "form" && (
+          <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
+            <ProfileHeader />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"13px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
+            {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
+          </div>
+        )}
+
+        {sub === "posturas" && posturasMode !== "form" && (
+          <section style={{ maxWidth:"1280px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"18px", flexWrap:"wrap", marginBottom:"26px" }}>
+              <div>
+                <h2 style={{ fontFamily:getFont(theme,"title"), fontSize:"clamp(28px,4vw,38px)", lineHeight:1.05, color:"#d4e4fa", fontWeight:"900", margin:"0 0 8px" }}>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
+                <p style={{ color:"rgba(212,228,250,.76)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", margin:0 }}>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados."}</p>
+              </div>
+              {posturasMode !== "archive" && <div style={{ display:"flex", gap:"4px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>{[segmentButton("posturas","Posturas"), segmentButton("todos","Todos"), segmentButton("perfiles","Perfiles"), segmentButton("busquedas","Búsquedas")]}</div>}
+            </div>
+
+            {posturasMode !== "archive" && <CommandSearch />}
+            {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
+
+            {posturasMode === "archive" && (savedTrabajadores.length || savedEmpresas.length ? <div style={{ display:"grid", gap:"18px" }}>
+              {savedTrabajadores.map(row => <TrabCard key={`saved-trab-${row.id}`} row={row}/>)}
+              {savedEmpresas.map(row => <EmpresaCard key={`saved-emp-${row.id}`} row={row}/>)}
+            </div> : <div style={{ padding:"34px", border:"1px dashed rgba(63,71,83,.62)", borderRadius:"16px", color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>Aún no tienes perfiles guardados. Usa el botón Guardar en cualquier perfil publicado.</div>)}
+
+            {posturasMode !== "archive" && <>
+              {(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && <>
+                <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Perfiles ({trabFiltrados.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{trabajadoresPage.map(row => <TrabCard key={row.id} row={row}/>)}</div>
+                <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} />
+              </>}
+              {(talentView === "todos" || talentView === "busquedas") && <>
+                <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"18px 0 12px", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Búsquedas / empresas ({empFiltradas.length})</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{empresasPage.map(row => <EmpresaCard key={row.id} row={row}/>)}</div>
+                <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} />
+                <AdminQuejas />
+              </>}
+            </>}
+          </section>
+        )}
+      </main>
+
+      <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.65)", background:"#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> Publicar Vacante / Postularse</button>
+    </div>
+  );
 }
 
 function Pagination({ total, page, setPage, pageSize }) {
