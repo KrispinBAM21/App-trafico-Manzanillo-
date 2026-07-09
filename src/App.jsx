@@ -8903,7 +8903,7 @@ const getIncidentLatLng = (inc) => {
   return { lat, lng };
 };
 
-function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente", cleanReportMap = false, reportTypeFilter = null }) {
+function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente", cleanReportMap = false, reportTypeFilter = null, myId = null, setIncidents = null, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
   const leafRef   = useRef(null);
@@ -8950,6 +8950,64 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     }
     // En el mapa general de Tráfico, mantener el comportamiento original: solo visibles/activos.
     return !!inc.visible;
+  };
+
+  const mapUserId = myId || (typeof getDeviceId === "function" ? getDeviceId() : "anon");
+  const htmlSafe = (value = "") => String(value ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+
+  const deleteIncidentFromMap = async (inc) => {
+    if (!isAdmin || !inc?.id) return;
+    if (!window.confirm("¿Eliminar este evento del mapa?")) return;
+    const before = { id:inc.id, type:inc.type, location:inc.location, description:inc.description || inc.desc, coords:inc.coords };
+    const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+    if (error) { window.alert("No se pudo eliminar: " + error.message); return; }
+    if (typeof setIncidents === "function") setIncidents(prev => prev.filter(i => i.id !== inc.id));
+    try { await auditLog({ action:"eliminar_evento_admin_mapa", section:"mapa_reportes", entityId:inc.id, before, after:{ summary:`Admin eliminó evento desde mapa en ${inc.location || "sin ubicación"}` }, actor:"Admin" }); } catch {}
+  };
+
+  const voteIncidentFromMap = async (inc, kind) => {
+    if (!inc?.id) return;
+    const uid = mapUserId;
+    const votes = inc.votes || {};
+    const falseVotes = inc.false_votes || {};
+    const resolveVotes = inc.resolve_votes || {};
+
+    if (kind === "confirm") {
+      if (votes[uid] === 1) return;
+      const nextVotes = { ...votes, [uid]: 1 };
+      await sb.from("incidents").update({ votes: nextVotes }).eq("id", inc.id);
+      if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: nextVotes } : i));
+      try { await auditLog({ action:"votar_evento_confirmo_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"sigue", votos:Object.values(nextVotes).filter(v => v === 1).length, summary:`${uid} confirmó evento en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
+      return;
+    }
+
+    if (kind === "false") {
+      if (falseVotes[uid]) return;
+      const nextFalse = { ...falseVotes, [uid]: 1 };
+      const count = Object.values(nextFalse).length;
+      if (count >= 3) {
+        await sb.from("incidents").delete().eq("id", inc.id);
+        if (typeof setIncidents === "function") setIncidents(prev => prev.filter(i => i.id !== inc.id));
+        try { await auditLog({ action:"eliminar_evento_por_votos_no_coincide_mapa", section:"mapa_reportes", entityId:inc.id, after:{ votos:count, summary:"Evento eliminado por votos de no coincide desde mapa" }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
+      } else {
+        await sb.from("incidents").update({ false_votes: nextFalse }).eq("id", inc.id);
+        if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: nextFalse } : i));
+        try { await auditLog({ action:"votar_evento_no_coincide_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"no_coincide", votos:count, summary:`${uid} marcó no coincide en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
+      }
+      return;
+    }
+
+    if (kind === "resolved") {
+      if (resolveVotes[uid]) return;
+      const nextResolve = { ...resolveVotes, [uid]: 1 };
+      const count = Object.values(nextResolve).length;
+      const patch = count >= 3 ? { resolve_votes: nextResolve, resolved: true } : { resolve_votes: nextResolve };
+      await sb.from("incidents").update(patch).eq("id", inc.id);
+      if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, ...patch } : i));
+      try { await auditLog({ action:"votar_evento_ya_libre_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"ya_libre", votos:count, cerrado:count >= 3, summary:`${uid} marcó ya libre en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
+    }
   };
 
   // Datos exactos del KML
@@ -9334,7 +9392,39 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         className: "", iconSize: [80, 60], iconAnchor: [16, 32],
       });
       const marker = L.marker([pos.lat, pos.lng], { icon, zIndexOffset: 1000 }).addTo(map);
-      marker.bindPopup(`<div style="font-family:DM Sans,sans-serif;min-width:180px;"><div style="font-size:14px;font-weight:700;color:${cfg.color};margin-bottom:4px;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)} ${cfg.label}</div><div style="font-size:12px;color:#fff;margin-bottom:2px;">${inc.location || ""}</div>${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.6);">${inc.description}</div>` : ""}</div>`, { className: "cm-popup" });
+      const votes = inc.votes || {};
+      const falseVotes = inc.false_votes || {};
+      const resolveVotes = inc.resolve_votes || {};
+      const confirmCount = Object.values(votes).filter(v => v === 1).length;
+      const falseCount = Object.values(falseVotes).length;
+      const resolvedCount = Object.values(resolveVotes).length;
+      const alreadyConfirm = votes[mapUserId] === 1;
+      const alreadyFalse = !!falseVotes[mapUserId];
+      const alreadyResolved = !!resolveVotes[mapUserId];
+      const btnBase = "border-radius:8px;padding:7px 6px;font-size:10px;font-weight:800;cursor:pointer;font-family:DM Sans,sans-serif;line-height:1.15;";
+      const adminDeleteHtml = isAdmin ? `<button data-cm-map-action="delete" style="margin-top:8px;width:100%;${btnBase}background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.55);color:#ef4444;">Eliminar evento del mapa</button>` : "";
+      const popupHtml = `<div style="font-family:DM Sans,sans-serif;min-width:232px;color:#fff;">
+        <div style="font-size:14px;font-weight:800;color:${cfg.color};margin-bottom:4px;display:flex;align-items:center;gap:6px;">${leafletIconMarkup(cfg.icon || "warning-triangle", cfg.color, 15)} ${cfg.label}</div>
+        <div style="font-size:12px;color:#fff;margin-bottom:3px;font-weight:700;">${htmlSafe(inc.location || "")}</div>
+        ${inc.description ? `<div style="font-size:11px;color:rgba(255,255,255,0.68);margin-bottom:9px;line-height:1.35;">${htmlSafe(inc.description)}</div>` : ""}
+        <div style="font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Validación ciudadana</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+          <button data-cm-map-action="confirm" style="${btnBase}background:${alreadyConfirm ? 'rgba(34,197,94,.30)' : 'rgba(34,197,94,.12)'};border:1px solid ${alreadyConfirm ? '#22c55e' : 'rgba(34,197,94,.42)'};color:#22c55e;">SÍ, SIGUE<br/><span style="font-size:12px;">${confirmCount}</span></button>
+          <button data-cm-map-action="false" style="${btnBase}background:${alreadyFalse ? 'rgba(239,68,68,.30)' : 'rgba(239,68,68,.12)'};border:1px solid ${alreadyFalse ? '#ef4444' : 'rgba(239,68,68,.42)'};color:#ef4444;">NO COINCIDE<br/><span style="font-size:12px;">${falseCount}</span></button>
+          <button data-cm-map-action="resolved" style="${btnBase}background:${alreadyResolved ? 'rgba(148,163,184,.30)' : 'rgba(148,163,184,.12)'};border:1px solid ${alreadyResolved ? '#94a3b8' : 'rgba(148,163,184,.42)'};color:#cbd5e1;">YA LIBRE<br/><span style="font-size:12px;">${resolvedCount}</span></button>
+        </div>
+        <div style="font-size:9px;color:rgba(255,255,255,.36);margin-top:6px;">Con 3 reportes de “No coincide” se retira. Con 3 de “Ya libre” se cierra.</div>
+        ${adminDeleteHtml}
+      </div>`;
+      marker.bindPopup(popupHtml, { className: "cm-popup" });
+      marker.on("popupopen", () => {
+        const popupEl = marker.getPopup()?.getElement?.();
+        if (!popupEl) return;
+        popupEl.querySelector('[data-cm-map-action="confirm"]')?.addEventListener("click", () => voteIncidentFromMap(inc, "confirm"));
+        popupEl.querySelector('[data-cm-map-action="false"]')?.addEventListener("click", () => voteIncidentFromMap(inc, "false"));
+        popupEl.querySelector('[data-cm-map-action="resolved"]')?.addEventListener("click", () => voteIncidentFromMap(inc, "resolved"));
+        popupEl.querySelector('[data-cm-map-action="delete"]')?.addEventListener("click", () => deleteIncidentFromMap(inc));
+      });
       incMarkersRef.current[inc.id] = marker;
     });
 
@@ -9348,7 +9438,7 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         map.fitBounds(bounds.pad(0.35), { maxZoom: 16, animate: true });
       } catch {}
     }
-  }, [mapReady, JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible }))), cleanReportMap, effectiveReportFilter]);
+  }, [mapReady, JSON.stringify(incidents.filter(i => !i.resolved).map(i => ({ id: i.id, coords: i.coords, type: i.type, visible: i.visible, location:i.location, description:i.description || i.desc, votes:i.votes, false_votes:i.false_votes, resolve_votes:i.resolve_votes }))), cleanReportMap, effectiveReportFilter, mapUserId, isAdmin]);
 
   // ── Helper: colocar/actualizar pin de preview en el mapa ────────────────
   const applyPreviewPin = (coords, type) => {
@@ -10862,7 +10952,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               ACTIVE INCIDENTS: {incidents.filter(i => i.visible && !i.resolved).length}
             </div>
           </div>
-          <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} />
+          <MapaTrafico incidents={incidents} accesos={{}} vialidades={{}} cleanReportMap reportTypeFilter={categoria} previewCoords={coords} previewType={categoria} myId={myId} setIncidents={setIncidents} isAdmin={isAdmin} />
           <div style={{ position:"absolute", inset:0, pointerEvents:"none", zIndex:5, padding:"14px", display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderTop:"1px solid rgba(0,242,234,.45)" }} /></div>
             <div style={{ display:"flex", justifyContent:"space-between" }}><div style={{ width:32, height:32, borderLeft:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /><div style={{ width:32, height:32, borderRight:"1px solid rgba(0,242,234,.45)", borderBottom:"1px solid rgba(0,242,234,.45)" }} /></div>
