@@ -373,7 +373,12 @@ function AppIcon({ name, size = 20, active = false, style = {} }) {
     case "incident-pin": return <svg {...common}><path d="M12 21s6.8-5 6.8-10.8a6.8 6.8 0 1 0-13.6 0C5.2 16 12 21 12 21Z" fill="rgba(249,115,22,.16)" stroke={stroke} strokeWidth="1.8"/><path d="M12 7v4.2" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="14.2" r="1" fill="#f97316"/></svg>;
     case "port-terminal": return <svg {...common}><path d="M3.5 19.5h17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round"/><path d="M5 18.5V9l7-3.5L19 9v9.5" fill="rgba(56,189,248,.13)" stroke={stroke} strokeWidth="1.6"/><path d="M7.5 18.5v-5.2h9v5.2" fill="rgba(15,23,42,.35)" stroke={accent} strokeWidth="1.5"/><path d="M8.2 10.2h2M11.2 10.2h2M14.2 10.2h2" stroke="#fbbf24" strokeWidth="1.4" strokeLinecap="round"/></svg>;
     case "terminal-crane": return <svg {...common} viewBox="0 0 64 64"><g stroke={stroke} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none"><path d="M8 56h20"/><path d="M9 54l1-44h8l1 44"/><path d="M11 18h8M11 27h8M11 36h8M11 45h8"/><path d="M9 10h-3V6h11l1-4h7l1 4h34l3 6H9z"/><path d="M24 6v4M29 6v4M34 6v4M39 6v4M44 6v4M49 6v4M54 6v4"/><path d="M45 10v12"/><circle cx="45" cy="24" r="2.7" fill={accent} stroke={stroke}/><path d="M45 24l-10 7"/><path d="M45 24l12 8"/><path d="M35 31h22v16H30V35l5-4"/><path d="M35 37v7M39 37v7M43 37v7M47 37v7M51 37v7M55 37v7"/></g></svg>;
+    case "lane-status-monitor":
     case "route-fiscal-monitor": return <svg {...common} viewBox="0 0 64 64"><path d="M13 55h31.5L30.7 3h-5.1L13 55Z" fill="rgba(226,232,240,.96)" opacity=".12"/><path d="M19.2 55h31.1L37.6 3h-6.8L19.2 55Z" fill="rgba(226,232,240,.96)" opacity=".16"/><path d="M25.7 55h25.1L39.6 3H31L25.7 55Z" fill="rgba(226,232,240,.92)" opacity=".95"/><path d="M35.2 6.5h1.4c1 0 1.8.8 1.8 1.8v3.2c0 1-.8 1.8-1.8 1.8h-1.4c-1 0-1.8-.8-1.8-1.8V8.3c0-1 .8-1.8 1.8-1.8Zm-1 9.6h3.4c1 0 1.8.8 1.8 1.8v5.2c0 1-.8 1.8-1.8 1.8h-3.4c-1 0-1.8-.8-1.8-1.8v-5.2c0-1 .8-1.8 1.8-1.8Zm-.7 12.1h4.8c1 0 1.8.8 1.8 1.8v6.8c0 1-.8 1.8-1.8 1.8h-4.8c-1 0-1.8-.8-1.8-1.8V30c0-1 .8-1.8 1.8-1.8Zm-.2 13.3h5.2c1 0 1.8.8 1.8 1.8v8.3c0 1-.8 1.8-1.8 1.8h-5.2c-1 0-1.8-.8-1.8-1.8v-8.3c0-1 .8-1.8 1.8-1.8Z" fill="#07111f"/><circle cx="47.5" cy="46.5" r="13.2" fill="rgba(255,255,255,.96)" stroke="#334155" strokeWidth="2.7"/><rect x="41.2" y="44.2" width="3.3" height="7.6" rx="1.4" fill="#64c83b"/><rect x="45.9" y="40.2" width="3.3" height="11.6" rx="1.4" fill="#f4c131"/><rect x="50.6" y="36.2" width="3.3" height="15.6" rx="1.4" fill="#ef4444"/></svg>;
+    case "truck-export": return <svg {...common} viewBox="0 0 64 64"><g fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="18" width="32" height="16" rx="1.5" fill="rgba(255,255,255,.06)"/><path d="M39 34h9l6-7v-8l-4-6H39v21Z" fill="rgba(255,255,255,.06)"/><path d="M44 19h7l3 5"/><path d="M13 22v8M18 24v6M23 25v5M34 25v5M29 24v6" opacity=".9"/><circle cx="14" cy="39" r="4.3"/><circle cx="26" cy="39" r="4.3"/><circle cx="47" cy="39" r="4.3"/></g></svg>;
+    case "truck-import": return <svg {...common} viewBox="0 0 64 64"><g fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M8 30v-8l6 6"/><path d="M14 28 25 26h18v-9h2v14H14Z" fill="rgba(255,255,255,.06)"/><path d="M46 17h6l4 5v13H46" fill="rgba(255,255,255,.06)"/><path d="M49 22h6"/><circle cx="17" cy="39" r="4.1"/><circle cx="28" cy="39" r="4.1"/><circle cx="51" cy="39" r="4.1"/><circle cx="39" cy="39" r="4.1"/></g></svg>;
+    case "container-expo-open": return <svg {...common} viewBox="0 0 64 64"><path d="M14 16h36v30H14z" fill="rgba(255,255,255,.08)" stroke={stroke} strokeWidth="3"/><path d="M9 18 14 20v24l-5 2zM55 18l-5 2v24l5 2z" fill="rgba(255,255,255,.28)" stroke={stroke} strokeWidth="2.8"/><path d="M23 24v18M31 24v18M39 24v18" stroke={accent} strokeWidth="2.4" strokeLinecap="round" opacity=".7"/><path d="M17 48h30" stroke="#f59e0b" strokeWidth="2.4"/><path d="M20 14h4M40 14h4" stroke="#ef4444" strokeWidth="2.4" strokeLinecap="round"/></svg>;
+    case "help-circle": return <svg {...common}><circle cx="12" cy="12" r="8.2" fill="rgba(148,163,184,.14)" stroke={stroke} strokeWidth="1.7"/><path d="M9.5 9.5a2.8 2.8 0 0 1 5 1.6c0 1.9-2 2.2-2.5 3.6" stroke={accent} strokeWidth="1.8" strokeLinecap="round"/><circle cx="12" cy="16.8" r="1" fill={accent}/></svg>;
     case "container-yard": return <svg {...common}><path d="M4 9h16v9H4z" fill="rgba(251,146,60,.16)" stroke={stroke} strokeWidth="1.7"/><path d="M7 9V6h10v3M8 12h8M8 15h8" stroke={accent} strokeWidth="1.5" strokeLinecap="round"/><path d="M4 18h16" stroke="#f59e0b" strokeWidth="1.7"/></svg>;
     case "access-gate": return <svg {...common}><path d="M5 20V8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5V20" stroke={stroke} strokeWidth="1.8"/><path d="M7 12h10M9 20v-8M15 20v-8" stroke={accent} strokeWidth="1.6" strokeLinecap="round"/><path d="m10 8 2-2 2 2" stroke="#fbbf24" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>;
     case "lane-control": return <svg {...common}><path d="M6 21 9 3M18 21 15 3" stroke={stroke} strokeWidth="2" strokeLinecap="round"/><path d="M12 20v-3M12 14v-3M12 8V5" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"/><path d="M4 21h16" stroke={accent} strokeWidth="1.7" strokeLinecap="round"/></svg>;
@@ -2293,13 +2298,14 @@ const SEGUNDO_TRAFICO_OPTS = [
   { id: "detenido", label: "Tráfico Detenido", color: "#881337", icon: "circle-x" },
 ];
 const CARRIL_ESTADO_OPTS = [
-  { id: "libre",    label: "Libre",                    color: "#14b8a6", icon: "circle-check" },
-  { id: "lento",    label: "Tráfico Lento",            color: "#d97706", icon: "triangle-alert" },
-  { id: "moderado", label: "Tráfico Moderado",         color: "#0891b2", icon: "gauge" },
-  { id: "saturado", label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
-  { id: "bloqueo",  label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
-  { id: "cerrado",  label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
-  { id: "sin_uso",  label: "Sin operación",            color: "#71717a", icon: "ban" },
+  { id: "libre",           label: "Libre",                    color: "#14b8a6", icon: "circle-check" },
+  { id: "lento",           label: "Tráfico Lento",            color: "#d97706", icon: "triangle-alert" },
+  { id: "moderado",        label: "Tráfico Moderado",         color: "#0891b2", icon: "gauge" },
+  { id: "saturado",        label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
+  { id: "bloqueo",         label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
+  { id: "cerrado",         label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
+  { id: "sin_uso",         label: "Sin operación",            color: "#71717a", icon: "ban" },
+  { id: "sin_especificar", label: "Sin especificar",          color: "#64748b", icon: "help-circle" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
 const getCarrilEstadoOpt = (st) => CARRIL_ESTADO_OPTS.find(o => o.id === getCarrilEstadoId(st)) || CARRIL_ESTADO_OPTS[0];
@@ -13958,6 +13964,252 @@ function SegundoAccesoTab({ myId }) {
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
 
+  const laneCardShell = (accent) => ({
+    background:"linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
+    backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
+    border:`1px solid ${accent}52`, borderRadius:"18px", padding:"14px", marginBottom:"16px",
+    boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`
+  });
+  const laneMiniLabelStyle = { fontSize:"9px", color:"rgba(255,255,255,0.46)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.2px", textTransform:"uppercase" };
+  const laneHeroTitleStyle = { color:"#f8fafc", fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"-.01em" };
+  const laneFieldTitleStyle = { fontSize:"10px", color:"rgba(255,255,255,0.54)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.1px", textTransform:"uppercase" };
+  const laneBlockStyle = (accent, soft = true) => ({
+    background: soft ? `linear-gradient(180deg, ${accent}10, rgba(7,17,31,0.92))` : "rgba(7,17,31,0.92)",
+    border:`1px solid ${accent}3f`, borderRadius:"14px", padding:"12px", boxShadow:`0 8px 22px ${accent}16`
+  });
+  const laneHeaderNode = (iconName, title, subtitle, accent, iconSize = 26) => (
+    <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+      <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
+        <AppIcon name={iconName} size={iconSize} active />
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={laneFieldTitleStyle}>{title}</div>
+        <div style={{ color:"#f8fafc", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"13px", lineHeight:1.15 }}>{subtitle}</div>
+      </div>
+    </div>
+  );
+
+  const renderSegundoIngresoCard = (carril) => {
+    const st = carriles[carril.id];
+    const laneOpt = getCarrilEstadoOpt(st);
+    const isSinUso = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
+    const termObj = TODAS_TERMINALES.find(t => t.id === st.terminal);
+    const zonaColor = isSinUso ? "#6b7280" : termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
+    const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+    const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
+    const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+    const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || !!st.expo_contenedor;
+    return (
+      <div key={carril.id} style={laneCardShell(laneOpt.id !== "libre" ? laneOpt.color : zonaColor)}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ background:`${zonaColor}18`, border:`1px solid ${zonaColor}44`, borderRadius:"999px", padding:"4px 10px", color:zonaColor, fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{carril.label}</div>
+              <Badge color="#22c55e" small>INGRESO</Badge>
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+            <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
+            {st.retornos && <Badge color="#f97316" small>CON RETORNOS</Badge>}
+            {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"5px 10px", background:"rgba(20,184,166,0.12)", border:"1px solid rgba(20,184,166,0.32)", borderRadius:"999px", color:"#2dd4bf", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}>NORMAL</button>}
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))", gap:"12px" }}>
+          <div style={laneBlockStyle(zonaColor)}>
+            {laneHeaderNode("terminal-crane", "Terminal", isSinUso ? "Sin uso / sin operación" : (termObj?.name || "Terminal no asignada"), zonaColor, 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Asignación actual</div>
+            <div style={{ ...laneHeroTitleStyle, color:zonaColor, fontSize:"16px", marginBottom:"2px" }}>{isSinUso ? "SIN USO" : getTermName(st.terminal)}</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:"10px" }}>{isSinUso ? "Carril fuera de operación" : (getTermZona(st.terminal) === "Todas" ? "Disponible para todas las terminales" : `Zona ${getTermZona(st.terminal)}`)}</div>
+            <WheelPickerSelect
+              value={st.terminal || carril.defaultTerminal}
+              options={terminalOptionsSegundo}
+              onChange={(v) => updateIngreso(carril.id,"terminal",v)}
+              pending={!!pendingKeys[`${carril.id}:terminal`]}
+              theme={theme}
+              title={`${carril.label} · Terminal / uso`}
+            />
+          </div>
+
+          <div style={laneBlockStyle(laneOpt.color)}>
+            {laneHeaderNode("lane-status-monitor", "Estado del carril", laneOpt.label, laneOpt.color, 30)}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px" }}>
+              <div>
+                <div style={{ ...laneMiniLabelStyle, marginBottom:"3px" }}>Estado vigente</div>
+                <div style={{ ...laneHeroTitleStyle, color:laneOpt.color }}>{laneOpt.label}</div>
+              </div>
+              <Badge color={laneOpt.color} small>{laneOpt.id === "sin_especificar" ? "N/A" : laneOpt.label.toUpperCase()}</Badge>
+            </div>
+            <WheelPickerSelect
+              value={getCarrilEstadoId(st)}
+              options={CARRIL_ESTADO_OPTS}
+              onChange={(v) => updateIngresoEstado(carril.id, v || "libre")}
+              pending={!!pendingKeys[`${carril.id}:estado_carril`]}
+              theme={theme}
+              title={`${carril.label} · Estado del carril`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("truck-export", "Exportación", expoOpt?.label || "Libre", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de exportación</div>
+            <WheelPickerSelect
+              value={st.expo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateIngreso(carril.id,"expo",v)}
+              pending={!!pendingKeys[`${carril.id}:expo`]}
+              theme={theme}
+              title={`${carril.label} · Exportación`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#38bdf8") }>
+            {laneHeaderNode("truck-import", "Importación", impoOpt?.label || "Libre", "#38bdf8", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de importación</div>
+            <WheelPickerSelect
+              value={st.impo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateIngreso(carril.id,"impo",v)}
+              pending={!!pendingKeys[`${carril.id}:impo`]}
+              theme={theme}
+              title={`${carril.label} · Importación`}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("container-expo-open", "Contenedor Expo", expoContOpt?.label || "Sin especificar", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Condición del contenedor</div>
+            <WheelPickerSelect
+              value={st.expo_contenedor}
+              options={SEGUNDO_CONTENEDOR_OPTS}
+              onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
+              placeholder="— Sin especificar —"
+              allowClear
+              pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
+              theme={theme}
+              title={`${carril.label} · Contenedor expo`}
+            />
+          </div>
+
+          <div style={{ ...laneBlockStyle(st.retornos ? "#f97316" : "#22c55e"), gridColumn:"1 / -1" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
+              {laneHeaderNode("return-route", "Modalidad de retornos", st.retornos ? "Con retornos" : "Sin retornos", st.retornos ? "#f97316" : "#22c55e", 26)}
+              <div style={{ minWidth:"260px", flex:"1 1 260px" }}>
+                <SegmentedToggle
+                  value={!!st.retornos}
+                  onChange={(v) => updateIngreso(carril.id,"retornos",v)}
+                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+                  leftColor="#22c55e" rightColor="#f97316"
+                  pending={!!pendingKeys[`${carril.id}:retornos`]}
+                  theme={theme}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSegundoSalidaCard = () => {
+    const st = carriles.c4;
+    const laneOpt = getCarrilEstadoOpt(st);
+    const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
+    const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
+    const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
+    return (
+      <div style={laneCardShell(laneOpt.id !== "libre" ? laneOpt.color : "#f97316")}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ background:"#f9731618", border:"1px solid #f9731644", borderRadius:"999px", padding:"4px 10px", color:"#f97316", fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>Carril 4</div>
+              <Badge color="#f97316" small>SALIDA</Badge>
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
+          </div>
+          <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))", gap:"12px" }}>
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("terminal-crane", "Salida general", "Flujo de salida del puerto", "#f97316", 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Destino del carril</div>
+            <div style={{ ...laneHeroTitleStyle, color:"#f97316", fontSize:"16px", marginBottom:"2px" }}>Salida General del Puerto</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px" }}>Todos los vehículos egresan hacia ciudad.</div>
+          </div>
+
+          <div style={laneBlockStyle(laneOpt.color)}>
+            {laneHeaderNode("lane-status-monitor", "Estado del carril", laneOpt.label, laneOpt.color, 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Estado vigente</div>
+            <WheelPickerSelect
+              value={getCarrilEstadoId(st)}
+              options={CARRIL_ESTADO_OPTS}
+              onChange={(v) => updateSalidaEstado(v || "libre")}
+              pending={!!pendingKeys["c4:estado_carril"]}
+              theme={theme}
+              title="Carril 4 · Estado del carril"
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("truck-export", "Exportación", expoOpt?.label || "Libre", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de exportación</div>
+            <WheelPickerSelect
+              value={st.expo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateSalida("expo",v)}
+              pending={!!pendingKeys["c4:expo"]}
+              theme={theme}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#38bdf8") }>
+            {laneHeaderNode("truck-import", "Importación", impoOpt?.label || "Libre", "#38bdf8", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Tráfico de importación</div>
+            <WheelPickerSelect
+              value={st.impo || "libre"}
+              options={SEGUNDO_TRAFICO_OPTS}
+              onChange={(v) => updateSalida("impo",v)}
+              pending={!!pendingKeys["c4:impo"]}
+              theme={theme}
+            />
+          </div>
+
+          <div style={laneBlockStyle("#f97316") }>
+            {laneHeaderNode("container-expo-open", "Contenedor Expo", expoContOpt?.label || "Sin especificar", "#f97316", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Condición del contenedor</div>
+            <WheelPickerSelect
+              value={st.expo_contenedor}
+              options={SEGUNDO_CONTENEDOR_OPTS}
+              onChange={(v) => updateSalida("expo_contenedor", v)}
+              placeholder="— Sin especificar —"
+              allowClear
+              pending={!!pendingKeys["c4:expo_contenedor"]}
+              theme={theme}
+            />
+          </div>
+
+          <div style={{ ...laneBlockStyle(st.retornos ? "#f97316" : "#22c55e"), gridColumn:"1 / -1" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
+              {laneHeaderNode("return-route", "Modalidad de retornos", st.retornos ? "Con retornos" : "Sin retornos", st.retornos ? "#f97316" : "#22c55e", 26)}
+              <div style={{ minWidth:"260px", flex:"1 1 260px" }}>
+                <SegmentedToggle
+                  value={!!st.retornos}
+                  onChange={(v) => updateSalida("retornos",v)}
+                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
+                  leftColor="#22c55e" rightColor="#f97316"
+                  pending={!!pendingKeys["c4:retornos"]}
+                  theme={theme}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
 
@@ -14190,200 +14442,10 @@ function SegundoAccesoTab({ myId }) {
         </div>
 
         <SectionLabel text="CARRILES DE INGRESO (C1–C3)" rightBtn={<NormalBtn onClick={resetAll} label="TODO NORMAL" />} />
-        {SEGUNDO_CARRILES_INGRESO.map(carril => {
-          const st        = carriles[carril.id];
-          const laneOpt   = getCarrilEstadoOpt(st);
-          const isSinUso  = laneOpt.id === "sin_uso" || st.terminal === "sin_uso";
-          const termObj   = TODAS_TERMINALES.find(t => t.id === st.terminal);
-          const zonaColor = isSinUso ? "#6b7280" : termObj?.zona === "Todas" ? "#fbbf24" : termObj?.zona === "Norte" ? "#38bdf8" : "#a78bfa";
-          const expoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.expo || "libre"));
-          const expoContOpt = SEGUNDO_CONTENEDOR_OPTS.find(o => o.id === st.expo_contenedor);
-          const impoOpt = SEGUNDO_TRAFICO_OPTS.find(o => o.id === (st.impo || "libre"));
-          const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre");
-          return (
-            <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${laneOpt.id !== "libre" ? laneOpt.color+"66" : zonaColor+"44"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
-                <div>
-                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                    <div style={{ background:"#38bdf822", border:"1px solid #38bdf844", borderRadius:"6px", padding:"3px 10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>{carril.label}</div>
-                    <Badge color="#22c55e" small>INGRESO</Badge>
-                  </div>
-                  <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px" }}>
-                  <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-                    <Badge color={laneOpt.color} small>{laneOpt.label.toUpperCase()}</Badge>
-                    {st.retornos && <Badge color="#f97316" small>RETORNOS</Badge>}
-                    {expoOpt && expoOpt.id !== "libre" && <Badge color={expoOpt.color} small>EXPO {expoOpt.label}</Badge>}
-                    {expoContOpt && <Badge color={expoContOpt.color} small>{expoContOpt.label}</Badge>}
-                    {impoOpt && impoOpt.id !== "libre" && <Badge color={impoOpt.color} small>IMPO {impoOpt.label}</Badge>}
-                  </div>
-                  {isChanged && <button onClick={() => resetOne(carril.id)} style={{ padding:"3px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>NORMAL</button>}
-                </div>
-              </div>
-              <div style={{ background:zonaColor+"11", border:`1px solid ${zonaColor}33`, borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"2px" }}>TERMINAL ASIGNADA HOY</div>
-                  {isSinUso ? (
-                    <>
-                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"15px" }}>SIN USO</div>
-                      <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"10px", marginTop:"1px" }}>Carril no disponible</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ color:zonaColor, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"15px" }}>{termObj?.name}</div>
-                      <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>
-                        {termObj?.zona === "Todas" ? "Todas las terminales" : `Zona ${termObj?.zona}`}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <span style={{ fontSize:"22px" }}>🚛</span>
-              </div>
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"8px" }}>CAMBIAR TERMINAL:</div>
-              <div style={{ marginBottom:"12px" }}>
-                <WheelPickerSelect
-                  value={st.terminal || carril.defaultTerminal}
-                  options={terminalOptionsSegundo}
-                  onChange={(v) => updateIngreso(carril.id,"terminal",v)}
-                  pending={!!pendingKeys[`${carril.id}:terminal`]}
-                  theme={theme}
-                  title={`${carril.label} · Terminal / uso`}
-                />
-              </div>
-
-              <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
-              <div style={{ marginBottom:"8px" }}>
-                <WheelPickerSelect
-                  value={getCarrilEstadoId(st)}
-                  options={CARRIL_ESTADO_OPTS}
-                  onChange={(v) => updateIngresoEstado(carril.id, v || "libre")}
-                  pending={!!pendingKeys[`${carril.id}:estado_carril`]}
-                  theme={theme}
-                  title={`${carril.label} · Estado del carril`}
-                />
-              </div>
-              <div style={{ marginBottom:"10px" }}>
-                <SegmentedToggle
-                  value={!!st.retornos}
-                  onChange={(v) => updateIngreso(carril.id,"retornos",v)}
-                  leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
-                  leftColor="#22c55e" rightColor="#f97316"
-                  pending={!!pendingKeys[`${carril.id}:retornos`]}
-                  theme={theme}
-                />
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-                  <WheelPickerSelect
-                    value={st.expo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"expo",v)}
-                    pending={!!pendingKeys[`${carril.id}:expo`]}
-                    theme={theme}
-                  />
-                  <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-                  <WheelPickerSelect
-                    value={st.expo_contenedor}
-                    options={SEGUNDO_CONTENEDOR_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
-                    placeholder="— Sin especificar —"
-                    allowClear
-                    pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
-                    theme={theme}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-                  <WheelPickerSelect
-                    value={st.impo || "libre"}
-                    options={SEGUNDO_TRAFICO_OPTS}
-                    onChange={(v) => updateIngreso(carril.id,"impo",v)}
-                    pending={!!pendingKeys[`${carril.id}:impo`]}
-                    theme={theme}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {SEGUNDO_CARRILES_INGRESO.map(renderSegundoIngresoCard)}
 
         <SectionLabel text="CARRIL DE SALIDA (C4)" />
-        {(() => { const c4LaneOpt = getCarrilEstadoOpt(carriles.c4); return (
-        <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${c4LaneOpt.id !== "libre" ? c4LaneOpt.color+"66" : "#f9731644"}`, borderRadius:"12px", padding:"14px", marginBottom:"14px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                <div style={{ background:"#f9731622", border:"1px solid #f9731644", borderRadius:"6px", padding:"3px 10px", color:"#f97316", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700" }}>Carril 4</div>
-                <Badge color="#f97316" small>SALIDA</Badge>
-              </div>
-              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"4px" }}>{timeAgo(carriles.c4.lastUpdate)} · {carriles.c4.updatedBy}</div>
-            </div>
-            <Badge color={c4LaneOpt.color} small>{c4LaneOpt.label.toUpperCase()}</Badge>
-          </div>
-          <div style={{ background:"#f9731611", border:"1px solid #f9731633", borderRadius:"8px", padding:"10px 12px", marginBottom:"12px", display:"flex", alignItems:"center", gap:"10px" }}>
-            <span style={{ fontSize:"22px" }}>🚚</span>
-            <div>
-              <div style={{ color:"#f97316", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px" }}>Salida General del Puerto</div>
-              <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"1px" }}>Todos los vehículos en salida</div>
-            </div>
-          </div>
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px", marginTop:"4px" }}>ESTADO DEL CARRIL:</div>
-          <div style={{ marginBottom:"8px" }}>
-            <WheelPickerSelect
-              value={getCarrilEstadoId(carriles.c4)}
-              options={CARRIL_ESTADO_OPTS}
-              onChange={(v) => updateSalidaEstado(v || "libre")}
-              pending={!!pendingKeys["c4:estado_carril"]}
-              theme={theme}
-              title="Carril 4 · Estado del carril"
-            />
-          </div>
-          <div style={{ marginBottom:"10px" }}>
-            <SegmentedToggle
-              value={!!carriles.c4.retornos}
-              onChange={(v) => updateSalida("retornos",v)}
-              leftLabel="SIN RETORNOS" rightLabel="CON RETORNOS"
-              leftColor="#22c55e" rightColor="#f97316"
-              pending={!!pendingKeys["c4:retornos"]}
-              theme={theme}
-            />
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
-            <div>
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📤 EXPORTACIÓN — TRÁFICO</div>
-              <WheelPickerSelect
-                value={carriles.c4.expo || "libre"}
-                options={SEGUNDO_TRAFICO_OPTS}
-                onChange={(v) => updateSalida("expo",v)}
-                pending={!!pendingKeys["c4:expo"]}
-                theme={theme}
-              />
-              <div style={{ fontSize:"9px", color:"#f97316", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", marginTop:"8px", fontWeight:"700" }}>CONTENEDOR EXPO</div>
-              <WheelPickerSelect
-                value={carriles.c4.expo_contenedor}
-                options={SEGUNDO_CONTENEDOR_OPTS}
-                onChange={(v) => updateSalida("expo_contenedor", v)}
-                placeholder="— Sin especificar —"
-                allowClear
-                pending={!!pendingKeys["c4:expo_contenedor"]}
-                theme={theme}
-              />
-            </div>
-            <div>
-              <div style={{ fontSize:"9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"5px", fontWeight:"700" }}>📥 IMPORTACIÓN — TRÁFICO</div>
-              <WheelPickerSelect
-                value={carriles.c4.impo || "libre"}
-                options={SEGUNDO_TRAFICO_OPTS}
-                onChange={(v) => updateSalida("impo",v)}
-                pending={!!pendingKeys["c4:impo"]}
-                theme={theme}
-              />
-            </div>
-          </div>
-        </div>
-        ); })()}
+        {renderSegundoSalidaCard()}
 
         {/* ── Segundo Acceso Por Fases ── */}
         <div style={{ marginTop:"8px" }}>
