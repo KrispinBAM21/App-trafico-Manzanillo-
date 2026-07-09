@@ -14768,6 +14768,84 @@ function CarrilesTab() {
   const EXPO_COLOR = "#f59e0b";
   const IMPO_COLOR = "#60a5fa";
 
+  const laneCardShell = (accent) => ({
+    background:"linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
+    backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
+    border:`1px solid ${accent}52`, borderRadius:"18px", padding:"14px",
+    boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`
+  });
+  const laneMiniLabelStyle = { fontSize:"9px", color:"rgba(255,255,255,0.46)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.2px", textTransform:"uppercase" };
+  const laneHeroTitleStyle = { color:"#f8fafc", fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"-.01em" };
+  const laneFieldTitleStyle = { fontSize:"10px", color:"rgba(255,255,255,0.54)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.1px", textTransform:"uppercase" };
+  const laneBlockStyle = (accent, soft = true) => ({
+    background: soft ? `linear-gradient(180deg, ${accent}10, rgba(7,17,31,0.92))` : "rgba(7,17,31,0.92)",
+    border:`1px solid ${accent}3f`, borderRadius:"14px", padding:"12px", boxShadow:`0 8px 22px ${accent}16`
+  });
+  const laneHeaderNode = (iconName, title, subtitle, accent, iconSize = 26) => (
+    <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+      <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
+        <AppIcon name={iconName} size={iconSize} active />
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={laneFieldTitleStyle}>{title}</div>
+        <div style={{ color:"#f8fafc", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"13px", lineHeight:1.15 }}>{subtitle}</div>
+      </div>
+    </div>
+  );
+  const voteButtonStyle = (active, accent) => ({
+    padding:"10px 8px",
+    background: active ? `${accent}1f` : "#0a1628",
+    border:`1px solid ${active ? accent : "#1e3a5f"}`,
+    borderRadius:"10px",
+    color: active ? accent : "#7c8aa4",
+    fontFamily:getFont(theme, "secondary"),
+    fontSize:"11px",
+    fontWeight: active ? "800" : "700",
+    cursor:"pointer",
+    letterSpacing:".04em",
+    transition:"all 0.15s"
+  });
+  const renderCarrilVoteCard = (carril, accent, tipoLabel, iconName) => {
+    const st = estado[carril.id] || {};
+    const abierto = st.abierto !== false;
+    return (
+      <div key={carril.id} style={laneCardShell(abierto ? accent : "#6b7280")}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ background:`${accent}18`, border:`1px solid ${accent}44`, borderRadius:"999px", padding:"4px 10px", color:accent, fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{carril.label}</div>
+              <Badge color={accent} small>{tipoLabel.toUpperCase()}</Badge>
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy || "Sistema"}</div>
+          </div>
+          <Badge color={abierto ? "#22c55e" : "#6b7280"} small>{abierto ? "ABIERTO" : "CERRADO"}</Badge>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
+          <div style={laneBlockStyle(accent)}>
+            {laneHeaderNode(iconName, `Control de ${tipoLabel.toLowerCase()}`, abierto ? `${tipoLabel} habilitada` : `${tipoLabel} detenida`, accent, 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Carril operativo</div>
+            <div style={{ ...laneHeroTitleStyle, color:accent, fontSize:"16px", marginBottom:"2px" }}>{carril.label}</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:"10px" }}>{currentAcc?.label || "Acceso actual"} · Zona {currentAcc?.zona || "—"}</div>
+            <div style={{ padding:"8px 10px", background: abierto ? "rgba(34,197,94,.10)" : "rgba(107,114,128,.12)", border:`1px solid ${abierto ? "rgba(34,197,94,.28)" : "rgba(148,163,184,.20)"}`, borderRadius:"10px", color: abierto ? "#22c55e" : "#9ca3af", fontSize:"11px", fontFamily:getFont(theme, "secondary"), fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase" }}>
+              {abierto ? "Operando con normalidad" : "Temporalmente cerrado"}
+            </div>
+          </div>
+
+          <div style={laneBlockStyle(abierto ? "#22c55e" : "#6b7280")}>
+            {laneHeaderNode(iconName, "Sistema de selección", "Replica visual de Estado de Accesos", abierto ? "#22c55e" : "#6b7280", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Selecciona el estado del carril</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"10px" }}>
+              <button onClick={() => toggle(carril.id, true)} style={voteButtonStyle(abierto, "#22c55e")}>✓ ABIERTO</button>
+              <button onClick={() => toggle(carril.id, false)} style={voteButtonStyle(!abierto, "#94a3b8")}>⛔ CERRADO</button>
+            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>Última actualización: {timeAgo(st.lastUpdate)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
@@ -14821,47 +14899,17 @@ function CarrilesTab() {
           </div>
           {expoCarriles.length > 0 && (
             <>
-              <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>📤 EXPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: expoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"16px" }}>
-                {expoCarriles.map(carril => {
-                  const st = estado[carril.id] || {};
-                  return (
-                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?EXPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
-                      <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme, "secondary"), marginBottom:"3px" }}>{carril.label}</div>
-                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📤</div>
-                      <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), fontWeight:"700", marginBottom:"12px" }}>EXPORTACIÓN</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
-                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
-                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
-                      </div>
-                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"10px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
-                      <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
-                    </div>
-                  );
-                })}
+              <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>EXPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: expoCarriles.length===1?"1fr":"1fr 1fr", gap:"12px", marginBottom:"16px" }}>
+                {expoCarriles.map(carril => renderCarrilVoteCard(carril, EXPO_COLOR, "Exportación", "truck-export"))}
               </div>
             </>
           )}
           {impoCarriles.length > 0 && (
             <>
-              <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>📥 IMPORTACIÓN</div>
-              <div style={{ display:"grid", gridTemplateColumns: impoCarriles.length===1?"1fr":"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
-                {impoCarriles.map(carril => {
-                  const st = estado[carril.id] || {};
-                  return (
-                    <div key={carril.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`2px solid ${st.abierto?IMPO_COLOR+"88":"#6b728055"}`, borderRadius:"12px", padding:"14px", textAlign:"center", opacity: st.abierto?1:0.65, transition:"all 0.2s" }}>
-                      <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.7)", fontFamily:getFont(theme, "secondary"), marginBottom:"3px" }}>{carril.label}</div>
-                      <div style={{ fontSize:"20px", marginBottom:"6px" }}>📥</div>
-                      <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:getFont(theme, "secondary"), fontWeight:"700", marginBottom:"12px" }}>IMPORTACIÓN</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px", marginBottom:"8px" }}>
-                        <button onClick={() => toggle(carril.id, true)}  style={{ padding:"7px 4px", background: st.abierto?"#22c55e22":"#0a1628", border:`1px solid ${st.abierto?"#22c55e":"#1e3a5f"}`, borderRadius:"6px", color: st.abierto?"#22c55e":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: st.abierto?"700":"400" }}>✓ ABIERTO</button>
-                        <button onClick={() => toggle(carril.id, false)} style={{ padding:"7px 4px", background: !st.abierto?"#6b728022":"#0a1628", border:`1px solid ${!st.abierto?"#6b7280":"#1e3a5f"}`, borderRadius:"6px", color: !st.abierto?"#9ca3af":"#475569", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight: !st.abierto?"700":"400" }}>⛔ CERRADO</button>
-                      </div>
-                      <div style={{ padding:"5px", background: st.abierto?"#22c55e15":"#6b728015", borderRadius:"6px", fontSize:"10px", color: st.abierto?"#22c55e":"#6b7280", fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>{st.abierto?"● OPERANDO":"● CERRADO"}</div>
-                      <div style={{ fontSize:"9px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)}</div>
-                    </div>
-                  );
-                })}
+              <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>IMPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: impoCarriles.length===1?"1fr":"1fr 1fr", gap:"12px", marginBottom:"14px" }}>
+                {impoCarriles.map(carril => renderCarrilVoteCard(carril, IMPO_COLOR, "Importación", "truck-import"))}
               </div>
             </>
           )}
