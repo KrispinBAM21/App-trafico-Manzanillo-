@@ -516,15 +516,22 @@ const ensureTerminalesPortuariasPremiumStyle = () => {
   s.textContent = `
     .port-dashboard-shell{width:100%;padding:16px 16px 90px;min-height:100vh;background:radial-gradient(circle at 18% 0%,rgba(34,211,238,.08),transparent 34%),radial-gradient(circle at 82% 14%,rgba(99,102,241,.09),transparent 36%),linear-gradient(180deg,#07111f 0%,#0b1730 50%,#061120 100%);color:#f8fafc;overflow:hidden;}
     .port-dashboard-ticker{margin-bottom:16px;}
-    .port-map-stage{position:relative;width:100%;min-height:420px;border-radius:22px;overflow:hidden;background:rgba(2,8,23,.74);border:1px solid rgba(148,163,184,.18);box-shadow:0 28px 70px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.08);isolation:isolate;}
+    .port-map-stage{position:relative;width:100%;min-height:420px;height:clamp(420px,50vh,620px);border-radius:22px;overflow:hidden;background:rgba(2,8,23,.74);border:1px solid rgba(148,163,184,.18);box-shadow:0 28px 70px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.08);isolation:isolate;}
     .port-map-stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(2,8,23,.14),rgba(2,8,23,.24));box-shadow:inset 0 0 90px rgba(0,0,0,.42);z-index:2;}
-    .port-leaflet-map{position:absolute;inset:0;width:100%;height:100%;z-index:1;background:#040c18;}
+    .port-leaflet-map{position:absolute;inset:0;width:100%;height:100%;min-height:420px;z-index:1;background:#040c18;}
+    .port-map-stage .leaflet-container{width:100%!important;height:100%!important;background:#040c18!important;}
+    .port-map-stage .leaflet-control-layers{border:1px solid rgba(56,189,248,.32)!important;border-radius:16px!important;background:rgba(2,6,23,.88)!important;box-shadow:0 18px 40px rgba(0,0,0,.48)!important;color:#e2e8f0!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);overflow:hidden;}
+    .port-map-stage .leaflet-control-layers-toggle{width:56px!important;height:56px!important;background-size:28px 28px!important;filter:invert(1) hue-rotate(165deg) saturate(1.2);background-color:rgba(15,23,42,.92)!important;border-radius:16px!important;}
+    .port-map-stage .leaflet-control-layers-expanded{padding:10px 12px!important;min-width:142px!important;}
+    .port-map-stage .leaflet-control-layers label{display:block;margin:8px 0!important;color:#e2e8f0!important;font-weight:800!important;}
+    .port-map-stage .leaflet-control-layers input{accent-color:#14b8a6;}
+    .port-map-stage .leaflet-control-zoom a{background:rgba(2,6,23,.86)!important;color:#e2e8f0!important;border-color:rgba(148,163,184,.16)!important;}
     .zone-floating-control{position:absolute;top:24px;left:50%;z-index:22;transform:translateX(-50%);display:flex;gap:20px;padding:6px;border-radius:999px;background:rgba(15,23,42,.46);border:1px solid rgba(148,163,184,.18);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);box-shadow:0 18px 40px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);pointer-events:auto;}
     .zone-pill{min-width:190px;padding:17px 30px;border:1px solid rgba(148,163,184,.18);border-radius:999px;background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.92));color:rgba(241,245,249,.86);font-size:15px;font-weight:800;letter-spacing:.08em;cursor:pointer;box-shadow:0 10px 22px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .18s ease,box-shadow .18s ease,background .18s ease,border-color .18s ease;}
     .zone-pill:hover{transform:translateY(-2px);box-shadow:0 16px 32px rgba(0,0,0,.42),0 0 22px rgba(45,212,191,.14),inset 0 1px 0 rgba(255,255,255,.12);}
     .zone-pill.is-active{background:linear-gradient(180deg,#2dd4bf 0%,#14b8a6 48%,#0f766e 100%);color:#ecfeff;border-color:rgba(153,246,228,.55);box-shadow:0 18px 38px rgba(20,184,166,.34),0 0 34px rgba(45,212,191,.22),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(15,118,110,.35);}
-    .layer-floating-trigger{position:absolute;top:24px;right:24px;z-index:24;width:56px;height:56px;border-radius:18px;border:1px solid rgba(148,163,184,.24);background:linear-gradient(180deg,rgba(30,41,59,.86),rgba(15,23,42,.92));box-shadow:0 18px 36px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1);display:grid;place-items:center;color:#e2e8f0;pointer-events:auto;}
-    .layer-floating-control{position:absolute;top:88px;right:24px;z-index:23;width:142px;padding:10px;border-radius:18px;background:rgba(15,23,42,.76);border:1px solid rgba(148,163,184,.24);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);box-shadow:0 22px 46px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);pointer-events:auto;}
+    .layer-floating-trigger{display:none;position:absolute;top:24px;right:24px;z-index:24;width:56px;height:56px;border-radius:18px;border:1px solid rgba(148,163,184,.24);background:linear-gradient(180deg,rgba(30,41,59,.86),rgba(15,23,42,.92));box-shadow:0 18px 36px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1);display:grid;place-items:center;color:#e2e8f0;pointer-events:auto;}
+    .layer-floating-control{display:none;position:absolute;top:88px;right:24px;z-index:23;width:142px;padding:10px;border-radius:18px;background:rgba(15,23,42,.76);border:1px solid rgba(148,163,184,.24);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);box-shadow:0 22px 46px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);pointer-events:auto;}
     .layer-option{width:100%;padding:13px 14px;border:0;border-radius:12px;background:transparent;color:rgba(226,232,240,.88);font-size:14px;font-weight:700;cursor:pointer;transition:background .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease;}
     .layer-option:hover{transform:translateY(-1px);background:rgba(148,163,184,.12);}
     .layer-option.is-active{color:#f8fafc;background:linear-gradient(180deg,#2dd4bf 0%,#14b8a6 100%);box-shadow:0 10px 22px rgba(20,184,166,.26),inset 0 1px 0 rgba(255,255,255,.24);}
@@ -12289,6 +12296,8 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
   const labelMarkerRefs = useRef({});
   const tileRef = useRef(null);
   const labelRef = useRef(null);
+  const layerControlRef = useRef(null);
+  const baseLayerRefs = useRef({});
   const zonaRef = useRef(zona);
   const vistaRef = useRef(vista);
   const stMapRef = useRef(stMap);
@@ -12296,16 +12305,21 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
-    { id: "dark", label: "Nocturno", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
-    { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
-    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
-    { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "satellite", label: "Satellite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
+    { id: "streets", label: "Terrain", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
+    { id: "dark", label: "Night", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
   ];
 
   const zoneLabel = zona === "norte" ? "Norte" : "Sur";
   const zonaColor = zona === "norte" ? "#38bdf8" : "#a78bfa";
   const isRutas = vista === "rutas_fiscales";
   const legendOptions = isRutas ? RUTA_FISCAL_STATUS_OPTIONS : TERMINAL_STATUS_OPTIONS;
+
+  const syncSatelliteLabels = (map, L, tile) => {
+    if (!map || !L) return;
+    if (labelRef.current) { try { map.removeLayer(labelRef.current); } catch {} labelRef.current = null; }
+    if (tile?.labels) labelRef.current = L.tileLayer(tile.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(map);
+  };
 
   const clearOperationalLayers = () => {
     const map = leafRef.current;
@@ -12325,6 +12339,7 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
     const zName = z === "norte" ? "Norte" : "Sur";
     const center = z === "norte" ? [19.0785, -104.2983] : [19.0615, -104.2960];
     map.setView(center, z === "norte" ? 14 : 13, { animate: true, duration: 0.35 });
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 80);
 
     if (v === "rutas_fiscales") {
       const routeRows = RUTAS_FISCALES.filter(r => r.zona === zName);
@@ -12373,9 +12388,28 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
         attributionControl: false,
         scrollWheelZoom: true,
       });
-      tileRef.current = L.tileLayer(TILE_OPTIONS[0].url, { maxZoom: 19, subdomains: TILE_OPTIONS[0].subdomains }).addTo(map);
+      const defaultTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+      const baseLayers = {};
+      baseLayerRefs.current = {};
+      TILE_OPTIONS.forEach(t => {
+        const layer = L.tileLayer(t.url, { maxZoom: 19, subdomains: t.subdomains || "abc" });
+        baseLayerRefs.current[t.id] = layer;
+        baseLayers[t.label] = layer;
+      });
+      tileRef.current = baseLayerRefs.current[defaultTile.id] || baseLayerRefs.current[TILE_OPTIONS[0].id];
+      tileRef.current.addTo(map);
+      syncSatelliteLabels(map, L, defaultTile);
+      layerControlRef.current = L.control.layers(baseLayers, null, { position: "topright", collapsed: true }).addTo(map);
+      map.on("baselayerchange", (e) => {
+        const nextTile = TILE_OPTIONS.find(t => t.label === e.name) || defaultTile;
+        tileRef.current = e.layer;
+        setTileMode(nextTile.id);
+        syncSatelliteLabels(map, L, nextTile);
+      });
       leafRef.current = map;
       ensureCmMapSharedStyle();
+      setTimeout(() => { try { map.invalidateSize(); } catch {} }, 50);
+      setTimeout(() => { try { map.invalidateSize(); } catch {} }, 250);
       loadZoneLayers(zonaRef.current, vistaRef.current, stMapRef.current, rutasRef.current);
     };
 
@@ -12403,6 +12437,8 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
         leafRef.current = null;
         layersRef.current = [];
         labelMarkerRefs.current = {};
+        layerControlRef.current = null;
+        baseLayerRefs.current = {};
       }
     };
   }, []);
@@ -12416,13 +12452,18 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
   }, [zona, vista, JSON.stringify(stMap || {}), JSON.stringify(rutasFiscales || {})]);
 
   useEffect(() => {
-    if (!leafRef.current || !tileRef.current || !window.L) return;
+    if (!leafRef.current || !window.L) return;
     const L = window.L;
+    const map = leafRef.current;
     const t = TILE_OPTIONS.find(x => x.id === tileMode) || TILE_OPTIONS[0];
-    tileRef.current.setUrl(t.url);
-    tileRef.current.options.subdomains = t.subdomains || "abc";
-    if (labelRef.current) { leafRef.current.removeLayer(labelRef.current); labelRef.current = null; }
-    if (t.labels) labelRef.current = L.tileLayer(t.labels, { maxZoom: 19, pane: "overlayPane" }).addTo(leafRef.current);
+    const target = baseLayerRefs.current?.[t.id];
+    if (target && tileRef.current !== target) {
+      try { if (tileRef.current) map.removeLayer(tileRef.current); } catch {}
+      target.addTo(map);
+      tileRef.current = target;
+    }
+    syncSatelliteLabels(map, L, t);
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 80);
   }, [tileMode]);
 
   return (
@@ -12442,26 +12483,6 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
         ))}
       </div>
 
-      <div className="layer-floating-trigger" aria-hidden="true">
-        <AppIcon name="satellite" size={26} active />
-      </div>
-
-      <div className="layer-floating-control" aria-label="Capas del mapa">
-        {[
-          { id:"satellite", label:"Satellite" },
-          { id:"streets", label:"Terrain" },
-          { id:"dark", label:"Night" },
-        ].map(t => (
-          <button
-            key={t.id}
-            type="button"
-            className={`layer-option ${tileMode === t.id ? "is-active" : ""}`}
-            onClick={() => setTileMode(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       <div className="port-map-legend">
         {legendOptions.map(o => (
@@ -12487,6 +12508,9 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
 
 function TerminalesTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  // Inyectar estilos antes de que el mapa Leaflet calcule tamaño.
+  // Esto evita que el contenedor se inicialice con alto 0 y desaparezcan polígonos/etiquetas.
+  if (typeof document !== "undefined") ensureTerminalesPortuariasPremiumStyle();
   useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
   const [zona, setZona] = useState(() => {
     try { return sessionStorage.getItem("term_zona") || "norte"; } catch { return "norte"; }
