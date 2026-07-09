@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 
 if (typeof window !== "undefined" && !window.L) window.L = L;
 
@@ -10032,18 +10032,32 @@ function ManualEventPinPicker({ initialCoords, locationLabel = "", category = "i
     }, [map]);
     return null;
   };
+  const ManualPinMapClick = () => {
+    useMapEvents({
+      click: (e) => {
+        if (!e?.latlng) return;
+        setPin([e.latlng.lat, e.latlng.lng]);
+      },
+      tap: (e) => {
+        if (!e?.latlng) return;
+        setPin([e.latlng.lat, e.latlng.lng]);
+      },
+    });
+    return null;
+  };
   return (
     <div style={{ marginTop:10, background:"rgba(2,6,23,.55)", border:"1px solid rgba(125,211,252,.25)", borderRadius:14, padding:10 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
         <div>
           <div style={{ color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:1000 }}>📍 Colocar pin manual</div>
-          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:10, marginTop:2 }}>Arrastra el pin hasta el punto exacto. Al confirmar, esas coordenadas serán las del evento.</div>
+          <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:10, marginTop:2 }}>Haz click o toca el mapa para colocar el pin; también puedes arrastrarlo hasta el punto exacto. Al confirmar, esas coordenadas serán las del evento.</div>
         </div>
         <div style={{ color:"rgba(255,255,255,.62)", fontFamily:getFont(theme,"secondary"), fontSize:10, fontWeight:800 }}>{pin[0].toFixed(6)}, {pin[1].toFixed(6)}</div>
       </div>
       <div style={{ height:300, borderRadius:12, overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", position:"relative" }}>
         <MapContainer center={pin} zoom={15} scrollWheelZoom={true} attributionControl={false} style={{ height:"100%", width:"100%" }}>
           <MiniMapFix />
+          <ManualPinMapClick />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <Marker
             position={pin}
