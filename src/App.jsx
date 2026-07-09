@@ -566,6 +566,14 @@ const ensureTerminalesPortuariasPremiumStyle = () => {
     .status-llena.is-active{background:linear-gradient(180deg,#fbbf24 0%,#f59e0b 54%,#b45309 100%);border-color:rgba(253,230,138,.48);box-shadow:0 12px 28px rgba(245,158,11,.28),0 0 26px rgba(251,191,36,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(180,83,9,.34);}
     .status-retorno_terminal.is-active{background:linear-gradient(180deg,#93c5fd 0%,#64748b 55%,#334155 100%);border-color:rgba(191,219,254,.42);box-shadow:0 12px 28px rgba(96,165,250,.2),0 0 26px rgba(147,197,253,.13),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(51,65,85,.38);}
     .status-retorno_asipona.is-active{background:linear-gradient(180deg,#a78bfa 0%,#7c3aed 56%,#4c1d95 100%);border-color:rgba(196,181,253,.48);box-shadow:0 12px 28px rgba(124,58,237,.28),0 0 28px rgba(167,139,250,.2),inset 0 2px 0 rgba(255,255,255,.22),inset 0 -8px 14px rgba(76,29,149,.38);}
+    .status-saturado.is-active{background:linear-gradient(180deg,#f87171 0%,#ef4444 54%,#991b1b 100%);border-color:rgba(252,165,165,.48);box-shadow:0 12px 28px rgba(239,68,68,.30),0 0 26px rgba(248,113,113,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(127,29,29,.36);}
+    .status-cerrado.is-active{background:linear-gradient(180deg,#9ca3af 0%,#6b7280 54%,#374151 100%);border-color:rgba(209,213,219,.4);box-shadow:0 12px 28px rgba(107,114,128,.24),0 0 22px rgba(156,163,175,.14),inset 0 2px 0 rgba(255,255,255,.18),inset 0 -8px 14px rgba(55,65,81,.34);}
+    .patio-premium-map .leaflet-control-layers{border:1px solid rgba(56,189,248,.32)!important;border-radius:16px!important;background:rgba(2,6,23,.88)!important;box-shadow:0 18px 40px rgba(0,0,0,.48)!important;color:#e2e8f0!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);overflow:hidden;}
+    .patio-premium-map .leaflet-control-layers-toggle{width:56px!important;height:56px!important;background-size:28px 28px!important;filter:invert(1) hue-rotate(165deg) saturate(1.2);background-color:rgba(15,23,42,.92)!important;border-radius:16px!important;}
+    .patio-premium-map .leaflet-control-layers-expanded{padding:10px 12px!important;min-width:142px!important;}
+    .patio-premium-map .leaflet-control-layers label{display:block;margin:8px 0!important;color:#e2e8f0!important;font-weight:800!important;}
+    .patio-premium-map .leaflet-control-layers input{accent-color:#14b8a6;}
+    .patio-premium-map .leaflet-control-zoom a{background:rgba(2,6,23,.86)!important;color:#e2e8f0!important;border-color:rgba(148,163,184,.16)!important;}
     .route-status-buttons{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
     .status-moderado.is-active{background:linear-gradient(180deg,#fb923c 0%,#f97316 54%,#9a3412 100%);border-color:rgba(253,186,116,.48);box-shadow:0 12px 28px rgba(249,115,22,.28),0 0 26px rgba(251,146,60,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(154,52,18,.34);}
     .status-detenido.is-active{background:linear-gradient(180deg,#f87171 0%,#ef4444 54%,#991b1b 100%);border-color:rgba(252,165,165,.48);box-shadow:0 12px 28px rgba(239,68,68,.30),0 0 26px rgba(248,113,113,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(127,29,29,.36);}
@@ -20023,8 +20031,10 @@ function PatioIdentificaMap({ myId }) {
   const labelTileRef = useRef(null);
   const layerByIdRef = useRef({});
   const initialFitDoneRef = useRef(false);
+  const layerControlRef = useRef(null);
+  const baseLayerRefs = useRef({});
   const [drawReady, setDrawReady] = useState(false);
-  const [tileMode, setTileMode] = useState("satellite_labels");
+  const [tileMode, setTileMode] = useState("satellite");
   const [features, setFeatures] = useState(PATIOS_KML_REFERENCIA);
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState("");
@@ -20033,26 +20043,12 @@ function PatioIdentificaMap({ myId }) {
   const dbReadyRef = useRef(false);
 
   const TILE_OPTIONS = [
-    {
-      id: "satellite_labels",
-      label: "Satélite + calles",
-      icon: "satellite",
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      subdomains: "",
-      labelsUrl: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-      labelsSubdomains: "",
-    },
-    {
-      id: "satellite",
-      label: "Satélite",
-      icon: "world",
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      subdomains: "",
-    },
-    { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
-    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
-    { id: "dark", label: "Oscuro", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "satellite", label: "Satellite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labelsUrl: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", labelsSubdomains: "" },
+    { id: "streets", label: "Terrain", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
+    { id: "dark", label: "Night", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
   ];
+
+  useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
 
   const notify = (text, color = "#38bdf8") => {
     setMsg({ text, color });
@@ -20317,15 +20313,21 @@ function PatioIdentificaMap({ myId }) {
     const map = mapInstanceRef.current;
     if (!map || !L) return;
     const option = TILE_OPTIONS.find(t => t.id === mode) || TILE_OPTIONS[0];
-    if (baseTileRef.current) map.removeLayer(baseTileRef.current);
-    if (labelTileRef.current) {
+    const nextBase = baseLayerRefs.current?.[option.id];
+    if (!nextBase) return;
+    Object.entries(baseLayerRefs.current || {}).forEach(([id, layer]) => {
+      if (!layer) return;
+      if (id === option.id) {
+        if (!map.hasLayer(layer)) layer.addTo(map);
+      } else if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    });
+    baseTileRef.current = nextBase;
+    if (labelTileRef.current && map.hasLayer(labelTileRef.current)) {
       map.removeLayer(labelTileRef.current);
       labelTileRef.current = null;
     }
-    baseTileRef.current = L.tileLayer(option.url, {
-      maxZoom: 20,
-      subdomains: option.subdomains || "abc",
-    }).addTo(map);
     if (option.labelsUrl) {
       labelTileRef.current = L.tileLayer(option.labelsUrl, {
         maxZoom: 20,
@@ -20361,10 +20363,37 @@ function PatioIdentificaMap({ myId }) {
 
     drawnGroupRef.current = L.featureGroup().addTo(map);
     mapInstanceRef.current = map;
-    applyTileMode(tileMode);
+
+    const defaultTile = TILE_OPTIONS.find(t => t.id === tileMode) || TILE_OPTIONS[0];
+    const baseLayers = {};
+    baseLayerRefs.current = {};
+    TILE_OPTIONS.forEach(t => {
+      const layer = L.tileLayer(t.url, { maxZoom: 20, subdomains: t.subdomains || "abc" });
+      baseLayerRefs.current[t.id] = layer;
+      baseLayers[t.label] = layer;
+    });
+    baseTileRef.current = baseLayerRefs.current[defaultTile.id] || baseLayerRefs.current[TILE_OPTIONS[0].id];
+    baseTileRef.current?.addTo(map);
+    if (defaultTile.labelsUrl) {
+      labelTileRef.current = L.tileLayer(defaultTile.labelsUrl, { maxZoom: 20, subdomains: defaultTile.labelsSubdomains || "abcd", pane: "labelPane" }).addTo(map);
+    }
+    layerControlRef.current = L.control.layers(baseLayers, null, { position: "topright", collapsed: true }).addTo(map);
+    map.on("baselayerchange", (e) => {
+      const nextTile = TILE_OPTIONS.find(t => t.label === e.name) || defaultTile;
+      baseTileRef.current = e.layer;
+      setTileMode(nextTile.id);
+      if (labelTileRef.current && map.hasLayer(labelTileRef.current)) {
+        map.removeLayer(labelTileRef.current);
+        labelTileRef.current = null;
+      }
+      if (nextTile.labelsUrl) {
+        labelTileRef.current = L.tileLayer(nextTile.labelsUrl, { maxZoom: 20, subdomains: nextTile.labelsSubdomains || "abcd", pane: "labelPane" }).addTo(map);
+      }
+      drawnGroupRef.current?.bringToFront?.();
+    });
 
     const drawControl = new L.Control.Draw({
-      position: "topright",
+      position: "topleft",
       draw: {
         polyline: false,
         rectangle: false,
@@ -20489,6 +20518,8 @@ function PatioIdentificaMap({ myId }) {
       drawnGroupRef.current = null;
       baseTileRef.current = null;
       labelTileRef.current = null;
+      layerControlRef.current = null;
+      baseLayerRefs.current = {};
       layerByIdRef.current = {};
     };
   }, [L, drawReady]);
@@ -20596,9 +20627,9 @@ function PatioIdentificaMap({ myId }) {
           <span title={dbStatus.text} style={{ alignSelf:"center", padding:"6px 9px", borderRadius:"999px", border:`1px solid ${dbStatus.ok ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)"}`, background:dbStatus.ok ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)", color:dbStatus.ok ? "#22c55e" : "#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900" }}>
             {dbStatus.ok ? "🟢 Global activo" : "🔴 Sin global"}
           </span>
-          {TILE_OPTIONS.map(t => (
-            <button key={t.id} onClick={() => setTileMode(t.id)} style={{ padding:"6px 9px", borderRadius:"9px", border:`1.5px solid ${tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.14)"}`, background:tileMode===t.id ? "rgba(251,146,60,0.18)" : "rgba(255,255,255,0.04)", color:tileMode===t.id ? "#fb923c" : "rgba(255,255,255,0.66)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800", cursor:"pointer" }}><AppIcon name={t.icon} size={14} active={tileMode===t.id} /> {t.label}</button>
-          ))}
+          <span style={{ alignSelf:"center", padding:"6px 9px", borderRadius:"999px", border:"1px solid rgba(56,189,248,.32)", background:"rgba(56,189,248,.10)", color:"#67e8f9", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900" }}>
+            🗺️ Vistas desde el icono del mapa
+          </span>
         </div>
       </div>
 
@@ -20616,7 +20647,7 @@ function PatioIdentificaMap({ myId }) {
         ))}
       </div>
 
-      <div ref={mapRef} style={{ width:"100%", minHeight:"520px", height:"clamp(520px, 68vh, 780px)", borderRadius:"14px", overflow:"hidden", border:"1px solid rgba(251,146,60,0.36)", boxShadow:"0 16px 42px rgba(0,0,0,.35)", background:"#061428" }} />
+      <div className="port-map-stage patio-premium-map" style={{ minHeight:"520px", height:"clamp(520px, 68vh, 780px)", borderRadius:"18px", border:"1px solid rgba(56,189,248,0.28)", boxShadow:"0 18px 42px rgba(0,0,0,.36)", background:"#061428" }}><div ref={mapRef} className="port-leaflet-map" style={{ width:"100%", height:"100%", minHeight:"520px" }} /></div>
       {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa y herramientas de dibujo…</div>}
 
       <div className="patio-identifica-search" style={{ display:"grid", gridTemplateColumns:"1.15fr .85fr", gap:"8px", marginTop:"12px" }}>
@@ -20639,6 +20670,7 @@ function PatioIdentificaMap({ myId }) {
 
 function PatioReguladorTab({ myId }) {
   const theme = React.useContext(ThemeContext);
+  useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
   const [patios,      setPatios]      = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
   const [changeModal, setChangeModal] = useState(null);
@@ -20733,54 +20765,69 @@ function PatioReguladorTab({ myId }) {
   });
 
   return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
-      <TypewriterTicker items={patioTickerItems} />
-      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
-        <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"4px" }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
-        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estatus en tiempo real de los 8 patios reguladores del puerto.</div>
+    <div className="port-dashboard-shell">
+      <div className="port-dashboard-ticker"><TypewriterTicker items={patioTickerItems} /></div>
+
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"16px", padding:"14px", marginBottom:"18px" }}>
+        <div style={{ fontSize:"10px", color:"#fb923c", fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"4px", fontWeight:900 }}>PATIO REGULADOR — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.74)", fontSize:"12px", fontFamily:getFont(theme, "secondary") }}>Gestión operativa con el mismo modelo visual y sistema de votos de Terminales Portuarias. El mapa conserva su edición de patios y ahora usa el selector de vistas desde el ícono del mapa.</div>
       </div>
-      <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"14px" }}>
-        {PATIO_STATUS_OPTIONS.map(o => (
-          <div key={o.id} style={{ display:"flex", alignItems:"center", gap:"4px", background:o.color+"15", border:`1px solid ${o.color}33`, padding:"3px 8px", borderRadius:"4px" }}>
-            <span style={{ color:o.color, fontSize:"10px", fontFamily:getFont(theme, "secondary"), fontWeight:700 }}>{o.label}</span>
-          </div>
-        ))}
-      </div>
+
       <PatioIdentificaMap myId={myId} />
-      <SectionLabel text="PATIOS REGULADORES" rightBtn={<NormalBtn onClick={resetAll} label="TODOS LIBRES" />} />
-      {(!patios) ? <SkeletonCard n={4}/> : PATIOS_REGULADORES.map(patio => {
-        const st  = patios[patio.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
-        const opt = getOpt(st.status);
-        const votes = st.pendingVoters || {};
-        const totalVotes = Object.values(votes).reduce((a,b)=>a+b,0);
-        return (
-          <div key={patio.id} style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${opt.color}44`, borderRadius:"12px", padding:"14px", marginBottom:"14px", boxShadow:`0 0 18px ${opt.color}08` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
-              <div>
-                <div style={{ color:"rgba(255,255,255,0.95)", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px" }}>{patio.name}</div>
-                <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"10px", marginTop:"2px" }}>{patio.fullName}</div>
-                <div style={{ color:"rgba(255,255,255,0.3)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"3px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy}</div>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"6px" }}>
-                <div style={{ background:opt.color+"22", border:`1px solid ${opt.color}66`, color:opt.color, padding:"5px 10px", borderRadius:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}><IconText icon={opt.icon} label={opt.label} size={15} /></div>
-                {totalVotes > 0 && <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{totalVotes} voto(s)</span>}
-                {st.status !== "libre" && <button onClick={() => resetOne(patio.id)} style={{ padding:"4px 8px", background:"#22c55e15", border:"1px solid #22c55e44", borderRadius:"5px", color:"#22c55e", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>TODO NORMAL</button>}
-              </div>
-            </div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"7px" }}>REPORTAR ESTATUS:</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-              {PATIO_STATUS_OPTIONS.map(o => {
-                const isAct = st.status === o.id;
-                return (
-                  <button key={o.id} onClick={() => vote(patio.id, o.id)} style={{ padding:"8px 6px", background: isAct ? o.color+"33" : "#0a1628", border:`1px solid ${isAct ? o.color : "#1e3a5f"}`, borderRadius:"8px", color: isAct ? o.color : "#64748b", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", transition:"all 0.15s", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                    <span>{o.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+
+      <div className="status-monitor-panel">
+        <div className="status-monitor-header">
+          <div>
+            <span className="status-kicker">CONTROL OPERATIVO · PATIOS</span>
+            <h2>Gestión de Patios</h2>
           </div>
-        );
-      })}
+          <div className="status-view-switch">
+            <button type="button" className="status-view-btn is-active" onClick={resetAll}>TODOS LIBRES</button>
+          </div>
+        </div>
+
+        <div className="terminal-status-grid">
+          {(!patios) ? <SkeletonCard n={4}/> : PATIOS_REGULADORES.map(patio => {
+            const st  = patios[patio.id] || { status:"libre", lastUpdate: Date.now(), updatedBy:"Sistema", pendingVoters:{} };
+            const opt = getOpt(st.status);
+            const votes = st.pendingVoters || {};
+            const totalVotes = Object.values(votes).reduce((a,b)=>a+b,0);
+            return (
+              <article key={patio.id} className="terminal-card" style={{ borderColor:`${opt.color}33` }}>
+                <header className="terminal-card-header">
+                  <div className="terminal-icon"><AppIcon name="container-yard" size={34} active style={{ opacity:.98 }} /></div>
+                  <div style={{ minWidth:0 }}>
+                    <h3>{patio.name}</h3>
+                    <p>{patio.fullName}</p>
+                  </div>
+                </header>
+                <div className="terminal-current">
+                  <span style={{ color: opt.color }}><IconText icon={opt.icon} label={opt.label} size={15} /></span>
+                  <span>{timeAgo(st.lastUpdate)} · {st.updatedBy}{totalVotes > 0 ? ` · ${totalVotes} voto(s)` : ""}</span>
+                  {st.status !== "libre" && <button className="terminal-reset-btn" onClick={() => resetOne(patio.id)}>TODO NORMAL</button>}
+                </div>
+                <div className="terminal-status-buttons">
+                  {PATIO_STATUS_OPTIONS.map(o => {
+                    const isAct = st.status === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => vote(patio.id, o.id)}
+                        className={`status-btn status-${o.id} ${isAct ? "is-active" : ""}`}
+                        title={`Reportar ${patio.name}: ${o.label}`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
       <ToastBox toast={toast} />
       {changeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
