@@ -6437,7 +6437,10 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       border: 2px solid #0a1628;
                       box-shadow: 0 2px 8px rgba(56,189,248,0.5);
                     }
-                  `}</style>
+                    @keyframes aiCoreSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes aiAuraPulse { 0%,100% { opacity:.45; transform:scale(.96); } 50% { opacity:.95; transform:scale(1.08); } }
+          @keyframes bubbleOrbitIn { from { opacity:0; transform: translateX(26px) translateY(10px) scale(.76); } to { opacity:1; transform: translateX(0) translateY(0) scale(1); } }
+        `}</style>
                 </div>
                 
                 <div>
@@ -26054,6 +26057,87 @@ function App() {
 
   const isAiChatActive = showQRPanel === "gemini" || geminiLoading;
 
+  const aiMenuClickTimerRef = useRef(null);
+  const aiMenuAccent = {
+    cyan: { main:"#22d3ee", glow:"rgba(34,211,238,.38)", fill:"rgba(34,211,238,.10)", border:"rgba(34,211,238,.36)" },
+    emerald: { main:"#25D366", glow:"rgba(37,211,102,.36)", fill:"rgba(37,211,102,.10)", border:"rgba(37,211,102,.34)" },
+    blue: { main:"#1877F2", glow:"rgba(24,119,242,.36)", fill:"rgba(24,119,242,.10)", border:"rgba(24,119,242,.34)" },
+    rose: { main:"#fb7185", glow:"rgba(251,113,133,.34)", fill:"rgba(251,113,133,.10)", border:"rgba(251,113,133,.32)" },
+    violet: { main:"#a78bfa", glow:"rgba(167,139,250,.36)", fill:"rgba(167,139,250,.10)", border:"rgba(167,139,250,.32)" },
+    amber: { main:"#fbbf24", glow:"rgba(251,191,36,.36)", fill:"rgba(251,191,36,.10)", border:"rgba(251,191,36,.34)" },
+    red: { main:"#ef4444", glow:"rgba(239,68,68,.34)", fill:"rgba(239,68,68,.10)", border:"rgba(239,68,68,.32)" }
+  };
+  const SvgWhatsApp = ({ size=22, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}>
+      <path d="M20.2 3.8A11.3 11.3 0 0 0 1.8 16.5L.8 22.4l6-1.6A11.3 11.3 0 0 0 20.2 3.8Z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8.2 8.4c.2-.5.4-.6.8-.6h.6c.2 0 .5 0 .7.5l.8 1.9c.1.3.1.5-.1.7l-.5.6c-.1.2-.2.3 0 .6.4.8 1.4 2.1 3.1 2.9.3.1.5.1.7-.1l.9-1.1c.2-.2.4-.3.7-.2l2 .9c.4.2.4.5.3.8-.2.9-1.1 1.7-2 1.9-1.1.2-3.4-.1-6-2.5-2.2-2-3.4-4.5-3.4-5.6 0-.9.5-1.8 1.4-2.2Z" fill={color}/>
+    </svg>
+  );
+  const SvgFacebook = ({ size=22, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}>
+      <path d="M21 12a9 9 0 1 0-10.4 8.9v-6.3H8.3V12h2.3V9.9c0-2.3 1.4-3.6 3.5-3.6 1 0 2 .2 2 .2v2.2h-1.1c-1.1 0-1.5.7-1.5 1.4V12h2.5l-.4 2.6h-2.1v6.3A9 9 0 0 0 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M13.5 20.9v-6.3h2.1L16 12h-2.5v-1.9c0-.7.4-1.4 1.5-1.4h1.1V6.5s-1-.2-2-.2c-2.1 0-3.5 1.3-3.5 3.6V12H8.3v2.6h2.3v6.3" fill={color}/>
+    </svg>
+  );
+  const SvgMegaphone = ({ size=22, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}>
+      <path d="M4.5 13.2V9.4h3.2l8.2-3.7v11.2l-8.2-3.7H4.5Z" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7.7 13.3 8.8 19h2.7l-1.3-4.5" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M18.2 8.2c1.1.8 1.8 2.1 1.8 3.2 0 1.2-.7 2.4-1.8 3.2" stroke={color} strokeWidth="1.7" strokeLinecap="round"/>
+    </svg>
+  );
+  const SvgDonation = ({ size=22, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}>
+      <path d="M12 20s-7-4.3-7-10.2A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7 2.8C19 15.7 12 20 12 20Z" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M9.4 12h5.2M12 9.4v5.2" stroke={color} strokeWidth="1.7" strokeLinecap="round"/>
+    </svg>
+  );
+  const SvgClose = ({ size=22, color="#fff" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}><path d="M7 7l10 10M17 7 7 17" stroke={color} strokeWidth="2" strokeLinecap="round"/></svg>;
+  const SvgBell = ({ size=22, color="#fff" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}><path d="M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke={color} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+  const SvgSpark = ({ size=22, color="#fff" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  const SvgSend = ({ size=20, color="#fff" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display:"block" }}><path d="M4 12 20 4l-6.2 16-2.6-6.7L4 12Z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+  const SvgChannelWhatsApp = ({ size=23, color="#fff" }) => (
+    <span style={{ width:size, height:size, position:"relative", display:"inline-flex", alignItems:"center", justifyContent:"center" }} aria-hidden="true">
+      <SvgMegaphone size={size - 3} color={color} />
+      <span style={{ position:"absolute", right:-5, bottom:-5, width:14, height:14, borderRadius:"999px", background:"rgba(37,211,102,.95)", border:"1px solid rgba(255,255,255,.86)", display:"grid", placeItems:"center" }}><SvgWhatsApp size={9} color="#fff" /></span>
+    </span>
+  );
+  const AiCoreBubble = ({ tone="cyan", size=48, children, badge=null, active=false }) => {
+    const t = aiMenuAccent[tone] || aiMenuAccent.cyan;
+    return <div style={{ width:size, height:size, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", background:"rgba(13,31,60,.74)", border:`1px solid ${active ? t.main : t.border}`, boxShadow:`0 10px 30px rgba(0,0,0,.42), 0 0 26px ${t.glow}, inset 0 1px 0 rgba(255,255,255,.16)`, backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", transition:"transform .28s cubic-bezier(.34,1.56,.64,1), box-shadow .28s ease", overflow:"visible" }}>
+      <span style={{ position:"absolute", inset:-5, borderRadius:"inherit", border:`1px solid ${t.border}`, borderTopColor:t.main, borderRightColor:"rgba(255,255,255,.20)", animation:"aiCoreSpin 4.8s linear infinite", pointerEvents:"none" }} />
+      <span style={{ position:"absolute", inset:-2, borderRadius:"inherit", background:t.fill, filter:"blur(12px)", animation:"aiAuraPulse 2.6s ease-in-out infinite", pointerEvents:"none" }} />
+      <span style={{ width:size-12, height:size-12, borderRadius:"inherit", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", background:"rgba(255,255,255,.04)", position:"relative", zIndex:2, overflow:"hidden" }}>{children}</span>
+      {badge}
+    </div>;
+  };
+  const FloatingActionBubble = ({ label, tone="cyan", delay="0s", onClick, children, badge=null }) => (
+    <div onClick={onClick} style={{ display:"flex", alignItems:"center", gap:"14px", cursor:"pointer", animation:"bubbleOrbitIn .34s cubic-bezier(.34,1.56,.64,1) forwards", animationDelay:delay, opacity:0, userSelect:"none", WebkitTapHighlightColor:"transparent" }}>
+      <div style={{ background:"rgba(13,31,60,.74)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", border:`1px solid ${(aiMenuAccent[tone] || aiMenuAccent.cyan).border}`, borderRadius:"999px", padding:"8px 14px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, letterSpacing:".08em", textTransform:"uppercase", whiteSpace:"nowrap", boxShadow:`0 10px 26px rgba(0,0,0,.38), 0 0 18px ${(aiMenuAccent[tone] || aiMenuAccent.cyan).glow}` }}>{label}</div>
+      <AiCoreBubble tone={tone} badge={badge}>{children}</AiCoreBubble>
+    </div>
+  );
+  const handleMainAiBubbleClick = (e) => {
+    e.stopPropagation();
+    if (hasUnreadAdminMessages) {
+      setSupportExpanded(false);
+      setShowQRPanel("admin_msg");
+      return;
+    }
+    if (aiMenuClickTimerRef.current) {
+      clearTimeout(aiMenuClickTimerRef.current);
+      aiMenuClickTimerRef.current = null;
+      setShowQRPanel(null);
+      setSupportExpanded(v => !v);
+      return;
+    }
+    aiMenuClickTimerRef.current = setTimeout(() => {
+      setSupportExpanded(false);
+      setShowQRPanel(prev => prev === "gemini" ? null : "gemini");
+      aiMenuClickTimerRef.current = null;
+    }, 260);
+  };
+
   // Validado FIX: handlers correctamente definidos dentro del componente
   const handleAccept = () => {
     saveCookieConsent("accepted");
@@ -26387,226 +26471,38 @@ function App() {
           transition: "bottom 0.25s ease, right 0.25s ease"
         }}
       >
-        {/* Burbujas expandibles */}
+        {/* Burbujas expandibles: doble click / doble pulso en burbuja principal */}
         {supportExpanded && (
           <div style={{
             position: "absolute",
-            bottom: "70px",
+            bottom: "78px",
             right: "0",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "13px",
             alignItems: "flex-end"
           }}>
-            <div onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
-              <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(96,165,250,.42)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Asistente AI ConectMzo</div>
-              <div style={{ width:"48px", height:"48px", background:"rgba(13,31,60,.96)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(96,165,250,.4)", border:"2px solid rgba(255,255,255,.2)", overflow:"hidden" }}><img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"42px", height:"42px", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="block"; }} /><span style={{ display:"none", fontSize:"24px" }}>✨</span></div>
-            </div>
+            <FloatingActionBubble label="Asistente AI ConectMzo" tone="cyan" delay="0s" onClick={() => { setShowQRPanel(showQRPanel === 'gemini' ? null : 'gemini'); setSupportExpanded(false); }}>
+              <img src="/burbuja%20ia.png" alt="AI ConectMzo" style={{ width:"100%", height:"100%", objectFit:"contain", borderRadius:"50%", display:"block" }} onError={(e)=>{ e.currentTarget.style.display="none"; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display="flex"; }} />
+              <span style={{ display:"none", width:"100%", height:"100%", alignItems:"center", justifyContent:"center" }}><SvgSpark size={22} /></span>
+            </FloatingActionBubble>
             {adminMessages.length > 0 && (
-              <div onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} style={{ display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", animation:"bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards", opacity:0 }}>
-                <div style={{ background:"rgba(13,31,60,.95)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"20px", padding:"8px 16px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"700", whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(0,0,0,.3)" }}>Mensaje del administrador</div>
-                <div style={{ width:"48px", height:"48px", background:"linear-gradient(135deg,#fbbf24,#f97316)", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(251,191,36,.4)", border:"2px solid rgba(255,255,255,.2)", fontSize:"24px", position:"relative" }}>🔔<span style={{ position:"absolute", top:"-4px", right:"-4px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"18px", height:"18px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800 }}>{adminMessages.length}</span></div>
-              </div>
+              <FloatingActionBubble label="Mensaje del administrador" tone="amber" delay="0.03s" onClick={() => setShowQRPanel(showQRPanel === 'admin_msg' ? null : 'admin_msg')} badge={<span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"18px", height:"18px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.85)", zIndex:4 }}>{adminMessages.length}</span>}>
+                <SvgBell size={23} />
+              </FloatingActionBubble>
             )}
-
-            {/* Burbuja: Soporte WhatsApp */}
-            <div
-              onClick={() => setShowQRPanel(showQRPanel === 'whatsapp' ? null : 'whatsapp')}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-                animationDelay: "0.05s",
-                opacity: 0
-              }}
-            >
-              <div style={{
-                background: "rgba(13, 31, 60, 0.95)",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-                border: "1px solid rgba(37, 211, 102, 0.3)",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                color: "#fff",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "13px",
-                fontWeight: "600",
-                whiteSpace: "nowrap",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
-              }}>
-                Soporte WhatsApp
-              </div>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(37, 211, 102, 0.4)",
-                border: hasUnreadAdminMessages && !supportExpanded ? "2px solid rgba(255,255,255,.55)" : "2px solid rgba(255, 255, 255, 0.2)",
-                fontSize: "24px",
-                transition: "transform 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              >
-                💬
-              </div>
-            </div>
-
-            {/* Burbuja: Página Facebook */}
-            <div
-              onClick={() => window.open('https://www.facebook.com/conectmanzanillooficial/', '_blank')}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-                animationDelay: "0.1s",
-                opacity: 0
-              }}
-            >
-              <div style={{
-                background: "rgba(13, 31, 60, 0.95)",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-                border: "1px solid rgba(24, 119, 242, 0.3)",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                color: "#fff",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "13px",
-                fontWeight: "600",
-                whiteSpace: "nowrap",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
-              }}>
-                Página Facebook
-              </div>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, #1877F2 0%, #0D5DBE 100%)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(24, 119, 242, 0.4)",
-                border: "2px solid rgba(255, 255, 255, 0.2)",
-                fontSize: "24px",
-                transition: "transform 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              >
-                📘
-              </div>
-            </div>
-
-            {/* Burbuja: Canal WhatsApp */}
-            <div
-              onClick={() => setShowQRPanel(showQRPanel === 'canal' ? null : 'canal')}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-                animationDelay: "0.15s",
-                opacity: 0
-              }}
-            >
-              <div style={{
-                background: "rgba(13, 31, 60, 0.95)",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-                border: "1px solid rgba(37, 211, 102, 0.3)",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                color: "#fff",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "13px",
-                fontWeight: "600",
-                whiteSpace: "nowrap",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
-              }}>
-                Canal WhatsApp
-              </div>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, #128C7E 0%, #075E54 100%)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(18, 140, 126, 0.4)",
-                border: "2px solid rgba(255, 255, 255, 0.2)",
-                fontSize: "24px",
-                transition: "transform 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              >
-                📢
-              </div>
-            </div>
-
-            {/* Burbuja: Donativo Mifel */}
-            <div
-              onClick={() => setShowQRPanel(showQRPanel === 'donativo' ? null : 'donativo')}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-                animation: "bubbleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards",
-                animationDelay: "0.2s",
-                opacity: 0,
-                outline: "none",
-                WebkitTapHighlightColor: "transparent",
-                userSelect: "none",
-              }}
-            >
-              <div style={{
-                background: "rgba(13, 31, 60, 0.95)",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-                border: "1px solid rgba(168, 85, 247, 0.3)",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                color: "#fff",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "13px",
-                fontWeight: "600",
-                whiteSpace: "nowrap",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)"
-              }}>
-                Donar (Mifel)
-              </div>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, #A855F7 0%, #7C3AED 100%)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(168, 85, 247, 0.4)",
-                border: "2px solid rgba(255, 255, 255, 0.2)",
-                fontSize: "24px",
-                transition: "transform 0.2s"
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              >
-                💝
-              </div>
-            </div>
+            <FloatingActionBubble label="Soporte WhatsApp" tone="emerald" delay="0.05s" onClick={() => setShowQRPanel(showQRPanel === 'whatsapp' ? null : 'whatsapp')}>
+              <SvgWhatsApp size={23} />
+            </FloatingActionBubble>
+            <FloatingActionBubble label="Página Facebook" tone="blue" delay="0.10s" onClick={() => window.open('https://www.facebook.com/conectmanzanillooficial/', '_blank')}>
+              <SvgFacebook size={23} />
+            </FloatingActionBubble>
+            <FloatingActionBubble label="Canal de WhatsApp" tone="rose" delay="0.15s" onClick={() => setShowQRPanel(showQRPanel === 'canal' ? null : 'canal')}>
+              <SvgChannelWhatsApp size={23} />
+            </FloatingActionBubble>
+            <FloatingActionBubble label="Donación" tone="violet" delay="0.20s" onClick={() => setShowQRPanel(showQRPanel === 'donativo' ? null : 'donativo')}>
+              <SvgDonation size={23} />
+            </FloatingActionBubble>
           </div>
         )}
 
@@ -26670,35 +26566,11 @@ function App() {
               animation: "adminNoticeNudge 1.2s ease-in-out infinite"
             }}
           >
-            🔔 Tienes mensaje del administrador
+            <span style={{ display:"inline-flex", alignItems:"center", gap:"8px" }}><SvgBell size={14} color="#fbbf24" /> Tienes mensaje del administrador</span>
           </div>
         )}
 
-        {/* Botón secundario: accesos indispensables: WhatsApp, Facebook, Canal y Donativo */}
-        <div
-            onClick={() => { setSupportExpanded(!supportExpanded); setShowQRPanel(null); }}
-            title="WhatsApp, Facebook, Canal y Donativo"
-            style={{
-              position:"absolute",
-              right:"68px",
-              bottom:"7px",
-              width:"42px",
-              height:"42px",
-              borderRadius:"50%",
-              background:supportExpanded ? "linear-gradient(135deg,#ef4444,#dc2626)" : "rgba(13,31,60,.94)",
-              border:"1px solid rgba(255,255,255,.18)",
-              color:"#fff",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              cursor:"pointer",
-              boxShadow:"0 8px 20px rgba(0,0,0,.35)",
-              fontSize:"20px",
-              fontWeight:900
-            }}
-          >
-            {supportExpanded ? "×" : <img src={CONECT_LOGO_SRC} alt="Conect Manzanillo" style={{ width:"32px", height:"32px", objectFit:"contain", display:"block" }} />}
-          </div>
+
 
         {/* Etiqueta visible del asistente principal */}
         {!hasUnreadAdminMessages && showQRPanel !== "gemini" && (
@@ -26722,45 +26594,34 @@ function App() {
               userSelect:"none"
             }}
           >
-            ✨ AI ConectMzo
+            AI ConectMzo
           </div>
         )}
 
         {/* Botón principal FAB: AI ConectMzo */}
         <div
           title="Abrir AI ConectMzo"
-          onClick={() => {
-            if (hasUnreadAdminMessages) {
-              setSupportExpanded(false);
-              setShowQRPanel("admin_msg");
-              return;
-            }
-            setSupportExpanded(false);
-            setShowQRPanel(showQRPanel === "gemini" ? null : "gemini");
-          }}
+          onClick={handleMainAiBubbleClick}
+          onDoubleClick={(e) => e.stopPropagation()}
           style={{
             width: "56px",
             height: "56px",
-            background: showQRPanel === "gemini" 
-              ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
-              : hasUnreadAdminMessages
-                ? "linear-gradient(135deg, #fbbf24 0%, #f97316 100%)"
-                : "rgba(13,31,60,.96)",
+            background: hasUnreadAdminMessages
+              ? "rgba(13,31,60,.86)"
+              : "rgba(13,31,60,.78)",
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            boxShadow: showQRPanel === "gemini"
-              ? "0 4px 20px rgba(239, 68, 68, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)"
-              : hasUnreadAdminMessages
-                ? "0 4px 22px rgba(251,191,36,.55), 0 8px 16px rgba(0,0,0,.3)"
-                : "0 4px 22px rgba(96, 165, 250, 0.45), 0 8px 16px rgba(0, 0, 0, 0.3)",
+            boxShadow: hasUnreadAdminMessages
+              ? "0 10px 32px rgba(0,0,0,.42), 0 0 30px rgba(251,191,36,.45), inset 0 1px 0 rgba(255,255,255,.16)"
+              : "0 10px 34px rgba(0,0,0,.42), 0 0 34px rgba(34,211,238,.32), inset 0 1px 0 rgba(255,255,255,.16)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            border: "2px solid rgba(255, 255, 255, 0.2)",
+            border: showQRPanel === "gemini" ? "1px solid rgba(239,68,68,.65)" : "1px solid rgba(255, 255, 255, 0.28)",
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
-            transform: showQRPanel === "gemini" ? "rotate(45deg)" : "rotate(0deg)",
+            transform: supportExpanded ? "scale(1.05)" : "scale(1)",
             animation: hasUnreadAdminMessages && !supportExpanded ? "adminBubblePulse 1.15s ease-in-out infinite" : "none"
           }}
           onMouseEnter={(e) => {
@@ -26771,14 +26632,7 @@ function App() {
           }}
         >
           {showQRPanel === "gemini" || hasUnreadAdminMessages ? (
-            <span style={{ 
-              fontSize: "28px", 
-              lineHeight: 1,
-              transform: showQRPanel === "gemini" ? "rotate(-45deg)" : "rotate(0deg)",
-              transition: "transform 0.3s"
-            }}>
-              {showQRPanel === "gemini" ? "✕" : "🔔"}
-            </span>
+            showQRPanel === "gemini" ? <SvgClose size={28} /> : <SvgBell size={26} />
           ) : (
             <img
               src="/burbuja%20ia.png"
@@ -26787,7 +26641,7 @@ function App() {
               onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
             />
           )}
-          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", fontSize:"28px", lineHeight:1 }}>✨</span>}
+          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", width:"32px", height:"32px", alignItems:"center", justifyContent:"center" }}><SvgSpark size={28} /></span>}
           {hasUnreadAdminMessages && !supportExpanded && (
             <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
           )}
@@ -26808,7 +26662,9 @@ function App() {
               boxShadow:"0 12px 42px rgba(0,0,0,.72), 0 0 30px rgba(96,165,250,.18)",
               animation:"slideUp .25s ease-out",
               backdropFilter:"blur(18px)",
-              WebkitBackdropFilter:"blur(18px)"
+              WebkitBackdropFilter:"blur(18px)",
+              userSelect:"text",
+              WebkitUserSelect:"text"
             }}
             onClick={(e)=>e.stopPropagation()}
           >
@@ -26842,7 +26698,10 @@ function App() {
                   fontFamily:getFont(theme,"secondary"),
                   fontSize:"12px",
                   lineHeight:1.45,
-                  whiteSpace:"pre-wrap"
+                  whiteSpace:"pre-wrap",
+                  userSelect:"text",
+                  WebkitUserSelect:"text",
+                  cursor:"text"
                 }}>{m.content}</div>
               ))}
               {geminiLoading && <div style={{ color:"rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>AI ConectMzo está escribiendo…</div>}
@@ -26867,7 +26726,7 @@ function App() {
                 disabled={geminiLoading || !geminiInput.trim()}
                 style={{ width:"54px", borderRadius:"12px", border:"1px solid rgba(96,165,250,.35)", background:geminiLoading || !geminiInput.trim() ? "rgba(100,116,139,.28)" : "linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff", fontWeight:900, cursor:geminiLoading || !geminiInput.trim() ? "not-allowed" : "pointer" }}
               >
-                ➤
+                <SvgSend size={20} />
               </button>
             </div>
             <div style={{ marginTop:"8px", color:"rgba(255,255,255,.35)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", lineHeight:1.35 }}>
@@ -26878,7 +26737,7 @@ function App() {
 
         {showQRPanel === 'admin_msg' && (
           <div style={{ position:"absolute", bottom:"72px", right:"0", width:"320px", maxWidth:"calc(100vw - 40px)", background:"rgba(13,31,60,.97)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"18px", padding:"16px", boxShadow:"0 12px 40px rgba(0,0,0,.7)", animation:"slideUp .25s ease-out" }}>
-            <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", marginBottom:"10px" }}>🔔 Mensaje del administrador</div>
+            <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", marginBottom:"10px", display:"flex", alignItems:"center", gap:"8px" }}><SvgBell size={16} color="#fbbf24" /> Mensaje del administrador</div>
             {adminMessages.map(m => <div key={m.id} style={{ color:"rgba(255,255,255,.85)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.45, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.1)", borderRadius:"10px", padding:"10px", marginBottom:"8px", whiteSpace:"pre-wrap" }}>{m.message}</div>)}
             <button onClick={async()=>{ try { await Promise.all(adminMessages.map(m => sb.from("admin_user_messages").update({ read:true }).eq("id", m.id))); } catch {} setAdminMessages([]); setShowQRPanel(null); }} style={{ width:"100%", padding:"10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.4)", background:"rgba(251,191,36,.14)", color:"#fbbf24", fontWeight:800, cursor:"pointer" }}>Entendido</button>
           </div>
