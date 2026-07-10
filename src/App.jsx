@@ -20010,6 +20010,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [empWizardStep, setEmpWizardStep] = useState(1);
   const [companyFormMode, setCompanyFormMode] = useState("registro");
   const [vacancyModalOpen, setVacancyModalOpen] = useState(false);
+  const [posturasReportTarget, setPosturasReportTarget] = useState(null);
+  const [posturasReportForm, setPosturasReportForm] = useState({ tipo:"perfil_falso", comentario:"" });
   const [profileEditor, setProfileEditor] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("cm_posturas_public_profile") || "null") || {
@@ -20253,7 +20255,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
         sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
       ]);
-      setTrabajadores(t || []); setEmpresas(e || []); setRatings(r || []); setQuejas(qj || []);
+      const now = Date.now();
+      const empresasVisibles = (e || []).filter(row => {
+        const requestedAt = row.delete_requested_at || row.deletion_requested_at;
+        if (!requestedAt) return true;
+        return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
+      });
+      setTrabajadores((t || []).filter(row => !isProfileBanned(row))); setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row))); setRatings(r || []); setQuejas(qj || []);
       const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId);
       const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
       setShowReminder(!!authUser && stale);
@@ -20302,6 +20310,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
   const requireLogin = () => { openAccessSelector("login"); setMsg({ type:"err", text:"Para guardar y editar en Posturas, primero inicia sesión y elige Postulante o Empresa." }); return false; };
+  const deletionDaysLeft = (row) => {
+    if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
+    const start = new Date(row.delete_requested_at || row.deletion_requested_at).getTime();
+    if (!Number.isFinite(start)) return null;
+    return Math.max(0, Math.ceil((start + 7*24*60*60*1000 - Date.now()) / (24*60*60*1000)));
+  };
+  const isDeletionPending = (row) => deletionDaysLeft(row) !== null && deletionDaysLeft(row) > 0;
+  const isProfileBanned = (row) => String(row?.perfil_estado || row?.estado || "").toLowerCase() === "baneado" || row?.banned === true || row?.banneado === true;
 
   const saveTrab = async () => {
     if (!authUser) return requireLogin();
@@ -20376,13 +20392,34 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const { error } = await sb.from("posturas_ratings").insert(payload);
     if (error) setMsg({type:"err", text:error.message}); else { setMsg({type:"ok", text:"Calificación registrada."}); loadPosturas(); }
   };
-  const sendQueja = async (empresa) => {
-    const texto = prompt(`Escribe tu queja sobre ${empresa.razon_social}. El admin la revisará antes de publicarla.`);
-    if (!texto || !texto.trim()) return;
-    const { error } = await sb.from("posturas_quejas").insert({ empresa_id:empresa.id, device_id:myId, user_id:authUser?.id || null, comentario:texto.trim(), aprobado:false });
-    if (error) setMsg({type:"err", text:error.message}); else setMsg({type:"ok", text:"Queja enviada a revisión del administrador."});
+  const openPosturasReport = (type, row) => {
+    if (!authUser) { openAccessSelector("login"); setMsg({ type:"err", text:"Para reportar perfiles o vacantes debes iniciar sesión." }); return; }
+    setPosturasReportTarget({ type, row });
+    setPosturasReportForm({ tipo:"perfil_falso", comentario:"" });
   };
+  const sendPosturasReport = async () => {
+    if (!authUser) return requireLogin();
+    const target = posturasReportTarget;
+    if (!target?.row?.id) return;
+    if (!posturasReportForm.comentario.trim()) { setMsg({ type:"err", text:"Agrega comentarios para que el admin pueda revisar la queja." }); return; }
+    const targetName = target.type === "trabajador" ? target.row.nombre_completo : target.row.razon_social;
+    const tipoLabel = posturasReportForm.tipo.replaceAll("_", " ");
+    const comentario = `[${target.type.toUpperCase()} #${target.row.id}] Tipo de queja: ${tipoLabel}. Reportado: ${targetName}. Comentarios: ${posturasReportForm.comentario.trim()}`;
+    const payload = { empresa_id: target.type === "empresa" ? target.row.id : null, device_id:myId, user_id:authUser.id, comentario, aprobado:false };
+    const { error } = await sb.from("posturas_quejas").insert(payload);
+    if (error) setMsg({type:"err", text:error.message}); else { setMsg({type:"ok", text:"Reporte enviado al administrador para revisión."}); setPosturasReportTarget(null); loadPosturas(); }
+  };
+  const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
+  const requestVacancyDeletion = async (row) => {
+    if (!authUser && !isAdmin) return requireLogin();
+    if (!isAdmin && row.user_id !== authUser?.id) return;
+    if (!confirm("La vacante entrará en proceso de eliminación por 7 días. Durante ese periodo ya no se podrán recibir postulaciones. ¿Continuar?")) return;
+    const nowIso = new Date().toISOString();
+    const effectiveIso = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+    const { error } = await sb.from("posturas_empresas").update({ delete_requested_at:nowIso, deletion_effective_at:effectiveIso, estatus:"eliminacion_pendiente", updated_at:nowIso }).eq("id", row.id);
+    if (error) setMsg({ type:"err", text:error.message }); else { setMsg({ type:"ok", text:"Vacante marcada para eliminación en 7 días. Ya no recibirá postulaciones." }); loadPosturas(); }
+  };
 
   const adminTargetLabel = (row, type) => type === "trabajador" ? (row.nombre_completo || "Trabajador") : (row.razon_social || "Empresa");
   const adminDeleteProfile = async (row, type) => {
@@ -20427,8 +20464,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const { error } = await sb.from("admin_user_sanctions").insert(payload);
     if (error) setMsg({type:"err", text:error.message});
     else {
+      if (sanctionType === "ban") {
+        const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
+        await sb.from(table).update({ perfil_estado:"baneado", banned:true, activo:false, updated_at:new Date().toISOString() }).eq("id", row.id);
+      }
       setMsg({type:"ok", text:`${sanctionType === "ban" ? "Baneo" : "Bloqueo"} aplicado a ${name}.`});
       auditLog({ action:sanctionType === "ban" ? "posturas_baneo" : "posturas_bloqueo", section:`posturas_${type}`, entityId:row.id, after:{ summary:`Admin aplicó ${sanctionType === "ban" ? "baneo" : "bloqueo"} a ${name}`, profile_type:type, target_device_id:row.device_id || null, target_user_id:row.user_id || null, until_at }, actor:"Admin" });
+      loadPosturas();
     }
   };
   const AdminProfileActions = ({ row, type }) => !isAdmin ? null : <div style={{ marginTop:"12px", padding:"10px", border:"1px solid rgba(251,191,36,0.28)", background:"rgba(251,191,36,0.06)", borderRadius:"12px" }}>
@@ -20568,6 +20610,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ marginTop:"18px", display:"flex", justifyContent:"flex-end", gap:"10px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px" }}>
           <button onClick={()=>toggleSavedProfile("trabajador", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
           {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar mi perfil</button>}
+          <button onClick={()=>openPosturasReport("trabajador", row)} style={btn("#ef4444")}>Reportar</button>
           <button onClick={()=>setMsg({type:"ok", text:`Más información de ${row.nombre_completo}: ${row.maniobra} · ${row.alcance}.`})} style={btn("#bcc7de")}>MÁS INFO</button>
           <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{...btn("#a1c9ff"), background:"#a1c9ff", color:"#002d52"}}>CONTACTAR</button>
         </div>
@@ -20588,7 +20631,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const [myStars, setMyStars] = useState(0);
     const aprobadas = quejas.filter(q => q.empresa_id === row.id && q.aprobado);
     const saved = isSavedProfile("empresa", row.id);
-    return <div style={{ ...card, padding:"0", overflow:"hidden", borderLeft:"4px solid #a1c9ff", borderColor:"rgba(63,71,83,.58)" }}>
+    const pendingDelete = isDeletionPending(row);
+    const daysLeft = deletionDaysLeft(row);
+    return <div style={{ ...card, padding:"0", overflow:"hidden", borderLeft:`4px solid ${pendingDelete ? "#f59e0b" : "#a1c9ff"}`, borderColor:"rgba(63,71,83,.58)" }}>
       <div style={{ padding:"22px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap", marginBottom:"14px" }}>
           <div>
@@ -20596,15 +20641,18 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ marginTop:"5px", display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", color:"#a1c9ff" }}><StarRating value={r.avg} small /><span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{r.avg ? `(${r.avg.toFixed(1)})` : "Sin calificaciones"} · {r.count}</span></div>
             <div style={{ marginTop:"6px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".05em", textTransform:"uppercase" }}>{row.tipo_empresa} · RFC {row.rfc}</div>
           </div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"6px 12px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", border:`1px solid ${row.estatus==="tiene_trabajo"?"rgba(34,197,94,.28)":"rgba(239,68,68,.28)"}`, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase" }}><span style={{ width:"7px", height:"7px", borderRadius:"50%", background:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444" }} />{row.estatus==="tiene_trabajo"?"Activa":"Llena"}</div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"6px 12px", borderRadius:"999px", background:pendingDelete?"rgba(245,158,11,.14)":row.estatus==="tiene_trabajo"?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", color:pendingDelete?"#f59e0b":row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", border:`1px solid ${pendingDelete?"rgba(245,158,11,.34)":row.estatus==="tiene_trabajo"?"rgba(34,197,94,.28)":"rgba(239,68,68,.28)"}`, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase" }}><span style={{ width:"7px", height:"7px", borderRadius:"50%", background:pendingDelete?"#f59e0b":row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444" }} />{pendingDelete?`Eliminación en ${daysLeft} día${daysLeft===1?"":"s"}`:row.estatus==="tiene_trabajo"?"Activa":"Llena"}</div>
         </div>
         <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Domicilio: {row.domicilio || row.ubicacion || "No indicado"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. Correo: {row.correo}{row.telefono ? ` · Teléfono: ${row.telefono}` : ""}</div>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:"9px", marginTop:"16px" }}>{[row.tipo_empresa, row.alcance, row.estatus === "tiene_trabajo" ? "Trabajo activo" : "Sin cupo"].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.8)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"8px 12px", borderRadius:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
+        {pendingDelete && <div style={{ marginTop:"12px", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.35)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}>Vacante en proceso de eliminación de 7 días. Ya no recibe postulaciones, pero aún puede ser reportada si existe sospecha de fraude.</div>}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"9px", marginTop:"16px" }}>{[row.tipo_empresa, row.alcance, pendingDelete ? "Sin postulaciones" : row.estatus === "tiene_trabajo" ? "Trabajo activo" : "Sin cupo"].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.8)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"8px 12px", borderRadius:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px", marginTop:"18px" }}>
           <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Publicado: {timeAgo(row.updated_at || row.created_at)}</span>
           <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
             <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
             {canEdit(row) && <button onClick={()=>{setEmpForm({...row, domicilio: row.domicilio || row.ubicacion || ""}); setEditingEmpId(row.id); setVista("empresario"); setCompanyFormMode("registro"); setEmpWizardStep(1); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
+            {canEdit(row) && !pendingDelete && <button onClick={()=>requestVacancyDeletion(row)} style={btn("#f59e0b")}>Eliminar vacante · 7 días</button>}
+            <button onClick={()=>openPosturasReport("empresa", row)} style={btn("#ef4444")}>Reportar</button>
             <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <MS name="arrow_forward" size={13} active /></button>
           </div>
         </div>
@@ -21375,7 +21423,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
-  const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px"}}><div style={{ color:"#fff", fontWeight:"900", marginBottom:"8px" }}>Quejas pendientes de aprobación</div>{quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"9px 0", color:"rgba(255,255,255,.7)", fontSize:"11px"}}>{x.comentario}<div style={{marginTop:"6px", display:"flex", gap:"6px"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Aprobar</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}</div> : null;
+  const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px", border:"1px solid rgba(239,68,68,.28)"}}>
+    <div style={{ color:"#fff", fontWeight:"900", marginBottom:"4px" }}>Quejas y reportes de Posturas</div>
+    <div style={{ color:"rgba(255,255,255,.52)", fontSize:"11px", marginBottom:"8px", lineHeight:1.5 }}>Aquí llegan reportes de empresas, vacantes y perfiles de postulantes. Desde las tarjetas del perfil puedes aplicar advertencia, bloqueo, baneo o borrar/ocultar.</div>
+    {quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"10px 0", color:"rgba(255,255,255,.72)", fontSize:"11px", lineHeight:1.55}}>
+      <div style={{ color:"#fca5a5", fontWeight:"900", marginBottom:"4px" }}>Reporte pendiente</div>
+      <div>{x.comentario}</div>
+      <div style={{ color:"rgba(255,255,255,.38)", marginTop:"4px" }}>Usuario: {x.user_id || "—"} · Dispositivo: {x.device_id || "—"}</div>
+      <div style={{marginTop:"8px", display:"flex", gap:"6px", flexWrap:"wrap"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Marcar revisado</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div>
+    </div>)}
+  </div> : null;
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
   const empresasPage = paginate(empFiltradas, pageEmp);
@@ -21411,14 +21468,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const MobileTrabCard = ({ row }) => { const r = avgFor("trabajador", row.id); const initials = String(row.nombre_completo || "P").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase(); return <article style={{ ...card, padding:"16px", borderRadius:"16px" }}>
     <div style={{ display:"flex", gap:"14px" }}><div style={{ width:"76px", height:"90px", borderRadius:"12px", flexShrink:0, display:"grid", placeItems:"center", background:"linear-gradient(135deg, rgba(161,201,255,.22), rgba(13,28,45,.92))", border:"1px solid rgba(63,71,83,.65)", color:"#a1c9ff", fontSize:"22px", fontWeight:"900" }}>{initials}</div><div style={{ flex:1, minWidth:0 }}><div style={{ display:"flex", justifyContent:"space-between", gap:"8px", alignItems:"flex-start" }}><div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", lineHeight:1.15 }}>{row.nombre_completo}</div><div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#fbbf24", flexShrink:0 }}><StarRating value={r.avg} small /><span style={{ fontSize:"11px", color:"#fbbf24", fontWeight:"900" }}>{r.avg ? r.avg.toFixed(1) : "0.0"}</span></div></div><div style={{ marginTop:"5px", color:"rgba(212,228,250,.62)", fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".10em" }}>{row.licencia}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"6px", padding:"4px 8px", borderRadius:"999px", border:`1px solid ${row.disponible ? "rgba(16,185,129,.25)" : "rgba(239,68,68,.25)"}`, color:row.disponible ? "#10b981" : "#ef4444", background:row.disponible ? "rgba(16,185,129,.10)" : "rgba(239,68,68,.10)", fontSize:"10px", fontWeight:"900" }}><MS name="check_circle" size={14} active /> {row.disponible ? "Disponible" : "No disponible"}</div></div></div>
     <div style={{ marginTop:"14px", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px" }}><MobileMetric label="Experiencia" value={row.edad ? `${row.edad} años` : "—"}/><MobileMetric label="Especialidad" value={row.maniobra}/><MobileMetric label="Ubicación" value={row.alcance}/></div>
-    <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{ width:"100%", marginTop:"14px", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.55)", background:"rgba(161,201,255,.10)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"11px", letterSpacing:".12em", textTransform:"uppercase" }}>Ver expediente</button>
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginTop:"14px" }}><button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{ padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.55)", background:"rgba(161,201,255,.10)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"11px", letterSpacing:".12em", textTransform:"uppercase" }}>Ver expediente</button><button onClick={()=>openPosturasReport("trabajador", row)} style={{ padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(239,68,68,.45)", background:"rgba(239,68,68,.10)", color:"#fca5a5", fontFamily:getFont(theme,"secondary"), fontWeight:"900", fontSize:"11px", letterSpacing:".12em", textTransform:"uppercase" }}>Reportar</button></div>
   </article>; };
   const MobileEmpresaCard = ({ row }) => { const r = avgFor("empresa", row.id); return <article style={{ ...card, padding:"16px", borderRadius:"16px", borderLeft:"4px solid #10b981" }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", marginBottom:"10px" }}><div style={{ display:"inline-flex", alignItems:"center", gap:"7px", color:"#10b981", fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".12em" }}><span style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#10b981" }} /> {row.estatus === "tiene_trabajo" ? "Activa" : "Llena"}</div><div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#fbbf24" }}><StarRating value={r.avg} small /><span style={{ fontSize:"11px", color:"#fbbf24", fontWeight:"900" }}>{r.avg ? r.avg.toFixed(1) : "0.0"}</span></div></div>
     <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", lineHeight:1.25 }}>Búsqueda: {row.razon_social}</div><div style={{ marginTop:"5px", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", display:"flex", alignItems:"center", gap:"5px" }}><MS name="apartment" size={14} active /> {row.tipo_empresa}</div>
     <div style={{ marginTop:"11px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.55, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>Domicilio: {row.domicilio || row.ubicacion || "No indicado"}. Representante: {row.representante || "—"}. Contacto técnico: {row.contacto_tecnico || "—"}.</div>
     <div style={{ marginTop:"12px", display:"flex", flexWrap:"wrap", gap:"8px" }}>{[row.tipo_empresa, row.alcance].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.85)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"6px 9px", borderRadius:"8px", fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
-    <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ marginTop:"12px", color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button>
+    <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"12px" }}><button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button><button onClick={()=>openPosturasReport("empresa", row)} style={{ color:"#fca5a5", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase" }}>Reportar</button></div>
   </article>; };
 
   const AccessSelectorModal = () => accessPrompt ? (
@@ -21448,25 +21505,27 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   ) : null;
 
-  const VacancyModal = () => vacancyModalOpen ? (
+  const VacancyModal = () => vacancyModalOpen && typeof document !== "undefined" ? createPortal((
     <div
       role="dialog"
       aria-modal="true"
       style={{
         position:"fixed",
         inset:0,
-        zIndex:12000,
+        zIndex:99999,
         display:"flex",
         alignItems:"center",
         justifyContent:"center",
-        padding:posturasMobile ? "12px" : "24px",
-        background:"rgba(1,15,31,.68)",
+        padding:posturasMobile ? "12px" : "28px",
+        boxSizing:"border-box",
+        overflowY:"auto",
+        background:"rgba(1,15,31,.78)",
         backdropFilter:"blur(10px)",
         WebkitBackdropFilter:"blur(10px)"
       }}
       onMouseDown={(e)=>{ if (e.target === e.currentTarget) setVacancyModalOpen(false); }}
     >
-      <div style={{ width:"min(980px, 100%)", maxHeight:"min(88vh, 760px)", overflowY:"auto", borderRadius:"22px", boxShadow:"0 28px 80px rgba(0,0,0,.62)", border:"1px solid rgba(161,201,255,.24)", background:"rgba(5,20,36,.98)" }}>
+      <div style={{ width:"min(1040px, calc(100vw - 32px))", maxHeight:"min(86vh, 780px)", overflowY:"auto", borderRadius:"22px", boxShadow:"0 28px 80px rgba(0,0,0,.72)", border:"1px solid rgba(161,201,255,.24)", background:"rgba(5,20,36,.98)", boxSizing:"border-box" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", padding:"14px 16px", borderBottom:"1px solid rgba(63,71,83,.48)", position:"sticky", top:0, zIndex:1, background:"rgba(5,20,36,.96)", backdropFilter:"blur(12px)" }}>
           <div>
             <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>Publicar vacante</div>
@@ -21479,7 +21538,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </div>
       </div>
     </div>
-  ) : null;
+  ), document.body) : null;
+
+  const PosturasReportModal = () => posturasReportTarget && typeof document !== "undefined" ? createPortal((
+    <div role="dialog" aria-modal="true" onMouseDown={(e)=>{ if (e.target === e.currentTarget) setPosturasReportTarget(null); }} style={{ position:"fixed", inset:0, zIndex:100000, display:"grid", placeItems:"center", padding:"18px", background:"rgba(1,15,31,.78)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+      <div style={{ width:"min(520px, 100%)", borderRadius:"20px", border:"1px solid rgba(239,68,68,.32)", background:"rgba(5,20,36,.98)", boxShadow:"0 28px 80px rgba(0,0,0,.72)", padding:"20px", fontFamily:getFont(theme,"secondary") }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"flex-start", marginBottom:"14px" }}>
+          <div><div style={{ color:"#fca5a5", fontSize:"11px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>Reportar en Posturas</div><div style={{ color:"#d4e4fa", fontSize:"22px", fontWeight:"900", marginTop:"4px" }}>{posturasReportTarget.type === "trabajador" ? posturasReportTarget.row.nombre_completo : posturasReportTarget.row.razon_social}</div><div style={{ color:"rgba(212,228,250,.56)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>El reporte se enviará al administrador para revisión. No se publicará automáticamente.</div></div>
+          <button onClick={()=>setPosturasReportTarget(null)} style={{ ...btn("#94a3b8"), padding:"8px 10px" }}>Cerrar</button>
+        </div>
+        <div style={{ display:"grid", gap:"10px" }}>
+          <div><div style={label}>Tipo de queja</div><select style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:e.target.value}))}><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
+          <div><div style={label}>Comentarios</div><textarea style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:e.target.value}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
+          <button onClick={sendPosturasReport} style={{ ...btn("#ef4444"), width:"100%" }}>Enviar reporte al admin</button>
+        </div>
+      </div>
+    </div>
+  ), document.body) : null;
 
   const AccessGate = () => (
     <div style={{ ...card, textAlign:"center", maxWidth:"760px", margin:"0 auto" }}>
@@ -21497,7 +21572,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><VacancyModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -21554,6 +21629,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <main style={{ position:"relative", zIndex:1, marginLeft:"264px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
         <VacancyModal />
+        <PosturasReportModal />
         {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
 
         {sub === "donativos" && <DonativosTab embedded />}
@@ -21603,7 +21679,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         )}
       </main>
 
-      {(isPosturasLoggedIn || isAdmin) && (isAdmin ? (
+      {(isPosturasLoggedIn || isAdmin) && !vacancyModalOpen && (isAdmin ? (
         <div style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"10px" }}>
           <button
             onClick={openVacancyModal}
