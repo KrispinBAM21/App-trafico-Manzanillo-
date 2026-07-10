@@ -19981,10 +19981,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       const saved = JSON.parse(localStorage.getItem("cm_posturas_salary_rules") || "null");
       return {
         postulante_min:Number(saved?.postulante_min || 500),
+        postulante_max:Number(saved?.postulante_max || 20000),
         empresa_min:Number(saved?.empresa_min || 500),
+        empresa_max:Number(saved?.empresa_max || 25000),
       };
     } catch {
-      return { postulante_min:500, empresa_min:500 };
+      return { postulante_min:500, postulante_max:20000, empresa_min:500, empresa_max:25000 };
     }
   });
   const [editingTrabId, setEditingTrabId] = useState(null);
@@ -20022,11 +20024,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const isPostulanteSession = isPosturasLoggedIn && sessionPosturasType === "postulante";
   const isEmpresaSession = isPosturasLoggedIn && sessionPosturasType === "empresa";
   const salarioMinPostulante = Math.max(500, Number(posturasSalaryRules.postulante_min || 500));
+  const salarioMaxPostulante = Math.max(salarioMinPostulante, Number(posturasSalaryRules.postulante_max || 20000));
   const salarioMinEmpresa = Math.max(500, Number(posturasSalaryRules.empresa_min || 500));
+  const salarioMaxEmpresa = Math.max(salarioMinEmpresa, Number(posturasSalaryRules.empresa_max || 25000));
   const updatePosturasSalaryRule = (field, value) => {
     const clean = Math.max(500, Number(value || 500));
     setPosturasSalaryRules(prev => {
       const next = { ...prev, [field]:clean };
+      if (field === "postulante_min" && Number(next.postulante_max || 0) < clean) next.postulante_max = clean;
+      if (field === "postulante_max" && clean < Number(next.postulante_min || 500)) next.postulante_min = clean;
+      if (field === "empresa_min" && Number(next.empresa_max || 0) < clean) next.empresa_max = clean;
+      if (field === "empresa_max" && clean < Number(next.empresa_min || 500)) next.empresa_min = clean;
       try { localStorage.setItem("cm_posturas_salary_rules", JSON.stringify(next)); } catch {}
       return next;
     });
@@ -20252,6 +20260,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const salarioLocal = Number(trabForm.salario_local || 0);
     const salarioForaneo = Number(trabForm.salario_foraneo || 0);
     if ((salarioLocal && salarioLocal < salarioMinPostulante) || (salarioForaneo && salarioForaneo < salarioMinPostulante)) { setMsg({type:"err", text:`Las expectativas económicas del postulante deben ser mínimo $${salarioMinPostulante}.`}); return; }
+    if ((salarioLocal && salarioLocal > salarioMaxPostulante) || (salarioForaneo && salarioForaneo > salarioMaxPostulante)) { setMsg({type:"err", text:`Las expectativas económicas del postulante no deben superar $${salarioMaxPostulante}.`}); return; }
     persistPosturasUserType("postulante");
     const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
     const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
@@ -20263,6 +20272,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const salarioLocalOfrecido = Number(empForm.salario_local_ofrecido || 0);
     const salarioForaneoOfrecido = Number(empForm.salario_foraneo_ofrecido || 0);
     if ((salarioLocalOfrecido && salarioLocalOfrecido < salarioMinEmpresa) || (salarioForaneoOfrecido && salarioForaneoOfrecido < salarioMinEmpresa)) { setMsg({type:"err", text:`El pago ofrecido por empresa debe ser mínimo $${salarioMinEmpresa}.`}); return; }
+    if ((salarioLocalOfrecido && salarioLocalOfrecido > salarioMaxEmpresa) || (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresa)) { setMsg({type:"err", text:`El pago ofrecido por empresa no debe superar $${salarioMaxEmpresa}.`}); return; }
     persistPosturasUserType("empresa");
     const payload = { ...empForm, salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
     const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
@@ -20517,8 +20527,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap" }}>
         <div>
           <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>Control admin · Posturas</div>
-          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Tipos de perfil y salario mínimo</div>
-          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Como admin puedes observar ambos flujos y ajustar el mínimo permitido para postulantes y empresas.</div>
+          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Tipos de perfil y rangos salariales</div>
+          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Como admin puedes observar ambos formularios base y ajustar salario mínimo y máximo para postulantes y empresas.</div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           {[ ["ambos","Ambos"], ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
@@ -20526,9 +20536,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           ))}
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px", marginTop:"14px" }}>
-        <div><div style={label}>Salario mínimo postulante</div><input type="number" min="500" style={input} value={posturasSalaryRules.postulante_min} onChange={e=>updatePosturasSalaryRule("postulante_min", e.target.value)} /></div>
-        <div><div style={label}>Pago mínimo empresa</div><input type="number" min="500" style={input} value={posturasSalaryRules.empresa_min} onChange={e=>updatePosturasSalaryRule("empresa_min", e.target.value)} /></div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))", gap:"10px", marginTop:"14px" }}>
+        <div><div style={label}>Salario mínimo postulante</div><input type="number" min="500" max={salarioMaxPostulante} style={input} value={posturasSalaryRules.postulante_min} onChange={e=>updatePosturasSalaryRule("postulante_min", e.target.value)} /></div>
+        <div><div style={label}>Salario máximo postulante</div><input type="number" min={salarioMinPostulante} style={input} value={posturasSalaryRules.postulante_max} onChange={e=>updatePosturasSalaryRule("postulante_max", e.target.value)} /></div>
+        <div><div style={label}>Pago mínimo empresa</div><input type="number" min="500" max={salarioMaxEmpresa} style={input} value={posturasSalaryRules.empresa_min} onChange={e=>updatePosturasSalaryRule("empresa_min", e.target.value)} /></div>
+        <div><div style={label}>Pago máximo empresa</div><input type="number" min={salarioMinEmpresa} style={input} value={posturasSalaryRules.empresa_max} onChange={e=>updatePosturasSalaryRule("empresa_max", e.target.value)} /></div>
       </div>
     </div>
   );
@@ -20546,8 +20558,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
       <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
       <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
-      <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulante} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Mínimo ${salarioMinPostulante}`} /></div>
-      <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulante} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Mínimo ${salarioMinPostulante}`} /></div>
+      <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulante} max={salarioMaxPostulante} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango ${salarioMinPostulante} - ${salarioMaxPostulante}`} /></div>
+      <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulante} max={salarioMaxPostulante} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango ${salarioMinPostulante} - ${salarioMaxPostulante}`} /></div>
       <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
       {[
         ["licencia_frontal", "Licencia frontal"], ["licencia_trasera", "Licencia trasera"], ["ine_frontal", "INE frontal"], ["ine_trasera", "INE trasera"]
@@ -20575,8 +20587,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
       <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
       <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Pago mínimo ofrecido viaje local</div><input type="number" min={salarioMinEmpresa} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Mínimo ${salarioMinEmpresa}`} /></div>
-      <div><div style={label}>Pago mínimo ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresa} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Mínimo ${salarioMinEmpresa}`} /></div>
+      <div><div style={label}>Pago mínimo ofrecido viaje local</div><input type="number" min={salarioMinEmpresa} max={salarioMaxEmpresa} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango ${salarioMinEmpresa} - ${salarioMaxEmpresa}`} /></div>
+      <div><div style={label}>Pago mínimo ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresa} max={salarioMaxEmpresa} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango ${salarioMinEmpresa} - ${salarioMaxEmpresa}`} /></div>
       <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value}))}/></div>
       <div><div style={label}>Número principal</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value}))}/></div>
       <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
@@ -21032,6 +21044,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               onClick={() => {
                 setSub("posturas");
                 setPosturasMode("form");
+                if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
                 if (isWorker) {
                   setVista("postular");
                   if (row) { setTrabForm({...row, edad:String(row.edad || "")}); setEditingTrabId(row.id); }
@@ -21079,9 +21092,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         )}
 
         {isAdmin && (
-          <div style={{ ...card, padding:"18px 22px", border:"1px solid rgba(251,191,36,.30)", background:"rgba(251,191,36,.07)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
-            Modo admin: puedes observar y abrir los formularios base de trabajador y empresario desde estas dos tarjetas.
-          </div>
+          <>
+            <div style={{ ...card, padding:"18px 22px", border:"1px solid rgba(251,191,36,.30)", background:"rgba(251,191,36,.07)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
+              Modo admin: puedes observar y abrir los formularios base de trabajador y empresario desde estas dos tarjetas. Desde el panel de control puedes ajustar salario mínimo y máximo para ambos formularios.
+            </div>
+            <AdminSalaryControlPanel />
+          </>
         )}
 
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"18px", alignItems:"start" }}>
@@ -21291,7 +21307,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{!isPosturasLoggedIn ? <AccessGate /> : isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />)}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -21357,7 +21373,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
             <AccessSelectorModal />
             <ProfileHeader />
-            {!isPosturasLoggedIn ? <AccessGate /> : isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />)}
+            {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}
           </div>
         )}
 
