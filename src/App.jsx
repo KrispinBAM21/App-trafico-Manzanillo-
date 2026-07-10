@@ -20060,20 +20060,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const row = type === "empresa" ? myLatestEmpresa : myLatestTrabajador;
     return !row || !isProfileExpired(row);
   };
-  const isRenderableImageSrc = (value) => {
-    const src = String(value || "").trim();
-    return /^(https?:|data:image\/|blob:|\/)/i.test(src);
-  };
-  const profilePhotoSrc = [
-    authUser?.user_metadata?.avatar_url,
-    authUser?.user_metadata?.picture,
-    myLatestTrabajador?.foto_perfil,
-    myLatestEmpresa?.contacto_principal_foto,
-    myLatestEmpresa?.logo_empresa,
-  ].find(isRenderableImageSrc) || "";
-  const ProfileButtonIcon = ({ size=22 }) => profilePhotoSrc ? (
-    <img src={profilePhotoSrc} alt="Mi perfil" style={{ width:size, height:size, borderRadius:"999px", objectFit:"cover", border:"1px solid rgba(161,201,255,.42)", boxShadow:"0 0 0 3px rgba(161,201,255,.08)" }} />
-  ) : <MS name="person_circle" size={size} active />;
   const salarioMinPostulanteLocal = Math.max(0, Number(posturasSalaryRules.postulante_local_min ?? 500));
   const salarioMaxPostulanteLocal = Math.max(salarioMinPostulanteLocal, Number(posturasSalaryRules.postulante_local_max || 20000));
   const salarioMinPostulanteForaneo = Math.max(0, Number(posturasSalaryRules.postulante_foraneo_min ?? 500));
@@ -20533,6 +20519,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id) : [];
   const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const myLatestEmpresa = [...myEmpresas].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
+  const isRenderableImageSrc = (value) => {
+    const src = String(value || "").trim();
+    return /^(https?:|data:image\/|blob:|\/)/i.test(src);
+  };
+  const profilePhotoSrc = [
+    authUser?.user_metadata?.avatar_url,
+    authUser?.user_metadata?.picture,
+    myLatestTrabajador?.foto_perfil,
+    myLatestEmpresa?.contacto_principal_foto,
+    myLatestEmpresa?.logo_empresa,
+  ].find(isRenderableImageSrc) || "";
+  const ProfileButtonIcon = ({ size=22 }) => profilePhotoSrc ? (
+    <img src={profilePhotoSrc} alt="Mi perfil" style={{ width:size, height:size, borderRadius:"999px", objectFit:"cover", border:"1px solid rgba(161,201,255,.42)", boxShadow:"0 0 0 3px rgba(161,201,255,.08)" }} />
+  ) : <MS name="person_circle" size={size} active />;
   const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const posturasGlass = {
