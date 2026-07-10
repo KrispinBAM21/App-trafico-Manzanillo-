@@ -21511,7 +21511,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const accessDesignCSS = `
     @keyframes cmAccessFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes cmAccessIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
-    .cm-nexus-canvas { animation: cmAccessIn .28s ease-out both; }
+    .cm-nexus-canvas { animation: cmAccessIn .28s ease-out both; box-sizing: border-box; }
     .cm-nexus-card { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease, background .3s ease; }
     .cm-nexus-card:hover { transform: translateY(-4px); }
     .cm-nexus-card.worker:hover { border-color: rgba(164,201,255,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(164,201,255,.13); }
@@ -21531,6 +21531,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       .cm-nexus-card-title { font-size: 26px !important; line-height: 32px !important; }
       .cm-nexus-stat-grid { grid-template-columns: 1fr !important; }
       .cm-nexus-close { top: 12px !important; right: 12px !important; }
+      .cm-nexus-access-layer { left: 0 !important; top: 0 !important; }
     }
   `;
 
@@ -21544,7 +21545,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         style={{
           position:"relative",
           overflow:"hidden",
-          minHeight:adminMode ? "446px" : "392px",
+          minHeight:posturasMobile ? "auto" : "446px",
           padding:posturasMobile ? "24px" : "32px",
           borderRadius:"24px",
           border:"1px solid rgba(255,255,255,.06)",
@@ -21565,14 +21566,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <span style={{ padding:"7px 14px", borderRadius:"999px", border:`1px solid ${isWorker ? "rgba(77,171,255,.34)" : "rgba(0,255,157,.34)"}`, background:isWorker ? "rgba(77,171,255,.12)" : "rgba(0,255,157,.12)", color:isWorker ? "#4dabff" : "#00ff9d", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"950", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</span>
         </div>
         <div style={{ position:"relative", zIndex:1, flex:1 }}>
-          <h3 className="cm-nexus-card-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:adminMode ? "32px" : "36px", lineHeight:adminMode ? "40px" : "42px", letterSpacing:"-.02em", fontWeight:"900" }}>{title}</h3>
-          <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:adminMode ? "16px" : "18px", lineHeight:adminMode ? "24px" : "28px", fontWeight:adminMode ? "400" : "700", maxWidth:"430px" }}>{description}</p>
+          <h3 className="cm-nexus-card-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"32px", lineHeight:"40px", letterSpacing:"-.02em", fontWeight:"900" }}>{title}</h3>
+          <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"16px", lineHeight:"24px", fontWeight:"400", maxWidth:"430px" }}>{description}</p>
         </div>
-        <button type="button" onClick={onClick} className="cm-nexus-btn" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:adminMode ? "16px 34px" : "16px 24px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
+        <button type="button" onClick={onClick} className="cm-nexus-btn" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
           <MS name={adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"} size={20} active />
           {adminMode ? "Abrir formulario base" : "Continuar"}
         </button>
-        {adminMode && <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>}
+        <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>
       </article>
     );
   };
@@ -21591,12 +21592,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   );
 
   const AccessSelectorModal = () => accessPrompt ? (
-    <div onClick={() => setAccessPrompt(null)} style={{ position:"fixed", inset:0, zIndex:99950, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary") }}>
+    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:posturasMobile ? 0 : "264px", top:posturasMobile ? 0 : "56px", right:0, bottom:0, zIndex:1100, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
       <style>{accessDesignCSS}</style>
-      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "88px 40px 80px", position:"relative", overflow:"hidden" }}>
+      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:posturasMobile ? "100vh" : "calc(100vh - 56px)", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "72px 40px 80px", position:"relative", overflow:"hidden" }}>
         <span style={{ position:"absolute", top:"-120px", right:"-120px", width:"500px", height:"500px", borderRadius:"999px", background:"rgba(0,255,157,.18)", filter:"blur(140px)", pointerEvents:"none" }} />
         <span style={{ position:"absolute", top:"45%", left:"-220px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
-        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:"24px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
+        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "80px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
         <header style={{ position:"relative", zIndex:1, marginBottom:"48px", maxWidth:"780px" }}>
           <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"12px" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
           <h1 className="cm-nexus-title" style={{ margin:"0 0 14px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>¿Cómo deseas acceder?</h1>
@@ -21606,6 +21607,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <AccessOptionCard type="worker" icon="assignment_ind" onClick={() => continueAccessAs("postulante")} title={accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Acceder como Postulante"} description="Operador que desea publicar su perfil, disponibilidad, documentación y expectativas económicas." />
           <AccessOptionCard type="employer" icon="corporate_fare" onClick={() => continueAccessAs("empresa")} title={accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Acceder como Empresa"} description="Empresa que desea registrar su perfil, gestionar contactos y publicar vacantes desde Posturas." />
         </div>
+        <AccessStats />
       </div>
     </div>
   ) : null;
