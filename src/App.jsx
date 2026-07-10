@@ -7353,7 +7353,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
   return (
     <>
       <style>{`
-        .cm-topbar{position:sticky;top:0;left:0;right:0;z-index:100;background:#0d1117;border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+        .cm-topbar{position:fixed;top:0;left:0;right:0;width:100%;z-index:50;background:rgba(13,17,23,.90);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
         .cm-topbar-inner{width:100%;max-width:1440px;margin:0 auto;min-height:54px;padding:8px 16px;display:flex;align-items:center;gap:14px}
         .cm-topbar-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:0 0 auto;background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 2px;border-radius:8px;touch-action:manipulation}
         .cm-topbar-anchor{width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 8px rgba(0,98,140,.35));overflow:hidden;border-radius:7px}
@@ -20530,12 +20530,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     myLatestEmpresa?.contacto_principal_foto,
     myLatestEmpresa?.logo_empresa,
   ].find(isRenderableImageSrc) || "";
-  const ProfileButtonIcon = ({ size=22 }) => (
-    <div className="w-8 h-8 rounded-full overflow-hidden cm-profile-avatar" aria-hidden="true">
+  const ProfileButtonIcon = ({ size=32 }) => (
+    <div className="w-8 h-8 rounded-full overflow-hidden" style={{ width:size, height:size, borderRadius:"999px", overflow:"hidden", display:"grid", placeItems:"center", background:"rgba(164,201,255,.12)", border:"1px solid rgba(164,201,255,.30)", color:"#a4c9ff", flex:"0 0 auto" }}>
       {profilePhotoSrc ? (
         <img src={profilePhotoSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       ) : (
-        <span className="material-symbols-outlined" style={{ fontSize:size }}>person</span>
+        <span className="material-symbols-outlined" style={{ fontSize:Math.max(18, Math.round(size * .68)), lineHeight:1 }}>person</span>
       )}
     </div>
   );
@@ -20752,11 +20752,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div>
           <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>Control admin · Posturas</div>
           <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Rangos salariales por tipo de perfil</div>
-          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Elige la sección que quieres ajustar. Los campos permiten escribir la cantidad completa manualmente; se normalizan al salir del campo.</div>
+          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Elige la sección que quieres ajustar. Los campos permiten escribir la cantidad completa manualmente; se validan y normalizan al presionar Guardar.</div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           {[ ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
-            <button className="cm-posturas-dynamic-btn" key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
+            <button className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
           ))}
         </div>
       </div>
@@ -20793,8 +20793,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
         <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
         <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
-        <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulanteLocal} max={salarioMaxPostulanteLocal} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
-        <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulanteForaneo} max={salarioMaxPostulanteForaneo} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
+        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
+        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
         <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
       </div>
@@ -20865,8 +20865,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Imagen para ofrecer la vacante</div><input type="file" accept="image/*" style={input} onChange={e=>handleFileMeta(setEmpForm, "imagen_vacante", e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm.imagen_vacante || "Sin imagen seleccionada"}</div></div>
-        <div><div style={label}>Pago ofrecido viaje local</div><input type="number" min={salarioMinEmpresaLocal} max={salarioMaxEmpresaLocal} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
-        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresaForaneo} max={salarioMaxEmpresaForaneo} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
+        <div><div style={label}>Pago ofrecido viaje local</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
+        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
       </div>
       <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
         <button onClick={()=>{ setVacancyModalOpen(false); setCompanyFormMode("registro"); setEmpWizardStep(1); }} style={btn("#94a3b8")}>Cerrar / editar registro empresarial</button>
@@ -21280,116 +21280,77 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
 
   const ProfileEditorView = () => {
-    const EditSourceCard = ({ type, row }) => {
+    const openBaseProfile = (kind) => {
+      const isWorker = kind === "trabajador";
+      const row = isWorker ? myLatestTrabajador : myLatestEmpresa;
+      setSub("posturas");
+      setPosturasMode("form");
+      if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
+      if (isWorker) {
+        setVista("postular");
+        if (row) { setTrabForm({...row, edad:String(row.edad || "")}); setEditingTrabId(row.id); }
+        else { setTrabForm(emptyTrab); setEditingTrabId(null); }
+      } else {
+        setVista("empresario");
+        if (row) { setEmpForm({...row}); setEditingEmpId(row.id); }
+        else { setEmpForm(emptyEmp); setEditingEmpId(null); }
+      }
+      setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
+    };
+
+    const UserEditCard = ({ type, row }) => {
       const isWorker = type === "trabajador";
       const title = row ? (isWorker ? row.nombre_completo : row.razon_social) : (isWorker ? "Perfil de trabajador" : "Perfil de empresario");
-      const subtitle = row
-        ? (isWorker ? `${row.licencia || "Sin licencia"} · ${row.maniobra || "Sin maniobra"}` : `${row.tipo_empresa || "Empresa"} · ${row.ubicacion || "Sin ubicación"}`)
-        : (isAdmin ? (isWorker ? "Formulario base visible para administración." : "Formulario base empresarial visible para administración.") : (isWorker ? "Aún no has publicado información en Postular." : "Aún no has publicado información como empresario."));
-      const details = row
-        ? (isWorker
-          ? [
-              ["Edad", row.edad ? `${row.edad} años` : "—"],
-              ["Labora", row.alcance || "—"],
-              ["Teléfono", row.telefono_llamadas || "—"],
-              ["WhatsApp", row.telefono_whatsapp || "—"],
-              ["Correo", row.correo || "—"],
-              ["Estatus", row.disponible ? "Disponible" : "No disponible"],
-            ]
-          : [
-              ["RFC", row.rfc || "—"],
-              ["Representante", row.representante || "—"],
-              ["Contacto técnico", row.contacto_tecnico || "—"],
-              ["Correo", row.correo || "—"],
-              ["Teléfono", row.telefono || "—"],
-              ["WhatsApp", row.whatsapp || "—"],
-              ["Trabajo", row.estatus === "tiene_trabajo" ? "Tiene trabajo" : "Se encuentra lleno"],
-            ])
-        : [];
       return (
-        <article style={{ ...card, padding:"22px", borderRadius:"18px", borderLeft:`4px solid ${isWorker ? "#a1c9ff" : "#10b981"}` }}>
-          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", flexWrap:"wrap", marginBottom:"14px" }}>
-            <div style={{ display:"flex", gap:"14px", alignItems:"center", minWidth:0 }}>
-              <div style={{ width:"54px", height:"54px", borderRadius:"16px", display:"grid", placeItems:"center", background:isWorker ? "rgba(161,201,255,.10)" : "rgba(16,185,129,.10)", border:`1px solid ${isWorker ? "rgba(161,201,255,.25)" : "rgba(16,185,129,.25)"}`, color:isWorker ? "#a1c9ff" : "#10b981" }}>
-                <MS name={isWorker ? "badge" : "apartment"} size={26} active />
-              </div>
+        <article className={`cm-nexus-card ${isWorker ? "worker" : "employer"}`} style={{ position:"relative", overflow:"hidden", padding:posturasMobile ? "22px" : "28px", borderRadius:"24px", border:`1px solid ${isWorker ? "rgba(164,201,255,.24)" : "rgba(78,222,163,.24)"}`, background:isWorker ? "linear-gradient(145deg, rgba(15,23,42,.98), rgba(8,18,30,.96))" : "linear-gradient(145deg, rgba(0,82,54,.30), rgba(5,20,36,.96))", boxShadow:"0 24px 68px rgba(0,0,0,.34)" }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", marginBottom:"18px" }}>
+            <div style={{ display:"flex", gap:"14px", minWidth:0 }}>
+              <div className="cm-nexus-float" style={{ width:"64px", height:"64px", borderRadius:"18px", display:"grid", placeItems:"center", background:isWorker ? "rgba(77,171,255,.15)" : "rgba(0,255,157,.13)", border:`1px solid ${isWorker ? "rgba(164,201,255,.34)" : "rgba(78,222,163,.32)"}`, color:isWorker ? "#a4c9ff" : "#4edea3" }}><MS name={isWorker ? "assignment_ind" : "corporate_fare"} size={30} active /></div>
               <div style={{ minWidth:0 }}>
-                <div style={{ color:isWorker ? "#a1c9ff" : "#10b981", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</div>
-                <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"22px", fontWeight:"900", lineHeight:1.15, marginTop:"4px", overflowWrap:"anywhere" }}>{title}</div>
-                <div style={{ color:"rgba(212,228,250,.60)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"4px", lineHeight:1.5 }}>{subtitle}</div>
+                <div style={{ color:isWorker ? "#a4c9ff" : "#4edea3", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase", fontWeight:"900" }}>{isWorker ? "Información de postular" : "Información de empresario"}</div>
+                <div style={{ color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:posturasMobile ? "24px" : "30px", lineHeight:1.1, fontWeight:"900", marginTop:"8px" }}>{title}</div>
+                <div style={{ color:"rgba(212,228,250,.72)", fontSize:"14px", lineHeight:"22px", marginTop:"8px" }}>{row ? "Información ligada a tu cuenta. Puedes editarla sin crear perfiles duplicados." : (isWorker ? "Aún no has creado tu perfil de trabajador." : "Aún no has creado tu perfil empresarial.")}</div>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setSub("posturas");
-                setPosturasMode("form");
-                if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
-                if (isWorker) {
-                  setVista("postular");
-                  if (row) { setTrabForm({...row, edad:String(row.edad || "")}); setEditingTrabId(row.id); }
-                  else { setTrabForm(emptyTrab); setEditingTrabId(null); }
-                } else {
-                  setVista("empresario");
-                  if (row) { setEmpForm({...row}); setEditingEmpId(row.id); }
-                  else { setEmpForm(emptyEmp); setEditingEmpId(null); }
-                }
-                setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
-              }}
-              className="cm-ui-button hover:bg-white/10 transition-all duration-300"
-              style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${row && isProfileExpired(row) ? "rgba(245,158,11,.62)" : (isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)")}`, background:row && isProfileExpired(row) ? "rgba(245,158,11,.14)" : (isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)"), color:row && isProfileExpired(row) ? "#f59e0b" : (isWorker ? "#a1c9ff" : "#10b981"), fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
-            >
-              <MS name={row ? "edit" : "person_add"} size={16} active />
-              {row ? (isProfileExpired(row) ? "Actualizar información" : "Editar información") : (isAdmin ? "Abrir formulario base" : (isWorker ? "Crear perfil" : "Crear empresa"))}
-            </button>
           </div>
-          {row ? (
-            <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(auto-fit,minmax(180px,1fr))", gap:"10px", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px" }}>
-              {details.map(([k,v]) => <ProfileMetric key={k} label={k} value={v} />)}
-            </div>
-          ) : (
-            <div style={{ borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px", color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
-              {isAdmin ? "Como administrador puedes abrir el formulario base para revisar ambos flujos sin depender de una cuenta de trabajador o empresa." : "Usa el botón para abrir el mismo formulario donde se publicó la información. Ese es el formulario que se edita y se guarda con la lógica actual."}
-            </div>
-          )}
+          <button type="button" onClick={() => openBaseProfile(type)} className="cm-nexus-btn" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"10px", width:posturasMobile ? "100%" : "fit-content", padding:"15px 22px", borderRadius:"16px", border:"none", background:isWorker ? "#4dabff" : "#00ff9d", color:isWorker ? "#001c39" : "#001e12", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:isWorker ? "0 15px 34px rgba(77,171,255,.28)" : "0 15px 34px rgba(0,255,157,.28)" }}><MS name={row ? "edit" : "person_add"} size={18} active /> {row ? (isProfileExpired(row) ? "Actualizar" : "Editar perfil") : "Crear"}</button>
         </article>
       );
     };
 
+    const adminProfiles = isAdmin;
     return (
-      <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
-        <ProfileHeader />
-        <div style={{ ...card, padding:"22px", borderRadius:"18px" }}>
-          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900", marginBottom:"6px" }}>Mi perfil · Editar perfil</div>
-          <div style={{ color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
-            <strong style={{ color:"#a1c9ff" }}>Editar perfil</strong> es una pestaña dentro de <strong style={{ color:"#d4e4fa" }}>Mi perfil</strong>. Aquí aparecen las tarjetas de <strong style={{ color:"#a1c9ff" }}>Perfil de trabajador</strong> y <strong style={{ color:"#10b981" }}>Perfil de empresario</strong>. Cada tarjeta abre el mismo formulario donde se publicó o se publicará la información, sin crear un perfil duplicado.
-          </div>
-        </div>
+      <section className="cm-nexus-content" style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"48px", position:"relative", padding:posturasMobile ? "18px 0 80px" : "24px 40px 80px", overflow:"hidden" }}>
+        <style>{accessDesignCSS}</style>
+        <span style={{ position:"absolute", top:"-120px", right:"-120px", width:"500px", height:"500px", borderRadius:"999px", background:"rgba(0,255,157,.18)", filter:"blur(140px)", pointerEvents:"none" }} />
+        <span style={{ position:"absolute", top:"42%", left:"-260px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
+        <div style={{ position:"relative", zIndex:1 }}><ProfileHeader /></div>
 
-        {!authUser && !isAdmin && (
-          <div style={{ ...card, padding:"22px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
-            Para editar información publicada, primero inicia sesión o crea una cuenta.
-          </div>
-        )}
-
-        {isAdmin && (
-          <>
-            <div style={{ ...card, padding:"18px 22px", border:"1px solid rgba(251,191,36,.30)", background:"rgba(251,191,36,.07)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
-              Modo admin: puedes observar y abrir los formularios base de trabajador y empresario desde estas dos tarjetas. Desde el panel de control puedes ajustar salario mínimo y máximo para ambos formularios.
+        {adminProfiles ? (
+          <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
+            <header style={{ marginBottom:"48px", maxWidth:"760px" }}>
+              <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Gestión de Perfiles</h1>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Como administrador puedes abrir el formulario base para revisar ambos flujos sin depender de una cuenta de trabajador o empresa.</p>
+            </header>
+            <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0,1fr))", gap:"24px" }}>
+              <AccessOptionCard adminMode type="worker" icon="assignment_ind" title="Perfil de trabajador" description="Formulario base visible para administración." onClick={() => openBaseProfile("trabajador")} />
+              <AccessOptionCard adminMode type="employer" icon="corporate_fare" title="Perfil de empresario" description="Formulario base empresarial visible para administración." onClick={() => openBaseProfile("empresa")} />
             </div>
-            <AdminSalaryControlPanel />
-          </>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 cm-profile-card-grid">
-          <EditSourceCard type="trabajador" row={myLatestTrabajador} />
-          <EditSourceCard type="empresa" row={myLatestEmpresa} />
-        </div>
-
-        {(myTrabajadores.length > 1 || myEmpresas.length > 1) && (
-          <div style={{ display:"grid", gap:"12px" }}>
-            <div style={{ color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".12em" }}>Otras publicaciones de tu cuenta</div>
-            {myTrabajadores.slice(1).map(row => <EditSourceCard key={`my-trab-${row.id}`} type="trabajador" row={row} />)}
-            {myEmpresas.slice(1).map(row => <EditSourceCard key={`my-emp-${row.id}`} type="empresa" row={row} />)}
+            <AccessStats />
+            <div style={{ marginTop:"48px" }}><AdminSalaryControlPanel /></div>
+          </div>
+        ) : (
+          <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1, display:"grid", gap:"22px" }}>
+            <header style={{ maxWidth:"760px" }}>
+              <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"10px" }}>Mi perfil</div>
+              <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Editar perfil</h1>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px" }}>Edita la información ligada a tu cuenta. Si todavía no tienes perfil, primero crea el tipo que corresponde.</p>
+            </header>
+            {!authUser && <div style={{ padding:"22px", borderRadius:"18px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"800", lineHeight:1.6 }}>Para editar información publicada, primero inicia sesión o crea una cuenta.</div>}
+            <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"24px" }}>
+              <UserEditCard type="trabajador" row={myLatestTrabajador} />
+              <UserEditCard type="empresa" row={myLatestEmpresa} />
+            </div>
           </div>
         )}
       </section>
@@ -21553,31 +21514,108 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"12px" }}><button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button><button onClick={()=>openPosturasReport("empresa", row)} style={{ color:"#fca5a5", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase" }}>Reportar</button></div>
   </article>; };
 
-  const AccessSelectorModal = () => accessPrompt ? (
-    <div className="cm-access-overlay" onClick={() => setAccessPrompt(null)}>
-      <div className="cm-access-modal backdrop-blur-sm border-white/5" onClick={e=>e.stopPropagation()}>
-        <div className="cm-access-heading">
-          <div>
-            <div className="cm-access-eyebrow">{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
-            <div className="cm-access-title">¿Cómo deseas acceder?</div>
-            <div className="cm-access-copy">Selecciona el perfil para abrir el flujo correcto de Posturas.</div>
+  const accessDesignCSS = `
+    @keyframes cmAccessFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes cmAccessIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+    .cm-nexus-canvas { animation: cmAccessIn .28s ease-out both; box-sizing: border-box; }
+    .cm-nexus-card { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease, background .3s ease; }
+    .cm-nexus-card:hover { transform: translateY(-4px); }
+    .cm-nexus-card.worker:hover { border-color: rgba(164,201,255,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(164,201,255,.13); }
+    .cm-nexus-card.employer:hover { border-color: rgba(78,222,163,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(78,222,163,.13); }
+    .cm-nexus-btn { position:relative; overflow:hidden; transition: all .3s ease; }
+    .cm-nexus-btn::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,0); transition:background .3s ease; pointer-events:none; }
+    .cm-nexus-btn:hover::after { background:rgba(255,255,255,.10); }
+    .cm-nexus-btn:hover { transform: translateY(-1px); }
+    .cm-nexus-btn:active { transform: translateY(0) scale(.98); }
+    .cm-nexus-stat { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease; }
+    .cm-nexus-stat:hover { transform: translateY(-3px) scale(1.01); }
+    .cm-nexus-float { animation: cmAccessFloat 3s ease-in-out infinite; }
+    @media (max-width: 760px) {
+      .cm-nexus-content { padding: 20px 14px 92px !important; }
+      .cm-nexus-title { font-size: 30px !important; line-height: 36px !important; }
+      .cm-nexus-subtitle { font-size: 15px !important; line-height: 24px !important; }
+      .cm-nexus-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+      .cm-nexus-card { padding: 24px !important; min-height: auto !important; }
+      .cm-nexus-card-title { font-size: 26px !important; line-height: 32px !important; }
+      .cm-nexus-stat-grid { grid-template-columns: 1fr !important; }
+      .cm-nexus-close { top: 12px !important; right: 12px !important; }
+      .cm-nexus-access-layer { left: 0 !important; top: 0 !important; }
+    }
+  `;
+
+  const AccessOptionCard = ({ type, title, description, icon, onClick, adminMode=false }) => {
+    const isWorker = type === "worker";
+    const accent = isWorker ? "#a4c9ff" : "#4edea3";
+    const solid = isWorker ? "#4dabff" : "#00ff9d";
+    return (
+      <article
+        className={`cm-nexus-card ${isWorker ? "worker" : "employer"}`}
+        style={{
+          position:"relative",
+          overflow:"hidden",
+          minHeight:posturasMobile ? "auto" : "446px",
+          padding:posturasMobile ? "24px" : "32px",
+          borderRadius:"24px",
+          border:"1px solid rgba(255,255,255,.06)",
+          background:isWorker
+            ? "linear-gradient(145deg, rgba(15,23,42,.98), rgba(8,18,30,.96) 58%, rgba(5,20,36,.98))"
+            : "linear-gradient(145deg, rgba(0,82,54,.36), rgba(5,20,36,.95) 54%, rgba(0,20,16,.94))",
+          boxShadow:"0 28px 80px rgba(0,0,0,.35)",
+          display:"flex",
+          flexDirection:"column",
+          gap:"24px"
+        }}
+      >
+        <span style={{ position:"absolute", inset:isWorker ? "auto auto -120px -120px" : "-130px -110px auto auto", width:"280px", height:"280px", borderRadius:"999px", background:solid, opacity:isWorker ? .08 : .12, filter:"blur(80px)", pointerEvents:"none" }} />
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"16px", position:"relative", zIndex:1 }}>
+          <div className="cm-nexus-float" style={{ width:"84px", height:"84px", borderRadius:"18px", display:"grid", placeItems:"center", background:isWorker ? "rgba(77,171,255,.16)" : "rgba(0,255,157,.14)", border:`1px solid ${isWorker ? "rgba(164,201,255,.38)" : "rgba(78,222,163,.36)"}`, boxShadow:`0 18px 44px ${isWorker ? "rgba(77,171,255,.12)" : "rgba(78,222,163,.12)"}`, color:accent }}>
+            <MS name={icon} size={42} active />
           </div>
-          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-close" onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector">
-            <span className="material-symbols-outlined">close</span>
-          </button>
+          <span style={{ padding:"7px 14px", borderRadius:"999px", border:`1px solid ${isWorker ? "rgba(77,171,255,.34)" : "rgba(0,255,157,.34)"}`, background:isWorker ? "rgba(77,171,255,.12)" : "rgba(0,255,157,.12)", color:isWorker ? "#4dabff" : "#00ff9d", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"950", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 cm-access-grid">
-          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-card cm-access-card-worker" onClick={() => continueAccessAs("postulante")}>
-            <span className="material-symbols-outlined cm-access-icon">local_shipping</span>
-            <span className="cm-access-card-title">{accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Postulante"}</span>
-            <span className="cm-access-card-copy">Operador que desea publicar perfil y disponibilidad.</span>
-          </button>
-          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-card cm-access-card-company" onClick={() => continueAccessAs("empresa")}>
-            <span className="material-symbols-outlined cm-access-icon">business</span>
-            <span className="cm-access-card-title">{accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Empresa"}</span>
-            <span className="cm-access-card-copy">Empresa que desea publicar vacantes y contactos.</span>
-          </button>
+        <div style={{ position:"relative", zIndex:1, flex:1 }}>
+          <h3 className="cm-nexus-card-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"32px", lineHeight:"40px", letterSpacing:"-.02em", fontWeight:"900" }}>{title}</h3>
+          <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"16px", lineHeight:"24px", fontWeight:"400", maxWidth:"430px" }}>{description}</p>
         </div>
+        <button type="button" onClick={onClick} className="cm-nexus-btn hover:bg-white/10 transition-all duration-300" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
+          <MS name={adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"} size={20} active />
+          {adminMode ? "Abrir formulario base" : "Continuar"}
+        </button>
+        <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>
+      </article>
+    );
+  };
+
+  const AccessStats = () => (
+    <div className="cm-nexus-stat-grid" style={{ marginTop:"52px", display:"grid", gridTemplateColumns:"repeat(3, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
+      {[
+        ["groups", "Usuarios activos", String((trabajadores.length + empresas.length) || 0), "#4edea3"],
+        ["work", "Vacantes publicadas", String(empresas.length || 0), "#4dabff"],
+        ["trending_up", "Tasa de contratación", "68%", "#bec6e0"],
+      ].map(([icon,label,value,color], idx) => <div key={label} className="cm-nexus-stat" style={{ background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"24px", display:"flex", alignItems:"center", gap:"16px" }}>
+        <div style={{ width:"52px", height:"52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center", color }}><MS name={icon} size={24} active /></div>
+        <div><div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}>{label}</div><div style={{ color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"24px", lineHeight:"32px", fontWeight:"900" }}>{value}</div></div>
+      </div>)}
+    </div>
+  );
+
+  const AccessSelectorModal = () => accessPrompt ? (
+    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:0, top:0, right:0, bottom:0, zIndex:5000, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
+      <style>{accessDesignCSS}</style>
+      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "96px 40px 80px 304px", position:"relative", overflow:"hidden" }}>
+        <span style={{ position:"absolute", top:"-120px", right:"-120px", width:"500px", height:"500px", borderRadius:"999px", background:"rgba(0,255,157,.18)", filter:"blur(140px)", pointerEvents:"none" }} />
+        <span style={{ position:"absolute", top:"45%", left:"-220px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
+        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "24px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
+        <header style={{ position:"relative", zIndex:1, marginBottom:"48px", maxWidth:"780px" }}>
+          <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"12px" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
+          <h1 className="cm-nexus-title" style={{ margin:"0 0 14px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>¿Cómo deseas acceder?</h1>
+          <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"680px" }}>Selecciona el perfil para abrir el flujo correcto de Posturas. El diseño se mantiene igual para usuario y modo admin, sin cambiar la lógica de acceso.</p>
+        </header>
+        <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
+          <AccessOptionCard type="worker" icon="assignment_ind" onClick={() => continueAccessAs("postulante")} title={accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Acceder como Postulante"} description="Operador que desea publicar su perfil, disponibilidad, documentación y expectativas económicas." />
+          <AccessOptionCard type="employer" icon="corporate_fare" onClick={() => continueAccessAs("empresa")} title={accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Acceder como Empresa"} description="Empresa que desea registrar su perfil, gestionar contactos y publicar vacantes desde Posturas." />
+        </div>
+        <AccessStats />
       </div>
     </div>
   ) : null;
@@ -21666,29 +21704,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <style>{`
-        .cm-posturas-dynamic-btn { transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease; }
-        .cm-posturas-dynamic-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08); filter: brightness(1.08); cursor: pointer; }
-        .cm-ui-button { transition: all 300ms ease; }
-        .cm-ui-button:hover { background-color: rgba(255,255,255,.10) !important; }
-        .cm-profile-avatar { width:32px; height:32px; border-radius:9999px; overflow:hidden; display:grid; place-items:center; flex:0 0 32px; color:#a4c9ff; background:#0d1c2d; border:1px solid rgba(255,255,255,.05); }
-        .cm-access-overlay { position:fixed; inset:0; z-index:99950; display:grid; place-items:center; padding:16px; background:rgba(1,15,31,.78); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
-        .cm-access-modal { width:min(100%, 640px); padding:24px; border-radius:24px; color:#d4e4fa; background:rgba(18,33,49,.82); border:1px solid rgba(255,255,255,.05); box-shadow:0 18px 44px rgba(0,0,0,.24); font-family:Inter, sans-serif; }
-        .cm-access-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
-        .cm-access-eyebrow { color:#a4c9ff; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
-        .cm-access-title { margin-top:8px; color:#d4e4fa; font-size:24px; line-height:32px; font-weight:600; }
-        .cm-access-copy { margin-top:8px; color:#bbcabf; font-size:14px; line-height:20px; }
-        .cm-access-close { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:9999px; color:#d4e4fa; background:#1c2b3c; border:1px solid rgba(255,255,255,.05); cursor:pointer; }
-        .cm-access-grid { display:grid; grid-template-columns:1fr; gap:24px; margin-top:24px; }
-        .cm-access-card { min-height:220px; padding:24px; display:flex; flex-direction:column; align-items:flex-start; text-align:left; border-radius:24px; color:#d4e4fa; background:rgba(13,28,45,.72); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); box-shadow:0 8px 24px rgba(0,0,0,.18); cursor:pointer; }
-        .cm-access-card:hover, .cm-profile-source-card:hover { box-shadow:0 18px 44px rgba(78,222,163,.20); }
-        .cm-access-card-worker .cm-access-icon, .cm-access-card-worker .cm-access-card-title { color:#a4c9ff; }
-        .cm-access-card-company .cm-access-icon, .cm-access-card-company .cm-access-card-title { color:#4edea3; }
-        .cm-access-icon { font-size:32px; }
-        .cm-access-card-title { margin-top:24px; font-size:24px; line-height:32px; font-weight:600; }
-        .cm-access-card-copy { margin-top:8px; color:#bbcabf; font-size:14px; line-height:20px; }
-        .cm-profile-card-grid { display:grid; grid-template-columns:1fr; gap:24px; align-items:start; }
-        .cm-profile-source-card { padding:24px; border-radius:24px; background:rgba(18,33,49,.62); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); transition:all 300ms ease; }
-        @media (min-width: 768px) { .cm-access-grid, .cm-profile-card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .cm-access-modal { padding:32px; } }
+        .cm-posturas-dynamic-btn { transition: all .3s ease; }
+        .cm-posturas-dynamic-btn:hover { background-color: rgba(255,255,255,.10) !important; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08); filter: none; cursor: pointer; }
         .cm-posturas-fluid-input { caret-color: #a1c9ff; }
         .cm-posturas-fluid-input:focus { border-color: rgba(161,201,255,.72) !important; box-shadow: 0 0 0 3px rgba(161,201,255,.12); }
         .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
@@ -21700,16 +21717,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <button
               type="button"
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
-              className="cm-posturas-dynamic-btn cm-ui-button hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+              className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={22} /> Mi Perfil</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={32} /></span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
             </button>
             {profileMenuOpen && (
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
-                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
           </div>
@@ -21717,13 +21734,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <nav style={{ display:"grid", gap:"4px", flex:1 }}>
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
-            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
+            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
               <MS name={item.icon} size={22} active={active} /> {item.label}
             </button>;
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
