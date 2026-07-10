@@ -4277,8 +4277,7 @@ function AdminCalculadoraPanel() {
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
 function DonateBanner({ active, setActive }) {
   const theme = React.useContext(ThemeContext);
-  const [visible, setVisible] = useState(false);
-  const [phase, setPhase] = useState("idle");
+  const [expanded, setExpanded] = useState(false);
   const cycleRef = useRef({ showTimer:null, hideTimer:null, repeatTimer:null });
 
   const clearCycle = () => {
@@ -4286,29 +4285,23 @@ function DonateBanner({ active, setActive }) {
     cycleRef.current = { showTimer:null, hideTimer:null, repeatTimer:null };
   };
 
-  const hideBanner = () => {
-    setPhase("out");
-    cycleRef.current.hideTimer = setTimeout(() => {
-      setVisible(false);
-      setPhase("idle");
-    }, 460);
+  const retractBanner = () => {
+    setExpanded(false);
   };
 
   useEffect(() => {
     clearCycle();
-    setVisible(false);
-    setPhase("idle");
+    setExpanded(false);
 
     if (active === "inicio") return () => clearCycle();
 
-    const schedule = (delay = 8500) => {
+    const schedule = (delay = 7600) => {
       cycleRef.current.showTimer = setTimeout(() => {
-        setVisible(true);
-        setPhase("in");
+        setExpanded(true);
         cycleRef.current.hideTimer = setTimeout(() => {
-          hideBanner();
+          retractBanner();
           cycleRef.current.repeatTimer = setTimeout(() => schedule(0), 36000);
-        }, 7200);
+        }, 6400);
       }, delay);
     };
 
@@ -4318,10 +4311,10 @@ function DonateBanner({ active, setActive }) {
 
   const goToDonativos = () => {
     if (typeof setActive === "function") setActive("donativos");
-    hideBanner();
+    retractBanner();
   };
 
-  const IconDonate = ({ size=32, color="#fff" }) => (
+  const IconDonate = ({ size=26, color="#fff" }) => (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display:"block" }}>
       <path d="M32 55s-20-12.6-20-29.3A11.6 11.6 0 0 1 32 17.6 11.6 11.6 0 0 1 52 25.7C52 42.4 32 55 32 55Z" fill="none" stroke={color} strokeWidth="4" strokeLinejoin="round" />
       <path d="M23 33h18" stroke={color} strokeWidth="4" strokeLinecap="round" />
@@ -4330,38 +4323,38 @@ function DonateBanner({ active, setActive }) {
   );
 
   const MiniIcon = ({ name }) => {
-    const common = { width:16, height:16, viewBox:"0 0 24 24", fill:"none", stroke:"rgba(255,255,255,.72)", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"block"} };
+    const common = { width:14, height:14, viewBox:"0 0 24 24", fill:"none", stroke:"rgba(255,255,255,.72)", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"block"} };
     if (name === "qr") return <svg {...common}><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 14h2M14 18h6"/></svg>;
     if (name === "contactless") return <svg {...common}><path d="M7 8a6 6 0 0 1 0 8"/><path d="M11 6a9 9 0 0 1 0 12"/><path d="M15 4a12 12 0 0 1 0 16"/></svg>;
     return <svg {...common}><path d="M4 10h16"/><path d="M6 10V7l6-3 6 3v3"/><path d="M7 10v8M12 10v8M17 10v8"/><path d="M5 18h14"/></svg>;
   };
 
-  if (!visible) return null;
-
-  const isOut = phase === "out";
+  if (active === "inicio") return null;
 
   return (
     <div
       style={{
         position:"fixed",
-        right:"max(16px, env(safe-area-inset-right))",
-        bottom:"calc(118px + env(safe-area-inset-bottom))",
-        width:"min(268px, calc(100vw - 28px))",
-        zIndex:600,
+        top:"calc(78px + env(safe-area-inset-top))",
+        right:"max(0px, env(safe-area-inset-right))",
+        width:"min(238px, calc(100vw - 26px))",
+        zIndex:601,
         pointerEvents:"none",
-        opacity:isOut ? 0 : 1,
-        transform:isOut ? "translateX(28px) scale(.96)" : "translateX(0) scale(1)",
-        transition:"opacity .42s ease, transform .42s cubic-bezier(.175,.885,.32,1.275)",
-        animation:"cmDonateBannerIn .42s cubic-bezier(.175,.885,.32,1.275) both"
+        transform:expanded ? "translateX(0)" : "translateX(calc(100% - 34px))",
+        opacity:1,
+        transition:"transform .54s cubic-bezier(.175,.885,.32,1.12)",
+        animation:expanded ? "cmDonateBannerSlideIn .38s cubic-bezier(.175,.885,.32,1.275) both" : "none"
       }}
+      aria-hidden={active === "inicio"}
     >
       <div
         onMouseMove={(e)=>{
+          if (!expanded) return;
           const card = e.currentTarget;
           const rect = card.getBoundingClientRect();
-          const x = (e.clientX - rect.left - rect.width / 2) / 18;
-          const y = (e.clientY - rect.top - rect.height / 2) / 18;
-          card.style.transform = `translate(${-Math.max(-6, Math.min(6, x))}px, ${-Math.max(-5, Math.min(5, y))}px)`;
+          const x = (e.clientX - rect.left - rect.width / 2) / 22;
+          const y = (e.clientY - rect.top - rect.height / 2) / 22;
+          card.style.transform = `translate(${-Math.max(-4, Math.min(4, x))}px, ${-Math.max(-4, Math.min(4, y))}px)`;
         }}
         onMouseLeave={(e)=>{ e.currentTarget.style.transform = "translate(0,0)"; }}
         style={{
@@ -4370,17 +4363,48 @@ function DonateBanner({ active, setActive }) {
           background:"#1c1b1b",
           color:"#ffffff",
           border:"2px solid #000000",
-          borderRadius:"0px",
-          padding:"14px 14px 14px",
+          borderRight:"0",
+          borderRadius:"0 0 0 0",
+          padding:expanded ? "10px 12px 11px" : "10px 8px",
           textAlign:"center",
-          boxShadow:"7px 7px 0 #000000, 0 14px 34px rgba(0,0,0,.32)",
+          boxShadow:expanded ? "6px 6px 0 #000000, 0 12px 28px rgba(0,0,0,.30)" : "4px 4px 0 #000000, 0 10px 22px rgba(0,0,0,.22)",
           fontFamily:getFont(theme,"secondary"),
-          transition:"transform .18s ease, box-shadow .18s ease",
-          overflow:"visible"
+          transition:"transform .18s ease, box-shadow .18s ease, padding .24s ease",
+          overflow:"visible",
+          minHeight:expanded ? "auto" : "132px"
         }}
       >
-        <div style={{ position:"absolute", top:"-2px", right:"-2px", width:"13px", height:"13px", background:"#001551", borderLeft:"2px solid #000", borderBottom:"2px solid #000" }} />
-        <div style={{ position:"absolute", bottom:"-2px", left:"-2px", width:"13px", height:"13px", background:"#db3327", borderRight:"2px solid #000", borderTop:"2px solid #000" }} />
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          style={{
+            position:"absolute",
+            left:"-2px",
+            top:"-2px",
+            bottom:"-2px",
+            width:"36px",
+            border:"2px solid #000",
+            background:"#db3327",
+            color:"#fff",
+            display:expanded ? "none" : "grid",
+            placeItems:"center",
+            cursor:"pointer",
+            boxShadow:"3px 3px 0 #000",
+            writingMode:"vertical-rl",
+            textOrientation:"mixed",
+            fontFamily:"'Space Grotesk', Inter, sans-serif",
+            fontSize:"9px",
+            fontWeight:900,
+            letterSpacing:".16em",
+            textTransform:"uppercase"
+          }}
+          aria-label="Expandir banner de donación"
+        >
+          Donar
+        </button>
+
+        <div style={{ position:"absolute", top:"-2px", right:"0", width:"11px", height:"11px", background:"#001551", borderLeft:"2px solid #000", borderBottom:"2px solid #000" }} />
+        <div style={{ position:"absolute", bottom:"-2px", left:"-2px", width:"11px", height:"11px", background:"#db3327", borderRight:"2px solid #000", borderTop:"2px solid #000" }} />
 
         <button
           type="button"
@@ -4394,7 +4418,7 @@ function DonateBanner({ active, setActive }) {
               spark.style.position = 'fixed';
               spark.style.left = centerX + 'px';
               spark.style.top = centerY + 'px';
-              spark.style.width = `${Math.random()*8+6}px`;
+              spark.style.width = `${Math.random()*7+5}px`;
               spark.style.height = spark.style.width;
               spark.style.borderRadius = '999px';
               spark.style.background = i % 2 ? '#ffdad6' : '#db3327';
@@ -4403,36 +4427,36 @@ function DonateBanner({ active, setActive }) {
               spark.style.transition = `all ${Math.random() * .7 + .8}s ease-out`;
               document.body.appendChild(spark);
               requestAnimationFrame(() => {
-                spark.style.transform = `translate(${(Math.random() - .5) * 110}px, -${Math.random() * 140 + 42}px) scale(.2)`;
+                spark.style.transform = `translate(${(Math.random() - .5) * 90}px, -${Math.random() * 110 + 36}px) scale(.2)`;
                 spark.style.opacity = '0';
               });
-              setTimeout(() => spark.remove(), 1600);
+              setTimeout(() => spark.remove(), 1500);
             }
           }}
           style={{
-            width:"46px",
-            height:"46px",
-            margin:"0 auto 10px",
+            width:"39px",
+            height:"39px",
+            margin:"0 auto 8px",
             background:"#db3327",
             border:"2px solid #000",
-            display:"grid",
+            display:expanded ? "grid" : "none",
             placeItems:"center",
             transform:"rotate(3deg)",
-            boxShadow:"4px 4px 0 #000",
+            boxShadow:"3px 3px 0 #000",
             cursor:"pointer",
             color:"#fff"
           }}
           aria-label="Efecto de apoyo"
         >
-          <IconDonate size={25} />
+          <IconDonate size={21} />
         </button>
 
-        <div style={{ display:"grid", gap:"7px", marginBottom:"12px" }}>
-          <div style={{ fontFamily:"'Space Grotesk', Inter, sans-serif", fontSize:"clamp(18px, 4.8vw, 23px)", fontWeight:900, lineHeight:1.03, letterSpacing:"-.045em", textTransform:"uppercase" }}>
+        <div style={{ display:expanded ? "grid" : "none", gap:"6px", marginBottom:"10px" }}>
+          <div style={{ fontFamily:"'Space Grotesk', Inter, sans-serif", fontSize:"clamp(15px, 3.8vw, 19px)", fontWeight:900, lineHeight:1.03, letterSpacing:"-.045em", textTransform:"uppercase" }}>
             ¿Te está siendo útil CONECT MANZANILLO?
           </div>
-          <div style={{ maxWidth:"210px", margin:"0 auto", color:"rgba(255,255,255,.70)", fontSize:"11.5px", lineHeight:1.25 }}>
-            Cada donativo ayuda a mantener activa la plataforma para la comunidad portuaria.
+          <div style={{ maxWidth:"185px", margin:"0 auto", color:"rgba(255,255,255,.70)", fontSize:"10.5px", lineHeight:1.25 }}>
+            Cada donativo ayuda a mantener activa la plataforma.
           </div>
         </div>
 
@@ -4441,42 +4465,45 @@ function DonateBanner({ active, setActive }) {
           onClick={goToDonativos}
           style={{
             width:"100%",
-            minHeight:"38px",
+            minHeight:"34px",
             background:"#b71511",
             color:"#ffffff",
             border:"2px solid #000",
             borderRadius:"8px",
-            boxShadow:"4px 4px 0 #000",
+            boxShadow:"3px 3px 0 #000",
             fontFamily:"'Space Grotesk', Inter, sans-serif",
-            fontSize:"9px",
+            fontSize:"8.5px",
             fontWeight:900,
-            letterSpacing:".18em",
+            letterSpacing:".16em",
             textTransform:"uppercase",
             cursor:"pointer",
-            display:"inline-flex",
+            display:expanded ? "inline-flex" : "none",
             alignItems:"center",
             justifyContent:"center",
-            gap:"8px",
+            gap:"7px",
             transition:"transform .15s ease, box-shadow .15s ease"
           }}
-          onMouseDown={e=>{ e.currentTarget.style.transform="translate(3px,3px)"; e.currentTarget.style.boxShadow="1px 1px 0 #000"; }}
-          onMouseUp={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="4px 4px 0 #000"; }}
-          onMouseLeave={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="4px 4px 0 #000"; }}
+          onMouseDown={e=>{ e.currentTarget.style.transform="translate(2px,2px)"; e.currentTarget.style.boxShadow="1px 1px 0 #000"; }}
+          onMouseUp={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="3px 3px 0 #000"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="3px 3px 0 #000"; }}
         >
           Ver opciones
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{display:"block"}}><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style={{display:"block"}}><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
 
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"13px", paddingTop:"10px", opacity:.78 }}>
+        <div style={{ display:expanded ? "flex" : "none", alignItems:"center", justifyContent:"center", gap:"11px", paddingTop:"9px", opacity:.78 }}>
           <MiniIcon name="qr" />
           <MiniIcon name="contactless" />
           <MiniIcon name="bank" />
         </div>
       </div>
       <style>{`
-        @keyframes cmDonateBannerIn {
-          from { opacity:0; transform:translateX(36px) translateY(18px) scale(.94); }
-          to { opacity:1; transform:translateX(0) translateY(0) scale(1); }
+        @keyframes cmDonateBannerSlideIn {
+          from { transform: translateX(26px) scale(.97); opacity:.72; }
+          to { transform: translateX(0) scale(1); opacity:1; }
+        }
+        @media (max-width: 640px) {
+          [aria-label="Expandir banner de donación"] { min-height: 118px; }
         }
       `}</style>
     </div>
