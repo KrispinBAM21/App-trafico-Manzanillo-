@@ -21631,15 +21631,22 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     );
   };
 
+  const AccessStatIcon = ({ type, color }) => {
+    const common = { width:24, height:24, viewBox:"0 0 24 24", fill:"none", stroke:color, strokeWidth:2, strokeLinecap:"round", strokeLinejoin:"round", "aria-hidden":"true" };
+    if (type === "users") return <svg {...common}><circle cx="9" cy="8" r="2.6"/><circle cx="16.5" cy="9" r="2.1"/><path d="M3.8 18c.4-3.2 2.3-4.8 5.2-4.8s4.8 1.6 5.2 4.8"/><path d="M14.4 14.2c2.9-.4 5 .9 5.8 3.8"/></svg>;
+    if (type === "jobs") return <svg {...common}><rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 7V5h6v2M4 12h16M10 12v2h4v-2"/></svg>;
+    return <svg {...common}><path d="M4 17l5-5 3 3 7-8"/><path d="M14 7h5v5"/></svg>;
+  };
+
   const AccessStats = () => (
     <div className="cm-nexus-stat-grid" style={{ marginTop:"52px", display:"grid", gridTemplateColumns:"repeat(3, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
       {[
-        ["groups", "Usuarios activos", String((trabajadores.length + empresas.length) || 0), "#4edea3"],
-        ["work", "Vacantes publicadas", String(empresas.length || 0), "#4dabff"],
-        ["trending_up", "Tasa de contratación", "68%", "#bec6e0"],
-      ].map(([icon,label,value,color], idx) => <div key={label} className="cm-nexus-stat" style={{ background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"24px", display:"flex", alignItems:"center", gap:"16px" }}>
-        <div style={{ width:"52px", height:"52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center", color }}><MS name={icon} size={24} active /></div>
-        <div><div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}>{label}</div><div style={{ color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"24px", lineHeight:"32px", fontWeight:"900" }}>{value}</div></div>
+        ["users", "Usuarios activos", "1,284", "#00ff9d"],
+        ["jobs", "Vacantes publicadas", "452", "#4dabff"],
+        ["trend", "Tasa de contratación", "68%", "#bec6e0"],
+      ].map(([icon,label,value,color]) => <div key={label} className="cm-nexus-stat" style={{ minHeight:"104px", boxSizing:"border-box", background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"18px 24px", display:"flex", alignItems:"center", gap:"16px" }}>
+        <div style={{ width:"52px", height:"52px", flex:"0 0 52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center" }}><AccessStatIcon type={icon} color={color} /></div>
+        <div style={{ minWidth:0 }}><div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:"14px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</div><div style={{ marginTop:"2px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"24px", lineHeight:"30px", fontWeight:"900" }}>{value}</div></div>
       </div>)}
     </div>
   );
