@@ -19875,6 +19875,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [empresas, setEmpresas] = useState([]);
   const [ratings, setRatings] = useState([]);
   const [quejas, setQuejas] = useState([]);
+  const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [filtroEstatus, setFiltroEstatus] = useState("todos");
@@ -20273,6 +20274,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
       });
       setTrabajadores((t || []).filter(row => !isProfileBanned(row))); setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row))); setRatings(r || []); setQuejas(qj || []);
+      // Centro de notificaciones: la tabla es opcional para no romper instalaciones antiguas.
+      try {
+        const { data:notifRows } = await sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false });
+        const visibleNotifications = (notifRows || []).filter(n => {
+          if (isAdmin) return true;
+          if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
+          if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
+          return false;
+        });
+        setNotificaciones(visibleNotifications);
+      } catch { setNotificaciones([]); }
       const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId);
       const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
       setShowReminder(!!authUser && stale);
@@ -21507,6 +21519,35 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
+  const NotificationsCenter = () => {
+    const ownWorkerIds = new Set(trabajadores.filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId).map(x => String(x.id)));
+    const ownCompanyIds = new Set(empresas.filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId).map(x => String(x.id)));
+    const relatedRatings = ratings.filter(r => ownWorkerIds.has(String(r.profile_id)) || ownCompanyIds.has(String(r.profile_id)));
+    const systemItems = [];
+    if (!authUser && !isAdmin) systemItems.push({ id:"access", titulo:"Inicia sesión para recibir notificaciones", mensaje:"Las postulaciones, intentos de contacto y cambios de estado aparecerán aquí cuando accedas con tu cuenta.", tipo:"info", created_at:new Date().toISOString(), leida:false });
+    if (authUser && ownWorkerIds.size === 0 && ownCompanyIds.size === 0) systemItems.push({ id:"profile", titulo:"Completa tu perfil", mensaje:"Crea un perfil de postulante o empresa para empezar a recibir actividad relacionada con Posturas.", tipo:"perfil", created_at:new Date().toISOString(), leida:false });
+    relatedRatings.slice(0,5).forEach(r => systemItems.push({ id:`rating-${r.id}`, titulo:"Nueva valoración en tu perfil", mensaje:r.comment || `Tu perfil recibió una valoración de ${r.stars || 0} estrellas.`, tipo:"valoracion", created_at:r.created_at, leida:true }));
+    if (isAdmin && quejas.filter(q => !q.aprobado).length) systemItems.push({ id:"pending-complaints", titulo:"Quejas pendientes de revisión", mensaje:`Hay ${quejas.filter(q => !q.aprobado).length} reporte(s) pendientes en Posturas.`, tipo:"queja", created_at:new Date().toISOString(), leida:false });
+    const items = [...notificaciones, ...systemItems].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+    const markRead = async (row) => {
+      if (!row?.id || String(row.id).includes("-") || row.leida || row.read_at) return;
+      try { await sb.from("posturas_notificaciones").update({ leida:true, read_at:new Date().toISOString() }).eq("id", row.id); } catch {}
+      setNotificaciones(prev => prev.map(n => n.id === row.id ? { ...n, leida:true, read_at:new Date().toISOString() } : n));
+    };
+    const typeIcon = (row) => row.tipo === "contacto" ? "call" : row.tipo === "postulacion" ? "person_add" : row.tipo === "queja" ? "report" : row.tipo === "valoracion" ? "star" : "notifications";
+    return <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:posturasMobile?"18px":"28px", minHeight:"calc(100vh - 144px)" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"16px", flexWrap:"wrap", marginBottom:"22px" }}>
+        <div><h2 style={{ margin:0, color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(26px,4vw,38px)", fontWeight:"900" }}>Notificaciones</h2><p style={{ margin:"7px 0 0", color:"rgba(212,228,250,.66)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.55 }}>Actividad de postulaciones, intentos de contacto, valoraciones y cambios importantes de tu cuenta.</p></div>
+        <div style={{ padding:"9px 13px", borderRadius:"999px", background:"rgba(0,150,255,.12)", border:"1px solid rgba(0,150,255,.30)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".08em" }}>{items.filter(x=>!x.leida&&!x.read_at).length} SIN LEER</div>
+      </div>
+      <div style={{ display:"grid", gap:"12px" }}>{items.length ? items.map((row,i)=><button key={row.id || i} onClick={()=>markRead(row)} style={{ width:"100%", display:"grid", gridTemplateColumns:"48px minmax(0,1fr) auto", gap:"14px", alignItems:"center", padding:"16px", borderRadius:"16px", border:`1px solid ${!row.leida&&!row.read_at?"rgba(161,201,255,.34)":"rgba(63,71,83,.34)"}`, background:!row.leida&&!row.read_at?"rgba(161,201,255,.08)":"rgba(13,28,45,.48)", color:"inherit", textAlign:"left", cursor:"pointer" }}>
+        <span style={{ width:"48px", height:"48px", borderRadius:"14px", display:"grid", placeItems:"center", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.20)" }}><MS name={typeIcon(row)} size={23} active /></span>
+        <span style={{ minWidth:0 }}><strong style={{ display:"block", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"14px", marginBottom:"4px" }}>{row.titulo || row.title || "Nueva notificación"}</strong><span style={{ display:"block", color:"rgba(212,228,250,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.5 }}>{row.mensaje || row.message || row.descripcion || "Hay nueva actividad en Posturas."}</span></span>
+        <span style={{ color:"rgba(212,228,250,.42)", fontSize:"10px", whiteSpace:"nowrap" }}>{row.created_at ? new Date(row.created_at).toLocaleDateString("es-MX", { day:"2-digit", month:"short" }) : ""}</span>
+      </button>) : <div style={{ padding:"40px 20px", textAlign:"center", border:"1px dashed rgba(63,71,83,.55)", borderRadius:"16px", color:"rgba(212,228,250,.48)" }}><MS name="notifications_none" size={34} active /><div style={{ marginTop:"10px", fontWeight:"800" }}>Todavía no tienes notificaciones.</div></div>}</div>
+    </section>;
+  };
+
   const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px", border:"1px solid rgba(239,68,68,.28)"}}>
     <div style={{ color:"#fff", fontWeight:"900", marginBottom:"4px" }}>Quejas y reportes de Posturas</div>
     <div style={{ color:"rgba(255,255,255,.52)", fontSize:"11px", marginBottom:"8px", lineHeight:1.5 }}>Aquí llegan reportes de empresas, vacantes y perfiles de postulantes. Desde las tarjetas del perfil puedes aplicar advertencia, bloqueo, baneo o borrar/ocultar.</div>
@@ -21525,9 +21566,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const sidebarNav = [
     { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("tablero"); setPosturasMode("list"); setDashboardTarget("perfiles"); setTalentView("todos"); } },
     { id:"posturas", label:"Posturas", icon:"work", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    { id:"notificaciones", label:"Notificaciones", icon:"notifications", onClick:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
+    ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
   ];
   const activeSidebarId = posturasMode === "archive" ? "archivo" : sub;
   const segmentButton = (id, label) => {
@@ -21760,6 +21803,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const MobilePosturasShell = () => {
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
+    if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
+    if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
@@ -21769,7 +21814,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
       {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["archivo","inventory_2","Archivo"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="archivo"){setSub("posturas"); setPosturasMode("archive");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
+      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["notificaciones","notifications","Avisos"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
     </div>;
   };
 
@@ -21818,10 +21863,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
           <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
-          <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
-          </div>
         </div>
       </aside>
 
@@ -21833,6 +21874,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
         {sub === "donativos" && <DonativosTab embedded />}
         {sub === "boletinados" && renderBoletinadosTab()}
+        {sub === "notificaciones" && <NotificationsCenter />}
+        {sub === "quejas" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></section>}
         {sub === "tablero" && <DashboardHub />}
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
         {sub === "posturas" && posturasMode === "form" && (
