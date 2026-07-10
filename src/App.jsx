@@ -4275,101 +4275,210 @@ function AdminCalculadoraPanel() {
 }
 
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
-function DonateBanner({ active }) {
+function DonateBanner({ active, setActive }) {
   const theme = React.useContext(ThemeContext);
   const [visible, setVisible] = useState(false);
-  const [exiting, setExiting] = useState(false);
-  const shownRef = useRef(null);
+  const [phase, setPhase] = useState("idle");
+  const cycleRef = useRef({ showTimer:null, hideTimer:null, repeatTimer:null });
 
-  const hide = () => {
-    setExiting(true);
-    setTimeout(() => { setVisible(false); setExiting(false); }, 400);
+  const clearCycle = () => {
+    Object.values(cycleRef.current).forEach(timer => timer && clearTimeout(timer));
+    cycleRef.current = { showTimer:null, hideTimer:null, repeatTimer:null };
+  };
+
+  const hideBanner = () => {
+    setPhase("out");
+    cycleRef.current.hideTimer = setTimeout(() => {
+      setVisible(false);
+      setPhase("idle");
+    }, 460);
   };
 
   useEffect(() => {
-    // No mostrar en la sección de donativos
-    if (active === "donativos") return;
-    // Cada vez que cambia de sección, esperar 8s y mostrar
-    if (shownRef.current === active) return;
-    shownRef.current = active;
+    clearCycle();
     setVisible(false);
-    setExiting(false);
-    const showTimer = setTimeout(() => setVisible(true), 8000);
-    // Auto-ocultar después de 6s de mostrarse
-    const hideTimer = setTimeout(() => hide(), 14000);
-    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+    setPhase("idle");
+
+    if (active === "inicio") return () => clearCycle();
+
+    const schedule = (delay = 8500) => {
+      cycleRef.current.showTimer = setTimeout(() => {
+        setVisible(true);
+        setPhase("in");
+        cycleRef.current.hideTimer = setTimeout(() => {
+          hideBanner();
+          cycleRef.current.repeatTimer = setTimeout(() => schedule(0), 36000);
+        }, 7200);
+      }, delay);
+    };
+
+    schedule();
+    return () => clearCycle();
   }, [active]);
+
+  const goToDonativos = () => {
+    if (typeof setActive === "function") setActive("donativos");
+    hideBanner();
+  };
+
+  const IconDonate = ({ size=32, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ display:"block" }}>
+      <path d="M32 55s-20-12.6-20-29.3A11.6 11.6 0 0 1 32 17.6 11.6 11.6 0 0 1 52 25.7C52 42.4 32 55 32 55Z" fill="none" stroke={color} strokeWidth="4" strokeLinejoin="round" />
+      <path d="M23 33h18" stroke={color} strokeWidth="4" strokeLinecap="round" />
+      <path d="M32 24v18" stroke={color} strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+
+  const MiniIcon = ({ name }) => {
+    const common = { width:20, height:20, viewBox:"0 0 24 24", fill:"none", stroke:"rgba(255,255,255,.72)", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"block"} };
+    if (name === "qr") return <svg {...common}><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 14h2M14 18h6"/></svg>;
+    if (name === "contactless") return <svg {...common}><path d="M7 8a6 6 0 0 1 0 8"/><path d="M11 6a9 9 0 0 1 0 12"/><path d="M15 4a12 12 0 0 1 0 16"/></svg>;
+    return <svg {...common}><path d="M4 10h16"/><path d="M6 10V7l6-3 6 3v3"/><path d="M7 10v8M12 10v8M17 10v8"/><path d="M5 18h14"/></svg>;
+  };
 
   if (!visible) return null;
 
+  const isOut = phase === "out";
+
   return (
-    <div style={{
-      position: "fixed",
-      bottom: "80px",
-      left: "50%",
-      transform: `translateX(-50%) translateY(${exiting ? "20px" : "0px"})`,
-      opacity: exiting ? 0 : 1,
-      transition: "opacity 0.4s ease, transform 0.4s ease",
-      width: "calc(100% - 32px)",
-      maxWidth: "420px",
-      zIndex: 500,
-      pointerEvents: "auto",
-    }}>
-      <div style={{
-        background: "rgba(6, 14, 26, 0.92)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        border: "1px solid rgba(56,189,248,0.3)",
-        borderLeft: "3px solid #38bdf8",
-        borderRadius: "14px",
-        padding: "12px 14px",
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.1)",
-      }}>
-        <AppIcon name="anchor-port" size={24} active={true} style={{ flexShrink:0 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "11px", color: "#e2e8f0", marginBottom: "2px" }}>
-            ¿Te está siendo útil esta app?
+    <div
+      style={{
+        position:"fixed",
+        right:"max(16px, env(safe-area-inset-right))",
+        bottom:"calc(118px + env(safe-area-inset-bottom))",
+        width:"min(340px, calc(100vw - 32px))",
+        zIndex:600,
+        pointerEvents:"none",
+        opacity:isOut ? 0 : 1,
+        transform:isOut ? "translateX(28px) scale(.96)" : "translateX(0) scale(1)",
+        transition:"opacity .42s ease, transform .42s cubic-bezier(.175,.885,.32,1.275)",
+        animation:"cmDonateBannerIn .42s cubic-bezier(.175,.885,.32,1.275) both"
+      }}
+    >
+      <div
+        onMouseMove={(e)=>{
+          const card = e.currentTarget;
+          const rect = card.getBoundingClientRect();
+          const x = (e.clientX - rect.left - rect.width / 2) / 18;
+          const y = (e.clientY - rect.top - rect.height / 2) / 18;
+          card.style.transform = `translate(${-Math.max(-6, Math.min(6, x))}px, ${-Math.max(-5, Math.min(5, y))}px)`;
+        }}
+        onMouseLeave={(e)=>{ e.currentTarget.style.transform = "translate(0,0)"; }}
+        style={{
+          pointerEvents:"auto",
+          position:"relative",
+          background:"#1c1b1b",
+          color:"#ffffff",
+          border:"3px solid #000000",
+          borderRadius:"0px",
+          padding:"22px 20px 20px",
+          textAlign:"center",
+          boxShadow:"10px 10px 0 #000000, 0 18px 44px rgba(0,0,0,.36)",
+          fontFamily:getFont(theme,"secondary"),
+          transition:"transform .18s ease, box-shadow .18s ease",
+          overflow:"visible"
+        }}
+      >
+        <div style={{ position:"absolute", top:"-3px", right:"-3px", width:"18px", height:"18px", background:"#001551", borderLeft:"2px solid #000", borderBottom:"2px solid #000" }} />
+        <div style={{ position:"absolute", bottom:"-3px", left:"-3px", width:"18px", height:"18px", background:"#db3327", borderRight:"2px solid #000", borderTop:"2px solid #000" }} />
+
+        <button
+          type="button"
+          onClick={(e)=>{
+            const host = e.currentTarget;
+            const rect = host.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            for (let i = 0; i < 6; i++) {
+              const spark = document.createElement('div');
+              spark.style.position = 'fixed';
+              spark.style.left = centerX + 'px';
+              spark.style.top = centerY + 'px';
+              spark.style.width = `${Math.random()*8+6}px`;
+              spark.style.height = spark.style.width;
+              spark.style.borderRadius = '999px';
+              spark.style.background = i % 2 ? '#ffdad6' : '#db3327';
+              spark.style.pointerEvents = 'none';
+              spark.style.zIndex = '9999';
+              spark.style.transition = `all ${Math.random() * .7 + .8}s ease-out`;
+              document.body.appendChild(spark);
+              requestAnimationFrame(() => {
+                spark.style.transform = `translate(${(Math.random() - .5) * 110}px, -${Math.random() * 140 + 42}px) scale(.2)`;
+                spark.style.opacity = '0';
+              });
+              setTimeout(() => spark.remove(), 1600);
+            }
+          }}
+          style={{
+            width:"64px",
+            height:"64px",
+            margin:"0 auto 18px",
+            background:"#db3327",
+            border:"2px solid #000",
+            display:"grid",
+            placeItems:"center",
+            transform:"rotate(3deg)",
+            boxShadow:"5px 5px 0 #000",
+            cursor:"pointer",
+            color:"#fff"
+          }}
+          aria-label="Efecto de apoyo"
+        >
+          <IconDonate size={34} />
+        </button>
+
+        <div style={{ display:"grid", gap:"10px", marginBottom:"18px" }}>
+          <div style={{ fontFamily:"'Space Grotesk', Inter, sans-serif", fontSize:"clamp(23px, 5.6vw, 32px)", fontWeight:900, lineHeight:1.02, letterSpacing:"-.05em", textTransform:"uppercase" }}>
+            ¿Te está siendo útil CONECT MANZANILLO?
           </div>
-          <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.45)", lineHeight: "1.4" }}>
-            Cada donativo ayuda a mantenerla viva 🙏
+          <div style={{ maxWidth:"246px", margin:"0 auto", color:"rgba(255,255,255,.70)", fontSize:"14px", lineHeight:1.25 }}>
+            Cada donativo ayuda a mantener activa la plataforma para la comunidad portuaria.
           </div>
         </div>
-        <a
-          href="https://ko-fi.com/conectmanzanillo"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: "none", flexShrink: 0 }}
-          onClick={hide}
-        >
-          <div style={{
-            background: "linear-gradient(135deg,#38bdf8,#818cf8)",
-            borderRadius: "8px",
-            padding: "7px 13px",
-            fontFamily: getFont(theme, "secondary"),
-            fontSize: "10px",
-            fontWeight: "700",
-            color: "#0a0f1e",
-            letterSpacing: "0.5px",
-            whiteSpace: "nowrap",
-          }}>💙 DONAR</div>
-        </a>
+
         <button
-          onClick={hide}
+          type="button"
+          onClick={goToDonativos}
           style={{
-            background: "transparent",
-            border: "none",
-            color: "rgba(255,255,255,0.25)",
-            cursor: "pointer",
-            fontSize: "16px",
-            padding: "0 2px",
-            flexShrink: 0,
-            lineHeight: 1,
+            width:"100%",
+            minHeight:"50px",
+            background:"#b71511",
+            color:"#ffffff",
+            border:"2px solid #000",
+            borderRadius:"10px",
+            boxShadow:"6px 6px 0 #000",
+            fontFamily:"'Space Grotesk', Inter, sans-serif",
+            fontSize:"10px",
+            fontWeight:900,
+            letterSpacing:".18em",
+            textTransform:"uppercase",
+            cursor:"pointer",
+            display:"inline-flex",
+            alignItems:"center",
+            justifyContent:"center",
+            gap:"8px",
+            transition:"transform .15s ease, box-shadow .15s ease"
           }}
-        >✕</button>
+          onMouseDown={e=>{ e.currentTarget.style.transform="translate(4px,4px)"; e.currentTarget.style.boxShadow="2px 2px 0 #000"; }}
+          onMouseUp={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="6px 6px 0 #000"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="6px 6px 0 #000"; }}
+        >
+          Ver opciones
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{display:"block"}}><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"20px", paddingTop:"16px", opacity:.78 }}>
+          <MiniIcon name="qr" />
+          <MiniIcon name="contactless" />
+          <MiniIcon name="bank" />
+        </div>
       </div>
+      <style>{`
+        @keyframes cmDonateBannerIn {
+          from { opacity:0; transform:translateX(36px) translateY(18px) scale(.94); }
+          to { opacity:1; transform:translateX(0) translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -26452,7 +26561,7 @@ function App() {
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
         
-        <DonateBanner active={active} />
+        <DonateBanner active={active} setActive={setActive} />
       </div>
 
       {/* Modal Admin — fuera de cualquier stacking context */}
