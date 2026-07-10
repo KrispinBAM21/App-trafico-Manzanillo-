@@ -7420,7 +7420,10 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
             {isAdmin ? (
               <button type="button" className="cm-login-btn" onClick={logout}>ADMIN · Salir</button>
             ) : authUser ? (
-              <button type="button" className="cm-login-btn" onClick={onAccountClick}>{showSessionMenu ? "Cerrar menú" : "Mi cuenta"}</button>
+              <button type="button" className="cm-login-btn" onClick={onAccountClick} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
+                <AppIcon name="user" size={17} active />
+                {showSessionMenu ? "Cerrar menú" : "MI PERFIL"}
+              </button>
             ) : (
               <>
                 <button type="button" className="cm-login-btn" onClick={onLogin}>Iniciar sesión</button>
@@ -21339,14 +21342,36 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <AccessStats />
             <div style={{ marginTop:"48px" }}><AdminSalaryControlPanel /></div>
           </div>
+        ) : (!authUser || (!myLatestTrabajador && !myLatestEmpresa)) ? (
+          <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
+            <header style={{ marginBottom:"48px", maxWidth:"780px" }}>
+              <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Gestión de Perfiles</h1>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Selecciona el tipo de perfil que deseas crear para ingresar al flujo correcto de Posturas.</p>
+            </header>
+            <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0,1fr))", gap:"24px" }}>
+              <AccessOptionCard
+                type="worker"
+                icon="assignment_ind"
+                title="Perfil de trabajador"
+                description="Crea tu perfil para publicar disponibilidad, documentación y expectativas económicas."
+                onClick={() => { persistPosturasUserType("postulante"); openAccessSelector("register"); }}
+              />
+              <AccessOptionCard
+                type="employer"
+                icon="corporate_fare"
+                title="Perfil de empresario"
+                description="Crea el perfil de tu empresa para gestionar contactos, vacantes y currículums."
+                onClick={() => { persistPosturasUserType("empresa"); openAccessSelector("register"); }}
+              />
+            </div>
+          </div>
         ) : (
           <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1, display:"grid", gap:"22px" }}>
             <header style={{ maxWidth:"760px" }}>
               <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"10px" }}>Mi perfil</div>
               <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Editar perfil</h1>
-              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px" }}>Edita la información ligada a tu cuenta. Si todavía no tienes perfil, primero crea el tipo que corresponde.</p>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px" }}>Edita la información ligada a tu cuenta sin crear perfiles duplicados.</p>
             </header>
-            {!authUser && <div style={{ padding:"22px", borderRadius:"18px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"800", lineHeight:1.6 }}>Para editar información publicada, primero inicia sesión o crea una cuenta.</div>}
             <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"24px" }}>
               <UserEditCard type="trabajador" row={myLatestTrabajador} />
               <UserEditCard type="empresa" row={myLatestEmpresa} />
@@ -21695,7 +21720,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
       {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["archivo","inventory_2","Archivo"],["perfil","person_circle","Perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="archivo"){setSub("posturas"); setPosturasMode("archive");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
+      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["archivo","inventory_2","Archivo"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="archivo"){setSub("posturas"); setPosturasMode("archive");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="archivo"&&posturasMode==="archive")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
     </div>;
   };
 
@@ -21719,7 +21744,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
               className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={32} /></span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+                <ProfileButtonIcon size={32} />
+                <span style={{ color:"#d4e4fa", whiteSpace:"nowrap" }}>MI PERFIL</span>
+              </span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
             </button>
             {profileMenuOpen && (
