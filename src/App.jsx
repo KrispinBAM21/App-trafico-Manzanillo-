@@ -13882,6 +13882,8 @@ function SegundoAccesoTab({ myId }) {
   const [subTab, setSubTab] = useState("segundo");
   const [segundoLegendOpen, setSegundoLegendOpen] = useState(false);
   const [selectedSecondLane, setSelectedSecondLane] = useState("c4");
+  const [confinadaLegendOpen, setConfinadaLegendOpen] = useState(false);
+  const [selectedConfinadaLane, setSelectedConfinadaLane] = useState("cf_c1");
   const [terminalSearch, setTerminalSearch] = useState({}); // { [carrilId]: string } — filtro en vivo del buscador de terminal
   const [pendingKeys, setPendingKeys] = useState({}); // { "carrilId:field": true } — feedback optimista mientras confirma el servidor
 
@@ -14729,90 +14731,220 @@ function SegundoAccesoTab({ myId }) {
           SUB-TAB: CONFINADA
       ════════════════════════════════════════════════════ */}
       {subTab === "confinada" && <>
-        {/* ── MINI-MAPA VIAL CONFINADA — compacto ── */}
+        {/* ── DIAGRAMA CONFINADA — vista industrial 3D ── */}
         {(() => {
-          const getCarrilColor = (id) => {
-            const st = confinada[id];
-            if (!st) return "#6b7280";
-            const opt = getCarrilEstadoOpt(st);
-            if (opt.id !== "libre") return opt.color;
-            if (st.transferencia) return "#fbbf24";
-            return "#22c55e";
+          const statusBrief = {
+            libre: "Flujo óptimo, mínima espera",
+            lento: "Tráfico lento con avance",
+            moderado: "Densidad operativa media",
+            saturado: "Alta capacidad, demoras fuertes",
+            bloqueo: "Carril bloqueado u obstruido",
+            cerrado: "Carril cerrado temporalmente",
+            sin_uso: "Carril sin operación"
           };
-          const c1 = getCarrilColor("cf_c1");
-          const c2 = getCarrilColor("cf_c2");
-          const c3 = getCarrilColor("cf_c3");
-
+          const truckCount = (id) => ({ libre:1, lento:2, moderado:2, saturado:3, bloqueo:3, cerrado:0, sin_uso:0 }[id] ?? 1);
           const getTermShort = (id) => {
             const st = confinada[id];
             if (!st) return "—";
             if (getCarrilEstadoId(st) === "sin_uso" || st.terminal === "sin_uso") return "SIN USO";
             if (st.terminal === "general") return "GENERAL";
             const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
-            return found ? found.name : st.terminal.toUpperCase();
+            return found ? found.name : String(st.terminal || "GENERAL").toUpperCase();
           };
-          const t1 = getTermShort("cf_c1");
-          const t2 = getTermShort("cf_c2");
-          const t3 = getTermShort("cf_c3");
-
+          const confinadaLanes = CONFINADA_CARRILES.map((c, idx) => {
+            const st = confinada[c.id] || {};
+            const opt = getCarrilEstadoOpt(st);
+            const accent = opt.id === "libre" && st.transferencia ? "#ffcc00" : opt.id === "libre" ? "#22c55e" : opt.color;
+            return {
+              id: c.id,
+              label: c.label.replace("Carril ", "C"),
+              terminal: getTermShort(c.id),
+              statusId: opt.id,
+              status: opt.label,
+              color: accent,
+              trucks: truckCount(opt.id),
+              selected: selectedConfinadaLane === c.id,
+              glow: idx === 0 ? "green" : idx === 1 ? "magenta" : "red"
+            };
+          });
           return (
-            <div style={{ background:"rgba(4,10,22,0.95)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:"12px", padding:"10px 12px", marginBottom:"16px" }}>
-              {/* Header */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
-                <span style={{ fontSize:"9px", color:"rgba(167,139,250,0.7)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.5px", fontWeight:"700" }}>ZONA CONFINADA · VISTA VIAL</span>
-                <span style={{ fontSize:"9px", color:"rgba(255,255,255,0.25)", fontFamily:getFont(theme, "secondary") }}>→ entrada puerto</span>
+            <div className="cm-conf-shell">
+              <style>{`
+                .cm-conf-shell{position:relative;margin-bottom:18px;border-radius:20px;border:1px solid rgba(255,255,255,.10);background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.12),transparent 34%),linear-gradient(180deg,#050b14 0%,#081120 100%);box-shadow:0 24px 58px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden;min-height:520px;display:grid;grid-template-columns:74px minmax(0,1fr) 74px;}
+                .cm-conf-shell:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:28px 28px;mask-image:radial-gradient(circle at center,black 30%,transparent 82%);pointer-events:none;}
+                .cm-conf-side{position:relative;z-index:3;background:#0a101d;border-right:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;box-shadow:5px 0 20px rgba(0,0,0,.30);}
+                .cm-conf-side.right{border-right:none;border-left:1px solid rgba(255,255,255,.10);box-shadow:-5px 0 20px rgba(0,0,0,.30);}
+                .cm-conf-vertical{display:flex;flex-direction:column;align-items:center;gap:14px;writing-mode:vertical-rl;transform:rotate(180deg);}
+                .cm-conf-side.right .cm-conf-vertical{transform:none;}
+                .cm-conf-v-title{color:#fff;font-family:'DM Sans',sans-serif;font-size:20px;font-weight:950;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap;text-shadow:0 0 20px rgba(255,255,255,.18);}
+                .cm-conf-v-line{width:4px;height:54px;border-radius:999px;background:rgba(34,211,238,.60);box-shadow:0 0 20px rgba(34,211,238,.34);}
+                .cm-conf-side.right .cm-conf-v-line{background:rgba(217,70,239,.60);box-shadow:0 0 20px rgba(217,70,239,.34);}
+                .cm-conf-v-sub{color:#22d3ee;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;white-space:nowrap;}
+                .cm-conf-side.right .cm-conf-v-sub{color:#f0abfc;}
+                .cm-conf-main{position:relative;z-index:2;min-width:0;padding:28px 30px 26px;display:flex;flex-direction:column;gap:22px;overflow:hidden;}
+                .cm-conf-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
+                .cm-conf-kicker{font-family:'DM Sans',sans-serif;font-size:11px;color:#22d3ee;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;}
+                .cm-conf-title{font-family:'DM Sans',sans-serif;color:#fff;font-size:clamp(26px,3.2vw,40px);font-weight:950;letter-spacing:-.045em;text-transform:uppercase;line-height:1.02;}
+                .cm-conf-sub{font-family:'DM Sans',sans-serif;color:rgba(226,232,240,.58);font-size:12px;margin-top:6px;letter-spacing:.05em;}
+                .cm-conf-live{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;border:1px solid rgba(34,197,94,.30);background:rgba(34,197,94,.08);color:#34d399;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;}
+                .cm-conf-stage{flex:1;display:flex;align-items:center;justify-content:center;perspective:980px;min-height:310px;overflow:visible;}
+                .cm-conf-road{width:min(100%,980px);display:flex;flex-direction:column;gap:24px;transform:rotateX(9deg) rotateY(-7deg);transform-style:preserve-3d;}
+                .cm-conf-lane{--lane-color:#22c55e;position:relative;min-height:98px;border-radius:16px;border:2px solid var(--lane-color);background:linear-gradient(180deg,rgba(13,18,27,.98),rgba(4,7,12,.98));box-shadow:0 0 22px color-mix(in srgb,var(--lane-color) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.10);display:grid;grid-template-columns:170px minmax(0,1fr) 210px;align-items:center;gap:16px;padding:18px 28px;cursor:pointer;transition:transform .24s ease,box-shadow .24s ease,border-color .24s ease;overflow:hidden;text-align:left;}
+                .cm-conf-lane:before{content:"";position:absolute;left:0;right:0;top:50%;height:9px;transform:translateY(-50%);background:#ffcc00;opacity:.72;z-index:0;box-shadow:0 0 18px rgba(255,204,0,.22);}
+                .cm-conf-lane:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);opacity:0;transition:opacity .28s ease;pointer-events:none;}
+                .cm-conf-lane:hover{transform:translateZ(22px) translateY(-8px) scale(1.015);box-shadow:0 18px 42px rgba(0,0,0,.46),0 0 28px color-mix(in srgb,var(--lane-color) 38%,transparent),inset 0 1px 0 rgba(255,255,255,.12);}
+                .cm-conf-lane:hover:after{opacity:1;}
+                .cm-conf-lane.is-selected{transform:translateZ(38px) scale(1.045);box-shadow:0 20px 48px rgba(0,0,0,.55),0 0 34px color-mix(in srgb,var(--lane-color) 45%,transparent);outline:2px solid rgba(255,255,255,.88);outline-offset:2px;}
+                .cm-conf-lane-chip{position:relative;z-index:1;width:max-content;min-width:78px;text-align:center;padding:5px 14px;border-radius:999px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.13);color:var(--lane-color);font-family:'DM Sans',sans-serif;font-size:42px;font-weight:950;letter-spacing:-.08em;text-shadow:0 0 16px color-mix(in srgb,var(--lane-color) 65%,transparent);}
+                .cm-conf-center{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;}
+                .cm-conf-terminal{max-width:100%;padding:5px 22px;border-radius:999px;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.18);box-shadow:0 12px 26px rgba(0,0,0,.36);color:#fff;font-family:'DM Sans',sans-serif;font-weight:950;font-size:clamp(18px,2.2vw,30px);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                .cm-conf-trucks{display:flex;align-items:center;justify-content:center;gap:12px;min-height:38px;opacity:.78;transition:opacity .2s;}
+                .cm-conf-lane:hover .cm-conf-trucks{opacity:1;}
+                .cm-conf-truck{display:grid;place-items:center;width:38px;height:38px;color:var(--lane-color);filter:drop-shadow(0 0 10px color-mix(in srgb,var(--lane-color) 58%,transparent));}
+                .cm-conf-status-wrap{position:relative;z-index:1;display:flex;justify-content:flex-end;}
+                .cm-conf-status{border:2px solid var(--lane-color);background:rgba(0,0,0,.92);padding:8px 18px;border-radius:999px;box-shadow:0 0 22px color-mix(in srgb,var(--lane-color) 42%,transparent);color:var(--lane-color);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;}
+                .cm-conf-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+                .cm-conf-route{font-family:'DM Sans',sans-serif;color:rgba(226,232,240,.58);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;}
+                .cm-conf-route strong{color:#22d3ee;}
+                .cm-conf-route.right strong{color:#f0abfc;}
+                .cm-conf-legend-wrap{position:relative;z-index:10;}
+                .cm-conf-legend-btn{width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(17,21,32,.82);backdrop-filter:blur(16px);display:grid;place-items:center;color:#22d3ee;cursor:pointer;box-shadow:0 14px 28px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .18s,background .18s;}
+                .cm-conf-legend-btn:hover{transform:translateY(-2px);background:rgba(255,255,255,.08);}
+                .cm-conf-legend-panel{position:absolute;right:0;bottom:calc(100% + 12px);width:300px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(11,16,26,.96);backdrop-filter:blur(22px);box-shadow:0 22px 55px rgba(0,0,0,.70);padding:16px;transform-origin:bottom right;}
+                .cm-conf-legend-title{font-family:'DM Sans',sans-serif;color:#fff;font-size:12px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.10);margin-bottom:12px;}
+                .cm-conf-legend-list{display:grid;gap:12px;}
+                .cm-conf-legend-row{display:flex;align-items:flex-start;gap:11px;min-width:0;}
+                .cm-conf-legend-dot{width:12px;height:12px;border-radius:999px;flex:0 0 auto;margin-top:3px;box-shadow:0 0 12px currentColor;}
+                .cm-conf-legend-row strong{display:block;color:#f8fafc;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.09em;line-height:1.2;}
+                .cm-conf-legend-row span{display:block;color:rgba(226,232,240,.46);font-family:'DM Sans',sans-serif;font-size:10px;line-height:1.28;margin-top:2px;}
+                .cm-conf-mobile-rail{display:none;}
+                @media (max-width:760px){
+                  .cm-conf-shell{grid-template-columns:1fr;min-height:auto;border-radius:18px;margin-left:-2px;margin-right:-2px;}
+                  .cm-conf-side{display:none;}
+                  .cm-conf-mobile-rail{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative;z-index:3;padding:12px 12px 0;}
+                  .cm-conf-mobile-rail span{display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(10,16,29,.82);font-family:'DM Sans',sans-serif;font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;}
+                  .cm-conf-main{padding:14px 12px 16px;gap:14px;}
+                  .cm-conf-head{align-items:flex-start;}
+                  .cm-conf-title{font-size:22px;letter-spacing:-.025em;}
+                  .cm-conf-sub{font-size:11px;line-height:1.35;}
+                  .cm-conf-live{padding:7px 9px;font-size:8px;letter-spacing:.08em;}
+                  .cm-conf-stage{perspective:none;min-height:auto;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;padding:2px 0 10px;-webkit-overflow-scrolling:touch;}
+                  .cm-conf-road{width:max-content;min-width:100%;gap:12px;transform:none;}
+                  .cm-conf-lane{width:min(690px,calc(100vw - 56px));min-height:122px;grid-template-columns:78px minmax(0,1fr);grid-template-areas:"chip status" "center center";gap:10px;padding:14px 12px;border-radius:14px;}
+                  .cm-conf-lane:hover,.cm-conf-lane.is-selected{transform:translateY(-2px) scale(1.01);outline-width:1px;}
+                  .cm-conf-lane-chip{grid-area:chip;min-width:62px;font-size:28px;padding:5px 10px;letter-spacing:-.06em;}
+                  .cm-conf-center{grid-area:center;gap:7px;align-items:flex-start;}
+                  .cm-conf-terminal{font-size:17px;padding:5px 14px;max-width:100%;}
+                  .cm-conf-trucks{justify-content:flex-start;gap:8px;min-height:28px;}
+                  .cm-conf-truck{width:28px;height:28px;}
+                  .cm-conf-status-wrap{grid-area:status;justify-content:flex-end;}
+                  .cm-conf-status{font-size:10px;padding:6px 10px;letter-spacing:.08em;}
+                  .cm-conf-footer{align-items:flex-end;}
+                  .cm-conf-route{font-size:8px;letter-spacing:.08em;line-height:1.35;}
+                  .cm-conf-legend-btn{width:42px;height:42px;}
+                  .cm-conf-legend-panel{right:0;bottom:calc(100% + 10px);width:min(calc(100vw - 34px),330px);padding:13px;}
+                }
+              `}</style>
+
+              <div className="cm-conf-mobile-rail">
+                <span style={{ color:"#22d3ee" }}>Segundo Acceso · Zona Norte</span>
+                <span style={{ color:"#f0abfc" }}>Puerto Zona Sur</span>
               </div>
 
-              {/* SVG compacto */}
-              <svg viewBox="0 0 300 72" style={{ width:"100%", height:"auto", display:"block" }} xmlns="http://www.w3.org/2000/svg">
-                {/* Fondo carretera */}
-                <rect width="300" height="72" fill="#0a0f1a" rx="6"/>
+              <aside className="cm-conf-side">
+                <div className="cm-conf-vertical">
+                  <h2 className="cm-conf-v-title">Segundo Acceso</h2>
+                  <div className="cm-conf-v-line" />
+                  <span className="cm-conf-v-sub">Zona Norte</span>
+                </div>
+              </aside>
 
-                {/* Zona entrada (derecha) */}
-                <rect x="268" y="0" width="32" height="72" fill="#071828" rx="0"/>
-                <line x1="268" y1="0" x2="268" y2="72" stroke="rgba(56,189,248,0.35)" strokeWidth="1" strokeDasharray="4,3"/>
-                <text x="284" y="40" textAnchor="middle" fill="rgba(56,189,248,0.5)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,284,40)">PUERTO</text>
-
-                {/* Zona salida (izquierda) */}
-                <rect x="0" y="0" width="28" height="72" fill="#071a09" rx="0"/>
-                <line x1="28" y1="0" x2="28" y2="72" stroke="rgba(34,197,94,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
-                <text x="14" y="40" textAnchor="middle" fill="rgba(34,197,94,0.45)" fontSize="5.5" fontFamily="DM Sans,sans-serif" fontWeight="700" transform="rotate(-90,14,40)">2° ACCESO</text>
-
-                {/* ── Carril 1 — franja superior ── */}
-                <rect x="28" y="2" width="240" height="20" fill={c1 + "20"} rx="2"/>
-                <line x1="28" y1="2"  x2="268" y2="2"  stroke={c1} strokeWidth="1.5" opacity="0.6"/>
-                <line x1="28" y1="22" x2="268" y2="22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
-                <rect x="28" y="2" width="3" height="20" fill={c1} opacity="0.9"/>
-                <text x="32" y="15" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C1</text>
-                {/* Terminal en centro */}
-                <text x="148" y="15" textAnchor="middle" fill={c1} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t1}</text>
-
-                {/* ── Carril 2 — franja media ── */}
-                <rect x="28" y="26" width="240" height="20" fill={c2 + "20"} rx="2"/>
-                <line x1="28" y1="26" x2="268" y2="26" stroke={c2} strokeWidth="1.5" opacity="0.6"/>
-                <line x1="28" y1="46" x2="268" y2="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6,5"/>
-                <rect x="28" y="26" width="3" height="20" fill={c2} opacity="0.9"/>
-                <text x="32" y="39" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C2</text>
-                <text x="148" y="39" textAnchor="middle" fill={c2} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t2}</text>
-
-                {/* ── Carril 3 — franja inferior ── */}
-                <rect x="28" y="50" width="240" height="20" fill={c3 + "20"} rx="2"/>
-                <line x1="28" y1="50" x2="268" y2="50" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
-                <line x1="28" y1="70" x2="268" y2="70" stroke={c3} strokeWidth="1.5" opacity="0.6"/>
-                <rect x="28" y="50" width="3" height="20" fill={c3} opacity="0.9"/>
-                <text x="32" y="63" fill="rgba(255,255,255,0.6)" fontSize="6" fontFamily="DM Sans,sans-serif" fontWeight="700">C3</text>
-                <text x="148" y="63" textAnchor="middle" fill={c3} fontSize="6.5" fontFamily="DM Sans,sans-serif" fontWeight="800" opacity="0.9">{t3}</text>
-              </svg>
-
-              {/* Leyenda inline compacta */}
-              <div style={{ display:"flex", gap:"10px", marginTop:"7px", flexWrap:"wrap" }}>
-                {CARRIL_ESTADO_OPTS.filter(o => o.id !== "sin_uso").map(({ color: c, label: l }) => (
-                  <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-                    <div style={{ width:"8px", height:"3px", background:c, borderRadius:"1px" }}/>
-                    <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
+              <div className="cm-conf-main">
+                <div className="cm-conf-head">
+                  <div>
+                    <div className="cm-conf-kicker">CONFINADA · VISTA OPERATIVA</div>
+                    <div className="cm-conf-title">Diagrama de carriles</div>
+                    <div className="cm-conf-sub">Real-time status monitor · Terminal North Entrance</div>
                   </div>
-                ))}
+                  <div className="cm-conf-live"><AppIcon name="status-live" size={14} active /> En vivo</div>
+                </div>
+
+                <div className="cm-conf-stage">
+                  <div className="cm-conf-road">
+                    {confinadaLanes.map(lane => (
+                      <button
+                        key={lane.id}
+                        type="button"
+                        className={`cm-conf-lane ${lane.selected ? "is-selected" : ""}`}
+                        onClick={() => setSelectedConfinadaLane(lane.id)}
+                        style={{ "--lane-color": lane.color }}
+                        title={`${lane.label} · ${lane.status}`}
+                      >
+                        <div className="cm-conf-lane-chip">{lane.label}</div>
+                        <div className="cm-conf-center">
+                          <div className="cm-conf-terminal">{lane.terminal}</div>
+                          <div className="cm-conf-trucks" aria-hidden="true">
+                            {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => (
+                              <span key={i} className="cm-conf-truck">
+                                <AppIcon name="freight-truck" size={32} active />
+                              </span>
+                            )) : <span style={{ color:"rgba(226,232,240,.36)", fontSize:"20px", fontWeight:900 }}>—</span>}
+                          </div>
+                        </div>
+                        <div className="cm-conf-status-wrap">
+                          <div className="cm-conf-status">{lane.status}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="cm-conf-footer">
+                  <div className="cm-conf-route"><strong>←</strong> Conexión segundo acceso</div>
+                  <div
+                    className="cm-conf-legend-wrap"
+                    onMouseEnter={() => setConfinadaLegendOpen(true)}
+                    onMouseLeave={() => setConfinadaLegendOpen(false)}
+                  >
+                    <button
+                      className="cm-conf-legend-btn"
+                      type="button"
+                      onClick={() => setConfinadaLegendOpen(v => !v)}
+                      onFocus={() => setConfinadaLegendOpen(true)}
+                      onBlur={() => setConfinadaLegendOpen(false)}
+                      onTouchStart={() => setConfinadaLegendOpen(true)}
+                      title="Mostrar índice del diagrama"
+                    >
+                      <AppIcon name={confinadaLegendOpen ? "xmark" : "info"} size={22} active />
+                    </button>
+                    {confinadaLegendOpen && (
+                      <div className="cm-conf-legend-panel">
+                        <div className="cm-conf-legend-title">Índice del diagrama</div>
+                        <div className="cm-conf-legend-list">
+                          {CARRIL_ESTADO_OPTS.map(({ id, color, label }) => (
+                            <div className="cm-conf-legend-row" key={id}>
+                              <div className="cm-conf-legend-dot" style={{ background:color, color }} />
+                              <div>
+                                <strong>{label}</strong>
+                                <span>{statusBrief[id] || "Estado operativo del carril"}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="cm-conf-route right"><strong>→</strong> Entrada puerto zona sur</div>
+                </div>
               </div>
+
+              <aside className="cm-conf-side right">
+                <div className="cm-conf-vertical">
+                  <h2 className="cm-conf-v-title">Puerto Zona Sur</h2>
+                  <div className="cm-conf-v-line" />
+                  <span className="cm-conf-v-sub">Pez Vela o Puerta 15</span>
+                </div>
+              </aside>
             </div>
           );
         })()}
