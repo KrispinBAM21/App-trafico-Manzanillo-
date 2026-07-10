@@ -4311,6 +4311,10 @@ function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null }) {
   }, [active, isAdmin, subAdmin]);
 
   const goToDonativos = () => {
+    try {
+      sessionStorage.setItem("cm_open_posturas_subtab", "donativos");
+      window.dispatchEvent(new CustomEvent("cm-open-posturas-subtab", { detail:{ sub:"donativos" } }));
+    } catch {}
     if (typeof setActive === "function") setActive("donativos");
     retractBanner();
   };
@@ -19851,7 +19855,16 @@ function StarRating({ value=0, onRate=null, small=false }) {
 function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
-  const [sub, setSub] = useState("posturas");
+  const [sub, setSub] = useState(() => {
+    try {
+      const requested = sessionStorage.getItem("cm_open_posturas_subtab");
+      if (requested === "donativos") {
+        sessionStorage.removeItem("cm_open_posturas_subtab");
+        return "donativos";
+      }
+    } catch {}
+    return "posturas";
+  });
   const [vista, setVista] = useState("postular");
   const [posturasMode, setPosturasMode] = useState("list");
   const [talentView, setTalentView] = useState("todos");
@@ -19885,6 +19898,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
   });
   const PAGE_SIZE = 8;
+
+  useEffect(() => {
+    const openRequestedSubtab = (event) => {
+      const requested = event?.detail?.sub;
+      if (requested === "donativos") {
+        setSub("donativos");
+        setPosturasMode("list");
+      }
+    };
+    window.addEventListener("cm-open-posturas-subtab", openRequestedSubtab);
+    try {
+      const pending = sessionStorage.getItem("cm_open_posturas_subtab");
+      if (pending === "donativos") {
+        sessionStorage.removeItem("cm_open_posturas_subtab");
+        setSub("donativos");
+        setPosturasMode("list");
+      }
+    } catch {}
+    return () => window.removeEventListener("cm-open-posturas-subtab", openRequestedSubtab);
+  }, []);
 
   const getPisContactUnlockKey = useCallback(() => {
     if (authUser?.id) return `${PIS_CONTACT_UNLOCKED_KEY}:user:${authUser.id}`;
