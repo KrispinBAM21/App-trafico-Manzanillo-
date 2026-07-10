@@ -4275,7 +4275,7 @@ function AdminCalculadoraPanel() {
 }
 
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
-function DonateBanner({ active, setActive }) {
+function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null }) {
   const theme = React.useContext(ThemeContext);
   const [expanded, setExpanded] = useState(false);
   const cycleRef = useRef({ showTimer:null, hideTimer:null, repeatTimer:null });
@@ -4293,7 +4293,8 @@ function DonateBanner({ active, setActive }) {
     clearCycle();
     setExpanded(false);
 
-    if (active === "inicio") return () => clearCycle();
+    const privileged = Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean));
+    if (active === "inicio" || privileged) return () => clearCycle();
 
     const schedule = (delay = 7600) => {
       cycleRef.current.showTimer = setTimeout(() => {
@@ -4307,7 +4308,7 @@ function DonateBanner({ active, setActive }) {
 
     schedule();
     return () => clearCycle();
-  }, [active]);
+  }, [active, isAdmin, subAdmin]);
 
   const goToDonativos = () => {
     if (typeof setActive === "function") setActive("donativos");
@@ -4329,7 +4330,9 @@ function DonateBanner({ active, setActive }) {
     return <svg {...common}><path d="M4 10h16"/><path d="M6 10V7l6-3 6 3v3"/><path d="M7 10v8M12 10v8M17 10v8"/><path d="M5 18h14"/></svg>;
   };
 
-  if (active === "inicio") return null;
+  const hasPrivilegedAccess = Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean));
+
+  if (active === "inicio" || hasPrivilegedAccess) return null;
 
   return (
     <div
@@ -25681,131 +25684,240 @@ function SistemaControlPortuario() {
 }
 
 
-function WhatsAppInviteBubble({ userName = "", isAiActive = false }) {
+function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged = false }) {
   const theme = React.useContext(ThemeContext);
   const [visible, setVisible] = useState(false);
   const pendingRef = useRef(false);
+  const popupRef = useRef(null);
+  const autoHideRef = useRef(null);
 
-  useEffect(() => {
-    const showInvite = () => {
-      if (isAiActive) {
-        pendingRef.current = true;
-        return;
-      }
-      pendingRef.current = false;
-      setVisible(true);
-    };
+  const socialUrls = {
+    facebook: "https://www.facebook.com/conectmanzanillooficial/",
+    instagram: "https://www.instagram.com/conectmanzanillo",
+    tiktok: "https://www.tiktok.com/@conectmanzanillo"
+  };
 
-    const timer = setInterval(showInvite, 600000);
-    return () => clearInterval(timer);
-  }, [isAiActive]);
-
-  useEffect(() => {
-    if (!isAiActive && pendingRef.current) {
-      pendingRef.current = false;
-      setVisible(true);
+  const clearAutoHide = useCallback(() => {
+    if (autoHideRef.current) {
+      clearTimeout(autoHideRef.current);
+      autoHideRef.current = null;
     }
-  }, [isAiActive]);
+  }, []);
 
-  if (!visible || isAiActive) return null;
+  const openInvite = useCallback(() => {
+    if (isPrivileged) return;
+    if (isAiActive) {
+      pendingRef.current = true;
+      return;
+    }
+    pendingRef.current = false;
+    clearAutoHide();
+    setVisible(true);
+    autoHideRef.current = setTimeout(() => {
+      setVisible(false);
+      autoHideRef.current = null;
+    }, 6800);
+  }, [clearAutoHide, isAiActive, isPrivileged]);
+
+  useEffect(() => {
+    if (isPrivileged) {
+      clearAutoHide();
+      setVisible(false);
+      pendingRef.current = false;
+      return undefined;
+    }
+
+    const timer = setInterval(openInvite, 10000);
+    return () => {
+      clearInterval(timer);
+      clearAutoHide();
+    };
+  }, [openInvite, clearAutoHide, isPrivileged]);
+
+  useEffect(() => {
+    if (!isAiActive && pendingRef.current && !isPrivileged) openInvite();
+  }, [isAiActive, isPrivileged, openInvite]);
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    const onPointerDown = (event) => {
+      if (popupRef.current && !popupRef.current.contains(event.target)) {
+        clearAutoHide();
+        setVisible(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [visible, clearAutoHide]);
+
+  if (!visible || isAiActive || isPrivileged) return null;
 
   const cleanName = String(userName || "").trim();
-  const greeting = cleanName ? `¡Hola ${cleanName}!` : "¡Hola!";
+  const greeting = cleanName ? `Hola ${cleanName}` : "Conect Manzanillo";
+
+  const SocialCircle = ({ href, label, children, accent = "#38bdf8" }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      style={{
+        width: "34px",
+        height: "34px",
+        borderRadius: "999px",
+        border: `1px solid ${accent}55`,
+        background: `${accent}18`,
+        display: "grid",
+        placeItems: "center",
+        textDecoration: "none",
+        boxShadow: `0 8px 18px ${accent}18`,
+        transition: "transform .18s ease, opacity .18s ease, background .18s ease",
+        cursor: "pointer"
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px) scale(1.06)"; e.currentTarget.style.background = `${accent}28`; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; e.currentTarget.style.background = `${accent}18`; }}
+    >
+      {children}
+    </a>
+  );
+
+  const SvgFacebookLocal = ({ size=17, color="#fff" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display:"block" }}>
+      <path fill={color} d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06C2 17.08 5.66 21.25 10.44 22v-7.03H7.9v-2.91h2.54V9.84c0-2.52 1.49-3.91 3.77-3.91 1.09 0 2.23.2 2.23.2v2.47h-1.25c-1.24 0-1.62.77-1.62 1.56v1.9h2.76l-.44 2.91h-2.32V22C18.34 21.25 22 17.08 22 12.06Z"/>
+    </svg>
+  );
+
+  const SvgInstagramLocal = ({ size=17 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display:"block" }}>
+      <defs><linearGradient id="cmInviteIg" x1="3" y1="21" x2="21" y2="3"><stop stopColor="#feda75"/><stop offset=".32" stopColor="#fa7e1e"/><stop offset=".62" stopColor="#d62976"/><stop offset="1" stopColor="#4f5bd5"/></linearGradient></defs>
+      <rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5" fill="none" stroke="url(#cmInviteIg)" strokeWidth="2"/>
+      <circle cx="12" cy="12" r="3.6" fill="none" stroke="#fff" strokeWidth="1.8"/>
+      <circle cx="16.9" cy="7.1" r="1.15" fill="#fff"/>
+    </svg>
+  );
+
+  const SvgTikTokLocal = ({ size=17 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ display:"block", overflow:"visible" }}>
+      <path d="M14 3v11.2a4.4 4.4 0 1 1-4.4-4.4c.34 0 .66.04.96.12v2.86a1.75 1.75 0 1 0 1.03 1.6V3h2.41c.3 2.25 1.55 3.63 3.8 4.02v2.78c-1.44-.05-2.74-.54-3.8-1.4Z" fill="#00f2ea" opacity=".85" transform="translate(-.75 .55)"/>
+      <path d="M14 3v11.2a4.4 4.4 0 1 1-4.4-4.4c.34 0 .66.04.96.12v2.86a1.75 1.75 0 1 0 1.03 1.6V3h2.41c.3 2.25 1.55 3.63 3.8 4.02v2.78c-1.44-.05-2.74-.54-3.8-1.4Z" fill="#ff0050" opacity=".85" transform="translate(.75 -.55)"/>
+      <path d="M14 3v11.2a4.4 4.4 0 1 1-4.4-4.4c.34 0 .66.04.96.12v2.86a1.75 1.75 0 1 0 1.03 1.6V3h2.41c.3 2.25 1.55 3.63 3.8 4.02v2.78c-1.44-.05-2.74-.54-3.8-1.4Z" fill="#fff"/>
+    </svg>
+  );
 
   return (
     <div
+      ref={popupRef}
       style={{
-        position: "fixed",
-        right: "14px",
-        bottom: "252px",
-        width: "300px",
-        maxWidth: "calc(100vw - 28px)",
-        zIndex: 9998,
-        background: "rgba(13,31,60,.98)",
-        border: "1px solid rgba(37,211,102,.48)",
+        position: "absolute",
+        right: "0px",
+        bottom: "86px",
+        width: "min(318px, calc(100vw - 28px))",
+        zIndex: 10008,
+        background: "linear-gradient(180deg, rgba(10,22,36,.98), rgba(6,16,28,.98))",
+        border: "1px solid rgba(37,211,102,.42)",
         borderRadius: "18px",
         padding: "14px",
-        boxShadow: "0 14px 42px rgba(0,0,0,.62), 0 0 24px rgba(37,211,102,.18)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        animation: "slideUp .25s ease-out"
+        boxShadow: "0 18px 52px rgba(0,0,0,.64), 0 0 28px rgba(37,211,102,.14)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        animation: "cmInviteCalloutIn .28s cubic-bezier(.18,.82,.22,1)",
+        userSelect: "text"
       }}
       role="dialog"
-      aria-label="Invitación a canal de WhatsApp"
+      aria-label="Invitación al canal de WhatsApp de Conect Manzanillo"
     >
+      <style>{`
+        @keyframes cmInviteCalloutIn {
+          from { opacity: 0; transform: translateY(12px) scale(.94); transform-origin: bottom right; }
+          to { opacity: 1; transform: translateY(0) scale(1); transform-origin: bottom right; }
+        }
+        @media (max-width: 520px) {
+          .cm-whatsapp-invite-title { font-size: 16px !important; }
+          .cm-whatsapp-invite-copy { font-size: 12px !important; }
+        }
+      `}</style>
+
+      <div style={{ position:"absolute", right:"20px", bottom:"-8px", width:"16px", height:"16px", transform:"rotate(45deg)", background:"rgba(6,16,28,.98)", borderRight:"1px solid rgba(37,211,102,.42)", borderBottom:"1px solid rgba(37,211,102,.42)" }} />
+
       <button
         type="button"
-        onClick={() => setVisible(false)}
-        aria-label="Cerrar invitación de WhatsApp"
+        onClick={() => { clearAutoHide(); setVisible(false); }}
+        aria-label="Cerrar invitación"
         style={{
           position: "absolute",
-          top: "8px",
-          right: "8px",
+          top: "10px",
+          right: "10px",
           width: "24px",
           height: "24px",
           borderRadius: "999px",
-          border: "1px solid rgba(255,255,255,.14)",
-          background: "rgba(255,255,255,.08)",
-          color: "#fff",
+          border: "1px solid rgba(255,255,255,.12)",
+          background: "rgba(255,255,255,.06)",
+          color: "rgba(255,255,255,.76)",
           cursor: "pointer",
-          fontWeight: 900
+          fontWeight: 900,
+          lineHeight: 1
         }}
       >
         ×
       </button>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingRight: "22px" }}>
-        <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "rgba(37,211,102,.15)", border: "1px solid rgba(37,211,102,.35)", display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-          <AppIcon name="whatsapp" size={24} active />
+      <div style={{ display:"flex", gap:"11px", alignItems:"flex-start", paddingRight:"26px" }}>
+        <div style={{ width:"42px", height:"42px", borderRadius:"15px", display:"grid", placeItems:"center", background:"rgba(37,211,102,.14)", border:"1px solid rgba(37,211,102,.34)", boxShadow:"inset 0 1px 0 rgba(255,255,255,.08), 0 12px 22px rgba(37,211,102,.12)", flex:"0 0 auto" }}>
+          <AppIcon name="whatsapp" size={25} active />
         </div>
-        <div>
-          <div style={{ fontFamily: getFont(theme, "secondary"), color: "#dcfce7", fontWeight: 900, fontSize: "13px", marginBottom: "4px" }}>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div className="cm-whatsapp-invite-title" style={{ fontFamily:"'Space Mono','Space Grotesk','DM Sans',monospace", color:"#eafff2", fontWeight:900, fontSize:"17px", lineHeight:1.08, letterSpacing:"-.02em" }}>
+            Conect Manzanillo
+          </div>
+          <div style={{ marginTop:"3px", fontFamily:getFont(theme,"secondary"), color:"rgba(134,239,172,.88)", fontSize:"11px", fontWeight:900, letterSpacing:".10em", textTransform:"uppercase" }}>
             {greeting}
           </div>
-          <div style={{ fontFamily: getFont(theme, "secondary"), color: "rgba(255,255,255,.82)", fontSize: "12px", lineHeight: 1.45 }}>
-            Síguenos en nuestro canal de WhatsApp para recibir actualizaciones y comunicados al instante.
-          </div>
-          <div style={{ display: "flex", gap: "8px", marginTop: "11px", flexWrap: "wrap" }}>
-            <a
-              href={PIS_WHATSAPP_CHANNEL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setVisible(false)}
-              style={{
-                padding: "9px 11px",
-                borderRadius: "10px",
-                border: "1px solid rgba(37,211,102,.55)",
-                background: "rgba(37,211,102,.16)",
-                color: "#86efac",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "11px",
-                fontWeight: 900,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              <AppIcon name="whatsapp" size={14} active /> Seguir canal
-            </a>
-            <button
-              type="button"
-              onClick={() => setVisible(false)}
-              style={{
-                padding: "9px 11px",
-                borderRadius: "10px",
-                border: "1px solid rgba(148,163,184,.24)",
-                background: "rgba(15,23,42,.55)",
-                color: "rgba(226,232,240,.72)",
-                fontFamily: getFont(theme, "secondary"),
-                fontSize: "11px",
-                fontWeight: 900,
-                cursor: "pointer"
-              }}
-            >
-              Después
-            </button>
-          </div>
+        </div>
+      </div>
+
+      <div className="cm-whatsapp-invite-copy" style={{ marginTop:"12px", color:"rgba(255,255,255,.82)", fontFamily:getFont(theme,"secondary"), fontSize:"12.5px", lineHeight:1.5 }}>
+        Mantente informado del tráfico portuario en tiempo real. Únete a nuestro canal y recibe alertas, comunicados y avisos operativos.
+      </div>
+
+      <a
+        href={PIS_WHATSAPP_CHANNEL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => { clearAutoHide(); setVisible(false); }}
+        style={{
+          marginTop:"12px",
+          width:"100%",
+          minHeight:"42px",
+          borderRadius:"12px",
+          border:"1px solid rgba(37,211,102,.58)",
+          background:"linear-gradient(135deg, rgba(37,211,102,.26), rgba(18,140,126,.18))",
+          color:"#f0fff4",
+          display:"inline-flex",
+          alignItems:"center",
+          justifyContent:"center",
+          gap:"9px",
+          fontFamily:getFont(theme,"secondary"),
+          fontSize:"12px",
+          fontWeight:900,
+          textDecoration:"none",
+          textTransform:"uppercase",
+          letterSpacing:".04em",
+          boxShadow:"0 10px 24px rgba(37,211,102,.14)",
+          transition:"transform .18s ease, opacity .18s ease, filter .18s ease"
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.filter = "brightness(1.08)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.filter = "brightness(1)"; }}
+      >
+        <AppIcon name="whatsapp" size={18} active />
+        Unirme al canal
+      </a>
+
+      <div style={{ marginTop:"13px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.08)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px" }}>
+        <span style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.48)", fontSize:"10px", fontWeight:900, letterSpacing:".12em", textTransform:"uppercase" }}>Redes sociales</span>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+          <SocialCircle href={socialUrls.facebook} label="Facebook de Conect Manzanillo" accent="#1877F2"><SvgFacebookLocal size={17} /></SocialCircle>
+          <SocialCircle href={socialUrls.instagram} label="Instagram de Conect Manzanillo" accent="#d62976"><SvgInstagramLocal size={17} /></SocialCircle>
+          <SocialCircle href={socialUrls.tiktok} label="TikTok de Conect Manzanillo" accent="#00f2ea"><SvgTikTokLocal size={17} /></SocialCircle>
         </div>
       </div>
     </div>
@@ -26588,7 +26700,7 @@ function App() {
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
         
-        <DonateBanner active={active} setActive={setActive} />
+        <DonateBanner active={active} setActive={setActive} isAdmin={isAdmin} subAdmin={subAdmin} />
       </div>
 
       {/* Modal Admin — fuera de cualquier stacking context */}
@@ -26722,7 +26834,7 @@ function App() {
           }
         `}</style>
 
-        <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} />
+        <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} isPrivileged={Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean))} />
 
         {hasUnreadAdminMessages && showQRPanel !== 'admin_msg' && (
           <div
