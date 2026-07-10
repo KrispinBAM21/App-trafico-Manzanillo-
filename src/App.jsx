@@ -19897,6 +19897,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [savedPosturas, setSavedPosturas] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
   });
+  const [accessPrompt, setAccessPrompt] = useState(null);
+  const [posturasUserType, setPosturasUserType] = useState(() => {
+    try { return localStorage.getItem("cm_posturas_user_type") || ""; } catch { return ""; }
+  });
   const PAGE_SIZE = 8;
 
   useEffect(() => {
@@ -19951,9 +19955,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   useEffect(() => {
     setProfileEditor(prev => ({ ...prev, correo_publico: prev?.correo_publico || authUser?.email || "" }));
   }, [authUser?.email]);
+  useEffect(() => {
+    if (!authUser) return;
+    const empresaSesion = authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || authUser?.user_metadata?.full_name || "";
+    if (empresaSesion) setEmpForm(f => ({ ...f, razon_social: f.razon_social || empresaSesion, correo: f.correo || authUser.email || "" }));
+  }, [authUser?.id, authUser?.email]);
 
-  const emptyTrab = { nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local", telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true };
-  const emptyEmp = { razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local" };
+  const emptyTrab = {
+    nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local",
+    telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true,
+    licencia_frontal:"", licencia_trasera:"", ine_frontal:"", ine_trasera:"",
+    salario_local:"", salario_foraneo:"", preferencia_pago:"Transferencia"
+  };
+  const emptyEmp = {
+    razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
+    tipo_viaje:"Local", maniobra_requerida:"Full", licencia_solicitada:"Federal tipo B - Carga general", metodo_pago_ofrecido:"Transferencia",
+    contacto_principal_nombre:"", contacto_principal_numero:"", contacto_secundario_nombre:"", contacto_secundario_numero:""
+  };
   const [trabForm, setTrabForm] = useState(emptyTrab);
   const [empForm, setEmpForm] = useState(emptyEmp);
   const [editingTrabId, setEditingTrabId] = useState(null);
@@ -19984,6 +20002,44 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
   const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
+  const POSTURAS_PAGO = ["Efectivo", "Transferencia", "Criptomonedas"];
+  const sessionPosturasType = authUser?.user_metadata?.posturas_user_type || authUser?.user_metadata?.userType || posturasUserType || "";
+  const isPosturasLoggedIn = !!authUser;
+  const isPostulanteSession = isPosturasLoggedIn && sessionPosturasType === "postulante";
+  const isEmpresaSession = isPosturasLoggedIn && sessionPosturasType === "empresa";
+  const persistPosturasUserType = (type) => {
+    setPosturasUserType(type);
+    try { localStorage.setItem("cm_posturas_user_type", type); } catch {}
+  };
+  const openAccessSelector = (action="login") => setAccessPrompt({ action });
+  const continueAccessAs = (type) => {
+    persistPosturasUserType(type);
+    setAccessPrompt(null);
+    if (!authUser) {
+      const action = accessPrompt?.action || "login";
+      if (action === "register") {
+        onRegister ? onRegister() : setActive && setActive("tutorial");
+      } else {
+        onLogin ? onLogin() : setActive && setActive("tutorial");
+      }
+      return;
+    }
+    setSub("posturas");
+    setVista(type === "empresa" ? "empresario" : "postular");
+    setPosturasMode(type === "empresa" ? "list" : "form");
+    setTalentView(type === "empresa" ? "busquedas" : "perfiles");
+  };
+  const handleTalentAction = (type="postulante") => {
+    if (!authUser) { openAccessSelector("login"); return; }
+    persistPosturasUserType(type);
+    setSub("posturas");
+    setVista(type === "empresa" ? "empresario" : "postular");
+    setPosturasMode("form");
+  };
+  const handleFileMeta = (setter, field, fileList) => {
+    const file = fileList && fileList[0];
+    setter(f => ({ ...f, [field]: file ? file.name : "" }));
+  };
   const profileDisplayName = profileEditor?.nombre_publico || authUser?.user_metadata?.full_name || (authUser?.email ? authUser.email.split("@")[0] : "Mi perfil");
   const profileDisplayRole = profileEditor?.cargo_publico || "Talento logístico";
   const profileDisplayEmail = profileEditor?.correo_publico || authUser?.email || "Sin correo público";
@@ -20164,18 +20220,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
-  const requireLogin = () => { setMsg({ type:"err", text:"Para guardar y editar tu perfil, primero crea o inicia sesión en Más info." }); return false; };
+  const requireLogin = () => { openAccessSelector("login"); setMsg({ type:"err", text:"Para guardar y editar en Posturas, primero inicia sesión y elige Postulante o Empresa." }); return false; };
 
   const saveTrab = async () => {
     if (!authUser) return requireLogin();
     if (!trabForm.nombre_completo.trim() || !trabForm.edad || !trabForm.telefono_llamadas.trim() || !trabForm.telefono_whatsapp.trim()) { setMsg({type:"err", text:"Completa nombre, edad, teléfono de llamadas y WhatsApp."}); return; }
-    const payload = { ...trabForm, edad:Number(trabForm.edad), user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
+    const salarioLocal = Number(trabForm.salario_local || 0);
+    const salarioForaneo = Number(trabForm.salario_foraneo || 0);
+    if ((salarioLocal && salarioLocal < 500) || (salarioForaneo && salarioForaneo < 500)) { setMsg({type:"err", text:"Las expectativas económicas deben ser mínimo $500."}); return; }
+    persistPosturasUserType("postulante");
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
     const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
     if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de trabajador guardado."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
   };
   const saveEmp = async () => {
     if (!authUser) return requireLogin();
     if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
+    persistPosturasUserType("empresa");
     const payload = { ...empForm, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
     const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
     if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de empresa guardado."}); setEmpForm(emptyEmp); setEditingEmpId(null); loadPosturas(); }
@@ -20311,11 +20372,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </button>
       ) : (
         <div style={{ position:"relative", zIndex:1, display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-          <button type="button" onClick={() => onLogin ? onLogin() : setActive && setActive("tutorial")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(161,201,255,.34)", background:"rgba(44,58,76,.46)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 22px rgba(161,201,255,.13)" }}>
+          <button type="button" onClick={() => openAccessSelector("login")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(161,201,255,.34)", background:"rgba(44,58,76,.46)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 22px rgba(161,201,255,.13)" }}>
             <MS name="login" size={17} active />
             Iniciar sesión
           </button>
-          <button type="button" onClick={() => onRegister ? onRegister() : setActive && setActive("tutorial")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.18)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 24px rgba(0,150,255,.16)" }}>
+          <button type="button" onClick={() => openAccessSelector("register")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.18)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 24px rgba(0,150,255,.16)" }}>
             <MS name="person_add" size={17} active />
             Crear cuenta
           </button>
@@ -20448,6 +20509,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
       <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
       <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
+      <div><div style={label}>Salario deseado viaje local</div><input type="number" min="500" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder="Mínimo 500" /></div>
+      <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min="500" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder="Mínimo 500" /></div>
+      <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+      {[
+        ["licencia_frontal", "Licencia frontal"], ["licencia_trasera", "Licencia trasera"], ["ine_frontal", "INE frontal"], ["ine_trasera", "INE trasera"]
+      ].map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
     </div>
     <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn("#22c55e")}>{editingTrabId?"Actualizar perfil":"Guardar perfil"}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
   </div>;
@@ -20456,7 +20523,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Empresario</div>
     <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Registra empresa, contactos y disponibilidad de trabajo. Las quejas requieren aprobación admin antes de mostrarse.</div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-      <div><div style={label}>Razón social / nombre</div><input style={input} value={empForm.razon_social} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))}/></div>
+      <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
       <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
       <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
       <div><div style={label}>Ubicación</div><input style={input} value={empForm.ubicacion} onChange={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))}/></div>
@@ -20467,6 +20534,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div><div style={label}>WhatsApp</div><input style={input} value={empForm.whatsapp||""} onChange={e=>setEmpForm(f=>({...f,whatsapp:e.target.value}))}/></div>
       <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
       <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Tipo de viaje</div><select style={input} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></div>
+      <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value}))}/></div>
+      <div><div style={label}>Número principal</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value}))}/></div>
+      <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
+      <div><div style={label}>Número secundario</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
     </div>
     <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn("#22c55e")}>{editingEmpId?"Actualizar empresa":"Guardar empresa"}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
   </div>;
@@ -21128,11 +21203,50 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ marginTop:"12px", color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button>
   </article>; };
 
+  const AccessSelectorModal = () => accessPrompt ? (
+    <div onClick={() => setAccessPrompt(null)} style={{ position:"fixed", inset:0, zIndex:99950, background:"rgba(1,15,31,.72)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", display:"grid", placeItems:"center", padding:"18px" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"min(100%, 420px)", borderRadius:"20px", border:"1px solid rgba(161,201,255,.26)", background:"rgba(18,33,49,.98)", boxShadow:"0 24px 70px rgba(0,0,0,.52)", padding:"22px", fontFamily:getFont(theme,"secondary") }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"flex-start", marginBottom:"14px" }}>
+          <div>
+            <div style={{ color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
+            <div style={{ color:"#d4e4fa", fontSize:"24px", fontWeight:"900", marginTop:"4px" }}>¿Cómo deseas acceder?</div>
+            <div style={{ color:"rgba(212,228,250,.66)", fontSize:"12px", lineHeight:1.6, marginTop:"8px" }}>Selecciona el perfil para abrir el flujo correcto de Posturas.</div>
+          </div>
+          <button onClick={() => setAccessPrompt(null)} style={{ width:"32px", height:"32px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#d4e4fa", cursor:"pointer" }}>×</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginTop:"16px" }}>
+          <button onClick={() => continueAccessAs("postulante")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(161,201,255,.38)", background:"rgba(161,201,255,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
+            <MS name="local_shipping" size={26} active />
+            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>Postulante</div>
+            <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Operador que desea publicar perfil y disponibilidad.</div>
+          </button>
+          <button onClick={() => continueAccessAs("empresa")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(16,185,129,.38)", background:"rgba(16,185,129,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
+            <MS name="business" size={26} active />
+            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>Empresa</div>
+            <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Empresa que desea publicar vacantes y contactos.</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const AccessGate = () => (
+    <div style={{ ...card, textAlign:"center", maxWidth:"760px", margin:"0 auto" }}>
+      <div style={{ width:"64px", height:"64px", borderRadius:"20px", background:"rgba(0,150,255,.13)", border:"1px solid rgba(0,150,255,.28)", display:"grid", placeItems:"center", margin:"0 auto 14px" }}><MS name="security" size={30} active /></div>
+      <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900" }}>Acceso centralizado</div>
+      <div style={{ color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, margin:"8px auto 18px", maxWidth:"520px" }}>Para publicar o editar en Centro de Talento, elige primero si entras como Postulante o Empresa. Así se muestra el formulario correcto.</div>
+      <div style={{ display:"flex", gap:"10px", justifyContent:"center", flexWrap:"wrap" }}>
+        <button onClick={() => openAccessSelector("login")} style={btn("#a1c9ff")}>Iniciar sesión</button>
+        <button onClick={() => openAccessSelector("register")} style={btn("#22c55e")}>Crear cuenta</button>
+      </div>
+    </div>
+  );
+
   const MobilePosturasShell = () => {
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileHeader /><div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"12px" }}>{[{id:"postular", label:"Postular", icon:"local_shipping"},{id:"empresario", label:"Empresario", icon:"business"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"12px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900" }}><MS name={t.icon} size={14} active={vista===t.id} /> {t.label}</button>)}</div>{vista === "postular" ? <WorkerForm /> : <CompanyForm />}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />)}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -21167,9 +21281,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setVista("postular"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="person_add" size={18} /> Publicar perfil</button>
+          <button onClick={()=>handleTalentAction("postulante")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="person_add" size={18} /> Publicar perfil</button>
           <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
-          <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="work" size={18} /> Publicar Vacante</button>
+          <button onClick={()=>handleTalentAction("empresa")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="work" size={18} /> Publicar Vacante</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
@@ -21187,9 +21301,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
         {sub === "posturas" && posturasMode === "form" && (
           <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
+            <AccessSelectorModal />
             <ProfileHeader />
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>{[{id:"postular", label:"Postular", icon:"freight-truck"},{id:"empresario", label:"Empresario", icon:"office"}].map(t=><button key={t.id} onClick={()=>setVista(t.id)} style={{ padding:"13px", borderRadius:"12px", border:`1px solid ${vista===t.id?"#a1c9ff":"rgba(63,71,83,.45)"}`, background:vista===t.id?"rgba(161,201,255,.14)":"rgba(18,33,49,.70)", color:vista===t.id?"#a1c9ff":"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer" }}><MS name={t.icon === "freight-truck" ? "local_shipping" : "business"} size={14} active={vista===t.id} /> {t.label}</button>)}</div>
-            {vista === "postular" ? <WorkerForm /> : <CompanyForm />}
+            {!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />)}
           </div>
         )}
 
@@ -21228,7 +21342,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         )}
       </main>
 
-      <button onClick={()=>{ setSub("posturas"); setVista("empresario"); setPosturasMode("form"); }} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.65)", background:"#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> Publicar Vacante / Postularse</button>
+      {isPosturasLoggedIn && <button onClick={()=>handleTalentAction(isEmpresaSession ? "empresa" : "postulante")} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.65)", background:"#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> {isEmpresaSession ? "Publicar Vacante" : "Postularse"}</button>}
     </div>
   );
 }
