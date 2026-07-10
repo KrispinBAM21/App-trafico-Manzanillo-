@@ -7833,7 +7833,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const commandViews = defaultSection === "accesos"
     ? [{ id:"accesos", label:"Accesos", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.accesos }]
     : [
-        { id:"mapa_maestro", label:"Mapa maestro", icon:"map" },
+        { id:"mapa_maestro", label:"Mapa maestra", icon:"map" },
         { id:"vialidades", label:"Vialidades", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.vialidades },
         { id:"reporte", label:"Reporte", icon:TRAFICO_SUBTAB_PUBLIC_ICONS.reporte },
       ];
@@ -8503,7 +8503,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
               <AppIcon name="stats" size={28} active />
             </div>
             <div style={{ minWidth:0 }}>
-              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Reporte Operativo General</h3>
+              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Tactical Report Builder</h3>
               <p style={{ margin:"6px 0 0", color:"rgba(255,255,255,.42)", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", fontWeight:800, letterSpacing:".20em", textTransform:"uppercase" }}>Seleccionar fuentes de datos</p>
             </div>
           </div>
@@ -12374,7 +12374,7 @@ function CommandMasterSummary({ accesos, vialidades, rutasFiscales, incidents = 
       <div className="cm-view-topline">
         <div>
           <div className="cm-panel-kicker">CONCENTRACIÓN OPERATIVA</div>
-          <div className="cm-view-title">Mapa maestro y lectura global</div>
+          <div className="cm-view-title">Mapa maestra y lectura global</div>
         </div>
         <div className="cm-map-hint">Todas las capas en una sola vista</div>
       </div>
@@ -19848,7 +19848,7 @@ function StarRating({ value=0, onRate=null, small=false }) {
   </div>;
 }
 
-function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
+function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
   const [sub, setSub] = useState("posturas");
@@ -20267,10 +20267,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false }) {
           Gestión activa de vacantes, perfiles especializados, reputación por estrellas y archivo de perfiles guardados.
         </div>
       </div>
-      <button onClick={() => setActive && setActive("tutorial")} style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:`1px solid ${authUser ? "rgba(34,197,94,.46)" : "rgba(161,201,255,.34)"}`, background:authUser ? "rgba(34,197,94,.14)" : "rgba(44,58,76,.46)", color:authUser ? "#86efac" : "#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:authUser ? "0 0 22px rgba(34,197,94,.12)" : "0 0 22px rgba(161,201,255,.13)" }}>
-        <MS name={authUser ? "check_circle" : "login"} size={18} active />
-        {authUser ? "Cuenta activa" : "Crear cuenta / Iniciar sesión"}
-      </button>
+      {authUser ? (
+        <button type="button" style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:"1px solid rgba(34,197,94,.46)", background:"rgba(34,197,94,.14)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"default", transition:"all .25s ease", boxShadow:"0 0 22px rgba(34,197,94,.12)" }}>
+          <MS name="check_circle" size={18} active />
+          Cuenta activa
+        </button>
+      ) : (
+        <div style={{ position:"relative", zIndex:1, display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+          <button type="button" onClick={() => onLogin ? onLogin() : setActive && setActive("tutorial")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(161,201,255,.34)", background:"rgba(44,58,76,.46)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 22px rgba(161,201,255,.13)" }}>
+            <MS name="login" size={17} active />
+            Iniciar sesión
+          </button>
+          <button type="button" onClick={() => onRegister ? onRegister() : setActive && setActive("tutorial")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.18)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 24px rgba(0,150,255,.16)" }}>
+            <MS name="person_add" size={17} active />
+            Crear cuenta
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -23653,194 +23666,6 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
     <div style={{ padding:"20px 16px", paddingBottom:"80px" }}>
 
       {/* ══════════════════════════════════════════════════════
-          PANEL DE AUTENTICACIÓN
-      ══════════════════════════════════════════════════════ */}
-      <div style={{ background:"linear-gradient(160deg,#0d1b2e,#0a2540)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:"20px", padding:"24px 20px", marginBottom:"28px" }}>
-
-        {/* Avatar */}
-        <div style={{ textAlign:"center", marginBottom:"20px" }}>
-          <div style={{ width:"72px", height:"72px", borderRadius:"50%", background:"linear-gradient(135deg,#1e3a5f,#0d2a4a)", border:"2px solid rgba(56,189,248,0.35)", margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"32px" }}>
-            {authMode==="login" ? "🔑" : authMode==="registro" ? "👤" : "🔒"}
-          </div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"13px", color:"rgba(255,255,255,0.9)", letterSpacing:"1px" }}>
-            {authMode==="login" ? "INICIAR SESIÓN" : authMode==="registro" ? "CREAR CUENTA" : "RECUPERAR CONTRASEÑA"}
-          </div>
-          {authMode !== "forgot" && <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.35)", marginTop:"4px" }}>No es obligatorio — puedes usar la app sin cuenta</div>}
-        </div>
-
-        {/* Tab selector */}
-        <div style={{ display:"flex", gap:"6px", marginBottom:"20px", background:"rgba(255,255,255,0.05)", borderRadius:"12px", padding:"4px" }}>
-          {[{id:"login",label:"Iniciar sesión"},{id:"registro",label:"Crear cuenta"}].map(t => (
-            <button key={t.id} onClick={() => { setAuthMode(t.id); setLoginMsg(null); setRegMsg(null); setRegStep(1); }}
-              style={{ flex:1, padding:"9px", borderRadius:"9px", border:"none", background: authMode===t.id ? "linear-gradient(135deg,#38bdf8,#0ea5e9)" : "transparent", color: authMode===t.id ? "#0a1628" : "rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", transition:"all 0.2s" }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── LOGIN ── */}
-        {authMode === "login" && (
-          <div>
-            <MsgBox msg={loginMsg} />
-            {/* Botón Google */}
-            <button onClick={handleLoginGoogle} disabled={loading} style={{ width:"100%", padding:"12px", background:"#ffffff", border:"none", borderRadius:"10px", color:"#1f2937", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", marginBottom:"16px", opacity: loading?0.7:1 }}>
-              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
-              Continuar con Google
-            </button>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
-              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }} />
-              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.3)" }}>o con correo</span>
-              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }} />
-            </div>
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), marginBottom:"4px", letterSpacing:"1px" }}>CORREO ELECTRÓNICO</div>
-            <input value={loginUser} onChange={e=>setLoginUser(e.target.value)} placeholder="tu@correo.com" style={inputStyle} />
-            <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), marginBottom:"4px", letterSpacing:"1px" }}>CONTRASEÑA</div>
-            <div style={{ position:"relative" }}>
-              <input type={showLoginPass ? "text" : "password"} value={loginPass} onChange={e=>setLoginPass(e.target.value)} placeholder="Tu contraseña" style={{...inputStyle, paddingRight:"38px"}} onKeyDown={e => e.key==="Enter" && handleLogin()} />
-              <span onClick={() => setShowLoginPass(v => !v)} style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", fontSize:"16px", userSelect:"none" }}>{showLoginPass ? "🙈" : "👁"}</span>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
-              <label style={{ display:"flex", alignItems:"center", gap:"7px", cursor:"pointer" }}>
-                <div onClick={() => setLoginRemember(!loginRemember)} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${loginRemember?"#38bdf8":"rgba(255,255,255,0.2)"}`, background: loginRemember?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  {loginRemember && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
-                </div>
-                <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)" }}>Recordarme</span>
-              </label>
-              <button onClick={() => { setAuthMode("forgot"); setForgotMsg(null); }} style={btnSecondary}>¿Olvidaste tu contraseña?</button>
-            </div>
-            <button onClick={handleLogin} disabled={loading} style={{...btnPrimary(), opacity: loading?0.7:1}}>{loading ? "Iniciando..." : "INICIAR SESIÓN"}</button>
-          </div>
-        )}
-
-        {/* ── REGISTRO MULTI-PASO ── */}
-        {authMode === "registro" && (
-          <div>
-            {/* Progress bar */}
-            <div style={{ display:"flex", gap:"4px", marginBottom:"16px" }}>
-              {stepLabels.map((s,i) => (
-                <div key={i} style={{ flex:1, textAlign:"center" }}>
-                  <div style={{ height:"3px", borderRadius:"2px", background: i+1 <= regStep ? "#38bdf8" : "rgba(255,255,255,0.1)", marginBottom:"4px", transition:"background 0.3s" }} />
-                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color: i+1===regStep ? "#38bdf8" : "rgba(255,255,255,0.25)" }}>{s}</span>
-                </div>
-              ))}
-            </div>
-            <MsgBox msg={regMsg} />
-
-            {/* Paso 1: Datos básicos */}
-            {regStep === 1 && (
-              <>
-                <input value={regNombre} onChange={e=>setRegNombre(e.target.value)} placeholder="Nombre *" style={inputStyle} />
-                <input value={regApellidos} onChange={e=>setRegApellidos(e.target.value)} placeholder="Apellidos *" style={inputStyle} />
-                <input value={regUsername} onChange={e=>setRegUsername(e.target.value)} placeholder="Nombre de usuario único *" style={inputStyle} />
-                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.48)", margin:"2px 0 6px", letterSpacing:"0.7px", fontWeight:"700" }}>FECHA DE NACIMIENTO *</div>
-                <input type="date" value={regFecha} onChange={e=>setRegFecha(e.target.value)} aria-label="Fecha de nacimiento" style={{...inputStyle, colorScheme:"dark"}} />
-                <select value={regPais} onChange={e=>setRegPais(e.target.value)} style={inputStyle} aria-label="País">
-                  <option value="">País *</option>
-                  {WORLD_COUNTRIES.map(pais => <option key={pais} value={pais}>{pais}</option>)}
-                </select>
-                <input value={regCiudad} onChange={e=>setRegCiudad(e.target.value)} placeholder="Ciudad *" style={inputStyle} />
-                <select value={regTipoUsuario} onChange={e=>setRegTipoUsuario(e.target.value)} style={inputStyle}>
-                  <option value="visualizador_votante">Visualizador-votante</option>
-                  <option value="trabajador_votante">Trabajador-votante</option>
-                  <option value="empresa_votante">Empresa-votante</option>
-                </select>
-              </>
-            )}
-
-            {/* Paso 2: Teléfono + OTP */}
-            {regStep === 2 && (
-              <>
-                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"8px", lineHeight:"1.6" }}>📱 Verificación por SMS obligatoria para evitar cuentas falsas. Usa formato internacional: <span style={{color:"#38bdf8"}}>+521XXXXXXXXXX</span></div>
-                <div style={{ display:"flex", gap:"8px", marginBottom:"10px" }}>
-                  <input value={regTel} onChange={e=>setRegTel(e.target.value)} placeholder="+521XXXXXXXXXX *" style={{...inputStyle, marginBottom:0, flex:1}} />
-                  <button onClick={handleEnviarOtp} disabled={loading} style={{ padding:"0 14px", background:"rgba(56,189,248,0.15)", border:"1px solid #38bdf855", borderRadius:"10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", flexShrink:0, opacity: loading?0.6:1 }}>
-                    {loading ? "..." : otpEnviado ? "Reenviar" : "Enviar SMS"}
-                  </button>
-                </div>
-                {otpEnviado && (
-                  <>
-                    <input value={regOtp} onChange={e=>setRegOtp(e.target.value)} placeholder="Código de 6 dígitos *" style={inputStyle} maxLength={6} />
-                    <button onClick={handleVerificarOtp} disabled={loading} style={{...btnPrimary("#22c55e"), marginBottom:"8px", opacity: loading?0.6:1}}>
-                      {loading ? "Verificando..." : "✓ VERIFICAR CÓDIGO"}
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-
-            {/* Paso 3: Correo */}
-            {regStep === 3 && (
-              <>
-                <input type="email" value={regCorreo} onChange={e=>setRegCorreo(e.target.value)} placeholder="Correo electrónico *" style={inputStyle} />
-                <input type="email" value={regCorreo2} onChange={e=>setRegCorreo2(e.target.value)} placeholder="Confirmar correo *" style={inputStyle} />
-              </>
-            )}
-
-            {/* Paso 4: Contraseña + antifraude */}
-            {regStep === 4 && (
-              <>
-                <div style={{ position:"relative" }}>
-                  <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e=>setRegPass(e.target.value)} placeholder="Contraseña * (mín. 10 car., 1 may., 1 núm., 1 símbolo)" style={{...inputStyle, paddingRight:"38px"}} />
-                  <span onClick={() => setShowRegPass(v => !v)} style={{ position:"absolute", right:"12px", top:"38%", transform:"translateY(-50%)", cursor:"pointer", fontSize:"16px", userSelect:"none" }}>{showRegPass ? "🙈" : "👁"}</span>
-                </div>
-                {regPass && (
-                  <div style={{ display:"flex", gap:"4px", marginBottom:"10px" }}>
-                    {[regPass.length>=10, /[A-Z]/.test(regPass), /[0-9]/.test(regPass), /[^A-Za-z0-9]/.test(regPass)].map((ok,i) => (
-                      <div key={i} style={{ flex:1, height:"3px", borderRadius:"2px", background: ok?"#22c55e":"rgba(255,255,255,0.1)" }} />
-                    ))}
-                  </div>
-                )}
-                <div style={{ position:"relative" }}>
-                  <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e=>setRegPass2(e.target.value)} placeholder="Confirmar contraseña *" style={{...inputStyle, paddingRight:"38px"}} />
-                  <span onClick={() => setShowRegPass2(v => !v)} style={{ position:"absolute", right:"12px", top:"38%", transform:"translateY(-50%)", cursor:"pointer", fontSize:"16px", userSelect:"none" }}>{showRegPass2 ? "🙈" : "👁"}</span>
-                </div>
-                <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"6px" }}>🤖 Verificación anti-bots</div>
-                <input value={regAntibot} onChange={e=>setRegAntibot(e.target.value)} placeholder="¿Cuánto es 3 + 5? *" style={inputStyle} />
-                <label style={{ display:"flex", alignItems:"flex-start", gap:"8px", marginBottom:"8px", cursor:"pointer" }}>
-                  <div onClick={() => setRegTerminos(!regTerminos)} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${regTerminos?"#38bdf8":"rgba(255,255,255,0.2)"}`, background: regTerminos?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:"1px" }}>
-                    {regTerminos && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
-                  </div>
-                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", lineHeight:"1.6" }}>Acepto los Términos y Condiciones</span>
-                </label>
-                <label style={{ display:"flex", alignItems:"flex-start", gap:"8px", marginBottom:"14px", cursor:"pointer" }}>
-                  <div onClick={() => setRegPrivacidad(!regPrivacidad)} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${regPrivacidad?"#38bdf8":"rgba(255,255,255,0.2)"}`, background: regPrivacidad?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:"1px" }}>
-                    {regPrivacidad && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
-                  </div>
-                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.5)", lineHeight:"1.6" }}>Acepto la Política de Privacidad</span>
-                </label>
-              </>
-            )}
-
-            <div style={{ display:"flex", gap:"8px" }}>
-              {regStep > 1 && regStep !== 2 && (
-                <button onClick={() => { setRegStep(regStep-1); setRegMsg(null); }} style={{ flex:"0 0 44px", padding:"13px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), fontSize:"14px", cursor:"pointer" }}>←</button>
-              )}
-              {regStep !== 2 && (
-                <button onClick={handleRegStep} disabled={loading} style={{ ...btnPrimary(), marginTop:0, flex:1, opacity: loading?0.7:1 }}>
-                  {loading ? "Procesando..." : regStep < 4 ? "CONTINUAR →" : "CREAR CUENTA"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── RECUPERAR CONTRASEÑA ── */}
-        {authMode === "forgot" && (
-          <div>
-            <MsgBox msg={forgotMsg} />
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", marginBottom:"8px", lineHeight:"1.6" }}>Ingresa el correo con el que te registraste y recibirás un enlace de recuperación.</div>
-            <input type="email" value={forgotCorreo} onChange={e=>setForgotCorreo(e.target.value)} placeholder="Correo electrónico" style={inputStyle} />
-            <button onClick={handleForgot} disabled={loading} style={{...btnPrimary("#f97316"), opacity: loading?0.7:1}}>{loading ? "Enviando..." : "ENVIAR ENLACE"}</button>
-            <div style={{ textAlign:"center", marginTop:"12px" }}>
-              <button onClick={() => { setAuthMode("login"); setForgotMsg(null); }} style={btnSecondary}>← Volver al inicio de sesión</button>
-            </div>
-          </div>
-        )}
-
-      </div>
-      {/* ── fin panel auth ── */}
-
-      {/* ══════════════════════════════════════════════════════
           GUÍA DE USO
       {/* ══════════════════════════════════════════════════════
           GUÍA DE USO - SECCIÓN "MÁS INFO" ACTUALIZADA
@@ -23916,22 +23741,9 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
         ]},
         { id: "tutorial", icon: "info-beacon", color: "#8b5cf6", title: "MÁS INFO", subtitle: "Guía rápida de uso", items: [
           { label: "Cómo participar", desc: "Vota solo lo que puedas confirmar y reporta con ubicación precisa." },
-          { label: "Subapartados", desc: "Incluye guía de Tráfico, Reportar, Eventos, Terminales, Patios, Confinados/2° Acceso, Carriles, Noticias, Donativos y cuenta de usuario." },
+          { label: "Subapartados", desc: "Incluye guía de Tráfico, Reportar, Eventos, Terminales, Patios, Confinados/2° Acceso, Carriles, Noticias y Donativos." },
           { label: "Buenas prácticas", desc: "Evita duplicados, describe con claridad, usa GPS y marca como resuelto cuando el problema ya no exista." },
           { label: "Privacidad", desc: "Los reportes y votos operativos se usan para informar a la comunidad; evita publicar datos personales innecesarios." },
-        ]},
-        { id: "registro", icon: "user", color: "#38bdf8", title: "CREAR CUENTA", subtitle: "Registro opcional y seguro", items: [
-          { label: "Registro opcional", desc: "Puedes usar la app sin cuenta; crear cuenta permite participación más confiable." },
-          { label: "Seguridad", desc: "Usa correo, contraseña segura y verificaciones para reducir abuso." },
-        ]},
-        { id: "login", icon: "key", color: "#a78bfa", title: "INICIO DE SESIÓN", subtitle: "Acceso seguro", items: [
-          { label: "Correo y contraseña", desc: "Inicia sesión con Supabase Auth." },
-          { label: "Google", desc: "Cuando está disponible, permite entrar con Google OAuth." },
-          { label: "Recuperación", desc: "Si olvidaste tu contraseña, solicita un enlace por correo." },
-        ]},
-        { id: "password", icon: "lock", color: "#f97316", title: "OLVIDÉ MI CONTRASEÑA", subtitle: "Recuperación por correo", items: [
-          { label: "Solicitar enlace", desc: "Ingresa el correo registrado y revisa tu bandeja o spam." },
-          { label: "Nueva contraseña", desc: "Define una contraseña nueva que cumpla los requisitos de seguridad." },
         ]},
       ].map(sec => (
         <div key={sec.id} style={{ marginBottom:"10px" }}>
@@ -26675,7 +26487,7 @@ function App() {
         {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
-        {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} />}
+        {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
 
         {/* CONTROL PORTUARIO PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
