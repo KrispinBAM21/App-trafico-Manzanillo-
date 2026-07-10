@@ -20538,7 +20538,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {profilePhotoSrc ? (
         <img src={profilePhotoSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       ) : (
-        <span className="material-symbols-outlined" style={{ fontSize:Math.max(18, Math.round(size * .68)), lineHeight:1 }}>person</span>
+        <svg width={Math.max(18, Math.round(size * .68))} height={Math.max(18, Math.round(size * .68))} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="2"/><path d="M5 20c.8-4.2 3.2-6.3 7-6.3s6.2 2.1 7 6.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
       )}
     </div>
   );
@@ -21542,7 +21542,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const accessDesignCSS = `
     @keyframes cmAccessFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes cmAccessIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
-    .cm-nexus-canvas { animation: cmAccessIn .28s ease-out both; box-sizing: border-box; }
+    .cm-nexus-canvas { box-sizing: border-box; }
     .cm-nexus-card { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease, background .3s ease; }
     .cm-nexus-card:hover { transform: translateY(-4px); }
     .cm-nexus-card.worker:hover { border-color: rgba(164,201,255,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(164,201,255,.13); }
@@ -21567,6 +21567,24 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       .cm-nexus-access-layer { left: 0 !important; top: 0 !important; }
     }
   `;
+
+  const AccessGlyph = ({ type, size=42 }) => {
+    const isWorker = type === "worker";
+    const stroke = isWorker ? "#4dabff" : "#00ff9d";
+    return isWorker ? (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true" style={{display:"block"}}>
+        <rect x="10" y="12" width="28" height="28" rx="3" stroke={stroke} strokeWidth="2.8"/>
+        <path d="M19 12V8h10v4" stroke={stroke} strokeWidth="2.8" strokeLinecap="round"/>
+        <circle cx="24" cy="22" r="4.2" stroke={stroke} strokeWidth="2.8"/>
+        <path d="M16.5 34c1.8-4.4 5-6.6 7.5-6.6s5.7 2.2 7.5 6.6" stroke={stroke} strokeWidth="2.8" strokeLinecap="round"/>
+      </svg>
+    ) : (
+      <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true" style={{display:"block"}}>
+        <path d="M12 39V11h13v28M25 19h11v20M9 39h30" stroke={stroke} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round"/>
+        <path d="M16 17h5M16 23h5M16 29h5M29 25h3M29 31h3" stroke={stroke} strokeWidth="2.8" strokeLinecap="round"/>
+      </svg>
+    );
+  };
 
   const AccessOptionCard = ({ type, title, description, icon, onClick, adminMode=false }) => {
     const isWorker = type === "worker";
@@ -21594,7 +21612,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <span style={{ position:"absolute", inset:isWorker ? "auto auto -120px -120px" : "-130px -110px auto auto", width:"280px", height:"280px", borderRadius:"999px", background:solid, opacity:isWorker ? .08 : .12, filter:"blur(80px)", pointerEvents:"none" }} />
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"16px", position:"relative", zIndex:1 }}>
           <div className="cm-nexus-float" style={{ width:"84px", height:"84px", borderRadius:"18px", display:"grid", placeItems:"center", background:isWorker ? "rgba(77,171,255,.16)" : "rgba(0,255,157,.14)", border:`1px solid ${isWorker ? "rgba(164,201,255,.38)" : "rgba(78,222,163,.36)"}`, boxShadow:`0 18px 44px ${isWorker ? "rgba(77,171,255,.12)" : "rgba(78,222,163,.12)"}`, color:accent }}>
-            <MS name={icon} size={42} active />
+            <AccessGlyph type={type} size={42} />
           </div>
           <span style={{ padding:"7px 14px", borderRadius:"999px", border:`1px solid ${isWorker ? "rgba(77,171,255,.34)" : "rgba(0,255,157,.34)"}`, background:isWorker ? "rgba(77,171,255,.12)" : "rgba(0,255,157,.12)", color:isWorker ? "#4dabff" : "#00ff9d", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"950", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</span>
         </div>
@@ -21603,7 +21621,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"16px", lineHeight:"24px", fontWeight:"400", maxWidth:"430px" }}>{description}</p>
         </div>
         <button type="button" onClick={onClick} className="cm-nexus-btn hover:bg-white/10 transition-all duration-300" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
-          <MS name={adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"} size={20} active />
+          {adminMode ? (
+            isWorker ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="2"/><path d="M3.5 19c.7-3.6 2.7-5.4 5.5-5.4 1.6 0 2.9.5 3.9 1.5M17 8v6M14 11h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M9 7V5h6v2M4 12h16M10 12v2h4v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          ) : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           {adminMode ? "Abrir formulario base" : "Continuar"}
         </button>
         <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>
@@ -21632,13 +21652,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <span style={{ position:"absolute", top:"45%", left:"-220px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
         <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "24px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
         <header style={{ position:"relative", zIndex:1, marginBottom:"48px", maxWidth:"780px" }}>
-          <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"12px" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
-          <h1 className="cm-nexus-title" style={{ margin:"0 0 14px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>¿Cómo deseas acceder?</h1>
-          <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"680px" }}>Selecciona el perfil para abrir el flujo correcto de Posturas. El diseño se mantiene igual para usuario y modo admin, sin cambiar la lógica de acceso.</p>
+          <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Gestión de Perfiles</h1>
+          <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Selecciona el perfil para abrir el flujo correcto de Posturas.</p>
         </header>
         <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
-          <AccessOptionCard type="worker" icon="assignment_ind" onClick={() => continueAccessAs("postulante")} title={accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Acceder como Postulante"} description="Operador que desea publicar su perfil, disponibilidad, documentación y expectativas económicas." />
-          <AccessOptionCard type="employer" icon="corporate_fare" onClick={() => continueAccessAs("empresa")} title={accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Acceder como Empresa"} description="Empresa que desea registrar su perfil, gestionar contactos y publicar vacantes desde Posturas." />
+          <AccessOptionCard adminMode type="worker" icon="assignment_ind" onClick={() => continueAccessAs("postulante")} title="Perfil de trabajador" description="Formulario base para crear o ingresar al perfil de trabajador." />
+          <AccessOptionCard adminMode type="employer" icon="corporate_fare" onClick={() => continueAccessAs("empresa")} title="Perfil de empresario" description="Formulario base para crear o ingresar al perfil empresarial." />
         </div>
         <AccessStats />
       </div>
@@ -21712,7 +21731,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -21788,7 +21807,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
         {sub === "posturas" && posturasMode === "form" && (
           <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
-            <AccessSelectorModal />
+            {AccessSelectorModal()}
             <ProfileHeader />
             {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}
           </div>
