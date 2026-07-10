@@ -19991,6 +19991,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [editingEmpId, setEditingEmpId] = useState(null);
   const [dashboardTarget, setDashboardTarget] = useState("perfiles");
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileEditor, setProfileEditor] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("cm_posturas_public_profile") || "null") || {
@@ -20391,23 +20392,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           Gestión activa de vacantes, perfiles especializados, reputación por estrellas y archivo de perfiles guardados.
         </div>
       </div>
-      {authUser ? (
-        <button type="button" style={{ position:"relative", zIndex:1, display:"inline-flex", alignItems:"center", gap:"10px", padding:"12px 16px", borderRadius:"13px", border:"1px solid rgba(34,197,94,.46)", background:"rgba(34,197,94,.14)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"default", transition:"all .25s ease", boxShadow:"0 0 22px rgba(34,197,94,.12)" }}>
-          <MS name="check_circle" size={18} active />
-          Cuenta activa
-        </button>
-      ) : (
-        <div style={{ position:"relative", zIndex:1, display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
-          <button type="button" onClick={() => openAccessSelector("login")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(161,201,255,.34)", background:"rgba(44,58,76,.46)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 22px rgba(161,201,255,.13)" }}>
-            <MS name="login" size={17} active />
-            Iniciar sesión
-          </button>
-          <button type="button" onClick={() => openAccessSelector("register")} style={{ display:"inline-flex", alignItems:"center", gap:"9px", padding:"12px 15px", borderRadius:"13px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.18)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", cursor:"pointer", transition:"all .25s ease", boxShadow:"0 0 24px rgba(0,150,255,.16)" }}>
-            <MS name="person_add" size={17} active />
-            Crear cuenta
-          </button>
-        </div>
-      )}
+      <div style={{ position:"relative", zIndex:1, display:"flex", gap:"8px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", border:`1px solid ${isAdmin ? "rgba(251,191,36,.46)" : authUser ? "rgba(34,197,94,.42)" : "rgba(161,201,255,.28)"}`, background:isAdmin ? "rgba(251,191,36,.12)" : authUser ? "rgba(34,197,94,.12)" : "rgba(161,201,255,.08)", color:isAdmin ? "#fbbf24" : authUser ? "#86efac" : "#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>
+          <MS name={isAdmin ? "security" : authUser ? "check_circle" : "person_circle"} size={16} active />
+          {isAdmin ? "Modo admin" : authUser ? "Cuenta activa" : "Acceso desde Mi perfil"}
+        </span>
+      </div>
     </div>
   );
 
@@ -21004,7 +20994,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       const title = row ? (isWorker ? row.nombre_completo : row.razon_social) : (isWorker ? "Perfil de trabajador" : "Perfil de empresario");
       const subtitle = row
         ? (isWorker ? `${row.licencia || "Sin licencia"} · ${row.maniobra || "Sin maniobra"}` : `${row.tipo_empresa || "Empresa"} · ${row.ubicacion || "Sin ubicación"}`)
-        : (isWorker ? "Aún no has publicado información en Postular." : "Aún no has publicado información como empresario.");
+        : (isAdmin ? (isWorker ? "Formulario base visible para administración." : "Formulario base empresarial visible para administración.") : (isWorker ? "Aún no has publicado información en Postular." : "Aún no has publicado información como empresario."));
       const details = row
         ? (isWorker
           ? [
@@ -21056,7 +21046,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)"}`, background:isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)", color:isWorker ? "#a1c9ff" : "#10b981", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
             >
               <MS name={row ? "edit" : "person_add"} size={16} active />
-              {row ? "Editar información" : (isWorker ? "Crear perfil" : "Crear empresa")}
+              {row ? "Editar información" : (isAdmin ? "Abrir formulario base" : (isWorker ? "Crear perfil" : "Crear empresa"))}
             </button>
           </div>
           {row ? (
@@ -21065,7 +21055,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </div>
           ) : (
             <div style={{ borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px", color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
-              Usa el botón para abrir el mismo formulario donde se publicó la información. Ese es el formulario que se edita y se guarda con la lógica actual.
+              {isAdmin ? "Como administrador puedes abrir el formulario base para revisar ambos flujos sin depender de una cuenta de trabajador o empresa." : "Usa el botón para abrir el mismo formulario donde se publicó la información. Ese es el formulario que se edita y se guarda con la lógica actual."}
             </div>
           )}
         </article>
@@ -21076,15 +21066,21 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
         <ProfileHeader />
         <div style={{ ...card, padding:"22px", borderRadius:"18px" }}>
-          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900", marginBottom:"6px" }}>Editar información publicada</div>
+          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900", marginBottom:"6px" }}>Mi perfil · Editar perfil</div>
           <div style={{ color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
-            Esta sección edita únicamente la información que colocaste en <strong style={{ color:"#a1c9ff" }}>Postular</strong> o en <strong style={{ color:"#10b981" }}>Empresario</strong>. No se usa un perfil público separado para evitar duplicar datos.
+            <strong style={{ color:"#a1c9ff" }}>Editar perfil</strong> es una pestaña dentro de <strong style={{ color:"#d4e4fa" }}>Mi perfil</strong>. Aquí aparecen las tarjetas de <strong style={{ color:"#a1c9ff" }}>Perfil de trabajador</strong> y <strong style={{ color:"#10b981" }}>Perfil de empresario</strong>. Cada tarjeta abre el mismo formulario donde se publicó o se publicará la información, sin crear un perfil duplicado.
           </div>
         </div>
 
-        {!authUser && (
+        {!authUser && !isAdmin && (
           <div style={{ ...card, padding:"22px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
             Para editar información publicada, primero inicia sesión o crea una cuenta.
+          </div>
+        )}
+
+        {isAdmin && (
+          <div style={{ ...card, padding:"18px 22px", border:"1px solid rgba(251,191,36,.30)", background:"rgba(251,191,36,.07)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
+            Modo admin: puedes observar y abrir los formularios base de trabajador y empresario desde estas dos tarjetas.
           </div>
         )}
 
@@ -21313,12 +21309,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
       <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
-        <div style={{ padding:"0 24px", marginBottom:"28px" }}>
+        <div style={{ padding:"0 24px", marginBottom:"22px" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"12px", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>
-              <MS name="person_circle" size={22} active /> Mi Perfil
-            </div>
-            <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ marginLeft:"34px", display:"inline-flex", alignItems:"center", gap:"8px", background:"transparent", border:"none", padding:0, color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} /> Editar perfil</button>
+            <button
+              type="button"
+              onClick={()=>{ setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
+              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+            >
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><MS name="person_circle" size={22} active /> Mi Perfil</span>
+              <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
+            </button>
+            {profileMenuOpen && (
+              <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
+                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>
+                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>
+                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>
+              </div>
+            )}
           </div>
         </div>
         <nav style={{ display:"grid", gap:"4px", flex:1 }}>
@@ -21330,9 +21337,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>handleTalentAction("postulante")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="person_add" size={18} /> Publicar perfil</button>
           <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
-          <button onClick={()=>handleTalentAction("empresa")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="work" size={18} /> Publicar Vacante</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
