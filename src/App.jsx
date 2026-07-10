@@ -20241,6 +20241,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const trabFiltrados = sortByReputation(filterRows(trabajadores, "trabajador"), "trabajador");
   const empFiltradas = sortByReputation(filterRows(empresas, "empresa"), "empresa");
+  const myTrabajadores = authUser?.id ? trabajadores.filter(row => row.user_id === authUser.id) : [];
+  const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id) : [];
+  const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
+  const myLatestEmpresa = [...myEmpresas].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const posturasGlass = {
@@ -20837,44 +20841,111 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
 
-  const ProfileEditorView = () => (
-    <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
-      <ProfileHeader />
-      <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(280px,340px) minmax(0,1fr)", gap:"18px", alignItems:"start" }}>
-        <div style={{ ...card, padding:"22px", position:posturasMobile ? "relative" : "sticky", top:posturasMobile ? "auto" : "84px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"14px" }}>
-            <div style={{ width:"58px", height:"58px", borderRadius:"16px", display:"grid", placeItems:"center", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.25)" }}><MS name="person_circle" size={30} active /></div>
-            <div>
-              <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>Mi perfil</div>
-              <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"22px", fontWeight:"900" }}>{profileDisplayName}</div>
-              <div style={{ color:"rgba(212,228,250,.60)", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>{profileDisplayRole}</div>
+  const ProfileEditorView = () => {
+    const EditSourceCard = ({ type, row }) => {
+      const isWorker = type === "trabajador";
+      const title = row ? (isWorker ? row.nombre_completo : row.razon_social) : (isWorker ? "Perfil de trabajador" : "Perfil de empresario");
+      const subtitle = row
+        ? (isWorker ? `${row.licencia || "Sin licencia"} · ${row.maniobra || "Sin maniobra"}` : `${row.tipo_empresa || "Empresa"} · ${row.ubicacion || "Sin ubicación"}`)
+        : (isWorker ? "Aún no has publicado información en Postular." : "Aún no has publicado información como empresario.");
+      const details = row
+        ? (isWorker
+          ? [
+              ["Edad", row.edad ? `${row.edad} años` : "—"],
+              ["Labora", row.alcance || "—"],
+              ["Teléfono", row.telefono_llamadas || "—"],
+              ["WhatsApp", row.telefono_whatsapp || "—"],
+              ["Correo", row.correo || "—"],
+              ["Estatus", row.disponible ? "Disponible" : "No disponible"],
+            ]
+          : [
+              ["RFC", row.rfc || "—"],
+              ["Representante", row.representante || "—"],
+              ["Contacto técnico", row.contacto_tecnico || "—"],
+              ["Correo", row.correo || "—"],
+              ["Teléfono", row.telefono || "—"],
+              ["WhatsApp", row.whatsapp || "—"],
+              ["Trabajo", row.estatus === "tiene_trabajo" ? "Tiene trabajo" : "Se encuentra lleno"],
+            ])
+        : [];
+      return (
+        <article style={{ ...card, padding:"22px", borderRadius:"18px", borderLeft:`4px solid ${isWorker ? "#a1c9ff" : "#10b981"}` }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", flexWrap:"wrap", marginBottom:"14px" }}>
+            <div style={{ display:"flex", gap:"14px", alignItems:"center", minWidth:0 }}>
+              <div style={{ width:"54px", height:"54px", borderRadius:"16px", display:"grid", placeItems:"center", background:isWorker ? "rgba(161,201,255,.10)" : "rgba(16,185,129,.10)", border:`1px solid ${isWorker ? "rgba(161,201,255,.25)" : "rgba(16,185,129,.25)"}`, color:isWorker ? "#a1c9ff" : "#10b981" }}>
+                <MS name={isWorker ? "badge" : "apartment"} size={26} active />
+              </div>
+              <div style={{ minWidth:0 }}>
+                <div style={{ color:isWorker ? "#a1c9ff" : "#10b981", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</div>
+                <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"22px", fontWeight:"900", lineHeight:1.15, marginTop:"4px", overflowWrap:"anywhere" }}>{title}</div>
+                <div style={{ color:"rgba(212,228,250,.60)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"4px", lineHeight:1.5 }}>{subtitle}</div>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                setSub("posturas");
+                setPosturasMode("form");
+                if (isWorker) {
+                  setVista("postular");
+                  if (row) { setTrabForm({...row, edad:String(row.edad || "")}); setEditingTrabId(row.id); }
+                  else { setTrabForm(emptyTrab); setEditingTrabId(null); }
+                } else {
+                  setVista("empresario");
+                  if (row) { setEmpForm({...row}); setEditingEmpId(row.id); }
+                  else { setEmpForm(emptyEmp); setEditingEmpId(null); }
+                }
+                setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
+              }}
+              style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)"}`, background:isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)", color:isWorker ? "#a1c9ff" : "#10b981", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
+            >
+              <MS name={row ? "edit" : "person_add"} size={16} active />
+              {row ? "Editar información" : (isWorker ? "Crear perfil" : "Crear empresa")}
+            </button>
           </div>
-          <div style={{ display:"grid", gap:"10px" }}>
-            <ProfileMetric label="Correo público" value={profileDisplayEmail} />
-            <ProfileMetric label="Teléfono" value={profileEditor?.telefono_publico || "No registrado"} />
-            <ProfileMetric label="Estado del perfil" value={authUser ? "Cuenta activa" : "Modo invitado"} />
+          {row ? (
+            <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(auto-fit,minmax(180px,1fr))", gap:"10px", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px" }}>
+              {details.map(([k,v]) => <ProfileMetric key={k} label={k} value={v} />)}
+            </div>
+          ) : (
+            <div style={{ borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"14px", color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
+              Usa el botón para abrir el mismo formulario donde se publicó la información. Ese es el formulario que se edita y se guarda con la lógica actual.
+            </div>
+          )}
+        </article>
+      );
+    };
+
+    return (
+      <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
+        <ProfileHeader />
+        <div style={{ ...card, padding:"22px", borderRadius:"18px" }}>
+          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900", marginBottom:"6px" }}>Editar información publicada</div>
+          <div style={{ color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>
+            Esta sección edita únicamente la información que colocaste en <strong style={{ color:"#a1c9ff" }}>Postular</strong> o en <strong style={{ color:"#10b981" }}>Empresario</strong>. No se usa un perfil público separado para evitar duplicar datos.
           </div>
         </div>
-        <div style={{ ...card, padding:"22px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"16px" }}>
-            <div>
-              <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900" }}>Editar información pública</div>
-              <div style={{ color:"rgba(212,228,250,.64)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"4px", lineHeight:1.6 }}>Actualiza los datos visibles para empresas y candidatos sin alterar la lógica operativa existente.</div>
-            </div>
-            <button onClick={handleProfileUpdate} style={{ display:"inline-flex", alignItems:"center", gap:"10px", padding:"14px 18px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.65)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontWeight:"900", cursor:"pointer", boxShadow:"0 12px 28px rgba(0,150,255,.24)" }}><MS name="check_circle" size={18} color="#002d52" /> Actualizar información</button>
+
+        {!authUser && (
+          <div style={{ ...card, padding:"22px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.6 }}>
+            Para editar información publicada, primero inicia sesión o crea una cuenta.
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"12px" }}>
-            <div><div style={label}>Nombre público</div><input style={input} value={profileEditor.nombre_publico || ""} onChange={e=>setProfileEditor(v=>({...v, nombre_publico:e.target.value}))} /></div>
-            <div><div style={label}>Cargo público</div><input style={input} value={profileEditor.cargo_publico || ""} onChange={e=>setProfileEditor(v=>({...v, cargo_publico:e.target.value}))} /></div>
-            <div><div style={label}>Correo público</div><input style={input} value={profileEditor.correo_publico || ""} onChange={e=>setProfileEditor(v=>({...v, correo_publico:e.target.value}))} /></div>
-            <div><div style={label}>Teléfono público</div><input style={input} value={profileEditor.telefono_publico || ""} onChange={e=>setProfileEditor(v=>({...v, telefono_publico:e.target.value}))} /></div>
-            <div style={{ gridColumn:"1 / -1" }}><div style={label}>Biografía pública</div><textarea style={{ ...input, minHeight:"110px", resize:"vertical" }} value={profileEditor.bio_publica || ""} onChange={e=>setProfileEditor(v=>({...v, bio_publica:e.target.value}))} /></div>
-          </div>
+        )}
+
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"18px", alignItems:"start" }}>
+          <EditSourceCard type="trabajador" row={myLatestTrabajador} />
+          <EditSourceCard type="empresa" row={myLatestEmpresa} />
         </div>
-      </div>
-    </section>
-  );
+
+        {(myTrabajadores.length > 1 || myEmpresas.length > 1) && (
+          <div style={{ display:"grid", gap:"12px" }}>
+            <div style={{ color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".12em" }}>Otras publicaciones de tu cuenta</div>
+            {myTrabajadores.slice(1).map(row => <EditSourceCard key={`my-trab-${row.id}`} type="trabajador" row={row} />)}
+            {myEmpresas.slice(1).map(row => <EditSourceCard key={`my-emp-${row.id}`} type="empresa" row={row} />)}
+          </div>
+        )}
+      </section>
+    );
+  };
 
   const DashboardEntityRow = ({ row, type }) => {
     const r = avgFor(type, row.id);
@@ -25879,8 +25950,9 @@ function App() {
   const theme = supabaseTheme || DEFAULT_THEME;
   const appVw = useWindowWidth();
   const isMobileViewport = appVw <= 768;
-  const isPosturasMobile = isMobileViewport && active === "donativos";
-  const floatingWidgetBottom = isPosturasMobile ? "104px" : "20px";
+  const isPosturasSection = active === "donativos";
+  const isPosturasMobile = isMobileViewport && isPosturasSection;
+  const floatingWidgetBottom = isPosturasSection ? "104px" : "20px";
   const floatingWidgetRight = isMobileViewport ? "14px" : "20px";
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
@@ -26646,7 +26718,7 @@ function App() {
           }
         `}</style>
 
-        <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} isPrivileged={Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean))} />
+        {active !== "donativos" && <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} isPrivileged={Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean))} />}
 
         {hasUnreadAdminMessages && showQRPanel !== 'admin_msg' && (
           <div
