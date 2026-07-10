@@ -20060,6 +20060,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const row = type === "empresa" ? myLatestEmpresa : myLatestTrabajador;
     return !row || !isProfileExpired(row);
   };
+  const isRenderableImageSrc = (value) => {
+    const src = String(value || "").trim();
+    return /^(https?:|data:image\/|blob:|\/)/i.test(src);
+  };
+  const profilePhotoSrc = [
+    authUser?.user_metadata?.avatar_url,
+    authUser?.user_metadata?.picture,
+    myLatestTrabajador?.foto_perfil,
+    myLatestEmpresa?.contacto_principal_foto,
+    myLatestEmpresa?.logo_empresa,
+  ].find(isRenderableImageSrc) || "";
+  const ProfileButtonIcon = ({ size=22 }) => profilePhotoSrc ? (
+    <img src={profilePhotoSrc} alt="Mi perfil" style={{ width:size, height:size, borderRadius:"999px", objectFit:"cover", border:"1px solid rgba(161,201,255,.42)", boxShadow:"0 0 0 3px rgba(161,201,255,.08)" }} />
+  ) : <MS name="person_circle" size={size} active />;
   const salarioMinPostulanteLocal = Math.max(0, Number(posturasSalaryRules.postulante_local_min ?? 500));
   const salarioMaxPostulanteLocal = Math.max(salarioMinPostulanteLocal, Number(posturasSalaryRules.postulante_local_max || 20000));
   const salarioMinPostulanteForaneo = Math.max(0, Number(posturasSalaryRules.postulante_foraneo_min ?? 500));
@@ -20070,16 +20084,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const salarioMaxEmpresaForaneo = Math.max(salarioMinEmpresaForaneo, Number(posturasSalaryRules.empresa_foraneo_max || 25000));
   const updatePosturasSalaryRule = (field, value) => {
     const raw = String(value ?? "").replace(/[^0-9]/g, "");
-    setPosturasSalaryRules(prev => {
-      const next = { ...prev, [field]: raw };
-      try { localStorage.setItem("cm_posturas_salary_rules", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setPosturasSalaryRules(prev => ({ ...prev, [field]: raw }));
   };
-  const normalizePosturasSalaryRules = () => {
+  const savePosturasSalaryRules = (type="all") => {
     setPosturasSalaryRules(prev => {
       const next = { ...prev };
-      ["postulante_local", "postulante_foraneo", "empresa_local", "empresa_foraneo"].forEach(prefix => {
+      const prefixes = type === "postulante"
+        ? ["postulante_local", "postulante_foraneo"]
+        : type === "empresa"
+          ? ["empresa_local", "empresa_foraneo"]
+          : ["postulante_local", "postulante_foraneo", "empresa_local", "empresa_foraneo"];
+      prefixes.forEach(prefix => {
         const minKey = `${prefix}_min`;
         const maxKey = `${prefix}_max`;
         const fallbackMax = prefix.startsWith("empresa") ? 25000 : 20000;
@@ -20089,6 +20104,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         next[maxKey] = String(maxValue);
       });
       try { localStorage.setItem("cm_posturas_salary_rules", JSON.stringify(next)); } catch {}
+      setMsg({ type:"ok", text: type === "empresa" ? "Ajustes de empresa guardados." : type === "postulante" ? "Ajustes de postulante guardados." : "Ajustes salariales guardados." });
       return next;
     });
   };
@@ -20673,14 +20689,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div>
       <div style={label}>{fieldLabel}</div>
       <input
+        className="cm-posturas-fluid-input"
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
+        autoComplete="off"
         style={input}
         value={posturasSalaryRules[field] ?? ""}
         onChange={e=>updatePosturasSalaryRule(field, e.target.value)}
-        onBlur={normalizePosturasSalaryRules}
-        onWheel={e=>e.currentTarget.blur()}
         placeholder="Escribe la cantidad"
       />
     </div>
@@ -20716,6 +20732,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
         {fields.map(([field, fieldLabel]) => <AdminSalaryField key={field} field={field} label={fieldLabel} />)}
       </div>
+      <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"12px" }}>
+        <button className="cm-posturas-dynamic-btn" type="button" onClick={()=>savePosturasSalaryRules(type)} style={{ ...btn(accent), background:`${accent}18` }}>
+          Guardar ajustes de {isPostulante ? "postulante" : "empresa"}
+        </button>
+      </div>
     </div>;
   };
 
@@ -20729,7 +20750,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           {[ ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
-            <button key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
+            <button className="cm-posturas-dynamic-btn" key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
           ))}
         </div>
       </div>
@@ -21635,23 +21656,30 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
+      <style>{`
+        .cm-posturas-dynamic-btn { transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease; }
+        .cm-posturas-dynamic-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08); filter: brightness(1.08); cursor: pointer; }
+        .cm-posturas-fluid-input { caret-color: #a1c9ff; }
+        .cm-posturas-fluid-input:focus { border-color: rgba(161,201,255,.72) !important; box-shadow: 0 0 0 3px rgba(161,201,255,.12); }
+        .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
+      `}</style>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
-      <aside style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:10, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
+      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:1200, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
         <div style={{ padding:"0 24px", marginBottom:"22px" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             <button
               type="button"
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
-              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+              className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><MS name="person_circle" size={22} active /> Mi Perfil</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={22} /> Mi Perfil</span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
             </button>
             {profileMenuOpen && (
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
-                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
           </div>
@@ -21659,13 +21687,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <nav style={{ display:"grid", gap:"4px", flex:1 }}>
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
-            return <button key={item.id} onClick={item.onClick} style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
+            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
               <MS name={item.icon} size={22} active={active} /> {item.label}
             </button>;
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
