@@ -19968,9 +19968,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     salario_local:"", salario_foraneo:"", preferencia_pago:"Transferencia", documentos_updated_at:""
   };
   const emptyEmp = {
-    razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", logo_empresa:"", comprobante_domicilio:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
+    razon_social:"", rfc:"", tipo_empresa:"Transportista", domicilio:"", ubicacion:"", logo_empresa:"", comprobante_domicilio:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
     tipo_viaje:"Local", maniobra_requerida:"Full", licencia_solicitada:"Federal tipo B - Carga general", metodo_pago_ofrecido:"Transferencia",
-    contacto_principal_nombre:"", contacto_principal_numero:"", contacto_secundario_nombre:"", contacto_secundario_numero:"",
+    contacto_principal_nombre:"", contacto_principal_numero:"", contacto_principal_foto:"", contacto_secundario_nombre:"", contacto_secundario_numero:"", contacto_secundario_correo:"",
     salario_local_ofrecido:"", salario_foraneo_ofrecido:"", documentos_updated_at:""
   };
   const [trabForm, setTrabForm] = useState(emptyTrab);
@@ -20008,6 +20008,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [empWizardStep, setEmpWizardStep] = useState(1);
+  const [companyFormMode, setCompanyFormMode] = useState("registro");
   const [profileEditor, setProfileEditor] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("cm_posturas_public_profile") || "null") || {
@@ -20101,6 +20102,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     }
     setSub("posturas");
     setVista(type === "empresa" ? "empresario" : "postular");
+    setCompanyFormMode("registro");
+    setEmpWizardStep(1);
     setPosturasMode(type === "empresa" ? "list" : "form");
     setTalentView(type === "empresa" ? "busquedas" : "perfiles");
   };
@@ -20109,6 +20112,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     persistPosturasUserType(type);
     setSub("posturas");
     setVista(type === "empresa" ? "empresario" : "postular");
+    setCompanyFormMode("registro");
+    setEmpWizardStep(1);
     setPosturasMode("form");
   };
   const handleFileMeta = (setter, field, fileList) => {
@@ -20320,8 +20325,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (!authUser) return requireLogin();
     if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
     if (!isAdmin) {
-      const requiredEmpresaDocs = ["logo_empresa","ubicacion","comprobante_domicilio","contacto_principal_nombre","contacto_principal_numero"];
-      if (requiredEmpresaDocs.some(k => !String(empForm[k] || "").trim())) { setMsg({type:"err", text:"Completa logo, ubicación, comprobante de domicilio y contacto principal de empresa."}); return; }
+      const requiredEmpresaDocs = ["logo_empresa","domicilio","comprobante_domicilio","contacto_principal_nombre","contacto_principal_numero","contacto_principal_foto"];
+      if (requiredEmpresaDocs.some(k => !String(empForm[k] || "").trim())) { setMsg({type:"err", text:"Completa logo, domicilio, comprobante de domicilio, nombre/teléfono y foto del contacto principal."}); return; }
     }
     const salarioLocalOfrecido = Number(empForm.salario_local_ofrecido || 0);
     const salarioForaneoOfrecido = Number(empForm.salario_foraneo_ofrecido || 0);
@@ -20331,7 +20336,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
-    const payload = { ...empForm, salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
+    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
     const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
     if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de empresa guardado."}); setEmpForm(emptyEmp); setEditingEmpId(null); loadPosturas(); }
   };
@@ -20562,13 +20567,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </div>
           <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", padding:"6px 12px", borderRadius:"999px", background:row.estatus==="tiene_trabajo"?"rgba(34,197,94,.12)":"rgba(239,68,68,.12)", color:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444", border:`1px solid ${row.estatus==="tiene_trabajo"?"rgba(34,197,94,.28)":"rgba(239,68,68,.28)"}`, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", textTransform:"uppercase" }}><span style={{ width:"7px", height:"7px", borderRadius:"50%", background:row.estatus==="tiene_trabajo"?"#22c55e":"#ef4444" }} />{row.estatus==="tiene_trabajo"?"Activa":"Llena"}</div>
         </div>
-        <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. Correo: {row.correo}{row.telefono ? ` · Teléfono: ${row.telefono}` : ""}</div>
+        <div style={{ color:"rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, maxWidth:"920px" }}>Se requiere o publica disponibilidad operativa. Domicilio: {row.domicilio || row.ubicacion || "No indicado"}. Representante: {row.representante}. Contacto técnico: {row.contacto_tecnico || "No especificado"}. Correo: {row.correo}{row.telefono ? ` · Teléfono: ${row.telefono}` : ""}</div>
         <div style={{ display:"flex", flexWrap:"wrap", gap:"9px", marginTop:"16px" }}>{[row.tipo_empresa, row.alcance, row.estatus === "tiene_trabajo" ? "Trabajo activo" : "Sin cupo"].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.8)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"8px 12px", borderRadius:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px", marginTop:"18px" }}>
           <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Publicado: {timeAgo(row.updated_at || row.created_at)}</span>
           <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
             <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
-            {canEdit(row) && <button onClick={()=>{setEmpForm({...row}); setEditingEmpId(row.id); setVista("empresario"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
+            {canEdit(row) && <button onClick={()=>{setEmpForm({...row, domicilio: row.domicilio || row.ubicacion || ""}); setEditingEmpId(row.id); setVista("empresario"); setCompanyFormMode("registro"); setEmpWizardStep(1); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
             <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <MS name="arrow_forward" size={13} active /></button>
           </div>
         </div>
@@ -20647,40 +20652,59 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const CompanyForm = () => {
     const existing = editingEmpId ? empForm : myLatestEmpresa;
     const expired = isProfileExpired(existing);
-    const step = Math.min(3, Math.max(1, Number(empWizardStep || 1)));
+    const step = Math.min(2, Math.max(1, Number(empWizardStep || 1)));
     const StepBadge = ({ id, text }) => <button type="button" onClick={()=>setEmpWizardStep(id)} style={{ ...btn(step===id ? "#10b981" : "#64748b"), background:step===id ? "rgba(16,185,129,.16)" : "rgba(100,116,139,.10)" }}>{id}. {text}</button>;
     const FileInput = ({ field, textLabel }) => <div><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setEmpForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm[field] || "Sin archivo seleccionado"}</div></div>;
     return <div style={card}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
         <div>
-          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Empresa · asistente de registro y vacante</div>
-          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Wizard de 3 pasos: identidad empresarial, contactos y datos de vacante con autocompletado de empresa.</div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Empresa · registro empresarial</div>
+          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Wizard de 2 pasos: identidad empresarial y contactos. La vacante se captura solo cuando el usuario pulsa Publicar Vacante.</div>
         </div>
         {existing && <span style={{ ...btn(expired ? "#f59e0b" : "#22c55e"), cursor:"default", background:expired ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.12)" }}>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</span>}
       </div>
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Conservas el histórico, pero debes actualizar documentos para publicar vacantes.</div>}
-      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /><StepBadge id={3} text="Vacante" /></div>
+      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /></div>
       {step === 1 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
         <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
         <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
         <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Ubicación</div><input style={input} value={empForm.ubicacion} onChange={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))}/></div>
+        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:e.target.value, ubicacion:e.target.value}))} placeholder="Domicilio fiscal u operativo" /></div>
         <FileInput field="logo_empresa" textLabel="Logo de la empresa" />
         <FileInput field="comprobante_domicilio" textLabel="Comprobante de domicilio" />
       </div>}
       {step === 2 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Contacto técnico</div><input style={input} value={empForm.contacto_tecnico||""} onChange={e=>setEmpForm(f=>({...f,contacto_tecnico:e.target.value}))}/></div>
-        <div><div style={label}>Representante</div><input style={input} value={empForm.representante} onChange={e=>setEmpForm(f=>({...f,representante:e.target.value}))}/></div>
-        <div><div style={label}>Correo obligatorio</div><input style={input} value={empForm.correo} onChange={e=>setEmpForm(f=>({...f,correo:e.target.value}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.telefono||""} onChange={e=>setEmpForm(f=>({...f,telefono:e.target.value}))}/></div>
-        <div><div style={label}>WhatsApp</div><input style={input} value={empForm.whatsapp||""} onChange={e=>setEmpForm(f=>({...f,whatsapp:e.target.value}))}/></div>
-        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value}))}/></div>
-        <div><div style={label}>Número principal</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value}))}/></div>
+        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value, representante:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value, telefono:e.target.value}))}/></div>
+        <FileInput field="contacto_principal_foto" textLabel="Foto de contacto principal" />
         <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
-        <div><div style={label}>Número secundario</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
+        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:e.target.value, correo:e.target.value}))}/></div>
       </div>}
-      {step === 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Empresa de la vacante</div><input style={{...input, opacity:.78}} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} readOnly placeholder="Autocompletado con el perfil empresarial" /></div>
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:"8px" }}>
+          {step > 1 && <button onClick={()=>setEmpWizardStep(step-1)} style={btn("#94a3b8")}>Anterior</button>}
+          {step < 2 && <button onClick={()=>setEmpWizardStep(step+1)} style={btn("#10b981")}>Siguiente</button>}
+        </div>
+        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear empresa")}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp); setEmpWizardStep(1);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+      </div>
+    </div>;
+  };
+
+  const CompanyVacancyForm = () => {
+    const existing = editingEmpId ? empForm : myLatestEmpresa;
+    const expired = isProfileExpired(existing);
+    return <div style={card}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"14px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Publicar vacante</div>
+          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Datos específicos de la vacante. El nombre de empresa se autocompleta desde el perfil empresarial activo.</div>
+        </div>
+        {existing && <span style={{ ...btn(expired ? "#f59e0b" : "#22c55e"), cursor:"default", background:expired ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.12)" }}>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</span>}
+      </div>
+      {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Actualiza el registro empresarial antes de publicar nuevas vacantes.</div>}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        <div><div style={label}>Empresa de la vacante</div><input style={{...input, opacity:.78}} value={empForm.razon_social || myLatestEmpresa?.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} readOnly placeholder="Autocompletado con el perfil empresarial" /></div>
         <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
         <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Tipo de viaje</div><select style={input} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></div>
@@ -20689,16 +20713,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Pago ofrecido viaje local</div><input type="number" min={salarioMinEmpresaLocal} max={salarioMaxEmpresaLocal} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
         <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresaForaneo} max={salarioMaxEmpresaForaneo} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
-      </div>}
-      <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
-        <div style={{ display:"flex", gap:"8px" }}>
-          {step > 1 && <button onClick={()=>setEmpWizardStep(step-1)} style={btn("#94a3b8")}>Anterior</button>}
-          {step < 3 && <button onClick={()=>setEmpWizardStep(step+1)} style={btn("#10b981")}>Siguiente</button>}
-        </div>
-        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear / publicar")}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp); setEmpWizardStep(1);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+      </div>
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
+        <button onClick={()=>{ setCompanyFormMode("registro"); setEmpWizardStep(1); }} style={btn("#94a3b8")}>Editar registro empresarial</button>
+        <button onClick={saveEmp} disabled={expired && !isAdmin} style={{ ...btn(actionButtonColorForProfile(existing, "#22c55e")), opacity:(expired && !isAdmin) ? .55 : 1 }}>{expired && !isAdmin ? "Actualiza empresa primero" : "Publicar vacante"}</button>
       </div>
     </div>;
   };
+
 
   const savePisHistory = (entry) => {
     const next = [entry, ...pisHistory].slice(0, 12);
@@ -21362,7 +21384,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const MobileEmpresaCard = ({ row }) => { const r = avgFor("empresa", row.id); return <article style={{ ...card, padding:"16px", borderRadius:"16px", borderLeft:"4px solid #10b981" }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", marginBottom:"10px" }}><div style={{ display:"inline-flex", alignItems:"center", gap:"7px", color:"#10b981", fontSize:"10px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".12em" }}><span style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#10b981" }} /> {row.estatus === "tiene_trabajo" ? "Activa" : "Llena"}</div><div style={{ display:"flex", alignItems:"center", gap:"4px", color:"#fbbf24" }}><StarRating value={r.avg} small /><span style={{ fontSize:"11px", color:"#fbbf24", fontWeight:"900" }}>{r.avg ? r.avg.toFixed(1) : "0.0"}</span></div></div>
     <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", lineHeight:1.25 }}>Búsqueda: {row.razon_social}</div><div style={{ marginTop:"5px", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", display:"flex", alignItems:"center", gap:"5px" }}><MS name="apartment" size={14} active /> {row.tipo_empresa}</div>
-    <div style={{ marginTop:"11px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.55, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>Ubicación: {row.ubicacion || "No indicada"}. Representante: {row.representante || "—"}. Contacto técnico: {row.contacto_tecnico || "—"}.</div>
+    <div style={{ marginTop:"11px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.55, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>Domicilio: {row.domicilio || row.ubicacion || "No indicado"}. Representante: {row.representante || "—"}. Contacto técnico: {row.contacto_tecnico || "—"}.</div>
     <div style={{ marginTop:"12px", display:"flex", flexWrap:"wrap", gap:"8px" }}>{[row.tipo_empresa, row.alcance].filter(Boolean).map(tag=><span key={tag} style={{ background:"rgba(13,28,45,.85)", color:"#89919e", border:"1px solid rgba(63,71,83,.38)", padding:"6px 9px", borderRadius:"8px", fontSize:"10px", fontWeight:"800" }}>{tag}</span>)}</div>
     <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={{ marginTop:"12px", color:"#a1c9ff", background:"transparent", border:"none", padding:0, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:"4px" }}>Detalles <MS name="arrow_forward" size={14} active /></button>
   </article>; };
@@ -21410,7 +21432,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{companyFormMode === "vacante" ? <CompanyVacancyForm /> : <CompanyForm />}</div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? (companyFormMode === "vacante" ? <CompanyVacancyForm /> : <CompanyForm />) : <WorkerForm />))}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -21476,7 +21498,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
             <AccessSelectorModal />
             <ProfileHeader />
-            {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}
+            {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{companyFormMode === "vacante" ? <CompanyVacancyForm /> : <CompanyForm />}</div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? (companyFormMode === "vacante" ? <CompanyVacancyForm /> : <CompanyForm />) : <WorkerForm />))}
           </div>
         )}
 
@@ -21518,20 +21540,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {(isPosturasLoggedIn || isAdmin) && (isAdmin ? (
         <div style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"10px" }}>
           <button
-            onClick={()=>{ setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("empresa"); setVista("empresario"); setEmpForm(emptyEmp); setEditingEmpId(null); }}
+            onClick={()=>{ setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("empresa"); setVista("empresario"); setCompanyFormMode("vacante"); setEmpWizardStep(1); setEmpForm(f=>({ ...emptyEmp, razon_social: f.razon_social || myLatestEmpresa?.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || "", domicilio: f.domicilio || myLatestEmpresa?.domicilio || myLatestEmpresa?.ubicacion || "", ubicacion: f.ubicacion || myLatestEmpresa?.ubicacion || myLatestEmpresa?.domicilio || "", rfc: f.rfc || myLatestEmpresa?.rfc || "" })); setEditingEmpId(null); }}
             style={{ display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:"1px solid rgba(16,185,129,.65)", background:"#10b981", color:"#052e2b", boxShadow:"0 18px 38px rgba(16,185,129,.25)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}
           >
             <AppIcon name="plus-circle" size={22} /> Publicar Vacante
           </button>
           <button
-            onClick={()=>{ setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("ambos"); setVista("postular"); }}
+            onClick={()=>{ setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("ambos"); setVista("postular"); setCompanyFormMode("registro"); setEmpWizardStep(1); }}
             style={{ display:"flex", alignItems:"center", gap:"12px", padding:"13px 20px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.14)", color:"#a1c9ff", boxShadow:"0 14px 30px rgba(0,150,255,.16)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer" }}
           >
             <AppIcon name="window" size={18} active /> Gestionar perfiles
           </button>
         </div>
       ) : (
-        <button onClick={()=>handleTalentAction(isEmpresaSession ? "empresa" : "postulante")} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:`1px solid ${(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "rgba(245,158,11,.72)" : "rgba(0,150,255,.65)"}`, background:(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "#f59e0b" : "#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> {(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "Actualizar" : (isEmpresaSession ? "Publicar Vacante" : "Postularse")}</button>
+        <button onClick={()=>{ handleTalentAction(isEmpresaSession ? "empresa" : "postulante"); if (isEmpresaSession) { setCompanyFormMode("vacante"); setEmpWizardStep(1); } }} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:`1px solid ${(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "rgba(245,158,11,.72)" : "rgba(0,150,255,.65)"}`, background:(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "#f59e0b" : "#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> {(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "Actualizar" : (isEmpresaSession ? "Publicar Vacante" : "Postularse")}</button>
       ))}
     </div>
   );
