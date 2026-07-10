@@ -26059,6 +26059,7 @@ function App() {
 
   const aiMenuClickTimerRef = useRef(null);
   const aiMenuLastTapRef = useRef(0);
+  const aiMenuClickCountRef = useRef(0);
   const aiMenuAccent = {
     cyan: { main:"#22d3ee", glow:"rgba(34,211,238,.38)", fill:"rgba(34,211,238,.10)", border:"rgba(34,211,238,.36)" },
     emerald: { main:"#25D366", glow:"rgba(37,211,102,.36)", fill:"rgba(37,211,102,.10)", border:"rgba(37,211,102,.34)" },
@@ -26106,8 +26107,9 @@ function App() {
   const AiCoreBubble = ({ tone="cyan", size=48, children, badge=null, active=false }) => {
     const t = aiMenuAccent[tone] || aiMenuAccent.cyan;
     return <div style={{ width:size, height:size, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", background:"rgba(13,31,60,.74)", border:`1px solid ${active ? t.main : t.border}`, boxShadow:`0 10px 30px rgba(0,0,0,.42), 0 0 26px ${t.glow}, inset 0 1px 0 rgba(255,255,255,.16)`, backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", transition:"transform .28s cubic-bezier(.34,1.56,.64,1), box-shadow .28s ease", overflow:"visible" }}>
-      <span style={{ position:"absolute", inset:-5, borderRadius:"inherit", border:`1px solid ${t.border}`, borderTopColor:t.main, borderRightColor:"rgba(255,255,255,.20)", animation:"aiCoreSpin 4.8s linear infinite", pointerEvents:"none" }} />
-      <span style={{ position:"absolute", inset:-2, borderRadius:"inherit", background:t.fill, filter:"blur(12px)", animation:"aiAuraPulse 2.6s ease-in-out infinite", pointerEvents:"none" }} />
+      <span style={{ position:"absolute", inset:-7, borderRadius:"inherit", background:`conic-gradient(from 0deg, transparent 0deg, transparent 210deg, ${t.main} 255deg, rgba(255,255,255,.88) 285deg, transparent 330deg)`, animation:"aiCoreSpin 2.35s linear infinite", pointerEvents:"none", filter:`drop-shadow(0 0 12px ${t.glow})` }} />
+      <span style={{ position:"absolute", inset:-5, borderRadius:"inherit", background:"rgba(13,31,60,.92)", pointerEvents:"none" }} />
+      <span style={{ position:"absolute", inset:-2, borderRadius:"inherit", background:t.fill, filter:"blur(12px)", animation:"aiAuraPulse 2.2s ease-in-out infinite", pointerEvents:"none" }} />
       <span style={{ width:size-12, height:size-12, borderRadius:"inherit", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", background:"rgba(255,255,255,.04)", position:"relative", zIndex:2, overflow:"hidden" }}>{children}</span>
       {badge}
     </div>;
@@ -26129,6 +26131,8 @@ function App() {
       clearTimeout(aiMenuClickTimerRef.current);
       aiMenuClickTimerRef.current = null;
     }
+    aiMenuClickCountRef.current = 0;
+    aiMenuLastTapRef.current = 0;
     if (hasUnreadAdminMessages) {
       setSupportExpanded(false);
       setShowQRPanel("admin_msg");
@@ -26146,20 +26150,32 @@ function App() {
     }
 
     const now = Date.now();
-    if (now - aiMenuLastTapRef.current < 420) {
+    if (now - aiMenuLastTapRef.current > 520) aiMenuClickCountRef.current = 0;
+    aiMenuLastTapRef.current = now;
+    aiMenuClickCountRef.current += 1;
+
+    if (aiMenuClickCountRef.current >= 2) {
+      if (aiMenuClickTimerRef.current) {
+        clearTimeout(aiMenuClickTimerRef.current);
+        aiMenuClickTimerRef.current = null;
+      }
+      aiMenuClickCountRef.current = 0;
       aiMenuLastTapRef.current = 0;
-      handleMainAiBubbleDoubleClick(e);
+      setShowQRPanel(null);
+      setSupportExpanded(v => !v);
       return;
     }
-    aiMenuLastTapRef.current = now;
 
     if (aiMenuClickTimerRef.current) clearTimeout(aiMenuClickTimerRef.current);
     aiMenuClickTimerRef.current = setTimeout(() => {
-      setSupportExpanded(false);
-      setShowQRPanel(prev => prev === "gemini" ? null : "gemini");
+      if (aiMenuClickCountRef.current === 1) {
+        setSupportExpanded(false);
+        setShowQRPanel(prev => prev === "gemini" ? null : "gemini");
+      }
       aiMenuClickTimerRef.current = null;
+      aiMenuClickCountRef.current = 0;
       aiMenuLastTapRef.current = 0;
-    }, 340);
+    }, 360);
   };
 
   // Validado FIX: handlers correctamente definidos dentro del componente
@@ -26551,6 +26567,9 @@ function App() {
               transform: translateY(0);
             }
           }
+          @keyframes aiCoreSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes aiAuraPulse { 0%,100% { opacity:.42; transform:scale(.96); } 50% { opacity:.96; transform:scale(1.10); } }
+          @keyframes bubbleOrbitIn { from { opacity:0; transform: translateX(26px) translateY(10px) scale(.76); } to { opacity:1; transform: translateX(0) translateY(0) scale(1); } }
           @keyframes adminBubblePulse {
             0%, 100% {
               transform: scale(1);
@@ -26659,15 +26678,23 @@ function App() {
         >
           <span style={{
             position:"absolute",
-            inset:"-6px",
+            inset:"-8px",
             borderRadius:"inherit",
-            border:`1.5px solid ${hasUnreadAdminMessages ? "rgba(251,191,36,.52)" : showQRPanel === "gemini" ? "rgba(239,68,68,.52)" : "rgba(34,211,238,.52)"}`,
-            borderTopColor: hasUnreadAdminMessages ? "#fbbf24" : showQRPanel === "gemini" ? "#ef4444" : "#22d3ee",
-            borderRightColor:"rgba(255,255,255,.26)",
-            borderBottomColor:"rgba(255,255,255,.12)",
-            animation:"aiCoreSpin 4.2s linear infinite",
+            background: hasUnreadAdminMessages
+              ? "conic-gradient(from 0deg, transparent 0deg, transparent 210deg, #fbbf24 255deg, rgba(255,255,255,.92) 285deg, transparent 330deg)"
+              : showQRPanel === "gemini"
+                ? "conic-gradient(from 0deg, transparent 0deg, transparent 210deg, #ef4444 255deg, rgba(255,255,255,.92) 285deg, transparent 330deg)"
+                : "conic-gradient(from 0deg, transparent 0deg, transparent 210deg, #22d3ee 255deg, rgba(255,255,255,.95) 285deg, transparent 330deg)",
+            animation:"aiCoreSpin 2.15s linear infinite",
             pointerEvents:"none",
-            boxShadow: hasUnreadAdminMessages ? "0 0 22px rgba(251,191,36,.30)" : showQRPanel === "gemini" ? "0 0 22px rgba(239,68,68,.26)" : "0 0 24px rgba(34,211,238,.28)"
+            filter: hasUnreadAdminMessages ? "drop-shadow(0 0 14px rgba(251,191,36,.42))" : showQRPanel === "gemini" ? "drop-shadow(0 0 14px rgba(239,68,68,.36))" : "drop-shadow(0 0 16px rgba(34,211,238,.45))"
+          }} />
+          <span style={{
+            position:"absolute",
+            inset:"-5px",
+            borderRadius:"inherit",
+            background:"rgba(13,31,60,.94)",
+            pointerEvents:"none"
           }} />
           <span style={{
             position:"absolute",
@@ -26675,7 +26702,7 @@ function App() {
             borderRadius:"inherit",
             background: hasUnreadAdminMessages ? "rgba(251,191,36,.12)" : showQRPanel === "gemini" ? "rgba(239,68,68,.10)" : "rgba(34,211,238,.12)",
             filter:"blur(14px)",
-            animation:"aiAuraPulse 2.4s ease-in-out infinite",
+            animation:"aiAuraPulse 2.15s ease-in-out infinite",
             pointerEvents:"none"
           }} />
           {showQRPanel === "gemini" || hasUnreadAdminMessages ? (
