@@ -26058,6 +26058,7 @@ function App() {
   const isAiChatActive = showQRPanel === "gemini" || geminiLoading;
 
   const aiMenuClickTimerRef = useRef(null);
+  const aiMenuLastTapRef = useRef(0);
   const aiMenuAccent = {
     cyan: { main:"#22d3ee", glow:"rgba(34,211,238,.38)", fill:"rgba(34,211,238,.10)", border:"rgba(34,211,238,.36)" },
     emerald: { main:"#25D366", glow:"rgba(37,211,102,.36)", fill:"rgba(37,211,102,.10)", border:"rgba(37,211,102,.34)" },
@@ -26117,6 +26118,25 @@ function App() {
       <AiCoreBubble tone={tone} badge={badge}>{children}</AiCoreBubble>
     </div>
   );
+  const toggleMainAiSecondaryMenu = () => {
+    setShowQRPanel(null);
+    setSupportExpanded(v => !v);
+  };
+
+  const handleMainAiBubbleDoubleClick = (e) => {
+    e?.stopPropagation?.();
+    if (aiMenuClickTimerRef.current) {
+      clearTimeout(aiMenuClickTimerRef.current);
+      aiMenuClickTimerRef.current = null;
+    }
+    if (hasUnreadAdminMessages) {
+      setSupportExpanded(false);
+      setShowQRPanel("admin_msg");
+      return;
+    }
+    toggleMainAiSecondaryMenu();
+  };
+
   const handleMainAiBubbleClick = (e) => {
     e.stopPropagation();
     if (hasUnreadAdminMessages) {
@@ -26124,18 +26144,22 @@ function App() {
       setShowQRPanel("admin_msg");
       return;
     }
-    if (aiMenuClickTimerRef.current) {
-      clearTimeout(aiMenuClickTimerRef.current);
-      aiMenuClickTimerRef.current = null;
-      setShowQRPanel(null);
-      setSupportExpanded(v => !v);
+
+    const now = Date.now();
+    if (now - aiMenuLastTapRef.current < 420) {
+      aiMenuLastTapRef.current = 0;
+      handleMainAiBubbleDoubleClick(e);
       return;
     }
+    aiMenuLastTapRef.current = now;
+
+    if (aiMenuClickTimerRef.current) clearTimeout(aiMenuClickTimerRef.current);
     aiMenuClickTimerRef.current = setTimeout(() => {
       setSupportExpanded(false);
       setShowQRPanel(prev => prev === "gemini" ? null : "gemini");
       aiMenuClickTimerRef.current = null;
-    }, 260);
+      aiMenuLastTapRef.current = 0;
+    }, 340);
   };
 
   // Validado FIX: handlers correctamente definidos dentro del componente
@@ -26602,7 +26626,7 @@ function App() {
         <div
           title="Abrir AI ConectMzo"
           onClick={handleMainAiBubbleClick}
-          onDoubleClick={(e) => e.stopPropagation()}
+          onDoubleClick={handleMainAiBubbleDoubleClick}
           style={{
             width: "56px",
             height: "56px",
@@ -26622,7 +26646,9 @@ function App() {
             backdropFilter: "blur(10px)",
             WebkitBackdropFilter: "blur(10px)",
             transform: supportExpanded ? "scale(1.05)" : "scale(1)",
-            animation: hasUnreadAdminMessages && !supportExpanded ? "adminBubblePulse 1.15s ease-in-out infinite" : "none"
+            animation: hasUnreadAdminMessages && !supportExpanded ? "adminBubblePulse 1.15s ease-in-out infinite" : "none",
+            position: "relative",
+            overflow: "visible"
           }}
           onMouseEnter={(e) => {
             if (showQRPanel !== "gemini" && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1.1)";
@@ -26631,17 +26657,38 @@ function App() {
             if (showQRPanel !== "gemini" && !hasUnreadAdminMessages) e.currentTarget.style.transform = "scale(1)";
           }}
         >
+          <span style={{
+            position:"absolute",
+            inset:"-6px",
+            borderRadius:"inherit",
+            border:`1.5px solid ${hasUnreadAdminMessages ? "rgba(251,191,36,.52)" : showQRPanel === "gemini" ? "rgba(239,68,68,.52)" : "rgba(34,211,238,.52)"}`,
+            borderTopColor: hasUnreadAdminMessages ? "#fbbf24" : showQRPanel === "gemini" ? "#ef4444" : "#22d3ee",
+            borderRightColor:"rgba(255,255,255,.26)",
+            borderBottomColor:"rgba(255,255,255,.12)",
+            animation:"aiCoreSpin 4.2s linear infinite",
+            pointerEvents:"none",
+            boxShadow: hasUnreadAdminMessages ? "0 0 22px rgba(251,191,36,.30)" : showQRPanel === "gemini" ? "0 0 22px rgba(239,68,68,.26)" : "0 0 24px rgba(34,211,238,.28)"
+          }} />
+          <span style={{
+            position:"absolute",
+            inset:"-2px",
+            borderRadius:"inherit",
+            background: hasUnreadAdminMessages ? "rgba(251,191,36,.12)" : showQRPanel === "gemini" ? "rgba(239,68,68,.10)" : "rgba(34,211,238,.12)",
+            filter:"blur(14px)",
+            animation:"aiAuraPulse 2.4s ease-in-out infinite",
+            pointerEvents:"none"
+          }} />
           {showQRPanel === "gemini" || hasUnreadAdminMessages ? (
-            showQRPanel === "gemini" ? <SvgClose size={28} /> : <SvgBell size={26} />
+            <span style={{ position:"relative", zIndex:2 }}>{showQRPanel === "gemini" ? <SvgClose size={28} /> : <SvgBell size={26} />}</span>
           ) : (
             <img
               src="/burbuja%20ia.png"
               alt="AI ConectMzo"
-              style={{ width:"42px", height:"42px", objectFit:"contain", display:"block", borderRadius:"50%" }}
+              style={{ width:"42px", height:"42px", objectFit:"contain", display:"block", borderRadius:"50%", position:"relative", zIndex:2 }}
               onError={(e) => { e.currentTarget.style.display = "none"; const fb = e.currentTarget.nextElementSibling; if (fb) fb.style.display = "block"; }}
             />
           )}
-          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", width:"32px", height:"32px", alignItems:"center", justifyContent:"center" }}><SvgSpark size={28} /></span>}
+          {showQRPanel !== "gemini" && !hasUnreadAdminMessages && <span style={{ display:"none", width:"32px", height:"32px", alignItems:"center", justifyContent:"center", position:"relative", zIndex:2 }}><SvgSpark size={28} /></span>}
           {hasUnreadAdminMessages && !supportExpanded && (
             <span style={{ position:"absolute", top:"-5px", right:"-5px", background:"#ef4444", color:"#fff", borderRadius:"999px", fontSize:"10px", minWidth:"20px", height:"20px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, border:"2px solid rgba(255,255,255,.8)" }}>{adminMessages.length}</span>
           )}
