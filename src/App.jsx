@@ -7353,7 +7353,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
   return (
     <>
       <style>{`
-        .cm-topbar{position:sticky;top:0;left:0;right:0;z-index:100;background:#0d1117;border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+        .cm-topbar{position:fixed;top:0;left:0;right:0;width:100%;z-index:50;background:rgba(13,17,23,.90);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
         .cm-topbar-inner{width:100%;max-width:1440px;margin:0 auto;min-height:54px;padding:8px 16px;display:flex;align-items:center;gap:14px}
         .cm-topbar-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:0 0 auto;background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 2px;border-radius:8px;touch-action:manipulation}
         .cm-topbar-anchor{width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 8px rgba(0,98,140,.35));overflow:hidden;border-radius:7px}
@@ -20530,9 +20530,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     myLatestEmpresa?.contacto_principal_foto,
     myLatestEmpresa?.logo_empresa,
   ].find(isRenderableImageSrc) || "";
-  const ProfileButtonIcon = ({ size=22 }) => profilePhotoSrc ? (
-    <img src={profilePhotoSrc} alt="Mi perfil" style={{ width:size, height:size, borderRadius:"999px", objectFit:"cover", border:"1px solid rgba(161,201,255,.42)", boxShadow:"0 0 0 3px rgba(161,201,255,.08)" }} />
-  ) : <MS name="person_circle" size={size} active />;
+  const ProfileButtonIcon = ({ size=32 }) => (
+    <div className="w-8 h-8 rounded-full overflow-hidden" style={{ width:size, height:size, borderRadius:"999px", overflow:"hidden", display:"grid", placeItems:"center", background:"rgba(164,201,255,.12)", border:"1px solid rgba(164,201,255,.30)", color:"#a4c9ff", flex:"0 0 auto" }}>
+      {profilePhotoSrc ? (
+        <img src={profilePhotoSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+      ) : (
+        <span className="material-symbols-outlined" style={{ fontSize:Math.max(18, Math.round(size * .68)), lineHeight:1 }}>person</span>
+      )}
+    </div>
+  );
   const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const posturasGlass = {
@@ -20746,11 +20752,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div>
           <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>Control admin · Posturas</div>
           <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Rangos salariales por tipo de perfil</div>
-          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Elige la sección que quieres ajustar. Los campos permiten escribir la cantidad completa manualmente; se normalizan al salir del campo.</div>
+          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Elige la sección que quieres ajustar. Los campos permiten escribir la cantidad completa manualmente; se validan y normalizan al presionar Guardar.</div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
           {[ ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
-            <button className="cm-posturas-dynamic-btn" key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
+            <button className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
           ))}
         </div>
       </div>
@@ -20787,8 +20793,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
         <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
         <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
-        <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulanteLocal} max={salarioMaxPostulanteLocal} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
-        <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulanteForaneo} max={salarioMaxPostulanteForaneo} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
+        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
+        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
         <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
       </div>
@@ -20859,8 +20865,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Imagen para ofrecer la vacante</div><input type="file" accept="image/*" style={input} onChange={e=>handleFileMeta(setEmpForm, "imagen_vacante", e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm.imagen_vacante || "Sin imagen seleccionada"}</div></div>
-        <div><div style={label}>Pago ofrecido viaje local</div><input type="number" min={salarioMinEmpresaLocal} max={salarioMaxEmpresaLocal} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
-        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresaForaneo} max={salarioMaxEmpresaForaneo} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
+        <div><div style={label}>Pago ofrecido viaje local</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
+        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
       </div>
       <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
         <button onClick={()=>{ setVacancyModalOpen(false); setCompanyFormMode("registro"); setEmpWizardStep(1); }} style={btn("#94a3b8")}>Cerrar / editar registro empresarial</button>
@@ -21516,9 +21522,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     .cm-nexus-card:hover { transform: translateY(-4px); }
     .cm-nexus-card.worker:hover { border-color: rgba(164,201,255,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(164,201,255,.13); }
     .cm-nexus-card.employer:hover { border-color: rgba(78,222,163,.42); box-shadow: 0 28px 70px rgba(0,0,0,.42), 0 0 40px rgba(78,222,163,.13); }
-    .cm-nexus-btn { transition: transform .2s ease-out, filter .2s ease-out, box-shadow .2s ease-out; }
-    .cm-nexus-btn:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.05); }
-    .cm-nexus-btn:active { transform: translateY(0) scale(.96); }
+    .cm-nexus-btn { position:relative; overflow:hidden; transition: all .3s ease; }
+    .cm-nexus-btn::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,0); transition:background .3s ease; pointer-events:none; }
+    .cm-nexus-btn:hover::after { background:rgba(255,255,255,.10); }
+    .cm-nexus-btn:hover { transform: translateY(-1px); }
+    .cm-nexus-btn:active { transform: translateY(0) scale(.98); }
     .cm-nexus-stat { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease; }
     .cm-nexus-stat:hover { transform: translateY(-3px) scale(1.01); }
     .cm-nexus-float { animation: cmAccessFloat 3s ease-in-out infinite; }
@@ -21569,7 +21577,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <h3 className="cm-nexus-card-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"32px", lineHeight:"40px", letterSpacing:"-.02em", fontWeight:"900" }}>{title}</h3>
           <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"16px", lineHeight:"24px", fontWeight:"400", maxWidth:"430px" }}>{description}</p>
         </div>
-        <button type="button" onClick={onClick} className="cm-nexus-btn" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
+        <button type="button" onClick={onClick} className="cm-nexus-btn hover:bg-white/10 transition-all duration-300" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
           <MS name={adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"} size={20} active />
           {adminMode ? "Abrir formulario base" : "Continuar"}
         </button>
@@ -21592,12 +21600,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   );
 
   const AccessSelectorModal = () => accessPrompt ? (
-    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:posturasMobile ? 0 : "264px", top:posturasMobile ? 0 : "56px", right:0, bottom:0, zIndex:1100, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
+    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:0, top:0, right:0, bottom:0, zIndex:5000, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
       <style>{accessDesignCSS}</style>
-      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:posturasMobile ? "100vh" : "calc(100vh - 56px)", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "72px 40px 80px", position:"relative", overflow:"hidden" }}>
+      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "96px 40px 80px 304px", position:"relative", overflow:"hidden" }}>
         <span style={{ position:"absolute", top:"-120px", right:"-120px", width:"500px", height:"500px", borderRadius:"999px", background:"rgba(0,255,157,.18)", filter:"blur(140px)", pointerEvents:"none" }} />
         <span style={{ position:"absolute", top:"45%", left:"-220px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
-        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "80px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
+        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "24px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
         <header style={{ position:"relative", zIndex:1, marginBottom:"48px", maxWidth:"780px" }}>
           <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"12px" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
           <h1 className="cm-nexus-title" style={{ margin:"0 0 14px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>¿Cómo deseas acceder?</h1>
@@ -21696,8 +21704,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <style>{`
-        .cm-posturas-dynamic-btn { transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease; }
-        .cm-posturas-dynamic-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08); filter: brightness(1.08); cursor: pointer; }
+        .cm-posturas-dynamic-btn { transition: all .3s ease; }
+        .cm-posturas-dynamic-btn:hover { background-color: rgba(255,255,255,.10) !important; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08); filter: none; cursor: pointer; }
         .cm-posturas-fluid-input { caret-color: #a1c9ff; }
         .cm-posturas-fluid-input:focus { border-color: rgba(161,201,255,.72) !important; box-shadow: 0 0 0 3px rgba(161,201,255,.12); }
         .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
@@ -21709,16 +21717,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <button
               type="button"
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
-              className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+              className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={22} /> Mi Perfil</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={32} /></span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
             </button>
             {profileMenuOpen && (
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
-                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
           </div>
@@ -21726,13 +21734,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <nav style={{ display:"grid", gap:"4px", flex:1 }}>
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
-            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
+            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
               <MS name={item.icon} size={22} active={active} /> {item.label}
             </button>;
           })}
         </nav>
         <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
           <div style={{ marginTop:"8px", paddingTop:"14px", borderTop:"1px solid rgba(63,71,83,.36)", display:"grid", gap:"9px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="help" size={16} /> Soporte</div>
             <div style={{ display:"flex", alignItems:"center", gap:"10px", color:"rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}><MS name="security" size={16} /> Protocolo de seguridad</div>
