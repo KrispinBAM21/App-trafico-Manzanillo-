@@ -19963,15 +19963,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const emptyTrab = {
     nombre_completo:"", edad:"", licencia:"Federal tipo B - Carga general", maniobra:"Full", alcance:"Local",
-    telefono_llamadas:"", telefono_whatsapp:"", correo:"", disponible:true,
-    licencia_frontal:"", licencia_trasera:"", ine_frontal:"", ine_trasera:"",
-    salario_local:"", salario_foraneo:"", preferencia_pago:"Transferencia"
+    telefono_llamadas:"", telefono_whatsapp:"", correo:"", domicilio:"", foto_perfil:"", disponible:true,
+    licencia_frontal:"", licencia_trasera:"", ine_frontal:"", ine_trasera:"", comprobante_domicilio:"",
+    salario_local:"", salario_foraneo:"", preferencia_pago:"Transferencia", documentos_updated_at:""
   };
   const emptyEmp = {
-    razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
+    razon_social:"", rfc:"", tipo_empresa:"Transportista", ubicacion:"", logo_empresa:"", comprobante_domicilio:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
     tipo_viaje:"Local", maniobra_requerida:"Full", licencia_solicitada:"Federal tipo B - Carga general", metodo_pago_ofrecido:"Transferencia",
     contacto_principal_nombre:"", contacto_principal_numero:"", contacto_secundario_nombre:"", contacto_secundario_numero:"",
-    salario_local_ofrecido:"", salario_foraneo_ofrecido:""
+    salario_local_ofrecido:"", salario_foraneo_ofrecido:"", documentos_updated_at:""
   };
   const [trabForm, setTrabForm] = useState(emptyTrab);
   const [empForm, setEmpForm] = useState(emptyEmp);
@@ -20007,6 +20007,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [dashboardTarget, setDashboardTarget] = useState("perfiles");
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [empWizardStep, setEmpWizardStep] = useState(1);
   const [profileEditor, setProfileEditor] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("cm_posturas_public_profile") || "null") || {
@@ -20036,6 +20037,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const isPosturasLoggedIn = !!authUser;
   const isPostulanteSession = isPosturasLoggedIn && sessionPosturasType === "postulante";
   const isEmpresaSession = isPosturasLoggedIn && sessionPosturasType === "empresa";
+  const PROFILE_VALID_DAYS = 90;
+  const profileDateValue = (row) => row?.documentos_updated_at || row?.updated_at || row?.created_at || null;
+  const profileDaysSinceUpdate = (row) => {
+    const dateValue = profileDateValue(row);
+    if (!dateValue) return 9999;
+    const t = new Date(dateValue).getTime();
+    if (!Number.isFinite(t)) return 9999;
+    return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
+  };
+  const isProfileExpired = (row) => !!row && profileDaysSinceUpdate(row) > PROFILE_VALID_DAYS;
+  const profileStatusLabel = (row) => isProfileExpired(row) ? "Suspendido" : "Vigente";
+  const profileActionLabel = (row, emptyLabel="Crear") => row ? (isProfileExpired(row) ? "Actualizar" : "Editar") : emptyLabel;
+  const actionButtonColorForProfile = (row, base="#22c55e") => row && isProfileExpired(row) ? "#f59e0b" : base;
+  const userCanPublishTalent = (type) => {
+    if (isAdmin) return true;
+    if (!authUser) return false;
+    const row = type === "empresa" ? myLatestEmpresa : myLatestTrabajador;
+    return !row || !isProfileExpired(row);
+  };
   const salarioMinPostulanteLocal = Math.max(500, Number(posturasSalaryRules.postulante_local_min || 500));
   const salarioMaxPostulanteLocal = Math.max(salarioMinPostulanteLocal, Number(posturasSalaryRules.postulante_local_max || 20000));
   const salarioMinPostulanteForaneo = Math.max(500, Number(posturasSalaryRules.postulante_foraneo_min || 500));
@@ -20280,6 +20300,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const saveTrab = async () => {
     if (!authUser) return requireLogin();
     if (!trabForm.nombre_completo.trim() || !trabForm.edad || !trabForm.telefono_llamadas.trim() || !trabForm.telefono_whatsapp.trim()) { setMsg({type:"err", text:"Completa nombre, edad, teléfono de llamadas y WhatsApp."}); return; }
+    if (!isAdmin) {
+      const requiredDocs = ["foto_perfil","domicilio","licencia_frontal","licencia_trasera","ine_frontal","ine_trasera","comprobante_domicilio"];
+      if (requiredDocs.some(k => !String(trabForm[k] || "").trim())) { setMsg({type:"err", text:"Completa foto de perfil, domicilio, licencia frontal/trasera, INE frontal/trasera y comprobante de domicilio."}); return; }
+    }
     const salarioLocal = Number(trabForm.salario_local || 0);
     const salarioForaneo = Number(trabForm.salario_foraneo || 0);
     if (salarioLocal && salarioLocal < salarioMinPostulanteLocal) { setMsg({type:"err", text:`La expectativa económica local del postulante debe ser mínimo $${salarioMinPostulanteLocal}.`}); return; }
@@ -20287,13 +20311,18 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneo && salarioForaneo < salarioMinPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante debe ser mínimo $${salarioMinPostulanteForaneo}.`}); return; }
     if (salarioForaneo && salarioForaneo > salarioMaxPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante no debe superar $${salarioMaxPostulanteForaneo}.`}); return; }
     persistPosturasUserType("postulante");
-    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
+    const nowIso = new Date().toISOString();
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
     const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
     if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de trabajador guardado."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
   };
   const saveEmp = async () => {
     if (!authUser) return requireLogin();
     if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
+    if (!isAdmin) {
+      const requiredEmpresaDocs = ["logo_empresa","ubicacion","comprobante_domicilio","contacto_principal_nombre","contacto_principal_numero"];
+      if (requiredEmpresaDocs.some(k => !String(empForm[k] || "").trim())) { setMsg({type:"err", text:"Completa logo, ubicación, comprobante de domicilio y contacto principal de empresa."}); return; }
+    }
     const salarioLocalOfrecido = Number(empForm.salario_local_ofrecido || 0);
     const salarioForaneoOfrecido = Number(empForm.salario_foraneo_ofrecido || 0);
     if (salarioLocalOfrecido && salarioLocalOfrecido < salarioMinEmpresaLocal) { setMsg({type:"err", text:`El pago local ofrecido por empresa debe ser mínimo $${salarioMinEmpresaLocal}.`}); return; }
@@ -20301,7 +20330,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido < salarioMinEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa debe ser mínimo $${salarioMinEmpresaForaneo}.`}); return; }
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
-    const payload = { ...empForm, salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:new Date().toISOString(), activo:true };
+    const nowIso = new Date().toISOString();
+    const payload = { ...empForm, salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
     const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
     if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de empresa guardado."}); setEmpForm(emptyEmp); setEditingEmpId(null); loadPosturas(); }
   };
@@ -20576,57 +20606,99 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   );
 
-  const WorkerForm = () => <div style={card}>
-    <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Postular como trabajador</div>
-    <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Para guardar y editar tu perfil necesitas crear usuario en Más info. Todos podrán ver tu perfil público.</div>
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-      <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
-      <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:e.target.value}))}/></div>
-      <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
-      <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
-      <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
-      <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
-      <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulanteLocal} max={salarioMaxPostulanteLocal} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
-      <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulanteForaneo} max={salarioMaxPostulanteForaneo} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
-      <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-      {[
-        ["licencia_frontal", "Licencia frontal"], ["licencia_trasera", "Licencia trasera"], ["ine_frontal", "INE frontal"], ["ine_trasera", "INE trasera"]
-      ].map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
-    </div>
-    <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn("#22c55e")}>{editingTrabId?"Actualizar perfil":"Guardar perfil"}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
-  </div>;
+  const WorkerForm = () => {
+    const existing = editingTrabId ? trabForm : myLatestTrabajador;
+    const expired = isProfileExpired(existing);
+    const docFields = [
+      ["foto_perfil", "Foto de perfil"],
+      ["licencia_frontal", "Licencia frontal"], ["licencia_trasera", "Licencia trasera"],
+      ["ine_frontal", "INE frontal"], ["ine_trasera", "INE trasera"],
+      ["comprobante_domicilio", "Comprobante de domicilio"]
+    ];
+    return <div style={card}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"6px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Perfil de postulante / operador</div>
+          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Registro en una sola pantalla: datos personales, salarios, pago, domicilio y documentos obligatorios.</div>
+        </div>
+        {existing && <span style={{ ...btn(expired ? "#f59e0b" : "#22c55e"), cursor:"default", background:expired ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.12)" }}>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</span>}
+      </div>
+      {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil suspendido por vigencia mayor a 90 días. Conservas tu histórico, pero debes actualizar datos y documentos para volver a postularte.</div>}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
+        <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:e.target.value}))}/></div>
+        <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
+        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
+        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
+        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
+        <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
+        <div><div style={label}>Salario deseado viaje local</div><input type="number" min={salarioMinPostulanteLocal} max={salarioMaxPostulanteLocal} style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
+        <div><div style={label}>Salario deseado viaje foráneo</div><input type="number" min={salarioMinPostulanteForaneo} max={salarioMaxPostulanteForaneo} style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
+        <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+        {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
+      </div>
+      <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear perfil")}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+    </div>;
+  };
 
-  const CompanyForm = () => <div style={card}>
-    <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900", marginBottom:"6px" }}>Empresario</div>
-    <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"14px", lineHeight:1.6 }}>Registra empresa, contactos y disponibilidad de trabajo. Las quejas requieren aprobación admin antes de mostrarse.</div>
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-      <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
-      <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
-      <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Ubicación</div><input style={input} value={empForm.ubicacion} onChange={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))}/></div>
-      <div><div style={label}>Contacto técnico</div><input style={input} value={empForm.contacto_tecnico||""} onChange={e=>setEmpForm(f=>({...f,contacto_tecnico:e.target.value}))}/></div>
-      <div><div style={label}>Representante</div><input style={input} value={empForm.representante} onChange={e=>setEmpForm(f=>({...f,representante:e.target.value}))}/></div>
-      <div><div style={label}>Correo obligatorio</div><input style={input} value={empForm.correo} onChange={e=>setEmpForm(f=>({...f,correo:e.target.value}))}/></div>
-      <div><div style={label}>Teléfono</div><input style={input} value={empForm.telefono||""} onChange={e=>setEmpForm(f=>({...f,telefono:e.target.value}))}/></div>
-      <div><div style={label}>WhatsApp</div><input style={input} value={empForm.whatsapp||""} onChange={e=>setEmpForm(f=>({...f,whatsapp:e.target.value}))}/></div>
-      <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
-      <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Tipo de viaje</div><select style={input} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></div>
-      <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-      <div><div style={label}>Pago ofrecido viaje local</div><input type="number" min={salarioMinEmpresaLocal} max={salarioMaxEmpresaLocal} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
-      <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresaForaneo} max={salarioMaxEmpresaForaneo} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
-      <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value}))}/></div>
-      <div><div style={label}>Número principal</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value}))}/></div>
-      <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
-      <div><div style={label}>Número secundario</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
-    </div>
-    <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn("#22c55e")}>{editingEmpId?"Actualizar empresa":"Guardar empresa"}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
-  </div>;
+  const CompanyForm = () => {
+    const existing = editingEmpId ? empForm : myLatestEmpresa;
+    const expired = isProfileExpired(existing);
+    const step = Math.min(3, Math.max(1, Number(empWizardStep || 1)));
+    const StepBadge = ({ id, text }) => <button type="button" onClick={()=>setEmpWizardStep(id)} style={{ ...btn(step===id ? "#10b981" : "#64748b"), background:step===id ? "rgba(16,185,129,.16)" : "rgba(100,116,139,.10)" }}>{id}. {text}</button>;
+    const FileInput = ({ field, textLabel }) => <div><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setEmpForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm[field] || "Sin archivo seleccionado"}</div></div>;
+    return <div style={card}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
+        <div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Empresa · asistente de registro y vacante</div>
+          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Wizard de 3 pasos: identidad empresarial, contactos y datos de vacante con autocompletado de empresa.</div>
+        </div>
+        {existing && <span style={{ ...btn(expired ? "#f59e0b" : "#22c55e"), cursor:"default", background:expired ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.12)" }}>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</span>}
+      </div>
+      {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Conservas el histórico, pero debes actualizar documentos para publicar vacantes.</div>}
+      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /><StepBadge id={3} text="Vacante" /></div>
+      {step === 1 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
+        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
+        <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Ubicación</div><input style={input} value={empForm.ubicacion} onChange={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))}/></div>
+        <FileInput field="logo_empresa" textLabel="Logo de la empresa" />
+        <FileInput field="comprobante_domicilio" textLabel="Comprobante de domicilio" />
+      </div>}
+      {step === 2 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        <div><div style={label}>Contacto técnico</div><input style={input} value={empForm.contacto_tecnico||""} onChange={e=>setEmpForm(f=>({...f,contacto_tecnico:e.target.value}))}/></div>
+        <div><div style={label}>Representante</div><input style={input} value={empForm.representante} onChange={e=>setEmpForm(f=>({...f,representante:e.target.value}))}/></div>
+        <div><div style={label}>Correo obligatorio</div><input style={input} value={empForm.correo} onChange={e=>setEmpForm(f=>({...f,correo:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.telefono||""} onChange={e=>setEmpForm(f=>({...f,telefono:e.target.value}))}/></div>
+        <div><div style={label}>WhatsApp</div><input style={input} value={empForm.whatsapp||""} onChange={e=>setEmpForm(f=>({...f,whatsapp:e.target.value}))}/></div>
+        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value}))}/></div>
+        <div><div style={label}>Número principal</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value}))}/></div>
+        <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
+        <div><div style={label}>Número secundario</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
+      </div>}
+      {step === 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        <div><div style={label}>Empresa de la vacante</div><input style={{...input, opacity:.78}} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} readOnly placeholder="Autocompletado con el perfil empresarial" /></div>
+        <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
+        <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Tipo de viaje</div><select style={input} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></div>
+        <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Pago ofrecido viaje local</div><input type="number" min={salarioMinEmpresaLocal} max={salarioMaxEmpresaLocal} style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
+        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="number" min={salarioMinEmpresaForaneo} max={salarioMaxEmpresaForaneo} style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
+      </div>}
+      <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:"8px" }}>
+          {step > 1 && <button onClick={()=>setEmpWizardStep(step-1)} style={btn("#94a3b8")}>Anterior</button>}
+          {step < 3 && <button onClick={()=>setEmpWizardStep(step+1)} style={btn("#10b981")}>Siguiente</button>}
+        </div>
+        <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><button onClick={saveEmp} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear / publicar")}</button>{editingEmpId && <button onClick={()=>{setEditingEmpId(null); setEmpForm(emptyEmp); setEmpWizardStep(1);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
+      </div>
+    </div>;
+  };
 
   const savePisHistory = (entry) => {
     const next = [entry, ...pisHistory].slice(0, 12);
@@ -21087,10 +21159,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 }
                 setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
               }}
-              style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)"}`, background:isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)", color:isWorker ? "#a1c9ff" : "#10b981", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
+              style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${row && isProfileExpired(row) ? "rgba(245,158,11,.62)" : (isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)")}`, background:row && isProfileExpired(row) ? "rgba(245,158,11,.14)" : (isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)"), color:row && isProfileExpired(row) ? "#f59e0b" : (isWorker ? "#a1c9ff" : "#10b981"), fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
             >
               <MS name={row ? "edit" : "person_add"} size={16} active />
-              {row ? "Editar información" : (isAdmin ? "Abrir formulario base" : (isWorker ? "Crear perfil" : "Crear empresa"))}
+              {row ? (isProfileExpired(row) ? "Actualizar información" : "Editar información") : (isAdmin ? "Abrir formulario base" : (isWorker ? "Crear perfil" : "Crear empresa"))}
             </button>
           </div>
           {row ? (
@@ -21309,12 +21381,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginTop:"16px" }}>
           <button onClick={() => continueAccessAs("postulante")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(161,201,255,.38)", background:"rgba(161,201,255,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
             <MS name="local_shipping" size={26} active />
-            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>Postulante</div>
+            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>{accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Postulante"}</div>
             <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Operador que desea publicar perfil y disponibilidad.</div>
           </button>
           <button onClick={() => continueAccessAs("empresa")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(16,185,129,.38)", background:"rgba(16,185,129,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
             <MS name="business" size={26} active />
-            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>Empresa</div>
+            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>{accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Empresa"}</div>
             <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Empresa que desea publicar vacantes y contactos.</div>
           </button>
         </div>
@@ -21326,7 +21398,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ ...card, textAlign:"center", maxWidth:"760px", margin:"0 auto" }}>
       <div style={{ width:"64px", height:"64px", borderRadius:"20px", background:"rgba(0,150,255,.13)", border:"1px solid rgba(0,150,255,.28)", display:"grid", placeItems:"center", margin:"0 auto 14px" }}><MS name="security" size={30} active /></div>
       <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900" }}>Acceso centralizado</div>
-      <div style={{ color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, margin:"8px auto 18px", maxWidth:"520px" }}>Para publicar o editar en Centro de Talento, elige primero si entras como Postulante o Empresa. Así se muestra el formulario correcto.</div>
+      <div style={{ color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:1.65, margin:"8px auto 18px", maxWidth:"520px" }}>Para postularte o publicar vacantes es obligatorio iniciar sesión o crear cuenta y elegir si entras como Postulante o Empresa. Así se muestra el formulario correcto.</div>
       <div style={{ display:"flex", gap:"10px", justifyContent:"center", flexWrap:"wrap" }}>
         <button onClick={() => openAccessSelector("login")} style={btn("#a1c9ff")}>Iniciar sesión</button>
         <button onClick={() => openAccessSelector("register")} style={btn("#22c55e")}>Crear cuenta</button>
@@ -21341,7 +21413,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessSelectorModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : (!isPosturasLoggedIn ? <AccessGate /> : (isEmpresaSession ? <CompanyForm /> : <WorkerForm />))}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
       <div style={{ display:"grid", gap:"10px", marginBottom:"16px" }}><div style={{ position:"relative" }}><span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={18} /></span><input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar puestos, talentos..." style={{ ...input, paddingLeft:"40px", background:"rgba(28,43,60,.86)", borderRadius:"14px", minHeight:"46px" }} /></div><button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.64)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}><MS name="filter_list" size={17} active /> Filtros avanzados</button></div>
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
@@ -21360,7 +21432,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             <button
               type="button"
-              onClick={()=>{ setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
+              onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
               style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
               <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><MS name="person_circle" size={22} active /> Mi Perfil</span>
@@ -21368,9 +21440,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </button>
             {profileMenuOpen && (
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>
-                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>
-                <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
+                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
           </div>
@@ -21459,7 +21531,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </button>
         </div>
       ) : (
-        <button onClick={()=>handleTalentAction(isEmpresaSession ? "empresa" : "postulante")} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.65)", background:"#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> {isEmpresaSession ? "Publicar Vacante" : "Postularse"}</button>
+        <button onClick={()=>handleTalentAction(isEmpresaSession ? "empresa" : "postulante")} style={{ position:"fixed", right:"28px", bottom:"28px", zIndex:30, display:"flex", alignItems:"center", gap:"12px", padding:"16px 24px", borderRadius:"999px", border:`1px solid ${(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "rgba(245,158,11,.72)" : "rgba(0,150,255,.65)"}`, background:(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "#f59e0b" : "#0096ff", color:"#002d52", boxShadow:"0 18px 38px rgba(0,150,255,.28)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", fontWeight:"900", cursor:"pointer" }}><AppIcon name="plus-circle" size={22} /> {(isEmpresaSession ? isProfileExpired(myLatestEmpresa) : isProfileExpired(myLatestTrabajador)) ? "Actualizar" : (isEmpresaSession ? "Publicar Vacante" : "Postularse")}</button>
       ))}
     </div>
   );
