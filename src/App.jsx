@@ -21284,6 +21284,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const ProfileEditorView = () => {
     const openBaseProfile = (kind) => {
+      // Este acceso es una vista directa de los formularios de Posturas.
+      // No debe abrir ni conservar el modal de acceso/creación de cuenta.
+      setAccessPrompt(null);
       const isWorker = kind === "trabajador";
       const row = isWorker ? myLatestTrabajador : myLatestEmpresa;
       setSub("posturas");
@@ -21355,6 +21358,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 title="Perfil de trabajador"
                 description="Crea tu perfil para publicar disponibilidad, documentación y expectativas económicas."
                 onClick={() => {
+                  setAccessPrompt(null);
                   persistPosturasUserType("postulante");
                   setSub("posturas");
                   setVista("postular");
@@ -21370,6 +21374,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 title="Perfil de empresario"
                 description="Crea el perfil de tu empresa para gestionar contactos, vacantes y currículums."
                 onClick={() => {
+                  setAccessPrompt(null);
                   persistPosturasUserType("empresa");
                   setSub("posturas");
                   setVista("empresario");
@@ -21642,7 +21647,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           {adminMode ? (
             isWorker ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="2"/><path d="M3.5 19c.7-3.6 2.7-5.4 5.5-5.4 1.6 0 2.9.5 3.9 1.5M17 8v6M14 11h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M9 7V5h6v2M4 12h16M10 12v2h4v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           ) : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-          {adminMode ? "Abrir formulario base" : "Continuar"}
+          {adminMode ? "Abrir formulario" : "Continuar"}
         </button>
         <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>
       </article>
@@ -21796,8 +21801,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </button>
             {profileMenuOpen && (
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
-                {isAdmin && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
+                {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
                 {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
@@ -21882,7 +21887,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <AppIcon name="plus-circle" size={22} /> Publicar Vacante
           </button>
           <button
-            onClick={()=>{ setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("ambos"); setVista("postular"); setCompanyFormMode("registro"); setEmpWizardStep(1); }}
+            onClick={()=>{ setAccessPrompt(null); setSub("posturas"); setPosturasMode("form"); setAdminPosturasProfileView("ambos"); setVista("postular"); setCompanyFormMode("registro"); setEmpWizardStep(1); }}
             style={{ display:"flex", alignItems:"center", gap:"12px", padding:"13px 20px", borderRadius:"999px", border:"1px solid rgba(0,150,255,.55)", background:"rgba(0,150,255,.14)", color:"#a1c9ff", boxShadow:"0 14px 30px rgba(0,150,255,.16)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer" }}
           >
             <AppIcon name="window" size={18} active /> Gestionar perfiles
