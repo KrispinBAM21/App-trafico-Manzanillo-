@@ -19975,7 +19975,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
   const [trabForm, setTrabForm] = useState(emptyTrab);
   const [empForm, setEmpForm] = useState(emptyEmp);
-  const [adminPosturasProfileView, setAdminPosturasProfileView] = useState("ambos");
+  const [adminPosturasProfileView, setAdminPosturasProfileView] = useState("postulante");
   const [posturasSalaryRules, setPosturasSalaryRules] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("cm_posturas_salary_rules") || "null");
@@ -20069,18 +20069,24 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const salarioMinEmpresaForaneo = Math.max(0, Number(posturasSalaryRules.empresa_foraneo_min ?? 500));
   const salarioMaxEmpresaForaneo = Math.max(salarioMinEmpresaForaneo, Number(posturasSalaryRules.empresa_foraneo_max || 25000));
   const updatePosturasSalaryRule = (field, value) => {
-    const clean = Math.max(0, Number(value || 0));
+    const raw = String(value ?? "").replace(/[^0-9]/g, "");
     setPosturasSalaryRules(prev => {
-      const next = { ...prev, [field]:clean };
+      const next = { ...prev, [field]: raw };
+      try { localStorage.setItem("cm_posturas_salary_rules", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const normalizePosturasSalaryRules = () => {
+    setPosturasSalaryRules(prev => {
+      const next = { ...prev };
       ["postulante_local", "postulante_foraneo", "empresa_local", "empresa_foraneo"].forEach(prefix => {
         const minKey = `${prefix}_min`;
         const maxKey = `${prefix}_max`;
-        const currentMin = Math.max(0, Number(next[minKey] ?? 0));
-        const currentMax = Math.max(currentMin, Number(next[maxKey] || currentMin));
-        next[minKey] = currentMin;
-        next[maxKey] = currentMax;
-        if (field === minKey && Number(next[maxKey] || 0) < clean) next[maxKey] = clean;
-        if (field === maxKey && clean < Number(next[minKey] ?? 0)) next[minKey] = clean;
+        const fallbackMax = prefix.startsWith("empresa") ? 25000 : 20000;
+        const minValue = Math.max(0, Number(next[minKey] || 0));
+        const maxValue = Math.max(minValue, Number(next[maxKey] || fallbackMax));
+        next[minKey] = String(minValue);
+        next[maxKey] = String(maxValue);
       });
       try { localStorage.setItem("cm_posturas_salary_rules", JSON.stringify(next)); } catch {}
       return next;
@@ -20663,30 +20669,71 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
+  const AdminSalaryField = ({ field, label: fieldLabel }) => (
+    <div>
+      <div style={label}>{fieldLabel}</div>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        style={input}
+        value={posturasSalaryRules[field] ?? ""}
+        onChange={e=>updatePosturasSalaryRule(field, e.target.value)}
+        onBlur={normalizePosturasSalaryRules}
+        onWheel={e=>e.currentTarget.blur()}
+        placeholder="Escribe la cantidad"
+      />
+    </div>
+  );
+
+  const AdminSalarySection = ({ type }) => {
+    const isPostulante = type === "postulante";
+    const accent = isPostulante ? "#a1c9ff" : "#22c55e";
+    const title = isPostulante ? "Ajustes de salario · Postulante" : "Ajustes de pago · Empresa";
+    const subtitle = isPostulante
+      ? "Estos rangos solo validan las expectativas que capture el operador. No modifican salarios ya guardados por usuarios."
+      : "Estos rangos solo validan los pagos ofrecidos al publicar o editar vacantes. No modifican publicaciones existentes.";
+    const fields = isPostulante
+      ? [
+          ["postulante_local_min", "Local · salario mínimo"],
+          ["postulante_local_max", "Local · salario máximo"],
+          ["postulante_foraneo_min", "Foráneo · salario mínimo"],
+          ["postulante_foraneo_max", "Foráneo · salario máximo"],
+        ]
+      : [
+          ["empresa_local_min", "Local · pago mínimo"],
+          ["empresa_local_max", "Local · pago máximo"],
+          ["empresa_foraneo_min", "Foráneo · pago mínimo"],
+          ["empresa_foraneo_max", "Foráneo · pago máximo"],
+        ];
+    return <div style={{ border:`1px solid ${accent}33`, background:`${accent}0f`, borderRadius:"16px", padding:"14px", marginTop:"12px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", flexWrap:"wrap", marginBottom:"12px" }}>
+        <div>
+          <div style={{ color:accent, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>{title}</div>
+          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"4px" }}>{subtitle}</div>
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
+        {fields.map(([field, fieldLabel]) => <AdminSalaryField key={field} field={field} label={fieldLabel} />)}
+      </div>
+    </div>;
+  };
+
   const AdminSalaryControlPanel = () => !isAdmin ? null : (
     <div style={{ ...card, border:"1px solid rgba(251,191,36,.42)", background:"linear-gradient(135deg, rgba(251,191,36,.12), rgba(18,33,49,.90))", marginBottom:"14px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", flexWrap:"wrap" }}>
         <div>
           <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>Control admin · Posturas</div>
-          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Tipos de perfil y rangos salariales</div>
-          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Como admin puedes observar ambos formularios base y ajustar salario mínimo y máximo para postulantes y empresas.</div>
+          <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"18px", fontWeight:"900", marginTop:"4px" }}>Rangos salariales por tipo de perfil</div>
+          <div style={{ color:"rgba(212,228,250,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", lineHeight:1.55, marginTop:"5px" }}>Elige la sección que quieres ajustar. Los campos permiten escribir la cantidad completa manualmente; se normalizan al salir del campo.</div>
         </div>
         <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
-          {[ ["ambos","Ambos"], ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
+          {[ ["postulante","Postulante"], ["empresa","Empresa"] ].map(([id, text]) => (
             <button key={id} onClick={()=>setAdminPosturasProfileView(id)} style={{ ...btn(adminPosturasProfileView===id ? "#fbbf24" : "#a1c9ff"), background:adminPosturasProfileView===id ? "rgba(251,191,36,.18)" : "rgba(161,201,255,.08)" }}>{text}</button>
           ))}
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))", gap:"10px", marginTop:"14px" }}>
-        <div><div style={label}>Postulante local · salario mínimo</div><input type="number" min="0" max={salarioMaxPostulanteLocal} style={input} value={posturasSalaryRules.postulante_local_min} onChange={e=>updatePosturasSalaryRule("postulante_local_min", e.target.value)} /></div>
-        <div><div style={label}>Postulante local · salario máximo</div><input type="number" min={salarioMinPostulanteLocal} style={input} value={posturasSalaryRules.postulante_local_max} onChange={e=>updatePosturasSalaryRule("postulante_local_max", e.target.value)} /></div>
-        <div><div style={label}>Postulante foráneo · salario mínimo</div><input type="number" min="0" max={salarioMaxPostulanteForaneo} style={input} value={posturasSalaryRules.postulante_foraneo_min} onChange={e=>updatePosturasSalaryRule("postulante_foraneo_min", e.target.value)} /></div>
-        <div><div style={label}>Postulante foráneo · salario máximo</div><input type="number" min={salarioMinPostulanteForaneo} style={input} value={posturasSalaryRules.postulante_foraneo_max} onChange={e=>updatePosturasSalaryRule("postulante_foraneo_max", e.target.value)} /></div>
-        <div><div style={label}>Empresa local · pago mínimo</div><input type="number" min="0" max={salarioMaxEmpresaLocal} style={input} value={posturasSalaryRules.empresa_local_min} onChange={e=>updatePosturasSalaryRule("empresa_local_min", e.target.value)} /></div>
-        <div><div style={label}>Empresa local · pago máximo</div><input type="number" min={salarioMinEmpresaLocal} style={input} value={posturasSalaryRules.empresa_local_max} onChange={e=>updatePosturasSalaryRule("empresa_local_max", e.target.value)} /></div>
-        <div><div style={label}>Empresa foráneo · pago mínimo</div><input type="number" min="0" max={salarioMaxEmpresaForaneo} style={input} value={posturasSalaryRules.empresa_foraneo_min} onChange={e=>updatePosturasSalaryRule("empresa_foraneo_min", e.target.value)} /></div>
-        <div><div style={label}>Empresa foráneo · pago máximo</div><input type="number" min={salarioMinEmpresaForaneo} style={input} value={posturasSalaryRules.empresa_foraneo_max} onChange={e=>updatePosturasSalaryRule("empresa_foraneo_max", e.target.value)} /></div>
-      </div>
+      {(adminPosturasProfileView === "empresa") ? <AdminSalarySection type="empresa" /> : <AdminSalarySection type="postulante" />}
     </div>
   );
 
