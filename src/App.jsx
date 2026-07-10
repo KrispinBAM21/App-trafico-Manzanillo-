@@ -20530,9 +20530,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     myLatestEmpresa?.contacto_principal_foto,
     myLatestEmpresa?.logo_empresa,
   ].find(isRenderableImageSrc) || "";
-  const ProfileButtonIcon = ({ size=22 }) => profilePhotoSrc ? (
-    <img src={profilePhotoSrc} alt="Mi perfil" style={{ width:size, height:size, borderRadius:"999px", objectFit:"cover", border:"1px solid rgba(161,201,255,.42)", boxShadow:"0 0 0 3px rgba(161,201,255,.08)" }} />
-  ) : <MS name="person_circle" size={size} active />;
+  const ProfileButtonIcon = ({ size=22 }) => (
+    <div className="w-8 h-8 rounded-full overflow-hidden cm-profile-avatar" aria-hidden="true">
+      {profilePhotoSrc ? (
+        <img src={profilePhotoSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+      ) : (
+        <span className="material-symbols-outlined" style={{ fontSize:size }}>person</span>
+      )}
+    </div>
+  );
   const paginate = (rows, page) => rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const posturasGlass = {
@@ -21329,6 +21335,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 }
                 setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
               }}
+              className="cm-ui-button hover:bg-white/10 transition-all duration-300"
               style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", padding:"12px 16px", borderRadius:"12px", border:`1px solid ${row && isProfileExpired(row) ? "rgba(245,158,11,.62)" : (isWorker ? "rgba(161,201,255,.55)" : "rgba(16,185,129,.55)")}`, background:row && isProfileExpired(row) ? "rgba(245,158,11,.14)" : (isWorker ? "rgba(161,201,255,.12)" : "rgba(16,185,129,.12)"), color:row && isProfileExpired(row) ? "#f59e0b" : (isWorker ? "#a1c9ff" : "#10b981"), fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", textTransform:"uppercase", letterSpacing:".08em", cursor:"pointer" }}
             >
               <MS name={row ? "edit" : "person_add"} size={16} active />
@@ -21373,7 +21380,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </>
         )}
 
-        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"18px", alignItems:"start" }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 cm-profile-card-grid">
           <EditSourceCard type="trabajador" row={myLatestTrabajador} />
           <EditSourceCard type="empresa" row={myLatestEmpresa} />
         </div>
@@ -21547,26 +21554,28 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   </article>; };
 
   const AccessSelectorModal = () => accessPrompt ? (
-    <div onClick={() => setAccessPrompt(null)} style={{ position:"fixed", inset:0, zIndex:99950, background:"rgba(1,15,31,.72)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", display:"grid", placeItems:"center", padding:"18px" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ width:"min(100%, 420px)", borderRadius:"20px", border:"1px solid rgba(161,201,255,.26)", background:"rgba(18,33,49,.98)", boxShadow:"0 24px 70px rgba(0,0,0,.52)", padding:"22px", fontFamily:getFont(theme,"secondary") }}>
-        <div style={{ display:"flex", justifyContent:"space-between", gap:"12px", alignItems:"flex-start", marginBottom:"14px" }}>
+    <div className="cm-access-overlay" onClick={() => setAccessPrompt(null)}>
+      <div className="cm-access-modal backdrop-blur-sm border-white/5" onClick={e=>e.stopPropagation()}>
+        <div className="cm-access-heading">
           <div>
-            <div style={{ color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
-            <div style={{ color:"#d4e4fa", fontSize:"24px", fontWeight:"900", marginTop:"4px" }}>¿Cómo deseas acceder?</div>
-            <div style={{ color:"rgba(212,228,250,.66)", fontSize:"12px", lineHeight:1.6, marginTop:"8px" }}>Selecciona el perfil para abrir el flujo correcto de Posturas.</div>
+            <div className="cm-access-eyebrow">{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
+            <div className="cm-access-title">¿Cómo deseas acceder?</div>
+            <div className="cm-access-copy">Selecciona el perfil para abrir el flujo correcto de Posturas.</div>
           </div>
-          <button onClick={() => setAccessPrompt(null)} style={{ width:"32px", height:"32px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#d4e4fa", cursor:"pointer" }}>×</button>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginTop:"16px" }}>
-          <button onClick={() => continueAccessAs("postulante")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(161,201,255,.38)", background:"rgba(161,201,255,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
-            <MS name="local_shipping" size={26} active />
-            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>{accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Postulante"}</div>
-            <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Operador que desea publicar perfil y disponibilidad.</div>
+          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-close" onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector">
+            <span className="material-symbols-outlined">close</span>
           </button>
-          <button onClick={() => continueAccessAs("empresa")} style={{ padding:"18px", borderRadius:"16px", border:"1px solid rgba(16,185,129,.38)", background:"rgba(16,185,129,.10)", color:"#d4e4fa", cursor:"pointer", textAlign:"left" }}>
-            <MS name="business" size={26} active />
-            <div style={{ fontWeight:"900", fontSize:"16px", marginTop:"10px" }}>{accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Empresa"}</div>
-            <div style={{ color:"rgba(212,228,250,.62)", fontSize:"11px", lineHeight:1.5, marginTop:"5px" }}>Empresa que desea publicar vacantes y contactos.</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 cm-access-grid">
+          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-card cm-access-card-worker" onClick={() => continueAccessAs("postulante")}>
+            <span className="material-symbols-outlined cm-access-icon">local_shipping</span>
+            <span className="cm-access-card-title">{accessPrompt.action === "register" ? "Crear Perfil de Trabajador" : "Postulante"}</span>
+            <span className="cm-access-card-copy">Operador que desea publicar perfil y disponibilidad.</span>
+          </button>
+          <button className="cm-ui-button hover:bg-white/10 transition-all duration-300 cm-access-card cm-access-card-company" onClick={() => continueAccessAs("empresa")}>
+            <span className="material-symbols-outlined cm-access-icon">business</span>
+            <span className="cm-access-card-title">{accessPrompt.action === "register" ? "Crear Perfil de Empresario" : "Empresa"}</span>
+            <span className="cm-access-card-copy">Empresa que desea publicar vacantes y contactos.</span>
           </button>
         </div>
       </div>
@@ -21659,6 +21668,27 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <style>{`
         .cm-posturas-dynamic-btn { transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease; }
         .cm-posturas-dynamic-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08); filter: brightness(1.08); cursor: pointer; }
+        .cm-ui-button { transition: all 300ms ease; }
+        .cm-ui-button:hover { background-color: rgba(255,255,255,.10) !important; }
+        .cm-profile-avatar { width:32px; height:32px; border-radius:9999px; overflow:hidden; display:grid; place-items:center; flex:0 0 32px; color:#a4c9ff; background:#0d1c2d; border:1px solid rgba(255,255,255,.05); }
+        .cm-access-overlay { position:fixed; inset:0; z-index:99950; display:grid; place-items:center; padding:16px; background:rgba(1,15,31,.78); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+        .cm-access-modal { width:min(100%, 640px); padding:24px; border-radius:24px; color:#d4e4fa; background:rgba(18,33,49,.82); border:1px solid rgba(255,255,255,.05); box-shadow:0 18px 44px rgba(0,0,0,.24); font-family:Inter, sans-serif; }
+        .cm-access-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+        .cm-access-eyebrow { color:#a4c9ff; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+        .cm-access-title { margin-top:8px; color:#d4e4fa; font-size:24px; line-height:32px; font-weight:600; }
+        .cm-access-copy { margin-top:8px; color:#bbcabf; font-size:14px; line-height:20px; }
+        .cm-access-close { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:9999px; color:#d4e4fa; background:#1c2b3c; border:1px solid rgba(255,255,255,.05); cursor:pointer; }
+        .cm-access-grid { display:grid; grid-template-columns:1fr; gap:24px; margin-top:24px; }
+        .cm-access-card { min-height:220px; padding:24px; display:flex; flex-direction:column; align-items:flex-start; text-align:left; border-radius:24px; color:#d4e4fa; background:rgba(13,28,45,.72); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); box-shadow:0 8px 24px rgba(0,0,0,.18); cursor:pointer; }
+        .cm-access-card:hover, .cm-profile-source-card:hover { box-shadow:0 18px 44px rgba(78,222,163,.20); }
+        .cm-access-card-worker .cm-access-icon, .cm-access-card-worker .cm-access-card-title { color:#a4c9ff; }
+        .cm-access-card-company .cm-access-icon, .cm-access-card-company .cm-access-card-title { color:#4edea3; }
+        .cm-access-icon { font-size:32px; }
+        .cm-access-card-title { margin-top:24px; font-size:24px; line-height:32px; font-weight:600; }
+        .cm-access-card-copy { margin-top:8px; color:#bbcabf; font-size:14px; line-height:20px; }
+        .cm-profile-card-grid { display:grid; grid-template-columns:1fr; gap:24px; align-items:start; }
+        .cm-profile-source-card { padding:24px; border-radius:24px; background:rgba(18,33,49,.62); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); transition:all 300ms ease; }
+        @media (min-width: 768px) { .cm-access-grid, .cm-profile-card-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .cm-access-modal { padding:32px; } }
         .cm-posturas-fluid-input { caret-color: #a1c9ff; }
         .cm-posturas-fluid-input:focus { border-color: rgba(161,201,255,.72) !important; box-shadow: 0 0 0 3px rgba(161,201,255,.12); }
         .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
@@ -21670,7 +21700,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <button
               type="button"
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
-              className="cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+              className="cm-posturas-dynamic-btn cm-ui-button hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
               <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={22} /> Mi Perfil</span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
