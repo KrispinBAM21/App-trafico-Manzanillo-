@@ -4330,7 +4330,7 @@ function DonateBanner({ active, setActive }) {
   );
 
   const MiniIcon = ({ name }) => {
-    const common = { width:20, height:20, viewBox:"0 0 24 24", fill:"none", stroke:"rgba(255,255,255,.72)", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"block"} };
+    const common = { width:16, height:16, viewBox:"0 0 24 24", fill:"none", stroke:"rgba(255,255,255,.72)", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"block"} };
     if (name === "qr") return <svg {...common}><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 14h2M14 18h6"/></svg>;
     if (name === "contactless") return <svg {...common}><path d="M7 8a6 6 0 0 1 0 8"/><path d="M11 6a9 9 0 0 1 0 12"/><path d="M15 4a12 12 0 0 1 0 16"/></svg>;
     return <svg {...common}><path d="M4 10h16"/><path d="M6 10V7l6-3 6 3v3"/><path d="M7 10v8M12 10v8M17 10v8"/><path d="M5 18h14"/></svg>;
@@ -4346,7 +4346,7 @@ function DonateBanner({ active, setActive }) {
         position:"fixed",
         right:"max(16px, env(safe-area-inset-right))",
         bottom:"calc(118px + env(safe-area-inset-bottom))",
-        width:"min(340px, calc(100vw - 32px))",
+        width:"min(268px, calc(100vw - 28px))",
         zIndex:600,
         pointerEvents:"none",
         opacity:isOut ? 0 : 1,
@@ -4369,18 +4369,18 @@ function DonateBanner({ active, setActive }) {
           position:"relative",
           background:"#1c1b1b",
           color:"#ffffff",
-          border:"3px solid #000000",
+          border:"2px solid #000000",
           borderRadius:"0px",
-          padding:"22px 20px 20px",
+          padding:"14px 14px 14px",
           textAlign:"center",
-          boxShadow:"10px 10px 0 #000000, 0 18px 44px rgba(0,0,0,.36)",
+          boxShadow:"7px 7px 0 #000000, 0 14px 34px rgba(0,0,0,.32)",
           fontFamily:getFont(theme,"secondary"),
           transition:"transform .18s ease, box-shadow .18s ease",
           overflow:"visible"
         }}
       >
-        <div style={{ position:"absolute", top:"-3px", right:"-3px", width:"18px", height:"18px", background:"#001551", borderLeft:"2px solid #000", borderBottom:"2px solid #000" }} />
-        <div style={{ position:"absolute", bottom:"-3px", left:"-3px", width:"18px", height:"18px", background:"#db3327", borderRight:"2px solid #000", borderTop:"2px solid #000" }} />
+        <div style={{ position:"absolute", top:"-2px", right:"-2px", width:"13px", height:"13px", background:"#001551", borderLeft:"2px solid #000", borderBottom:"2px solid #000" }} />
+        <div style={{ position:"absolute", bottom:"-2px", left:"-2px", width:"13px", height:"13px", background:"#db3327", borderRight:"2px solid #000", borderTop:"2px solid #000" }} />
 
         <button
           type="button"
@@ -4410,28 +4410,28 @@ function DonateBanner({ active, setActive }) {
             }
           }}
           style={{
-            width:"64px",
-            height:"64px",
-            margin:"0 auto 18px",
+            width:"46px",
+            height:"46px",
+            margin:"0 auto 10px",
             background:"#db3327",
             border:"2px solid #000",
             display:"grid",
             placeItems:"center",
             transform:"rotate(3deg)",
-            boxShadow:"5px 5px 0 #000",
+            boxShadow:"4px 4px 0 #000",
             cursor:"pointer",
             color:"#fff"
           }}
           aria-label="Efecto de apoyo"
         >
-          <IconDonate size={34} />
+          <IconDonate size={25} />
         </button>
 
-        <div style={{ display:"grid", gap:"10px", marginBottom:"18px" }}>
-          <div style={{ fontFamily:"'Space Grotesk', Inter, sans-serif", fontSize:"clamp(23px, 5.6vw, 32px)", fontWeight:900, lineHeight:1.02, letterSpacing:"-.05em", textTransform:"uppercase" }}>
+        <div style={{ display:"grid", gap:"7px", marginBottom:"12px" }}>
+          <div style={{ fontFamily:"'Space Grotesk', Inter, sans-serif", fontSize:"clamp(18px, 4.8vw, 23px)", fontWeight:900, lineHeight:1.03, letterSpacing:"-.045em", textTransform:"uppercase" }}>
             ¿Te está siendo útil CONECT MANZANILLO?
           </div>
-          <div style={{ maxWidth:"246px", margin:"0 auto", color:"rgba(255,255,255,.70)", fontSize:"14px", lineHeight:1.25 }}>
+          <div style={{ maxWidth:"210px", margin:"0 auto", color:"rgba(255,255,255,.70)", fontSize:"11.5px", lineHeight:1.25 }}>
             Cada donativo ayuda a mantener activa la plataforma para la comunidad portuaria.
           </div>
         </div>
@@ -4441,14 +4441,14 @@ function DonateBanner({ active, setActive }) {
           onClick={goToDonativos}
           style={{
             width:"100%",
-            minHeight:"50px",
+            minHeight:"38px",
             background:"#b71511",
             color:"#ffffff",
             border:"2px solid #000",
-            borderRadius:"10px",
-            boxShadow:"6px 6px 0 #000",
+            borderRadius:"8px",
+            boxShadow:"4px 4px 0 #000",
             fontFamily:"'Space Grotesk', Inter, sans-serif",
-            fontSize:"10px",
+            fontSize:"9px",
             fontWeight:900,
             letterSpacing:".18em",
             textTransform:"uppercase",
@@ -4459,15 +4459,15 @@ function DonateBanner({ active, setActive }) {
             gap:"8px",
             transition:"transform .15s ease, box-shadow .15s ease"
           }}
-          onMouseDown={e=>{ e.currentTarget.style.transform="translate(4px,4px)"; e.currentTarget.style.boxShadow="2px 2px 0 #000"; }}
-          onMouseUp={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="6px 6px 0 #000"; }}
-          onMouseLeave={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="6px 6px 0 #000"; }}
+          onMouseDown={e=>{ e.currentTarget.style.transform="translate(3px,3px)"; e.currentTarget.style.boxShadow="1px 1px 0 #000"; }}
+          onMouseUp={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="4px 4px 0 #000"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translate(0,0)"; e.currentTarget.style.boxShadow="4px 4px 0 #000"; }}
         >
           Ver opciones
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{display:"block"}}><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
 
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"20px", paddingTop:"16px", opacity:.78 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"13px", paddingTop:"10px", opacity:.78 }}>
           <MiniIcon name="qr" />
           <MiniIcon name="contactless" />
           <MiniIcon name="bank" />
@@ -5362,7 +5362,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
                     padding:"5px 9px",
                     color:"#fbbf24",
                     fontFamily:getFont(theme, "secondary"),
-                    fontSize:"10px",
+                    fontSize:"9px",
                     cursor:"pointer",
                     fontWeight:"700"
                   }}
@@ -5380,7 +5380,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
                   padding:"5px 9px",
                   color:"#38bdf8",
                   fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
+                  fontSize:"9px",
                   cursor:"pointer",
                   fontWeight:"700"
                 }}
@@ -5405,7 +5405,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
                   padding:"5px 9px",
                   color: a.activo ? "#22c55e" : "rgba(255,255,255,0.4)",
                   fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
+                  fontSize:"9px",
                   cursor:"pointer",
                   fontWeight:"700"
                 }}
@@ -5424,7 +5424,7 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
                   padding:"5px 9px",
                   color:"#ef4444",
                   fontFamily:getFont(theme, "secondary"),
-                  fontSize:"10px",
+                  fontSize:"9px",
                   cursor:"pointer"
                 }}
               >
@@ -8489,7 +8489,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
                 background:"rgba(2,8,23,.48)",
                 color:loading ? "rgba(255,255,255,.42)" : "#38bdf8",
                 fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace",
-                fontSize:"10px",
+                fontSize:"9px",
                 fontWeight:900,
                 letterSpacing:".08em",
                 textTransform:"uppercase",
@@ -8580,7 +8580,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
               background:"transparent",
               color:"rgba(255,255,255,.46)",
               fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace",
-              fontSize:"10px",
+              fontSize:"9px",
               fontWeight:900,
               letterSpacing:".14em",
               textTransform:"uppercase",
@@ -17749,7 +17749,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
                           background:textAlignMode === opt.id ? "rgba(56,189,248,.16)" : "rgba(15,23,42,.55)",
                           color:textAlignMode === opt.id ? "#7dd3fc" : "rgba(226,232,240,.65)",
                           fontFamily:getFont(theme,"secondary"),
-                          fontSize:"10px",
+                          fontSize:"9px",
                           fontWeight:900,
                           cursor:"pointer"
                         }}
@@ -25689,10 +25689,10 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false }) {
     <div
       style={{
         position: "fixed",
-        right: "18px",
-        bottom: "96px",
-        width: "330px",
-        maxWidth: "calc(100vw - 36px)",
+        right: "14px",
+        bottom: "252px",
+        width: "300px",
+        maxWidth: "calc(100vw - 28px)",
         zIndex: 9998,
         background: "rgba(13,31,60,.98)",
         border: "1px solid rgba(37,211,102,.48)",
