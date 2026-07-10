@@ -21569,7 +21569,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <span style={{ position:"absolute", inset:isWorker ? "auto auto -120px -120px" : "-130px -110px auto auto", width:"280px", height:"280px", borderRadius:"999px", background:solid, opacity:isWorker ? .08 : .12, filter:"blur(80px)", pointerEvents:"none" }} />
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"16px", position:"relative", zIndex:1 }}>
           <div className="cm-nexus-float" style={{ width:"84px", height:"84px", borderRadius:"18px", display:"grid", placeItems:"center", background:isWorker ? "rgba(77,171,255,.16)" : "rgba(0,255,157,.14)", border:`1px solid ${isWorker ? "rgba(164,201,255,.38)" : "rgba(78,222,163,.36)"}`, boxShadow:`0 18px 44px ${isWorker ? "rgba(77,171,255,.12)" : "rgba(78,222,163,.12)"}`, color:accent }}>
-            <MS name={icon} size={42} active />
+            <span className="material-symbols-outlined cm-nexus-ms" style={{ fontSize:"42px", color:accent }}>{icon}</span>
           </div>
           <span style={{ padding:"7px 14px", borderRadius:"999px", border:`1px solid ${isWorker ? "rgba(77,171,255,.34)" : "rgba(0,255,157,.34)"}`, background:isWorker ? "rgba(77,171,255,.12)" : "rgba(0,255,157,.12)", color:isWorker ? "#4dabff" : "#00ff9d", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"950", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase" }}>{isWorker ? "Información de postular" : "Información de empresario"}</span>
         </div>
@@ -21578,7 +21578,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <p style={{ margin:0, color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"16px", lineHeight:"24px", fontWeight:"400", maxWidth:"430px" }}>{description}</p>
         </div>
         <button type="button" onClick={onClick} className="cm-nexus-btn hover:bg-white/10 transition-all duration-300" style={{ width:posturasMobile ? "100%" : (adminMode ? "fit-content" : "fit-content"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"12px", padding:"16px 34px", borderRadius:"16px", border:"none", background:solid, color:isWorker ? "#001c39" : "#001e12", fontFamily:getFont(theme,"secondary"), fontSize:"14px", lineHeight:"20px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:`0 15px 34px ${isWorker ? "rgba(77,171,255,.30)" : "rgba(0,255,157,.30)"}`, position:"relative", zIndex:1 }}>
-          <MS name={adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"} size={20} active />
+          <span className="material-symbols-outlined cm-nexus-ms" style={{ fontSize:"20px", color:"currentColor" }}>{adminMode ? (isWorker ? "person_add" : "business_center") : "arrow_forward"}</span>
           {adminMode ? "Abrir formulario base" : "Continuar"}
         </button>
         <div style={{ position:"relative", zIndex:1, borderTop:"1px solid rgba(255,255,255,.10)", paddingTop:"24px", color:"rgba(212,228,250,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", lineHeight:"20px" }}>{isWorker ? "Acceso directo a la estructura de datos del candidato para validación de campos y experiencia de usuario en dispositivos móviles." : "Visualización del portal desde la perspectiva corporativa, permitiendo la gestión de vacantes y visualización de currículums."}</div>
@@ -21593,19 +21593,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         ["work", "Vacantes publicadas", String(empresas.length || 0), "#4dabff"],
         ["trending_up", "Tasa de contratación", "68%", "#bec6e0"],
       ].map(([icon,label,value,color], idx) => <div key={label} className="cm-nexus-stat" style={{ background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"24px", display:"flex", alignItems:"center", gap:"16px" }}>
-        <div style={{ width:"52px", height:"52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center", color }}><MS name={icon} size={24} active /></div>
+        <div style={{ width:"52px", height:"52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center", color }}><span className="material-symbols-outlined cm-nexus-ms" style={{ fontSize:"24px", color }}>{icon}</span></div>
         <div><div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase" }}>{label}</div><div style={{ color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"24px", lineHeight:"32px", fontWeight:"900" }}>{value}</div></div>
       </div>)}
     </div>
   );
 
   const AccessSelectorModal = () => accessPrompt ? (
-    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:0, top:0, right:0, bottom:0, zIndex:5000, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
+    <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:posturasMobile ? 0 : "264px", top:0, right:0, bottom:0, zIndex:1100, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
       <style>{accessDesignCSS}</style>
-      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "96px 40px 80px 304px", position:"relative", overflow:"hidden" }}>
+      <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "96px 40px 80px", position:"relative", overflow:"hidden" }}>
         <span style={{ position:"absolute", top:"-120px", right:"-120px", width:"500px", height:"500px", borderRadius:"999px", background:"rgba(0,255,157,.18)", filter:"blur(140px)", pointerEvents:"none" }} />
         <span style={{ position:"absolute", top:"45%", left:"-220px", width:"600px", height:"600px", borderRadius:"999px", background:"rgba(77,171,255,.10)", filter:"blur(180px)", pointerEvents:"none" }} />
-        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"fixed", top:posturasMobile ? "12px" : "24px", right:"24px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><MS name="close" size={22} active /></button>
+        <button onClick={() => setAccessPrompt(null)} aria-label="Cerrar selector de acceso" className="cm-nexus-btn cm-nexus-close" style={{ position:"absolute", top:posturasMobile ? "12px" : "24px", right:posturasMobile ? "12px" : "40px", zIndex:3, width:"54px", height:"54px", borderRadius:"18px", border:"1px solid rgba(255,255,255,.13)", background:"rgba(28,43,60,.78)", color:"#d4e4fa", cursor:"pointer", display:"grid", placeItems:"center", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}><span className="material-symbols-outlined cm-nexus-ms" style={{ fontSize:"22px", color:"#d4e4fa" }}>close</span></button>
         <header style={{ position:"relative", zIndex:1, marginBottom:"48px", maxWidth:"780px" }}>
           <div style={{ color:"#a4c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".18em", fontWeight:"900", textTransform:"uppercase", marginBottom:"12px" }}>{accessPrompt.action === "register" ? "Crear cuenta" : "Iniciar sesión"}</div>
           <h1 className="cm-nexus-title" style={{ margin:"0 0 14px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>¿Cómo deseas acceder?</h1>
@@ -21719,7 +21719,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
               className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px" }}><ProfileButtonIcon size={32} /></span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+                <ProfileButtonIcon size={32} />
+                <span style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", whiteSpace:"nowrap" }}>MI PERFIL</span>
+              </span>
               <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
             </button>
             {profileMenuOpen && (
