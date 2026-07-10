@@ -20928,12 +20928,12 @@ function DonativosTab() {
   );
   const BoltIcon = ({ color = "#f59e0b", size = 24 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
-      <path d="M13 2 5 14h6l-1 8 9-13h-6l0-7Z" fill={`${color}22`} stroke={color} strokeWidth="1.8" />
+      <path data-donativo-fillable="true" data-donativo-fill-alpha="22" d="M13 2 5 14h6l-1 8 9-13h-6l0-7Z" fill={`${color}22`} stroke={color} strokeWidth="1.8" />
     </svg>
   );
   const HeartIcon = ({ color = "#fb7185", size = 24 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...iconCommon}>
-      <path d="M12 20s-8-5-8-11a4.8 4.8 0 0 1 8-3.4A4.8 4.8 0 0 1 20 9c0 6-8 11-8 11Z" fill={`${color}20`} stroke={color} strokeWidth="1.8" />
+      <path data-donativo-fillable="true" data-donativo-fill-alpha="20" d="M12 20s-8-5-8-11a4.8 4.8 0 0 1 8-3.4A4.8 4.8 0 0 1 20 9c0 6-8 11-8 11Z" fill={`${color}20`} stroke={color} strokeWidth="1.8" />
     </svg>
   );
   const CoffeeIcon = ({ size = 16 }) => (
@@ -21074,9 +21074,14 @@ function DonativosTab() {
         e.currentTarget.style.boxShadow = `0 22px 48px ${accent}22, 0 14px 30px rgba(2,6,23,.38)`;
         const iconBox = e.currentTarget.querySelector('[data-donativo-icon-box]');
         if (iconBox) {
-          iconBox.style.background = accent;
-          iconBox.style.color = "#ffffff";
+          iconBox.style.background = `${accent}24`;
+          iconBox.style.color = accent;
           iconBox.style.borderColor = `${accent}AA`;
+          iconBox.style.boxShadow = `inset 0 0 0 1px ${accent}22, 0 0 18px ${accent}22`;
+          iconBox.querySelectorAll('[data-donativo-fillable]').forEach((path) => {
+            path.setAttribute('fill', accent);
+            path.setAttribute('stroke', accent);
+          });
         }
         const ctaEl = e.currentTarget.querySelector('[data-donativo-cta]');
         if (ctaEl) ctaEl.style.gap = "14px";
@@ -21090,6 +21095,12 @@ function DonativosTab() {
           iconBox.style.background = `${accent}16`;
           iconBox.style.color = accent;
           iconBox.style.borderColor = `${accent}22`;
+          iconBox.style.boxShadow = "none";
+          iconBox.querySelectorAll('[data-donativo-fillable]').forEach((path) => {
+            const alpha = path.getAttribute('data-donativo-fill-alpha') || '20';
+            path.setAttribute('fill', `${accent}${alpha}`);
+            path.setAttribute('stroke', accent);
+          });
         }
         const ctaEl = e.currentTarget.querySelector('[data-donativo-cta]');
         if (ctaEl) ctaEl.style.gap = "8px";
