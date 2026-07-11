@@ -22613,7 +22613,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") {
       if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessGate /></div>;
-      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && {WorkerForm()}}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? {CompanyForm()} : {WorkerForm()})}</div>;
+      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}</div>;
     }
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
@@ -22692,7 +22692,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
               {AccessSelectorModal()}
               <ProfileHeader />
-              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && {WorkerForm()}}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? {CompanyForm()} : {WorkerForm()})}
+              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}
             </div>
           )
         )}
