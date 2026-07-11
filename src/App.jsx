@@ -119,7 +119,37 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
-const sb = createClient(SUPA_URL, SUPA_KEY);
+const sb = createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: "pkce",
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    storageKey: "cm_supabase_auth_session",
+  },
+});
+
+const CM_AUTH_RETURN_KEY = "cm_auth_return_tab";
+const CM_AUTH_IN_PROGRESS_KEY = "cm_google_auth_in_progress";
+const CM_DEFAULT_AUTH_RETURN_TAB = "donativos";
+
+const getGoogleOAuthRedirectUrl = () => {
+  if (typeof window === "undefined") return undefined;
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("auth_callback", "google");
+  url.hash = CM_DEFAULT_AUTH_RETURN_TAB;
+  return url.toString();
+};
+
+const markGoogleAuthStarted = () => {
+  try {
+    localStorage.setItem(CM_AUTH_IN_PROGRESS_KEY, "1");
+    localStorage.setItem(CM_AUTH_RETURN_KEY, CM_DEFAULT_AUTH_RETURN_TAB);
+    localStorage.setItem("cm_posturas_pending_profile_access", "1");
+  } catch {}
+};
+
 
 // Logo oficial de Conect Manzanillo
 const CONECT_LOGO_SRC = "/logo.png";
@@ -24897,9 +24927,30 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   };
 
   const handleLoginGoogle = async () => {
-    setLoading(true); setLoginMsg(null);
-    const { error } = await sb.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: window.location.href } });
-    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
+    setLoading(true);
+    setLoginMsg(null);
+    markGoogleAuthStarted();
+    try {
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: getGoogleOAuthRedirectUrl(),
+          scopes: "openid email profile",
+          queryParams: { prompt: "select_account" },
+          skipBrowserRedirect: false,
+        },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("Google no devolvió una URL de autorización válida.");
+    } catch (error) {
+      console.error("Google OAuth start error:", error);
+      try {
+        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
+        localStorage.removeItem(CM_AUTH_RETURN_KEY);
+      } catch {}
+      setLoginMsg({ type:"err", text:"Error al conectar con Google: " + (error?.message || "No fue posible iniciar la autenticación.") });
+      setLoading(false);
+    }
   };
 
   const handleEnviarOtp = async () => {
@@ -25628,12 +25679,30 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
 
   // ── LOGIN con Google ──
   const handleLoginGoogle = async () => {
-    setLoading(true); setLoginMsg(null);
-    const { error } = await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.href }
-    });
-    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
+    setLoading(true);
+    setLoginMsg(null);
+    markGoogleAuthStarted();
+    try {
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: getGoogleOAuthRedirectUrl(),
+          scopes: "openid email profile",
+          queryParams: { prompt: "select_account" },
+          skipBrowserRedirect: false,
+        },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error("Google no devolvió una URL de autorización válida.");
+    } catch (error) {
+      console.error("Google OAuth start error:", error);
+      try {
+        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
+        localStorage.removeItem(CM_AUTH_RETURN_KEY);
+      } catch {}
+      setLoginMsg({ type:"err", text:"Error al conectar con Google: " + (error?.message || "No fue posible iniciar la autenticación.") });
+      setLoading(false);
+    }
   };
 
   // ── ENVIAR OTP por SMS ──
@@ -27987,6 +28056,7 @@ function App() {
   // Intención de autenticación disparada desde el header (login/registro)
   const [authIntent, setAuthIntent] = useState(null);
   const [authQuickMode, setAuthQuickMode] = useState(null); // "login" | "registro" para modal sin redirigir
+  const authRedirectHandledRef = useRef(false);
   
   // Validado TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
@@ -28213,29 +28283,93 @@ function App() {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const rememberAuthUser = (user) => {
+      if (!mounted) return;
       setAuthUser(user ?? null);
       try {
         if (user?.id) localStorage.setItem("cm_auth_user_id", user.id);
         else localStorage.removeItem("cm_auth_user_id");
       } catch {}
     };
-    sb.auth.getSession().then(({ data }) => {
-      rememberAuthUser(data?.session?.user ?? null);
-    });
-    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user ?? null;
-      rememberAuthUser(nextUser);
-      if (nextUser) {
-        let pendingProfileAccess = false;
-        try { pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1"; } catch {}
-        if (pendingProfileAccess) {
-          setAuthQuickMode(null);
-          setActive("donativos");
-        }
+
+    const completeSuccessfulAuth = (session, event = "SESSION_RESTORED") => {
+      const user = session?.user ?? null;
+      rememberAuthUser(user);
+      if (!user) return;
+
+      let pendingProfileAccess = false;
+      let googleAuthInProgress = false;
+      let returnTab = CM_DEFAULT_AUTH_RETURN_TAB;
+      try {
+        pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1";
+        googleAuthInProgress = localStorage.getItem(CM_AUTH_IN_PROGRESS_KEY) === "1";
+        returnTab = normalizeTabKey(localStorage.getItem(CM_AUTH_RETURN_KEY)) || CM_DEFAULT_AUTH_RETURN_TAB;
+      } catch {}
+
+      let isOAuthCallback = false;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        isOAuthCallback = params.get("auth_callback") === "google" || params.has("code");
+      } catch {}
+
+      const shouldRedirect = pendingProfileAccess || googleAuthInProgress || isOAuthCallback || event === "SIGNED_IN";
+      if (!shouldRedirect || authRedirectHandledRef.current) return;
+
+      authRedirectHandledRef.current = true;
+      setAuthQuickMode(null);
+      setShowSessionMenu(false);
+      setActive(returnTab, { replace:true });
+
+      try {
+        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
+        localStorage.removeItem(CM_AUTH_RETURN_KEY);
+        localStorage.removeItem("cm_posturas_pending_profile_access");
+
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("auth_callback");
+        cleanUrl.searchParams.delete("code");
+        cleanUrl.searchParams.delete("error");
+        cleanUrl.searchParams.delete("error_code");
+        cleanUrl.searchParams.delete("error_description");
+        cleanUrl.hash = `#${returnTab}`;
+        window.history.replaceState({ tab:returnTab }, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+      } catch (cleanupError) {
+        console.error("OAuth callback URL cleanup error:", cleanupError);
+      }
+    };
+
+    const restoreSession = async () => {
+      try {
+        const { data, error } = await sb.auth.getSession();
+        if (error) throw error;
+        completeSuccessfulAuth(data?.session ?? null, "INITIAL_SESSION");
+      } catch (error) {
+        console.error("Supabase session restore error:", error);
+        rememberAuthUser(null);
+      }
+    };
+
+    restoreSession();
+
+    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        authRedirectHandledRef.current = false;
+        rememberAuthUser(null);
+        return;
+      }
+
+      rememberAuthUser(session?.user ?? null);
+      if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
+        completeSuccessfulAuth(session, event);
       }
     });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const authDisplayName = useMemo(() => {
