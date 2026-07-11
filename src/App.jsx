@@ -19882,6 +19882,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const [posturasSearchOpen, setPosturasSearchOpen] = useState(false);
   const [posturasSmartFilter, setPosturasSmartFilter] = useState("todos");
+  const [posturasFilterOpen, setPosturasFilterOpen] = useState(false);
+  const [posturasAdvancedFilter, setPosturasAdvancedFilter] = useState({
+    tipo:"todos",
+    edadMin:"",
+    empresa:"",
+    estrellas:"todos",
+    licencia:"",
+    maniobra:"",
+  });
   const posturasSearchTimerRef = useRef(null);
   const posturasSearchInputRef = useRef(null);
   const [filtroEstatus, setFiltroEstatus] = useState("todos");
@@ -19938,6 +19947,58 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [savedPosturas, setSavedPosturas] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
   });
+  const [savedPosturasSnapshots, setSavedPosturasSnapshots] = useState({});
+
+  const archiveCryptoSecret = `${myId || "cm-device"}:${authUser?.id || "guest"}:posturas-archive-v1`;
+  const bytesToBase64 = (bytes) => {
+    let binary = "";
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+  };
+  const base64ToBytes = (value) => {
+    const binary = atob(value);
+    return Uint8Array.from(binary, char => char.charCodeAt(0));
+  };
+  const deriveArchiveKey = async () => {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(archiveCryptoSecret));
+    return crypto.subtle.importKey("raw", digest, {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+  };
+  const encryptArchivePayload = async (payload) => {
+    const key = await deriveArchiveKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, new TextEncoder().encode(JSON.stringify(payload)));
+    return JSON.stringify({v:1, iv:bytesToBase64(iv), data:bytesToBase64(new Uint8Array(encrypted))});
+  };
+  const decryptArchivePayload = async (raw) => {
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const key = await deriveArchiveKey();
+    const decrypted = await crypto.subtle.decrypt({name:"AES-GCM", iv:base64ToBytes(parsed.iv)}, key, base64ToBytes(parsed.data));
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const encrypted = localStorage.getItem("cm_posturas_guardadas_datos_enc");
+        if (encrypted) {
+          const data = await decryptArchivePayload(encrypted);
+          if (active) setSavedPosturasSnapshots(data || {});
+          return;
+        }
+        const legacy = JSON.parse(localStorage.getItem("cm_posturas_guardadas_datos") || "{}");
+        if (active) setSavedPosturasSnapshots(legacy || {});
+        if (Object.keys(legacy || {}).length) {
+          localStorage.setItem("cm_posturas_guardadas_datos_enc", await encryptArchivePayload(legacy));
+          localStorage.removeItem("cm_posturas_guardadas_datos");
+        }
+      } catch {
+        if (active) setSavedPosturasSnapshots({});
+      }
+    })();
+    return () => { active = false; };
+  }, [archiveCryptoSecret]);
   const [accessPrompt, setAccessPrompt] = useState(null);
   const [posturasUserType, setPosturasUserType] = useState(() => {
     try { return localStorage.getItem("cm_posturas_user_type") || ""; } catch { return ""; }
@@ -20337,7 +20398,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return { state, label:"Pendiente", color:"#fbbf24", icon:"schedule" };
   };
   const isOwnProfile = (row) => !!authUser?.id && String(row?.user_id || "") === String(authUser.id);
-  const isProfilePublic = (row) => isAdmin || isOwnProfile(row) || normalizeProfileValidation(row) === "validado";
+  const isProfilePublic = (row) => isOwnProfile(row) || normalizeProfileValidation(row) === "validado";
   const documentState = (value, overall) => {
     if (overall === "no_validado") return { label:"No validado", color:"#ffb4ab", icon:"cancel" };
     if (overall === "validado" && String(value || "").trim()) return { label:"Validado", color:"#4edea3", icon:"check_circle" };
@@ -20381,12 +20442,55 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const commentsFor = (id) => ratings.filter(r => r.profile_type === "trabajador" && String(r.profile_id) === String(id) && (r.comment || "").trim());
   const posturasProfileKey = (type, id) => `${type}:${id}`;
   const isSavedProfile = (type, id) => savedPosturas.includes(posturasProfileKey(type, id));
-  const toggleSavedProfile = (type, row) => {
+  const toggleSavedProfile = async (type, row) => {
+    if (!row?.id) return;
     const key = posturasProfileKey(type, row.id);
-    const next = savedPosturas.includes(key) ? savedPosturas.filter(x => x !== key) : [key, ...savedPosturas];
+    const alreadySaved = savedPosturas.includes(key);
+    const next = alreadySaved ? savedPosturas.filter(x => x !== key) : [key, ...savedPosturas];
+
+    // El Archivo conserva únicamente datos públicos; nunca guarda documentos,
+    // identificadores privados ni datos sensibles del formulario.
+    const snapshot = {
+      id:row.id,
+      __savedSnapshot:true,
+      __mock:!!row.__mock || String(row.id).startsWith("mock-"),
+      tipo:row.tipo || (type === "empresa" ? "Empresa" : "Postulante"),
+      nombre:row.nombre || row.nombre_completo || row.razon_social || "",
+      nombre_completo:row.nombre_completo || row.nombre || "",
+      razon_social:row.razon_social || row.nombre || "",
+      mock_rating:Number(row.mock_rating ?? row.calificacion ?? avgFor(type,row.id).avg ?? 0),
+      foto_perfil:row.foto_perfil || row.foto || "",
+      logo_empresa:row.logo_empresa || row.foto || "",
+      especialidad:row.especialidad || row.maniobra || row.tipo_empresa || "",
+      maniobra:row.maniobra || "",
+      licencia:row.licencia || "",
+      edad:row.edad || "",
+      experiencia:row.experiencia || "",
+      alcance:row.alcance || "",
+      perfil_estado:normalizeProfileValidation(row),
+      saved_at:new Date().toISOString(),
+    };
+
+    const nextSnapshots = { ...savedPosturasSnapshots };
+    if (alreadySaved) delete nextSnapshots[key];
+    else nextSnapshots[key] = snapshot;
+
     setSavedPosturas(next);
-    try { localStorage.setItem("cm_posturas_guardadas", JSON.stringify(next)); } catch {}
-    setMsg({ type:"ok", text:savedPosturas.includes(key) ? "Perfil retirado del archivo local." : "Perfil guardado en archivo local." });
+    setSavedPosturasSnapshots(nextSnapshots);
+    try {
+      localStorage.setItem("cm_posturas_guardadas", JSON.stringify(next));
+      localStorage.setItem("cm_posturas_guardadas_datos_enc", await encryptArchivePayload(nextSnapshots));
+      localStorage.removeItem("cm_posturas_guardadas_datos");
+    } catch {}
+
+    if (alreadySaved) {
+      setMsg({ type:"ok", text:"Perfil retirado del Archivo." });
+    } else {
+      setMsg({ type:"ok", text:"Perfil guardado en Archivo." });
+      setSub("posturas");
+      setPosturasMode("archive");
+      setTalentView("todos");
+    }
   };
 
   const loadPosturas = async () => {
@@ -20643,14 +20747,39 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const filterRows = (rows, type) => {
     const term = q.trim().toLowerCase();
+    const advanced = posturasAdvancedFilter;
     return rows.filter(row => {
       const rating = avgFor(type, row.id).avg;
+      const name = String(type === "trabajador" ? row.nombre_completo : row.razon_social || "").toLowerCase();
+      const age = Number(row.edad || 0);
+      const company = String(row.razon_social || row.empresa || row.tipo_empresa || "").toLowerCase();
+      const license = String(row.licencia || "").toLowerCase();
+      const maneuver = String(row.maniobra || "").toLowerCase();
       const statusTxt = type === "trabajador" ? (row.disponible ? "disponible" : "no disponible") : (row.estatus === "tiene_trabajo" ? "tiene trabajo" : "lleno");
-      const hay = !term || JSON.stringify(row).toLowerCase().includes(term) || statusTxt.includes(term);
+
+      const searchable = [
+        name,
+        age ? String(age) : "",
+        company,
+        rating ? rating.toFixed(1) : "",
+        license,
+        maneuver,
+        statusTxt,
+      ].join(" ");
+
+      const hay = !term || searchable.includes(term);
+      const okType = advanced.tipo === "todos" || advanced.tipo === type;
+      const okAge = !advanced.edadMin || type !== "trabajador" || age >= Number(advanced.edadMin);
+      const okCompany = !advanced.empresa || company.includes(advanced.empresa.toLowerCase());
+      const okLicense = !advanced.licencia || license.includes(advanced.licencia.toLowerCase());
+      const okManeuver = !advanced.maniobra || maneuver.includes(advanced.maniobra.toLowerCase());
+      const minStars = advanced.estrellas === "todos" ? 0 : Number(advanced.estrellas);
+      const okAdvancedStars = rating >= minStars;
       const okStatus = filtroEstatus === "todos" || (type === "trabajador" ? String(row.disponible) === filtroEstatus : row.estatus === filtroEstatus);
       const okAlcance = filtroAlcance === "todos" || row.alcance === filtroAlcance;
       const okStars = filtroEstrellas === "todos" || rating >= Number(filtroEstrellas);
-      return hay && okStatus && okAlcance && okStars;
+
+      return hay && okType && okAge && okCompany && okLicense && okManeuver && okAdvancedStars && okStatus && okAlcance && okStars;
     });
   };
   const sortByReputation = (rows, type) => [...rows].sort((a, b) => {
@@ -21619,13 +21748,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const TalentProfileCard = ({ row, mock=false, type="trabajador" }) => {
     const isCompany = type === "empresa" || row?.tipo === "Empresa";
-    const rating = mock ? Number(row.calificacion || row.mock_rating || 0) : avgFor(isCompany ? "empresa" : "trabajador", row.id).avg;
-    const title = mock ? row.nombre : (isCompany ? row.razon_social : row.nombre_completo);
-    const specialty = mock ? row.especialidad : (isCompany ? (row.tipo_empresa || "Empresa") : (row.maniobra || row.licencia || "Operador"));
-    const certifications = mock ? row.certificaciones : (isCompany ? (row.rfc ? `RFC ${row.rfc}` : "Empresa registrada") : (row.certificaciones || row.licencia || "No indicadas"));
-    const experience = mock ? row.experiencia : (isCompany ? (row.estatus === "tiene_trabajo" ? "Vacantes activas" : "Sin vacantes activas") : (row.experiencia ? `${row.experiencia} años` : row.edad ? `${row.edad} años` : "No indicada"));
-    const image = mock ? row.foto : (isCompany ? row.logo_empresa : row.foto_perfil);
-    const saved = !mock && isSavedProfile(isCompany ? "empresa" : "trabajador", row.id);
+    const rating = (mock || row?.__mock || row?.__savedSnapshot)
+      ? Number(row.calificacion || row.mock_rating || 0)
+      : avgFor(isCompany ? "empresa" : "trabajador", row.id).avg;
+    const sampleLike = mock || row?.__mock || row?.__savedSnapshot;
+    const title = sampleLike ? (row.nombre || row.nombre_completo || row.razon_social) : (isCompany ? row.razon_social : row.nombre_completo);
+    const specialty = sampleLike ? (row.especialidad || row.tipo_empresa || row.maniobra || "Perfil guardado") : (isCompany ? (row.tipo_empresa || "Empresa") : (row.maniobra || row.licencia || "Operador"));
+    const certifications = sampleLike ? (row.certificaciones || (row.rfc ? `RFC ${row.rfc}` : "No indicadas")) : (isCompany ? (row.rfc ? `RFC ${row.rfc}` : "Empresa registrada") : (row.certificaciones || row.licencia || "No indicadas"));
+    const experience = sampleLike ? (row.experiencia || (isCompany ? "Empresa guardada" : "No indicada")) : (isCompany ? (row.estatus === "tiene_trabajo" ? "Vacantes activas" : "Sin vacantes activas") : (row.experiencia ? `${row.experiencia} años` : row.edad ? `${row.edad} años` : "No indicada"));
+    const image = sampleLike ? (row.foto || row.foto_perfil || row.logo_empresa) : (isCompany ? row.logo_empresa : row.foto_perfil);
+    const saved = isSavedProfile(isCompany ? "empresa" : "trabajador", row.id);
     const ownProfile = !mock && isOwnProfile(row);
     const showProfile = () => setProfileDetailTarget({ row, type:isCompany ? "empresa" : "trabajador", mock });
     const contact = () => {
@@ -21646,7 +21778,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div>
             <div className="cm-target-profile-title-row">
               <h4>{title}</h4>
-              <button type="button" className="cm-target-bookmark" onClick={()=>!mock && toggleSavedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label={saved ? "Quitar de guardados" : "Guardar perfil"}>
+              <button type="button" className={`cm-target-bookmark ${saved ? "saved" : ""}`} onClick={()=>toggleSavedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label={saved ? "Quitar de guardados" : "Guardar perfil"} title={saved ? "Quitar de Archivo" : "Guardar en Archivo"}>
                 <MS name="bookmark" size={22} active={saved} color={saved ? "#4edea3" : "#bbcabf"} />
               </button>
             </div>
@@ -21680,7 +21812,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const subtitle = mock ? row.especialidad : company ? (row.tipo_empresa || "Empresa") : (row.maniobra || "Operador de carga");
     const image = mock ? row.foto : company ? row.logo_empresa : row.foto_perfil;
     const rating = mock ? Number(row.calificacion || 0) : avgFor(type,row.id).avg;
-    const validation = mock ? {state:"validado",label:"Validado",color:"#4edea3",icon:"verified"} : profileValidationMeta(row);
+    const validationBase = mock ? {state:"validado",label:"Validado",color:"#4edea3",icon:"verified"} : profileValidationMeta(row);
+    const validation = (!own && validationBase.state === "validado")
+      ? {...validationBase, label:"Perfil Verificado"}
+      : validationBase;
     const docs = company ? [
       ["Logo de la empresa", row.logo_empresa],
       ["Comprobante de domicilio", row.comprobante_domicilio],
@@ -21729,7 +21864,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <span className="cm-profile-badge" style={{color:validation.color}}><MS name={validation.icon} size={16} color={validation.color}/>{validation.label}</span>
               <div className="cm-profile-stats"><div><span>Calificación</span><strong>{rating.toFixed(1)} / 5</strong></div><div><span>{company?"Alcance":"Experiencia"}</span><strong>{company?(row.alcance||"Local"):(row.experiencia?`${row.experiencia} años`:"—")}</strong></div></div>
             </div>
-            {(own || isAdmin) && <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"16px",display:"flex",gap:"8px",alignItems:"center"}}><MS name="verified_user" size={19} color="#4edea3"/>Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span><MS name={st.icon} size={17} color={st.color}/>{name}</span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>}
+            {own && <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"16px",display:"flex",gap:"8px",alignItems:"center"}}><MS name="verified_user" size={19} color="#4edea3"/>Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span><MS name={st.icon} size={17} color={st.color}/>{name}</span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>}
           </aside>
           <section className="cm-profile-glass cm-profile-info"><h3>{company?"Información Empresarial":"Información Personal"}</h3><div className="cm-profile-info-sub">Detalles del perfil en modo de solo lectura.</div><div className="cm-profile-fields">{fields.map(([name,value],idx)=><div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={idx===0?(company?"domain":"person"):"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>)}</div></section>
         </div>
@@ -21760,17 +21895,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     .cm-posturas-target-heading-row{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:18px}
     .cm-posturas-target-title h2{margin:0;color:#d4e4fa;font-size:40px;line-height:48px;letter-spacing:-.02em;font-weight:700}
     .cm-posturas-target-title p{margin:8px 0 0;color:#bbcabf;font-size:18px;line-height:28px;max-width:560px}
-    .cm-posturas-search-shell{display:flex;flex-direction:column;gap:12px}
-    .cm-posturas-search-top{display:flex;align-items:center;gap:12px}
-    .cm-posturas-search-toggle{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:#010f1f;color:#bbcabf;cursor:pointer;transition:all .5s ease}
+    .cm-posturas-search-shell{display:flex;flex-direction:column;gap:9px}
+    .cm-posturas-search-top{display:flex;align-items:center;gap:8px}
+    .cm-posturas-search-toggle{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:#010f1f;color:#bbcabf;cursor:pointer;transition:all .5s ease}
     .cm-posturas-search-toggle:hover,.cm-posturas-search-toggle.open{color:#4edea3;border-color:rgba(78,222,163,.35);box-shadow:0 0 18px rgba(78,222,163,.10)}
     .cm-posturas-search-expand{display:grid;grid-template-columns:0fr;opacity:0;flex:1;min-width:0;transition:grid-template-columns .5s ease,opacity .35s ease}
     .cm-posturas-search-expand.open{grid-template-columns:1fr;opacity:1}
     .cm-posturas-search-expand-inner{min-width:0;overflow:hidden}
     .cm-posturas-search-input-wrap{position:relative;min-width:0}
     .cm-posturas-search-input-wrap>span{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;color:#bbcabf;pointer-events:none}
-    .cm-posturas-search-input-wrap input{width:100%;box-sizing:border-box;padding:13px 16px 13px 48px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:#010f1f;color:#d4e4fa;font:400 16px/24px Inter,${getFont(theme,"secondary")};outline:none;transition:all .5s ease}
+    .cm-posturas-search-input-wrap input{width:100%;box-sizing:border-box;padding:9px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:#010f1f;color:#d4e4fa;font:400 13px/20px Inter,${getFont(theme,"secondary")};outline:none;transition:all .5s ease}
     .cm-posturas-search-input-wrap input:focus{border-color:rgba(78,222,163,.5);box-shadow:0 0 0 2px rgba(78,222,163,.12)}
+    .cm-posturas-filter-toggle{height:42px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:#122131;color:#bbcabf;font:700 11px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.05em;cursor:pointer;transition:all .3s ease}
+    .cm-posturas-filter-toggle:hover,.cm-posturas-filter-toggle.active{color:#4edea3;border-color:rgba(78,222,163,.34)}
+    .cm-posturas-filter-panel{display:grid;grid-template-columns:repeat(6,minmax(0,1fr)) auto;gap:8px;padding:10px;border-radius:14px;background:rgba(1,15,31,.76);border:1px solid rgba(255,255,255,.05);backdrop-filter:blur(12px)}
+    .cm-posturas-filter-panel label{display:grid;gap:4px;color:#86948a;font:700 9px/13px Inter,${getFont(theme,"secondary")};letter-spacing:.06em;text-transform:uppercase}
+    .cm-posturas-filter-panel input,.cm-posturas-filter-panel select{width:100%;box-sizing:border-box;min-width:0;padding:8px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.08);background:#0d1c2d;color:#d4e4fa;font:400 11px/16px Inter,${getFont(theme,"secondary")};outline:none}
+    .cm-posturas-filter-panel>button{align-self:end;padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.08);background:#1c2b3c;color:#a4c9ff;font:700 10px/16px Inter,${getFont(theme,"secondary")};cursor:pointer}
     .cm-posturas-smart-chips{display:flex;gap:8px;flex-wrap:wrap;padding-left:62px}
     .cm-posturas-smart-chips button{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.05);background:rgba(18,33,49,.72);color:#bbcabf;font:700 11px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.05em;cursor:pointer;transition:all .3s ease}
     .cm-posturas-smart-chips button:hover{border-color:rgba(78,222,163,.32);color:#4edea3}
@@ -21789,8 +21930,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     .cm-target-profile-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
     .cm-target-profile-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
     .cm-target-profile-title-row h4{margin:0;color:#d4e4fa;font-size:24px;line-height:32px;font-weight:600}
-    .cm-target-bookmark{border:0;background:transparent;padding:0;cursor:pointer;transition:transform .3s ease}
-    .cm-target-bookmark:hover{transform:scale(1.08)}
+    .cm-target-bookmark{width:34px;height:34px;display:grid;place-items:center;border:1px solid transparent;border-radius:10px;background:transparent;padding:0;cursor:pointer;transition:all .3s ease}
+    .cm-target-bookmark:hover{transform:scale(1.08);background:rgba(78,222,163,.08)}
+    .cm-target-bookmark.saved{background:rgba(78,222,163,.16);border-color:rgba(78,222,163,.38);box-shadow:0 0 16px rgba(78,222,163,.12)}
     .cm-target-rating-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
     .cm-target-specialty{padding:3px 10px;border-radius:999px;background:rgba(78,222,163,.10);color:#4edea3;font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.08em}
     .cm-target-stars{display:inline-flex;align-items:center;gap:1px;color:#fbbf24}
@@ -21805,8 +21947,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     .cm-target-actions .primary:hover{filter:brightness(1.08)}
     .cm-target-sample-section{margin:0 0 48px}.cm-target-sample-section.compact{margin-top:0}
     .cm-target-empty{height:190px;border-radius:16px;border:1px dashed rgba(255,255,255,.06);background:rgba(15,23,42,.34);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#86948a;text-align:center}
-    @media(max-width:1050px){.cm-posturas-target-header{top:68px}.cm-posturas-target-heading-row{align-items:flex-start;flex-direction:column}.cm-target-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.cm-posturas-target-header{top:64px;padding:14px;border-radius:16px}.cm-posturas-target-title h2{font-size:28px;line-height:36px}.cm-posturas-target-title p{font-size:15px;line-height:23px}.cm-posturas-search-toggle{width:46px;height:46px;flex-basis:46px}.cm-posturas-smart-chips{padding-left:0}.cm-posturas-target-tabs{justify-content:flex-start}.cm-posturas-target-tabs button{min-width:112px;padding:9px 15px}.cm-target-profile-card{flex-direction:column;padding:18px}.cm-target-profile-photo{width:100%;height:220px;flex-basis:auto}.cm-target-profile-title-row h4{font-size:21px;line-height:28px}}
+    @media(max-width:1050px){.cm-posturas-target-header{top:68px}.cm-posturas-target-heading-row{align-items:flex-start;flex-direction:column}.cm-target-grid{grid-template-columns:1fr}.cm-posturas-filter-panel{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:640px){.cm-posturas-target-header{top:64px;padding:12px;border-radius:16px}.cm-posturas-target-title h2{font-size:28px;line-height:36px}.cm-posturas-target-title p{font-size:15px;line-height:23px}.cm-posturas-search-toggle{width:40px;height:40px;flex-basis:40px}.cm-posturas-filter-toggle{width:40px;height:40px;padding:0}.cm-posturas-filter-toggle span{display:none}.cm-posturas-filter-panel{grid-template-columns:1fr 1fr}.cm-posturas-target-tabs{justify-content:flex-start}.cm-posturas-target-tabs button{min-width:112px;padding:9px 15px}.cm-target-profile-card{flex-direction:column;padding:18px}.cm-target-profile-photo{width:100%;height:220px;flex-basis:auto}.cm-target-profile-title-row h4{font-size:21px;line-height:28px}}
   `}</style>;
 
   const DashboardHub = () => {
@@ -21986,12 +22128,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
   const empresasPage = paginate(empFiltradas, pageEmp);
-  const savedTrabajadores = trabFiltrados.filter(row => isSavedProfile("trabajador", row.id));
-  const savedEmpresas = empFiltradas.filter(row => isSavedProfile("empresa", row.id));
+  const savedTrabajadoresReal = trabFiltrados.filter(row => isSavedProfile("trabajador", row.id));
+  const savedEmpresasReal = empFiltradas.filter(row => isSavedProfile("empresa", row.id));
+  const realSavedKeys = new Set([
+    ...savedTrabajadoresReal.map(row => posturasProfileKey("trabajador", row.id)),
+    ...savedEmpresasReal.map(row => posturasProfileKey("empresa", row.id)),
+  ]);
+  const savedSnapshotEntries = Object.entries(savedPosturasSnapshots || {})
+    .filter(([key]) => savedPosturas.includes(key) && !realSavedKeys.has(key));
+  const savedTrabajadores = [
+    ...savedTrabajadoresReal,
+    ...savedSnapshotEntries.filter(([key]) => key.startsWith("trabajador:")).map(([,row]) => row),
+  ];
+  const savedEmpresas = [
+    ...savedEmpresasReal,
+    ...savedSnapshotEntries.filter(([key]) => key.startsWith("empresa:")).map(([,row]) => row),
+  ];
   const sidebarNav = [
+    { id:"notificaciones", label:"Notificaciones", icon:"notifications", onClick:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
     { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("tablero"); setPosturasMode("list"); setDashboardTarget("perfiles"); setTalentView("todos"); } },
     { id:"posturas", label:"Posturas", icon:"work", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
-    { id:"notificaciones", label:"Notificaciones", icon:"notifications", onClick:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
@@ -22241,7 +22397,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
       {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["posturas","dynamic_feed","Feed"],["tablero","dashboard","Tablero"],["notificaciones","notifications","Avisos"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
+      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["notificaciones","notifications","Avisos"],["tablero","dashboard","Tablero"],["posturas","dynamic_feed","Feed"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
     </div>;
   };
 
@@ -22328,45 +22484,58 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               {posturasMode !== "archive" && <>
                 <div className="cm-posturas-search-shell">
                   <div className="cm-posturas-search-top">
-                    <button type="button" className={`cm-posturas-search-toggle ${posturasSearchOpen ? "open" : ""}`} onClick={openPosturasSearch} aria-label="Abrir búsqueda" aria-expanded={posturasSearchOpen}>
-                      <MS name="search" size={25} color={posturasSearchOpen ? "#4edea3" : "#bbcabf"} />
+                    <button
+                      type="button"
+                      className={`cm-posturas-search-toggle ${posturasSearchOpen ? "open" : ""}`}
+                      onClick={openPosturasSearch}
+                      onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
+                      aria-label="Abrir búsqueda; doble clic para cerrar"
+                      aria-expanded={posturasSearchOpen}
+                    >
+                      <MS name="search" size={22} color={posturasSearchOpen ? "#4edea3" : "#bbcabf"} />
                     </button>
+
                     <div className={`cm-posturas-search-expand ${posturasSearchOpen ? "open" : ""}`}>
                       <div className="cm-posturas-search-expand-inner">
                         <div className="cm-posturas-search-input-wrap">
-                          <span><MS name="search" size={22} color="#bbcabf" /></span>
                           <input
                             ref={posturasSearchInputRef}
                             value={q}
                             onFocus={registerPosturasSearchActivity}
                             onKeyDown={registerPosturasSearchActivity}
                             onMouseMove={registerPosturasSearchActivity}
+                            onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
                             onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
-                            placeholder="Buscar por nombre, cargo o palabra clave..."
+                            placeholder="Nombre, edad, empresa, calificación, licencia o maniobra..."
                             aria-label="Buscar perfiles, empresas o vacantes"
                           />
                         </div>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      className={`cm-posturas-filter-toggle ${posturasFilterOpen ? "active" : ""}`}
+                      onClick={()=>setPosturasFilterOpen(value=>!value)}
+                      aria-label="Abrir filtros"
+                      aria-expanded={posturasFilterOpen}
+                    >
+                      <MS name="filter_list" size={21} color={posturasFilterOpen ? "#4edea3" : "#bbcabf"} />
+                      <span>Filtros</span>
+                    </button>
                   </div>
-                  <div className="cm-posturas-smart-chips" aria-label="Filtros rápidos">
-                    {[
-                      ["perfil","Perfil","person","perfiles"],
-                      ["empresa","Empresa","domain","busquedas"],
-                      ["postulante","Postulante","groups","perfiles"],
-                      ["vacantes","Vacantes","work","posturas"],
-                    ].map(([id,label,icon,target]) => (
-                      <button
-                        key={id}
-                        type="button"
-                        className={posturasSmartFilter===id ? "active" : ""}
-                        onClick={()=>{setPosturasSmartFilter(id);setTalentView(target);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
-                      >
-                        <MS name={icon} size={17} color={posturasSmartFilter===id ? "#4edea3" : "#bbcabf"} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+
+                  {posturasFilterOpen && (
+                    <div className="cm-posturas-filter-panel">
+                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:e.target.value}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
+                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:e.target.value}))} placeholder="18"/></label>
+                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:e.target.value}))} placeholder="Nombre"/></label>
+                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:e.target.value}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
+                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:e.target.value}))} placeholder="Tipo de licencia"/></label>
+                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:e.target.value}))} placeholder="Tipo de maniobra"/></label>
+                      <button type="button" onClick={()=>setPosturasAdvancedFilter({tipo:"todos",edadMin:"",empresa:"",estrellas:"todos",licencia:"",maniobra:""})}>Limpiar</button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="cm-posturas-target-tabs">
