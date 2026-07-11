@@ -21116,9 +21116,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
-        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
-        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
-        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono llamadas</div><input type="tel" style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
+        <div><div style={label}>WhatsApp</div><input type="tel" style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
+        <div><div style={label}>Correo opcional</div><input type="email" style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
         <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
         <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
         <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
@@ -21146,20 +21146,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Conservas el histórico, pero debes actualizar documentos para publicar vacantes.</div>}
       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /></div>
       {step === 1 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
-        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
+        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
+        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value}))} onBlur={e=>setEmpForm(f=>({...f,rfc:e.target.value.trim().toUpperCase()}))}/></div>
         <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:e.target.value, ubicacion:e.target.value}))} placeholder="Domicilio fiscal u operativo" /></div>
+        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:e.target.value}))} onBlur={e=>setEmpForm(f=>({...f,ubicacion:e.target.value}))} placeholder="Domicilio fiscal u operativo" /></div>
         <FileInput field="logo_empresa" textLabel="Logo de la empresa" />
         <FileInput field="comprobante_domicilio" textLabel="Comprobante de domicilio" />
       </div>}
       {step === 2 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
         <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value, representante:e.target.value}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value, telefono:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input type="tel" style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value, telefono:e.target.value}))}/></div>
         <FileInput field="contacto_principal_foto" textLabel="Foto de contacto principal" />
         <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
-        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:e.target.value, correo:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input type="tel" style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
+        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:e.target.value}))} onBlur={e=>setEmpForm(f=>({...f,correo:e.target.value}))}/></div>
       </div>}
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
         <div style={{ display:"flex", gap:"8px" }}>
@@ -21831,6 +21831,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const { row, type, mock } = profileDetailTarget;
     const company = type === "empresa";
     const own = !mock && isOwnProfile(row);
+    const ProfileSymbol = ({ name, color, size=20, fill=0, className="" }) => (
+      <span
+        className={`material-symbols-outlined ${className}`.trim()}
+        aria-hidden="true"
+        style={{
+          color: color || (company ? "#a4c9ff" : "#94a3b8"),
+          fontSize: size,
+          lineHeight: 1,
+          fontVariationSettings: `'FILL' ${fill}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+        }}
+      >
+        {name}
+      </span>
+    );
     const title = mock ? row.nombre : company ? row.razon_social : row.nombre_completo;
     const subtitle = mock ? row.especialidad : company ? (row.tipo_empresa || "Empresa") : (row.maniobra || "Operador de carga");
     const image = mock ? row.foto : company ? row.logo_empresa : row.foto_perfil;
@@ -21863,6 +21877,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return createPortal(<div className="cm-profile-modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setProfileDetailTarget(null)}}>
       <div className={`cm-profile-modal ${company ? "cm-profile-company" : "cm-profile-worker"}`} role="dialog" aria-modal="true" aria-label={`Perfil de ${title}`}>
         <style>{`
+          .cm-profile-modal-overlay .material-symbols-outlined{
+            font-family:"Material Symbols Outlined";
+            font-weight:normal;font-style:normal;letter-spacing:normal;text-transform:none;
+            display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;
+            -webkit-font-feature-settings:"liga";font-feature-settings:"liga";
+            -webkit-font-smoothing:antialiased;vertical-align:middle
+          }
           .cm-profile-modal-overlay{
             position:fixed;inset:0;z-index:100500;display:grid;place-items:center;
             padding:14px;overflow:hidden;background:rgba(1,15,31,.84);
@@ -21914,6 +21935,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             box-shadow:0 8px 22px color-mix(in srgb,var(--profile-primary) 20%,transparent)
           }
           .cm-profile-worker .cm-profile-modal-actions .primary{color:#fff}
+          .cm-profile-worker .cm-profile-field label .material-symbols-outlined{color:#94a3b8!important}
+          .cm-profile-company .cm-profile-field label .material-symbols-outlined{color:#86948a!important}
+          .cm-profile-company .cm-profile-modal-nav>div:first-child .material-symbols-outlined{color:#a4c9ff!important}
+          .cm-profile-worker .cm-profile-modal-nav>div:first-child .material-symbols-outlined{color:#10b981!important}
           .cm-profile-modal-actions .primary:hover{filter:brightness(1.08)}
           .cm-profile-modal-actions .danger{color:#ffb4ab;border-color:rgba(255,180,171,.30)}
           .cm-profile-modal-main{
@@ -22016,29 +22041,54 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           }
         `}</style>
         <div className="cm-profile-modal-nav">
-          <div style={{display:"flex",alignItems:"center",gap:"10px",fontWeight:800}}><MS name={company?"domain":"local_shipping"} size={25} color={company?"#a4c9ff":"#10b981"}/>{company?"Perfil de Empresa":"Perfil de Postulante"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",fontWeight:800}}>
+            <ProfileSymbol name={company ? "corporate_fare" : "local_shipping"} size={25} color={company ? "#a4c9ff" : "#10b981"} />
+            {company ? "Perfil de Empresa" : "Perfil de Postulante"}
+          </div>
           <div className="cm-profile-modal-actions">
-            {!own && <button className="primary" onClick={()=>setMsg({type:"ok",text:company?`Solicitud de contacto enviada a ${title}.`:`Solicitud de contratación enviada a ${title}.`})}><MS name={company?"send":"handshake"} size={18}/>{company?"Contactar":"Contratar"}</button>}
-            {!own && !mock && <button className="danger" onClick={()=>{setProfileDetailTarget(null);openPosturasReport(type,row)}}><MS name="flag" size={18}/>Reportar</button>}
-            <button onClick={()=>setProfileDetailTarget(null)}><MS name="close" size={18}/>Cerrar</button>
+            {!own && <button className="primary" onClick={()=>setMsg({type:"ok",text:company?`Solicitud de contacto enviada a ${title}.`:`Solicitud de contratación enviada a ${title}.`})}><ProfileSymbol name={company ? "send" : "handshake"} size={18} color={company ? "#003824" : "#ffffff"} fill={1} />
+              {company ? "Contactar" : "Contratar"}</button>}
+            {!own && !mock && <button className="danger" onClick={()=>{setProfileDetailTarget(null);openPosturasReport(type,row)}}><ProfileSymbol name="flag" size={18} color="#ffb4ab" />
+              Reportar</button>}
+            <button onClick={()=>setProfileDetailTarget(null)}><ProfileSymbol name="close" size={18} color={company ? "#a4c9ff" : "#cbd5e1"} />
+              Cerrar</button>
           </div>
         </div>
         <div className="cm-profile-modal-main">
           <aside style={{display:"grid",gap:"18px",alignContent:"start"}}>
             <div className="cm-profile-glass cm-profile-summary">
-              <div className="cm-profile-avatar">{image?<img src={image} alt={title}/>:<MS name={company?"domain":"person"} size={58} color={company?"#a4c9ff":"#4edea3"}/>}</div>
+              <div className="cm-profile-avatar">{image ? <img src={image} alt={title}/> : <ProfileSymbol name={company ? "corporate_fare" : "person"} size={58} color={company ? "#a4c9ff" : "#10b981"} />}</div>
               <h2>{title}</h2><p>{subtitle}</p>
-              <span className="cm-profile-badge" style={{color:validation.color}}><MS name={validation.icon} size={16} color={validation.color}/>{validation.label}</span>
+              <span className="cm-profile-badge" style={{color:validation.color}}>
+                <ProfileSymbol name={validation.state === "validado" ? "verified" : validation.state === "rechazado" ? "cancel" : "pending"} size={16} color={validation.color} fill={validation.state === "validado" ? 1 : 0} />
+                {validation.label}
+              </span>
               <div className="cm-profile-stats"><div><span>Calificación</span><strong>{rating.toFixed(1)} / 5</strong></div><div><span>{company?"Alcance":"Experiencia"}</span><strong>{company?(row.alcance||"Local"):(row.experiencia?`${row.experiencia} años`:"—")}</strong></div></div>
             </div>
-            {own && <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"16px",display:"flex",gap:"8px",alignItems:"center"}}><MS name="verified_user" size={19} color="#4edea3"/>Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span><MS name={st.icon} size={17} color={st.color}/>{name}</span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>}
+            {own && <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"16px",display:"flex",gap:"8px",alignItems:"center"}}><ProfileSymbol name="verified_user" size={19} color="#10b981" />
+              Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span>
+                    <ProfileSymbol name={st.label === "Validado" || st.label === "Vigente" ? "check_circle" : st.label === "No validado" ? "cancel" : "pending"} size={17} color={st.color} fill={st.label === "Validado" || st.label === "Vigente" ? 1 : 0} />
+                    {name}
+                  </span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>}
           </aside>
           <section className="cm-profile-glass cm-profile-info"><h3>{company?"Información Empresarial":"Información Personal"}</h3><div className="cm-profile-info-sub">Detalles del perfil en modo de solo lectura.</div><div className="cm-profile-fields">{fields.map(([name,value])=>{const fieldIcons={
-              "Razón social":"domain","RFC":"badge","Tipo de empresa":"apartment","Domicilio":"location_on",
-              "Representante":"person","Teléfono":"call","Correo":"mail","Alcance":"distance","Estatus":"info",
-              "Nombre completo":"person","Edad":"event","Tipo de licencia":"badge","Tipo de maniobra":"settings_input_component",
-              "Disponibilidad":"location_on","Teléfono llamadas":"call","WhatsApp":"chat_bubble"
-            };return <div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={fieldIcons[name]||"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>})}</div></section>
+              "Razón social":"corporate_fare",
+              "RFC":"badge",
+              "Tipo de empresa":"apartment",
+              "Domicilio":"location_on",
+              "Representante":"person",
+              "Teléfono":"call",
+              "Correo":"mail",
+              "Alcance":"distance",
+              "Estatus":"info",
+              "Nombre completo":"person",
+              "Edad":"event",
+              "Tipo de licencia":"badge",
+              "Tipo de maniobra":"settings_input_component",
+              "Disponibilidad":"location_on",
+              "Teléfono llamadas":"call",
+              "WhatsApp":"chat_bubble"
+            };return <div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><ProfileSymbol name={fieldIcons[name]||"info"} size={15} color={company ? "#86948a" : "#94a3b8"} />{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>})}</div></section>
         </div>
       </div>
     </div>,document.body);
@@ -22563,7 +22613,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") {
       if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessGate /></div>;
-      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
+      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && {WorkerForm()}}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? {CompanyForm()} : {WorkerForm()})}</div>;
     }
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
@@ -22642,7 +22692,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
               {AccessSelectorModal()}
               <ProfileHeader />
-              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}
+              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && {WorkerForm()}}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? {CompanyForm()} : {WorkerForm()})}
             </div>
           )
         )}
