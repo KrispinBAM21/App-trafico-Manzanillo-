@@ -19877,7 +19877,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [quejas, setQuejas] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => {
+    try { return localStorage.getItem("cm_posturas_search") || ""; } catch { return ""; }
+  });
+  const [posturasSearchOpen, setPosturasSearchOpen] = useState(false);
+  const [posturasSmartFilter, setPosturasSmartFilter] = useState("todos");
+  const posturasSearchTimerRef = useRef(null);
+  const posturasSearchInputRef = useRef(null);
   const [filtroEstatus, setFiltroEstatus] = useState("todos");
   const [filtroAlcance, setFiltroAlcance] = useState("todos");
   const [filtroEstrellas, setFiltroEstrellas] = useState("todos");
@@ -19898,6 +19904,37 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
   const [pisDonateOpen, setPisDonateOpen] = useState(false);
+
+  const clearPosturasSearchTimer = useCallback(() => {
+    if (posturasSearchTimerRef.current) {
+      clearTimeout(posturasSearchTimerRef.current);
+      posturasSearchTimerRef.current = null;
+    }
+  }, []);
+
+  const schedulePosturasSearchClose = useCallback(() => {
+    clearPosturasSearchTimer();
+    posturasSearchTimerRef.current = setTimeout(() => {
+      setPosturasSearchOpen(false);
+    }, 5000);
+  }, [clearPosturasSearchTimer]);
+
+  const openPosturasSearch = useCallback(() => {
+    setPosturasSearchOpen(true);
+    schedulePosturasSearchClose();
+    requestAnimationFrame(() => posturasSearchInputRef.current?.focus());
+  }, [schedulePosturasSearchClose]);
+
+  const registerPosturasSearchActivity = useCallback(() => {
+    if (!posturasSearchOpen) setPosturasSearchOpen(true);
+    schedulePosturasSearchClose();
+  }, [posturasSearchOpen, schedulePosturasSearchClose]);
+
+  useEffect(() => {
+    try { localStorage.setItem("cm_posturas_search", q); } catch {}
+  }, [q]);
+
+  useEffect(() => () => clearPosturasSearchTimer(), [clearPosturasSearchTimer]);
   const [savedPosturas, setSavedPosturas] = useState(() => {
     try { return JSON.parse(localStorage.getItem("cm_posturas_guardadas") || "[]"); } catch { return []; }
   });
@@ -20027,7 +20064,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [companyFormMode, setCompanyFormMode] = useState("registro");
   const [vacancyModalOpen, setVacancyModalOpen] = useState(false);
   const [posturasReportTarget, setPosturasReportTarget] = useState(null);
-  const [posturasReportForm, setPosturasReportForm] = useState({ tipo:"perfil_falso", comentario:"" });
+  const [posturasReportForm, setPosturasReportForm] = useState({ tipo:"", comentario:"" });
+  const [profileDetailTarget, setProfileDetailTarget] = useState(null);
+  const [profileApprovalComment, setProfileApprovalComment] = useState({});
   const [profileEditor, setProfileEditor] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("cm_posturas_public_profile") || "null") || {
@@ -20067,7 +20106,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
   };
   const isProfileExpired = (row) => !!row && profileDaysSinceUpdate(row) > PROFILE_VALID_DAYS;
-  const profileStatusLabel = (row) => isProfileExpired(row) ? "Suspendido" : "Vigente";
+  const profileStatusLabel = (row) => {
+    const validation = profileValidationMeta(row);
+    if (validation.state !== "validado") return validation.label;
+    return isProfileExpired(row) ? "Suspendido" : "Vigente";
+  };
   const profileActionLabel = (row, emptyLabel="Crear") => row ? (isProfileExpired(row) ? "Actualizar" : "Editar") : emptyLabel;
   const actionButtonColorForProfile = (row, base="#22c55e") => row && isProfileExpired(row) ? "#f59e0b" : base;
   const userCanPublishTalent = (type) => {
@@ -20281,6 +20324,55 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return <span aria-hidden="true" style={wrapStyle}>{icon}</span>;
   };
 
+  const normalizeProfileValidation = (row) => {
+    const raw = String(row?.perfil_estado || row?.validation_status || row?.estado_validacion || "pendiente").toLowerCase();
+    if (["validado","vigente","approved","aprobado"].includes(raw)) return "validado";
+    if (["no_validado","rechazado","rejected","correccion"].includes(raw)) return "no_validado";
+    return "pendiente";
+  };
+  const profileValidationMeta = (row) => {
+    const state = normalizeProfileValidation(row);
+    if (state === "validado") return { state, label:"Validado", color:"#4edea3", icon:"verified" };
+    if (state === "no_validado") return { state, label:"No validado", color:"#ffb4ab", icon:"cancel" };
+    return { state, label:"Pendiente", color:"#fbbf24", icon:"schedule" };
+  };
+  const isOwnProfile = (row) => !!authUser?.id && String(row?.user_id || "") === String(authUser.id);
+  const isProfilePublic = (row) => isAdmin || isOwnProfile(row) || normalizeProfileValidation(row) === "validado";
+  const documentState = (value, overall) => {
+    if (overall === "no_validado") return { label:"No validado", color:"#ffb4ab", icon:"cancel" };
+    if (overall === "validado" && String(value || "").trim()) return { label:"Validado", color:"#4edea3", icon:"check_circle" };
+    return { label:String(value || "").trim() ? "Pendiente" : "Pendiente", color:"#fbbf24", icon:"schedule" };
+  };
+  const approvalKey = (type,id) => `${type}:${id}`;
+  const approveProfile = async (row, type, nextState) => {
+    if (!isAdmin || !row?.id) return;
+    const comment = String(profileApprovalComment[approvalKey(type,row.id)] || "").trim();
+    if (nextState === "no_validado" && !comment) {
+      setMsg({type:"err", text:"Escribe un comentario para indicar la corrección o motivo del rechazo."});
+      return;
+    }
+    const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
+    const payload = { perfil_estado:nextState, activo:true, updated_at:new Date().toISOString() };
+    const { error } = await sb.from(table).update(payload).eq("id", row.id);
+    if (error) { setMsg({type:"err", text:error.message}); return; }
+    if (row.user_id || row.device_id) {
+      try {
+        await sb.from("posturas_notificaciones").insert({
+          user_id:row.user_id || null,
+          device_id:row.device_id || myId,
+          type:"validacion_perfil",
+          title: nextState === "validado" ? "Perfil validado" : "Corrección requerida",
+          message: nextState === "validado" ? "Tu perfil fue validado y ya es público." : comment,
+          read:false,
+          created_at:new Date().toISOString()
+        });
+      } catch {}
+    }
+    setProfileApprovalComment(prev=>({...prev,[approvalKey(type,row.id)]:""}));
+    setMsg({type:"ok", text:nextState === "validado" ? "Perfil validado y publicado." : "Perfil marcado como no validado; se notificó la corrección."});
+    loadPosturas();
+  };
+
   const avgFor = (type, id) => {
     const rows = ratings.filter(r => r.profile_type === type && String(r.profile_id) === String(id));
     if (!rows.length) return { avg:0, count:0 };
@@ -20396,9 +20488,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneo && salarioForaneo > salarioMaxPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante no debe superar $${salarioMaxPostulanteForaneo}.`}); return; }
     persistPosturasUserType("postulante");
     const nowIso = new Date().toISOString();
-    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
     const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
-    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:"Perfil de trabajador guardado."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
+    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Perfil guardado. Quedó pendiente de validación administrativa."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
   };
   const openVacancyModal = () => {
     if (!isAdmin && !authUser) {
@@ -20445,9 +20537,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
-    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:"vigente", activo:true };
+    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
     const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
-    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : "Perfil de empresa guardado."}); setEmpForm(emptyEmp); setEditingEmpId(null); setVacancyModalOpen(false); loadPosturas(); }
+    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : (isAdmin ? "Perfil de empresa guardado y validado." : "Perfil empresarial guardado. Quedó pendiente de validación administrativa.")}); setEmpForm(emptyEmp); setEditingEmpId(null); setVacancyModalOpen(false); loadPosturas(); }
   };
   const rate = async (type, id, stars, comment="") => {
     const payload = { profile_type:type, profile_id:id, user_id:authUser?.id || null, device_id:myId, stars, comment: type === "trabajador" ? comment.trim() : null };
@@ -20457,13 +20549,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const openPosturasReport = (type, row) => {
     if (!authUser) { openAccessSelector("login"); setMsg({ type:"err", text:"Para reportar perfiles o vacantes debes iniciar sesión." }); return; }
     setPosturasReportTarget({ type, row });
-    setPosturasReportForm({ tipo:"perfil_falso", comentario:"" });
+    setPosturasReportForm({ tipo:"", comentario:"" });
   };
   const sendPosturasReport = async () => {
     if (!authUser) return requireLogin();
     const target = posturasReportTarget;
     if (!target?.row?.id) return;
-    if (!posturasReportForm.comentario.trim()) { setMsg({ type:"err", text:"Agrega comentarios para que el admin pueda revisar la queja." }); return; }
+    if (!posturasReportForm.tipo) { setMsg({ type:"err", text:"Selecciona el tipo de reporte." }); return; }
+    if (!posturasReportForm.comentario.trim()) { setMsg({ type:"err", text:"Agrega el motivo detallado del reporte." }); return; }
     const targetName = target.type === "trabajador" ? target.row.nombre_completo : target.row.razon_social;
     const tipoLabel = posturasReportForm.tipo.replaceAll("_", " ");
     const comentario = `[${target.type.toUpperCase()} #${target.row.id}] Tipo de queja: ${tipoLabel}. Reportado: ${targetName}. Comentarios: ${posturasReportForm.comentario.trim()}`;
@@ -20567,8 +20660,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (rb.count !== ra.count) return rb.count - ra.count;
     return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
   });
-  const trabFiltrados = sortByReputation(filterRows(trabajadores, "trabajador"), "trabajador");
-  const empFiltradas = sortByReputation(filterRows(empresas, "empresa"), "empresa");
+  const publicTrabajadores = trabajadores.filter(isProfilePublic);
+  const publicEmpresas = empresas.filter(isProfilePublic);
+  const trabFiltrados = sortByReputation(filterRows(publicTrabajadores, "trabajador"), "trabajador");
+  const empFiltradas = sortByReputation(filterRows(publicEmpresas, "empresa"), "empresa");
   const myTrabajadores = authUser?.id ? trabajadores.filter(row => row.user_id === authUser.id) : [];
   const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id) : [];
   const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
@@ -21530,13 +21625,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const experience = mock ? row.experiencia : (isCompany ? (row.estatus === "tiene_trabajo" ? "Vacantes activas" : "Sin vacantes activas") : (row.experiencia ? `${row.experiencia} años` : row.edad ? `${row.edad} años` : "No indicada"));
     const image = mock ? row.foto : (isCompany ? row.logo_empresa : row.foto_perfil);
     const saved = !mock && isSavedProfile(isCompany ? "empresa" : "trabajador", row.id);
-    const showProfile = () => {
-      if (mock) {
-        setMsg({type:"ok", text:`Perfil de muestra: ${title} · ${rating.toFixed(1)} estrellas.`});
-      } else {
-        setMsg({type:"ok", text:isCompany ? `Detalle de empresa: ${title}.` : `Más información de ${title}: ${specialty}.`});
-      }
-    };
+    const ownProfile = !mock && isOwnProfile(row);
+    const showProfile = () => setProfileDetailTarget({ row, type:isCompany ? "empresa" : "trabajador", mock });
     const contact = () => {
       if (mock) {
         setMsg({type:"ok", text:`Contacto de muestra solicitado para ${title}.`});
@@ -21573,11 +21663,77 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </div>
           <div className="cm-target-actions">
             <button type="button" className="secondary" onClick={showProfile}>Ver Perfil</button>
-            <button type="button" className="primary" onClick={contact}>Contactar</button>
+            {!ownProfile && <button type="button" className="primary" onClick={contact}>Contactar</button>}
           </div>
         </div>
       </article>
     );
+  };
+
+  const ProfileDetailModal = () => {
+    if (!profileDetailTarget || typeof document === "undefined") return null;
+    const { row, type, mock } = profileDetailTarget;
+    const company = type === "empresa";
+    const own = !mock && isOwnProfile(row);
+    const title = mock ? row.nombre : company ? row.razon_social : row.nombre_completo;
+    const subtitle = mock ? row.especialidad : company ? (row.tipo_empresa || "Empresa") : (row.maniobra || "Operador de carga");
+    const image = mock ? row.foto : company ? row.logo_empresa : row.foto_perfil;
+    const rating = mock ? Number(row.calificacion || 0) : avgFor(type,row.id).avg;
+    const validation = mock ? {state:"validado",label:"Validado",color:"#4edea3",icon:"verified"} : profileValidationMeta(row);
+    const docs = company ? [
+      ["Logo de la empresa", row.logo_empresa],
+      ["Comprobante de domicilio", row.comprobante_domicilio],
+      ["Contacto principal", row.contacto_principal_foto || row.contacto_principal_nombre],
+    ] : [
+      ["Licencia frontal", row.licencia_frontal],
+      ["Licencia trasera", row.licencia_trasera],
+      ["INE frontal", row.ine_frontal],
+      ["INE trasera", row.ine_trasera],
+      ["Comprobante de domicilio", row.comprobante_domicilio],
+    ];
+    const fields = company ? [
+      ["Razón social", row.razon_social || title], ["RFC", row.rfc], ["Tipo de empresa", row.tipo_empresa],
+      ["Domicilio", row.domicilio || row.ubicacion], ["Representante", row.contacto_principal_nombre || row.representante],
+      ["Teléfono", row.contacto_principal_numero || row.telefono], ["Correo", row.contacto_secundario_correo || row.correo],
+      ["Alcance", row.alcance], ["Estatus", row.estatus],
+    ] : [
+      ["Nombre completo", row.nombre_completo || title], ["Edad", row.edad ? `${row.edad} años` : ""], ["Tipo de licencia", row.licencia],
+      ["Tipo de maniobra", row.maniobra], ["Disponibilidad", row.alcance], ["Estatus", row.disponible === false ? "No disponible" : "Disponible para laborar"],
+      ["Teléfono llamadas", row.telefono_llamadas], ["WhatsApp", row.telefono_whatsapp], ["Correo", row.correo], ["Domicilio", row.domicilio],
+    ];
+    return createPortal(<div className="cm-profile-modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setProfileDetailTarget(null)}}>
+      <div className="cm-profile-modal" role="dialog" aria-modal="true" aria-label={`Perfil de ${title}`}>
+        <style>{`
+          .cm-profile-modal-overlay{position:fixed;inset:0;z-index:100500;background:rgba(1,15,31,.82);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px;overflow:auto}
+          .cm-profile-modal{width:min(1180px,100%);max-height:calc(100vh - 36px);overflow:auto;border-radius:24px;background:#051424;border:1px solid rgba(255,255,255,.07);box-shadow:0 36px 110px rgba(0,0,0,.72);color:#d4e4fa;font-family:Inter,${getFont(theme,"secondary")}}
+          .cm-profile-modal-nav{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 22px;background:rgba(5,20,36,.88);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.07)}
+          .cm-profile-modal-actions{display:flex;gap:8px;flex-wrap:wrap}.cm-profile-modal-actions button{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.09);background:rgba(18,33,49,.78);color:#d4e4fa;font-weight:700;cursor:pointer;transition:.3s}.cm-profile-modal-actions button:hover{border-color:rgba(78,222,163,.35)}.cm-profile-modal-actions .primary{background:#10b981;color:#003824;border-color:#10b981}.cm-profile-modal-actions .danger{color:#ffb4ab;border-color:rgba(255,180,171,.28)}
+          .cm-profile-modal-main{display:grid;grid-template-columns:360px 1fr;gap:24px;padding:24px}.cm-profile-glass{background:rgba(13,28,45,.70);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:22px}.cm-profile-summary{text-align:center;position:relative;overflow:hidden}.cm-profile-summary:before{content:"";position:absolute;inset:0 0 auto;height:100px;background:linear-gradient(90deg,rgba(78,222,163,.20),rgba(164,201,255,.08))}.cm-profile-avatar{position:relative;width:132px;height:132px;margin:42px auto 14px;border-radius:20px;border:4px solid #0d1c2d;overflow:hidden;background:#122131;display:grid;place-items:center}.cm-profile-avatar img{width:100%;height:100%;object-fit:cover}.cm-profile-summary h2{position:relative;margin:0;font-size:27px}.cm-profile-summary p{position:relative;margin:6px 0;color:#bbcabf}.cm-profile-badge{position:relative;display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 11px;border-radius:999px;background:rgba(78,222,163,.10);font-size:12px;font-weight:700}.cm-profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.06)}.cm-profile-stats strong{display:block;font-size:19px}.cm-profile-stats span{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#86948a}
+          .cm-doc-list{display:grid;gap:10px;margin-top:18px}.cm-doc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px;border-radius:12px;background:rgba(1,15,31,.54)}.cm-doc-row>span{display:flex;align-items:center;gap:9px}.cm-doc-state{font-size:11px;font-weight:700}
+          .cm-profile-info h3{margin:0 0 5px;font-size:25px}.cm-profile-info-sub{color:#86948a;margin-bottom:22px}.cm-profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.cm-profile-field label{display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#86948a;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}.cm-profile-field div{min-height:44px;padding:11px 13px;border-radius:11px;background:rgba(1,15,31,.60);border:1px solid rgba(255,255,255,.06);color:#d4e4fa}.cm-profile-field.wide{grid-column:1/-1}
+          @media(max-width:800px){.cm-profile-modal-main{grid-template-columns:1fr}.cm-profile-modal-nav{align-items:flex-start}.cm-profile-fields{grid-template-columns:1fr}.cm-profile-field.wide{grid-column:auto}}`}</style>
+        <div className="cm-profile-modal-nav">
+          <div style={{display:"flex",alignItems:"center",gap:"10px",fontWeight:800}}><MS name={company?"domain":"assignment_ind"} size={25} color={company?"#a4c9ff":"#4edea3"}/>{company?"Perfil de Empresa":"Perfil de Postulante"}</div>
+          <div className="cm-profile-modal-actions">
+            {!own && !isAdmin && <button className="primary" onClick={()=>setMsg({type:"ok",text:company?`Solicitud de contacto enviada a ${title}.`:`Solicitud de contratación enviada a ${title}.`})}><MS name={company?"call":"handshake"} size={18}/>{company?"Contactar":"Contratar"}</button>}
+            {!own && !mock && <button className="danger" onClick={()=>{setProfileDetailTarget(null);openPosturasReport(type,row)}}><MS name="flag" size={18}/>Reportar</button>}
+            <button onClick={()=>setProfileDetailTarget(null)}><MS name="close" size={18}/>Cerrar</button>
+          </div>
+        </div>
+        <div className="cm-profile-modal-main">
+          <aside style={{display:"grid",gap:"18px",alignContent:"start"}}>
+            <div className="cm-profile-glass cm-profile-summary">
+              <div className="cm-profile-avatar">{image?<img src={image} alt={title}/>:<MS name={company?"domain":"person"} size={58} color={company?"#a4c9ff":"#4edea3"}/>}</div>
+              <h2>{title}</h2><p>{subtitle}</p>
+              <span className="cm-profile-badge" style={{color:validation.color}}><MS name={validation.icon} size={16} color={validation.color}/>{validation.label}</span>
+              <div className="cm-profile-stats"><div><span>Calificación</span><strong>{rating.toFixed(1)} / 5</strong></div><div><span>{company?"Alcance":"Experiencia"}</span><strong>{company?(row.alcance||"Local"):(row.experiencia?`${row.experiencia} años`:"—")}</strong></div></div>
+            </div>
+            <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"18px",display:"flex",gap:"8px",alignItems:"center"}}><MS name="verified_user" size={21} color="#4edea3"/>Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span><MS name={st.icon} size={18} color={st.color}/>{name}</span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>
+          </aside>
+          <section className="cm-profile-glass cm-profile-info"><h3>{company?"Información Empresarial":"Información Personal"}</h3><div className="cm-profile-info-sub">Detalles del perfil en modo de solo lectura.</div><div className="cm-profile-fields">{fields.map(([name,value],idx)=><div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={idx===0?(company?"domain":"person"):"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>)}</div></section>
+        </div>
+      </div>
+    </div>,document.body);
   };
 
   const MockProfilesSection = ({ compact=false, title="Perfiles de Muestra" }) => {
@@ -21599,21 +21755,28 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const PosturasTargetStyles = () => <style>{`
     .cm-posturas-target{max-width:1280px;margin:0 auto;padding:8px 0 32px;color:#d4e4fa;font-family:Inter,${getFont(theme,"secondary")}}
-    .cm-posturas-target-header{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;margin-bottom:38px}
+    .cm-posturas-target-header{position:sticky;top:72px;z-index:34;margin-bottom:42px;padding:20px;border-radius:20px;background:rgba(13,28,45,.86);border:1px solid rgba(255,255,255,.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 16px 38px rgba(0,0,0,.20)}
+    .cm-posturas-target-heading-row{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:18px}
     .cm-posturas-target-title h2{margin:0;color:#d4e4fa;font-size:40px;line-height:48px;letter-spacing:-.02em;font-weight:700}
-    .cm-posturas-target-title p{margin:8px 0 0;color:#bbcabf;font-size:18px;line-height:28px;max-width:520px}
-    .cm-posturas-target-tabs{display:flex;align-items:center;padding:4px;background:#1c2b3c;border-radius:12px;white-space:nowrap}
-    .cm-posturas-target-tabs button{padding:10px 24px;border:0;border-radius:9px;background:transparent;color:#bbcabf;font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;cursor:pointer;transition:all .3s ease}
+    .cm-posturas-target-title p{margin:8px 0 0;color:#bbcabf;font-size:18px;line-height:28px;max-width:560px}
+    .cm-posturas-search-shell{display:flex;flex-direction:column;gap:12px}
+    .cm-posturas-search-top{display:flex;align-items:center;gap:12px}
+    .cm-posturas-search-toggle{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:#010f1f;color:#bbcabf;cursor:pointer;transition:all .5s ease}
+    .cm-posturas-search-toggle:hover,.cm-posturas-search-toggle.open{color:#4edea3;border-color:rgba(78,222,163,.35);box-shadow:0 0 18px rgba(78,222,163,.10)}
+    .cm-posturas-search-expand{display:grid;grid-template-columns:0fr;opacity:0;flex:1;min-width:0;transition:grid-template-columns .5s ease,opacity .35s ease}
+    .cm-posturas-search-expand.open{grid-template-columns:1fr;opacity:1}
+    .cm-posturas-search-expand-inner{min-width:0;overflow:hidden}
+    .cm-posturas-search-input-wrap{position:relative;min-width:0}
+    .cm-posturas-search-input-wrap>span{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;color:#bbcabf;pointer-events:none}
+    .cm-posturas-search-input-wrap input{width:100%;box-sizing:border-box;padding:13px 16px 13px 48px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:#010f1f;color:#d4e4fa;font:400 16px/24px Inter,${getFont(theme,"secondary")};outline:none;transition:all .5s ease}
+    .cm-posturas-search-input-wrap input:focus{border-color:rgba(78,222,163,.5);box-shadow:0 0 0 2px rgba(78,222,163,.12)}
+    .cm-posturas-smart-chips{display:flex;gap:8px;flex-wrap:wrap;padding-left:62px}
+    .cm-posturas-smart-chips button{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.05);background:rgba(18,33,49,.72);color:#bbcabf;font:700 11px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.05em;cursor:pointer;transition:all .3s ease}
+    .cm-posturas-smart-chips button:hover{border-color:rgba(78,222,163,.32);color:#4edea3}
+    .cm-posturas-smart-chips button.active{background:rgba(78,222,163,.14);border-color:rgba(78,222,163,.36);color:#4edea3}
+    .cm-posturas-target-tabs{display:flex;align-items:center;justify-content:center;margin-top:14px;padding:4px;background:#1c2b3c;border-radius:12px;white-space:nowrap;overflow:auto}
+    .cm-posturas-target-tabs button{flex:1;min-width:128px;padding:10px 24px;border:0;border-radius:9px;background:transparent;color:#bbcabf;font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;cursor:pointer;transition:all .3s ease}
     .cm-posturas-target-tabs button.active{background:#a4c9ff;color:#00315d;box-shadow:0 6px 18px rgba(0,0,0,.22)}
-    .cm-posturas-target-search{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:16px;margin-bottom:48px;border-radius:16px;background:rgba(15,23,42,.60);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);transition:all .3s ease}
-    .cm-posturas-target-search:hover{border-color:rgba(78,222,163,.24)}
-    .cm-posturas-target-search-field{position:relative;flex:1;min-width:280px}
-    .cm-posturas-target-search-field>span{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;color:#bbcabf}
-    .cm-posturas-target-search input{width:100%;box-sizing:border-box;padding:13px 16px 13px 48px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:#010f1f;color:#d4e4fa;font:400 16px/24px Inter,${getFont(theme,"secondary")};outline:none;transition:all .3s ease}
-    .cm-posturas-target-search input:focus{border-color:rgba(78,222,163,.5);box-shadow:0 0 0 2px rgba(78,222,163,.12)}
-    .cm-posturas-target-search-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .cm-posturas-target-search-actions button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:12px 22px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(15,23,42,.60);color:#bbcabf;font:600 14px/20px Inter,${getFont(theme,"secondary")};cursor:pointer;transition:all .3s ease}
-    .cm-posturas-target-search-actions button:hover{color:#4edea3;border-color:rgba(78,222,163,.35);background:rgba(15,23,42,.82)}
     .cm-target-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
     .cm-target-section-head h3{margin:0;color:#d4e4fa;font-size:24px;line-height:32px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
     .cm-target-section-head h3 span{color:#4edea3}
@@ -21641,8 +21804,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     .cm-target-actions .primary:hover{filter:brightness(1.08)}
     .cm-target-sample-section{margin:0 0 48px}.cm-target-sample-section.compact{margin-top:0}
     .cm-target-empty{height:190px;border-radius:16px;border:1px dashed rgba(255,255,255,.06);background:rgba(15,23,42,.34);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#86948a;text-align:center}
-    @media(max-width:1050px){.cm-posturas-target-header{align-items:flex-start;flex-direction:column}.cm-posturas-target-tabs{width:100%;overflow:auto}.cm-target-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.cm-posturas-target-title h2{font-size:28px;line-height:36px}.cm-posturas-target-title p{font-size:15px;line-height:23px}.cm-posturas-target-tabs button{padding:9px 15px}.cm-posturas-target-search{margin-bottom:32px}.cm-posturas-target-search-actions{width:100%}.cm-posturas-target-search-actions button{flex:1;padding:11px 12px}.cm-target-profile-card{flex-direction:column;padding:18px}.cm-target-profile-photo{width:100%;height:220px;flex-basis:auto}.cm-target-profile-title-row h4{font-size:21px;line-height:28px}}
+    @media(max-width:1050px){.cm-posturas-target-header{top:68px}.cm-posturas-target-heading-row{align-items:flex-start;flex-direction:column}.cm-target-grid{grid-template-columns:1fr}}
+    @media(max-width:640px){.cm-posturas-target-header{top:64px;padding:14px;border-radius:16px}.cm-posturas-target-title h2{font-size:28px;line-height:36px}.cm-posturas-target-title p{font-size:15px;line-height:23px}.cm-posturas-search-toggle{width:46px;height:46px;flex-basis:46px}.cm-posturas-smart-chips{padding-left:0}.cm-posturas-target-tabs{justify-content:flex-start}.cm-posturas-target-tabs button{min-width:112px;padding:9px 15px}.cm-target-profile-card{flex-direction:column;padding:18px}.cm-target-profile-photo{width:100%;height:220px;flex-basis:auto}.cm-target-profile-title-row h4{font-size:21px;line-height:28px}}
   `}</style>;
 
   const DashboardHub = () => {
@@ -21800,16 +21963,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
-  const AdminQuejas = () => isAdmin ? <div style={{...card, marginTop:"14px", border:"1px solid rgba(239,68,68,.28)"}}>
-    <div style={{ color:"#fff", fontWeight:"900", marginBottom:"4px" }}>Quejas y reportes de Posturas</div>
-    <div style={{ color:"rgba(255,255,255,.52)", fontSize:"11px", marginBottom:"8px", lineHeight:1.5 }}>Aquí llegan reportes de empresas, vacantes y perfiles de postulantes. Desde las tarjetas del perfil puedes aplicar advertencia, bloqueo, baneo o borrar/ocultar.</div>
-    {quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)", fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x => <div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)", padding:"10px 0", color:"rgba(255,255,255,.72)", fontSize:"11px", lineHeight:1.55}}>
-      <div style={{ color:"#fca5a5", fontWeight:"900", marginBottom:"4px" }}>Reporte pendiente</div>
-      <div>{x.comentario}</div>
-      <div style={{ color:"rgba(255,255,255,.38)", marginTop:"4px" }}>Usuario: {x.user_id || "—"} · Dispositivo: {x.device_id || "—"}</div>
-      <div style={{marginTop:"8px", display:"flex", gap:"6px", flexWrap:"wrap"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Marcar revisado</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div>
-    </div>)}
-  </div> : null;
+  const AdminQuejas = () => {
+    if (!isAdmin) return null;
+    const pendingProfiles = [
+      ...trabajadores.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"trabajador"})),
+      ...empresas.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"empresa"})),
+    ];
+    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}>
+      <section style={{...card,border:"1px solid rgba(239,68,68,.28)"}}>
+        <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Quejas y reportes de Posturas</div>
+        <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"8px",lineHeight:1.5}}>Reportes de empresas, vacantes y perfiles enviados desde el modal obligatorio.</div>
+        {quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x=><div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 0",color:"rgba(255,255,255,.72)",fontSize:"12px",lineHeight:1.55}}><div style={{color:"#fca5a5",fontWeight:900,marginBottom:"4px"}}>Reporte pendiente</div><div>{x.comentario}</div><div style={{color:"rgba(255,255,255,.38)",marginTop:"4px"}}>Usuario: {x.user_id||"—"} · Dispositivo: {x.device_id||"—"}</div><div style={{marginTop:"8px",display:"flex",gap:"6px",flexWrap:"wrap"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Marcar revisado</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}
+      </section>
+      <section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}>
+        <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div>
+        <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>
+        {pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}
+      </section>
+    </div>;
+  };
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
   const empresasPage = paginate(empFiltradas, pageEmp);
@@ -22032,8 +22204,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <button onClick={()=>setPosturasReportTarget(null)} style={{ ...btn("#94a3b8"), padding:"8px 10px" }}>Cerrar</button>
         </div>
         <div style={{ display:"grid", gap:"10px" }}>
-          <div><div style={label}>Tipo de queja</div><select style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:e.target.value}))}><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
-          <div><div style={label}>Comentarios</div><textarea style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:e.target.value}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
+          <div><div style={label}>Tipo de queja</div><select required style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:e.target.value}))}><option value="">Selecciona un tipo de reporte</option><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
+          <div><div style={label}>Comentarios</div><textarea required style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:e.target.value}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
           <button onClick={sendPosturasReport} style={{ ...btn("#ef4444"), width:"100%" }}>Enviar reporte al admin</button>
         </div>
       </div>
@@ -22060,7 +22232,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
     if (sub === "posturas" && posturasMode === "list" && talentView === "pruebas" && isAdminMockView) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MockProfilesSection compact title="Perfiles de Prueba" /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
+    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileDetailModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
@@ -22072,7 +22244,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
-  if (posturasMobile) return <MobilePosturasShell />;
+  if (posturasMobile) return <><VacancyModal /><PosturasReportModal /><ProfileDetailModal /><MobilePosturasShell /></>;
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
@@ -22124,6 +22296,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
         <VacancyModal />
         <PosturasReportModal />
+        <ProfileDetailModal />
         {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
 
         {sub === "donativos" && <DonativosTab embedded />}
@@ -22144,11 +22317,57 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <section className="cm-posturas-target">
             <PosturasTargetStyles />
             <div className="cm-posturas-target-header">
-              <div className="cm-posturas-target-title">
-                <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
-                <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
+              <div className="cm-posturas-target-heading-row">
+                <div className="cm-posturas-target-title">
+                  <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
+                  <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
+                </div>
               </div>
-              {posturasMode !== "archive" && (
+
+              {posturasMode !== "archive" && <>
+                <div className="cm-posturas-search-shell">
+                  <div className="cm-posturas-search-top">
+                    <button type="button" className={`cm-posturas-search-toggle ${posturasSearchOpen ? "open" : ""}`} onClick={openPosturasSearch} aria-label="Abrir búsqueda" aria-expanded={posturasSearchOpen}>
+                      <MS name="search" size={25} color={posturasSearchOpen ? "#4edea3" : "#bbcabf"} />
+                    </button>
+                    <div className={`cm-posturas-search-expand ${posturasSearchOpen ? "open" : ""}`}>
+                      <div className="cm-posturas-search-expand-inner">
+                        <div className="cm-posturas-search-input-wrap">
+                          <span><MS name="search" size={22} color="#bbcabf" /></span>
+                          <input
+                            ref={posturasSearchInputRef}
+                            value={q}
+                            onFocus={registerPosturasSearchActivity}
+                            onKeyDown={registerPosturasSearchActivity}
+                            onMouseMove={registerPosturasSearchActivity}
+                            onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
+                            placeholder="Buscar por nombre, cargo o palabra clave..."
+                            aria-label="Buscar perfiles, empresas o vacantes"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cm-posturas-smart-chips" aria-label="Filtros rápidos">
+                    {[
+                      ["perfil","Perfil","person","perfiles"],
+                      ["empresa","Empresa","domain","busquedas"],
+                      ["postulante","Postulante","groups","perfiles"],
+                      ["vacantes","Vacantes","work","posturas"],
+                    ].map(([id,label,icon,target]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={posturasSmartFilter===id ? "active" : ""}
+                        onClick={()=>{setPosturasSmartFilter(id);setTalentView(target);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
+                      >
+                        <MS name={icon} size={17} color={posturasSmartFilter===id ? "#4edea3" : "#bbcabf"} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="cm-posturas-target-tabs">
                   {[
                     ["todos","Todos"],
@@ -22156,25 +22375,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                     ["perfiles","Perfiles"],
                     ["busquedas","Búsquedas"],
                   ].map(([id,label]) => (
-                    <button key={id} type="button" className={talentView===id ? "active" : ""} onClick={()=>{setTalentView(id);setPageTrab(1);setPageEmp(1)}}>{label}</button>
+                    <button key={id} type="button" className={talentView===id ? "active" : ""} onClick={()=>{setTalentView(id);setPosturasSmartFilter("todos");setPageTrab(1);setPageEmp(1)}}>{label}</button>
                   ))}
                 </div>
-              )}
+              </>}
             </div>
-
-            {posturasMode !== "archive" && (
-              <div className="cm-posturas-target-search">
-                <div className="cm-posturas-target-search-field">
-                  <span><MS name="search" size={23} color="#bbcabf" /></span>
-                  <input value={q} onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1)}} placeholder="Buscar por nombre, cargo o palabra clave..." />
-                </div>
-                <div className="cm-posturas-target-search-actions">
-                  <button type="button" onClick={()=>setTalentView("perfiles")}><MS name="groups" size={20} color="#bbcabf" /> VER PERFILES</button>
-                  <button type="button" onClick={()=>setTalentView("busquedas")}><MS name="domain" size={20} color="#bbcabf" /> VER EMPRESAS</button>
-                  <button type="button" onClick={()=>setMsg({type:"ok",text:"Usa la búsqueda y las pestañas para filtrar los perfiles."})}><MS name="filter_list" size={20} color="#bbcabf" /> FILTROS</button>
-                </div>
-              </div>
-            )}
 
             {loading && <div style={{color:"#94a3b8",textAlign:"center",padding:"20px"}}>Cargando perfiles…</div>}
 
