@@ -24801,6 +24801,17 @@ const WORLD_COUNTRIES = [
 
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
 
+function GoogleBrandIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true" focusable="false" style={{ display:"block", flexShrink:0 }}>
+      <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
+      <path fill="#34A853" d="M9 18c2.43 0 4.468-.806 5.956-2.18l-2.91-2.258c-.805.54-1.834.86-3.046.86-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"/>
+      <path fill="#FBBC05" d="M3.963 10.708A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.167.281-1.708V4.96H.956A9 9 0 0 0 0 9c0 1.452.347 2.827.956 4.04l3.007-2.332Z"/>
+      <path fill="#EA4335" d="M9 3.58c1.322 0 2.508.454 3.442 1.345l2.582-2.582C13.463.89 11.425 0 9 0A9 9 0 0 0 .956 4.96l3.007 2.332C4.672 5.163 6.656 3.58 9 3.58Z"/>
+    </svg>
+  );
+}
+
 // ─── MODAL AUTH RÁPIDO (header: iniciar sesión / crear cuenta sin redirigir) ───
 function AuthQuickModal({ initialMode = "login", onClose }) {
   const theme = React.useContext(ThemeContext);
@@ -25006,7 +25017,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     width: "100%",
     minHeight: "44px",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "10px",
     background: red,
     color: "#ffffff",
     fontFamily: authFont,
@@ -25016,15 +25027,16 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     textTransform: "uppercase",
     cursor: loading ? "wait" : "pointer",
     opacity: loading ? 0.72 : 1,
-    transition: "filter .18s ease, transform .18s ease"
+    transition: "all .3s ease",
+    boxShadow: "0 10px 24px rgba(197,34,34,.18)"
   };
 
   const outlineAuthBtn = {
     width: "100%",
     minHeight: "42px",
     border: `1px solid ${steel}`,
-    borderRadius: "4px",
-    background: "#ffffff",
+    borderRadius: "10px",
+    background: "rgba(255,255,255,.94)",
     color: steel,
     fontFamily: authFont,
     fontSize: "12px",
@@ -25032,7 +25044,8 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     letterSpacing: ".8px",
     textTransform: "uppercase",
     cursor: "pointer",
-    transition: "background .18s ease, color .18s ease, border-color .18s ease"
+    transition: "all .3s ease",
+    boxShadow: "0 8px 20px rgba(15,23,42,.06)"
   };
 
   const miniLinkBtn = {
@@ -25290,6 +25303,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   type="button"
                   onClick={handleLogin}
                   disabled={loading}
+                  className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
                   style={primaryAuthBtn}
                   onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = "brightness(.94)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
@@ -25305,10 +25319,21 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     ...outlineAuthBtn,
                     marginTop: "10px",
                     borderColor: panelBorder,
-                    color: textMain
+                    color: textMain,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "12px",
+                    textTransform: "none",
+                    letterSpacing: ".2px",
+                    fontSize: "13px"
                   }}
+                  className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
+                  onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,.94)"; e.currentTarget.style.borderColor = panelBorder; e.currentTarget.style.transform = "translateY(0)"; }}
                 >
-                  CONTINUAR CON GOOGLE
+                  <GoogleBrandIcon size={18} />
+                  <span>Continuar con Google</span>
                 </button>
 
                 <div style={{ height: "1px", background: panelBorder, margin: "26px 0 18px" }} />
@@ -25321,6 +25346,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type="button"
                     onClick={() => { setAuthMode("registro"); setRegMsg(null); setRegStep(1); }}
                     style={outlineAuthBtn}
+                    className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
                   >
                     CREAR CUENTA NUEVA
                   </button>
@@ -25435,7 +25461,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                       ATRÁS
                     </button>
                   )}
-                  <button type="button" onClick={handleRegStep} disabled={loading || (regStep === 4 && !isPasswordValid(regPass))} style={{ ...primaryAuthBtn, flex: 1, opacity: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? 0.55 : 1, cursor: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? "not-allowed" : "pointer" }}>
+                  <button type="button" onClick={handleRegStep} disabled={loading || (regStep === 4 && !isPasswordValid(regPass))} className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg" style={{ ...primaryAuthBtn, flex: 1, opacity: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? 0.55 : 1, cursor: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? "not-allowed" : "pointer" }}>
                     {loading ? "Procesando..." : regStep === 4 ? "CREAR CUENTA" : "CONTINUAR"}
                   </button>
                 </div>
