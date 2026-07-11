@@ -19908,7 +19908,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const PAGE_SIZE = 8;
 
   // Datos de muestra exclusivos del modo administrador.
-  const isAdminMockView = isAdmin === true;
+  const isAdminMockView = isAdmin === true || isAdmin === 1 || isAdmin === "1";
   const mockProfiles = [
     { id:"mock-post-1", nombre:"Alejandro Ramírez", calificacion:5, tipo:"Postulante", estado:"Verificado" },
     { id:"mock-post-2", nombre:"María Fernanda Ruiz", calificacion:4.9, tipo:"Postulante", estado:"Verificado" },
@@ -21597,8 +21597,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         const rb = avgFor(type, b.id);
         return (rb.avg - ra.avg) || (rb.count - ra.count) || String(a.id).localeCompare(String(b.id));
       });
-    const ratedTrab = rankRows(trabFiltrados, "trabajador");
-    const ratedEmp = rankRows(empFiltradas, "empresa");
+    const ratedTrabReal = rankRows(trabFiltrados, "trabajador");
+    const ratedEmpReal = rankRows(empFiltradas, "empresa");
+    const mockTrabRows = isAdminMockView ? mockProfiles
+      .filter(item => item.tipo === "Postulante")
+      .map(item => ({ ...item, id:item.id, __mock:true, nombre_completo:item.nombre, mock_rating:item.calificacion, mock_status:item.estado })) : [];
+    const mockEmpRows = isAdminMockView ? mockProfiles
+      .filter(item => item.tipo === "Empresa")
+      .map(item => ({ ...item, id:item.id, __mock:true, razon_social:item.nombre, mock_rating:item.calificacion, mock_status:item.estado })) : [];
+    const ratedTrab = ratedTrabReal.length ? ratedTrabReal : mockTrabRows;
+    const ratedEmp = ratedEmpReal.length ? ratedEmpReal : mockEmpRows;
     const dashboardRows = dashboardTarget === "perfiles" ? ratedTrab : ratedEmp;
     const dashboardType = dashboardTarget === "perfiles" ? "trabajador" : "empresa";
     const dashboardPageSize = 10;
@@ -21607,14 +21615,18 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const visibleDashboardRows = dashboardRows.slice((safeDashboardPage - 1) * dashboardPageSize, safeDashboardPage * dashboardPageSize);
     const ratedTrabCount = ratedTrab.length;
     const ratedEmpCount = ratedEmp.length;
-    const avgTrab = ratedTrabCount ? ratedTrab.reduce((acc, row) => acc + avgFor("trabajador", row.id).avg, 0) / ratedTrabCount : 0;
-    const avgEmp = ratedEmpCount ? ratedEmp.reduce((acc, row) => acc + avgFor("empresa", row.id).avg, 0) / ratedEmpCount : 0;
-    const totalProfiles = trabajadores.length + empresas.length;
-    const totalVacancies = empresas.reduce((sum, row) => {
+    const getDashboardRating = (row, type) => row?.__mock
+      ? { avg:Number(row.mock_rating || 0), count:1 }
+      : avgFor(type, row.id);
+    const avgTrab = ratedTrabCount ? ratedTrab.reduce((acc, row) => acc + getDashboardRating(row, "trabajador").avg, 0) / ratedTrabCount : 0;
+    const avgEmp = ratedEmpCount ? ratedEmp.reduce((acc, row) => acc + getDashboardRating(row, "empresa").avg, 0) / ratedEmpCount : 0;
+    const totalProfiles = (trabajadores.length + empresas.length) || (isAdminMockView ? mockProfiles.length : 0);
+    const realVacancies = empresas.reduce((sum, row) => {
       const direct = Number(row?.vacantes_publicadas ?? row?.vacantes ?? row?.vacancy_count);
       if (Number.isFinite(direct) && direct > 0) return sum + direct;
       return sum + (row?.titulo_vacante || row?.vacante_titulo || row?.puesto ? 1 : 0);
     }, 0);
+    const totalVacancies = realVacancies || (isAdminMockView ? 3 : 0);
     const visiblePageButtons = Array.from({ length: Math.min(3, totalDashboardPages) }, (_, i) => {
       if (totalDashboardPages <= 3) return i + 1;
       if (safeDashboardPage <= 2) return i + 1;
@@ -21626,10 +21638,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       return isRenderableImageSrc(value) ? value : "";
     };
     const getRowTitle = (row, type) => type === "trabajador" ? (row?.nombre_completo || "Postulante") : (row?.razon_social || "Empresa");
-    const getRowSubtitle = (row, type) => type === "trabajador"
-      ? (row?.maniobra || row?.licencia || "Talento logístico")
-      : (row?.tipo_empresa || row?.ubicacion || "Empresa");
+    const getRowSubtitle = (row, type) => row?.__mock
+      ? (type === "trabajador" ? "Perfil de muestra" : "Empresa de muestra")
+      : type === "trabajador"
+        ? (row?.maniobra || row?.licencia || "Talento logístico")
+        : (row?.tipo_empresa || row?.ubicacion || "Empresa");
     const getRowStatus = (row, type) => {
+      if (row?.__mock) return row.mock_status || "Verificado";
       const reputation = avgFor(type, row.id);
       const verified = reputation.count > 0 && !isProfileExpired(row);
       return verified ? "Verificado" : "Pendiente";
@@ -21652,8 +21667,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </article>;
     const showEntity = (row, type) => {
       const title = getRowTitle(row, type);
-      const rep = avgFor(type, row.id);
-      setMsg({ type:"ok", text:`${title} · ${rep.avg ? rep.avg.toFixed(1) : "0.0"} estrellas · ${rep.count} calificaciones.` });
+      const rep = getDashboardRating(row, type);
+      setMsg({ type:"ok", text:`${title} · ${rep.avg ? rep.avg.toFixed(1) : "0.0"} estrellas · ${row?.__mock ? "perfil de muestra" : `${rep.count} calificaciones`}.` });
     };
     return <section className="cm-talent-dashboard">
       <style>{`
@@ -21686,7 +21701,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div className="cm-talent-ranking-head"><h2>Ranking de Reputación</h2><div className="cm-talent-tabs"><button className={`cm-talent-tab ${dashboardTarget === "perfiles" ? "active" : ""}`} onClick={()=>{setDashboardTarget("perfiles");setDashboardPage(1);}}>TALENTO</button><button className={`cm-talent-tab ${dashboardTarget === "empresas" ? "active" : ""}`} onClick={()=>{setDashboardTarget("empresas");setDashboardPage(1);}}>EMPRESAS</button></div></div>
         <div className="cm-talent-table-wrap"><table className="cm-talent-table"><thead><tr><th>Ranking</th><th>Usuario / Empresa</th><th>Reputación</th><th>Estado</th><th style={{textAlign:"right"}}>Acciones</th></tr></thead><tbody>
           {visibleDashboardRows.map((row, index) => {
-            const rep = avgFor(dashboardType, row.id);
+            const rep = getDashboardRating(row, dashboardType);
             const rank = (safeDashboardPage - 1) * dashboardPageSize + index + 1;
             const status = getRowStatus(row, dashboardType);
             const image = getRowImage(row, dashboardType);
@@ -22088,7 +22103,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </div> : <div style={{ padding:"34px", border:"1px dashed rgba(63,71,83,.62)", borderRadius:"16px", color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>Aún no tienes perfiles guardados. Usa el botón Guardar en cualquier perfil publicado.</div>)}
 
             {posturasMode !== "archive" && <>
-              {talentView === "pruebas" && isAdminMockView && <MockProfilesSection compact title="Perfiles de Prueba" />}
+              {(talentView === "pruebas" || talentView === "todos") && isAdminMockView && <MockProfilesSection compact title={talentView === "pruebas" ? "Perfiles de Prueba" : "Perfiles de Muestra"} />}
               {(talentView !== "pruebas" && (talentView === "todos" || talentView === "posturas" || talentView === "perfiles")) && <>
                 <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Perfiles ({trabFiltrados.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{trabajadoresPage.map(row => <TrabCard key={row.id} row={row}/>)}</div>
