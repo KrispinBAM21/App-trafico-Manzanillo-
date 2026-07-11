@@ -70,6 +70,15 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
+// Material Symbols Outlined — iconografía oficial para acciones de archivos.
+if (!document.getElementById("cm-material-symbols-global")) {
+  const materialSymbolsLink = document.createElement("link");
+  materialSymbolsLink.id = "cm-material-symbols-global";
+  materialSymbolsLink.rel = "stylesheet";
+  materialSymbolsLink.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0";
+  document.head.appendChild(materialSymbolsLink);
+}
+
 // ─── GOOGLE ADSENSE ──────────────────────────────────────────────────────────
 // Recomendado: mantener también este script pegado directamente en /index.html.
 // Aquí solo reforzamos que exista UNA vez y agregamos el meta de cuenta.
@@ -7343,6 +7352,18 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
   const ui = getAutoUIColors(theme);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  useEffect(() => {
+    if (!mobileOpen || typeof document === "undefined") return;
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [mobileOpen]);
+
   const handleSelect = (id) => {
     set(id);
     setMobileOpen(false);
@@ -7370,13 +7391,13 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
-        .cm-menu-btn{display:none;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .cm-menu-btn{display:none;position:relative;z-index:100001;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
         .cm-menu-btn:hover{background:rgba(161,201,255,.10);border-color:rgba(161,201,255,.46);transform:translateY(-1px)}
         .cm-menu-btn-left{flex:0 0 auto;margin-right:2px}
         .cm-hamburger{width:19px;height:14px;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch}
         .cm-hamburger span{display:block;height:2px;border-radius:99px;background:#ffffff;box-shadow:0 0 8px rgba(136,206,255,.28)}
         .cm-menu-close{font-size:28px;line-height:1;font-weight:800;color:#ffffff;transform:translateY(-1px)}
-        .cm-mobile-nav{display:none;position:fixed;top:68px;left:16px;right:16px;z-index:10000;background:rgba(13,28,45,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(161,201,255,.22);border-radius:18px;padding:12px;grid-template-columns:1fr;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);max-height:calc(100dvh - 92px);overflow-y:auto}
+        .cm-mobile-nav{display:none;position:fixed;inset:0;z-index:100000;height:100vh;height:100dvh;min-height:100vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:rgba(13,28,45,.97);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:0;border-radius:0;padding:82px 16px max(24px,env(safe-area-inset-bottom));grid-template-columns:1fr;align-content:start;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.05)}
         .cm-mobile-nav.is-open{display:grid;animation:cmFloatingMenu .18s ease-out}
         .cm-mobile-nav-btn{min-height:54px;border:1px solid rgba(63,71,83,.70);border-radius:14px;background:rgba(39,54,71,.72);color:rgba(212,228,250,.90);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;text-align:left;padding:0 16px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease;letter-spacing:.08em;text-transform:uppercase}
         .cm-mobile-nav-btn:hover{background:rgba(161,201,255,.10);transform:translateY(-1px);color:#fff;border-color:rgba(161,201,255,.36)}
@@ -7384,7 +7405,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
         @keyframes cmFloatingMenu{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-mobile-nav{top:74px;left:14px;right:14px;padding:12px;gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
         @media (max-width: 365px){.cm-login-btn{padding:0 12px;font-size:12px}.cm-topbar-brand{max-width:30vw}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
@@ -20276,9 +20297,113 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setCompanyFormMode("registro");
     setEmpWizardStep(1);
   };
-  const handleFileMeta = (setter, field, fileList) => {
+  const [encryptedUploadFields, setEncryptedUploadFields] = useState({});
+  const POSTURAS_FILES_BUCKET = "posturas-archivos";
+  const encryptedDescriptorPrefix = "cmenc:v1:";
+  const encodeBase64 = (bytes) => {
+    let binary = "";
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    for (let index = 0; index < view.length; index += 0x8000) {
+      binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+    }
+    return btoa(binary);
+  };
+  const decodeBase64 = (value) => {
+    const binary = atob(value || "");
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+  };
+  const getPosturasDeviceVaultSecret = () => {
+    const keyName = "cm_posturas_aes256_device_secret";
+    try {
+      const existing = localStorage.getItem(keyName);
+      if (existing) return existing;
+      const generated = encodeBase64(crypto.getRandomValues(new Uint8Array(32)));
+      localStorage.setItem(keyName, generated);
+      return generated;
+    } catch {
+      return encodeBase64(crypto.getRandomValues(new Uint8Array(32)));
+    }
+  };
+  const derivePosturasWrappingKey = async () => {
+    const identity = authUser?.id || (isAdmin ? "admin" : myId || "anonymous");
+    const material = new TextEncoder().encode(`${identity}:${getPosturasDeviceVaultSecret()}:conect-manzanillo-files-v1`);
+    const digest = await crypto.subtle.digest("SHA-256", material);
+    return crypto.subtle.importKey("raw", digest, { name:"AES-GCM" }, false, ["encrypt", "decrypt"]);
+  };
+  const parseEncryptedFileDescriptor = (value) => {
+    if (typeof value !== "string" || !value.startsWith(encryptedDescriptorPrefix)) return null;
+    try { return JSON.parse(atob(value.slice(encryptedDescriptorPrefix.length))); } catch { return null; }
+  };
+  const encryptedFileLabel = (value) => {
+    const descriptor = parseEncryptedFileDescriptor(value);
+    return descriptor?.name || value || "Sin archivo seleccionado";
+  };
+  const encryptFileForServer = async (file) => {
+    if (!file) throw new Error("Selecciona un archivo válido.");
+    if (!globalThis.crypto?.subtle) throw new Error("El navegador no admite cifrado seguro Web Crypto.");
+    const rawFileKey = crypto.getRandomValues(new Uint8Array(32));
+    const fileKey = await crypto.subtle.importKey("raw", rawFileKey, { name:"AES-GCM" }, false, ["encrypt"]);
+    const fileIv = crypto.getRandomValues(new Uint8Array(12));
+    const cipherBuffer = await crypto.subtle.encrypt({ name:"AES-GCM", iv:fileIv }, fileKey, await file.arrayBuffer());
+    const wrappingKey = await derivePosturasWrappingKey();
+    const wrapIv = crypto.getRandomValues(new Uint8Array(12));
+    const wrappedKey = await crypto.subtle.encrypt({ name:"AES-GCM", iv:wrapIv }, wrappingKey, rawFileKey);
+    return {
+      encryptedBlob:new Blob([cipherBuffer], { type:"application/octet-stream" }),
+      cryptoMeta:{
+        algorithm:"AES-256-GCM",
+        iv:encodeBase64(fileIv),
+        wrappedKey:encodeBase64(new Uint8Array(wrappedKey)),
+        wrapIv:encodeBase64(wrapIv),
+      }
+    };
+  };
+  const removeEncryptedServerFile = async (value) => {
+    const descriptor = parseEncryptedFileDescriptor(value);
+    if (!descriptor?.path) return;
+    const { error } = await sb.storage.from(descriptor.bucket || POSTURAS_FILES_BUCKET).remove([descriptor.path]);
+    if (error) console.warn("No se pudo eliminar el archivo cifrado anterior:", error.message);
+  };
+  const handleFileMeta = async (setter, field, fileList) => {
     const file = fileList && fileList[0];
-    setter(f => ({ ...f, [field]: file ? file.name : "" }));
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setMsg({ type:"err", text:"El archivo supera el límite seguro de 20 MB." });
+      return;
+    }
+    setEncryptedUploadFields(current => ({ ...current, [field]:true }));
+    try {
+      const previousValue = (setter === setTrabForm ? trabForm : empForm)?.[field];
+      const { encryptedBlob, cryptoMeta } = await encryptFileForServer(file);
+      const owner = authUser?.id || (isAdmin ? "admin" : myId || "anonymous");
+      const safeField = String(field).replace(/[^a-zA-Z0-9_-]/g, "_");
+      const path = `${owner}/${safeField}/${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}.enc`;
+      const { error } = await sb.storage.from(POSTURAS_FILES_BUCKET).upload(path, encryptedBlob, {
+        contentType:"application/octet-stream",
+        cacheControl:"private, max-age=0, no-store",
+        upsert:false,
+        metadata:{ encrypted:"true", algorithm:"AES-256-GCM", originalType:file.type || "application/octet-stream" }
+      });
+      if (error) throw error;
+      const descriptor = {
+        v:1,
+        bucket:POSTURAS_FILES_BUCKET,
+        path,
+        name:file.name,
+        type:file.type || "application/octet-stream",
+        size:file.size,
+        uploadedAt:new Date().toISOString(),
+        ...cryptoMeta
+      };
+      const encodedDescriptor = encryptedDescriptorPrefix + btoa(JSON.stringify(descriptor));
+      setter(current => ({ ...current, [field]:encodedDescriptor }));
+      if (previousValue && previousValue !== encodedDescriptor) await removeEncryptedServerFile(previousValue);
+      setMsg({ type:"ok", text:`${file.name} se cifró con AES-256 y se almacenó de forma segura.` });
+    } catch (error) {
+      setMsg({ type:"err", text:`No se pudo cifrar o almacenar el archivo: ${error?.message || "Error desconocido"}` });
+    } finally {
+      setEncryptedUploadFields(current => ({ ...current, [field]:false }));
+    }
   };
   useEffect(() => {
     if (!authUser && !isAdmin && posturasMode === "form") {
@@ -20541,6 +20666,36 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     }
   };
 
+  const deleteArchivedProfile = async (type, row) => {
+    if (!row?.id) return;
+    const key = posturasProfileKey(type, row.id);
+    const nextSaved = savedPosturas.filter(item => item !== key);
+    const nextSnapshots = { ...savedPosturasSnapshots };
+    delete nextSnapshots[key];
+    setSavedPosturas(nextSaved);
+    setSavedPosturasSnapshots(nextSnapshots);
+    try {
+      localStorage.setItem("cm_posturas_guardadas", JSON.stringify(nextSaved));
+      localStorage.setItem("cm_posturas_guardadas_datos_enc", await encryptArchivePayload(nextSnapshots));
+      localStorage.removeItem("cm_posturas_guardadas_datos");
+    } catch {}
+    setMsg({ type:"ok", text:"Elemento eliminado del Archivo." });
+  };
+
+  const clearArchivedProfiles = async () => {
+    if (!savedPosturas.length && !Object.keys(savedPosturasSnapshots || {}).length) return;
+    const confirmed = typeof window === "undefined" || window.confirm("¿Eliminar todos los elementos del Archivo? Esta acción no se puede deshacer.");
+    if (!confirmed) return;
+    setSavedPosturas([]);
+    setSavedPosturasSnapshots({});
+    try {
+      localStorage.setItem("cm_posturas_guardadas", "[]");
+      localStorage.setItem("cm_posturas_guardadas_datos_enc", await encryptArchivePayload({}));
+      localStorage.removeItem("cm_posturas_guardadas_datos");
+    } catch {}
+    setMsg({ type:"ok", text:"Archivo limpiado correctamente." });
+  };
+
   const loadPosturas = async () => {
     setLoading(true);
     try {
@@ -20626,6 +20781,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const isProfileBanned = (row) => String(row?.perfil_estado || row?.estado || "").toLowerCase() === "baneado" || row?.banned === true || row?.banneado === true;
 
   const saveTrab = async () => {
+    if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
     if (!authUser) return requireLogin();
     if (!trabForm.nombre_completo.trim() || !trabForm.edad || !trabForm.telefono_llamadas.trim() || !trabForm.telefono_whatsapp.trim()) { setMsg({type:"err", text:"Completa nombre, edad, teléfono de llamadas y WhatsApp."}); return; }
     if (!isAdmin) {
@@ -20675,6 +20831,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
   const saveEmp = async () => {
+    if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
     if (!authUser) return requireLogin();
     if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
     if (!isAdmin) {
@@ -21121,7 +21278,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
         <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
         <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-        {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{trabForm[field] || "Sin archivo seleccionado"}</div></div>)}
+        {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields[field] ? "Cifrando y almacenando…" : encryptedFileLabel(trabForm[field])}</div></div>)}
       </div>
       <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear perfil")}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
     </div>;
@@ -21132,7 +21289,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const expired = isProfileExpired(existing);
     const step = Math.min(2, Math.max(1, Number(empWizardStep || 1)));
     const StepBadge = ({ id, text }) => <button type="button" onClick={()=>setEmpWizardStep(id)} style={{ ...btn(step===id ? "#10b981" : "#64748b"), background:step===id ? "rgba(16,185,129,.16)" : "rgba(100,116,139,.10)" }}>{id}. {text}</button>;
-    const FileInput = ({ field, textLabel }) => <div><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setEmpForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm[field] || "Sin archivo seleccionado"}</div></div>;
+    const FileInput = ({ field, textLabel }) => <div><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setEmpForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields[field] ? "Cifrando y almacenando…" : encryptedFileLabel(empForm[field])}</div></div>;
     return <div style={card}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"10px" }}>
         <div>
@@ -21189,7 +21346,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
         <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Imagen para ofrecer la vacante</div><input type="file" accept="image/*" style={input} onChange={e=>handleFileMeta(setEmpForm, "imagen_vacante", e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{empForm.imagen_vacante || "Sin imagen seleccionada"}</div></div>
+        <div><div style={label}>Imagen para ofrecer la vacante</div><input type="file" accept="image/*" style={input} onChange={e=>handleFileMeta(setEmpForm, "imagen_vacante", e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields.imagen_vacante ? "Cifrando y almacenando…" : encryptedFileLabel(empForm.imagen_vacante)}</div></div>
         <div><div style={label}>Pago ofrecido viaje local</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
         <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
       </div>
@@ -21799,9 +21956,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div>
             <div className="cm-target-profile-title-row">
               <h4>{title}</h4>
-              <button type="button" className={`cm-target-bookmark ${saved ? "saved" : ""}`} onClick={()=>toggleSavedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label={saved ? "Quitar de guardados" : "Guardar perfil"} title={saved ? "Quitar de Archivo" : "Guardar en Archivo"}>
-                <MS name="bookmark" size={22} active={saved} color={saved ? "#4edea3" : "#bbcabf"} />
-              </button>
+              {posturasMode === "archive" ? (
+                <button type="button" className="cm-target-bookmark saved" onClick={()=>deleteArchivedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label="Eliminar del Archivo" title="Eliminar">
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"23px", color:"#fca5a5" }}>delete</span>
+                </button>
+              ) : (
+                <button type="button" className={`cm-target-bookmark ${saved ? "saved" : ""}`} onClick={()=>toggleSavedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label={saved ? "Quitar de guardados" : "Guardar perfil"} title={saved ? "Quitar de Archivo" : "Guardar en Archivo"}>
+                  <MS name="bookmark" size={22} active={saved} color={saved ? "#4edea3" : "#bbcabf"} />
+                </button>
+              )}
             </div>
             <div className="cm-target-rating-row">
               <span className="cm-target-specialty">{specialty}</span>
@@ -22654,6 +22817,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                   <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
                   <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
                 </div>
+                {posturasMode === "archive" && (savedTrabajadores.length > 0 || savedEmpresas.length > 0) && (
+                  <button type="button" onClick={clearArchivedProfiles} aria-label="Limpiar todos los elementos del Archivo" title="Limpiar todos" style={{ display:"inline-flex", alignItems:"center", gap:"8px", minHeight:"42px", padding:"0 14px", borderRadius:"12px", border:"1px solid rgba(248,113,113,.34)", background:"rgba(127,29,29,.18)", color:"#fecaca", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)" }}>
+                    <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"21px" }}>delete_sweep</span>
+                    Limpiar todos
+                  </button>
+                )}
               </div>
 
               {posturasMode !== "archive" && <>
