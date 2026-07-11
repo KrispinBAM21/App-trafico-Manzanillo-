@@ -19900,6 +19900,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [quejas, setQuejas] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [posturasLoadError, setPosturasLoadError] = useState("");
   const [q, setQ] = useState(() => {
     try { return localStorage.getItem("cm_posturas_search") || ""; } catch { return ""; }
   });
@@ -20028,16 +20029,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const PAGE_SIZE = 8;
 
-  // Datos de muestra exclusivos del modo administrador.
-  const isAdminMockView = isAdmin === true || isAdmin === 1 || isAdmin === "1";
-  const mockProfiles = [
-    { id:"mock-post-1", nombre:"Roberto M. García", calificacion:4.8, tipo:"Postulante", estado:"Verificado", especialidad:"Grúa Pórtico", certificaciones:"R-Control, OP-01", experiencia:"8 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuBSrTb0yvqRCx32A7RD0tTU6njyt5DUTHPwUoBAZ37nZT9m4nsK6hA3SAlSqafGagd8a5H48_uRAxrQf-53w5Vfa1wE_kkFma7RqE0u2g52ratR7TExCsDCUi_TaF9DTWSfydzNn0Mh_E2ZaJG855Fs_yKbMWWLDLua_P9LpIuj2e3OZhDa_1oID2J-Y-565wuFJ4ZkC56w6oDZSVKOX8LfglnB9UKpTfKAz_nTKE7JNSYTjwEYQ-rFjA" },
-    { id:"mock-post-2", nombre:"Elena S. Ruiz", calificacion:5, tipo:"Postulante", estado:"Verificado", especialidad:"Reach Stacker", certificaciones:"R-Control, OP-04", experiencia:"12 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuBtb6uUDKPCPMQJFG0lIVYVqMRCkuPF5Ou9CMwPJYn2S3XbmoQ-XHo2EYFzMh7CpuyB0X_Y9A9ilTdRYNw2odQysCuAZpznsIH9vWO_FCvEuhe4cy2OyiKRDcVzFSDYCeuIYDzCR9Eb57w52j4To5ENFMlJ87umuJvGrxl2rcgOiPADDlB9F2baA2es2usB5KTkKY9lpZhN4MjYC4VKBrHqPgZe-tDgEEKxYl-S7fxB-IuEfN8eJawH7g" },
-    { id:"mock-post-3", nombre:"Mateo V. Ortiz", calificacion:4.2, tipo:"Postulante", estado:"Pendiente", especialidad:"Montacargas", certificaciones:"R-Control", experiencia:"4 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuDz1kRbxNPGjS94-q3cd3WWb_WPqZFMqM7g-OHBr_sg_68-HCmOm3CvQ33kR_SXpnIDXPW7ZM6YSCkGPEyrYApt6Occ68rUGyBDLhUy2parK5dBmzcF5j5Y3Lg0kw4CivyPLuQUfjRCL5DaHbjsXV2t9JSq4pHAo8L0EYZZmuhl3G90CnY5RK21nbeEPLpVBEgiWDPDxvSmlS2aQsLpOKJMWSBYLSzSZ1UfMlzPvl3BOWzvW8uRitAEoA" },
-    { id:"mock-emp-1", nombre:"Logística del Pacífico", calificacion:5, tipo:"Empresa", estado:"Verificada", especialidad:"Operación portuaria", certificaciones:"Empresa validada", experiencia:"Vacantes activas" },
-    { id:"mock-emp-2", nombre:"Terminal Manzanillo", calificacion:4.9, tipo:"Empresa", estado:"Verificada", especialidad:"Terminal especializada", certificaciones:"Empresa validada", experiencia:"Reclutamiento activo" },
-    { id:"mock-emp-3", nombre:"Transportes Colima", calificacion:4.7, tipo:"Empresa", estado:"Pendiente", especialidad:"Transporte de carga", certificaciones:"Validación pendiente", experiencia:"Búsqueda activa" },
-  ];
 
   useEffect(() => {
     const openRequestedSubtab = (event) => {
@@ -20701,12 +20692,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const loadPosturas = async () => {
     setLoading(true);
     try {
-      const [{ data:t }, { data:e }, { data:r }, { data:qj }] = await Promise.all([
+      setPosturasLoadError("");
+      const [trabResult, empResult, ratingsResult, complaintsResult] = await Promise.all([
         sb.from("posturas_trabajadores").select("*").eq("activo", true).order("updated_at", { ascending:false }),
         sb.from("posturas_empresas").select("*").eq("activo", true).order("updated_at", { ascending:false }),
         sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
         sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
       ]);
+      const queryError = trabResult.error || empResult.error || ratingsResult.error || complaintsResult.error;
+      if (queryError) throw queryError;
+      const t = trabResult.data || [];
+      const e = empResult.data || [];
+      const r = ratingsResult.data || [];
+      const qj = complaintsResult.data || [];
       const now = Date.now();
       const empresasVisibles = (e || []).filter(row => {
         const requestedAt = row.delete_requested_at || row.deletion_requested_at;
@@ -20729,9 +20727,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
       setShowReminder(!!authUser && stale);
     } catch (e) {
-      setMsg({ type:"err", text:"No se pudieron cargar posturas. Verifica que las tablas existan en Supabase." });
+      const errorMessage = e?.message || "No se pudieron cargar los datos de Supabase.";
+      setPosturasLoadError(errorMessage);
+      setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
   useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
 
@@ -21928,10 +21929,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const TalentProfileCard = ({ row, mock=false, type="trabajador" }) => {
     const isCompany = type === "empresa" || row?.tipo === "Empresa";
-    const rating = (mock || row?.__mock || row?.__savedSnapshot)
-      ? Number(row.calificacion || row.mock_rating || 0)
-      : avgFor(isCompany ? "empresa" : "trabajador", row.id).avg;
-    const sampleLike = mock || row?.__mock || row?.__savedSnapshot;
+    const rating = row?.__savedSnapshot ? Number(row.calificacion || 0) : avgFor(isCompany ? "empresa" : "trabajador", row.id).avg;
+    const sampleLike = Boolean(row?.__savedSnapshot);
     const title = sampleLike ? (row.nombre || row.nombre_completo || row.razon_social) : (isCompany ? row.razon_social : row.nombre_completo);
     const specialty = sampleLike ? (row.especialidad || row.tipo_empresa || row.maniobra || "Perfil guardado") : (isCompany ? (row.tipo_empresa || "Empresa") : (row.maniobra || row.licencia || "Operador"));
     const certifications = sampleLike ? (row.certificaciones || (row.rfc ? `RFC ${row.rfc}` : "No indicadas")) : (isCompany ? (row.rfc ? `RFC ${row.rfc}` : "Empresa registrada") : (row.certificaciones || row.licencia || "No indicadas"));
@@ -21997,7 +21996,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const title = mock ? row.nombre : company ? row.razon_social : row.nombre_completo;
     const subtitle = mock ? row.especialidad : company ? (row.tipo_empresa || "Empresa") : (row.maniobra || "Operador de carga");
     const image = mock ? row.foto : company ? row.logo_empresa : row.foto_perfil;
-    const rating = mock ? Number(row.calificacion || 0) : avgFor(type,row.id).avg;
+    const profileRatings = ratings.filter(r => String(r.profile_id) === String(row.id) && String(r.profile_type || "").toLowerCase() === type);
+    const rating = profileRatings.length ? profileRatings.reduce((sum, item) => sum + Number(item.stars || 0), 0) / profileRatings.length : 0;
     const validationBase = mock ? {state:"validado",label:"Validado",color:"#4edea3",icon:"verified"} : profileValidationMeta(row);
     const validation = (!own && validationBase.state === "validado")
       ? {...validationBase, label:"Perfil Verificado"}
@@ -22201,28 +22201,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               "Representante":"person","Teléfono":"call","Correo":"mail","Alcance":"distance","Estatus":"info",
               "Nombre completo":"person","Edad":"event","Tipo de licencia":"badge","Tipo de maniobra":"settings_input_component",
               "Disponibilidad":"location_on","Teléfono llamadas":"call","WhatsApp":"chat_bubble"
-            };return <div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={fieldIcons[name]||"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>})}</div></section>
+            };return <div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={fieldIcons[name]||"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>})}</div>
+            <div style={{marginTop:"18px",paddingTop:"16px",borderTop:"1px solid var(--profile-border)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:"16px",display:"flex",alignItems:"center",gap:"8px"}}><MS name="reviews" size={19} color="#4edea3"/>Historial de calificaciones</h3>
+              {profileRatings.length===0?<div style={{color:"#94a3b8",fontSize:"13px"}}>Sin historial de calificaciones aún</div>:<div style={{display:"grid",gap:"10px"}}>{profileRatings.map(item=><article key={item.id} style={{padding:"12px",borderRadius:"12px",background:"var(--profile-field)",border:"1px solid rgba(255,255,255,.04)"}}><div style={{display:"flex",alignItems:"center",gap:"4px"}}>{[1,2,3,4,5].map(star=><MS key={star} name="star" size={16} active={star<=Number(item.stars||0)} color={star<=Number(item.stars||0)?"#4edea3":"#475569"}/>)}<strong style={{marginLeft:"6px"}}>{Number(item.stars||0).toFixed(1)}</strong></div><div style={{marginTop:"7px",color:"#cbd5e1",fontSize:"13px"}}>{item.comment?.trim()||"Sin comentario"}</div>{item.created_at&&<time style={{display:"block",marginTop:"5px",color:"#64748b",fontSize:"11px"}}>{new Date(item.created_at).toLocaleDateString("es-MX")}</time>}</article>)}</div>}
+            </div></section>
         </div>
       </div>
     </div>,document.body);
   };
 
-  const MockProfilesSection = ({ compact=false, title="Perfiles de Muestra" }) => {
-    if (!isAdminMockView) return null;
-    const workerMocks = mockProfiles.filter(profile => profile.tipo === "Postulante");
-    const companyMocks = mockProfiles.filter(profile => profile.tipo === "Empresa");
-    return (
-      <section className={`cm-target-sample-section ${compact ? "compact" : ""}`}>
-        <div className="cm-target-section-head">
-          <h3>{title} <span>({workerMocks.length + companyMocks.length})</span></h3>
-        </div>
-        <div className="cm-target-grid">
-          {workerMocks.map(profile => <TalentProfileCard key={profile.id} row={profile} mock type="trabajador" />)}
-          {companyMocks.map(profile => <TalentProfileCard key={profile.id} row={profile} mock type="empresa" />)}
-        </div>
-      </section>
-    );
-  };
 
   const PosturasTargetStyles = () => <style>{`
     .cm-posturas-target{max-width:1280px;margin:0 auto;padding:8px 0 32px;color:#d4e4fa;font-family:Inter,${getFont(theme,"secondary")}}
@@ -22287,23 +22275,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   `}</style>;
 
   const DashboardHub = () => {
+    const normalizeRatingType = (value) => String(value || "").toLowerCase();
+    const ratingRowsFor = (type, profileId, source = ratings) => source.filter(r =>
+      normalizeRatingType(r.profile_type) === type && String(r.profile_id) === String(profileId)
+    );
     const rankRows = (rows, type) => [...rows]
-      .filter(row => avgFor(type, row.id).count > 0)
-      .sort((a, b) => {
-        const ra = avgFor(type, a.id);
-        const rb = avgFor(type, b.id);
-        return (rb.avg - ra.avg) || (rb.count - ra.count) || String(a.id).localeCompare(String(b.id));
-      });
-    const ratedTrabReal = rankRows(trabFiltrados, "trabajador");
-    const ratedEmpReal = rankRows(empFiltradas, "empresa");
-    const mockTrabRows = isAdminMockView ? mockProfiles
-      .filter(item => item.tipo === "Postulante")
-      .map(item => ({ ...item, id:item.id, __mock:true, nombre_completo:item.nombre, mock_rating:item.calificacion, mock_status:item.estado })) : [];
-    const mockEmpRows = isAdminMockView ? mockProfiles
-      .filter(item => item.tipo === "Empresa")
-      .map(item => ({ ...item, id:item.id, __mock:true, razon_social:item.nombre, mock_rating:item.calificacion, mock_status:item.estado })) : [];
-    const ratedTrab = ratedTrabReal.length ? ratedTrabReal : mockTrabRows;
-    const ratedEmp = ratedEmpReal.length ? ratedEmpReal : mockEmpRows;
+      .map(row => {
+        const history = ratingRowsFor(type, row.id);
+        const avg = history.length ? history.reduce((sum, item) => sum + Number(item.stars || 0), 0) / history.length : 0;
+        return { ...row, __rating:{ avg, count:history.length } };
+      })
+      .filter(row => row.__rating.count > 0)
+      .sort((a, b) => (b.__rating.avg - a.__rating.avg) || (b.__rating.count - a.__rating.count) || String(a.id).localeCompare(String(b.id)));
+    const ratedTrab = rankRows(trabFiltrados, "trabajador");
+    const ratedEmp = rankRows(empFiltradas, "empresa");
     const dashboardRows = dashboardTarget === "perfiles" ? ratedTrab : ratedEmp;
     const dashboardType = dashboardTarget === "perfiles" ? "trabajador" : "empresa";
     const dashboardPageSize = 10;
@@ -22312,40 +22297,45 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const visibleDashboardRows = dashboardRows.slice((safeDashboardPage - 1) * dashboardPageSize, safeDashboardPage * dashboardPageSize);
     const ratedTrabCount = ratedTrab.length;
     const ratedEmpCount = ratedEmp.length;
-    const getDashboardRating = (row, type) => row?.__mock
-      ? { avg:Number(row.mock_rating || 0), count:1 }
-      : avgFor(type, row.id);
+    const getDashboardRating = (row, type) => row?.__rating || avgFor(type, row.id);
     const avgTrab = ratedTrabCount ? ratedTrab.reduce((acc, row) => acc + getDashboardRating(row, "trabajador").avg, 0) / ratedTrabCount : 0;
     const avgEmp = ratedEmpCount ? ratedEmp.reduce((acc, row) => acc + getDashboardRating(row, "empresa").avg, 0) / ratedEmpCount : 0;
-    const totalProfiles = (trabajadores.length + empresas.length) || (isAdminMockView ? mockProfiles.length : 0);
-    const realVacancies = empresas.reduce((sum, row) => {
-      const direct = Number(row?.vacantes_publicadas ?? row?.vacantes ?? row?.vacancy_count);
-      if (Number.isFinite(direct) && direct > 0) return sum + direct;
-      return sum + (row?.titulo_vacante || row?.vacante_titulo || row?.puesto ? 1 : 0);
-    }, 0);
-    const totalVacancies = realVacancies || (isAdminMockView ? 3 : 0);
+    const totalProfiles = trabajadores.length + empresas.length;
+    const totalVacancies = empresas.filter(row => row.activo !== false && row.estatus === "tiene_trabajo").length;
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const currentMonthRatings = ratings.filter(r => new Date(r.created_at || 0) >= currentMonthStart);
+    const previousMonthRatings = ratings.filter(r => { const d = new Date(r.created_at || 0); return d >= previousMonthStart && d < currentMonthStart; });
+    const monthMetric = (type, source, mode) => {
+      const typed = source.filter(r => normalizeRatingType(r.profile_type) === type);
+      if (mode === "count") return new Set(typed.map(r => String(r.profile_id))).size;
+      return typed.length ? typed.reduce((sum, r) => sum + Number(r.stars || 0), 0) / typed.length : null;
+    };
+    const trendLabel = (current, previous) => {
+      if (current == null || previous == null || previous === 0) return "Sin comparativo";
+      const change = ((current - previous) / previous) * 100;
+      if (Math.abs(change) < 0.5) return "Estable";
+      return `${change > 0 ? "+" : ""}${change.toFixed(0)}% vs m.a.`;
+    };
+    const talentCountTrend = trendLabel(monthMetric("trabajador", currentMonthRatings, "count"), monthMetric("trabajador", previousMonthRatings, "count"));
+    const companyCountTrend = trendLabel(monthMetric("empresa", currentMonthRatings, "count"), monthMetric("empresa", previousMonthRatings, "count"));
+    const talentAvgTrend = trendLabel(monthMetric("trabajador", currentMonthRatings, "avg"), monthMetric("trabajador", previousMonthRatings, "avg"));
+    const companyAvgTrend = trendLabel(monthMetric("empresa", currentMonthRatings, "avg"), monthMetric("empresa", previousMonthRatings, "avg"));
+
     const visiblePageButtons = Array.from({ length: Math.min(3, totalDashboardPages) }, (_, i) => {
       if (totalDashboardPages <= 3) return i + 1;
       if (safeDashboardPage <= 2) return i + 1;
       if (safeDashboardPage >= totalDashboardPages - 1) return totalDashboardPages - 2 + i;
       return safeDashboardPage - 1 + i;
     });
-    const getRowImage = (row, type) => {
-      const value = type === "trabajador" ? row?.foto_perfil : (row?.logo_empresa || row?.contacto_principal_foto);
-      return isRenderableImageSrc(value) ? value : "";
-    };
-    const getRowTitle = (row, type) => type === "trabajador" ? (row?.nombre_completo || "Postulante") : (row?.razon_social || "Empresa");
-    const getRowSubtitle = (row, type) => row?.__mock
-      ? (type === "trabajador" ? "Perfil de muestra" : "Empresa de muestra")
-      : type === "trabajador"
-        ? (row?.maniobra || row?.licencia || "Talento logístico")
-        : (row?.tipo_empresa || row?.ubicacion || "Empresa");
-    const getRowStatus = (row, type) => {
-      if (row?.__mock) return row.mock_status || "Verificado";
-      const reputation = avgFor(type, row.id);
-      const verified = reputation.count > 0 && !isProfileExpired(row);
-      return verified ? "Verificado" : "Pendiente";
-    };
+    const getRowImage = () => "";
+    const getRowTitle = (row, type) => type === "trabajador" ? (row?.nombre_completo || "Postulante sin nombre") : (row?.razon_social || "Empresa sin nombre");
+    const getRowSubtitle = (row, type) => type === "trabajador"
+      ? (row?.maniobra || row?.licencia || row?.alcance || "Talento logístico")
+      : (row?.tipo_empresa || row?.ubicacion || row?.alcance || "Empresa");
+    const getRowStatus = () => "Pendiente";
     const miniBars = (accent, values) => <div className="cm-talent-bars" aria-hidden="true">
       {values.map((height, index) => <span key={index} className="cm-talent-bar" style={{ height:`${height}%`, background:index === values.length - 1 ? accent : `${accent}33`, animationDelay:`${index * .1}s` }} />)}
     </div>;
@@ -22362,11 +22352,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div><div className="cm-talent-stat-label">{statLabel}</div><div className="cm-talent-stat-value">{value}</div></div>
       {children}
     </article>;
-    const showEntity = (row, type) => {
-      const title = getRowTitle(row, type);
-      const rep = getDashboardRating(row, type);
-      setMsg({ type:"ok", text:`${title} · ${rep.avg ? rep.avg.toFixed(1) : "0.0"} estrellas · ${row?.__mock ? "perfil de muestra" : `${rep.count} calificaciones`}.` });
-    };
+    const showEntity = (row, type) => setProfileDetailTarget({ row, type, mock:false });
     return <section className="cm-talent-dashboard">
       <style>{`
         .cm-talent-dashboard{--td-bg:#051424;--td-lowest:#010f1f;--td-low:#0d1c2d;--td-surface:#122131;--td-high:#1c2b3c;--td-highest:#273647;--td-text:#d4e4fa;--td-muted:#bbcabf;--td-primary:#4edea3;--td-secondary:#a4c9ff;--td-tertiary:#bec6e0;--td-error:#ffb4ab;max-width:1280px;margin:0 auto;padding:40px;box-sizing:border-box;color:var(--td-text);font-family:Inter,${getFont(theme,"secondary")};}
@@ -22387,11 +22373,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div><h1 className="cm-talent-title">Centro de Talento</h1><p className="cm-talent-description">Visualiza y gestiona el ecosistema de talento de Manzanillo. Monitorea la reputación de candidatos y la calidad de las empresas registradas.</p></div>
         <div className="cm-talent-totals"><div className="cm-talent-total"><span style={{color:"#4edea3"}}>VACANTES</span><strong>{totalVacancies.toLocaleString("es-MX")}</strong></div><div className="cm-talent-total"><span style={{color:"#a4c9ff"}}>PERFILES</span><strong>{totalProfiles.toLocaleString("es-MX")}</strong></div></div>
       </header>
+      {loading && <div className="cm-talent-empty" role="status"><MS name="progress_activity" size={30} active color="#4edea3" /><div style={{marginTop:"10px"}}>Cargando datos de Supabase...</div></div>}
+      {!loading && posturasLoadError && <div className="cm-talent-empty" role="alert"><MS name="error" size={30} active color="#ffb4ab" /><div style={{marginTop:"10px"}}>No se pudo cargar el Centro de Talento.</div><small>{posturasLoadError}</small></div>}
+      {!loading && !posturasLoadError && <>
       <div className="cm-talent-stats">
-        <StatCard icon="groups" accent="#4edea3" label="Perfiles con Reputación" value={ratedTrabCount.toLocaleString("es-MX")} trend="+12% vs m.a.">{miniBars("#4edea3",[40,60,45,80,95])}</StatCard>
-        <StatCard icon="apartment" accent="#a4c9ff" label="Empresas Calificadas" value={ratedEmpCount.toLocaleString("es-MX")} trend="+5% vs m.a.">{miniBars("#a4c9ff",[30,50,70,60,85])}</StatCard>
-        <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend="Estable" spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
-        <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend="-2% vs m.a." spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
+        <StatCard icon="groups" accent="#4edea3" label="Perfiles con Reputación" value={ratedTrabCount.toLocaleString("es-MX")} trend={talentCountTrend}>{miniBars("#4edea3",[40,60,45,80,95])}</StatCard>
+        <StatCard icon="apartment" accent="#a4c9ff" label="Empresas Calificadas" value={ratedEmpCount.toLocaleString("es-MX")} trend={companyCountTrend}>{miniBars("#a4c9ff",[30,50,70,60,85])}</StatCard>
+        <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend={talentAvgTrend} spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
+        <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend={companyAvgTrend} spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
       </div>
       <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
       <section className="cm-talent-ranking">
@@ -22407,8 +22396,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </tbody></table>{visibleDashboardRows.length === 0 && <div className="cm-talent-empty">No hay perfiles con calificaciones para mostrar.</div>}</div>
         <div className="cm-talent-ranking-foot"><span>Mostrando {dashboardRows.length ? ((safeDashboardPage - 1) * dashboardPageSize + 1) : 0}-{Math.min(safeDashboardPage * dashboardPageSize,dashboardRows.length)} de {dashboardRows.length.toLocaleString("es-MX")} {dashboardTarget === "perfiles" ? "perfiles" : "empresas"}</span><div className="cm-talent-pages"><button className="cm-talent-page" disabled={safeDashboardPage <= 1} onClick={()=>setDashboardPage(p=>Math.max(1,p-1))}><MS name="chevron_left" size={18} /></button>{visiblePageButtons.map(page=><button key={page} className={`cm-talent-page ${page === safeDashboardPage ? "active" : ""}`} onClick={()=>setDashboardPage(page)}>{page}</button>)}<button className="cm-talent-page" disabled={safeDashboardPage >= totalDashboardPages} onClick={()=>setDashboardPage(p=>Math.min(totalDashboardPages,p+1))}><MS name="chevron_right" size={18} /></button></div></div>
       </section>
-      <section className="cm-talent-showcase"><div className="cm-talent-feature" style={{"--feature-accent":"#4edea3"}}><div className="cm-talent-feature-icon"><MS name="insights" size={31} active color="#4edea3" /></div><div><h4>Talento Calificado</h4><p>El 85% de los perfiles activos cuentan con al menos 3 certificaciones validadas.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#a4c9ff"}}><div className="cm-talent-feature-icon"><MS name="verified" size={31} active color="#a4c9ff" /></div><div><h4>Confianza Empresarial</h4><p>Empresas con alta reputación reportan un 40% más de retención de talento.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#bec6e0"}}><div className="cm-talent-feature-icon"><MS name="speed" size={31} active color="#bec6e0" /></div><div><h4>Eficiencia de Reclutamiento</h4><p>El tiempo promedio de contratación ha bajado de 22 a 14 días gracias al sistema.</p></div></div></section>
-      {isAdminMockView && <MockProfilesSection title="Top de Perfiles de Muestra" />}
+      </>}
     </section>;
   };
 
@@ -22826,7 +22814,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
     if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></div>;
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
-    if (sub === "posturas" && posturasMode === "list" && talentView === "pruebas" && isAdminMockView) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MockProfilesSection compact title="Perfiles de Prueba" /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") {
       if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessGate /></div>;
@@ -23018,9 +23005,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             )}
 
             {posturasMode !== "archive" && <>
-              {isAdminMockView && talentView === "todos" && <MockProfilesSection compact title="Perfiles de Operadores" />}
-
-              {(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && trabFiltrados.length > 0 && (
+{(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && trabFiltrados.length > 0 && (
                 <section className="cm-target-sample-section">
                   <div className="cm-target-section-head"><h3>Perfiles de Operadores <span>({trabFiltrados.length})</span></h3></div>
                   <div className="cm-target-grid">{trabajadoresPage.map(row=><TalentProfileCard key={row.id} row={row} type="trabajador"/>)}</div>
