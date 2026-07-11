@@ -312,6 +312,77 @@ const DEFAULT_THEME = {
 // Validado FIX CRÍTICO: Inicializar con DEFAULT_THEME en lugar de undefined
 const ThemeContext = React.createContext(DEFAULT_THEME);
 
+
+// ─── SEGURIDAD DE CONTRASEÑAS ───────────────────────────────────────────────
+export const PASSWORD_REQUIREMENTS = [
+  { key: "length", label: "Mínimo 12 caracteres", test: (value) => value.length >= 12 },
+  { key: "uppercase", label: "Al menos una mayúscula", test: (value) => /[A-Z]/.test(value) },
+  { key: "lowercase", label: "Al menos una minúscula", test: (value) => /[a-z]/.test(value) },
+  { key: "number", label: "Al menos un número", test: (value) => /[0-9]/.test(value) },
+  { key: "symbol", label: "Al menos un símbolo", test: (value) => /[^A-Za-z0-9\s]/.test(value) },
+];
+
+export function isPasswordValid(password) {
+  const value = typeof password === "string" ? password : "";
+  return PASSWORD_REQUIREMENTS.every((requirement) => requirement.test(value));
+}
+
+export function PasswordStrengthChecklist({ password = "" }) {
+  const theme = React.useContext(ThemeContext);
+  if (!password) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        display: "grid",
+        gap: "7px",
+        margin: "2px 0 14px",
+        padding: "12px 14px",
+        background: "rgba(8, 24, 42, 0.72)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "10px",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+        backdropFilter: "blur(14px)",
+      }}
+    >
+      {PASSWORD_REQUIREMENTS.map((requirement) => {
+        const met = requirement.test(password);
+        return (
+          <div
+            key={requirement.key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "9px",
+              color: met ? "#5ee6b5" : "rgba(203,213,225,0.58)",
+              fontFamily: getFont(theme, "secondary"),
+              fontSize: "11px",
+              fontWeight: met ? 700 : 500,
+              transition: "all 300ms ease",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: "16px",
+                textAlign: "center",
+                color: met ? "#5ee6b5" : "rgba(148,163,184,0.72)",
+                fontSize: "14px",
+                lineHeight: 1,
+              }}
+            >
+              {met ? "✓" : "○"}
+            </span>
+            <span>{requirement.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── ICONOS REALISTAS SVG (sin dependencias externas) ───────────────────────
 function AppIcon({ name, size = 20, active = false, style = {} }) {
   const iconAliases = {
@@ -24793,7 +24864,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     </div>
   ) : null;
 
-  const passStrong = (p) => p.length >= 10 && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
+  const passStrong = isPasswordValid;
 
   const handleLogin = async () => {
     if (!loginUser.trim() || !loginPass) { setLoginMsg({type:"err", text:"Completa usuario y contraseña"}); return; }
@@ -24852,7 +24923,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
       if (!regCorreo.includes("@")) { setRegMsg({type:"err", text:"Correo electrónico no válido"}); return; }
       setRegStep(4);
     } else if (regStep === 4) {
-      if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 10 caracteres, 1 mayúscula, 1 número y 1 símbolo"}); return; }
+      if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 12 caracteres, una mayúscula, una minúscula, un número y un símbolo"}); return; }
       if (regPass !== regPass2) { setRegMsg({type:"err", text:"Las contraseñas no coinciden"}); return; }
       if (regAntibot.trim() !== "8") { setRegMsg({type:"err", text:"Respuesta incorrecta — ¿cuánto es 3 + 5?"}); return; }
       if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
@@ -24863,7 +24934,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
         options: { data: { nombre:regNombre.trim(), apellidos:regApellidos.trim(), username:regUsername.trim(), fecha_nacimiento:regFecha, pais:regPais.trim(), ciudad:regCiudad.trim(), telefono:regTel.trim(), tipo_usuario:regTipoUsuario } }
       });
       setLoading(false);
-      if (error) setRegMsg({type:"err", text:error.message.includes("already registered") ? "Este correo ya está registrado" : error.message});
+      if (error) setRegMsg({type:"err", text:error.message});
       else { setRegMsg({type:"ok", text:"Cuenta creada. Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); setTimeout(() => setAuthMode("login"), 900); }
     }
   };
@@ -25340,9 +25411,10 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <>
                     <label style={formLabel}>Contraseña segura</label>
                     <div style={fieldWrap}>
-                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="Mín. 10 caracteres, mayúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="Mín. 12 caracteres, mayúscula, minúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
                       <button type="button" onClick={() => setShowRegPass(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass ? "🙈" : "👁️"}</button>
                     </div>
+                    <PasswordStrengthChecklist password={regPass} />
                     <label style={formLabel}>Confirmar contraseña</label>
                     <div style={fieldWrap}>
                       <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
@@ -25363,7 +25435,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                       ATRÁS
                     </button>
                   )}
-                  <button type="button" onClick={handleRegStep} disabled={loading} style={{ ...primaryAuthBtn, flex: 1 }}>
+                  <button type="button" onClick={handleRegStep} disabled={loading || (regStep === 4 && !isPasswordValid(regPass))} style={{ ...primaryAuthBtn, flex: 1, opacity: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? 0.55 : 1, cursor: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? "not-allowed" : "pointer" }}>
                     {loading ? "Procesando..." : regStep === 4 ? "CREAR CUENTA" : "CONTINUAR"}
                   </button>
                 </div>
@@ -25505,7 +25577,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
 
   const [loading, setLoading] = useState(false);
 
-  const passStrong = (p) => p.length >= 10 && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p);
+  const passStrong = isPasswordValid;
 
   // ── LOGIN con correo/contraseña real ──
   const handleLogin = async () => {
@@ -25574,7 +25646,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
       if (!regCorreo.includes("@")) { setRegMsg({type:"err", text:"Correo electrónico no válido"}); return; }
       setRegStep(4);
     } else if (regStep === 4) {
-      if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 10 caracteres, 1 mayúscula, 1 número y 1 símbolo"}); return; }
+      if (!passStrong(regPass)) { setRegMsg({type:"err", text:"La contraseña debe tener mínimo 12 caracteres, una mayúscula, una minúscula, un número y un símbolo"}); return; }
       if (regPass !== regPass2) { setRegMsg({type:"err", text:"Las contraseñas no coinciden"}); return; }
       if (regAntibot.trim() !== "8") { setRegMsg({type:"err", text:"Respuesta incorrecta — ¿cuánto es 3 + 5?"}); return; }
       if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
@@ -25596,7 +25668,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
         }
       });
       setLoading(false);
-      if (error) { setRegMsg({type:"err", text: error.message.includes("already registered") ? "Este correo ya está registrado" : error.message }); }
+      if (error) { setRegMsg({type:"err", text:error.message}); }
       else { setRegMsg({type:"ok", text:"Validado ¡Cuenta creada! Revisa tu correo para confirmar tu registro antes de iniciar sesión."}); }
     }
   };
