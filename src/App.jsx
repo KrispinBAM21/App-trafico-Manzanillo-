@@ -19891,6 +19891,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const [vista, setVista] = useState("postular");
   const [posturasMode, setPosturasMode] = useState("list");
+  const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
+  const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
   const [trabajadores, setTrabajadores] = useState([]);
   const [empresas, setEmpresas] = useState([]);
@@ -22477,16 +22479,120 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     ...savedEmpresasReal,
     ...savedSnapshotEntries.filter(([key]) => key.startsWith("empresa:")).map(([,row]) => row),
   ];
+  const vacancyApplicantsFor = (vacancy) => {
+    const vacancyScope = String(vacancy?.alcance || "").toLowerCase();
+    const vacancyLicense = String(vacancy?.licencia_solicitada || "").toLowerCase();
+    const vacancyManeuver = String(vacancy?.maniobra_requerida || "").toLowerCase();
+    return trabajadores.filter(worker => {
+      if (!isProfilePublic(worker)) return false;
+      const workerScope = String(worker.alcance || "").toLowerCase();
+      const workerLicense = String(worker.licencia || "").toLowerCase();
+      const workerManeuver = String(worker.maniobra || "").toLowerCase();
+      const scopeMatch = !vacancyScope || vacancyScope === "ambos" || workerScope === "ambos" || workerScope === vacancyScope;
+      const licenseMatch = !vacancyLicense || !workerLicense || workerLicense.includes(vacancyLicense) || vacancyLicense.includes(workerLicense);
+      const maneuverMatch = !vacancyManeuver || !workerManeuver || workerManeuver.includes(vacancyManeuver) || vacancyManeuver.includes(workerManeuver);
+      return scopeMatch && licenseMatch && maneuverMatch;
+    });
+  };
+
+  const myVacancies = isAdmin
+    ? [...empresas]
+    : authUser?.id
+      ? empresas.filter(row => row.user_id === authUser.id)
+      : [];
+
+  const VacancyPreviewModal = () => {
+    if (!selectedVacancyPreview || typeof document === "undefined") return null;
+    const row = selectedVacancyPreview;
+    const applicants = vacancyApplicantsFor(row);
+    return createPortal(
+      <div onMouseDown={e=>{ if (e.target === e.currentTarget) setSelectedVacancyPreview(null); }} style={{ position:"fixed", inset:0, zIndex:10080, display:"grid", placeItems:"center", padding:"18px", background:"rgba(1,8,18,.78)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+        <article style={{ ...posturasGlass, width:"min(720px,100%)", maxHeight:"min(88dvh,880px)", overflowY:"auto", borderRadius:"22px", padding:"22px", background:"rgba(12,28,45,.94)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", marginBottom:"18px" }}>
+            <div>
+              <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>Vista previa de vacante</div>
+              <h2 style={{ margin:"6px 0 0", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(24px,5vw,34px)", lineHeight:1.08 }}>{row.razon_social || "Vacante empresarial"}</h2>
+            </div>
+            <button type="button" onClick={()=>setSelectedVacancyPreview(null)} aria-label="Cerrar vista previa" style={{ width:"42px", height:"42px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.24)", background:"rgba(161,201,255,.08)", color:"#d4e4fa", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={21} active /></button>
+          </div>
+          {isRenderableImageSrc(row.imagen_vacante) && <img src={row.imagen_vacante} alt="Vista previa de la vacante" style={{ width:"100%", maxHeight:"320px", objectFit:"cover", borderRadius:"16px", border:"1px solid rgba(161,201,255,.20)", marginBottom:"16px" }} />}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px", marginBottom:"16px" }}>
+            <ProfileMetric label="Alcance" value={row.alcance} />
+            <ProfileMetric label="Viaje" value={row.tipo_viaje} />
+            <ProfileMetric label="Maniobra" value={row.maniobra_requerida} />
+            <ProfileMetric label="Licencia" value={row.licencia_solicitada} />
+            <ProfileMetric label="Pago local" value={row.salario_local_ofrecido ? `$${Number(row.salario_local_ofrecido).toLocaleString("es-MX")}` : "Por definir"} />
+            <ProfileMetric label="Pago foráneo" value={row.salario_foraneo_ofrecido ? `$${Number(row.salario_foraneo_ofrecido).toLocaleString("es-MX")}` : "Por definir"} />
+          </div>
+          <div style={{ padding:"14px", borderRadius:"14px", border:"1px solid rgba(63,71,83,.44)", background:"rgba(13,28,45,.70)", color:"rgba(212,228,250,.74)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.65 }}>
+            Método de pago: {row.metodo_pago_ofrecido || "Por definir"}. Estado: {row.estatus === "tiene_trabajo" ? "Vacante activa" : "Sin cupo"}. Postulantes compatibles: {applicants.length}.
+          </div>
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:"9px", flexWrap:"wrap", marginTop:"18px" }}>
+            <button type="button" onClick={()=>{ setSelectedVacancyPreview(null); setSelectedVacancyApplicants(row); }} className="hover:bg-primary/90 transition-all duration-300" style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", gap:"8px" }}><MS name="groups" size={17} active /> Ver postulantes</button>
+          </div>
+        </article>
+      </div>, document.body
+    );
+  };
+
+  const VacancyApplicantsModal = () => {
+    if (!selectedVacancyApplicants || typeof document === "undefined") return null;
+    const row = selectedVacancyApplicants;
+    const applicants = vacancyApplicantsFor(row);
+    return createPortal(
+      <div onMouseDown={e=>{ if (e.target === e.currentTarget) setSelectedVacancyApplicants(null); }} style={{ position:"fixed", inset:0, zIndex:10090, display:"grid", placeItems:"center", padding:"18px", background:"rgba(1,8,18,.80)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+        <section style={{ ...posturasGlass, width:"min(980px,100%)", maxHeight:"88dvh", overflowY:"auto", borderRadius:"22px", padding:"22px", background:"rgba(12,28,45,.96)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"14px", marginBottom:"18px" }}>
+            <div><div style={{ color:"#a1c9ff", fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>Postulantes compatibles</div><h2 style={{ margin:"6px 0 0", color:"#d4e4fa", fontSize:"clamp(23px,4vw,32px)" }}>{row.razon_social || "Vacante"}</h2></div>
+            <button type="button" onClick={()=>setSelectedVacancyApplicants(null)} aria-label="Cerrar postulantes" style={{ width:"42px", height:"42px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.24)", background:"rgba(161,201,255,.08)", color:"#d4e4fa", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={21} active /></button>
+          </div>
+          {applicants.length === 0 ? <div style={{ padding:"34px 18px", textAlign:"center", borderRadius:"16px", border:"1px dashed rgba(161,201,255,.24)", color:"rgba(212,228,250,.58)" }}><MS name="person_search" size={34} active /><div style={{ marginTop:"10px", fontWeight:"800" }}>Aún no hay postulantes compatibles.</div></div> :
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))", gap:"13px" }}>{applicants.map(worker => <article key={worker.id} style={{ padding:"16px", borderRadius:"16px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.72)", boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)" }}>
+            <div style={{ display:"flex", gap:"11px", alignItems:"center" }}><div style={{ width:"44px", height:"44px", borderRadius:"999px", overflow:"hidden", background:"rgba(161,201,255,.10)", border:"1px solid rgba(161,201,255,.24)", display:"grid", placeItems:"center" }}>{isRenderableImageSrc(worker.foto_perfil) ? <img src={worker.foto_perfil} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="person" size={23} active />}</div><div style={{ minWidth:0 }}><div style={{ color:"#d4e4fa", fontWeight:"900", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{worker.nombre_completo || "Postulante"}</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"11px", marginTop:"3px" }}>{worker.maniobra || "Perfil operativo"} · {worker.alcance || "Alcance abierto"}</div></div></div>
+            <button type="button" onClick={()=>{ setSelectedVacancyApplicants(null); setProfileDetailTarget({ row:worker, type:"trabajador", mock:false }); }} className="hover:bg-primary/90 transition-all duration-300" style={{ ...btn("#a1c9ff"), width:"100%", marginTop:"13px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}><MS name="account_circle" size={17} active /> Ver perfil del postulante</button>
+          </article>)}</div>}
+        </section>
+      </div>, document.body
+    );
+  };
+
+  const MyVacanciesView = () => (
+    <section style={{ maxWidth:"1240px", margin:"0 auto" }}>
+      <div style={{ ...posturasGlass, borderRadius:"20px", padding:posturasMobile ? "18px" : "26px", marginBottom:"16px", position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at top right, rgba(0,150,255,.13), transparent 45%)", pointerEvents:"none" }} />
+        <div style={{ position:"relative", display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap" }}>
+          <div><div style={{ color:"#a1c9ff", fontSize:"10px", fontWeight:"900", letterSpacing:".15em", textTransform:"uppercase" }}>Perfil de empresa</div><h1 style={{ margin:"7px 0 0", color:"#d4e4fa", fontSize:"clamp(28px,5vw,40px)", lineHeight:1.05 }}>Mis vacantes</h1><p style={{ margin:"9px 0 0", color:"rgba(212,228,250,.64)", fontSize:"13px", lineHeight:1.6 }}>Resumen de vacantes publicadas y acceso directo a sus postulantes.</p></div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", background:"rgba(161,201,255,.09)", border:"1px solid rgba(161,201,255,.24)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900" }}><MS name="work" size={17} active /> {myVacancies.length} vacantes</div>
+        </div>
+      </div>
+      {myVacancies.length === 0 ? <div style={{ ...posturasGlass, borderRadius:"18px", padding:"42px 20px", textAlign:"center" }}><MS name="work_off" size={42} active /><div style={{ color:"#d4e4fa", fontWeight:"900", marginTop:"12px" }}>No hay vacantes publicadas.</div></div> :
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(auto-fit,minmax(300px,1fr))", gap:"16px" }}>
+        {myVacancies.map(row => { const applicants = vacancyApplicantsFor(row); const pendingDelete = Boolean(row.delete_requested_at); return <article key={row.id} style={{ ...posturasGlass, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", minWidth:0 }}>
+          <div style={{ height:"170px", background:"linear-gradient(135deg,rgba(0,150,255,.16),rgba(18,33,49,.8))", display:"grid", placeItems:"center", overflow:"hidden" }}>{isRenderableImageSrc(row.imagen_vacante) ? <img src={row.imagen_vacante} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="work" size={54} active />}</div>
+          <div style={{ padding:"17px", display:"flex", flexDirection:"column", flex:1 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}><div style={{ minWidth:0 }}><div style={{ color:"#d4e4fa", fontSize:"18px", fontWeight:"900", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.razon_social || "Vacante empresarial"}</div><div style={{ color:"rgba(212,228,250,.56)", fontSize:"11px", marginTop:"4px" }}>{row.maniobra_requerida || row.tipo_empresa || "Operación portuaria"}</div></div><span style={{ padding:"6px 8px", borderRadius:"999px", border:`1px solid ${pendingDelete ? "rgba(245,158,11,.35)" : "rgba(34,197,94,.35)"}`, background:pendingDelete ? "rgba(245,158,11,.10)" : "rgba(34,197,94,.10)", color:pendingDelete ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:"900", whiteSpace:"nowrap" }}>{pendingDelete ? "Eliminación pendiente" : row.estatus === "tiene_trabajo" ? "Activa" : "Sin cupo"}</span></div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginTop:"14px" }}><ProfileMetric label="Alcance" value={row.alcance} /><ProfileMetric label="Postulantes" value={String(applicants.length)} /></div>
+            <div style={{ display:"grid", gap:"8px", marginTop:"auto", paddingTop:"16px" }}>
+              <button type="button" onClick={()=>setSelectedVacancyPreview(row)} className="hover:bg-primary/90 transition-all duration-300" style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}><MS name="visibility" size={17} active /> Vista previa</button>
+              <button type="button" onClick={()=>setSelectedVacancyApplicants(row)} className="hover:bg-primary/90 transition-all duration-300" style={{ ...btn("#4edea3"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}><MS name="groups" size={17} active /> Ver postulantes</button>
+            </div>
+          </div>
+        </article>; })}
+      </div>}
+    </section>
+  );
+
   const sidebarNav = [
     { id:"notificaciones", label:"Notificaciones", icon:"notifications", onClick:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
     { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("tablero"); setPosturasMode("list"); setDashboardTarget("perfiles"); setTalentView("todos"); } },
     { id:"posturas", label:"Posturas", icon:"work", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    ...((isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") ? [{ id:"mis-vacantes", label:"Mis vacantes", icon:"business_center", onClick:()=>{ setSub("posturas"); setPosturasMode("vacancies"); } }] : []),
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
     ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
   ];
-  const activeSidebarId = posturasMode === "archive" ? "archivo" : sub;
+  const activeSidebarId = posturasMode === "archive" ? "archivo" : posturasMode === "vacancies" ? "mis-vacantes" : sub;
   const segmentButton = (id, label) => {
     const active = talentView === id && posturasMode === "list" && sub === "posturas";
     return <button key={id} onClick={() => { setSub("posturas"); setPosturasMode("list"); setTalentView(id); if (id === "perfiles") setVista("postular"); if (id === "busquedas") setVista("empresario"); }} style={{ padding:"10px 22px", borderRadius:"10px", border:"none", background:active ? "#a1c9ff" : "transparent", color:active ? "#002d52" : "rgba(212,228,250,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer", transition:"all .18s ease" }}>{label}</button>;
@@ -22767,6 +22873,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
                 {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
                 {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
+                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-dynamic-btn hover:bg-primary/90 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="business_center" size={15} active /> Mis vacantes</button>}
+
                 {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
               </div>
             )}
@@ -22790,6 +22898,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {VacancyModal()}
         <PosturasReportModal />
         {ProfileDetailModal()}
+        {VacancyPreviewModal()}
+        {VacancyApplicantsModal()}
         {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
 
         {sub === "donativos" && <DonativosTab embedded />}
@@ -22797,6 +22907,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "notificaciones" && <NotificationsCenter />}
         {sub === "quejas" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></section>}
         {sub === "tablero" && <DashboardHub />}
+        {sub === "posturas" && posturasMode === "vacancies" && <MyVacanciesView />}
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
         {sub === "posturas" && posturasMode === "form" && (
           (!authUser && !isAdmin) ? <AccessGate /> : (
@@ -22808,7 +22919,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           )
         )}
 
-        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && (
+        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && (
           <section className="cm-posturas-target">
             <PosturasTargetStyles />
             <div className="cm-posturas-target-header">
