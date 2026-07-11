@@ -20009,6 +20009,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [editingTrabId, setEditingTrabId] = useState(null);
   const [editingEmpId, setEditingEmpId] = useState(null);
   const [dashboardTarget, setDashboardTarget] = useState("perfiles");
+  const [dashboardPage, setDashboardPage] = useState(1);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [empWizardStep, setEmpWizardStep] = useState(1);
@@ -21480,42 +21481,100 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   );
 
   const DashboardHub = () => {
-    const dashboardRows = dashboardTarget === "perfiles" ? trabFiltrados : empFiltradas;
-    const topTrab = trabFiltrados.slice(0, 5);
-    const topEmp = empFiltradas.slice(0, 5);
-    const avgTrab = trabFiltrados.length ? trabFiltrados.reduce((acc, row) => acc + avgFor("trabajador", row.id).avg, 0) / trabFiltrados.length : 0;
-    const avgEmp = empFiltradas.length ? empFiltradas.reduce((acc, row) => acc + avgFor("empresa", row.id).avg, 0) / empFiltradas.length : 0;
-    return <section style={{ maxWidth:"1280px", margin:"0 auto", display:"grid", gap:"18px" }}>
-      <ProfileHeader />
-      <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap:"14px" }}>
-        <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Perfiles con reputación</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{trabFiltrados.length}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"8px", color:"#a1c9ff" }}><MS name="groups" size={16} active /> <span style={{ fontSize:"11px", fontWeight:"800" }}>Talento clasificado</span></div></div>
-        <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Empresas calificadas</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{empFiltradas.length}</div><div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"8px", color:"#7dd3fc" }}><MS name="apartment" size={16} active /> <span style={{ fontSize:"11px", fontWeight:"800" }}>Vacantes y marcas</span></div></div>
-        <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Promedio talento</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{avgTrab ? avgTrab.toFixed(1) : "0.0"}</div><div style={{ marginTop:"8px" }}><StarRating value={avgTrab} small /></div></div>
-        <div style={{ ...card, padding:"18px" }}><div style={{ color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}>Promedio empresas</div><div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"28px", fontWeight:"900", marginTop:"8px" }}>{avgEmp ? avgEmp.toFixed(1) : "0.0"}</div><div style={{ marginTop:"8px" }}><StarRating value={avgEmp} small /></div></div>
+    const ratedTrab = trabFiltrados.filter(row => avgFor("trabajador", row.id).count > 0);
+    const ratedEmp = empFiltradas.filter(row => avgFor("empresa", row.id).count > 0);
+    const dashboardRows = dashboardTarget === "perfiles" ? ratedTrab : ratedEmp;
+    const dashboardType = dashboardTarget === "perfiles" ? "trabajador" : "empresa";
+    const dashboardPageSize = 10;
+    const totalDashboardPages = Math.max(1, Math.ceil(dashboardRows.length / dashboardPageSize));
+    const safeDashboardPage = Math.min(dashboardPage, totalDashboardPages);
+    const visibleDashboardRows = dashboardRows.slice((safeDashboardPage - 1) * dashboardPageSize, safeDashboardPage * dashboardPageSize);
+    const ratedTrabCount = ratedTrab.length;
+    const ratedEmpCount = ratedEmp.length;
+    const avgTrab = ratedTrabCount ? ratedTrab.reduce((acc, row) => acc + avgFor("trabajador", row.id).avg, 0) / ratedTrabCount : 0;
+    const avgEmp = ratedEmpCount ? ratedEmp.reduce((acc, row) => acc + avgFor("empresa", row.id).avg, 0) / ratedEmpCount : 0;
+    const totalProfiles = trabajadores.length + empresas.length;
+    const visiblePageButtons = Array.from({ length: Math.min(3, totalDashboardPages) }, (_, i) => {
+      if (totalDashboardPages <= 3) return i + 1;
+      if (safeDashboardPage <= 2) return i + 1;
+      if (safeDashboardPage >= totalDashboardPages - 1) return totalDashboardPages - 2 + i;
+      return safeDashboardPage - 1 + i;
+    });
+    const getRowImage = (row, type) => {
+      const value = type === "trabajador" ? row?.foto_perfil : (row?.logo_empresa || row?.contacto_principal_foto);
+      return isRenderableImageSrc(value) ? value : "";
+    };
+    const getRowTitle = (row, type) => type === "trabajador" ? (row?.nombre_completo || "Postulante") : (row?.razon_social || "Empresa");
+    const getRowSubtitle = (row, type) => type === "trabajador"
+      ? (row?.maniobra || row?.licencia || "Talento logístico")
+      : (row?.tipo_empresa || row?.ubicacion || "Empresa");
+    const getRowStatus = (row, type) => {
+      const reputation = avgFor(type, row.id);
+      const verified = reputation.count > 0 && !isProfileExpired(row);
+      return verified ? "Verificado" : "Pendiente";
+    };
+    const miniBars = (accent, values) => <div className="cm-talent-bars" aria-hidden="true">
+      {values.map((height, index) => <span key={index} className="cm-talent-bar" style={{ height:`${height}%`, background:index === values.length - 1 ? accent : `${accent}33`, animationDelay:`${index * .1}s` }} />)}
+    </div>;
+    const progressCircle = (value, accent) => {
+      const circumference = 125;
+      const offset = circumference - (Math.max(0, Math.min(5, value)) / 5) * circumference;
+      return <div className="cm-talent-circle"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="transparent" stroke="rgba(255,255,255,.06)" strokeWidth="4"/><circle className="cm-talent-progress" cx="24" cy="24" r="20" fill="transparent" stroke={accent} strokeDasharray="125" strokeDashoffset={offset} strokeWidth="4" strokeLinecap="round"/></svg></div>;
+    };
+    const StatCard = ({ icon, accent, label: statLabel, value, trend, children, spin=false }) => <article className={`cm-talent-stat-card ${spin ? "cm-talent-spin" : ""}`} style={{ "--talent-accent":accent }}>
+      <div className="cm-talent-stat-top">
+        <div className="cm-talent-stat-icon"><MS name={icon} size={28} active /></div>
+        <span className="cm-talent-trend" style={{ color:accent }}>{trend}</span>
       </div>
-
-      <div style={{ ...posturasGlass, borderRadius:"18px", padding:"22px", border:"1px solid rgba(63,71,83,.42)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"16px", flexWrap:"wrap", marginBottom:"18px" }}>
-          <div>
-            <div style={{ color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"24px", fontWeight:"900" }}>Tablero de reputación</div>
-            <div style={{ color:"rgba(212,228,250,.60)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"4px" }}>Consulta usuarios y empresas ordenados automáticamente por reputación descendente.</div>
-          </div>
-          <div style={{ display:"flex", gap:"6px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>
-            <button onClick={()=>setDashboardTarget("perfiles")} style={{ padding:"10px 16px", borderRadius:"10px", border:"none", background:dashboardTarget === "perfiles" ? "#a1c9ff" : "transparent", color:dashboardTarget === "perfiles" ? "#002d52" : "rgba(212,228,250,.74)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer" }}>Ver perfiles</button>
-            <button onClick={()=>setDashboardTarget("empresas")} style={{ padding:"10px 16px", borderRadius:"10px", border:"none", background:dashboardTarget === "empresas" ? "#a1c9ff" : "transparent", color:dashboardTarget === "empresas" ? "#002d52" : "rgba(212,228,250,.74)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer" }}>Ver empresas</button>
-          </div>
-        </div>
-        <CommandSearch />
-        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,1.1fr) minmax(320px,.9fr)", gap:"18px", alignItems:"start" }}>
-          <div style={{ display:"grid", gap:"14px" }}>
-            {dashboardRows.length === 0 ? <div style={{ ...card, padding:"28px", color:"rgba(212,228,250,.48)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>No hay resultados para los filtros seleccionados.</div> : dashboardRows.slice(0, 8).map(row => <DashboardEntityRow key={`${dashboardTarget}-${row.id}`} row={row} type={dashboardTarget === "perfiles" ? "trabajador" : "empresa"} />)}
-          </div>
-          <div style={{ display:"grid", gap:"18px" }}>
-            <RankingModule title="Ranking de Autoridad · Usuarios" subtitle="Top talento con mejor reputación" items={topTrab} type="trabajador" />
-            <RankingModule title="Ranking de Autoridad · Empresas" subtitle="Top empresas mejor calificadas" items={topEmp} type="empresa" />
-          </div>
-        </div>
+      <div><div className="cm-talent-stat-label">{statLabel}</div><div className="cm-talent-stat-value">{value}</div></div>
+      {children}
+    </article>;
+    const showEntity = (row, type) => {
+      const title = getRowTitle(row, type);
+      const rep = avgFor(type, row.id);
+      setMsg({ type:"ok", text:`${title} · ${rep.avg ? rep.avg.toFixed(1) : "0.0"} estrellas · ${rep.count} calificaciones.` });
+    };
+    return <section className="cm-talent-dashboard">
+      <style>{`
+        .cm-talent-dashboard{--td-bg:#051424;--td-lowest:#010f1f;--td-low:#0d1c2d;--td-surface:#122131;--td-high:#1c2b3c;--td-highest:#273647;--td-text:#d4e4fa;--td-muted:#bbcabf;--td-primary:#4edea3;--td-secondary:#a4c9ff;--td-tertiary:#bec6e0;--td-error:#ffb4ab;max-width:1280px;margin:0 auto;padding:40px;box-sizing:border-box;color:var(--td-text);font-family:Inter,${getFont(theme,"secondary")};}
+        @keyframes cmTalentFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes cmTalentGlow{0%,100%{box-shadow:0 0 0 rgba(78,222,163,0)}50%{box-shadow:0 0 20px color-mix(in srgb,var(--talent-accent) 40%,transparent)}}
+        @keyframes cmTalentBarIn{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+        @keyframes cmTalentCircle{from{stroke-dashoffset:125}}
+        .cm-talent-header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:48px}.cm-talent-title{margin:0 0 8px;font-size:40px;line-height:48px;letter-spacing:-.02em;font-weight:700}.cm-talent-description{margin:0;max-width:720px;color:var(--td-muted);font-size:18px;line-height:28px}.cm-talent-totals{display:flex;gap:16px}.cm-talent-total{min-width:100px;padding:8px 16px;border-radius:12px;background:rgba(18,33,49,.62);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}.cm-talent-total span{display:block;font-size:12px;line-height:16px;letter-spacing:.1em;font-weight:700}.cm-talent-total strong{display:block;font-size:24px;line-height:32px;font-weight:600}
+        .cm-talent-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-bottom:48px}.cm-talent-stat-card{padding:24px;display:flex;flex-direction:column;gap:16px;border-radius:18px;background:rgba(18,33,49,.68);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.04);cursor:pointer;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,border-color .2s ease}.cm-talent-stat-card:hover{transform:translateY(-8px);box-shadow:0 20px 40px rgba(0,0,0,.3);border-color:color-mix(in srgb,var(--talent-accent) 35%,transparent)}.cm-talent-stat-card:active{transform:translateY(-4px) scale(.98)}.cm-talent-stat-top{display:flex;justify-content:space-between;align-items:flex-start}.cm-talent-stat-icon{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;color:var(--talent-accent);background:color-mix(in srgb,var(--talent-accent) 20%,transparent);animation:cmTalentFloat 3s ease-in-out infinite}.cm-talent-stat-card:hover .cm-talent-stat-icon{animation-play-state:paused;transform:scale(1.1) translateY(-8px);box-shadow:0 0 30px color-mix(in srgb,var(--talent-accent) 55%,transparent)}.cm-talent-trend,.cm-talent-stat-label{font-size:12px;line-height:16px;letter-spacing:.1em;font-weight:700}.cm-talent-stat-label{color:var(--td-muted)}.cm-talent-stat-value{margin-top:4px;font-size:24px;line-height:32px;font-weight:600;transition:transform .3s ease}.cm-talent-stat-card:hover .cm-talent-stat-value{transform:scale(1.1);transform-origin:left center}.cm-talent-bars{height:48px;display:flex;align-items:flex-end;gap:4px;overflow:hidden}.cm-talent-bar{flex:1;border-radius:2px 2px 0 0;transform-origin:bottom;animation:cmTalentBarIn .5s ease-out both;transition:transform .4s cubic-bezier(.175,.885,.32,1.275)}.cm-talent-stat-card:hover .cm-talent-bar{transform:scaleY(1.08);filter:drop-shadow(0 0 8px color-mix(in srgb,var(--talent-accent) 50%,transparent))}.cm-talent-circle{height:48px;display:grid;place-items:center}.cm-talent-circle svg{width:48px;height:48px;transform:rotate(-90deg);transition:transform .8s cubic-bezier(.4,0,.2,1)}.cm-talent-spin:hover .cm-talent-circle svg{transform:rotate(270deg)}.cm-talent-progress{animation:cmTalentCircle 1.2s cubic-bezier(.4,0,.2,1) forwards}
+        .cm-talent-search{display:flex;gap:16px;align-items:center;padding:16px;margin-bottom:24px;border-radius:16px;background:rgba(18,33,49,.48);border:1px solid rgba(255,255,255,.06);backdrop-filter:blur(12px)}.cm-talent-search-box{position:relative;flex:1}.cm-talent-search-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--td-muted);display:grid}.cm-talent-search input{width:100%;box-sizing:border-box;padding:13px 16px 13px 48px;border-radius:12px;border:1px solid rgba(255,255,255,.05);background:rgba(1,15,31,.5);color:var(--td-text);font:400 14px/20px Inter,${getFont(theme,"secondary")};outline:none;transition:.2s ease}.cm-talent-search input:focus{border-color:transparent;box-shadow:0 0 0 2px var(--td-primary)}.cm-talent-filter-btn{padding:12px 24px;border-radius:12px;border:1px solid rgba(255,255,255,.05);background:var(--td-high);color:var(--td-text);font:600 14px/20px Inter,${getFont(theme,"secondary")};display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:.2s ease}.cm-talent-filter-btn:hover{background:rgba(255,255,255,.1)}
+        .cm-talent-ranking{overflow:hidden;border-radius:18px;background:rgba(18,33,49,.68);border:1px solid rgba(255,255,255,.08)}.cm-talent-ranking-head{padding:24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.05)}.cm-talent-ranking-head h2{margin:0;font-size:24px;line-height:32px;font-weight:600}.cm-talent-tabs{display:flex;gap:16px}.cm-talent-tab{padding:0 0 4px;border:0;background:transparent;color:var(--td-muted);font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;cursor:pointer}.cm-talent-tab.active{color:var(--td-primary);border-bottom:1px solid var(--td-primary)}.cm-talent-table-wrap{overflow-x:auto}.cm-talent-table{width:100%;border-collapse:collapse;text-align:left}.cm-talent-table th{padding:16px 24px;background:rgba(1,15,31,.5);color:var(--td-muted);font-size:12px;line-height:16px;letter-spacing:.1em;text-transform:uppercase}.cm-talent-table td{padding:16px 24px;border-top:1px solid rgba(255,255,255,.05);font-size:14px;line-height:20px}.cm-talent-table tbody tr{transition:background .2s ease}.cm-talent-table tbody tr:hover{background:rgba(255,255,255,.05)}.cm-talent-rank{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;background:rgba(255,255,255,.1);color:var(--td-muted);font-weight:700}.cm-talent-rank.first{background:rgba(78,222,163,.2);color:var(--td-primary)}.cm-talent-entity{display:flex;align-items:center;gap:12px;min-width:220px}.cm-talent-avatar{width:40px;height:40px;border-radius:999px;overflow:hidden;background:#1e293b;display:grid;place-items:center;color:var(--td-secondary);flex:0 0 auto}.cm-talent-avatar img{width:100%;height:100%;object-fit:cover}.cm-talent-entity strong{display:block;color:var(--td-text);font-weight:600}.cm-talent-entity small{display:block;color:var(--td-muted);font-size:12px}.cm-talent-stars{display:flex;align-items:center;gap:3px;color:var(--td-primary);white-space:nowrap}.cm-talent-score{margin-left:8px;color:var(--td-text)}.cm-talent-status{display:inline-flex;padding:4px 12px;border-radius:999px;font-size:12px}.cm-talent-status.verified{background:rgba(78,222,163,.2);color:var(--td-primary)}.cm-talent-status.pending{background:rgba(164,201,255,.2);color:var(--td-secondary)}.cm-talent-eye{padding:8px;border:0;border-radius:8px;background:transparent;color:var(--td-primary);cursor:pointer;transition:.2s ease}.cm-talent-eye:hover{background:rgba(78,222,163,.1)}.cm-talent-empty{padding:42px 24px;text-align:center;color:var(--td-muted)}.cm-talent-ranking-foot{padding:24px;display:flex;justify-content:space-between;align-items:center;gap:16px;background:rgba(255,255,255,.05);border-top:1px solid rgba(255,255,255,.05);color:var(--td-muted);font-size:14px}.cm-talent-pages{display:flex;gap:8px}.cm-talent-page{min-width:40px;height:40px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.05);background:transparent;color:var(--td-text);display:grid;place-items:center;cursor:pointer;transition:.2s ease}.cm-talent-page:hover{background:rgba(255,255,255,.1)}.cm-talent-page.active{background:var(--td-primary);color:#003824}.cm-talent-page:disabled{opacity:.5;cursor:default}
+        .cm-talent-showcase{margin-top:48px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.cm-talent-feature{padding:16px;border-radius:16px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;background:rgba(18,33,49,.46);border:1px solid rgba(255,255,255,.06);transition:.3s ease}.cm-talent-feature:hover{transform:translateY(-3px);box-shadow:0 0 20px color-mix(in srgb,var(--feature-accent) 20%,transparent)}.cm-talent-feature-icon{width:64px;height:64px;border-radius:16px;display:grid;place-items:center;color:var(--feature-accent);background:color-mix(in srgb,var(--feature-accent) 20%,transparent);transition:.3s ease}.cm-talent-feature:hover .cm-talent-feature-icon{transform:scale(1.1)}.cm-talent-feature h4{margin:0 0 8px;font-size:18px;font-weight:600}.cm-talent-feature p{margin:0;color:var(--td-muted);font-size:14px;line-height:20px}
+        @media(max-width:960px){.cm-talent-dashboard{padding:24px 16px 96px}.cm-talent-header{align-items:flex-start;flex-direction:column}.cm-talent-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-talent-showcase{grid-template-columns:1fr}.cm-talent-title{font-size:32px;line-height:40px}}
+        @media(max-width:640px){.cm-talent-dashboard{padding:16px 0 90px}.cm-talent-title{font-size:24px;line-height:32px}.cm-talent-description{font-size:16px;line-height:24px}.cm-talent-totals{width:100%}.cm-talent-total{flex:1;min-width:0}.cm-talent-stats{grid-template-columns:1fr}.cm-talent-search{align-items:stretch;flex-direction:column}.cm-talent-filter-btn{width:100%}.cm-talent-ranking-head{align-items:flex-start;flex-direction:column}.cm-talent-table th,.cm-talent-table td{padding:14px 16px}.cm-talent-ranking-foot{align-items:flex-start;flex-direction:column}.cm-talent-pages{width:100%;justify-content:flex-end}}
+        @media(prefers-reduced-motion:reduce){.cm-talent-stat-icon,.cm-talent-bar,.cm-talent-progress{animation:none!important}.cm-talent-stat-card,.cm-talent-circle svg{transition:none!important}}
+      `}</style>
+      <header className="cm-talent-header">
+        <div><h1 className="cm-talent-title">Centro de Talento</h1><p className="cm-talent-description">Visualiza y gestiona el ecosistema de talento de Manzanillo. Monitorea la reputación de candidatos y la calidad de las empresas registradas.</p></div>
+        <div className="cm-talent-totals"><div className="cm-talent-total"><span style={{color:"#4edea3"}}>VACANTES</span><strong>{empresas.length.toLocaleString("es-MX")}</strong></div><div className="cm-talent-total"><span style={{color:"#a4c9ff"}}>PERFILES</span><strong>{totalProfiles.toLocaleString("es-MX")}</strong></div></div>
+      </header>
+      <div className="cm-talent-stats">
+        <StatCard icon="groups" accent="#4edea3" label="Perfiles con Reputación" value={ratedTrabCount.toLocaleString("es-MX")} trend="+12% vs m.a.">{miniBars("#4edea3",[40,60,45,80,95])}</StatCard>
+        <StatCard icon="apartment" accent="#a4c9ff" label="Empresas Calificadas" value={ratedEmpCount.toLocaleString("es-MX")} trend="+5% vs m.a.">{miniBars("#a4c9ff",[30,50,70,60,85])}</StatCard>
+        <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend="Estable" spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
+        <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend="-2% vs m.a." spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
       </div>
+      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
+      <section className="cm-talent-ranking">
+        <div className="cm-talent-ranking-head"><h2>Ranking de Reputación</h2><div className="cm-talent-tabs"><button className={`cm-talent-tab ${dashboardTarget === "perfiles" ? "active" : ""}`} onClick={()=>{setDashboardTarget("perfiles");setDashboardPage(1);}}>TALENTO</button><button className={`cm-talent-tab ${dashboardTarget === "empresas" ? "active" : ""}`} onClick={()=>{setDashboardTarget("empresas");setDashboardPage(1);}}>EMPRESAS</button></div></div>
+        <div className="cm-talent-table-wrap"><table className="cm-talent-table"><thead><tr><th>Ranking</th><th>Usuario / Empresa</th><th>Reputación</th><th>Estado</th><th style={{textAlign:"right"}}>Acciones</th></tr></thead><tbody>
+          {visibleDashboardRows.map((row, index) => {
+            const rep = avgFor(dashboardType, row.id);
+            const rank = (safeDashboardPage - 1) * dashboardPageSize + index + 1;
+            const status = getRowStatus(row, dashboardType);
+            const image = getRowImage(row, dashboardType);
+            return <tr key={`${dashboardType}-${row.id}`}><td><div className={`cm-talent-rank ${rank === 1 ? "first" : ""}`}>{rank}</div></td><td><div className="cm-talent-entity"><div className="cm-talent-avatar">{image ? <img src={image} alt=""/> : <MS name={dashboardType === "trabajador" ? "person" : "apartment"} size={21} active />}</div><div><strong>{getRowTitle(row,dashboardType)}</strong><small>{getRowSubtitle(row,dashboardType)}</small></div></div></td><td><div className="cm-talent-stars">{[1,2,3,4,5].map(star=><MS key={star} name="star" size={15} active={star <= Math.round(rep.avg)} />)}<span className="cm-talent-score">{rep.avg ? rep.avg.toFixed(1) : "0.0"}</span></div></td><td><span className={`cm-talent-status ${status === "Verificado" ? "verified" : "pending"}`}>{status}</span></td><td style={{textAlign:"right"}}><button className="cm-talent-eye" onClick={()=>showEntity(row,dashboardType)} aria-label={`Ver ${getRowTitle(row,dashboardType)}`}><MS name="visibility" size={21} active /></button></td></tr>;
+          })}
+        </tbody></table>{visibleDashboardRows.length === 0 && <div className="cm-talent-empty">No hay perfiles con calificaciones para mostrar.</div>}</div>
+        <div className="cm-talent-ranking-foot"><span>Mostrando {dashboardRows.length ? ((safeDashboardPage - 1) * dashboardPageSize + 1) : 0}-{Math.min(safeDashboardPage * dashboardPageSize,dashboardRows.length)} de {dashboardRows.length.toLocaleString("es-MX")} {dashboardTarget === "perfiles" ? "perfiles" : "empresas"}</span><div className="cm-talent-pages"><button className="cm-talent-page" disabled={safeDashboardPage <= 1} onClick={()=>setDashboardPage(p=>Math.max(1,p-1))}><MS name="chevron_left" size={18} /></button>{visiblePageButtons.map(page=><button key={page} className={`cm-talent-page ${page === safeDashboardPage ? "active" : ""}`} onClick={()=>setDashboardPage(page)}>{page}</button>)}<button className="cm-talent-page" disabled={safeDashboardPage >= totalDashboardPages} onClick={()=>setDashboardPage(p=>Math.min(totalDashboardPages,p+1))}><MS name="chevron_right" size={18} /></button></div></div>
+      </section>
+      <section className="cm-talent-showcase"><div className="cm-talent-feature" style={{"--feature-accent":"#4edea3"}}><div className="cm-talent-feature-icon"><MS name="insights" size={31} active /></div><div><h4>Talento Calificado</h4><p>El 85% de los perfiles activos cuentan con al menos 3 certificaciones validadas.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#a4c9ff"}}><div className="cm-talent-feature-icon"><MS name="verified" size={31} active /></div><div><h4>Confianza Empresarial</h4><p>Empresas con alta reputación reportan un 40% más de retención de talento.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#bec6e0"}}><div className="cm-talent-feature-icon"><MS name="speed" size={31} active /></div><div><h4>Eficiencia de Reclutamiento</h4><p>El tiempo promedio de contratación ha bajado de 22 a 14 días gracias al sistema.</p></div></div></section>
     </section>;
   };
 
@@ -21805,6 +21864,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
     if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></div>;
+    if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
