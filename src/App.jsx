@@ -20189,8 +20189,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const salarioMinEmpresaForaneo = Math.max(0, Number(posturasSalaryRules.empresa_foraneo_min ?? 500));
   const salarioMaxEmpresaForaneo = Math.max(salarioMinEmpresaForaneo, Number(posturasSalaryRules.empresa_foraneo_max || 25000));
   const updatePosturasSalaryRule = (field, value) => {
-    const raw = String(value ?? "").replace(/[^0-9]/g, "");
-    setPosturasSalaryRules(prev => ({ ...prev, [field]: raw }));
+    setPosturasSalaryRules(prev => ({ ...prev, [field]: value }));
   };
   const savePosturasSalaryRules = (type="all") => {
     setPosturasSalaryRules(prev => {
@@ -21025,7 +21024,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         className="cm-posturas-fluid-input"
         type="text"
         inputMode="numeric"
-        pattern="[0-9]*"
         autoComplete="off"
         style={input}
         value={posturasSalaryRules[field] ?? ""}
@@ -21063,7 +21061,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        {fields.map(([field, fieldLabel]) => <AdminSalaryField key={field} field={field} label={fieldLabel} />)}
+        {fields.map(([field, fieldLabel]) => <React.Fragment key={field}>{AdminSalaryField({ field, label:fieldLabel })}</React.Fragment>)}
       </div>
       <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"12px" }}>
         <button className="cm-posturas-dynamic-btn" type="button" onClick={()=>savePosturasSalaryRules(type)} style={{ ...btn(accent), background:`${accent}18` }}>
@@ -21087,7 +21085,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           ))}
         </div>
       </div>
-      {(adminPosturasProfileView === "empresa") ? <AdminSalarySection type="empresa" /> : <AdminSalarySection type="postulante" />}
+      {(adminPosturasProfileView === "empresa") ? AdminSalarySection({ type:"empresa" }) : AdminSalarySection({ type:"postulante" })}
     </div>
   );
 
@@ -21673,7 +21671,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <AccessOptionCard adminMode type="employer" icon="corporate_fare" title="Perfil de empresario" description="Formulario base empresarial visible para administración." onClick={() => openBaseProfile("empresa")} />
             </div>
             <AccessStats />
-            <div style={{ marginTop:"48px" }}><AdminSalaryControlPanel /></div>
+            <div style={{ marginTop:"48px" }}>{AdminSalaryControlPanel()}</div>
           </div>
         ) : !authUser ? (
           <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
@@ -22519,7 +22517,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <button onClick={()=>setVacancyModalOpen(false)} style={{ ...btn("#94a3b8"), padding:"8px 10px" }}>Cerrar</button>
         </div>
         <div style={{ padding:posturasMobile ? "12px" : "16px" }}>
-          <CompanyVacancyForm />
+          {CompanyVacancyForm()}
         </div>
       </div>
     </div>
@@ -22563,7 +22561,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") {
       if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessGate /></div>;
-      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
+      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<>{AdminSalaryControlPanel()}{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}</div>;
     }
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
@@ -22576,7 +22574,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
-  if (posturasMobile) return <><VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<MobilePosturasShell /></>;
+  if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<MobilePosturasShell /></>;
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
@@ -22626,7 +22624,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
       <main style={{ position:"relative", zIndex:1, marginLeft:"264px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
-        <VacancyModal />
+        {VacancyModal()}
         <PosturasReportModal />
         {ProfileDetailModal()}
         {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
@@ -22642,7 +22640,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
               {AccessSelectorModal()}
               <ProfileHeader />
-              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}
+              {isAdmin ? (<>{AdminSalaryControlPanel()}{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}
             </div>
           )
         )}
