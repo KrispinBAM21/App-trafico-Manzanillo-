@@ -20218,39 +20218,88 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setPosturasUserType(type);
     try { localStorage.setItem("cm_posturas_user_type", type); } catch {}
   };
-  const openAccessSelector = (action="login") => setAccessPrompt({ action });
-  const continueAccessAs = (type) => {
-    persistPosturasUserType(type);
+  const PROFILE_ACCESS_INTENT_KEY = "cm_posturas_pending_profile_access";
+
+  const clearPrivateProfileState = () => {
     setAccessPrompt(null);
-    if (!authUser) {
-      const action = accessPrompt?.action || "login";
-      if (action === "register") {
-        onRegister ? onRegister() : setActive && setActive("tutorial");
-      } else {
-        onLogin ? onLogin() : setActive && setActive("tutorial");
-      }
+    setPosturasMode("list");
+    setSub("posturas");
+    setVista("postular");
+    setCompanyFormMode("registro");
+    setEmpWizardStep(1);
+    setEditingTrabId(null);
+    setEditingEmpId(null);
+    setTrabForm(emptyTrab);
+    setEmpForm(emptyEmp);
+  };
+
+  const requestProtectedProfileAccess = (action="login") => {
+    clearPrivateProfileState();
+    try { localStorage.setItem(PROFILE_ACCESS_INTENT_KEY, "1"); } catch {}
+    if (action === "register") {
+      onRegister ? onRegister() : setActive && setActive("tutorial");
+    } else {
+      onLogin ? onLogin() : setActive && setActive("tutorial");
+    }
+  };
+
+  const openAccessSelector = (action="login") => {
+    if (!authUser && !isAdmin) {
+      requestProtectedProfileAccess(action);
       return;
     }
+    setAccessPrompt({ action });
+  };
+
+  const continueAccessAs = (type) => {
+    if (!authUser && !isAdmin) {
+      requestProtectedProfileAccess(accessPrompt?.action || "login");
+      return;
+    }
+    persistPosturasUserType(type);
+    setAccessPrompt(null);
     setSub("posturas");
+    setPosturasMode("profile");
     setVista(type === "empresa" ? "empresario" : "postular");
     setCompanyFormMode("registro");
     setEmpWizardStep(1);
-    setPosturasMode(type === "empresa" ? "list" : "form");
-    setTalentView(type === "empresa" ? "busquedas" : "perfiles");
   };
+
   const handleTalentAction = (type="postulante") => {
-    if (!authUser) { openAccessSelector("login"); return; }
+    if (!authUser && !isAdmin) {
+      requestProtectedProfileAccess("login");
+      return;
+    }
     persistPosturasUserType(type);
     setSub("posturas");
+    setPosturasMode("profile");
     setVista(type === "empresa" ? "empresario" : "postular");
     setCompanyFormMode("registro");
     setEmpWizardStep(1);
-    setPosturasMode("form");
   };
   const handleFileMeta = (setter, field, fileList) => {
     const file = fileList && fileList[0];
     setter(f => ({ ...f, [field]: file ? file.name : "" }));
   };
+  useEffect(() => {
+    if (!authUser && !isAdmin && posturasMode === "form") {
+      clearPrivateProfileState();
+    }
+  }, [authUser?.id, isAdmin, posturasMode]);
+
+  useEffect(() => {
+    if (!authUser || isAdmin) return;
+    let pending = false;
+    try { pending = localStorage.getItem(PROFILE_ACCESS_INTENT_KEY) === "1"; } catch {}
+    if (!pending) return;
+    try { localStorage.removeItem(PROFILE_ACCESS_INTENT_KEY); } catch {}
+    setAccessPrompt(null);
+    setSub("posturas");
+    setPosturasMode("profile");
+    setProfileEditorOpen(false);
+    setTimeout(() => window.scrollTo({ top:0, behavior:"auto" }), 0);
+  }, [authUser?.id, isAdmin]);
+
   const profileDisplayName = profileEditor?.nombre_publico || authUser?.user_metadata?.full_name || (authUser?.email ? authUser.email.split("@")[0] : "Mi perfil");
   const profileDisplayRole = profileEditor?.cargo_publico || "Talento logístico";
   const profileDisplayEmail = profileEditor?.correo_publico || authUser?.email || "Sin correo público";
@@ -20567,7 +20616,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
 
   const canEdit = (row) => !!authUser && row.user_id === authUser.id;
-  const requireLogin = () => { openAccessSelector("login"); setMsg({ type:"err", text:"Para guardar y editar en Posturas, primero inicia sesión y elige Postulante o Empresa." }); return false; };
+  const requireLogin = () => { requestProtectedProfileAccess("login"); setMsg({ type:"err", text:"Inicia sesión o crea una cuenta antes de configurar un perfil." }); return false; };
   const deletionDaysLeft = (row) => {
     if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
     const start = new Date(row.delete_requested_at || row.deletion_requested_at).getTime();
@@ -21562,8 +21611,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const ProfileEditorView = () => {
     const openBaseProfile = (kind) => {
-      // Este acceso es una vista directa de los formularios de Posturas.
-      // No debe abrir ni conservar el modal de acceso/creación de cuenta.
+      if (!authUser && !isAdmin) {
+        requestProtectedProfileAccess("login");
+        return;
+      }
       setAccessPrompt(null);
       const isWorker = kind === "trabajador";
       const row = isWorker ? myLatestTrabajador : myLatestEmpresa;
@@ -21624,47 +21675,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <AccessStats />
             <div style={{ marginTop:"48px" }}><AdminSalaryControlPanel /></div>
           </div>
-        ) : (!authUser || (!myLatestTrabajador && !myLatestEmpresa)) ? (
+        ) : !authUser ? (
+          <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
+            <AccessGate />
+          </div>
+        ) : (!myLatestTrabajador && !myLatestEmpresa) ? (
           <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
             <header style={{ marginBottom:"48px", maxWidth:"780px" }}>
               <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Gestión de Perfiles</h1>
-              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Selecciona el tipo de perfil que deseas crear para ingresar al flujo correcto de Posturas.</p>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Selecciona el tipo de perfil que deseas configurar.</p>
             </header>
             <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0,1fr))", gap:"24px" }}>
-              <AccessOptionCard
-                type="worker"
-                icon="assignment_ind"
-                title="Perfil de trabajador"
-                description="Crea tu perfil para publicar disponibilidad, documentación y expectativas económicas."
-                onClick={() => {
-                  setAccessPrompt(null);
-                  persistPosturasUserType("postulante");
-                  setSub("posturas");
-                  setVista("postular");
-                  setPosturasMode("form");
-                  setTrabForm(emptyTrab);
-                  setEditingTrabId(null);
-                  setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
-                }}
-              />
-              <AccessOptionCard
-                type="employer"
-                icon="corporate_fare"
-                title="Perfil de empresario"
-                description="Crea el perfil de tu empresa para gestionar contactos, vacantes y currículums."
-                onClick={() => {
-                  setAccessPrompt(null);
-                  persistPosturasUserType("empresa");
-                  setSub("posturas");
-                  setVista("empresario");
-                  setCompanyFormMode("registro");
-                  setEmpWizardStep(1);
-                  setPosturasMode("form");
-                  setEmpForm(emptyEmp);
-                  setEditingEmpId(null);
-                  setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
-                }}
-              />
+              <AccessOptionCard type="worker" icon="assignment_ind" title="Perfil de trabajador" description="Crea tu perfil para publicar disponibilidad, documentación y expectativas económicas." onClick={() => openBaseProfile("trabajador")} />
+              <AccessOptionCard type="employer" icon="corporate_fare" title="Perfil de empresario" description="Crea el perfil de tu empresa para gestionar contactos, vacantes y currículums." onClick={() => openBaseProfile("empresa")} />
             </div>
           </div>
         ) : (
@@ -21838,20 +21861,164 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       ["Teléfono llamadas", row.telefono_llamadas], ["WhatsApp", row.telefono_whatsapp], ["Correo", row.correo], ["Domicilio", row.domicilio],
     ];
     return createPortal(<div className="cm-profile-modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setProfileDetailTarget(null)}}>
-      <div className="cm-profile-modal" role="dialog" aria-modal="true" aria-label={`Perfil de ${title}`}>
+      <div className={`cm-profile-modal ${company ? "cm-profile-company" : "cm-profile-worker"}`} role="dialog" aria-modal="true" aria-label={`Perfil de ${title}`}>
         <style>{`
-          .cm-profile-modal-overlay{position:fixed;inset:0;z-index:100500;background:rgba(1,15,31,.82);backdrop-filter:blur(12px);display:grid;place-items:center;padding:14px;overflow:hidden}
-          .cm-profile-modal{width:min(920px,100%);height:min(720px,calc(100vh - 28px));overflow:hidden;display:flex;flex-direction:column;border-radius:20px;background:#051424;border:1px solid rgba(255,255,255,.07);box-shadow:0 30px 90px rgba(0,0,0,.68);color:#d4e4fa;font-family:Inter,${getFont(theme,"secondary")}}
-          .cm-profile-modal-nav{flex:0 0 auto;z-index:3;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:rgba(5,20,36,.94);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.07)}
-          .cm-profile-modal-actions{display:flex;gap:7px;flex-wrap:wrap}.cm-profile-modal-actions button{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.09);background:rgba(18,33,49,.78);color:#d4e4fa;font-size:12px;font-weight:700;cursor:pointer;transition:.3s}.cm-profile-modal-actions button:hover{border-color:rgba(78,222,163,.35)}.cm-profile-modal-actions .primary{background:#10b981;color:#003824;border-color:#10b981}.cm-profile-modal-actions .danger{color:#ffb4ab;border-color:rgba(255,180,171,.28)}
-          .cm-profile-modal-main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;grid-template-columns:280px 1fr;gap:16px;padding:16px}.cm-profile-glass{background:rgba(13,28,45,.70);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:16px}.cm-profile-summary{text-align:center;position:relative;overflow:hidden}.cm-profile-summary:before{content:"";position:absolute;inset:0 0 auto;height:76px;background:linear-gradient(90deg,rgba(78,222,163,.20),rgba(164,201,255,.08))}.cm-profile-avatar{position:relative;width:96px;height:96px;margin:30px auto 10px;border-radius:16px;border:3px solid #0d1c2d;overflow:hidden;background:#122131;display:grid;place-items:center}.cm-profile-avatar img{width:100%;height:100%;object-fit:cover}.cm-profile-summary h2{position:relative;margin:0;font-size:22px;line-height:28px}.cm-profile-summary p{position:relative;margin:4px 0;color:#bbcabf;font-size:13px}.cm-profile-badge{position:relative;display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:5px 9px;border-radius:999px;background:rgba(78,222,163,.10);font-size:11px;font-weight:700}.cm-profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:15px;padding-top:13px;border-top:1px solid rgba(255,255,255,.06)}.cm-profile-stats strong{display:block;font-size:16px}.cm-profile-stats span{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#86948a}
-          .cm-doc-list{display:grid;gap:7px;margin-top:12px}.cm-doc-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-radius:10px;background:rgba(1,15,31,.54);font-size:12px}.cm-doc-row>span{display:flex;align-items:center;gap:7px}.cm-doc-state{font-size:10px;font-weight:700}
-          .cm-profile-info h3{margin:0 0 4px;font-size:20px}.cm-profile-info-sub{color:#86948a;margin-bottom:14px;font-size:12px}.cm-profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.cm-profile-field label{display:flex;align-items:center;gap:5px;margin-bottom:5px;color:#86948a;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}.cm-profile-field div{min-height:38px;padding:9px 10px;border-radius:9px;background:rgba(1,15,31,.60);border:1px solid rgba(255,255,255,.06);color:#d4e4fa;font-size:12px;line-height:18px}.cm-profile-field.wide{grid-column:1/-1}
-          @media(max-width:800px){.cm-profile-modal{height:min(760px,calc(100vh - 20px))}.cm-profile-modal-main{grid-template-columns:1fr;padding:12px}.cm-profile-modal-nav{align-items:flex-start;flex-direction:column}.cm-profile-fields{grid-template-columns:1fr}.cm-profile-field.wide{grid-column:auto}}`}</style>
+          .cm-profile-modal-overlay{
+            position:fixed;inset:0;z-index:100500;display:grid;place-items:center;
+            padding:14px;overflow:hidden;background:rgba(1,15,31,.84);
+            backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)
+          }
+          .cm-profile-modal{
+            --profile-primary:#10b981;--profile-primary-soft:rgba(16,185,129,.12);
+            --profile-secondary:#a4c9ff;--profile-surface:#111827;
+            --profile-surface-low:#0f172a;--profile-field:rgba(15,23,42,.72);
+            --profile-border:#334155;
+            width:min(980px,100%);height:min(730px,calc(100vh - 28px));
+            overflow:hidden;display:flex;flex-direction:column;border-radius:20px;
+            background:#0f172a;border:1px solid #334155;
+            box-shadow:0 32px 100px rgba(0,0,0,.72),inset 0 1px 0 rgba(255,255,255,.035);
+            color:#f1f5f9;font-family:Inter,${getFont(theme,"secondary")}
+          }
+          .cm-profile-company{
+            --profile-primary:#4edea3;--profile-primary-soft:rgba(78,222,163,.12);
+            --profile-secondary:#a4c9ff;--profile-surface:#0d1c2d;
+            --profile-surface-low:#051424;--profile-field:rgba(1,15,31,.68);
+            --profile-border:rgba(60,74,66,.72);
+            background:#051424;border-color:rgba(255,255,255,.07)
+          }
+          .cm-profile-modal-nav{
+            flex:0 0 auto;z-index:3;display:flex;justify-content:space-between;
+            align-items:center;gap:12px;padding:13px 17px;
+            background:rgba(15,23,42,.86);backdrop-filter:blur(14px);
+            -webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--profile-border)
+          }
+          .cm-profile-company .cm-profile-modal-nav{background:rgba(5,20,36,.88)}
+          .cm-profile-modal-actions{display:flex;gap:8px;flex-wrap:wrap}
+          .cm-profile-modal-actions button{
+            display:inline-flex;align-items:center;gap:7px;padding:8px 13px;
+            border-radius:999px;border:1px solid var(--profile-border);
+            background:rgba(30,41,59,.62);color:#f1f5f9;font-size:12px;
+            font-weight:700;cursor:pointer;transition:all .2s ease-out
+          }
+          .cm-profile-company .cm-profile-modal-actions button{
+            border-radius:12px;background:rgba(18,33,49,.76);color:#d4e4fa
+          }
+          .cm-profile-modal-actions button:hover{
+            transform:translateY(-1px);border-color:color-mix(in srgb,var(--profile-primary) 48%,transparent);
+            background:color-mix(in srgb,var(--profile-primary) 10%,rgba(30,41,59,.72));
+            box-shadow:0 8px 22px color-mix(in srgb,var(--profile-primary) 12%,transparent)
+          }
+          .cm-profile-modal-actions button:active{transform:scale(.96)}
+          .cm-profile-modal-actions .primary{
+            background:var(--profile-primary);color:#003824;border-color:var(--profile-primary);
+            box-shadow:0 8px 22px color-mix(in srgb,var(--profile-primary) 20%,transparent)
+          }
+          .cm-profile-worker .cm-profile-modal-actions .primary{color:#fff}
+          .cm-profile-modal-actions .primary:hover{filter:brightness(1.08)}
+          .cm-profile-modal-actions .danger{color:#ffb4ab;border-color:rgba(255,180,171,.30)}
+          .cm-profile-modal-main{
+            flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+            scrollbar-gutter:stable;display:grid;grid-template-columns:300px 1fr;
+            gap:20px;padding:20px;background:var(--profile-surface-low)
+          }
+          .cm-profile-modal-main::-webkit-scrollbar{width:8px}
+          .cm-profile-modal-main::-webkit-scrollbar-track{background:var(--profile-surface-low)}
+          .cm-profile-modal-main::-webkit-scrollbar-thumb{background:#334155;border-radius:10px}
+          .cm-profile-glass{
+            position:relative;overflow:hidden;background:color-mix(in srgb,var(--profile-surface) 88%,transparent);
+            backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+            border:1px solid var(--profile-border);border-radius:16px;padding:18px;
+            box-shadow:0 8px 28px rgba(0,0,0,.14);
+            transition:border-color .2s ease-out,background .2s ease-out,box-shadow .2s ease-out,transform .2s ease-out
+          }
+          .cm-profile-glass:after{
+            content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+            background:radial-gradient(520px circle at 15% 5%,color-mix(in srgb,var(--profile-primary) 13%,transparent),transparent 42%);
+            transition:opacity .2s ease-out
+          }
+          .cm-profile-glass:hover{
+            border-color:color-mix(in srgb,var(--profile-primary) 35%,var(--profile-border));
+            background:color-mix(in srgb,var(--profile-surface) 96%,transparent);
+            box-shadow:0 12px 32px rgba(0,0,0,.22),0 0 20px color-mix(in srgb,var(--profile-primary) 8%,transparent)
+          }
+          .cm-profile-glass:hover:after{opacity:1}
+          .cm-profile-summary{text-align:center}
+          .cm-profile-summary:before{
+            content:"";position:absolute;inset:0 0 auto;height:88px;
+            background:linear-gradient(90deg,var(--profile-primary-soft),color-mix(in srgb,var(--profile-secondary) 8%,transparent))
+          }
+          .cm-profile-avatar{
+            position:relative;z-index:1;width:112px;height:112px;margin:34px auto 12px;
+            border-radius:16px;border:4px solid var(--profile-surface);
+            overflow:hidden;background:#1e293b;display:grid;place-items:center;
+            box-shadow:0 12px 28px rgba(0,0,0,.34)
+          }
+          .cm-profile-company .cm-profile-avatar{border-radius:16px;padding:10px;background:#1c2b3c}
+          .cm-profile-avatar img{width:100%;height:100%;object-fit:cover}
+          .cm-profile-company .cm-profile-avatar img{object-fit:contain}
+          .cm-profile-summary h2{position:relative;z-index:1;margin:0;font-size:23px;line-height:30px;color:#d4e4fa}
+          .cm-profile-worker .cm-profile-summary h2{color:#f8fafc}
+          .cm-profile-summary p{position:relative;z-index:1;margin:5px 0;color:#94a3b8;font-size:13px}
+          .cm-profile-company .cm-profile-summary p{color:#bbcabf}
+          .cm-profile-badge{
+            position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;
+            margin-top:9px;padding:6px 10px;border-radius:999px;
+            background:var(--profile-primary-soft);border:1px solid color-mix(in srgb,var(--profile-primary) 20%,transparent);
+            font-size:11px;font-weight:700
+          }
+          .cm-profile-stats{
+            position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;
+            gap:8px;margin-top:17px;padding-top:15px;border-top:1px solid var(--profile-border)
+          }
+          .cm-profile-stats strong{display:block;font-size:17px;color:#f8fafc}
+          .cm-profile-company .cm-profile-stats strong{color:#d4e4fa}
+          .cm-profile-stats span{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#64748b}
+          .cm-profile-company .cm-profile-stats span{color:#86948a}
+          .cm-doc-list{display:grid;gap:8px;margin-top:14px}
+          .cm-doc-row{
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            padding:9px;border-radius:11px;background:var(--profile-field);
+            border:1px solid rgba(255,255,255,.025);font-size:12px
+          }
+          .cm-doc-row>span{display:flex;align-items:center;gap:7px}
+          .cm-doc-state{font-size:10px;font-weight:700}
+          .cm-profile-info h3{position:relative;z-index:1;margin:0 0 4px;font-size:22px;color:#f8fafc}
+          .cm-profile-company .cm-profile-info h3{color:#d4e4fa}
+          .cm-profile-info-sub{position:relative;z-index:1;color:#94a3b8;margin-bottom:18px;font-size:12px}
+          .cm-profile-company .cm-profile-info-sub{color:#86948a}
+          .cm-profile-fields{
+            position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px
+          }
+          .cm-profile-field label{
+            display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#94a3b8;
+            font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em
+          }
+          .cm-profile-company .cm-profile-field label{color:#86948a}
+          .cm-profile-field div{
+            min-height:40px;padding:10px 12px;border-radius:9px;background:var(--profile-field);
+            border:1px solid color-mix(in srgb,var(--profile-border) 65%,transparent);
+            color:#cbd5e1;font-size:12px;line-height:18px;
+            box-shadow:inset 0 1px 2px rgba(0,0,0,.16);
+            transition:border-color .2s ease-out,box-shadow .2s ease-out
+          }
+          .cm-profile-company .cm-profile-field div{color:#d4e4fa}
+          .cm-profile-field:hover div{
+            border-color:color-mix(in srgb,var(--profile-primary) 35%,var(--profile-border));
+            box-shadow:inset 0 1px 2px rgba(0,0,0,.18),0 0 0 1px color-mix(in srgb,var(--profile-primary) 6%,transparent)
+          }
+          .cm-profile-field.wide{grid-column:1/-1}
+          @media(max-width:800px){
+            .cm-profile-modal{height:min(760px,calc(100vh - 20px))}
+            .cm-profile-modal-main{grid-template-columns:1fr;padding:12px;gap:12px}
+            .cm-profile-modal-nav{align-items:flex-start;flex-direction:column}
+            .cm-profile-fields{grid-template-columns:1fr}
+            .cm-profile-field.wide{grid-column:auto}
+          }
+        `}</style>
         <div className="cm-profile-modal-nav">
-          <div style={{display:"flex",alignItems:"center",gap:"10px",fontWeight:800}}><MS name={company?"domain":"assignment_ind"} size={25} color={company?"#a4c9ff":"#4edea3"}/>{company?"Perfil de Empresa":"Perfil de Postulante"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",fontWeight:800}}><MS name={company?"domain":"local_shipping"} size={25} color={company?"#a4c9ff":"#10b981"}/>{company?"Perfil de Empresa":"Perfil de Postulante"}</div>
           <div className="cm-profile-modal-actions">
-            {!own && <button className="primary" onClick={()=>setMsg({type:"ok",text:company?`Solicitud de contacto enviada a ${title}.`:`Solicitud de contratación enviada a ${title}.`})}><MS name={company?"call":"handshake"} size={18}/>{company?"Contactar":"Contratar"}</button>}
+            {!own && <button className="primary" onClick={()=>setMsg({type:"ok",text:company?`Solicitud de contacto enviada a ${title}.`:`Solicitud de contratación enviada a ${title}.`})}><MS name={company?"send":"handshake"} size={18}/>{company?"Contactar":"Contratar"}</button>}
             {!own && !mock && <button className="danger" onClick={()=>{setProfileDetailTarget(null);openPosturasReport(type,row)}}><MS name="flag" size={18}/>Reportar</button>}
             <button onClick={()=>setProfileDetailTarget(null)}><MS name="close" size={18}/>Cerrar</button>
           </div>
@@ -21866,7 +22033,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </div>
             {own && <div className="cm-profile-glass"><h3 style={{margin:0,fontSize:"16px",display:"flex",gap:"8px",alignItems:"center"}}><MS name="verified_user" size={19} color="#4edea3"/>Estado de Documentación</h3><div className="cm-doc-list">{docs.map(([name,value])=>{const st=documentState(value,validation.state);return <div className="cm-doc-row" key={name}><span><MS name={st.icon} size={17} color={st.color}/>{name}</span><b className="cm-doc-state" style={{color:st.color}}>{st.label}</b></div>})}</div></div>}
           </aside>
-          <section className="cm-profile-glass cm-profile-info"><h3>{company?"Información Empresarial":"Información Personal"}</h3><div className="cm-profile-info-sub">Detalles del perfil en modo de solo lectura.</div><div className="cm-profile-fields">{fields.map(([name,value],idx)=><div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={idx===0?(company?"domain":"person"):"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>)}</div></section>
+          <section className="cm-profile-glass cm-profile-info"><h3>{company?"Información Empresarial":"Información Personal"}</h3><div className="cm-profile-info-sub">Detalles del perfil en modo de solo lectura.</div><div className="cm-profile-fields">{fields.map(([name,value])=>{const fieldIcons={
+              "Razón social":"domain","RFC":"badge","Tipo de empresa":"apartment","Domicilio":"location_on",
+              "Representante":"person","Teléfono":"call","Correo":"mail","Alcance":"distance","Estatus":"info",
+              "Nombre completo":"person","Edad":"event","Tipo de licencia":"badge","Tipo de maniobra":"settings_input_component",
+              "Disponibilidad":"location_on","Teléfono llamadas":"call","WhatsApp":"chat_bubble"
+            };return <div key={name} className={`cm-profile-field ${(name==="Domicilio"||name==="Razón social")?"wide":""}`}><label><MS name={fieldIcons[name]||"info"} size={15}/>{name}</label><div>{String(value??"").trim()||"No indicado"}</div></div>})}</div></section>
         </div>
       </div>
     </div>,document.body);
@@ -22298,7 +22470,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   );
 
-  const AccessSelectorModal = () => accessPrompt ? (
+  const AccessSelectorModal = () => (accessPrompt && (authUser || isAdmin)) ? (
     <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:0, top:0, right:0, bottom:0, zIndex:5000, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
       <style>{accessDesignCSS}</style>
       <div onClick={e=>e.stopPropagation()} className="cm-nexus-canvas cm-nexus-content" style={{ minHeight:"100vh", maxWidth:"1280px", margin:"0 auto", padding:posturasMobile ? "24px 16px 92px" : "96px 40px 80px 304px", position:"relative", overflow:"hidden" }}>
@@ -22389,10 +22561,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
     if (sub === "posturas" && posturasMode === "list" && talentView === "pruebas" && isAdminMockView) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MockProfilesSection compact title="Perfiles de Prueba" /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
-    if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
+    if (posturasMode === "form") {
+      if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><AccessGate /></div>;
+      return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
+    }
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
       <div style={{ display:"grid", gap:"10px", marginBottom:"16px" }}><div style={{ position:"relative" }}><span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={18} /></span><input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar puestos, talentos..." style={{ ...input, paddingLeft:"40px", background:"rgba(28,43,60,.86)", borderRadius:"14px", minHeight:"46px" }} /></div><button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.64)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}><MS name="filter_list" size={17} active /> Filtros avanzados</button></div>
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
@@ -22418,7 +22593,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
             <button
               type="button"
-              onClick={()=>{ if (!authUser && !isAdmin) { setSub("posturas"); setPosturasMode("form"); openAccessSelector("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
+              onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
               className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
               <span style={{ display:"inline-flex", alignItems:"center", gap:"10px", minWidth:0 }}>
@@ -22463,11 +22638,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "tablero" && <DashboardHub />}
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
         {sub === "posturas" && posturasMode === "form" && (
-          <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
-            {AccessSelectorModal()}
-            <ProfileHeader />
-            {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}
-          </div>
+          (!authUser && !isAdmin) ? <AccessGate /> : (
+            <div style={{ maxWidth:"1240px", margin:"0 auto" }}>
+              {AccessSelectorModal()}
+              <ProfileHeader />
+              {isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}
+            </div>
+          )
         )}
 
         {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && (
@@ -27584,7 +27761,16 @@ function App() {
       rememberAuthUser(data?.session?.user ?? null);
     });
     const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
-      rememberAuthUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+      rememberAuthUser(nextUser);
+      if (nextUser) {
+        let pendingProfileAccess = false;
+        try { pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1"; } catch {}
+        if (pendingProfileAccess) {
+          setAuthQuickMode(null);
+          setActive("donativos");
+        }
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -27959,7 +28145,13 @@ function App() {
           onLogoTap={handleLogoTap}
         />
 
-        {authQuickMode && <AuthQuickModal initialMode={authQuickMode} onClose={() => setAuthQuickMode(null)} />}
+        {authQuickMode && <AuthQuickModal initialMode={authQuickMode} onClose={() => {
+          setAuthQuickMode(null);
+          if (!authUser) {
+            try { localStorage.removeItem("cm_posturas_pending_profile_access"); } catch {}
+            setActive("inicio");
+          }
+        }} />}
 
         {active !== "inicio" && <AnunciosBanner isAdmin={isAdmin} />}
         {active !== "inicio" && <HorizontalAdSenseSection sectionKey={active} />}
