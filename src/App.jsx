@@ -19907,6 +19907,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const PAGE_SIZE = 8;
 
+  // Datos de muestra exclusivos del modo administrador.
+  const isAdminMockView = isAdmin === true;
+  const mockProfiles = [
+    { id:"mock-post-1", nombre:"Alejandro Ramírez", calificacion:5, tipo:"Postulante", estado:"Verificado" },
+    { id:"mock-post-2", nombre:"María Fernanda Ruiz", calificacion:4.9, tipo:"Postulante", estado:"Verificado" },
+    { id:"mock-post-3", nombre:"Óscar López", calificacion:4.8, tipo:"Postulante", estado:"Pendiente" },
+    { id:"mock-emp-1", nombre:"Logística del Pacífico", calificacion:5, tipo:"Empresa", estado:"Verificada" },
+    { id:"mock-emp-2", nombre:"Terminal Manzanillo", calificacion:4.9, tipo:"Empresa", estado:"Verificada" },
+    { id:"mock-emp-3", nombre:"Transportes Colima", calificacion:4.7, tipo:"Empresa", estado:"Pendiente" },
+  ];
+
   useEffect(() => {
     const openRequestedSubtab = (event) => {
       const requested = event?.detail?.sub;
@@ -21507,6 +21518,77 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   );
 
+  const MockProfilesSection = ({ compact=false, title="Perfiles de Muestra" }) => {
+    if (!isAdminMockView) return null;
+    const sortedMocks = [...mockProfiles].sort((a,b) => b.calificacion - a.calificacion);
+    const showMockDetail = (profile) => {
+      setMsg({ type:"ok", text:`Perfil de muestra: ${profile.nombre} · ${profile.tipo} · ${profile.calificacion.toFixed(1)} estrellas · ${profile.estado}` });
+    };
+    return (
+      <section className={`cm-mock-profiles ${compact ? "compact" : ""}`} aria-label={title}>
+        <style>{`
+          .cm-mock-profiles{margin-top:48px;padding:24px;border-radius:20px;background:rgba(18,33,49,.54);border:1px solid rgba(255,255,255,.06);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+          .cm-mock-profiles.compact{margin-top:0}
+          .cm-mock-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:24px}
+          .cm-mock-head h2{margin:0;color:#d4e4fa;font:600 24px/32px Inter,${getFont(theme,"secondary")}}
+          .cm-mock-head p{margin:5px 0 0;color:#bbcabf;font:400 14px/20px Inter,${getFont(theme,"secondary")}}
+          .cm-mock-admin-chip{padding:5px 10px;border-radius:999px;background:rgba(78,222,163,.14);border:1px solid rgba(78,222,163,.28);color:#4edea3;font:700 10px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+          .cm-mock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+          .cm-mock-card{position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:220px;padding:22px;border-radius:18px;background:linear-gradient(145deg,rgba(28,43,60,.78),rgba(13,28,45,.62));border:1px solid rgba(255,255,255,.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease}
+          .cm-mock-card:hover{transform:translateY(-6px);border-color:rgba(78,222,163,.30);box-shadow:0 20px 40px rgba(0,0,0,.30),0 0 24px rgba(78,222,163,.09)}
+          .cm-mock-card.company:hover{border-color:rgba(164,201,255,.32);box-shadow:0 20px 40px rgba(0,0,0,.30),0 0 24px rgba(164,201,255,.09)}
+          .cm-mock-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+          .cm-mock-type{display:inline-flex;align-items:center;gap:7px;color:#4edea3;font:700 11px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;text-transform:uppercase}
+          .cm-mock-card.company .cm-mock-type{color:#a4c9ff}
+          .cm-mock-status{padding:4px 9px;border-radius:999px;background:rgba(78,222,163,.12);color:#4edea3;font:700 10px/14px Inter,${getFont(theme,"secondary")}}
+          .cm-mock-status.pending{background:rgba(164,201,255,.12);color:#a4c9ff}
+          .cm-mock-name{margin:24px 0 8px;color:#d4e4fa;font:600 20px/27px Inter,${getFont(theme,"secondary")}}
+          .cm-mock-stars{display:flex;align-items:center;gap:2px;color:#4edea3}
+          .cm-mock-stars .material-symbols-outlined{font-size:19px;font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 20}
+          .cm-mock-score{margin-left:7px;color:#d4e4fa;font:600 14px/20px Inter,${getFont(theme,"secondary")}}
+          .cm-mock-detail{margin-top:auto;padding-top:22px}
+          .cm-mock-detail button{width:100%;padding:11px 16px;border-radius:12px;border:1px solid rgba(78,222,163,.28);background:rgba(78,222,163,.10);color:#4edea3;font:700 12px/18px Inter,${getFont(theme,"secondary")};letter-spacing:.08em;cursor:pointer;transition:background .3s ease,border-color .3s ease,transform .3s ease}
+          .cm-mock-card.company .cm-mock-detail button{border-color:rgba(164,201,255,.28);background:rgba(164,201,255,.10);color:#a4c9ff}
+          .cm-mock-detail button:hover{background:rgba(78,222,163,.18);transform:translateY(-1px)}
+          .cm-mock-card.company .cm-mock-detail button:hover{background:rgba(164,201,255,.18)}
+          @media(max-width:900px){.cm-mock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+          @media(max-width:640px){.cm-mock-profiles{padding:18px}.cm-mock-head{align-items:flex-start;flex-direction:column}.cm-mock-grid{grid-template-columns:1fr}}
+        `}</style>
+        <div className="cm-mock-head">
+          <div><h2>{title}</h2><p>Top de postulantes y empresas destacados con datos simulados.</p></div>
+          <span className="cm-mock-admin-chip">Solo Admin</span>
+        </div>
+        <div className="cm-mock-grid">
+          {sortedMocks.map(profile => {
+            const filledStars = Math.max(0, Math.min(5, Math.round(profile.calificacion)));
+            const pending = profile.estado.toLowerCase().includes("pendiente");
+            return (
+              <article key={profile.id} className={`cm-mock-card ${profile.tipo === "Empresa" ? "company" : ""}`}>
+                <div className="cm-mock-card-top">
+                  <span className="cm-mock-type">
+                    <span className="material-symbols-outlined" aria-hidden="true">{profile.tipo === "Empresa" ? "domain" : "person"}</span>
+                    {profile.tipo}
+                  </span>
+                  <span className={`cm-mock-status ${pending ? "pending" : ""}`}>{profile.estado}</span>
+                </div>
+                <h3 className="cm-mock-name">{profile.nombre}</h3>
+                <div className="cm-mock-stars" aria-label={`${profile.calificacion.toFixed(1)} de 5 estrellas`}>
+                  {[1,2,3,4,5].map(star => (
+                    <span key={star} className="material-symbols-outlined" style={{ opacity:star <= filledStars ? 1 : .22 }} aria-hidden="true">star</span>
+                  ))}
+                  <span className="cm-mock-score">{profile.calificacion.toFixed(1)}</span>
+                </div>
+                <div className="cm-mock-detail">
+                  <button type="button" onClick={()=>showMockDetail(profile)}>VER DETALLE</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   const DashboardHub = () => {
     const rankRows = (rows, type) => [...rows]
       .filter(row => avgFor(type, row.id).count > 0)
@@ -21614,6 +21696,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div className="cm-talent-ranking-foot"><span>Mostrando {dashboardRows.length ? ((safeDashboardPage - 1) * dashboardPageSize + 1) : 0}-{Math.min(safeDashboardPage * dashboardPageSize,dashboardRows.length)} de {dashboardRows.length.toLocaleString("es-MX")} {dashboardTarget === "perfiles" ? "perfiles" : "empresas"}</span><div className="cm-talent-pages"><button className="cm-talent-page" disabled={safeDashboardPage <= 1} onClick={()=>setDashboardPage(p=>Math.max(1,p-1))}><MS name="chevron_left" size={18} /></button>{visiblePageButtons.map(page=><button key={page} className={`cm-talent-page ${page === safeDashboardPage ? "active" : ""}`} onClick={()=>setDashboardPage(page)}>{page}</button>)}<button className="cm-talent-page" disabled={safeDashboardPage >= totalDashboardPages} onClick={()=>setDashboardPage(p=>Math.min(totalDashboardPages,p+1))}><MS name="chevron_right" size={18} /></button></div></div>
       </section>
       <section className="cm-talent-showcase"><div className="cm-talent-feature" style={{"--feature-accent":"#4edea3"}}><div className="cm-talent-feature-icon"><MS name="insights" size={31} active color="#4edea3" /></div><div><h4>Talento Calificado</h4><p>El 85% de los perfiles activos cuentan con al menos 3 certificaciones validadas.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#a4c9ff"}}><div className="cm-talent-feature-icon"><MS name="verified" size={31} active color="#a4c9ff" /></div><div><h4>Confianza Empresarial</h4><p>Empresas con alta reputación reportan un 40% más de retención de talento.</p></div></div><div className="cm-talent-feature" style={{"--feature-accent":"#bec6e0"}}><div className="cm-talent-feature-icon"><MS name="speed" size={31} active color="#bec6e0" /></div><div><h4>Eficiencia de Reclutamiento</h4><p>El tiempo promedio de contratación ha bajado de 22 a 14 días gracias al sistema.</p></div></div></section>
+      {isAdminMockView && <MockProfilesSection title="Top de Perfiles de Muestra" />}
     </section>;
   };
 
@@ -21904,6 +21987,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
     if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></div>;
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
+    if (sub === "posturas" && posturasMode === "list" && talentView === "pruebas" && isAdminMockView) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MockProfilesSection compact title="Perfiles de Prueba" /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{AccessSelectorModal()}<VacancyModal /><PosturasReportModal /><ProfileHeader />{isAdmin ? (<><AdminSalaryControlPanel />{adminPosturasProfileView !== "empresa" && <WorkerForm />}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}><CompanyForm /></div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? <CompanyForm /> : <WorkerForm />)}</div>;
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
@@ -21992,7 +22076,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 <h2 style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(28px,4vw,38px)", lineHeight:1.05, color:"#d4e4fa", fontWeight:"900", margin:"0 0 8px" }}>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
                 <p style={{ color:"rgba(212,228,250,.76)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", margin:0 }}>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados."}</p>
               </div>
-              {posturasMode !== "archive" && <div style={{ display:"flex", gap:"4px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>{[segmentButton("posturas","Posturas"), segmentButton("todos","Todos"), segmentButton("perfiles","Perfiles"), segmentButton("busquedas","Búsquedas")]}</div>}
+              {posturasMode !== "archive" && <div style={{ display:"flex", gap:"4px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>{[segmentButton("posturas","Posturas"), segmentButton("todos","Todos"), segmentButton("perfiles","Perfiles"), segmentButton("busquedas","Búsquedas"), ...(isAdminMockView ? [segmentButton("pruebas","Perfiles de Prueba")] : [])]}</div>}
             </div>
 
             {posturasMode !== "archive" && <CommandSearch />}
@@ -22004,12 +22088,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </div> : <div style={{ padding:"34px", border:"1px dashed rgba(63,71,83,.62)", borderRadius:"16px", color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>Aún no tienes perfiles guardados. Usa el botón Guardar en cualquier perfil publicado.</div>)}
 
             {posturasMode !== "archive" && <>
-              {(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && <>
+              {talentView === "pruebas" && isAdminMockView && <MockProfilesSection compact title="Perfiles de Prueba" />}
+              {(talentView !== "pruebas" && (talentView === "todos" || talentView === "posturas" || talentView === "perfiles")) && <>
                 <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Perfiles ({trabFiltrados.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{trabajadoresPage.map(row => <TrabCard key={row.id} row={row}/>)}</div>
                 <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} />
               </>}
-              {(talentView === "todos" || talentView === "busquedas") && <>
+              {(talentView !== "pruebas" && (talentView === "todos" || talentView === "busquedas")) && <>
                 <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"18px 0 12px", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Búsquedas / empresas ({empFiltradas.length})</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{empresasPage.map(row => <EmpresaCard key={row.id} row={row}/>)}</div>
                 <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} />
