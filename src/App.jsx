@@ -22583,13 +22583,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at top right, rgba(0,150,255,.13), transparent 45%)", pointerEvents:"none" }} />
         <div style={{ position:"relative", display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap" }}>
           <div><div style={{ color:"#a1c9ff", fontSize:"10px", fontWeight:"900", letterSpacing:".15em", textTransform:"uppercase" }}>Perfil de empresa</div><h1 style={{ margin:"7px 0 0", color:"#d4e4fa", fontSize:"clamp(28px,5vw,40px)", lineHeight:1.05 }}>Mis vacantes</h1><p style={{ margin:"9px 0 0", color:"rgba(212,228,250,.64)", fontSize:"13px", lineHeight:1.6 }}>Resumen de vacantes publicadas y acceso directo a sus postulantes.</p></div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", background:"rgba(161,201,255,.09)", border:"1px solid rgba(161,201,255,.24)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900" }}><MS name="work" size={17} active /> {myVacancies.length} vacantes</div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", background:"rgba(161,201,255,.09)", border:"1px solid rgba(161,201,255,.24)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900" }}><MS name="work_history" size={17} active /> {myVacancies.length} vacantes</div>
         </div>
       </div>
       {myVacancies.length === 0 ? <div style={{ ...posturasGlass, borderRadius:"18px", padding:"42px 20px", textAlign:"center" }}><MS name="work_off" size={42} active /><div style={{ color:"#d4e4fa", fontWeight:"900", marginTop:"12px" }}>No hay vacantes publicadas.</div></div> :
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(auto-fit,minmax(300px,1fr))", gap:"16px" }}>
         {myVacancies.map(row => { const applicants = vacancyApplicantsFor(row); const pendingDelete = Boolean(row.delete_requested_at); return <article key={row.id} style={{ ...posturasGlass, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", minWidth:0 }}>
-          <div style={{ height:"170px", background:"linear-gradient(135deg,rgba(0,150,255,.16),rgba(18,33,49,.8))", display:"grid", placeItems:"center", overflow:"hidden" }}>{isRenderableImageSrc(row.imagen_vacante) ? <img src={row.imagen_vacante} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="work" size={54} active />}</div>
+          <div style={{ height:"170px", background:"linear-gradient(135deg,rgba(0,150,255,.16),rgba(18,33,49,.8))", display:"grid", placeItems:"center", overflow:"hidden" }}>{isRenderableImageSrc(row.imagen_vacante) ? <img src={row.imagen_vacante} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="business_center" size={54} active />}</div>
           <div style={{ padding:"17px", display:"flex", flexDirection:"column", flex:1 }}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}><div style={{ minWidth:0 }}><div style={{ color:"#d4e4fa", fontSize:"18px", fontWeight:"900", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.razon_social || "Vacante empresarial"}</div><div style={{ color:"rgba(212,228,250,.56)", fontSize:"11px", marginTop:"4px" }}>{row.maniobra_requerida || row.tipo_empresa || "Operación portuaria"}</div></div><span style={{ padding:"6px 8px", borderRadius:"999px", border:`1px solid ${pendingDelete ? "rgba(245,158,11,.35)" : "rgba(34,197,94,.35)"}`, background:pendingDelete ? "rgba(245,158,11,.10)" : "rgba(34,197,94,.10)", color:pendingDelete ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:"900", whiteSpace:"nowrap" }}>{pendingDelete ? "Eliminación pendiente" : row.estatus === "tiene_trabajo" ? "Activa" : "Sin cupo"}</span></div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginTop:"14px" }}><ProfileMetric label="Alcance" value={row.alcance} /><ProfileMetric label="Postulantes" value={String(applicants.length)} /></div>
@@ -22745,18 +22745,86 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return <svg {...common}><path d="M4 17l5-5 3 3 7-8"/><path d="M14 7h5v5"/></svg>;
   };
 
-  const AccessStats = () => (
-    <div className="cm-nexus-stat-grid" style={{ marginTop:"52px", display:"grid", gridTemplateColumns:"repeat(3, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
-      {[
-        ["users", "Usuarios activos", "1,284", "#00ff9d"],
-        ["jobs", "Vacantes publicadas", "452", "#4dabff"],
-        ["trend", "Tasa de contratación", "68%", "#bec6e0"],
-      ].map(([icon,label,value,color]) => <div key={label} className="cm-nexus-stat" style={{ minHeight:"104px", boxSizing:"border-box", background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"18px 24px", display:"flex", alignItems:"center", gap:"16px" }}>
-        <div style={{ width:"52px", height:"52px", flex:"0 0 52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center" }}><AccessStatIcon type={icon} color={color} /></div>
-        <div style={{ minWidth:0 }}><div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:"14px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</div><div style={{ marginTop:"2px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"24px", lineHeight:"30px", fontWeight:"900" }}>{value}</div></div>
-      </div>)}
-    </div>
-  );
+  const AccessStats = () => {
+    const [metricas, setMetricas] = useState(null);
+    const [metricasLoading, setMetricasLoading] = useState(true);
+    const [metricasError, setMetricasError] = useState("");
+
+    useEffect(() => {
+      let mounted = true;
+
+      const cargarMetricas = async () => {
+        setMetricasLoading(true);
+        setMetricasError("");
+
+        try {
+          const { data, error } = await sb.rpc("metricas_perfil_publico");
+          if (error) throw error;
+          if (!mounted) return;
+
+          const row = Array.isArray(data) ? data[0] : data;
+          setMetricas(row || null);
+        } catch (error) {
+          if (!mounted) return;
+          console.error("Error cargando métricas públicas de perfil:", error);
+          setMetricas(null);
+          setMetricasError("No disponible");
+        } finally {
+          if (mounted) setMetricasLoading(false);
+        }
+      };
+
+      cargarMetricas();
+      return () => { mounted = false; };
+    }, []);
+
+    const formatCount = (value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed.toLocaleString("es-MX") : "No disponible";
+    };
+
+    const stats = [
+      {
+        icon:"users",
+        label:"Usuarios activos",
+        color:"#00ff9d",
+        value:metricasError || formatCount(metricas?.usuarios_activos)
+      },
+      {
+        icon:"jobs",
+        label:"Vacantes publicadas",
+        color:"#4dabff",
+        value:metricasError || formatCount(metricas?.vacantes_publicadas)
+      },
+      {
+        icon:"trend",
+        label:"Tasa de contratación",
+        color:"#bec6e0",
+        value:metricasError || (metricas?.tasa_contratacion_disponible
+          ? `${Number(metricas?.tasa_contratacion || 0).toLocaleString("es-MX", { maximumFractionDigits:1 })}%`
+          : "Próximamente")
+      }
+    ];
+
+    return (
+      <div className="cm-nexus-stat-grid" style={{ marginTop:"52px", display:"grid", gridTemplateColumns:"repeat(3, minmax(0, 1fr))", gap:"24px", position:"relative", zIndex:1 }}>
+        {stats.map(({ icon, label, value, color }) => (
+          <div key={label} className="cm-nexus-stat" style={{ minHeight:"104px", boxSizing:"border-box", background:"rgba(13,28,45,.40)", border:"1px solid rgba(255,255,255,.05)", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", borderRadius:"18px", padding:"18px 24px", display:"flex", alignItems:"center", gap:"16px" }}>
+            <div style={{ width:"52px", height:"52px", flex:"0 0 52px", borderRadius:"14px", background:"#273647", display:"grid", placeItems:"center" }}><AccessStatIcon type={icon} color={color} /></div>
+            <div style={{ minWidth:0, flex:1 }}>
+              <div style={{ color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:"14px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{label}</div>
+              {metricasLoading ? (
+                <div aria-label={`Cargando ${label}`} style={{ marginTop:"8px", width:label === "Tasa de contratación" ? "118px" : "76px", height:"24px", borderRadius:"8px", background:"linear-gradient(90deg, rgba(255,255,255,.06) 25%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.06) 75%)", backgroundSize:"200% 100%", animation:"cmMetricSkeleton 1.25s ease-in-out infinite" }} />
+              ) : (
+                <div style={{ marginTop:"2px", color:metricasError ? "#fca5a5" : "#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:value === "Próximamente" ? "17px" : "24px", lineHeight:"30px", fontWeight:"900" }}>{value}</div>
+              )}
+            </div>
+          </div>
+        ))}
+        <style>{`@keyframes cmMetricSkeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+      </div>
+    );
+  };
 
   const AccessSelectorModal = () => (accessPrompt && (authUser || isAdmin)) ? (
     <div className="cm-nexus-access-layer" onClick={() => setAccessPrompt(null)} style={{ position:"fixed", left:0, top:0, right:0, bottom:0, zIndex:5000, background:"#020810", color:"#ffffff", overflowY:"auto", fontFamily:getFont(theme,"secondary"), boxShadow:"inset 1px 0 0 rgba(255,255,255,.04)" }}>
@@ -22875,11 +22943,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
       `}</style>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
-      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:1200, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px" }}>
-        <div style={{ padding:"0 24px", marginBottom:"22px" }}>
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:1200, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px", overflow:"visible" }}>
+        <div style={{ padding:"0 24px", marginBottom:"22px", position:"relative", zIndex:5000 }}>
+          <div style={{ position:"relative" }}>
             <button
               type="button"
+              aria-haspopup="menu"
+              aria-expanded={profileMenuOpen}
               onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
               className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
@@ -22887,15 +22957,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 <ProfileButtonIcon size={32} />
                 <span style={{ color:"#d4e4fa", whiteSpace:"nowrap" }}>MI PERFIL</span>
               </span>
-              <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={16} active />
+              <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={18} active />
             </button>
             {profileMenuOpen && (
-              <div style={{ marginLeft:"6px", display:"grid", gap:"8px", paddingLeft:"12px", borderLeft:"1px solid rgba(161,201,255,.22)" }}>
-                {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={15} active /> Perfil de trabajador</button>}
-                {isAdmin && <button onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(16,185,129,.20)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="apartment" size={15} active /> Perfil de empresario</button>}
-                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-dynamic-btn hover:bg-primary/90 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.20)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="business_center" size={15} active /> Mis vacantes</button>}
-
-                {(authUser || isAdmin) && <button onClick={()=>{ setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"10px 11px", borderRadius:"12px", border:"1px solid rgba(0,150,255,.28)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="edit" size={15} active /> Editar perfil</button>}
+              <div role="menu" aria-label="Opciones de Mi Perfil" className="transition-all duration-300" style={{ position:"absolute", left:"0", top:"calc(100% + 10px)", zIndex:5100, width:"min(248px, calc(100vw - 48px))", display:"grid", gap:"8px", padding:"12px", borderRadius:"16px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(18,33,49,.96)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", boxShadow:"0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05)" }}>
+                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de trabajador</span></button>}
+                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de empresario</span></button>}
+                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-dynamic-btn hover:bg-primary/90 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="business_center" size={18} active /><span>Mis vacantes</span></button>}
+                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="chevron_right" size={18} active /><span>Editar perfil</span></button>}
               </div>
             )}
           </div>
