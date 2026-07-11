@@ -19910,12 +19910,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   // Datos de muestra exclusivos del modo administrador.
   const isAdminMockView = isAdmin === true || isAdmin === 1 || isAdmin === "1";
   const mockProfiles = [
-    { id:"mock-post-1", nombre:"Alejandro Ramírez", calificacion:5, tipo:"Postulante", estado:"Verificado" },
-    { id:"mock-post-2", nombre:"María Fernanda Ruiz", calificacion:4.9, tipo:"Postulante", estado:"Verificado" },
-    { id:"mock-post-3", nombre:"Óscar López", calificacion:4.8, tipo:"Postulante", estado:"Pendiente" },
-    { id:"mock-emp-1", nombre:"Logística del Pacífico", calificacion:5, tipo:"Empresa", estado:"Verificada" },
-    { id:"mock-emp-2", nombre:"Terminal Manzanillo", calificacion:4.9, tipo:"Empresa", estado:"Verificada" },
-    { id:"mock-emp-3", nombre:"Transportes Colima", calificacion:4.7, tipo:"Empresa", estado:"Pendiente" },
+    { id:"mock-post-1", nombre:"Roberto M. García", calificacion:4.8, tipo:"Postulante", estado:"Verificado", especialidad:"Grúa Pórtico", certificaciones:"R-Control, OP-01", experiencia:"8 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuBSrTb0yvqRCx32A7RD0tTU6njyt5DUTHPwUoBAZ37nZT9m4nsK6hA3SAlSqafGagd8a5H48_uRAxrQf-53w5Vfa1wE_kkFma7RqE0u2g52ratR7TExCsDCUi_TaF9DTWSfydzNn0Mh_E2ZaJG855Fs_yKbMWWLDLua_P9LpIuj2e3OZhDa_1oID2J-Y-565wuFJ4ZkC56w6oDZSVKOX8LfglnB9UKpTfKAz_nTKE7JNSYTjwEYQ-rFjA" },
+    { id:"mock-post-2", nombre:"Elena S. Ruiz", calificacion:5, tipo:"Postulante", estado:"Verificado", especialidad:"Reach Stacker", certificaciones:"R-Control, OP-04", experiencia:"12 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuBtb6uUDKPCPMQJFG0lIVYVqMRCkuPF5Ou9CMwPJYn2S3XbmoQ-XHo2EYFzMh7CpuyB0X_Y9A9ilTdRYNw2odQysCuAZpznsIH9vWO_FCvEuhe4cy2OyiKRDcVzFSDYCeuIYDzCR9Eb57w52j4To5ENFMlJ87umuJvGrxl2rcgOiPADDlB9F2baA2es2usB5KTkKY9lpZhN4MjYC4VKBrHqPgZe-tDgEEKxYl-S7fxB-IuEfN8eJawH7g" },
+    { id:"mock-post-3", nombre:"Mateo V. Ortiz", calificacion:4.2, tipo:"Postulante", estado:"Pendiente", especialidad:"Montacargas", certificaciones:"R-Control", experiencia:"4 años", foto:"https://lh3.googleusercontent.com/aida-public/AB6AXuDz1kRbxNPGjS94-q3cd3WWb_WPqZFMqM7g-OHBr_sg_68-HCmOm3CvQ33kR_SXpnIDXPW7ZM6YSCkGPEyrYApt6Occ68rUGyBDLhUy2parK5dBmzcF5j5Y3Lg0kw4CivyPLuQUfjRCL5DaHbjsXV2t9JSq4pHAo8L0EYZZmuhl3G90CnY5RK21nbeEPLpVBEgiWDPDxvSmlS2aQsLpOKJMWSBYLSzSZ1UfMlzPvl3BOWzvW8uRitAEoA" },
+    { id:"mock-emp-1", nombre:"Logística del Pacífico", calificacion:5, tipo:"Empresa", estado:"Verificada", especialidad:"Operación portuaria", certificaciones:"Empresa validada", experiencia:"Vacantes activas" },
+    { id:"mock-emp-2", nombre:"Terminal Manzanillo", calificacion:4.9, tipo:"Empresa", estado:"Verificada", especialidad:"Terminal especializada", certificaciones:"Empresa validada", experiencia:"Reclutamiento activo" },
+    { id:"mock-emp-3", nombre:"Transportes Colima", calificacion:4.7, tipo:"Empresa", estado:"Pendiente", especialidad:"Transporte de carga", certificaciones:"Validación pendiente", experiencia:"Búsqueda activa" },
   ];
 
   useEffect(() => {
@@ -21293,8 +21293,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             Donar / apoyar proyecto
           </button>
 
-          {pisDonateOpen && (
-            <div style={{ position:posturasMobile ? "fixed" : "absolute", right:posturasMobile ? "16px" : "0px", left:posturasMobile ? "16px" : "auto", top:posturasMobile ? "50%" : "calc(100% - 18px)", bottom:posturasMobile ? "auto" : "auto", transform:posturasMobile ? "translateY(-50%)" : "none", zIndex:40, background:"rgba(13,31,60,.98)", border:"1px solid rgba(168,85,247,.32)", borderRadius:"18px", padding:"18px", minWidth:posturasMobile ? "auto" : "296px", maxWidth:posturasMobile ? "calc(100vw - 32px)" : "320px", boxShadow:"0 18px 42px rgba(0,0,0,.52)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)" }}>
+          {pisDonateOpen && createPortal(
+            <div onMouseDown={(e)=>{ if(e.target===e.currentTarget) setPisDonateOpen(false); }} style={{ position:"fixed", inset:0, zIndex:1000, display:"grid", placeItems:"center", padding:"16px", background:"rgba(1,15,31,.68)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)" }}>
+            <div style={{ position:"relative", width:"min(400px, calc(100vw - 32px))", maxWidth:"400px", background:"rgba(13,31,60,.98)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"18px", padding:"18px", boxShadow:"0 24px 70px rgba(0,0,0,.62)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px", paddingBottom:"12px", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
                 <div style={{ width:"38px", height:"38px", borderRadius:"999px", display:"grid", placeItems:"center", background:"linear-gradient(135deg, rgba(168,85,247,.24), rgba(124,58,237,.30))", border:"1px solid rgba(168,85,247,.30)" }}>
                   <AppIcon name="donate" size={18} active />
@@ -21326,6 +21327,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 Tu apoyo ayuda a mantener disponible este módulo y sus mejoras visuales.
               </div>
             </div>
+            </div>,
+            document.body
           )}
         </aside>
       </div>
@@ -21518,76 +21521,129 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   );
 
-  const MockProfilesSection = ({ compact=false, title="Perfiles de Muestra" }) => {
-    if (!isAdminMockView) return null;
-    const sortedMocks = [...mockProfiles].sort((a,b) => b.calificacion - a.calificacion);
-    const showMockDetail = (profile) => {
-      setMsg({ type:"ok", text:`Perfil de muestra: ${profile.nombre} · ${profile.tipo} · ${profile.calificacion.toFixed(1)} estrellas · ${profile.estado}` });
+  const TalentProfileCard = ({ row, mock=false, type="trabajador" }) => {
+    const isCompany = type === "empresa" || row?.tipo === "Empresa";
+    const rating = mock ? Number(row.calificacion || row.mock_rating || 0) : avgFor(isCompany ? "empresa" : "trabajador", row.id).avg;
+    const title = mock ? row.nombre : (isCompany ? row.razon_social : row.nombre_completo);
+    const specialty = mock ? row.especialidad : (isCompany ? (row.tipo_empresa || "Empresa") : (row.maniobra || row.licencia || "Operador"));
+    const certifications = mock ? row.certificaciones : (isCompany ? (row.rfc ? `RFC ${row.rfc}` : "Empresa registrada") : (row.certificaciones || row.licencia || "No indicadas"));
+    const experience = mock ? row.experiencia : (isCompany ? (row.estatus === "tiene_trabajo" ? "Vacantes activas" : "Sin vacantes activas") : (row.experiencia ? `${row.experiencia} años` : row.edad ? `${row.edad} años` : "No indicada"));
+    const image = mock ? row.foto : (isCompany ? row.logo_empresa : row.foto_perfil);
+    const saved = !mock && isSavedProfile(isCompany ? "empresa" : "trabajador", row.id);
+    const showProfile = () => {
+      if (mock) {
+        setMsg({type:"ok", text:`Perfil de muestra: ${title} · ${rating.toFixed(1)} estrellas.`});
+      } else {
+        setMsg({type:"ok", text:isCompany ? `Detalle de empresa: ${title}.` : `Más información de ${title}: ${specialty}.`});
+      }
+    };
+    const contact = () => {
+      if (mock) {
+        setMsg({type:"ok", text:`Contacto de muestra solicitado para ${title}.`});
+      } else if (isCompany) {
+        setMsg({type:"ok", text:`Contacto: ${row.correo || "—"} · ${row.telefono || "—"}`});
+      } else {
+        setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`});
+      }
     };
     return (
-      <section className={`cm-mock-profiles ${compact ? "compact" : ""}`} aria-label={title}>
-        <style>{`
-          .cm-mock-profiles{margin-top:48px;padding:24px;border-radius:20px;background:rgba(18,33,49,.54);border:1px solid rgba(255,255,255,.06);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-          .cm-mock-profiles.compact{margin-top:0}
-          .cm-mock-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:24px}
-          .cm-mock-head h2{margin:0;color:#d4e4fa;font:600 24px/32px Inter,${getFont(theme,"secondary")}}
-          .cm-mock-head p{margin:5px 0 0;color:#bbcabf;font:400 14px/20px Inter,${getFont(theme,"secondary")}}
-          .cm-mock-admin-chip{padding:5px 10px;border-radius:999px;background:rgba(78,222,163,.14);border:1px solid rgba(78,222,163,.28);color:#4edea3;font:700 10px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
-          .cm-mock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
-          .cm-mock-card{position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:220px;padding:22px;border-radius:18px;background:linear-gradient(145deg,rgba(28,43,60,.78),rgba(13,28,45,.62));border:1px solid rgba(255,255,255,.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease}
-          .cm-mock-card:hover{transform:translateY(-6px);border-color:rgba(78,222,163,.30);box-shadow:0 20px 40px rgba(0,0,0,.30),0 0 24px rgba(78,222,163,.09)}
-          .cm-mock-card.company:hover{border-color:rgba(164,201,255,.32);box-shadow:0 20px 40px rgba(0,0,0,.30),0 0 24px rgba(164,201,255,.09)}
-          .cm-mock-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-          .cm-mock-type{display:inline-flex;align-items:center;gap:7px;color:#4edea3;font:700 11px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;text-transform:uppercase}
-          .cm-mock-card.company .cm-mock-type{color:#a4c9ff}
-          .cm-mock-status{padding:4px 9px;border-radius:999px;background:rgba(78,222,163,.12);color:#4edea3;font:700 10px/14px Inter,${getFont(theme,"secondary")}}
-          .cm-mock-status.pending{background:rgba(164,201,255,.12);color:#a4c9ff}
-          .cm-mock-name{margin:24px 0 8px;color:#d4e4fa;font:600 20px/27px Inter,${getFont(theme,"secondary")}}
-          .cm-mock-stars{display:flex;align-items:center;gap:2px;color:#4edea3}
-          .cm-mock-stars .material-symbols-outlined{font-size:19px;font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 20}
-          .cm-mock-score{margin-left:7px;color:#d4e4fa;font:600 14px/20px Inter,${getFont(theme,"secondary")}}
-          .cm-mock-detail{margin-top:auto;padding-top:22px}
-          .cm-mock-detail button{width:100%;padding:11px 16px;border-radius:12px;border:1px solid rgba(78,222,163,.28);background:rgba(78,222,163,.10);color:#4edea3;font:700 12px/18px Inter,${getFont(theme,"secondary")};letter-spacing:.08em;cursor:pointer;transition:background .3s ease,border-color .3s ease,transform .3s ease}
-          .cm-mock-card.company .cm-mock-detail button{border-color:rgba(164,201,255,.28);background:rgba(164,201,255,.10);color:#a4c9ff}
-          .cm-mock-detail button:hover{background:rgba(78,222,163,.18);transform:translateY(-1px)}
-          .cm-mock-card.company .cm-mock-detail button:hover{background:rgba(164,201,255,.18)}
-          @media(max-width:900px){.cm-mock-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-          @media(max-width:640px){.cm-mock-profiles{padding:18px}.cm-mock-head{align-items:flex-start;flex-direction:column}.cm-mock-grid{grid-template-columns:1fr}}
-        `}</style>
-        <div className="cm-mock-head">
-          <div><h2>{title}</h2><p>Top de postulantes y empresas destacados con datos simulados.</p></div>
-          <span className="cm-mock-admin-chip">Solo Admin</span>
+      <article className="cm-target-profile-card">
+        <div className="cm-target-profile-photo">
+          {image ? <img src={image} alt={title || ""} /> : <MS name={isCompany ? "domain" : "person"} size={44} active color={isCompany ? "#a4c9ff" : "#4edea3"} />}
         </div>
-        <div className="cm-mock-grid">
-          {sortedMocks.map(profile => {
-            const filledStars = Math.max(0, Math.min(5, Math.round(profile.calificacion)));
-            const pending = profile.estado.toLowerCase().includes("pendiente");
-            return (
-              <article key={profile.id} className={`cm-mock-card ${profile.tipo === "Empresa" ? "company" : ""}`}>
-                <div className="cm-mock-card-top">
-                  <span className="cm-mock-type">
-                    <span className="material-symbols-outlined" aria-hidden="true">{profile.tipo === "Empresa" ? "domain" : "person"}</span>
-                    {profile.tipo}
-                  </span>
-                  <span className={`cm-mock-status ${pending ? "pending" : ""}`}>{profile.estado}</span>
-                </div>
-                <h3 className="cm-mock-name">{profile.nombre}</h3>
-                <div className="cm-mock-stars" aria-label={`${profile.calificacion.toFixed(1)} de 5 estrellas`}>
-                  {[1,2,3,4,5].map(star => (
-                    <span key={star} className="material-symbols-outlined" style={{ opacity:star <= filledStars ? 1 : .22 }} aria-hidden="true">star</span>
-                  ))}
-                  <span className="cm-mock-score">{profile.calificacion.toFixed(1)}</span>
-                </div>
-                <div className="cm-mock-detail">
-                  <button type="button" onClick={()=>showMockDetail(profile)}>VER DETALLE</button>
-                </div>
-              </article>
-            );
-          })}
+        <div className="cm-target-profile-body">
+          <div>
+            <div className="cm-target-profile-title-row">
+              <h4>{title}</h4>
+              <button type="button" className="cm-target-bookmark" onClick={()=>!mock && toggleSavedProfile(isCompany ? "empresa" : "trabajador", row)} aria-label={saved ? "Quitar de guardados" : "Guardar perfil"}>
+                <MS name="bookmark" size={22} active={saved} color={saved ? "#4edea3" : "#bbcabf"} />
+              </button>
+            </div>
+            <div className="cm-target-rating-row">
+              <span className="cm-target-specialty">{specialty}</span>
+              <span className="cm-target-stars" aria-label={`${rating.toFixed(1)} de 5 estrellas`}>
+                {[1,2,3,4,5].map(star => <MS key={star} name="star" size={17} active={star <= Math.round(rating)} color={star <= Math.round(rating) ? "#fbbf24" : "#64748b"} />)}
+                <b>({rating.toFixed(1)})</b>
+              </span>
+            </div>
+            <div className="cm-target-meta">
+              <p><MS name="verified" size={18} color="#bbcabf" /> Certificaciones: {certifications}</p>
+              <p><MS name="history" size={18} color="#bbcabf" /> Experiencia: {experience}</p>
+            </div>
+          </div>
+          <div className="cm-target-actions">
+            <button type="button" className="secondary" onClick={showProfile}>Ver Perfil</button>
+            <button type="button" className="primary" onClick={contact}>Contactar</button>
+          </div>
+        </div>
+      </article>
+    );
+  };
+
+  const MockProfilesSection = ({ compact=false, title="Perfiles de Muestra" }) => {
+    if (!isAdminMockView) return null;
+    const workerMocks = mockProfiles.filter(profile => profile.tipo === "Postulante");
+    const companyMocks = mockProfiles.filter(profile => profile.tipo === "Empresa");
+    return (
+      <section className={`cm-target-sample-section ${compact ? "compact" : ""}`}>
+        <div className="cm-target-section-head">
+          <h3>{title} <span>({workerMocks.length + companyMocks.length})</span></h3>
+        </div>
+        <div className="cm-target-grid">
+          {workerMocks.map(profile => <TalentProfileCard key={profile.id} row={profile} mock type="trabajador" />)}
+          {companyMocks.map(profile => <TalentProfileCard key={profile.id} row={profile} mock type="empresa" />)}
         </div>
       </section>
     );
   };
+
+  const PosturasTargetStyles = () => <style>{`
+    .cm-posturas-target{max-width:1280px;margin:0 auto;padding:8px 0 32px;color:#d4e4fa;font-family:Inter,${getFont(theme,"secondary")}}
+    .cm-posturas-target-header{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;margin-bottom:38px}
+    .cm-posturas-target-title h2{margin:0;color:#d4e4fa;font-size:40px;line-height:48px;letter-spacing:-.02em;font-weight:700}
+    .cm-posturas-target-title p{margin:8px 0 0;color:#bbcabf;font-size:18px;line-height:28px;max-width:520px}
+    .cm-posturas-target-tabs{display:flex;align-items:center;padding:4px;background:#1c2b3c;border-radius:12px;white-space:nowrap}
+    .cm-posturas-target-tabs button{padding:10px 24px;border:0;border-radius:9px;background:transparent;color:#bbcabf;font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.1em;cursor:pointer;transition:all .3s ease}
+    .cm-posturas-target-tabs button.active{background:#a4c9ff;color:#00315d;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+    .cm-posturas-target-search{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:16px;margin-bottom:48px;border-radius:16px;background:rgba(15,23,42,.60);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);transition:all .3s ease}
+    .cm-posturas-target-search:hover{border-color:rgba(78,222,163,.24)}
+    .cm-posturas-target-search-field{position:relative;flex:1;min-width:280px}
+    .cm-posturas-target-search-field>span{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:grid;place-items:center;color:#bbcabf}
+    .cm-posturas-target-search input{width:100%;box-sizing:border-box;padding:13px 16px 13px 48px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:#010f1f;color:#d4e4fa;font:400 16px/24px Inter,${getFont(theme,"secondary")};outline:none;transition:all .3s ease}
+    .cm-posturas-target-search input:focus{border-color:rgba(78,222,163,.5);box-shadow:0 0 0 2px rgba(78,222,163,.12)}
+    .cm-posturas-target-search-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .cm-posturas-target-search-actions button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:12px 22px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(15,23,42,.60);color:#bbcabf;font:600 14px/20px Inter,${getFont(theme,"secondary")};cursor:pointer;transition:all .3s ease}
+    .cm-posturas-target-search-actions button:hover{color:#4edea3;border-color:rgba(78,222,163,.35);background:rgba(15,23,42,.82)}
+    .cm-target-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
+    .cm-target-section-head h3{margin:0;color:#d4e4fa;font-size:24px;line-height:32px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    .cm-target-section-head h3 span{color:#4edea3}
+    .cm-target-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+    .cm-target-profile-card{display:flex;gap:24px;padding:24px;border-radius:16px;background:rgba(15,23,42,.60);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);transition:all .3s ease;min-width:0}
+    .cm-target-profile-card:hover{transform:translateY(-4px);border-color:rgba(78,222,163,.4);background:rgba(15,23,42,.80);box-shadow:0 0 20px rgba(78,222,163,.10)}
+    .cm-target-profile-photo{width:128px;height:160px;flex:0 0 128px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.10);background:#0d1c2d;display:grid;place-items:center}
+    .cm-target-profile-photo img{width:100%;height:100%;object-fit:cover;display:block}
+    .cm-target-profile-body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
+    .cm-target-profile-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .cm-target-profile-title-row h4{margin:0;color:#d4e4fa;font-size:24px;line-height:32px;font-weight:600}
+    .cm-target-bookmark{border:0;background:transparent;padding:0;cursor:pointer;transition:transform .3s ease}
+    .cm-target-bookmark:hover{transform:scale(1.08)}
+    .cm-target-rating-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
+    .cm-target-specialty{padding:3px 10px;border-radius:999px;background:rgba(78,222,163,.10);color:#4edea3;font:700 12px/16px Inter,${getFont(theme,"secondary")};letter-spacing:.08em}
+    .cm-target-stars{display:inline-flex;align-items:center;gap:1px;color:#fbbf24}
+    .cm-target-stars b{margin-left:4px;color:#bbcabf;font:400 14px/20px Inter,${getFont(theme,"secondary")}}
+    .cm-target-meta{display:grid;gap:7px}
+    .cm-target-meta p{display:flex;align-items:flex-start;gap:8px;margin:0;color:#bbcabf;font:400 14px/20px Inter,${getFont(theme,"secondary")}}
+    .cm-target-actions{display:flex;gap:8px;margin-top:16px}
+    .cm-target-actions button{flex:1;padding:10px 14px;border-radius:8px;font:600 14px/20px Inter,${getFont(theme,"secondary")};cursor:pointer;transition:all .3s ease}
+    .cm-target-actions .secondary{background:rgba(164,201,255,.10);border:1px solid rgba(164,201,255,.30);color:#a4c9ff}
+    .cm-target-actions .secondary:hover{background:rgba(164,201,255,.20)}
+    .cm-target-actions .primary{background:#4edea3;border:1px solid #4edea3;color:#003824}
+    .cm-target-actions .primary:hover{filter:brightness(1.08)}
+    .cm-target-sample-section{margin:0 0 48px}.cm-target-sample-section.compact{margin-top:0}
+    .cm-target-empty{height:190px;border-radius:16px;border:1px dashed rgba(255,255,255,.06);background:rgba(15,23,42,.34);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#86948a;text-align:center}
+    @media(max-width:1050px){.cm-posturas-target-header{align-items:flex-start;flex-direction:column}.cm-posturas-target-tabs{width:100%;overflow:auto}.cm-target-grid{grid-template-columns:1fr}}
+    @media(max-width:640px){.cm-posturas-target-title h2{font-size:28px;line-height:36px}.cm-posturas-target-title p{font-size:15px;line-height:23px}.cm-posturas-target-tabs button{padding:9px 15px}.cm-posturas-target-search{margin-bottom:32px}.cm-posturas-target-search-actions{width:100%}.cm-posturas-target-search-actions button{flex:1;padding:11px 12px}.cm-target-profile-card{flex-direction:column;padding:18px}.cm-target-profile-photo{width:100%;height:220px;flex-basis:auto}.cm-target-profile-title-row h4{font-size:21px;line-height:28px}}
+  `}</style>;
 
   const DashboardHub = () => {
     const rankRows = (rows, type) => [...rows]
@@ -22085,36 +22141,76 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         )}
 
         {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && (
-          <section style={{ maxWidth:"1280px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"18px", flexWrap:"wrap", marginBottom:"26px" }}>
-              <div>
-                <h2 style={{ fontFamily:getFont(theme,"secondary"), fontSize:"clamp(28px,4vw,38px)", lineHeight:1.05, color:"#d4e4fa", fontWeight:"900", margin:"0 0 8px" }}>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
-                <p style={{ color:"rgba(212,228,250,.76)", fontFamily:getFont(theme,"secondary"), fontSize:"15px", margin:0 }}>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados."}</p>
+          <section className="cm-posturas-target">
+            <PosturasTargetStyles />
+            <div className="cm-posturas-target-header">
+              <div className="cm-posturas-target-title">
+                <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
+                <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
               </div>
-              {posturasMode !== "archive" && <div style={{ display:"flex", gap:"4px", padding:"4px", borderRadius:"12px", background:"rgba(13,28,45,.72)", border:"1px solid rgba(63,71,83,.28)" }}>{[segmentButton("posturas","Posturas"), segmentButton("todos","Todos"), segmentButton("perfiles","Perfiles"), segmentButton("busquedas","Búsquedas"), ...(isAdminMockView ? [segmentButton("pruebas","Perfiles de Prueba")] : [])]}</div>}
+              {posturasMode !== "archive" && (
+                <div className="cm-posturas-target-tabs">
+                  {[
+                    ["todos","Todos"],
+                    ["posturas","Posturas"],
+                    ["perfiles","Perfiles"],
+                    ["busquedas","Búsquedas"],
+                  ].map(([id,label]) => (
+                    <button key={id} type="button" className={talentView===id ? "active" : ""} onClick={()=>{setTalentView(id);setPageTrab(1);setPageEmp(1)}}>{label}</button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {posturasMode !== "archive" && <CommandSearch />}
-            {loading && <div style={{color:"#94a3b8", textAlign:"center", padding:"20px"}}>Cargando perfiles…</div>}
+            {posturasMode !== "archive" && (
+              <div className="cm-posturas-target-search">
+                <div className="cm-posturas-target-search-field">
+                  <span><MS name="search" size={23} color="#bbcabf" /></span>
+                  <input value={q} onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1)}} placeholder="Buscar por nombre, cargo o palabra clave..." />
+                </div>
+                <div className="cm-posturas-target-search-actions">
+                  <button type="button" onClick={()=>setTalentView("perfiles")}><MS name="groups" size={20} color="#bbcabf" /> VER PERFILES</button>
+                  <button type="button" onClick={()=>setTalentView("busquedas")}><MS name="domain" size={20} color="#bbcabf" /> VER EMPRESAS</button>
+                  <button type="button" onClick={()=>setMsg({type:"ok",text:"Usa la búsqueda y las pestañas para filtrar los perfiles."})}><MS name="filter_list" size={20} color="#bbcabf" /> FILTROS</button>
+                </div>
+              </div>
+            )}
 
-            {posturasMode === "archive" && (savedTrabajadores.length || savedEmpresas.length ? <div style={{ display:"grid", gap:"18px" }}>
-              {savedTrabajadores.map(row => <TrabCard key={`saved-trab-${row.id}`} row={row}/>)}
-              {savedEmpresas.map(row => <EmpresaCard key={`saved-emp-${row.id}`} row={row}/>)}
-            </div> : <div style={{ padding:"34px", border:"1px dashed rgba(63,71,83,.62)", borderRadius:"16px", color:"rgba(212,228,250,.52)", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>Aún no tienes perfiles guardados. Usa el botón Guardar en cualquier perfil publicado.</div>)}
+            {loading && <div style={{color:"#94a3b8",textAlign:"center",padding:"20px"}}>Cargando perfiles…</div>}
+
+            {posturasMode === "archive" && (
+              savedTrabajadores.length || savedEmpresas.length ? (
+                <div className="cm-target-grid">
+                  {savedTrabajadores.map(row=><TalentProfileCard key={`saved-trab-${row.id}`} row={row} type="trabajador"/>)}
+                  {savedEmpresas.map(row=><TalentProfileCard key={`saved-emp-${row.id}`} row={row} type="empresa"/>)}
+                </div>
+              ) : <div className="cm-target-empty"><MS name="bookmark" size={42} color="#86948a"/><p>Aún no tienes perfiles guardados.</p></div>
+            )}
 
             {posturasMode !== "archive" && <>
-              {(talentView === "pruebas" || talentView === "todos") && isAdminMockView && <MockProfilesSection compact title={talentView === "pruebas" ? "Perfiles de Prueba" : "Perfiles de Muestra"} />}
-              {(talentView !== "pruebas" && (talentView === "todos" || talentView === "posturas" || talentView === "perfiles")) && <>
-                <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"12px 0", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Perfiles ({trabFiltrados.length})</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{trabajadoresPage.map(row => <TrabCard key={row.id} row={row}/>)}</div>
-                <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE} />
-              </>}
-              {(talentView !== "pruebas" && (talentView === "todos" || talentView === "busquedas")) && <>
-                <div style={{ color:"#a1c9ff", fontWeight:"900", margin:"18px 0 12px", fontFamily:getFont(theme,"secondary"), letterSpacing:".08em", textTransform:"uppercase" }}>Búsquedas / empresas ({empFiltradas.length})</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"18px" }}>{empresasPage.map(row => <EmpresaCard key={row.id} row={row}/>)}</div>
-                <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE} />
-                <AdminQuejas />
-              </>}
+              {isAdminMockView && talentView === "todos" && <MockProfilesSection compact title="Perfiles de Operadores" />}
+
+              {(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && trabFiltrados.length > 0 && (
+                <section className="cm-target-sample-section">
+                  <div className="cm-target-section-head"><h3>Perfiles de Operadores <span>({trabFiltrados.length})</span></h3></div>
+                  <div className="cm-target-grid">{trabajadoresPage.map(row=><TalentProfileCard key={row.id} row={row} type="trabajador"/>)}</div>
+                  <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE}/>
+                </section>
+              )}
+
+              {(talentView === "todos" || talentView === "busquedas") && (
+                <section className="cm-target-sample-section">
+                  <div className="cm-target-section-head"><h3>Búsquedas / Empresas <span style={{color:"#86948a"}}>({empFiltradas.length})</span></h3></div>
+                  {empFiltradas.length ? (
+                    <>
+                      <div className="cm-target-grid">{empresasPage.map(row=><TalentProfileCard key={row.id} row={row} type="empresa"/>)}</div>
+                      <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE}/>
+                    </>
+                  ) : (
+                    <div className="cm-target-empty"><MS name="domain" size={48} color="#86948a"/><p>No hay búsquedas de empresas activas en este momento.</p></div>
+                  )}
+                </section>
+              )}
             </>}
           </section>
         )}
