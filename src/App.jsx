@@ -20291,72 +20291,66 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setEmpWizardStep(1);
   };
   const [encryptedUploadFields, setEncryptedUploadFields] = useState({});
-  const POSTURAS_FILES_BUCKET = "posturas-archivos";
-  const encryptedDescriptorPrefix = "cmenc:v1:";
-  const encodeBase64 = (bytes) => {
-    let binary = "";
-    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-    for (let index = 0; index < view.length; index += 0x8000) {
-      binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
-    }
-    return btoa(binary);
-  };
-  const decodeBase64 = (value) => {
-    const binary = atob(value || "");
-    return Uint8Array.from(binary, character => character.charCodeAt(0));
-  };
-  const getPosturasDeviceVaultSecret = () => {
-    const keyName = "cm_posturas_aes256_device_secret";
-    try {
-      const existing = localStorage.getItem(keyName);
-      if (existing) return existing;
-      const generated = encodeBase64(crypto.getRandomValues(new Uint8Array(32)));
-      localStorage.setItem(keyName, generated);
-      return generated;
-    } catch {
-      return encodeBase64(crypto.getRandomValues(new Uint8Array(32)));
-    }
-  };
-  const derivePosturasWrappingKey = async () => {
-    const identity = authUser?.id || (isAdmin ? "admin" : myId || "anonymous");
-    const material = new TextEncoder().encode(`${identity}:${getPosturasDeviceVaultSecret()}:conect-manzanillo-files-v1`);
-    const digest = await crypto.subtle.digest("SHA-256", material);
-    return crypto.subtle.importKey("raw", digest, { name:"AES-GCM" }, false, ["encrypt", "decrypt"]);
-  };
-  const parseEncryptedFileDescriptor = (value) => {
-    if (typeof value !== "string" || !value.startsWith(encryptedDescriptorPrefix)) return null;
-    try { return JSON.parse(atob(value.slice(encryptedDescriptorPrefix.length))); } catch { return null; }
-  };
-  const encryptedFileLabel = (value) => {
-    const descriptor = parseEncryptedFileDescriptor(value);
-    return descriptor?.name || value || "Sin archivo seleccionado";
-  };
-  const encryptFileForServer = async (file) => {
-    if (!file) throw new Error("Selecciona un archivo válido.");
-    if (!globalThis.crypto?.subtle) throw new Error("El navegador no admite cifrado seguro Web Crypto.");
-    const rawFileKey = crypto.getRandomValues(new Uint8Array(32));
-    const fileKey = await crypto.subtle.importKey("raw", rawFileKey, { name:"AES-GCM" }, false, ["encrypt"]);
-    const fileIv = crypto.getRandomValues(new Uint8Array(12));
-    const cipherBuffer = await crypto.subtle.encrypt({ name:"AES-GCM", iv:fileIv }, fileKey, await file.arrayBuffer());
-    const wrappingKey = await derivePosturasWrappingKey();
-    const wrapIv = crypto.getRandomValues(new Uint8Array(12));
-    const wrappedKey = await crypto.subtle.encrypt({ name:"AES-GCM", iv:wrapIv }, wrappingKey, rawFileKey);
-    return {
-      encryptedBlob:new Blob([cipherBuffer], { type:"application/octet-stream" }),
-      cryptoMeta:{
-        algorithm:"AES-256-GCM",
-        iv:encodeBase64(fileIv),
-        wrappedKey:encodeBase64(new Uint8Array(wrappedKey)),
-        wrapIv:encodeBase64(wrapIv),
+  const POSTURAS_FILES_BUCKET = "documentos-verificacion";
+  const privateDescriptorPrefix = "cmfile:v1:";
+  const [secureDraftIds] = useState(() => ({
+    trabajador: globalThis.crypto?.randomUUID?.() || `trab-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    empresa: globalThis.crypto?.randomUUID?.() || `emp-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }));
+
+  const apiFetch = async (url, options = {}) => {
+    const { data:{ session } } = await sb.auth.getSession();
+    if (!session?.access_token) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
+    const response = await fetch(url, {
+      ...options,
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+        ...(options.headers || {})
       }
-    };
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body?.error || "La operación segura no pudo completarse.");
+    return body;
   };
-  const removeEncryptedServerFile = async (value) => {
-    const descriptor = parseEncryptedFileDescriptor(value);
+
+  const loadPrivateProfileForEdit = async (type, row) => {
+    try {
+      const result = await apiFetch(`/api/posturas/profile?type=${type}&id=${encodeURIComponent(row.id)}`, { method:"GET" });
+      if (type === "trabajador") {
+        setTrabForm({ ...result.profile, edad:String(result.profile?.edad || "") });
+        setEditingTrabId(row.id);
+        setVista("postular");
+      } else {
+        const profile = result.profile || {};
+        setEmpForm({ ...profile, domicilio:profile.domicilio || profile.ubicacion || "" });
+        setEditingEmpId(row.id);
+        setVista("empresario");
+        setCompanyFormMode("registro");
+        setEmpWizardStep(1);
+      }
+      window.scrollTo({ top:0, behavior:"smooth" });
+    } catch (error) {
+      setMsg({ type:"err", text:error?.message || "No se pudo abrir el perfil protegido." });
+    }
+  };
+
+  const parsePrivateFileDescriptor = (value) => {
+    if (typeof value !== "string" || !value.startsWith(privateDescriptorPrefix)) return null;
+    try { return JSON.parse(atob(value.slice(privateDescriptorPrefix.length))); } catch { return null; }
+  };
+  const encryptedFileLabel = (value) => parsePrivateFileDescriptor(value)?.name || value || "Sin archivo seleccionado";
+
+  const removePrivateServerFile = async (value) => {
+    const descriptor = parsePrivateFileDescriptor(value);
     if (!descriptor?.path) return;
-    const { error } = await sb.storage.from(descriptor.bucket || POSTURAS_FILES_BUCKET).remove([descriptor.path]);
-    if (error) console.warn("No se pudo eliminar el archivo cifrado anterior:", error.message);
+    try {
+      await apiFetch("/api/documentos/delete", { method:"DELETE", body:JSON.stringify({ path:descriptor.path }) });
+    } catch (error) {
+      console.warn("No se pudo eliminar el documento privado anterior:", error?.message || error);
+    }
   };
+
   const handleFileMeta = async (setter, field, fileList) => {
     const file = fileList && fileList[0];
     if (!file) return;
@@ -20364,39 +20358,61 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setMsg({ type:"err", text:"El archivo supera el límite seguro de 20 MB." });
       return;
     }
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      setMsg({ type:"err", text:"Formato no permitido. Usa JPG, PNG, WEBP o PDF." });
+      return;
+    }
+    if (!authUser) return requireLogin();
     setEncryptedUploadFields(current => ({ ...current, [field]:true }));
     try {
-      const previousValue = (setter === setTrabForm ? trabForm : empForm)?.[field];
-      const { encryptedBlob, cryptoMeta } = await encryptFileForServer(file);
-      const owner = authUser?.id || (isAdmin ? "admin" : myId || "anonymous");
-      const safeField = String(field).replace(/[^a-zA-Z0-9_-]/g, "_");
-      const path = `${owner}/${safeField}/${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}.enc`;
-      const { error } = await sb.storage.from(POSTURAS_FILES_BUCKET).upload(path, encryptedBlob, {
-        contentType:"application/octet-stream",
-        cacheControl:"private, max-age=0, no-store",
-        upsert:false,
-        metadata:{ encrypted:"true", algorithm:"AES-256-GCM", originalType:file.type || "application/octet-stream" }
+      const isWorker = setter === setTrabForm;
+      const form = isWorker ? trabForm : empForm;
+      const previousValue = form?.[field];
+      const profileType = isWorker ? "trabajador" : "empresa";
+      const profileId = (isWorker ? editingTrabId : editingEmpId) || secureDraftIds[profileType];
+      const signed = await apiFetch("/api/documentos/create-upload", {
+        method:"POST",
+        body:JSON.stringify({
+          profileType,
+          profileId,
+          field,
+          fileName:file.name,
+          contentType:file.type,
+          size:file.size
+        })
       });
+      const { error } = await sb.storage.from(signed.bucket || POSTURAS_FILES_BUCKET)
+        .uploadToSignedUrl(signed.path, signed.token, file, { contentType:file.type, upsert:false });
       if (error) throw error;
       const descriptor = {
         v:1,
-        bucket:POSTURAS_FILES_BUCKET,
-        path,
+        bucket:signed.bucket || POSTURAS_FILES_BUCKET,
+        path:signed.path,
         name:file.name,
-        type:file.type || "application/octet-stream",
+        type:file.type,
         size:file.size,
-        uploadedAt:new Date().toISOString(),
-        ...cryptoMeta
+        uploadedAt:new Date().toISOString()
       };
-      const encodedDescriptor = encryptedDescriptorPrefix + btoa(JSON.stringify(descriptor));
+      const encodedDescriptor = privateDescriptorPrefix + btoa(JSON.stringify(descriptor));
       setter(current => ({ ...current, [field]:encodedDescriptor }));
-      if (previousValue && previousValue !== encodedDescriptor) await removeEncryptedServerFile(previousValue);
-      setMsg({ type:"ok", text:`${file.name} se cifró con AES-256 y se almacenó de forma segura.` });
+      if (previousValue && previousValue !== encodedDescriptor) await removePrivateServerFile(previousValue);
+      setMsg({ type:"ok", text:`${file.name} se almacenó en un bucket privado.` });
     } catch (error) {
-      setMsg({ type:"err", text:`No se pudo cifrar o almacenar el archivo: ${error?.message || "Error desconocido"}` });
+      setMsg({ type:"err", text:`No se pudo almacenar el archivo de forma privada: ${error?.message || "Error desconocido"}` });
     } finally {
       setEncryptedUploadFields(current => ({ ...current, [field]:false }));
     }
+  };
+
+  const getPrivateDocumentUrl = async (value) => {
+    const descriptor = parsePrivateFileDescriptor(value);
+    if (!descriptor?.path) return null;
+    const result = await apiFetch("/api/documentos/signed-url", {
+      method:"POST",
+      body:JSON.stringify({ path:descriptor.path, expiresIn:90 })
+    });
+    return result.signedUrl;
   };
   useEffect(() => {
     if (!authUser && !isAdmin && posturasMode === "form") {
@@ -20693,12 +20709,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setLoading(true);
     try {
       setPosturasLoadError("");
-      const [trabResult, empResult, ratingsResult, complaintsResult] = await Promise.all([
-        sb.from("posturas_trabajadores").select("*").eq("activo", true).order("updated_at", { ascending:false }),
-        sb.from("posturas_empresas").select("*").eq("activo", true).order("updated_at", { ascending:false }),
+      const [publicPayload, ratingsResult, complaintsResult] = await Promise.all([
+        fetch("/api/posturas/public").then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
+          return body;
+        }),
         sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
         sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
       ]);
+      const trabResult = { data:publicPayload.trabajadores || [], error:null };
+      const empResult = { data:publicPayload.empresas || [], error:null };
       const queryError = trabResult.error || empResult.error || ratingsResult.error || complaintsResult.error;
       if (queryError) throw queryError;
       const t = trabResult.data || [];
@@ -20800,8 +20821,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     persistPosturasUserType("postulante");
     const nowIso = new Date().toISOString();
     const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
-    const res = editingTrabId ? await sb.from("posturas_trabajadores").update(payload).eq("id", editingTrabId) : await sb.from("posturas_trabajadores").insert(payload);
-    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Perfil guardado. Quedó pendiente de validación administrativa."}); setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas(); }
+    try {
+      await apiFetch(`/api/posturas/profile?type=trabajador`, {
+        method:editingTrabId ? "PUT" : "POST",
+        body:JSON.stringify({ type:"trabajador", id:editingTrabId || null, payload })
+      });
+      setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Perfil guardado. Quedó pendiente de validación administrativa."});
+      setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas();
+    } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil."}); }
   };
   const openVacancyModal = () => {
     if (!isAdmin && !authUser) {
@@ -20850,8 +20877,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
     const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
-    const res = editingEmpId ? await sb.from("posturas_empresas").update(payload).eq("id", editingEmpId) : await sb.from("posturas_empresas").insert(payload);
-    if (res.error) setMsg({type:"err", text:res.error.message}); else { setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : (isAdmin ? "Perfil de empresa guardado y validado." : "Perfil empresarial guardado. Quedó pendiente de validación administrativa.")}); setEmpForm(emptyEmp); setEditingEmpId(null); setVacancyModalOpen(false); loadPosturas(); }
+    try {
+      await apiFetch(`/api/posturas/profile?type=empresa`, {
+        method:editingEmpId ? "PUT" : "POST",
+        body:JSON.stringify({ type:"empresa", id:editingEmpId || null, payload })
+      });
+      setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : (isAdmin ? "Perfil de empresa guardado y validado." : "Perfil empresarial guardado. Quedó pendiente de validación administrativa.")});
+      setEmpForm(emptyEmp); setEditingEmpId(null); setVacancyModalOpen(false); loadPosturas();
+    } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil empresarial."}); }
   };
   const rate = async (type, id, stars, comment="") => {
     const payload = { profile_type:type, profile_id:id, user_id:authUser?.id || null, device_id:myId, stars, comment: type === "trabajador" ? comment.trim() : null };
@@ -21123,7 +21156,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </div>
         <div style={{ marginTop:"18px", display:"flex", justifyContent:"flex-end", gap:"10px", flexWrap:"wrap", borderTop:"1px solid rgba(63,71,83,.42)", paddingTop:"16px" }}>
           <button onClick={()=>toggleSavedProfile("trabajador", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
-          {canEdit(row) && <button onClick={()=>{setTrabForm({...row, edad:String(row.edad||"")}); setEditingTrabId(row.id); setVista("postular"); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar mi perfil</button>}
+          {canEdit(row) && <button onClick={()=>loadPrivateProfileForEdit("trabajador", row)} style={btn("#a78bfa")}>Editar mi perfil</button>}
           <button onClick={()=>openPosturasReport("trabajador", row)} style={btn("#ef4444")}>Reportar</button>
           <button onClick={()=>setMsg({type:"ok", text:`Más información de ${row.nombre_completo}: ${row.maniobra} · ${row.alcance}.`})} style={btn("#bcc7de")}>MÁS INFO</button>
           <button onClick={()=>setMsg({type:"ok", text:`Contacto: Tel. ${row.telefono_llamadas || "—"} · WhatsApp ${row.telefono_whatsapp || "—"}`})} style={{...btn("#a1c9ff"), background:"#a1c9ff", color:"#002d52"}}>CONTACTAR</button>
@@ -21164,7 +21197,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <span style={{ color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Publicado: {timeAgo(row.updated_at || row.created_at)}</span>
           <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}>
             <button onClick={()=>toggleSavedProfile("empresa", row)} style={{ ...btn(saved ? "#fbbf24" : "#bcc7de"), display:"inline-flex", alignItems:"center", gap:"7px" }} title="Ver en Archivo"><MS name="bookmark" size={16} active={saved} />{saved ? "GUARDADO" : "GUARDAR"}</button>
-            {canEdit(row) && <button onClick={()=>{setEmpForm({...row, domicilio: row.domicilio || row.ubicacion || ""}); setEditingEmpId(row.id); setVista("empresario"); setCompanyFormMode("registro"); setEmpWizardStep(1); window.scrollTo({top:0, behavior:"smooth"});}} style={btn("#a78bfa")}>Editar empresa</button>}
+            {canEdit(row) && <button onClick={()=>loadPrivateProfileForEdit("empresa", row)} style={btn("#a78bfa")}>Editar empresa</button>}
             {canEdit(row) && !pendingDelete && <button onClick={()=>requestVacancyDeletion(row)} style={btn("#f59e0b")}>Eliminar vacante · 7 días</button>}
             <button onClick={()=>openPosturasReport("empresa", row)} style={btn("#ef4444")}>Reportar</button>
             <button onClick={()=>setMsg({type:"ok", text:`Detalle de vacante/empresa: ${row.razon_social}.`})} style={btn("#a1c9ff")}>Ver detalles <MS name="arrow_forward" size={13} active /></button>
@@ -21781,11 +21814,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
       if (isWorker) {
         setVista("postular");
-        if (row) { setTrabForm({...row, edad:String(row.edad || "")}); setEditingTrabId(row.id); }
+        if (row) { loadPrivateProfileForEdit("trabajador", row); }
         else { setTrabForm(emptyTrab); setEditingTrabId(null); }
       } else {
         setVista("empresario");
-        if (row) { setEmpForm({...row}); setEditingEmpId(row.id); }
+        if (row) { loadPrivateProfileForEdit("empresa", row); }
         else { setEmpForm(emptyEmp); setEditingEmpId(null); }
       }
       setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
