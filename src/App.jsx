@@ -20249,6 +20249,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [dashboardPage, setDashboardPage] = useState(1);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [identityUsername, setIdentityUsername] = useState("");
+  const [identityAvatarPreview, setIdentityAvatarPreview] = useState("");
+  const [identityAvatarFile, setIdentityAvatarFile] = useState(null);
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identityError, setIdentityError] = useState("");
+  const [identitySuccess, setIdentitySuccess] = useState("");
+  const identityFileInputRef = useRef(null);
   const [empWizardStep, setEmpWizardStep] = useState(1);
   const [companyFormMode, setCompanyFormMode] = useState("registro");
   const [vacancyModalOpen, setVacancyModalOpen] = useState(false);
@@ -20547,9 +20554,128 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setTimeout(() => window.scrollTo({ top:0, behavior:"auto" }), 0);
   }, [authUser?.id, isAdmin]);
 
-  const profileDisplayName = profileEditor?.nombre_publico || authUser?.user_metadata?.full_name || (authUser?.email ? authUser.email.split("@")[0] : "Mi perfil");
+  useEffect(() => {
+    const metadata = authUser?.user_metadata || {};
+    const storedUsername = String(metadata.username || metadata.preferred_username || "").replace(/^@+/, "");
+    setIdentityUsername(storedUsername);
+    setIdentityAvatarPreview(String(metadata.avatar_url || metadata.picture || ""));
+    setIdentityAvatarFile(null);
+    setIdentityError("");
+    setIdentitySuccess("");
+  }, [authUser?.id, authUser?.user_metadata?.username, authUser?.user_metadata?.preferred_username, authUser?.user_metadata?.avatar_url, authUser?.user_metadata?.picture]);
+
+  const normalizeIdentityUsername = (value) => String(value || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+
+  const validateIdentityUsername = (value) => {
+    const username = normalizeIdentityUsername(value);
+    if (username.length < 3 || username.length > 24) return "El usuario debe tener entre 3 y 24 caracteres.";
+    if (!/^[a-z0-9_]+$/.test(username)) return "Usa solo letras minúsculas, números y guion bajo.";
+    return "";
+  };
+
+  const resizeIdentityAvatar = (file) => new Promise((resolve, reject) => {
+    const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!acceptedTypes.has(file?.type)) {
+      reject(new Error("Formato no permitido. Usa JPG, PNG o WEBP."));
+      return;
+    }
+    if (Number(file?.size || 0) > 5 * 1024 * 1024) {
+      reject(new Error("La imagen no debe superar 5 MB."));
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const side = Math.min(image.naturalWidth, image.naturalHeight);
+        const sourceX = Math.max(0, (image.naturalWidth - side) / 2);
+        const sourceY = Math.max(0, (image.naturalHeight - side) / 2);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const context = canvas.getContext("2d", { alpha:false });
+        if (!context) throw new Error("No fue posible procesar la imagen.");
+        context.fillStyle = "#051424";
+        context.fillRect(0, 0, 512, 512);
+        context.drawImage(image, sourceX, sourceY, side, side, 0, 0, 512, 512);
+        const dataUrl = canvas.toDataURL("image/webp", 0.86);
+        URL.revokeObjectURL(objectUrl);
+        resolve(dataUrl);
+      } catch (error) {
+        URL.revokeObjectURL(objectUrl);
+        reject(error);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("El archivo seleccionado no es una imagen válida."));
+    };
+    image.src = objectUrl;
+  });
+
+  const handleIdentityAvatarChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setIdentityError("");
+    setIdentitySuccess("");
+    try {
+      const preview = await resizeIdentityAvatar(file);
+      setIdentityAvatarFile(file);
+      setIdentityAvatarPreview(preview);
+    } catch (error) {
+      setIdentityAvatarFile(null);
+      setIdentityError(error?.message || "No fue posible procesar la imagen.");
+    }
+  };
+
+  const saveIdentityProfile = async () => {
+    if (!authUser?.id) {
+      setIdentityError("Inicia sesión para actualizar tu perfil.");
+      return;
+    }
+    const username = normalizeIdentityUsername(identityUsername);
+    const usernameError = validateIdentityUsername(username);
+    if (usernameError) {
+      setIdentityError(usernameError);
+      return;
+    }
+
+    setIdentitySaving(true);
+    setIdentityError("");
+    setIdentitySuccess("");
+    try {
+      const currentMetadata = authUser.user_metadata || {};
+      const nextMetadata = {
+        ...currentMetadata,
+        username,
+        preferred_username: username,
+        avatar_url: identityAvatarPreview || null,
+        picture: identityAvatarPreview || null,
+      };
+      const { data, error } = await sb.auth.updateUser({ data: nextMetadata });
+      if (error) throw error;
+      if (!data?.user) throw new Error("Supabase no devolvió el perfil actualizado.");
+      setIdentityAvatarFile(null);
+      setIdentitySuccess("Perfil actualizado correctamente.");
+      setMsg({ type:"ok", text:"Tu nombre de usuario y avatar se actualizaron correctamente." });
+    } catch (error) {
+      console.error("Profile identity update error:", error);
+      setIdentityError(error?.message || "No fue posible actualizar el perfil.");
+    } finally {
+      setIdentitySaving(false);
+    }
+  };
+
+  const profileDisplayName = profileEditor?.nombre_publico || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || (authUser?.email ? authUser.email.split("@")[0] : "Mi perfil");
   const profileDisplayRole = profileEditor?.cargo_publico || "Talento logístico";
   const profileDisplayEmail = profileEditor?.correo_publico || authUser?.email || "Sin correo público";
+  const profileUsername = normalizeIdentityUsername(authUser?.user_metadata?.username || authUser?.user_metadata?.preferred_username || identityUsername);
+  const profileHandle = profileUsername ? `@${profileUsername}` : "";
   const handleProfileUpdate = () => {
     try { localStorage.setItem("cm_posturas_public_profile", JSON.stringify(profileEditor)); } catch {}
     setMsg({ type:"ok", text:"Información pública actualizada correctamente." });
@@ -21168,7 +21294,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {profilePhotoSrc ? (
         <img src={profilePhotoSrc} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
       ) : (
-        <svg width={Math.max(18, Math.round(size * .68))} height={Math.max(18, Math.round(size * .68))} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="2"/><path d="M5 20c.8-4.2 3.2-6.3 7-6.3s6.2 2.1 7 6.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+        <span
+          className="material-symbols-outlined"
+          aria-hidden="true"
+          style={{ fontSize:Math.max(19, Math.round(size * .68)), lineHeight:1, color:"currentColor" }}
+        >
+          person
+        </span>
       )}
     </div>
   );
@@ -21914,7 +22046,175 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
 
+
+  const IdentityProfileEditor = () => {
+    const usernameError = identityUsername ? validateIdentityUsername(identityUsername) : "";
+    const currentAvatar = identityAvatarPreview || profilePhotoSrc;
+    const providerName = String(authUser?.app_metadata?.provider || "email").toLowerCase();
+
+    return (
+      <section style={{ maxWidth:"900px", margin:"0 auto", padding:posturasMobile ? "12px 0 88px" : "18px 0 72px", fontFamily:"Inter, sans-serif" }}>
+        <style>{`
+          .cm-identity-glass {
+            background:linear-gradient(145deg,rgba(10,31,51,.88),rgba(5,20,36,.96));
+            border:1px solid rgba(255,255,255,.05);
+            box-shadow:0 24px 70px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.04);
+            backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+          }
+          .cm-identity-action {
+            transition:all .3s ease;border-radius:14px;cursor:pointer;
+          }
+          .cm-identity-action:hover {
+            transform:translateY(-1px);box-shadow:0 14px 34px rgba(0,150,255,.18);
+          }
+          .cm-identity-action:active { transform:scale(.98); }
+          .cm-identity-action:disabled { opacity:.55;cursor:not-allowed;transform:none;box-shadow:none; }
+          .cm-identity-input {
+            width:100%;box-sizing:border-box;min-height:48px;padding:12px 14px;
+            border-radius:14px;border:1px solid rgba(255,255,255,.08);
+            background:rgba(2,8,16,.72);color:#f8fafc;outline:none;
+            transition:all .3s ease;font-family:Inter,sans-serif;
+          }
+          .cm-identity-input:focus {
+            border-color:rgba(78,222,163,.62);
+            box-shadow:0 0 0 4px rgba(78,222,163,.10);
+          }
+        `}</style>
+
+        <button
+          type="button"
+          onClick={() => setProfileEditorOpen(false)}
+          className="cm-identity-action"
+          style={{ display:"inline-flex", alignItems:"center", gap:"8px", marginBottom:"18px", padding:"10px 13px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.04)", color:"#cbd5e1", fontWeight:800 }}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"19px" }}>arrow_back</span>
+          Volver a Mi Perfil
+        </button>
+
+        <div className="cm-identity-glass" style={{ borderRadius:"24px", overflow:"hidden" }}>
+          <header style={{ padding:posturasMobile ? "24px 20px" : "30px 34px", borderBottom:"1px solid rgba(255,255,255,.05)", background:"radial-gradient(circle at 8% 0%,rgba(78,222,163,.12),transparent 42%)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"14px" }}>
+              <div style={{ width:"48px", height:"48px", borderRadius:"15px", display:"grid", placeItems:"center", background:"rgba(78,222,163,.10)", border:"1px solid rgba(78,222,163,.26)", color:"#4edea3" }}>
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"27px" }}>manage_accounts</span>
+              </div>
+              <div>
+                <div style={{ color:"#4edea3", fontSize:"11px", fontWeight:900, letterSpacing:".15em", textTransform:"uppercase" }}>Identidad de usuario</div>
+                <h2 style={{ margin:"5px 0 0", color:"#f8fafc", fontSize:posturasMobile ? "26px" : "32px", lineHeight:1.1, fontWeight:900 }}>Actualizar perfil</h2>
+              </div>
+            </div>
+            <p style={{ margin:"14px 0 0", color:"rgba(203,213,225,.72)", fontSize:"13px", lineHeight:1.7 }}>
+              Personaliza el nombre visible de tu cuenta y la imagen que aparece en MI PERFIL.
+            </p>
+          </header>
+
+          <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "280px minmax(0,1fr)", gap:"28px", padding:posturasMobile ? "22px 20px 26px" : "32px 34px 36px" }}>
+            <div style={{ display:"grid", justifyItems:"center", alignContent:"start", gap:"14px" }}>
+              <div style={{ width:"156px", height:"156px", borderRadius:"999px", overflow:"hidden", display:"grid", placeItems:"center", background:"rgba(164,201,255,.10)", border:"4px solid rgba(5,20,36,.95)", outline:"1px solid rgba(78,222,163,.34)", boxShadow:"0 18px 48px rgba(0,0,0,.38)", color:"#a4c9ff" }}>
+                {currentAvatar ? (
+                  <img src={currentAvatar} alt="Previsualización del avatar" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                ) : (
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"76px" }}>person</span>
+                )}
+              </div>
+
+              <input
+                ref={identityFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleIdentityAvatarChange}
+                style={{ display:"none" }}
+              />
+              <button
+                type="button"
+                onClick={() => identityFileInputRef.current?.click()}
+                className="cm-identity-action"
+                style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", width:"100%", padding:"12px 15px", border:"1px solid rgba(164,201,255,.24)", background:"rgba(164,201,255,.08)", color:"#a4c9ff", fontWeight:850 }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"20px" }}>add_a_photo</span>
+                Cambiar foto
+              </button>
+              <div style={{ color:"rgba(148,163,184,.78)", fontSize:"11px", textAlign:"center", lineHeight:1.55 }}>
+                JPG, PNG o WEBP. Máximo 5 MB. La imagen se recorta y optimiza antes de guardarse.
+              </div>
+              {identityAvatarFile && (
+                <div style={{ display:"inline-flex", alignItems:"center", gap:"7px", color:"#4edea3", fontSize:"11px", fontWeight:800 }}>
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"17px" }}>check_circle</span>
+                  Previsualización lista
+                </div>
+              )}
+            </div>
+
+            <div style={{ display:"grid", gap:"18px", alignContent:"start" }}>
+              <div>
+                <label htmlFor="cm-identity-username" style={{ display:"block", marginBottom:"8px", color:"#e2e8f0", fontSize:"12px", fontWeight:850 }}>
+                  Nombre de usuario
+                </label>
+                <div style={{ position:"relative" }}>
+                  <span style={{ position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", color:"#4edea3", fontWeight:900 }}>@</span>
+                  <input
+                    id="cm-identity-username"
+                    value={identityUsername}
+                    onChange={(event) => {
+                      setIdentityUsername(event.target.value.replace(/^@+/, ""));
+                      setIdentityError("");
+                      setIdentitySuccess("");
+                    }}
+                    className="cm-identity-input"
+                    inputMode="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={24}
+                    placeholder="nombre_usuario"
+                    style={{ paddingLeft:"34px" }}
+                  />
+                </div>
+                <div style={{ marginTop:"7px", color:usernameError ? "#fca5a5" : "rgba(148,163,184,.72)", fontSize:"11px", lineHeight:1.5 }}>
+                  {usernameError || "Entre 3 y 24 caracteres: letras minúsculas, números y guion bajo."}
+                </div>
+              </div>
+
+              <div style={{ padding:"14px 15px", borderRadius:"15px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.035)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"9px", color:"#e2e8f0", fontSize:"12px", fontWeight:850 }}>
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ color:"#a4c9ff", fontSize:"20px" }}>verified_user</span>
+                  Cuenta vinculada
+                </div>
+                <div style={{ marginTop:"7px", color:"rgba(203,213,225,.68)", fontSize:"12px", lineHeight:1.6 }}>
+                  {authUser?.email || "Correo no disponible"} · proveedor {providerName}
+                </div>
+              </div>
+
+              {identityError && (
+                <div role="alert" style={{ padding:"12px 14px", borderRadius:"14px", border:"1px solid rgba(248,113,113,.30)", background:"rgba(248,113,113,.09)", color:"#fca5a5", fontSize:"12px", fontWeight:750 }}>
+                  {identityError}
+                </div>
+              )}
+              {identitySuccess && (
+                <div role="status" style={{ padding:"12px 14px", borderRadius:"14px", border:"1px solid rgba(78,222,163,.30)", background:"rgba(78,222,163,.09)", color:"#4edea3", fontSize:"12px", fontWeight:750 }}>
+                  {identitySuccess}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={saveIdentityProfile}
+                disabled={identitySaving || Boolean(usernameError) || !identityUsername.trim()}
+                className="cm-identity-action"
+                style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", minHeight:"48px", padding:"13px 18px", border:"1px solid rgba(78,222,163,.56)", background:"#4edea3", color:"#03251a", fontSize:"13px", fontWeight:950, letterSpacing:".04em" }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"20px" }}>{identitySaving ? "progress_activity" : "save"}</span>
+                {identitySaving ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   const ProfileEditorView = () => {
+    if (profileEditorOpen && authUser) return <IdentityProfileEditor />;
+
     const openBaseProfile = (kind) => {
       if (!authUser && !isAdmin) {
         requestProtectedProfileAccess("login");
@@ -23078,7 +23378,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de trabajador</span></button>}
                 {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de empresario</span></button>}
                 {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-dynamic-btn hover:bg-primary/90 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="business_center" size={18} active /><span>Mis vacantes</span></button>}
-                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="chevron_right" size={18} active /><span>Editar perfil</span></button>}
+                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="manage_accounts" size={18} active /><span>Actualizar perfil</span></button>}
               </div>
             )}
           </div>
