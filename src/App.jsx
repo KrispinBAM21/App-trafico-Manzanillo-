@@ -119,12 +119,6 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
-if (typeof window !== "undefined" && import.meta.env.PROD && /\.supabase\.co\/?$/i.test(SUPA_URL)) {
-  console.warn(
-    "OAuth branding: configura VITE_SUPABASE_URL con el Custom Domain de Supabase Auth para que Google no muestre el hostname técnico del proyecto."
-  );
-}
-
 const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
     persistSession: true,
@@ -139,17 +133,10 @@ const sb = createClient(SUPA_URL, SUPA_KEY, {
 const CM_AUTH_RETURN_KEY = "cm_auth_return_tab";
 const CM_AUTH_IN_PROGRESS_KEY = "cm_google_auth_in_progress";
 const CM_DEFAULT_AUTH_RETURN_TAB = "donativos";
-const CM_PUBLIC_SITE_URL = String(import.meta.env.VITE_PUBLIC_SITE_URL || "https://conectmanzanillo.com").replace(/\/$/, "");
-const CM_OAUTH_TRUST_MESSAGE = "Tus datos están protegidos bajo protocolos de encriptación de grado bancario. Esta cuenta se utiliza exclusivamente para iniciar sesión de forma segura y habilitar el acceso a las herramientas de gestión portuaria y secciones restringidas de la plataforma.";
 
 const getGoogleOAuthRedirectUrl = () => {
   if (typeof window === "undefined") return undefined;
-
-  // En producción se fuerza el dominio público de la marca. En desarrollo se
-  // conserva el origen local para que OAuth siga funcionando sin alterar el flujo.
-  const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
-  const baseOrigin = isLocal ? window.location.origin : CM_PUBLIC_SITE_URL;
-  const url = new URL(window.location.pathname || "/", baseOrigin);
+  const url = new URL(window.location.origin + window.location.pathname);
   url.searchParams.set("auth_callback", "google");
   url.hash = CM_DEFAULT_AUTH_RETURN_TAB;
   return url.toString();
@@ -24855,52 +24842,6 @@ function GoogleBrandIcon({ size = 18 }) {
   );
 }
 
-function OAuthTrustNotice({ compact = false }) {
-  const theme = React.useContext(ThemeContext);
-  return (
-    <div
-      role="note"
-      aria-label="Protección de datos de inicio de sesión"
-      style={{
-        marginTop: compact ? "10px" : "12px",
-        padding: compact ? "10px 11px" : "12px 14px",
-        borderRadius: "12px",
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "linear-gradient(135deg, rgba(2,8,16,0.86), rgba(7,23,36,0.78))",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "10px",
-      }}
-    >
-      <span
-        className="material-symbols-outlined"
-        aria-hidden="true"
-        style={{
-          color: "#52e0b5",
-          fontSize: compact ? "18px" : "20px",
-          lineHeight: 1,
-          marginTop: "1px",
-          fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20",
-          flexShrink: 0,
-        }}
-      >
-        verified_user
-      </span>
-      <p style={{
-        margin: 0,
-        color: "rgba(226,232,240,0.76)",
-        fontFamily: "Inter, " + getFont(theme, "secondary"),
-        fontSize: compact ? "10px" : "11px",
-        lineHeight: 1.55,
-        letterSpacing: ".01em",
-      }}>
-        {CM_OAUTH_TRUST_MESSAGE}
-      </p>
-    </div>
-  );
-}
-
 // ─── MODAL AUTH RÁPIDO (header: iniciar sesión / crear cuenta sin redirigir) ───
 function AuthQuickModal({ initialMode = "login", onClose }) {
   const theme = React.useContext(ThemeContext);
@@ -25445,8 +25386,6 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <GoogleBrandIcon size={18} />
                   <span>Continuar con Google</span>
                 </button>
-
-                <OAuthTrustNotice />
 
                 <div style={{ height: "1px", background: panelBorder, margin: "26px 0 18px" }} />
 
