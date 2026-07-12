@@ -79,6 +79,51 @@ if (!document.getElementById("cm-material-symbols-global")) {
   document.head.appendChild(materialSymbolsLink);
 }
 
+// ─── MATERIAL SYMBOLS GLOBAL ─────────────────────────────────────────────────
+// Disponible para todos los componentes, incluidos los declarados fuera del
+// módulo de POSTURAS. Evita referencias fuera de alcance al helper local `MS`.
+function MS({ name, size = 20, active = false, color = "currentColor", style = {}, className = "", title = "" }) {
+  const resolvedColor = color !== "currentColor"
+    ? color
+    : active
+      ? "#a1c9ff"
+      : "rgba(212,228,250,.78)";
+
+  return (
+    <span
+      className={`material-symbols-outlined ${className}`.trim()}
+      aria-hidden={title ? undefined : "true"}
+      role={title ? "img" : undefined}
+      title={title || undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        flex: "0 0 auto",
+        overflow: "hidden",
+        color: resolvedColor,
+        fontSize: size,
+        lineHeight: 1,
+        fontWeight: 400,
+        fontStyle: "normal",
+        letterSpacing: "normal",
+        textTransform: "none",
+        whiteSpace: "nowrap",
+        wordWrap: "normal",
+        direction: "ltr",
+        fontFeatureSettings: "liga",
+        WebkitFontFeatureSettings: "liga",
+        WebkitFontSmoothing: "antialiased",
+        ...style,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
 // ─── GOOGLE ADSENSE ──────────────────────────────────────────────────────────
 // Recomendado: mantener también este script pegado directamente en /index.html.
 // Aquí solo reforzamos que exista UNA vez y agregamos el meta de cuenta.
@@ -26352,7 +26397,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
-  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanilloo";
+  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanillo";
 
   useEffect(() => {
     let showTimer, hideTimer;
@@ -27764,7 +27809,7 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
   const socialUrls = {
     facebook: "https://www.facebook.com/conectmanzanillooficial/",
     instagram: "https://www.instagram.com/conectmanzanillo",
-    tiktok: "https://www.tiktok.com/@conectmanzanilloo"
+    tiktok: "https://www.tiktok.com/@conectmanzanillo"
   };
 
   const clearAutoHide = useCallback(() => {
