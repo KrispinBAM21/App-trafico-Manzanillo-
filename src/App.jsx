@@ -26232,7 +26232,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
-  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanillo";
+  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanilloo";
 
   useEffect(() => {
     let showTimer, hideTimer;
