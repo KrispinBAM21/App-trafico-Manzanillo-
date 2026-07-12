@@ -66,7 +66,7 @@ const saveCookieConsent = (val) => {
 
 // Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Noto+Sans:wght@400;700;800&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Noto+Sans:wght@400;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -20648,9 +20648,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     const state = normalizeProfileValidation(row);
     if (state === "validado") return { state, label:"Validado", color:"#4edea3", icon:"verified" };
     if (state === "no_validado") return { state, label:"No validado", color:"#ffb4ab", icon:"cancel" };
-    return { state, label:"Pendiente", color:"#fbbf24", icon:"schedule" };
+    return { state, label:"En revisión por administración", color:"#fbbf24", icon:"schedule" };
   };
-  const isOwnProfile = (row) => !!authUser?.id && String(row?.user_id || "") === String(authUser.id);
+  const isOwnProfile = (row) => !!authUser?.id && String(row?.user_id || row?.submitted_by_uid || "") === String(authUser.id);
   const isProfilePublic = (row) => isOwnProfile(row) || normalizeProfileValidation(row) === "validado";
   const documentState = (value, overall) => {
     if (overall === "no_validado") return { label:"No validado", color:"#ffb4ab", icon:"cancel" };
@@ -20665,15 +20665,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setMsg({type:"err", text:"Escribe un comentario para indicar la corrección o motivo del rechazo."});
       return;
     }
-    const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
-    const payload = { perfil_estado:nextState, activo:true, updated_at:new Date().toISOString() };
-    const { error } = await sb.from(table).update(payload).eq("id", row.id);
+    const { data: linkedProfile, error } = await sb.rpc("admin_review_posturas_profile", {
+      p_profile_type:type,
+      p_profile_id:row.id,
+      p_next_state:nextState,
+      p_comment:comment || null
+    });
     if (error) { setMsg({type:"err", text:error.message}); return; }
-    if (row.user_id || row.device_id) {
+    const reviewedRow = Array.isArray(linkedProfile) ? linkedProfile[0] : (linkedProfile || row);
+    if (reviewedRow.user_id || reviewedRow.submitted_by_uid || reviewedRow.device_id) {
       try {
         await sb.from("posturas_notificaciones").insert({
-          user_id:row.user_id || null,
-          device_id:row.device_id || myId,
+          user_id:reviewedRow.user_id || reviewedRow.submitted_by_uid || null,
+          device_id:reviewedRow.device_id || myId,
           type:"validacion_perfil",
           title: nextState === "validado" ? "Perfil validado" : "Corrección requerida",
           message: nextState === "validado" ? "Tu perfil fue validado y ya es público." : comment,
@@ -20815,7 +20819,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         });
         setNotificaciones(visibleNotifications);
       } catch { setNotificaciones([]); }
-      const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId);
+      const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId);
       const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
       setShowReminder(!!authUser && stale);
     } catch (e) {
@@ -20891,13 +20895,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneo && salarioForaneo > salarioMaxPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante no debe superar $${salarioMaxPostulanteForaneo}.`}); return; }
     persistPosturasUserType("postulante");
     const nowIso = new Date().toISOString();
-    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:null, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
     try {
       await apiFetch(`/api/posturas/profile?type=trabajador`, {
         method:editingTrabId ? "PUT" : "POST",
         body:JSON.stringify({ type:"trabajador", id:editingTrabId || null, payload })
       });
-      setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Perfil guardado. Quedó pendiente de validación administrativa."});
+      setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Formulario enviado. En revisión por administración."});
       setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas();
     } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil."}); }
   };
@@ -20947,13 +20951,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
-    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:null, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
     try {
       await apiFetch(`/api/posturas/profile?type=empresa`, {
         method:editingEmpId ? "PUT" : "POST",
         body:JSON.stringify({ type:"empresa", id:editingEmpId || null, payload })
       });
-      setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : (isAdmin ? "Perfil de empresa guardado y validado." : "Perfil empresarial guardado. Quedó pendiente de validación administrativa.")});
+      setMsg({type:"ok", text:vacancyModalOpen ? "Vacante publicada." : (isAdmin ? "Perfil de empresa guardado y validado." : "Formulario empresarial enviado. En revisión por administración.")});
       setEmpForm(emptyEmp); setEditingEmpId(null); setVacancyModalOpen(false); loadPosturas();
     } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil empresarial."}); }
   };
@@ -21105,8 +21109,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const publicEmpresas = empresas.filter(isProfilePublic);
   const trabFiltrados = sortByReputation(filterRows(publicTrabajadores, "trabajador"), "trabajador");
   const empFiltradas = sortByReputation(filterRows(publicEmpresas, "empresa"), "empresa");
-  const myTrabajadores = authUser?.id ? trabajadores.filter(row => row.user_id === authUser.id) : [];
-  const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id) : [];
+  const myTrabajadores = authUser?.id ? trabajadores.filter(row => (row.user_id === authUser.id || row.submitted_by_uid === authUser.id)) : [];
+  const myEmpresas = authUser?.id ? empresas.filter(row => (row.user_id === authUser.id || row.submitted_by_uid === authUser.id)) : [];
   const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const myLatestEmpresa = [...myEmpresas].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const isRenderableImageSrc = (value) => {
@@ -22505,8 +22509,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
   const NotificationsCenter = () => {
-    const ownWorkerIds = new Set(trabajadores.filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId).map(x => String(x.id)));
-    const ownCompanyIds = new Set(empresas.filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId).map(x => String(x.id)));
+    const ownWorkerIds = new Set(trabajadores.filter(x => (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId).map(x => String(x.id)));
+    const ownCompanyIds = new Set(empresas.filter(x => (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId).map(x => String(x.id)));
     const relatedRatings = ratings.filter(r => ownWorkerIds.has(String(r.profile_id)) || ownCompanyIds.has(String(r.profile_id)));
     const systemItems = [];
     if (!authUser && !isAdmin) systemItems.push({ id:"access", titulo:"Inicia sesión para recibir notificaciones", mensaje:"Las postulaciones, intentos de contacto y cambios de estado aparecerán aquí cuando accedas con tu cuenta.", tipo:"info", created_at:new Date().toISOString(), leida:false });
@@ -22590,7 +22594,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const myVacancies = isAdmin
     ? [...empresas]
     : authUser?.id
-      ? empresas.filter(row => row.user_id === authUser.id)
+      ? empresas.filter(row => (row.user_id === authUser.id || row.submitted_by_uid === authUser.id))
       : [];
 
   const VacancyPreviewModal = () => {
@@ -24802,6 +24806,24 @@ const WORLD_COUNTRIES = [
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
 
 // ─── MODAL AUTH RÁPIDO (header: iniciar sesión / crear cuenta sin redirigir) ───
+function GoogleOfficialIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true" focusable="false" style={{ display:"block", flexShrink:0 }}>
+      <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.715v2.258h2.909c1.702-1.567 2.684-3.875 2.684-6.614Z"/>
+      <path fill="#34A853" d="M9 18c2.43 0 4.468-.806 5.956-2.181l-2.91-2.258c-.806.54-1.835.859-3.046.859-2.344 0-4.328-1.585-5.037-3.715H.956v2.332A9 9 0 0 0 9 18Z"/>
+      <path fill="#FBBC05" d="M3.963 10.705A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.168.281-1.705V4.963H.956A9 9 0 0 0 0 9c0 1.452.347 2.827.956 4.037l3.007-2.332Z"/>
+      <path fill="#EA4335" d="M9 3.58c1.322 0 2.508.454 3.442 1.345l2.582-2.582C13.464.891 11.426 0 9 0A9 9 0 0 0 .956 4.963l3.007 2.332C4.672 5.165 6.656 3.58 9 3.58Z"/>
+    </svg>
+  );
+}
+
+function AuthLineIcon({ name, size = 18 }) {
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round", "aria-hidden":true, focusable:"false" };
+  if (name === "lock") return <svg {...common}><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg>;
+  if (name === "eye-off") return <svg {...common}><path d="m3 3 18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5.5 0 9 5 9 5a16.6 16.6 0 0 1-3 3.5"/><path d="M6.2 6.2C4.2 7.5 3 9 3 9s3.5 5 9 5c.8 0 1.5-.1 2.2-.3"/></svg>;
+  return <svg {...common}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+}
+
 function AuthQuickModal({ initialMode = "login", onClose }) {
   const theme = React.useContext(ThemeContext);
   const [authMode, setAuthMode] = useState(initialMode === "registro" ? "registro" : "login");
@@ -24950,7 +24972,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
   const stepLabels = ["Datos básicos", "Teléfono", "Correo", "Contraseña"];
 
-  const authFont = "'IBM Plex Sans', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const authFont = "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const pageBg = "#f7fafc";
   const panelBorder = "#e2e8f0";
   const textMain = "#2d3748";
@@ -25006,7 +25028,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     width: "100%",
     minHeight: "44px",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "12px",
     background: red,
     color: "#ffffff",
     fontFamily: authFont,
@@ -25016,14 +25038,14 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     textTransform: "uppercase",
     cursor: loading ? "wait" : "pointer",
     opacity: loading ? 0.72 : 1,
-    transition: "filter .18s ease, transform .18s ease"
+    transition: "all 300ms ease"
   };
 
   const outlineAuthBtn = {
     width: "100%",
     minHeight: "42px",
     border: `1px solid ${steel}`,
-    borderRadius: "4px",
+    borderRadius: "12px",
     background: "#ffffff",
     color: steel,
     fontFamily: authFont,
@@ -25032,7 +25054,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     letterSpacing: ".8px",
     textTransform: "uppercase",
     cursor: "pointer",
-    transition: "background .18s ease, color .18s ease, border-color .18s ease"
+    transition: "all 300ms ease"
   };
 
   const miniLinkBtn = {
@@ -25117,7 +25139,11 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     >
       <style>{`
         @media (max-width: 760px) {
-          .cm-auth-shell { padding: 18px !important; }
+          .cm-auth-action-btn { transition: all 300ms ease !important; border-radius: 12px !important; font-family: 'Inter', sans-serif !important; }
+    .cm-auth-action-btn:hover:not(:disabled) { box-shadow: 0 12px 28px rgba(15,23,42,.18) !important; transform: translateY(-1px); }
+    .cm-auth-action-btn:active:not(:disabled) { transform: scale(.98) !important; }
+    .cm-auth-google-btn:hover:not(:disabled) { border-color: rgba(66,133,244,.58) !important; box-shadow: 0 12px 28px rgba(66,133,244,.16) !important; }
+    .cm-auth-shell { padding: 18px !important; }
           .cm-auth-grid { grid-template-columns: 1fr !important; }
           .cm-auth-marketing { display: none !important; }
           .cm-auth-card { padding: 24px !important; }
@@ -25245,7 +25271,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 </div>
 
                 <div style={fieldWrap}>
-                  <span style={fieldIcon}>🔒</span>
+                  <span style={{ ...fieldIcon, width:"18px", height:"18px", display:"grid", placeItems:"center" }}><AuthLineIcon name="lock" size={17} /></span>
                   <input
                     id="cm-login-password"
                     type={showLoginPass ? "text" : "password"}
@@ -25274,7 +25300,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                       fontSize: "15px"
                     }}
                   >
-                    {showLoginPass ? "🙈" : "👁️"}
+                    {showLoginPass ? <AuthLineIcon name="eye-off" size={18} /> : <AuthLineIcon name="eye" size={18} />}
                   </button>
                 </div>
 
@@ -25290,6 +25316,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   type="button"
                   onClick={handleLogin}
                   disabled={loading}
+                  className="cm-auth-action-btn"
                   style={primaryAuthBtn}
                   onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = "brightness(.94)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
@@ -25301,14 +25328,26 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   type="button"
                   onClick={handleLoginGoogle}
                   disabled={loading}
+                  className="cm-auth-action-btn cm-auth-google-btn"
                   style={{
                     ...outlineAuthBtn,
                     marginTop: "10px",
                     borderColor: panelBorder,
-                    color: textMain
+                    color: textMain,
+                    display:"grid",
+                    gridTemplateColumns:"24px 1fr 24px",
+                    alignItems:"center",
+                    gap:"10px",
+                    padding:"0 16px",
+                    textTransform:"none",
+                    letterSpacing:"0",
+                    fontSize:"13px",
+                    fontWeight:700
                   }}
                 >
-                  CONTINUAR CON GOOGLE
+                  <GoogleOfficialIcon size={20} />
+                  <span>Continuar con Google</span>
+                  <span aria-hidden="true" />
                 </button>
 
                 <div style={{ height: "1px", background: panelBorder, margin: "26px 0 18px" }} />
@@ -25320,6 +25359,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <button
                     type="button"
                     onClick={() => { setAuthMode("registro"); setRegMsg(null); setRegStep(1); }}
+                    className="cm-auth-action-btn"
                     style={outlineAuthBtn}
                   >
                     CREAR CUENTA NUEVA
