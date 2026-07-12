@@ -7645,7 +7645,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
         @keyframes cmFloatingMenu{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-global-profile-btn{min-width:66px!important;width:66px!important;height:60px!important;min-height:60px!important;padding:4px!important}.cm-global-profile-avatar-shell{width:40px;height:40px;padding:2px}.cm-global-profile-label{font-size:9px;line-height:11px}.cm-global-profile-chevron{font-size:14px!important}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:12px;gap:10px;min-height:72px;align-items:center}.cm-topbar-brand{max-width:42vw;align-self:center}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-topbar-actions{height:72px;display:flex;align-items:center;justify-content:flex-end;margin-left:auto}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-global-profile-btn{min-width:78px!important;width:78px!important;height:68px!important;min-height:68px!important;padding:3px 4px 4px!important;gap:2px!important;align-self:center!important;justify-content:center!important;transform:none!important}.cm-global-profile-btn:hover{transform:none!important}.cm-global-profile-btn:active{transform:scale(.98)!important}.cm-global-profile-btn::before{inset:2px 4px;border-radius:16px}.cm-global-profile-avatar-shell{width:44px;height:44px;padding:2px;margin:0 auto}.cm-global-profile-label{width:100%;font-size:9px;line-height:10px;display:flex!important;align-items:center!important;justify-content:center!important;gap:1px!important;text-align:center}.cm-global-profile-chevron{font-size:13px!important;position:relative;top:0}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
         @media (max-width: 365px){.cm-login-btn{padding:0 12px;font-size:12px}.cm-topbar-brand{max-width:30vw}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
@@ -23195,24 +23195,55 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     };
 
     return createPortal(<>
+      <style>{`
+        @keyframes cmPosturasPanelFloat {
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes cmPosturasPanelPulse {
+          0%,100% { box-shadow: 0 12px 30px rgba(0,0,0,.34), 0 0 0 0 rgba(78,222,163,.20), inset 0 1px 0 rgba(255,255,255,.07); }
+          50% { box-shadow: 0 16px 38px rgba(0,0,0,.42), 0 0 0 7px rgba(78,222,163,0), inset 0 1px 0 rgba(255,255,255,.10); }
+        }
+        .cm-posturas-mobile-panel-trigger {
+          animation: cmPosturasPanelFloat 3.2s ease-in-out infinite, cmPosturasPanelPulse 2.8s ease-in-out infinite;
+        }
+        .cm-posturas-mobile-panel-trigger:hover {
+          transform: translateY(-3px) scale(1.03);
+          border-color: rgba(78,222,163,.55) !important;
+          background: linear-gradient(135deg, rgba(16,185,129,.28), rgba(2,103,184,.38)) !important;
+          color: #6ffbbe !important;
+        }
+        .cm-posturas-mobile-panel-trigger:active {
+          transform: scale(.96);
+        }
+        .cm-posturas-mobile-panel-trigger[aria-expanded='true'] {
+          animation: none;
+          border-color: rgba(78,222,163,.62) !important;
+          background: linear-gradient(135deg, rgba(16,185,129,.34), rgba(2,103,184,.46)) !important;
+          color: #6ffbbe !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cm-posturas-mobile-panel-trigger { animation: none !important; }
+        }
+      `}</style>
       <button
         type="button"
+        className="cm-posturas-mobile-panel-trigger"
         onClick={()=>setMobilePosturasPanelOpen(true)}
         aria-label="Abrir panel de Posturas"
         aria-expanded={mobilePosturasPanelOpen}
         style={{
-          position:"fixed", left:"14px", top:"74px", zIndex:1290,
-          minWidth:"48px", height:"48px", padding:"0 14px", borderRadius:"15px",
-          border:"1px solid rgba(164,201,255,.24)", background:"rgba(18,33,49,.88)",
-          color:"#d4e4fa", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
-          backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
-          boxShadow:"0 12px 30px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.05)",
-          cursor:"pointer", transition:"all .3s ease", fontFamily:getFont(theme,"secondary"),
-          fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase"
+          position:"fixed", left:"14px", top:"78px", zIndex:1290,
+          width:"52px", height:"52px", padding:0, borderRadius:"16px",
+          border:"1px solid rgba(78,222,163,.34)",
+          background:"linear-gradient(135deg, rgba(16,185,129,.20), rgba(2,103,184,.32))",
+          color:"#4edea3", display:"grid", placeItems:"center",
+          backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+          boxShadow:"0 12px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.07)",
+          cursor:"pointer", transition:"all .3s cubic-bezier(.22,1,.36,1)"
         }}
       >
-        <MS name="menu" size={24} active />
-        <span>Panel</span>
+        <MS name={mobilePosturasPanelOpen ? "left_panel_close" : "space_dashboard"} size={27} color="currentColor" />
       </button>
 
       <div
