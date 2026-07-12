@@ -7621,7 +7621,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-global-profile-btn:hover::before,.cm-global-profile-btn[aria-expanded='true']::before{opacity:1;transform:scale(1)}
         .cm-global-profile-btn:hover{background:transparent!important;transform:translateY(-2px)!important;box-shadow:none!important}
         .cm-global-profile-btn:active{transform:translateY(0) scale(.98)!important}
-        .cm-global-profile-avatar-shell{position:relative;z-index:1;width:46px;height:46px;display:grid;place-items:center;border-radius:999px;padding:3px;background:linear-gradient(145deg,#16b9ff,#0288cc 54%,#66d8ff);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 18px rgba(22,185,255,.34),0 8px 18px rgba(0,0,0,.34);transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,filter .3s ease}
+        .cm-global-profile-avatar-shell{position:relative;z-index:1;width:50px;height:50px;box-sizing:border-box;display:grid;place-items:center;border-radius:999px;padding:3px;background:linear-gradient(145deg,#16b9ff 0%,#0288cc 52%,#66d8ff 100%);box-shadow:0 0 0 1px rgba(255,255,255,.16),0 0 20px rgba(22,185,255,.38),0 9px 20px rgba(0,0,0,.38);transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,filter .3s ease;overflow:visible}.cm-global-profile-avatar-shell>span{width:100%!important;height:100%!important;flex:0 0 auto!important;box-sizing:border-box!important;border:2px solid rgba(5,20,36,.92)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 2px 8px rgba(0,0,0,.3)!important;background:#051424!important}
         .cm-global-profile-avatar-shell::after{content:'';position:absolute;inset:-5px;border-radius:inherit;border:1px solid rgba(22,185,255,.26);opacity:0;transform:scale(.82);transition:all .3s ease}
         .cm-global-profile-btn:hover .cm-global-profile-avatar-shell,.cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-avatar-shell{transform:translateY(-2px) scale(1.06);filter:saturate(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.14),0 0 28px rgba(22,185,255,.56),0 10px 24px rgba(0,0,0,.4)}
         .cm-global-profile-btn:hover .cm-global-profile-avatar-shell::after,.cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-avatar-shell::after{opacity:1;transform:scale(1)}
@@ -7645,7 +7645,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
         @keyframes cmFloatingMenu{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:12px;gap:10px;min-height:72px;align-items:center}.cm-topbar-brand{max-width:42vw;align-self:center}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-topbar-actions{height:72px;display:flex;align-items:center;justify-content:flex-end;margin-left:auto}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-global-profile-btn{min-width:78px!important;width:78px!important;height:68px!important;min-height:68px!important;padding:3px 4px 4px!important;gap:2px!important;align-self:center!important;justify-content:center!important;transform:none!important}.cm-global-profile-btn:hover{transform:none!important}.cm-global-profile-btn:active{transform:scale(.98)!important}.cm-global-profile-btn::before{inset:2px 4px;border-radius:16px}.cm-global-profile-avatar-shell{width:44px;height:44px;padding:2px;margin:0 auto}.cm-global-profile-label{width:100%;font-size:9px;line-height:10px;display:flex!important;align-items:center!important;justify-content:center!important;gap:1px!important;text-align:center}.cm-global-profile-chevron{font-size:13px!important;position:relative;top:0}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:12px;gap:10px;min-height:72px;align-items:center}.cm-topbar-brand{max-width:42vw;align-self:center}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-topbar-actions{height:72px;display:flex;align-items:center;justify-content:flex-end;margin-left:auto}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-global-profile-btn{min-width:78px!important;width:78px!important;height:68px!important;min-height:68px!important;padding:3px 4px 4px!important;gap:2px!important;align-self:center!important;justify-content:center!important;transform:none!important}.cm-global-profile-btn:hover{transform:none!important}.cm-global-profile-btn:active{transform:scale(.98)!important}.cm-global-profile-btn::before{inset:2px 4px;border-radius:16px}.cm-global-profile-avatar-shell{width:48px;height:48px;padding:3px;margin:0 auto}.cm-global-profile-avatar-shell>span{width:100%!important;height:100%!important}.cm-global-profile-label{width:100%;font-size:9px;line-height:10px;display:flex!important;align-items:center!important;justify-content:center!important;gap:1px!important;text-align:center}.cm-global-profile-chevron{font-size:13px!important;position:relative;top:0}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
         @media (max-width: 365px){.cm-login-btn{padding:0 12px;font-size:12px}.cm-topbar-brand{max-width:30vw}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
@@ -23197,34 +23197,38 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return createPortal(<>
       <style>{`
         @keyframes cmPosturasPanelFloat {
-          0%,100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
+          0%,100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-4px) rotate(-1deg); }
         }
-        @keyframes cmPosturasPanelPulse {
-          0%,100% { box-shadow: 0 12px 30px rgba(0,0,0,.34), 0 0 0 0 rgba(78,222,163,.20), inset 0 1px 0 rgba(255,255,255,.07); }
-          50% { box-shadow: 0 16px 38px rgba(0,0,0,.42), 0 0 0 7px rgba(78,222,163,0), inset 0 1px 0 rgba(255,255,255,.10); }
+        @keyframes cmPosturasPanelAura {
+          0%,100% { box-shadow:0 14px 34px rgba(0,0,0,.42),0 0 0 0 rgba(139,92,246,.28),0 0 22px rgba(34,211,238,.22),inset 0 1px 0 rgba(255,255,255,.16); }
+          50% { box-shadow:0 18px 42px rgba(0,0,0,.5),0 0 0 8px rgba(139,92,246,0),0 0 34px rgba(34,211,238,.38),inset 0 1px 0 rgba(255,255,255,.22); }
+        }
+        @keyframes cmPosturasPanelShine {
+          0% { transform:translateX(-160%) rotate(18deg); }
+          55%,100% { transform:translateX(190%) rotate(18deg); }
         }
         .cm-posturas-mobile-panel-trigger {
-          animation: cmPosturasPanelFloat 3.2s ease-in-out infinite, cmPosturasPanelPulse 2.8s ease-in-out infinite;
+          isolation:isolate;
+          animation:cmPosturasPanelFloat 3.4s ease-in-out infinite,cmPosturasPanelAura 2.6s ease-in-out infinite;
         }
-        .cm-posturas-mobile-panel-trigger:hover {
-          transform: translateY(-3px) scale(1.03);
-          border-color: rgba(78,222,163,.55) !important;
-          background: linear-gradient(135deg, rgba(16,185,129,.28), rgba(2,103,184,.38)) !important;
-          color: #6ffbbe !important;
+        .cm-posturas-mobile-panel-trigger::before {
+          content:'';position:absolute;inset:2px;border-radius:15px;z-index:-1;
+          background:linear-gradient(145deg,rgba(139,92,246,.92),rgba(37,99,235,.88) 52%,rgba(6,182,212,.92));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.24);
         }
-        .cm-posturas-mobile-panel-trigger:active {
-          transform: scale(.96);
+        .cm-posturas-mobile-panel-trigger::after {
+          content:'';position:absolute;top:-16%;bottom:-16%;left:-22%;width:30%;z-index:0;
+          background:linear-gradient(90deg,transparent,rgba(255,255,255,.48),transparent);
+          filter:blur(1px);pointer-events:none;animation:cmPosturasPanelShine 3.8s ease-in-out infinite;
         }
-        .cm-posturas-mobile-panel-trigger[aria-expanded='true'] {
-          animation: none;
-          border-color: rgba(78,222,163,.62) !important;
-          background: linear-gradient(135deg, rgba(16,185,129,.34), rgba(2,103,184,.46)) !important;
-          color: #6ffbbe !important;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .cm-posturas-mobile-panel-trigger { animation: none !important; }
-        }
+        .cm-posturas-mobile-panel-trigger .material-symbols-outlined {position:relative;z-index:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.38));transition:transform .3s cubic-bezier(.22,1,.36,1),filter .3s ease;}
+        .cm-posturas-mobile-panel-trigger:hover {transform:translateY(-5px) scale(1.06);border-color:rgba(165,180,252,.72)!important;color:#ffffff!important;}
+        .cm-posturas-mobile-panel-trigger:hover .material-symbols-outlined {transform:scale(1.12) rotate(-4deg);filter:drop-shadow(0 0 9px rgba(255,255,255,.48));}
+        .cm-posturas-mobile-panel-trigger:active {transform:translateY(0) scale(.94);}
+        .cm-posturas-mobile-panel-trigger[aria-expanded='true'] {animation:cmPosturasPanelAura 2.6s ease-in-out infinite;border-color:rgba(103,232,249,.78)!important;color:#ffffff!important;}
+        .cm-posturas-mobile-panel-trigger[aria-expanded='true']::before {background:linear-gradient(145deg,rgba(6,182,212,.96),rgba(37,99,235,.92) 54%,rgba(139,92,246,.96));}
+        @media (prefers-reduced-motion:reduce){.cm-posturas-mobile-panel-trigger,.cm-posturas-mobile-panel-trigger::after{animation:none!important;}}
       `}</style>
       <button
         type="button"
@@ -23234,16 +23238,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         aria-expanded={mobilePosturasPanelOpen}
         style={{
           position:"fixed", left:"14px", top:"78px", zIndex:1290,
-          width:"52px", height:"52px", padding:0, borderRadius:"16px",
-          border:"1px solid rgba(78,222,163,.34)",
-          background:"linear-gradient(135deg, rgba(16,185,129,.20), rgba(2,103,184,.32))",
-          color:"#4edea3", display:"grid", placeItems:"center",
-          backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-          boxShadow:"0 12px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.07)",
+          width:"56px", height:"56px", padding:0, borderRadius:"18px",
+          border:"1px solid rgba(165,180,252,.48)",
+          background:"rgba(15,23,42,.72)",
+          color:"#ffffff", display:"grid", placeItems:"center", overflow:"hidden",
+          backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
+          boxShadow:"0 14px 34px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.13)",
           cursor:"pointer", transition:"all .3s cubic-bezier(.22,1,.36,1)"
         }}
       >
-        <MS name={mobilePosturasPanelOpen ? "left_panel_close" : "space_dashboard"} size={27} color="currentColor" />
+        <MS name={mobilePosturasPanelOpen ? "dock_to_right" : "view_sidebar"} size={29} color="currentColor" />
       </button>
 
       <div
