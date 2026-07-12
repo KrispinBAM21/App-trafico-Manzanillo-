@@ -26450,7 +26450,7 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
   const FB_GROUP   = "https://www.facebook.com/groups/conectmanzanillo/";
   const FB_PAGE    = "https://www.facebook.com/conectmanzanillooficial";
   const IG_PAGE    = "https://www.instagram.com/conectmanzanillo";
-  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanillo";
+  const TIKTOK_PAGE = "https://www.tiktok.com/@conectmanzanilloo";
 
   useEffect(() => {
     let showTimer, hideTimer;
@@ -26659,8 +26659,8 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
         @keyframes cmFade{from{opacity:0}to{opacity:1}}
         @keyframes cmReveal{from{clip-path:polygon(0 0,0 0,0 100%,0 100%);opacity:.72}to{clip-path:polygon(0 0,100% 0,100% 100%,0 100%);opacity:1}}
         @media (min-width: 1100px){.cm-home-content{max-width:1040px;padding-top:56px}.cm-hero-logo{width:166px;height:166px}.cm-reveal-title{font-size:58px}.cm-hero-copy{font-size:15px;max-width:650px}.cm-dock-panel{max-width:560px}}
-        @media (max-width: 720px){.cm-home-root{padding-left:12px;padding-right:12px}.cm-home-content{padding-top:38px;gap:26px}.cm-hero-logo{width:126px;height:126px}.cm-reveal-title{font-size:clamp(30px,8vw,42px)}.cm-hero-copy{max-width:520px;font-size:12px;line-height:1.55}.cm-dock-panel{width:min(100%,392px);padding:16px 18px 18px}.cm-dock-grid{gap:9px}.cm-dock-card{min-height:54px;border-radius:13px}.cm-dock-icon{width:30px;height:30px}.cm-hero-btn{min-width:154px}}
-        @media (max-width: 480px){.cm-home-content{justify-content:flex-start;min-height:calc(100vh - 92px);padding-top:30px}.cm-hero-actions{width:100%}.cm-hero-btn{width:100%;max-width:320px}.cm-dock-panel{border-radius:18px 18px 0 0;padding:14px 12px 16px}.cm-dock-title{font-size:9px;letter-spacing:1.4px}.cm-dock-grid{gap:6px}.cm-dock-card{min-height:52px;font-size:8px}.cm-dock-icon{width:28px;height:28px}.cm-hero-logo{width:112px;height:112px}}      `}</style>
+        @media (max-width: 720px){.cm-home-root{padding:112px 12px 58px}.cm-home-content{min-height:calc(100vh - 112px);padding-top:24px;gap:26px}.cm-hero-logo-wrap{width:min(78vw,300px);height:118px;margin-bottom:20px;overflow:visible}.cm-hero-logo-wrap:before{inset:-18px -34px;filter:blur(48px)}.cm-hero-logo{width:100%;height:100%;max-width:300px;object-fit:contain;object-position:center;display:block}.cm-reveal-title{font-size:clamp(30px,8vw,42px)}.cm-hero-copy{max-width:520px;font-size:12px;line-height:1.55}.cm-dock-panel{width:min(100%,392px);padding:16px 18px 18px}.cm-dock-grid{gap:9px}.cm-dock-card{min-height:54px;border-radius:13px}.cm-dock-icon{width:30px;height:30px}.cm-hero-btn{min-width:154px}}
+        @media (max-width: 480px){.cm-home-root{padding-top:118px}.cm-home-content{justify-content:flex-start;min-height:calc(100vh - 118px);padding-top:20px}.cm-hero-logo-wrap{width:min(82vw,280px);height:110px;margin-bottom:18px}.cm-hero-logo{width:100%;height:100%;max-width:280px;object-fit:contain;object-position:center}.cm-hero-actions{width:100%}.cm-hero-btn{width:100%;max-width:320px}.cm-dock-panel{border-radius:18px 18px 0 0;padding:14px 12px 16px}.cm-dock-title{font-size:9px;letter-spacing:1.4px}.cm-dock-grid{gap:6px}.cm-dock-card{min-height:52px;font-size:8px}.cm-dock-icon{width:28px;height:28px}}      `}</style>
       <canvas id="network-shader" ref={canvasRef} aria-hidden="true" />
       <div className="cm-home-vignette" />
       <section className="cm-home-content" aria-label="Inicio Conect Manzanillo">
@@ -27862,7 +27862,7 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
   const socialUrls = {
     facebook: "https://www.facebook.com/conectmanzanillooficial/",
     instagram: "https://www.instagram.com/conectmanzanillo",
-    tiktok: "https://www.tiktok.com/@conectmanzanillo"
+    tiktok: "https://www.tiktok.com/@conectmanzanilloo"
   };
 
   const clearAutoHide = useCallback(() => {
