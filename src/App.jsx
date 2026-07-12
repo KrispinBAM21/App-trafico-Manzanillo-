@@ -28202,7 +28202,6 @@ function GlobalIdentityProfileModal({
 
   useEffect(() => {
     window.clearTimeout(closeTimerRef.current);
-
     if (open) {
       setMounted(true);
       const frame = window.requestAnimationFrame(() => {
@@ -28210,7 +28209,6 @@ function GlobalIdentityProfileModal({
       });
       return () => window.cancelAnimationFrame(frame);
     }
-
     setVisible(false);
     closeTimerRef.current = window.setTimeout(() => setMounted(false), 300);
     return () => window.clearTimeout(closeTimerRef.current);
@@ -28220,11 +28218,9 @@ function GlobalIdentityProfileModal({
     if (!mounted) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     const handleKeyDown = (event) => {
       if (event.key === "Escape" && !globalProfileSaving) closeGlobalProfileEditor();
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -28233,112 +28229,155 @@ function GlobalIdentityProfileModal({
   }, [mounted, globalProfileSaving, closeGlobalProfileEditor]);
 
   if (!mounted || !authUser) return null;
-
   const cleanUsername = String(globalProfileUsername || "").replace(/^@+/, "");
 
   return createPortal(
     <div
+      className={`cm-profile-modal-overlay ${visible ? "is-visible" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="global-profile-title"
-      aria-describedby="global-profile-description"
+      aria-labelledby="cm-profile-modal-title"
+      aria-describedby="cm-profile-modal-description"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !globalProfileSaving) closeGlobalProfileEditor();
       }}
-      className={`fixed inset-0 z-[100000] flex items-center justify-center overflow-y-auto bg-[#010f1f]/75 p-4 font-['Inter'] backdrop-blur-md transition-all duration-300 ease-out sm:p-6 ${visible ? "opacity-100" : "opacity-0"}`}
     >
-      <section
-        onMouseDown={(event) => event.stopPropagation()}
-        className={`relative isolate flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#051424]/90 shadow-[0_32px_90px_rgba(0,0,0,0.58)] backdrop-blur-xl transition-all duration-300 ease-out sm:max-h-[calc(100dvh-3rem)] ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.95] opacity-0"}`}
-      >
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_0%,rgba(78,222,163,0.12),transparent_38%),radial-gradient(circle_at_100%_100%,rgba(2,103,184,0.14),transparent_42%)]" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] -z-10 rounded-[23px] bg-gradient-to-br from-white/[0.055] via-transparent to-white/[0.015]" />
+      <style>{`
+        .cm-profile-modal-overlay,
+        .cm-profile-modal-overlay * { box-sizing: border-box; }
+        .cm-profile-modal-overlay {
+          position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+          overflow-y: auto; padding: 24px; background: rgba(1,15,31,.78); backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px); opacity: 0; transition: opacity .3s ease-out; font-family: Inter, sans-serif;
+        }
+        .cm-profile-modal-overlay.is-visible { opacity: 1; }
+        .cm-profile-modal {
+          position: relative; width: min(100%, 620px); max-height: calc(100dvh - 48px); overflow: hidden;
+          display: flex; flex-direction: column; border-radius: 24px; border: 1px solid rgba(255,255,255,.10);
+          background: rgba(5,20,36,.94); box-shadow: 0 32px 90px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.035);
+          backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+          transform: translateY(14px) scale(.95); opacity: 0; transition: transform .3s ease-out, opacity .3s ease-out;
+        }
+        .cm-profile-modal-overlay.is-visible .cm-profile-modal { transform: translateY(0) scale(1); opacity: 1; }
+        .cm-profile-modal::before {
+          content: ""; position: absolute; inset: 0; pointer-events: none;
+          background: radial-gradient(circle at 10% 0%, rgba(78,222,163,.12), transparent 38%), radial-gradient(circle at 100% 100%, rgba(2,103,184,.16), transparent 42%);
+        }
+        .cm-profile-modal__header, .cm-profile-modal__body, .cm-profile-modal__footer { position: relative; z-index: 1; }
+        .cm-profile-modal__header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:24px; border-bottom:1px solid rgba(255,255,255,.05); }
+        .cm-profile-modal__eyebrow { display:flex; align-items:center; gap:8px; margin-bottom:8px; color:#4edea3; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.15em; text-transform:uppercase; }
+        .cm-profile-modal__title { margin:0; color:#d4e4fa; font-size:32px; line-height:40px; font-weight:600; letter-spacing:-.01em; }
+        .cm-profile-modal__description { margin:8px 0 0; max-width:470px; color:#bbcabf; font-size:14px; line-height:22px; }
+        .cm-profile-modal__close { width:44px; height:44px; flex:0 0 44px; display:grid; place-items:center; border-radius:999px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.035); color:#bbcabf; cursor:pointer; }
+        .cm-profile-modal__close, .cm-profile-modal__button, .cm-profile-modal__upload-button, .cm-profile-modal__camera, .cm-profile-modal__input-wrap { transition:all .3s ease-out; }
+        .cm-profile-modal__close:hover { transform:translateY(-2px); background:rgba(39,54,71,.72); color:#d4e4fa; box-shadow:0 10px 24px rgba(0,0,0,.24); }
+        .cm-profile-modal__close:active { transform:scale(.96); }
+        .cm-profile-modal__body { overflow-y:auto; padding:24px; }
+        .cm-profile-modal__photo-card { display:flex; align-items:center; gap:24px; padding:20px; border-radius:18px; border:1px solid rgba(255,255,255,.06); background:rgba(13,28,45,.70); box-shadow:inset 0 1px 0 rgba(255,255,255,.035); }
+        .cm-profile-modal__avatar-wrap { position:relative; flex:0 0 auto; }
+        .cm-profile-modal__avatar { width:112px; height:112px; display:grid; place-items:center; overflow:hidden; border-radius:999px; border:2px solid rgba(2,103,184,.85); background:#010f1f; padding:4px; box-shadow:0 0 0 5px rgba(2,103,184,.08),0 18px 35px rgba(0,0,0,.32); transition:all .3s ease-out; }
+        .cm-profile-modal__avatar-wrap:hover .cm-profile-modal__avatar { transform:scale(1.025); border-color:#a4c9ff; box-shadow:0 0 0 6px rgba(164,201,255,.10),0 22px 42px rgba(0,0,0,.38); }
+        .cm-profile-modal__avatar img { width:100%; height:100%; object-fit:cover; border-radius:999px; display:block; }
+        .cm-profile-modal__camera { position:absolute; right:0; bottom:0; width:44px; height:44px; display:grid; place-items:center; border-radius:999px; border:1px solid rgba(255,255,255,.20); background:linear-gradient(135deg,#4edea3 0%,#0267b8 100%); color:#003824; cursor:pointer; box-shadow:0 10px 25px rgba(2,103,184,.30); }
+        .cm-profile-modal__camera:hover { transform:translateY(-4px) scale(1.05); box-shadow:0 14px 30px rgba(78,222,163,.25); }
+        .cm-profile-modal__camera:active { transform:scale(.95); }
+        .cm-profile-modal__camera input { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+        .cm-profile-modal__photo-copy { flex:1; min-width:0; }
+        .cm-profile-modal__photo-title { display:flex; align-items:center; gap:8px; color:#d4e4fa; font-size:14px; font-weight:600; }
+        .cm-profile-modal__hint { margin:8px 0 0; color:#86948a; font-size:14px; line-height:20px; }
+        .cm-profile-modal__upload-button { margin-top:16px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.035); color:#d4e4fa; font-size:14px; font-weight:600; cursor:pointer; }
+        .cm-profile-modal__upload-button:hover { transform:translateY(-2px); border-color:rgba(164,201,255,.35); background:rgba(39,54,71,.62); box-shadow:0 12px 26px rgba(0,0,0,.24); }
+        .cm-profile-modal__field { display:block; margin-top:24px; }
+        .cm-profile-modal__label { display:block; margin-bottom:8px; color:#bbcabf; font-size:12px; line-height:16px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+        .cm-profile-modal__input-wrap { min-height:56px; display:flex; align-items:center; overflow:hidden; border-radius:14px; border:1px solid #3c4a42; background:#010f1f; box-shadow:inset 0 2px 8px rgba(0,0,0,.28); }
+        .cm-profile-modal__input-wrap:hover { border-color:rgba(134,148,138,.72); }
+        .cm-profile-modal__input-wrap:focus-within { border-color:#4edea3; box-shadow:0 0 0 4px rgba(78,222,163,.10), inset 0 2px 8px rgba(0,0,0,.28); }
+        .cm-profile-modal__input-icon { margin-left:16px; color:#a4c9ff; transition:color .3s ease-out; }
+        .cm-profile-modal__input-wrap:focus-within .cm-profile-modal__input-icon { color:#4edea3; }
+        .cm-profile-modal__input { height:54px; min-width:0; flex:1; border:0 !important; outline:0 !important; box-shadow:none !important; background:transparent !important; padding:0 14px; color:#d4e4fa !important; font-family:Inter,sans-serif; font-size:16px; font-weight:600; }
+        .cm-profile-modal__input::placeholder { color:rgba(134,148,138,.68); }
+        .cm-profile-modal__error { margin-top:16px; display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,180,171,.20); background:rgba(147,0,10,.20); color:#ffb4ab; font-size:14px; line-height:20px; }
+        .cm-profile-modal__footer { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:20px 24px; border-top:1px solid rgba(255,255,255,.05); background:rgba(18,33,49,.48); backdrop-filter:blur(12px); }
+        .cm-profile-modal__button { min-height:48px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:14px; padding:0 24px; font-family:Inter,sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
+        .cm-profile-modal__button--ghost { border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.035); color:#bbcabf; }
+        .cm-profile-modal__button--ghost:hover { transform:translateY(-2px); background:rgba(39,54,71,.58); color:#d4e4fa; box-shadow:0 12px 26px rgba(0,0,0,.22); }
+        .cm-profile-modal__button--primary { min-width:180px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:linear-gradient(135deg,#4edea3 0%,#0267b8 100%); color:#003824; box-shadow:0 0 22px rgba(78,222,163,.18); }
+        .cm-profile-modal__button--primary:hover { transform:translateY(-4px); filter:brightness(1.05); box-shadow:0 0 34px rgba(78,222,163,.32); }
+        .cm-profile-modal__button:active { transform:scale(.98); }
+        .cm-profile-modal__button:disabled, .cm-profile-modal__close:disabled { pointer-events:none; opacity:.48; }
+        .cm-profile-modal__spinner { animation:cmProfileSpin .8s linear infinite; }
+        @keyframes cmProfileSpin { to { transform:rotate(360deg); } }
+        @media (max-width: 640px) {
+          .cm-profile-modal-overlay { align-items:flex-end; padding:12px; }
+          .cm-profile-modal { width:100%; max-height:calc(100dvh - 24px); border-radius:22px; }
+          .cm-profile-modal__header { padding:20px; }
+          .cm-profile-modal__title { font-size:24px; line-height:32px; }
+          .cm-profile-modal__description { font-size:13px; line-height:20px; }
+          .cm-profile-modal__body { padding:20px; }
+          .cm-profile-modal__photo-card { flex-direction:column; text-align:center; gap:18px; }
+          .cm-profile-modal__photo-title { justify-content:center; }
+          .cm-profile-modal__footer { flex-direction:column-reverse; padding:16px 20px 20px; }
+          .cm-profile-modal__button { width:100%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cm-profile-modal-overlay, .cm-profile-modal, .cm-profile-modal-overlay * { transition-duration:.01ms !important; animation-duration:.01ms !important; }
+        }
+      `}</style>
 
-        <header className="flex items-start justify-between gap-4 border-b border-white/5 px-5 py-5 sm:px-6 sm:py-6">
-          <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-[#4edea3]">
-              <MS name="verified_user" size={19} active />
-              <span>Identidad global</span>
-            </div>
-            <h2 id="global-profile-title" className="m-0 text-2xl font-semibold leading-8 tracking-[-0.01em] text-[#d4e4fa] sm:text-[32px] sm:leading-10">Actualizar perfil</h2>
-            <p id="global-profile-description" className="mt-2 max-w-[470px] text-sm leading-6 text-[#bbcabf]">Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
+      <section className="cm-profile-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="cm-profile-modal__header">
+          <div>
+            <div className="cm-profile-modal__eyebrow"><MS name="verified_user" size={19} active /><span>Identidad global</span></div>
+            <h2 id="cm-profile-modal-title" className="cm-profile-modal__title">Actualizar perfil</h2>
+            <p id="cm-profile-modal-description" className="cm-profile-modal__description">Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
           </div>
-
-          <button
-            type="button"
-            onClick={closeGlobalProfileEditor}
-            disabled={globalProfileSaving}
-            aria-label="Cerrar ventana"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.035] text-[#bbcabf] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-white/10 hover:bg-[#273647]/70 hover:text-[#d4e4fa] hover:shadow-[0_10px_24px_rgba(0,0,0,0.24)] active:translate-y-0 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a4c9ff]/50 disabled:pointer-events-none disabled:opacity-40"
-          >
-            <MS name="close" size={22} active />
-          </button>
+          <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} aria-label="Cerrar ventana" className="cm-profile-modal__close"><MS name="close" size={22} active /></button>
         </header>
 
-        <div className="overflow-y-auto px-5 py-6 sm:px-6">
-          <div className="space-y-7">
-            <section className="flex flex-col items-center gap-5 rounded-2xl border border-white/5 bg-[#0d1c2d]/65 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] backdrop-blur-md sm:flex-row">
-              <div className="group relative shrink-0">
-                <div className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-full border-2 border-[#0267b8]/80 bg-[#010f1f] p-1 shadow-[0_0_0_5px_rgba(2,103,184,0.08),0_18px_35px_rgba(0,0,0,0.32)] transition-all duration-300 ease-out group-hover:scale-[1.025] group-hover:border-[#a4c9ff] group-hover:shadow-[0_0_0_6px_rgba(164,201,255,0.10),0_22px_42px_rgba(0,0,0,0.38)]">
-                  {globalProfilePhotoPreview ? (
-                    <img src={globalProfilePhotoPreview} alt="Previsualización de la foto de perfil" className="h-full w-full rounded-full object-cover" />
-                  ) : (
-                    <MS name="person" size={52} active />
-                  )}
-                </div>
-
-                <label htmlFor="global-profile-photo" title="Seleccionar foto" className="absolute bottom-0 right-0 grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-white/20 bg-gradient-to-br from-[#4edea3] to-[#0267b8] text-[#003824] shadow-[0_10px_25px_rgba(2,103,184,0.30)] transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-105 hover:shadow-[0_14px_30px_rgba(78,222,163,0.25)] active:translate-y-0 active:scale-[0.95] focus-within:ring-2 focus-within:ring-[#4edea3]/60">
-                  <MS name="photo_camera" size={22} active />
-                  <input id="global-profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGlobalProfilePhoto} disabled={globalProfileSaving} className="sr-only" />
-                </label>
+        <div className="cm-profile-modal__body">
+          <section className="cm-profile-modal__photo-card">
+            <div className="cm-profile-modal__avatar-wrap">
+              <div className="cm-profile-modal__avatar">
+                {globalProfilePhotoPreview ? <img src={globalProfilePhotoPreview} alt="Previsualización de la foto de perfil" /> : <MS name="person" size={52} active />}
               </div>
+              <label htmlFor="global-profile-photo" title="Seleccionar foto" className="cm-profile-modal__camera">
+                <MS name="photo_camera" size={22} active />
+                <input id="global-profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGlobalProfilePhoto} disabled={globalProfileSaving} />
+              </label>
+            </div>
 
-              <div className="min-w-0 flex-1 text-center sm:text-left">
-                <div className="flex items-center justify-center gap-2 text-sm font-semibold text-[#d4e4fa] sm:justify-start">
-                  <MS name="image" size={19} active />
-                  Foto de perfil
-                </div>
-                <p className="mt-2 text-sm leading-5 text-[#86948a]">JPG, PNG o WEBP. Máximo 5 MB.</p>
-                <label htmlFor="global-profile-photo" className="mt-4 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-sm font-semibold text-[#d4e4fa] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#a4c9ff]/35 hover:bg-[#273647]/60 hover:shadow-[0_12px_26px_rgba(0,0,0,0.24)] active:translate-y-0 active:scale-[0.98]">
-                  <MS name="add_a_photo" size={20} active />
-                  Seleccionar foto
-                </label>
-              </div>
-            </section>
+            <div className="cm-profile-modal__photo-copy">
+              <div className="cm-profile-modal__photo-title"><MS name="image" size={19} active /><span>Foto de perfil</span></div>
+              <p className="cm-profile-modal__hint">JPG, PNG o WEBP. Máximo 5 MB.</p>
+              <label htmlFor="global-profile-photo" className="cm-profile-modal__upload-button"><MS name="add_a_photo" size={20} active /><span>Seleccionar foto</span></label>
+            </div>
+          </section>
 
-            <label className="block">
-              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.1em] text-[#bbcabf]">Nombre de usuario</span>
-              <div className="group flex min-h-14 items-center overflow-hidden rounded-xl border border-[#3c4a42] bg-[#010f1f] shadow-[inset_0_2px_8px_rgba(0,0,0,0.28)] transition-all duration-300 ease-out hover:border-[#86948a]/70 focus-within:border-[#4edea3] focus-within:ring-4 focus-within:ring-[#4edea3]/10">
-                <span className="ml-4 text-[#a4c9ff] transition-all duration-300 ease-out group-focus-within:text-[#4edea3]">
-                  <MS name="alternate_email" size={21} active />
-                </span>
-                <input
-                  value={cleanUsername}
-                  onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
-                  autoComplete="username"
-                  maxLength={30}
-                  placeholder="usuario"
-                  disabled={globalProfileSaving}
-                  className="h-14 min-w-0 flex-1 border-0 bg-transparent px-3 text-base font-semibold text-[#d4e4fa] outline-none ring-0 placeholder:text-[#86948a]/65 transition-all duration-300 ease-out focus:border-0 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-              <span className="mt-2 block text-xs leading-5 text-[#86948a]">Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
-            </label>
+          <label className="cm-profile-modal__field">
+            <span className="cm-profile-modal__label">Nombre de usuario</span>
+            <div className="cm-profile-modal__input-wrap">
+              <span className="cm-profile-modal__input-icon"><MS name="alternate_email" size={21} active /></span>
+              <input
+                value={cleanUsername}
+                onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
+                autoComplete="username"
+                maxLength={30}
+                placeholder="usuario"
+                disabled={globalProfileSaving}
+                className="cm-profile-modal__input"
+              />
+            </div>
+            <span className="cm-profile-modal__hint">Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
+          </label>
 
-            {globalProfileError && (
-              <div role="alert" className="flex items-start gap-3 rounded-xl border border-[#ffb4ab]/20 bg-[#93000a]/20 px-4 py-3 text-sm leading-5 text-[#ffb4ab] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-300 ease-out">
-                <MS name="error" size={20} active />
-                <span>{globalProfileError}</span>
-              </div>
-            )}
-          </div>
+          {globalProfileError && <div role="alert" className="cm-profile-modal__error"><MS name="error" size={20} active /><span>{globalProfileError}</span></div>}
         </div>
 
-        <footer className="flex flex-col-reverse gap-3 border-t border-white/5 bg-[#122131]/45 px-5 py-5 backdrop-blur-md sm:flex-row sm:items-center sm:justify-end sm:px-6">
-          <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-[#bbcabf] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-white/15 hover:bg-[#273647]/55 hover:text-[#d4e4fa] hover:shadow-[0_12px_26px_rgba(0,0,0,0.22)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a4c9ff]/45 disabled:pointer-events-none disabled:opacity-45">Cancelar</button>
-          <button type="button" onClick={saveGlobalIdentityProfile} disabled={globalProfileSaving} className="inline-flex min-h-12 min-w-[170px] items-center justify-center gap-2 rounded-full border border-white/15 bg-gradient-to-br from-[#4edea3] to-[#0267b8] px-7 text-sm font-bold text-[#003824] shadow-[0_0_22px_rgba(78,222,163,0.18)] transition-all duration-300 ease-out hover:-translate-y-1 hover:brightness-105 hover:shadow-[0_0_34px_rgba(78,222,163,0.32)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4edea3]/60 disabled:pointer-events-none disabled:opacity-55">
-            <span className={globalProfileSaving ? "animate-spin" : ""}><MS name={globalProfileSaving ? "progress_activity" : "save"} size={20} active /></span>
-            {globalProfileSaving ? "Guardando" : "Guardar cambios"}
+        <footer className="cm-profile-modal__footer">
+          <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} className="cm-profile-modal__button cm-profile-modal__button--ghost">Cancelar</button>
+          <button type="button" onClick={saveGlobalIdentityProfile} disabled={globalProfileSaving} className="cm-profile-modal__button cm-profile-modal__button--primary">
+            <span className={globalProfileSaving ? "cm-profile-modal__spinner" : ""}><MS name={globalProfileSaving ? "progress_activity" : "save"} size={20} active /></span>
+            <span>{globalProfileSaving ? "Guardando" : "Guardar cambios"}</span>
           </button>
         </footer>
       </section>
