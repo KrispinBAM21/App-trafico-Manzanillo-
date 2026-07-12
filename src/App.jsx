@@ -164,6 +164,8 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
+const GLOBAL_AVATARS_BUCKET = import.meta.env.VITE_SUPABASE_AVATARS_BUCKET || "avatars";
+
 const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
     persistSession: true,
@@ -23192,7 +23194,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
       {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      {(authUser || isAdmin) && <nav aria-label="Navegación privada" style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, minHeight:"74px", padding:"8px 12px max(8px, env(safe-area-inset-bottom))", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(255,255,255,.05)", boxShadow:"0 -12px 32px rgba(0,0,0,.20)" }}>{[["notificaciones","notifications","Avisos"],["tablero","dashboard","Tablero"],["posturas","dynamic_feed","Feed"],["perfil","person","Mi perfil"]].map(([id,icon,label])=>{ const selected=(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list"); return <button key={id} type="button" aria-current={selected?"page":undefined} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"68px", minHeight:"54px", padding:"7px 9px", borderRadius:"14px", border:selected?"1px solid rgba(255,255,255,.08)":"1px solid transparent", background:selected?"#0096ff":"transparent", color:selected?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900", transition:"all .2s ease", touchAction:"manipulation" }}><MS name={icon} size={21} active /><span>{label}</span></button>})}</nav>}
+      
     </div>;
   };
 
@@ -28710,10 +28712,10 @@ function App() {
         const extension = extensionByType[globalProfilePhotoFile.type] || "jpg";
         const objectPath = `${authUser.id}/avatar-${Date.now()}.${extension}`;
         const { error: uploadError } = await sb.storage
-          .from("avatars")
+          .from(GLOBAL_AVATARS_BUCKET)
           .upload(objectPath, globalProfilePhotoFile, { cacheControl:"3600", upsert:true, contentType:globalProfilePhotoFile.type });
         if (uploadError) throw uploadError;
-        const { data: publicData } = sb.storage.from("avatars").getPublicUrl(objectPath);
+        const { data: publicData } = sb.storage.from(GLOBAL_AVATARS_BUCKET).getPublicUrl(objectPath);
         avatarUrl = publicData?.publicUrl || avatarUrl;
       }
 
@@ -28734,7 +28736,15 @@ function App() {
       setGlobalProfilePhotoPreview(avatarUrl || "");
       setGlobalProfileEditorOpen(false);
     } catch (error) {
-      setGlobalProfileError(error?.message || "No se pudo actualizar el perfil global.");
+      const rawMessage = String(error?.message || "");
+      const normalizedMessage = rawMessage.toLowerCase();
+      if (normalizedMessage.includes("bucket not found")) {
+        setGlobalProfileError("El almacenamiento de fotos aún no está configurado. Ejecuta la migración del bucket avatars en Supabase.");
+      } else if (normalizedMessage.includes("row-level security") || normalizedMessage.includes("policy")) {
+        setGlobalProfileError("No tienes permiso para guardar la foto. Verifica las políticas del bucket avatars en Supabase.");
+      } else {
+        setGlobalProfileError(rawMessage || "No se pudo actualizar el perfil global.");
+      }
     } finally {
       setGlobalProfileSaving(false);
     }
