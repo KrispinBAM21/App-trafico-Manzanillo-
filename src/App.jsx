@@ -20010,6 +20010,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [talentView, setTalentView] = useState("todos");
   const [trabajadores, setTrabajadores] = useState([]);
   const [empresas, setEmpresas] = useState([]);
+  const [privateProfiles, setPrivateProfiles] = useState({ trabajadores:[], empresas:[], link:null, state:"none", profileType:null });
   const [ratings, setRatings] = useState([]);
   const [quejas, setQuejas] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
@@ -20281,10 +20282,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
   const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
   const POSTURAS_PAGO = ["Efectivo", "Transferencia", "Criptomonedas"];
-  const sessionPosturasType = authUser?.user_metadata?.posturas_user_type || authUser?.user_metadata?.userType || posturasUserType || "";
+  const linkedProfileType = privateProfiles?.link?.profile_type || privateProfiles?.profileType || "";
+  const sessionPosturasType = linkedProfileType || posturasUserType || "";
   const isPosturasLoggedIn = !!authUser;
   const isPostulanteSession = isPosturasLoggedIn && sessionPosturasType === "postulante";
   const isEmpresaSession = isPosturasLoggedIn && sessionPosturasType === "empresa";
+  const accountProfileState = privateProfiles?.state || "none";
+  const hasActiveLinkedProfile = accountProfileState === "validated" && !!privateProfiles?.link;
   const PROFILE_VALID_DAYS = 90;
   const profileDateValue = (row) => row?.documentos_updated_at || row?.updated_at || row?.created_at || null;
   const profileDaysSinceUpdate = (row) => {
@@ -20306,7 +20310,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (isAdmin) return true;
     if (!authUser) return false;
     const row = type === "empresa" ? myLatestEmpresa : myLatestTrabajador;
-    return !row || !isProfileExpired(row);
+    return !!row && normalizeProfileValidation(row) === "validado" && hasActiveLinkedProfile && !isProfileExpired(row);
   };
   const salarioMinPostulanteLocal = Math.max(0, Number(posturasSalaryRules.postulante_local_min ?? 500));
   const salarioMaxPostulanteLocal = Math.max(salarioMinPostulanteLocal, Number(posturasSalaryRules.postulante_local_max || 20000));
@@ -20693,7 +20697,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (state === "no_validado") return { state, label:"No validado", color:"#ffb4ab", icon:"cancel" };
     return { state, label:"Pendiente", color:"#fbbf24", icon:"schedule" };
   };
-  const isOwnProfile = (row) => !!authUser?.id && String(row?.user_id || "") === String(authUser.id);
+  const isOwnProfile = (row) => !!authUser?.id && [row?.owner_uid, row?.user_id].some(value => String(value || "") === String(authUser.id));
   const isProfilePublic = (row) => isOwnProfile(row) || normalizeProfileValidation(row) === "validado";
   const documentState = (value, overall) => {
     if (overall === "no_validado") return { label:"No validado", color:"#ffb4ab", icon:"cancel" };
@@ -20708,22 +20712,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setMsg({type:"err", text:"Escribe un comentario para indicar la corrección o motivo del rechazo."});
       return;
     }
-    const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
-    const payload = { perfil_estado:nextState, activo:true, updated_at:new Date().toISOString() };
-    const { error } = await sb.from(table).update(payload).eq("id", row.id);
-    if (error) { setMsg({type:"err", text:error.message}); return; }
-    if (row.user_id || row.device_id) {
-      try {
-        await sb.from("posturas_notificaciones").insert({
-          user_id:row.user_id || null,
-          device_id:row.device_id || myId,
-          type:"validacion_perfil",
-          title: nextState === "validado" ? "Perfil validado" : "Corrección requerida",
-          message: nextState === "validado" ? "Tu perfil fue validado y ya es público." : comment,
-          read:false,
-          created_at:new Date().toISOString()
-        });
-      } catch {}
+    try {
+      await apiFetch("/api/posturas/admin/validate", {
+        method:"POST",
+        body:JSON.stringify({ profileType:type, profileId:row.id, status:nextState, comment })
+      });
+    } catch (error) {
+      setMsg({type:"err", text:error?.message || "No se pudo validar el perfil."});
+      return;
     }
     setProfileApprovalComment(prev=>({...prev,[approvalKey(type,row.id)]:""}));
     setMsg({type:"ok", text:nextState === "validado" ? "Perfil validado y publicado." : "Perfil marcado como no validado; se notificó la corrección."});
@@ -20823,12 +20819,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setLoading(true);
     try {
       setPosturasLoadError("");
-      const [publicPayload, ratingsResult, complaintsResult] = await Promise.all([
+      const [publicPayload, privatePayload, ratingsResult, complaintsResult] = await Promise.all([
         fetch("/api/posturas/public").then(async response => {
           const body = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
           return body;
         }),
+        authUser ? apiFetch("/api/posturas/me", { method:"GET" }).catch(() => ({ trabajadores:[], empresas:[], link:null, state:"none", profileType:null })) : Promise.resolve({ trabajadores:[], empresas:[], link:null, state:"none", profileType:null }),
         sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
         sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
       ]);
@@ -20836,8 +20833,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       const empResult = { data:publicPayload.empresas || [], error:null };
       const queryError = trabResult.error || empResult.error || ratingsResult.error || complaintsResult.error;
       if (queryError) throw queryError;
-      const t = trabResult.data || [];
-      const e = empResult.data || [];
+      const privateTrabajadores = privatePayload?.trabajadores || [];
+      const privateEmpresas = privatePayload?.empresas || [];
+      setPrivateProfiles(privatePayload || { trabajadores:[], empresas:[], link:null, state:"none", profileType:null });
+      const mergeRows = (publicRows, ownRows) => {
+        const map = new Map();
+        [...(publicRows || []), ...(ownRows || [])].forEach(row => map.set(String(row.id), row));
+        return [...map.values()];
+      };
+      const t = mergeRows(trabResult.data || [], privateTrabajadores);
+      const e = mergeRows(empResult.data || [], privateEmpresas);
       const r = ratingsResult.data || [];
       const qj = complaintsResult.data || [];
       const now = Date.now();
@@ -20858,7 +20863,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         });
         setNotificaciones(visibleNotifications);
       } catch { setNotificaciones([]); }
-      const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && x.user_id === authUser.id) || x.device_id === myId);
+      const myProfiles = [...privateTrabajadores, ...privateEmpresas];
       const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
       setShowReminder(!!authUser && stale);
     } catch (e) {
@@ -20869,7 +20874,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setLoading(false);
     }
   };
-  useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+  useEffect(() => { if (!authUser) setPrivateProfiles({ trabajadores:[], empresas:[], link:null, state:"none", profileType:null }); loadPosturas(); }, [authUser?.id, myId]);
 
   useEffect(() => {
     if (!pisResult) return undefined;
@@ -20907,7 +20912,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     };
   }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
 
-  const canEdit = (row) => !!authUser && row.user_id === authUser.id;
+  const canEdit = (row) => !!authUser && [row?.owner_uid, row?.user_id].some(value => String(value || "") === String(authUser.id));
   const requireLogin = () => { requestProtectedProfileAccess("login"); setMsg({ type:"err", text:"Inicia sesión o crea una cuenta antes de configurar un perfil." }); return false; };
   const deletionDaysLeft = (row) => {
     if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
@@ -20934,7 +20939,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneo && salarioForaneo > salarioMaxPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante no debe superar $${salarioMaxPostulanteForaneo}.`}); return; }
     persistPosturasUserType("postulante");
     const nowIso = new Date().toISOString();
-    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, device_id:myId, documentos_updated_at:nowIso };
     try {
       await apiFetch(`/api/posturas/profile?type=trabajador`, {
         method:editingTrabId ? "PUT" : "POST",
@@ -20951,6 +20956,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       return;
     }
     const existing = myLatestEmpresa;
+    if (!isAdmin && (!existing || normalizeProfileValidation(existing) !== "validado" || !hasActiveLinkedProfile)) {
+      setSub("posturas");
+      setPosturasMode("profile");
+      setMsg({ type:"err", text:existing ? "En revisión por administración. La empresa podrá publicar vacantes cuando el perfil sea validado." : "Abre el formulario de empresa y espera la validación administrativa." });
+      return;
+    }
     if (!isAdmin && existing && isProfileExpired(existing)) {
       setSub("posturas");
       setPosturasMode("form");
@@ -20990,7 +21001,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
-    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, device_id:myId, documentos_updated_at:nowIso };
     try {
       await apiFetch(`/api/posturas/profile?type=empresa`, {
         method:editingEmpId ? "PUT" : "POST",
@@ -21148,8 +21159,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const publicEmpresas = empresas.filter(isProfilePublic);
   const trabFiltrados = sortByReputation(filterRows(publicTrabajadores, "trabajador"), "trabajador");
   const empFiltradas = sortByReputation(filterRows(publicEmpresas, "empresa"), "empresa");
-  const myTrabajadores = authUser?.id ? trabajadores.filter(row => row.user_id === authUser.id) : [];
-  const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id) : [];
+  const myTrabajadores = authUser?.id ? (privateProfiles?.trabajadores || []) : [];
+  const myEmpresas = authUser?.id ? (privateProfiles?.empresas || []) : [];
   const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const myLatestEmpresa = [...myEmpresas].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const isRenderableImageSrc = (value) => {
@@ -21949,12 +21960,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <div style={{ minWidth:0 }}>
                 <div style={{ color:isWorker ? "#a4c9ff" : "#4edea3", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:"16px", letterSpacing:".10em", textTransform:"uppercase", fontWeight:"900" }}>{isWorker ? "Información de postular" : "Información de empresario"}</div>
                 <div style={{ color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:posturasMobile ? "24px" : "30px", lineHeight:1.1, fontWeight:"900", marginTop:"8px" }}>{title}</div>
-                <div style={{ color:"rgba(212,228,250,.72)", fontSize:"14px", lineHeight:"22px", marginTop:"8px" }}>{row ? "Información ligada a tu cuenta. Puedes editarla sin crear perfiles duplicados." : (isWorker ? "Aún no has creado tu perfil de trabajador." : "Aún no has creado tu perfil empresarial.")}</div>
+                <div style={{ color:"rgba(212,228,250,.72)", fontSize:"14px", lineHeight:"22px", marginTop:"8px" }}>{row ? (normalizeProfileValidation(row) === "pendiente" ? "En revisión por administración." : normalizeProfileValidation(row) === "validado" ? "Perfil validado y vinculado a tu cuenta." : "Se requieren correcciones antes de publicar.") : (isWorker ? "Aún no has creado tu perfil de trabajador." : "Aún no has creado tu perfil empresarial.")}</div>
                 {row && (()=>{const status=profileValidationMeta(row);return <div style={{display:"inline-flex",alignItems:"center",gap:"7px",marginTop:"12px",padding:"6px 10px",borderRadius:"999px",background:`${status.color}14`,border:`1px solid ${status.color}44`,color:status.color,fontSize:"11px",fontWeight:"900",letterSpacing:".06em",textTransform:"uppercase"}}><MS name={status.icon} size={16} color={status.color}/>Estatus: {status.label}</div>})()}
               </div>
             </div>
           </div>
-          <button type="button" onClick={() => openBaseProfile(type)} className="cm-nexus-btn" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"10px", width:posturasMobile ? "100%" : "fit-content", padding:"15px 22px", borderRadius:"16px", border:"none", background:isWorker ? "#4dabff" : "#00ff9d", color:isWorker ? "#001c39" : "#001e12", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:isWorker ? "0 15px 34px rgba(77,171,255,.28)" : "0 15px 34px rgba(0,255,157,.28)" }}><MS name={row ? "edit" : "person_add"} size={18} active /> {row ? (isProfileExpired(row) ? "Actualizar" : "Editar perfil") : "Crear"}</button>
+          <button type="button" onClick={() => openBaseProfile(type)} className="cm-nexus-btn" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"10px", width:posturasMobile ? "100%" : "fit-content", padding:"15px 22px", borderRadius:"16px", border:"none", background:isWorker ? "#4dabff" : "#00ff9d", color:isWorker ? "#001c39" : "#001e12", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", boxShadow:isWorker ? "0 15px 34px rgba(77,171,255,.28)" : "0 15px 34px rgba(0,255,157,.28)" }}><MS name={row ? "edit" : "person_add"} size={18} active /> {row ? (normalizeProfileValidation(row) === "pendiente" ? "En revisión por administración" : (isProfileExpired(row) ? "Actualizar" : "Editar perfil")) : "Abrir Formulario"}</button>
         </article>
       );
     };
@@ -21988,7 +21999,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div className="cm-nexus-canvas" style={{ position:"relative", zIndex:1 }}>
             <header style={{ marginBottom:"48px", maxWidth:"780px" }}>
               <h1 className="cm-nexus-title" style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:getFont(theme,"secondary"), fontSize:"40px", lineHeight:"48px", fontWeight:"950", letterSpacing:"-.02em" }}>Gestión de Perfiles</h1>
-              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>Selecciona el tipo de perfil que deseas configurar.</p>
+              <p className="cm-nexus-subtitle" style={{ margin:0, color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontSize:"18px", lineHeight:"28px", maxWidth:"720px" }}>No tienes un perfil de datos. Selecciona una opción para Abrir Formulario.</p>
             </header>
             <div className="cm-nexus-grid" style={{ display:"grid", gridTemplateColumns:"repeat(2, minmax(0,1fr))", gap:"24px" }}>
               <AccessOptionCard type="worker" icon="assignment_ind" title="Perfil de trabajador" description="Crea tu perfil para publicar disponibilidad, documentación y expectativas económicas." onClick={() => openBaseProfile("trabajador")} />
