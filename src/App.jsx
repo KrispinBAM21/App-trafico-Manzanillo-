@@ -7473,8 +7473,20 @@ function GlobalIdentityAvatar({ user, size = 28 }) {
           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
         />
       ) : null}
-      <span style={{ display:avatarUrl ? "none" : "inline-flex", alignItems:"center", justifyContent:"center", color:"#dbeafe" }}>
-        <MS name="person" size={Math.max(18, Math.round(size * .62))} active />
+      <span
+        className="material-symbols-outlined"
+        aria-hidden="true"
+        style={{
+          display:avatarUrl ? "none" : "inline-flex",
+          alignItems:"center",
+          justifyContent:"center",
+          color:"#dbeafe",
+          fontSize:Math.max(18, Math.round(size * .62)),
+          lineHeight:1,
+          fontVariationSettings:"'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24"
+        }}
+      >
+        person
       </span>
     </span>
   );
