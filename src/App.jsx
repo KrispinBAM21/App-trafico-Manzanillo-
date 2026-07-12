@@ -7580,7 +7580,19 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-login-btn{min-height:42px;border:1px solid rgba(255,255,255,.05);border-radius:12px;background:#006f9f;color:#fff;font-family:'Inter','IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 15px;cursor:pointer;box-shadow:0 8px 18px rgba(0,98,140,.22);transition:all .3s ease;touch-action:manipulation}
         .cm-login-btn:hover{background:#0082b8;transform:translateY(-1px);box-shadow:0 12px 26px rgba(0,98,140,.32)}
         .cm-login-btn:active{transform:scale(.98)}
-        .cm-global-profile-btn{min-width:142px;justify-content:flex-start!important;gap:10px!important;padding-left:9px!important;padding-right:14px!important}
+        .cm-global-profile-btn{position:relative;min-width:92px!important;min-height:70px!important;height:70px!important;padding:6px 12px 5px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;border:0!important;border-radius:18px!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;color:#d4e4fa!important}
+        .cm-global-profile-btn::before{content:'';position:absolute;inset:3px 8px;border-radius:17px;background:linear-gradient(180deg,rgba(12,39,61,.74),rgba(5,20,36,.18));border:1px solid rgba(255,255,255,.05);opacity:0;transform:scale(.92);transition:all .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 14px 34px rgba(0,0,0,.28);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .cm-global-profile-btn:hover::before,.cm-global-profile-btn[aria-expanded='true']::before{opacity:1;transform:scale(1)}
+        .cm-global-profile-btn:hover{background:transparent!important;transform:translateY(-2px)!important;box-shadow:none!important}
+        .cm-global-profile-btn:active{transform:translateY(0) scale(.98)!important}
+        .cm-global-profile-avatar-shell{position:relative;z-index:1;width:46px;height:46px;display:grid;place-items:center;border-radius:999px;padding:3px;background:linear-gradient(145deg,#16b9ff,#0288cc 54%,#66d8ff);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 18px rgba(22,185,255,.34),0 8px 18px rgba(0,0,0,.34);transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,filter .3s ease}
+        .cm-global-profile-avatar-shell::after{content:'';position:absolute;inset:-5px;border-radius:inherit;border:1px solid rgba(22,185,255,.26);opacity:0;transform:scale(.82);transition:all .3s ease}
+        .cm-global-profile-btn:hover .cm-global-profile-avatar-shell,.cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-avatar-shell{transform:translateY(-2px) scale(1.06);filter:saturate(1.12);box-shadow:0 0 0 1px rgba(255,255,255,.14),0 0 28px rgba(22,185,255,.56),0 10px 24px rgba(0,0,0,.4)}
+        .cm-global-profile-btn:hover .cm-global-profile-avatar-shell::after,.cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-avatar-shell::after{opacity:1;transform:scale(1)}
+        .cm-global-profile-label{position:relative;z-index:1;display:flex;align-items:center;gap:2px;color:#d4e4fa;font:800 11px/14px 'Inter',sans-serif;letter-spacing:.02em;text-shadow:0 1px 8px rgba(0,0,0,.5);transition:color .25s ease,transform .25s ease}
+        .cm-global-profile-btn:hover .cm-global-profile-label,.cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-label{color:#8ed8ff;transform:translateY(1px)}
+        .cm-global-profile-chevron{font-size:16px!important;transition:transform .28s cubic-bezier(.2,.8,.2,1),color .25s ease;color:#8ed8ff}
+        .cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-chevron{transform:rotate(180deg)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
         .cm-menu-btn{display:none;position:relative;z-index:100001;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -7597,7 +7609,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         @keyframes cmTabIndicator{from{transform:scaleX(.25);opacity:.35}to{transform:scaleX(1);opacity:1}}
         @keyframes cmFloatingMenu{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         @media (max-width: 1180px){.cm-topbar-nav{display:none}.cm-menu-btn{display:flex}.cm-topbar-inner{padding-left:24px;padding-right:24px}.cm-topbar-actions{margin-left:auto}.cm-register-btn{display:none}}
-        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
+        @media (max-width: 520px){.cm-topbar-inner{padding-left:14px;padding-right:14px;gap:10px;min-height:64px}.cm-topbar-brand{max-width:38vw}.cm-topbar-title{font-size:15px;overflow:hidden;text-overflow:ellipsis}.cm-login-btn{min-height:42px;padding:0 18px;font-size:14px;border-radius:10px;background:#0096ff;color:#002d52;letter-spacing:.02em}.cm-global-profile-btn{min-width:66px!important;width:66px!important;height:60px!important;min-height:60px!important;padding:4px!important}.cm-global-profile-avatar-shell{width:40px;height:40px;padding:2px}.cm-global-profile-label{font-size:9px;line-height:11px}.cm-global-profile-chevron{font-size:14px!important}.cm-mobile-nav{inset:0;height:100vh;height:100dvh;padding:84px 14px max(24px,env(safe-area-inset-bottom));gap:10px}.cm-mobile-nav-btn{min-height:54px;font-size:12px}.cm-topbar-anchor{width:22px;height:22px}}
         @media (max-width: 365px){.cm-login-btn{padding:0 12px;font-size:12px}.cm-topbar-brand{max-width:30vw}}
       `}</style>
       <header className="cm-topbar" aria-label="Barra superior Conect Manzanillo" style={{ borderBottomColor: ui.border }}>
@@ -7642,9 +7654,13 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
                 aria-expanded={showSessionMenu}
                 aria-label={showSessionMenu ? "Cerrar menú de perfil" : "Abrir menú de perfil"}
               >
-                <GlobalIdentityAvatar user={authUser} size={30} />
-                <span>MI PERFIL</span>
-                <MS name={showSessionMenu ? "expand_less" : "expand_more"} size={18} active />
+                <span className="cm-global-profile-avatar-shell">
+                  <GlobalIdentityAvatar user={authUser} size={40} />
+                </span>
+                <span className="cm-global-profile-label">
+                  <span>MI PERFIL</span>
+                  <span className="material-symbols-outlined cm-global-profile-chevron" aria-hidden="true">expand_more</span>
+                </span>
               </button>
             ) : (
               <>
@@ -29014,7 +29030,7 @@ function App() {
         <div data-global-profile-menu="true" role="menu" aria-label="Opciones de identidad global" className="cm-global-user-menu">
           <style>{`
             @keyframes cmGlobalUserMenuIn{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-            .cm-global-user-menu{position:fixed;top:68px;right:18px;width:min(268px,calc(100vw - 28px));padding:10px;z-index:100000;overflow:hidden;border:1px solid rgba(255,255,255,.05);border-radius:16px;background:rgba(5,20,36,.92);box-shadow:0 24px 64px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(20px) saturate(130%);-webkit-backdrop-filter:blur(20px) saturate(130%);transform-origin:top right;animation:cmGlobalUserMenuIn .22s cubic-bezier(.2,.8,.2,1) both;font-family:'Inter',sans-serif}
+            .cm-global-user-menu{position:fixed;top:82px;right:18px;width:min(268px,calc(100vw - 28px));padding:10px;z-index:100000;overflow:hidden;border:1px solid rgba(255,255,255,.05);border-radius:16px;background:rgba(5,20,36,.92);box-shadow:0 24px 64px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(20px) saturate(130%);-webkit-backdrop-filter:blur(20px) saturate(130%);transform-origin:top right;animation:cmGlobalUserMenuIn .22s cubic-bezier(.2,.8,.2,1) both;font-family:'Inter',sans-serif}
             .cm-global-user-menu__identity{display:flex;align-items:center;gap:12px;min-width:0;padding:10px 10px 13px;margin-bottom:7px;border-bottom:1px solid rgba(255,255,255,.05)}
             .cm-global-user-menu__item{width:100%;min-height:46px;display:flex;align-items:center;gap:11px;padding:0 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#d4e4fa;font:600 13px/20px 'Inter',sans-serif;text-align:left;cursor:pointer;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease,color .2s ease;touch-action:manipulation}
             .cm-global-user-menu__item:hover{background:rgba(39,54,71,.72);border-color:rgba(255,255,255,.05);box-shadow:0 10px 24px rgba(0,0,0,.18);transform:translateY(-1px);color:#fff}
