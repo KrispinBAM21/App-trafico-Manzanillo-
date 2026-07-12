@@ -181,6 +181,32 @@ const getAuthRedirectUrl = () => {
   return url.toString();
 };
 
+const AUTH_RETURN_LOCATION_KEY = "cm_auth_return_location";
+const AUTH_RETURN_TAB_KEY = "cm_auth_return_tab";
+
+const rememberAuthReturnLocation = (fallbackTab = null) => {
+  if (typeof window === "undefined") return;
+  try {
+    const currentLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    localStorage.setItem(AUTH_RETURN_LOCATION_KEY, currentLocation || "/");
+    const currentTab = normalizeTabKey(window.location.hash) || normalizeTabKey(fallbackTab);
+    if (currentTab) localStorage.setItem(AUTH_RETURN_TAB_KEY, currentTab);
+  } catch {}
+};
+
+const consumeAuthReturnLocation = () => {
+  if (typeof window === "undefined") return { location:null, tab:null };
+  try {
+    const location = localStorage.getItem(AUTH_RETURN_LOCATION_KEY);
+    const tab = normalizeTabKey(localStorage.getItem(AUTH_RETURN_TAB_KEY));
+    localStorage.removeItem(AUTH_RETURN_LOCATION_KEY);
+    localStorage.removeItem(AUTH_RETURN_TAB_KEY);
+    return { location, tab };
+  } catch {
+    return { location:null, tab:null };
+  }
+};
+
 const linkApprovedPosturasProfile = async () => {
   const { data, error } = await sb.rpc("link_my_approved_posturas_profile");
   if (error) {
@@ -7598,9 +7624,9 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-menu-btn{display:none;position:relative;z-index:100001;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
         .cm-menu-btn:hover{background:rgba(161,201,255,.10);border-color:rgba(161,201,255,.46);transform:translateY(-1px)}
         .cm-menu-btn-left{flex:0 0 auto;margin-right:2px}
-        .cm-hamburger{width:19px;height:14px;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch}
-        .cm-hamburger span{display:block;height:2px;border-radius:99px;background:#ffffff;box-shadow:0 0 8px rgba(136,206,255,.28)}
-        .cm-menu-close{font-size:28px;line-height:1;font-weight:800;color:#ffffff;transform:translateY(-1px)}
+        .cm-menu-symbol{font-size:28px!important;line-height:1;color:#ffffff;transition:transform .22s cubic-bezier(.2,.8,.2,1),color .2s ease;filter:drop-shadow(0 0 8px rgba(136,206,255,.24))}
+        .cm-menu-btn:hover .cm-menu-symbol{color:#a4c9ff;transform:scale(1.06)}
+        .cm-menu-btn[aria-expanded='true'] .cm-menu-symbol{transform:rotate(90deg)}
         .cm-mobile-nav{display:none;position:fixed;inset:0;z-index:100000;height:100vh;height:100dvh;min-height:100vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:rgba(13,28,45,.97);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:0;border-radius:0;padding:82px 16px max(24px,env(safe-area-inset-bottom));grid-template-columns:1fr;align-content:start;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.05)}
         .cm-mobile-nav.is-open{display:grid;animation:cmFloatingMenu .18s ease-out}
         .cm-mobile-nav-btn{min-height:54px;border:1px solid rgba(63,71,83,.70);border-radius:14px;background:rgba(39,54,71,.72);color:rgba(212,228,250,.90);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;text-align:left;padding:0 16px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease;letter-spacing:.08em;text-transform:uppercase}
@@ -7621,7 +7647,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen(v => !v)}
           >
-            {mobileOpen ? <span className="cm-menu-close" aria-hidden="true">×</span> : <span className="cm-hamburger" aria-hidden="true"><span></span><span></span><span></span></span>}
+            <span className="material-symbols-outlined cm-menu-symbol" aria-hidden="true">{mobileOpen ? "close" : "menu"}</span>
           </button>
           <button type="button" className="cm-topbar-brand" onClick={onLogoTap} title="Conect Manzanillo">
             <span className="cm-topbar-anchor"><img className="cm-topbar-logo" src={CONECT_LOGO_SRC} alt="" aria-hidden="true" /></span>
@@ -23158,7 +23184,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
       {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, height:"74px", padding:"8px 12px", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(63,71,83,.50)" }}>{[["notificaciones","notifications","Avisos"],["tablero","dashboard","Tablero"],["posturas","dynamic_feed","Feed"],["perfil","person_circle","Mi perfil"]].map(([id,icon,label])=><button key={id} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"64px", padding:"7px 9px", borderRadius:"13px", border:"none", background:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#0096ff":"transparent", color:(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list")?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900" }}><MS name={icon} size={20} active /><span>{label}</span></button>)}</nav>
+      {(authUser || isAdmin) && <nav aria-label="Navegación privada" style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:60, minHeight:"74px", padding:"8px 12px max(8px, env(safe-area-inset-bottom))", display:"flex", justifyContent:"space-around", alignItems:"center", background:"rgba(18,33,49,.96)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:"1px solid rgba(255,255,255,.05)", boxShadow:"0 -12px 32px rgba(0,0,0,.20)" }}>{[["notificaciones","notifications","Avisos"],["tablero","dashboard","Tablero"],["posturas","dynamic_feed","Feed"],["perfil","person","Mi perfil"]].map(([id,icon,label])=>{ const selected=(id==="tablero"&&sub==="tablero")||(id==="notificaciones"&&sub==="notificaciones")||(id==="perfil"&&posturasMode==="profile")||(id==="posturas"&&sub==="posturas"&&posturasMode==="list"); return <button key={id} type="button" aria-current={selected?"page":undefined} onClick={()=>{ if(id==="tablero"){setSub("tablero"); setPosturasMode("list");} else if(id==="notificaciones"){setSub("notificaciones"); setPosturasMode("list");} else if(id==="perfil"){setSub("posturas"); setPosturasMode("profile");} else {setSub("posturas"); setPosturasMode("list");}}} style={{ minWidth:"68px", minHeight:"54px", padding:"7px 9px", borderRadius:"14px", border:selected?"1px solid rgba(255,255,255,.08)":"1px solid transparent", background:selected?"#0096ff":"transparent", color:selected?"#002d52":"rgba(212,228,250,.70)", display:"grid", placeItems:"center", gap:"2px", fontSize:"10px", fontWeight:"900", transition:"all .2s ease", touchAction:"manipulation" }}><MS name={icon} size={21} active /><span>{label}</span></button>})}</nav>}
     </div>;
   };
 
@@ -25075,10 +25101,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   const handleLoginGoogle = async () => {
     setLoading(true);
     setLoginMsg(null);
-    try {
-      localStorage.setItem("cm_posturas_pending_profile_access", "1");
-      localStorage.setItem("cm_auth_return_tab", "donativos");
-    } catch {}
+    rememberAuthReturnLocation();
     const { error } = await sb.auth.signInWithOAuth({
       provider:"google",
       options:{
@@ -25790,7 +25813,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
   const btnSecondary = { background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", padding:"4px 0" };
   const MsgBox = ({ msg }) => msg ? (
     <div style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok" ? "#22c55e55" : "#ef444455"}`, color: msg.type==="ok" ? "#22c55e" : "#ef4444" }}>
-      {msg.type==="ok" ? "Validado " : "⚠️ "}{msg.text}
+      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"16px", verticalAlign:"middle", marginRight:"6px" }}>{msg.type==="ok" ? "check_circle" : "error"}</span>{msg.text}
     </div>
   ) : null;
 
@@ -25823,10 +25846,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
   const handleLoginGoogle = async () => {
     setLoading(true);
     setLoginMsg(null);
-    try {
-      localStorage.setItem("cm_posturas_pending_profile_access", "1");
-      localStorage.setItem("cm_auth_return_tab", "donativos");
-    } catch {}
+    rememberAuthReturnLocation();
     const { error } = await sb.auth.signInWithOAuth({
       provider:"google",
       options:{
@@ -28561,13 +28581,18 @@ function App() {
         console.error("Automatic Posturas linking failed:", error);
       }
 
-      let returnTab = null;
-      try {
-        returnTab = localStorage.getItem("cm_auth_return_tab");
-        localStorage.removeItem("cm_auth_return_tab");
-        localStorage.removeItem("cm_posturas_pending_profile_access");
-      } catch {}
-      if (returnTab === "donativos") setActive("donativos");
+      const { location:returnLocation, tab:returnTab } = consumeAuthReturnLocation();
+      try { localStorage.removeItem("cm_posturas_pending_profile_access"); } catch {}
+
+      const resolvedTab = returnTab || normalizeTabKey(returnLocation?.split("#")[1] || "");
+      if (resolvedTab) setActive(resolvedTab);
+
+      if (returnLocation) {
+        try {
+          const currentLocation = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          if (currentLocation !== returnLocation) window.history.replaceState({ tab:resolvedTab || null }, "", returnLocation);
+        } catch {}
+      }
     };
 
     const bootstrapSession = async () => {
