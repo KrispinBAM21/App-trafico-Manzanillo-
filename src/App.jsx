@@ -7445,6 +7445,41 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
   );
 }
 
+function GlobalIdentityAvatar({ user, size = 28 }) {
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || "";
+  const displayName = user?.user_metadata?.username || user?.user_metadata?.user_name || user?.user_metadata?.full_name || user?.email || "Usuario";
+  return (
+    <span
+      aria-label={`Avatar de ${displayName}`}
+      style={{
+        width:size,
+        height:size,
+        flex:`0 0 ${size}px`,
+        display:"grid",
+        placeItems:"center",
+        overflow:"hidden",
+        borderRadius:"999px",
+        border:"1px solid rgba(255,255,255,.10)",
+        background:"rgba(255,255,255,.06)",
+        boxShadow:"0 4px 14px rgba(0,0,0,.24)"
+      }}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={(event) => { event.currentTarget.style.display = "none"; const fallback = event.currentTarget.nextElementSibling; if (fallback) fallback.style.display = "inline-flex"; }}
+          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+        />
+      ) : null}
+      <span style={{ display:avatarUrl ? "none" : "inline-flex", alignItems:"center", justifyContent:"center", color:"#dbeafe" }}>
+        <MS name="person" size={Math.max(18, Math.round(size * .62))} active />
+      </span>
+    </span>
+  );
+}
+
 function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
@@ -7485,8 +7520,10 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-topbar-link.is-active{color:#88ceff;background:rgba(0,98,140,.16)}
         .cm-topbar-link.is-active:after{content:'';position:absolute;left:14px;right:14px;bottom:4px;height:2px;border-radius:99px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.75);animation:cmTabIndicator .18s ease-out}
         .cm-topbar-actions{display:flex;align-items:center;gap:8px;margin-left:10px;flex:0 0 auto}
-        .cm-login-btn{min-height:36px;border:0;border-radius:4px;background:#00628c;color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 16px;cursor:pointer;box-shadow:0 8px 18px rgba(0,98,140,.22);transition:background .18s ease,transform .18s ease;touch-action:manipulation}
-        .cm-login-btn:hover{background:#007cb0;transform:translateY(-1px)}
+        .cm-login-btn{min-height:42px;border:1px solid rgba(255,255,255,.05);border-radius:12px;background:#006f9f;color:#fff;font-family:'Inter','IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 15px;cursor:pointer;box-shadow:0 8px 18px rgba(0,98,140,.22);transition:all .3s ease;touch-action:manipulation}
+        .cm-login-btn:hover{background:#0082b8;transform:translateY(-1px);box-shadow:0 12px 26px rgba(0,98,140,.32)}
+        .cm-login-btn:active{transform:scale(.98)}
+        .cm-global-profile-btn{min-width:142px;justify-content:flex-start!important;gap:10px!important;padding-left:9px!important;padding-right:14px!important}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
         .cm-menu-btn{display:none;position:relative;z-index:100001;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -7539,9 +7576,9 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
             {isAdmin ? (
               <button type="button" className="cm-login-btn" onClick={logout}>ADMIN · Salir</button>
             ) : authUser ? (
-              <button type="button" className="cm-login-btn" onClick={onAccountClick} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
-                <AppIcon name="user" size={17} active />
-                {showSessionMenu ? "Cerrar menú" : "MI PERFIL"}
+              <button type="button" className="cm-login-btn cm-global-profile-btn" onClick={onAccountClick} aria-haspopup="menu" aria-expanded={showSessionMenu}>
+                <GlobalIdentityAvatar user={authUser} size={28} />
+                <span>{showSessionMenu ? "Cerrar menú" : "MI PERFIL"}</span>
               </button>
             ) : (
               <>
@@ -28169,6 +28206,12 @@ function App() {
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
   const [showSessionMenu, setShowSessionMenu] = useState(false);
+  const [globalProfileEditorOpen, setGlobalProfileEditorOpen] = useState(false);
+  const [globalProfileUsername, setGlobalProfileUsername] = useState("");
+  const [globalProfilePhotoFile, setGlobalProfilePhotoFile] = useState(null);
+  const [globalProfilePhotoPreview, setGlobalProfilePhotoPreview] = useState("");
+  const [globalProfileSaving, setGlobalProfileSaving] = useState(false);
+  const [globalProfileError, setGlobalProfileError] = useState("");
   
   // ── Widget de Soporte WhatsApp ──
   const [supportExpanded, setSupportExpanded] = useState(false);
@@ -28286,6 +28329,101 @@ function App() {
   }, [myId, authUser?.id]);
 
   const hasUnreadAdminMessages = adminMessages.length > 0;
+
+  const getGlobalIdentityUsername = useCallback((user = authUser) => {
+    const raw = user?.user_metadata?.username || user?.user_metadata?.user_name || user?.user_metadata?.preferred_username || "";
+    return raw ? `@${String(raw).replace(/^@+/, "")}` : "";
+  }, [authUser]);
+
+  const getGlobalIdentityAvatar = useCallback((user = authUser) => (
+    user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ""
+  ), [authUser]);
+
+  const openGlobalProfileEditor = useCallback(() => {
+    setShowSessionMenu(false);
+    setGlobalProfileUsername(getGlobalIdentityUsername());
+    setGlobalProfilePhotoFile(null);
+    setGlobalProfilePhotoPreview(getGlobalIdentityAvatar());
+    setGlobalProfileError("");
+    setGlobalProfileEditorOpen(true);
+  }, [getGlobalIdentityAvatar, getGlobalIdentityUsername]);
+
+  const closeGlobalProfileEditor = useCallback(() => {
+    if (globalProfileSaving) return;
+    setGlobalProfileEditorOpen(false);
+    setGlobalProfilePhotoFile(null);
+    setGlobalProfileError("");
+  }, [globalProfileSaving]);
+
+  const handleGlobalProfilePhoto = useCallback((event) => {
+    const file = event.target.files?.[0] || null;
+    setGlobalProfileError("");
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setGlobalProfileError("La foto debe estar en formato JPG, PNG o WEBP.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setGlobalProfileError("La foto no puede superar 5 MB.");
+      event.target.value = "";
+      return;
+    }
+    setGlobalProfilePhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setGlobalProfilePhotoPreview(String(reader.result || ""));
+    reader.onerror = () => setGlobalProfileError("No se pudo previsualizar la fotografía.");
+    reader.readAsDataURL(file);
+  }, []);
+
+  const saveGlobalIdentityProfile = useCallback(async () => {
+    if (!authUser?.id || globalProfileSaving) return;
+    const normalized = String(globalProfileUsername || "").trim().replace(/^@+/, "").toLowerCase();
+    if (!/^[a-z0-9_]{3,30}$/.test(normalized)) {
+      setGlobalProfileError("El usuario debe tener entre 3 y 30 caracteres y usar solo letras, números o guion bajo.");
+      return;
+    }
+
+    setGlobalProfileSaving(true);
+    setGlobalProfileError("");
+    try {
+      let avatarUrl = getGlobalIdentityAvatar();
+      if (globalProfilePhotoFile) {
+        const extensionByType = { "image/jpeg":"jpg", "image/png":"png", "image/webp":"webp" };
+        const extension = extensionByType[globalProfilePhotoFile.type] || "jpg";
+        const objectPath = `${authUser.id}/avatar-${Date.now()}.${extension}`;
+        const { error: uploadError } = await sb.storage
+          .from("avatars")
+          .upload(objectPath, globalProfilePhotoFile, { cacheControl:"3600", upsert:true, contentType:globalProfilePhotoFile.type });
+        if (uploadError) throw uploadError;
+        const { data: publicData } = sb.storage.from("avatars").getPublicUrl(objectPath);
+        avatarUrl = publicData?.publicUrl || avatarUrl;
+      }
+
+      const currentMetadata = authUser.user_metadata || {};
+      const { data, error } = await sb.auth.updateUser({
+        data: {
+          ...currentMetadata,
+          username: normalized,
+          user_name: normalized,
+          preferred_username: normalized,
+          avatar_url: avatarUrl || null,
+          picture: avatarUrl || currentMetadata.picture || null
+        }
+      });
+      if (error) throw error;
+      setAuthUser(data?.user || authUser);
+      setGlobalProfilePhotoFile(null);
+      setGlobalProfilePhotoPreview(avatarUrl || "");
+      setGlobalProfileEditorOpen(false);
+    } catch (error) {
+      setGlobalProfileError(error?.message || "No se pudo actualizar el perfil global.");
+    } finally {
+      setGlobalProfileSaving(false);
+    }
+  }, [authUser, getGlobalIdentityAvatar, globalProfilePhotoFile, globalProfileSaving, globalProfileUsername]);
+
   const handleSignOut = async () => {
     try {
       await sb.auth.signOut();
@@ -28785,21 +28923,99 @@ function App() {
         />
       )}
 
-      {/* Session menu — fuera de cualquier stacking context */}
+      {/* Menú de identidad global — independiente de los perfiles de Posturas */}
       {!isAdmin && authUser && showSessionMenu && (
         <div
-          style={{ position:"fixed", top:"62px", right:"12px", background:"#0d1f3c", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"12px", padding:"10px", minWidth:"190px", zIndex:99999, boxShadow:"0 12px 40px rgba(0,0,0,0.8)" }}
+          role="menu"
+          aria-label="Opciones de identidad global"
+          style={{ position:"fixed", top:"68px", right:"18px", width:"min(300px, calc(100vw - 28px))", background:"rgba(5,20,36,.98)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"16px", padding:"12px", zIndex:99999, boxShadow:"0 22px 54px rgba(0,0,0,.48)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", fontFamily:"'Inter', sans-serif" }}
         >
-          <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.4)", fontFamily:"'DM Sans',sans-serif", padding:"2px 6px 8px", borderBottom:"1px solid rgba(255,255,255,0.08)", marginBottom:"8px", wordBreak:"break-all" }}>
-            {authUser.email}
+          <div style={{ display:"flex", alignItems:"center", gap:"11px", padding:"8px 8px 12px", borderBottom:"1px solid rgba(255,255,255,.05)", marginBottom:"9px" }}>
+            <GlobalIdentityAvatar user={authUser} size={42} />
+            <div style={{ minWidth:0 }}>
+              <div style={{ color:"#f8fafc", fontSize:"13px", fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{getGlobalIdentityUsername() || "Usuario"}</div>
+              <div style={{ color:"rgba(203,213,225,.60)", fontSize:"11px", marginTop:"3px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{authUser.email}</div>
+            </div>
           </div>
           <button
-            onClick={handleSignOut}
-            style={{ width:"100%", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"8px", padding:"10px 12px", color:"#ef4444", fontFamily:"'DM Sans',sans-serif", fontSize:"12px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px", letterSpacing:"0.5px" }}
+            role="menuitem"
+            type="button"
+            onClick={openGlobalProfileEditor}
+            className="transition-all duration-300"
+            style={{ width:"100%", background:"rgba(56,189,248,.08)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"12px", padding:"11px 12px", color:"#dbeafe", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:"9px", textAlign:"left", marginBottom:"8px", boxShadow:"0 8px 20px rgba(0,0,0,.12)" }}
           >
-            <span>🚪</span> CERRAR SESIÓN
+            <MS name="manage_accounts" size={19} active />
+            <span>Actualizar perfil</span>
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={handleSignOut}
+            className="transition-all duration-300"
+            style={{ width:"100%", background:"rgba(239,68,68,.10)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"12px", padding:"11px 12px", color:"#fca5a5", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:"9px", textAlign:"left" }}
+          >
+            <MS name="logout" size={19} active />
+            <span>Cerrar sesión</span>
           </button>
         </div>
+      )}
+
+      {globalProfileEditorOpen && authUser && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="global-profile-title"
+          onMouseDown={(event) => { if (event.target === event.currentTarget) closeGlobalProfileEditor(); }}
+          style={{ position:"fixed", inset:0, zIndex:100000, display:"grid", placeItems:"center", padding:"20px", background:"rgba(2,8,18,.78)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", fontFamily:"'Inter',sans-serif" }}
+        >
+          <section style={{ width:"min(520px, 100%)", maxHeight:"calc(100vh - 40px)", overflowY:"auto", borderRadius:"20px", border:"1px solid rgba(255,255,255,.05)", background:"#051424", boxShadow:"0 28px 80px rgba(0,0,0,.58)", padding:"24px" }}>
+            <header style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"16px", marginBottom:"22px" }}>
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", color:"#7dd3fc", fontSize:"11px", fontWeight:900, letterSpacing:".14em", textTransform:"uppercase", marginBottom:"8px" }}><MS name="verified_user" size={17} active /> Identidad global</div>
+                <h2 id="global-profile-title" style={{ margin:0, color:"#f8fafc", fontSize:"26px", lineHeight:1.2, fontWeight:900 }}>Actualizar perfil</h2>
+                <p style={{ margin:"8px 0 0", color:"rgba(203,213,225,.66)", fontSize:"13px", lineHeight:1.55 }}>Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
+              </div>
+              <button type="button" onClick={closeGlobalProfileEditor} aria-label="Cerrar" style={{ width:"38px", height:"38px", flex:"0 0 38px", display:"grid", placeItems:"center", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.04)", color:"#cbd5e1", cursor:"pointer" }}><MS name="close" size={21} active /></button>
+            </header>
+
+            <div style={{ display:"grid", gap:"18px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"16px", padding:"16px", borderRadius:"16px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.025)" }}>
+                <span style={{ width:"82px", height:"82px", flex:"0 0 82px", display:"grid", placeItems:"center", overflow:"hidden", borderRadius:"999px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.04)" }}>
+                  {globalProfilePhotoPreview ? <img src={globalProfilePhotoPreview} alt="Previsualización del avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="person" size={40} active />}
+                </span>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <label htmlFor="global-profile-photo" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"11px 14px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(56,189,248,.10)", color:"#dbeafe", fontSize:"12px", fontWeight:800, cursor:"pointer" }}><MS name="add_a_photo" size={18} active /> Seleccionar foto</label>
+                  <input id="global-profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGlobalProfilePhoto} style={{ position:"absolute", width:"1px", height:"1px", opacity:0, pointerEvents:"none" }} />
+                  <div style={{ marginTop:"8px", color:"rgba(203,213,225,.52)", fontSize:"11px", lineHeight:1.5 }}>JPG, PNG o WEBP. Máximo 5 MB.</div>
+                </div>
+              </div>
+
+              <label style={{ display:"grid", gap:"8px" }}>
+                <span style={{ color:"#cbd5e1", fontSize:"12px", fontWeight:800 }}>Nombre de usuario</span>
+                <div style={{ display:"flex", alignItems:"center", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.035)", overflow:"hidden" }}>
+                  <span style={{ paddingLeft:"14px", color:"#7dd3fc", fontSize:"14px", fontWeight:900 }}>@</span>
+                  <input
+                    value={String(globalProfileUsername || "").replace(/^@+/, "")}
+                    onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
+                    autoComplete="username"
+                    maxLength={30}
+                    placeholder="usuario"
+                    style={{ width:"100%", border:0, outline:0, background:"transparent", color:"#f8fafc", padding:"13px 14px 13px 4px", fontFamily:"'Inter',sans-serif", fontSize:"14px", fontWeight:700 }}
+                  />
+                </div>
+                <span style={{ color:"rgba(203,213,225,.48)", fontSize:"11px" }}>Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
+              </label>
+
+              {globalProfileError && <div role="alert" style={{ display:"flex", alignItems:"flex-start", gap:"9px", padding:"12px 13px", borderRadius:"12px", border:"1px solid rgba(248,113,113,.20)", background:"rgba(239,68,68,.09)", color:"#fca5a5", fontSize:"12px", lineHeight:1.5 }}><MS name="error" size={19} active /><span>{globalProfileError}</span></div>}
+            </div>
+
+            <footer style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"24px", paddingTop:"18px", borderTop:"1px solid rgba(255,255,255,.05)" }}>
+              <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} style={{ padding:"12px 16px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.04)", color:"#cbd5e1", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:globalProfileSaving?"not-allowed":"pointer" }}>Cancelar</button>
+              <button type="button" onClick={saveGlobalIdentityProfile} disabled={globalProfileSaving} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", minWidth:"150px", padding:"12px 17px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:globalProfileSaving?"rgba(14,116,144,.55)":"#0284c7", color:"#ffffff", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:900, cursor:globalProfileSaving?"wait":"pointer", boxShadow:"0 12px 28px rgba(2,132,199,.22)" }}><MS name={globalProfileSaving ? "progress_activity" : "save"} size={18} active /> {globalProfileSaving ? "Guardando" : "Guardar cambios"}</button>
+            </footer>
+          </section>
+        </div>,
+        document.body
       )}
 
       {deviceBlock && (
