@@ -119,7 +119,34 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
-const sb = createClient(SUPA_URL, SUPA_KEY);
+const sb = createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: "pkce",
+  },
+});
+
+const getAuthRedirectUrl = () => {
+  if (typeof window === "undefined") return undefined;
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+};
+
+const linkApprovedPosturasProfile = async () => {
+  const { data, error } = await sb.rpc("link_my_approved_posturas_profile");
+  if (error) {
+    console.error("Posturas profile linking failed:", error);
+    return null;
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cm:posturas-profile-linked", { detail:data || null }));
+  }
+  return data || null;
+};
 
 // Logo oficial de Conect Manzanillo
 const CONECT_LOGO_SRC = "/logo.png";
@@ -20831,6 +20858,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     }
   };
   useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+  useEffect(() => {
+    const refreshLinkedProfile = () => loadPosturas();
+    window.addEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+    return () => window.removeEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+  }, [authUser?.id, myId]);
 
   useEffect(() => {
     if (!pisResult) return undefined;
@@ -21109,10 +21141,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const publicEmpresas = empresas.filter(isProfilePublic);
   const trabFiltrados = sortByReputation(filterRows(publicTrabajadores, "trabajador"), "trabajador");
   const empFiltradas = sortByReputation(filterRows(publicEmpresas, "empresa"), "empresa");
-  const myTrabajadores = authUser?.id ? trabajadores.filter(row => (row.user_id === authUser.id || row.submitted_by_uid === authUser.id)) : [];
-  const myEmpresas = authUser?.id ? empresas.filter(row => (row.user_id === authUser.id || row.submitted_by_uid === authUser.id)) : [];
+  const myTrabajadores = authUser?.id ? trabajadores.filter(row => row.user_id === authUser.id || row.submitted_by_uid === authUser.id) : [];
+  const myEmpresas = authUser?.id ? empresas.filter(row => row.user_id === authUser.id || row.submitted_by_uid === authUser.id) : [];
   const myLatestTrabajador = [...myTrabajadores].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
   const myLatestEmpresa = [...myEmpresas].sort((a,b)=>new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))[0] || null;
+  const linkedWorkerProfile = myTrabajadores.find(row => row.user_id === authUser?.id && normalizeProfileValidation(row) === "validado" && row.activo !== false) || null;
+  const linkedCompanyProfile = myEmpresas.find(row => row.user_id === authUser?.id && normalizeProfileValidation(row) === "validado" && row.activo !== false) || null;
+  const activeLinkedProfile = linkedWorkerProfile || linkedCompanyProfile;
+  const pendingOwnProfile = [...myTrabajadores, ...myEmpresas].find(row => row.submitted_by_uid === authUser?.id && normalizeProfileValidation(row) === "pendiente") || null;
+  const hasAdvancedPosturasAccess = isAdmin || !!activeLinkedProfile;
   const isRenderableImageSrc = (value) => {
     const src = String(value || "").trim();
     return /^(https?:|data:image\/|blob:|\/)/i.test(src);
@@ -23083,7 +23120,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           )
         )}
 
-        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && (
+        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && !hasAdvancedPosturasAccess && (
+          <section style={{ maxWidth:"760px", margin:"60px auto", padding:"30px", borderRadius:"20px", border:"1px solid rgba(161,201,255,.24)", background:"linear-gradient(145deg, rgba(9,23,39,.96), rgba(5,15,27,.98))", boxShadow:"0 24px 70px rgba(0,0,0,.36)", textAlign:"center" }}>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"42px", color:pendingOwnProfile ? "#fbbf24" : "#a1c9ff", marginBottom:"12px" }}>{pendingOwnProfile ? "hourglass_top" : "person_add"}</span>
+            <h2 style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:"'Inter', sans-serif", fontSize:"26px", fontWeight:"900" }}>{pendingOwnProfile ? "En revisión por administración" : "Perfil requerido"}</h2>
+            <p style={{ margin:"0 auto 22px", maxWidth:"580px", color:"rgba(212,228,250,.68)", fontFamily:"'Inter', sans-serif", fontSize:"14px", lineHeight:1.7 }}>{pendingOwnProfile ? "Tu formulario fue recibido. Las funciones avanzadas se activarán automáticamente cuando administración valide y vincule tu perfil." : "La cuenta de acceso y el perfil de Posturas son independientes. Abre el formulario para crear un perfil de trabajador o empresa."}</p>
+            {!pendingOwnProfile && <button type="button" onClick={()=>{ setPosturasMode("profile"); setSub("posturas"); }} className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", minHeight:"46px", padding:"0 20px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.42)", background:"linear-gradient(135deg,#4dabff,#2589e8)", color:"#001c39", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"900", cursor:"pointer" }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"19px" }}>description</span>Abrir Formulario</button>}
+          </section>
+        )}
+
+        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && hasAdvancedPosturasAccess && (
           <section className="cm-posturas-target">
             <PosturasTargetStyles />
             <div className="cm-posturas-target-header">
@@ -24882,7 +24928,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   const checkboxBox = (active) => ({ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${active?"#38bdf8":"rgba(255,255,255,0.2)"}`, background:active?"#38bdf8":"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 });
   const MsgBox = ({ msg }) => msg ? (
     <div style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok" ? "#22c55e55" : "#ef444455"}`, color: msg.type==="ok" ? "#22c55e" : "#ef4444" }}>
-      {msg.type==="ok" ? "✓ " : "⚠️ "}{msg.text}
+      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"16px", verticalAlign:"middle", marginRight:"6px" }}>{msg.type==="ok" ? "check_circle" : "error"}</span>{msg.text}
     </div>
   ) : null;
 
@@ -24908,9 +24954,23 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   };
 
   const handleLoginGoogle = async () => {
-    setLoading(true); setLoginMsg(null);
-    const { error } = await sb.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: window.location.href } });
-    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
+    setLoading(true);
+    setLoginMsg(null);
+    try {
+      localStorage.setItem("cm_posturas_pending_profile_access", "1");
+      localStorage.setItem("cm_auth_return_tab", "donativos");
+    } catch {}
+    const { error } = await sb.auth.signInWithOAuth({
+      provider:"google",
+      options:{
+        redirectTo:getAuthRedirectUrl(),
+        queryParams:{ access_type:"offline", prompt:"select_account" },
+      },
+    });
+    if (error) {
+      setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message});
+      setLoading(false);
+    }
   };
 
   const handleEnviarOtp = async () => {
@@ -25642,12 +25702,23 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
 
   // ── LOGIN con Google ──
   const handleLoginGoogle = async () => {
-    setLoading(true); setLoginMsg(null);
+    setLoading(true);
+    setLoginMsg(null);
+    try {
+      localStorage.setItem("cm_posturas_pending_profile_access", "1");
+      localStorage.setItem("cm_auth_return_tab", "donativos");
+    } catch {}
     const { error } = await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.href }
+      provider:"google",
+      options:{
+        redirectTo:getAuthRedirectUrl(),
+        queryParams:{ access_type:"offline", prompt:"select_account" },
+      },
     });
-    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
+    if (error) {
+      setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message});
+      setLoading(false);
+    }
   };
 
   // ── ENVIAR OTP por SMS ──
@@ -27644,7 +27715,7 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
   const socialUrls = {
     facebook: "https://www.facebook.com/conectmanzanillooficial/",
     instagram: "https://www.instagram.com/conectmanzanillo",
-    tiktok: "https://www.tiktok.com/@conectmanzanillo"
+    tiktok: "https://www.tiktok.com/@conectmanzanilloo"
   };
 
   const clearAutoHide = useCallback(() => {
@@ -28227,29 +28298,58 @@ function App() {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const rememberAuthUser = (user) => {
+      if (!mounted) return;
       setAuthUser(user ?? null);
       try {
         if (user?.id) localStorage.setItem("cm_auth_user_id", user.id);
         else localStorage.removeItem("cm_auth_user_id");
       } catch {}
     };
-    sb.auth.getSession().then(({ data }) => {
-      rememberAuthUser(data?.session?.user ?? null);
-    });
-    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
+
+    const finishAuthenticatedFlow = async (session) => {
       const nextUser = session?.user ?? null;
       rememberAuthUser(nextUser);
-      if (nextUser) {
-        let pendingProfileAccess = false;
-        try { pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1"; } catch {}
-        if (pendingProfileAccess) {
-          setAuthQuickMode(null);
-          setActive("donativos");
-        }
+      if (!nextUser) return;
+
+      setAuthQuickMode(null);
+      try {
+        await linkApprovedPosturasProfile();
+      } catch (error) {
+        console.error("Automatic Posturas linking failed:", error);
+      }
+
+      let returnTab = null;
+      try {
+        returnTab = localStorage.getItem("cm_auth_return_tab");
+        localStorage.removeItem("cm_auth_return_tab");
+        localStorage.removeItem("cm_posturas_pending_profile_access");
+      } catch {}
+      if (returnTab === "donativos") setActive("donativos");
+    };
+
+    const bootstrapSession = async () => {
+      const { data, error } = await sb.auth.getSession();
+      if (error) console.error("Unable to restore auth session:", error);
+      await finishAuthenticatedFlow(data?.session ?? null);
+    };
+
+    bootstrapSession();
+
+    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        setTimeout(() => finishAuthenticatedFlow(session), 0);
+      } else if (event === "SIGNED_OUT") {
+        rememberAuthUser(null);
       }
     });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const authDisplayName = useMemo(() => {
