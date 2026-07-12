@@ -4453,7 +4453,7 @@ function AdminCalculadoraPanel() {
 }
 
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
-function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null }) {
+function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null, isSectionPanelOpen=false }) {
   const theme = React.useContext(ThemeContext);
   const [expanded, setExpanded] = useState(false);
   const cycleRef = useRef({ showTimer:null, hideTimer:null, repeatTimer:null });
@@ -4472,10 +4472,11 @@ function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null }) {
     setExpanded(false);
 
     const privileged = Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean));
-    if (active === "inicio" || privileged) return () => clearCycle();
+    if (active === "inicio" || privileged || isSectionPanelOpen) return () => clearCycle();
 
-    const schedule = (delay = 7600) => {
+    const schedule = (delay = 20000) => {
       cycleRef.current.showTimer = setTimeout(() => {
+        if (isSectionPanelOpen || active === "inicio") return;
         setExpanded(true);
         cycleRef.current.hideTimer = setTimeout(() => {
           retractBanner();
@@ -4484,9 +4485,9 @@ function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null }) {
       }, delay);
     };
 
-    schedule();
+    schedule(20000);
     return () => clearCycle();
-  }, [active, isAdmin, subAdmin]);
+  }, [active, isAdmin, subAdmin, isSectionPanelOpen]);
 
   const goToDonativos = () => {
     try {
@@ -7563,10 +7564,17 @@ function GlobalIdentityAvatar({ user, size = 28 }) {
   );
 }
 
-function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap }) {
+function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap, onMobileMenuChange }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof onMobileMenuChange === "function") onMobileMenuChange(mobileOpen);
+    return () => {
+      if (typeof onMobileMenuChange === "function") onMobileMenuChange(false);
+    };
+  }, [mobileOpen, onMobileMenuChange]);
 
   useEffect(() => {
     if (!mobileOpen || typeof document === "undefined") return;
@@ -27844,7 +27852,7 @@ function SistemaControlPortuario() {
 }
 
 
-function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged = false }) {
+function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged = false, activeSection = "inicio", isSectionPanelOpen = false }) {
   const theme = React.useContext(ThemeContext);
   const [visible, setVisible] = useState(false);
   const pendingRef = useRef(false);
@@ -27880,19 +27888,21 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
   }, [clearAutoHide, isAiActive, isPrivileged]);
 
   useEffect(() => {
-    if (isPrivileged) {
-      clearAutoHide();
-      setVisible(false);
-      pendingRef.current = false;
-      return undefined;
-    }
+    clearAutoHide();
+    setVisible(false);
+    pendingRef.current = false;
 
-    const timer = setInterval(openInvite, 10000);
+    if (isPrivileged || activeSection === "inicio" || isSectionPanelOpen) return undefined;
+
+    const firstTimer = setTimeout(openInvite, 20000);
+    const repeatTimer = setInterval(openInvite, 36000);
+
     return () => {
-      clearInterval(timer);
+      clearTimeout(firstTimer);
+      clearInterval(repeatTimer);
       clearAutoHide();
     };
-  }, [openInvite, clearAutoHide, isPrivileged]);
+  }, [activeSection, isSectionPanelOpen, openInvite, clearAutoHide, isPrivileged]);
 
   useEffect(() => {
     if (!isAiActive && pendingRef.current && !isPrivileged) openInvite();
@@ -27910,7 +27920,7 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [visible, clearAutoHide]);
 
-  if (!visible || isAiActive || isPrivileged) return null;
+  if (!visible || isAiActive || isPrivileged || activeSection === "inicio" || isSectionPanelOpen) return null;
 
   const cleanName = String(userName || "").trim();
   const greeting = cleanName ? `Hola ${cleanName}` : "Conect Manzanillo";
@@ -28173,6 +28183,170 @@ function TerminalesPatiosTab({ myId }) {
 }
 
 
+
+function GlobalIdentityProfileModal({
+  open,
+  authUser,
+  globalProfilePhotoPreview,
+  globalProfileUsername,
+  setGlobalProfileUsername,
+  globalProfileError,
+  globalProfileSaving,
+  handleGlobalProfilePhoto,
+  saveGlobalIdentityProfile,
+  closeGlobalProfileEditor,
+}) {
+  const [mounted, setMounted] = useState(open);
+  const [visible, setVisible] = useState(false);
+  const closeTimerRef = useRef(null);
+
+  useEffect(() => {
+    window.clearTimeout(closeTimerRef.current);
+
+    if (open) {
+      setMounted(true);
+      const frame = window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => setVisible(true));
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    setVisible(false);
+    closeTimerRef.current = window.setTimeout(() => setMounted(false), 300);
+    return () => window.clearTimeout(closeTimerRef.current);
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !globalProfileSaving) closeGlobalProfileEditor();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mounted, globalProfileSaving, closeGlobalProfileEditor]);
+
+  if (!mounted || !authUser) return null;
+
+  const cleanUsername = String(globalProfileUsername || "").replace(/^@+/, "");
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="global-profile-title"
+      aria-describedby="global-profile-description"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !globalProfileSaving) closeGlobalProfileEditor();
+      }}
+      className={`fixed inset-0 z-[100000] flex items-center justify-center overflow-y-auto bg-[#010f1f]/75 p-4 font-['Inter'] backdrop-blur-md transition-all duration-300 ease-out sm:p-6 ${visible ? "opacity-100" : "opacity-0"}`}
+    >
+      <section
+        onMouseDown={(event) => event.stopPropagation()}
+        className={`relative isolate flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#051424]/90 shadow-[0_32px_90px_rgba(0,0,0,0.58)] backdrop-blur-xl transition-all duration-300 ease-out sm:max-h-[calc(100dvh-3rem)] ${visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.95] opacity-0"}`}
+      >
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_0%,rgba(78,222,163,0.12),transparent_38%),radial-gradient(circle_at_100%_100%,rgba(2,103,184,0.14),transparent_42%)]" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] -z-10 rounded-[23px] bg-gradient-to-br from-white/[0.055] via-transparent to-white/[0.015]" />
+
+        <header className="flex items-start justify-between gap-4 border-b border-white/5 px-5 py-5 sm:px-6 sm:py-6">
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-[#4edea3]">
+              <MS name="verified_user" size={19} active />
+              <span>Identidad global</span>
+            </div>
+            <h2 id="global-profile-title" className="m-0 text-2xl font-semibold leading-8 tracking-[-0.01em] text-[#d4e4fa] sm:text-[32px] sm:leading-10">Actualizar perfil</h2>
+            <p id="global-profile-description" className="mt-2 max-w-[470px] text-sm leading-6 text-[#bbcabf]">Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={closeGlobalProfileEditor}
+            disabled={globalProfileSaving}
+            aria-label="Cerrar ventana"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/5 bg-white/[0.035] text-[#bbcabf] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-white/10 hover:bg-[#273647]/70 hover:text-[#d4e4fa] hover:shadow-[0_10px_24px_rgba(0,0,0,0.24)] active:translate-y-0 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a4c9ff]/50 disabled:pointer-events-none disabled:opacity-40"
+          >
+            <MS name="close" size={22} active />
+          </button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-6 sm:px-6">
+          <div className="space-y-7">
+            <section className="flex flex-col items-center gap-5 rounded-2xl border border-white/5 bg-[#0d1c2d]/65 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] backdrop-blur-md sm:flex-row">
+              <div className="group relative shrink-0">
+                <div className="relative grid h-28 w-28 place-items-center overflow-hidden rounded-full border-2 border-[#0267b8]/80 bg-[#010f1f] p-1 shadow-[0_0_0_5px_rgba(2,103,184,0.08),0_18px_35px_rgba(0,0,0,0.32)] transition-all duration-300 ease-out group-hover:scale-[1.025] group-hover:border-[#a4c9ff] group-hover:shadow-[0_0_0_6px_rgba(164,201,255,0.10),0_22px_42px_rgba(0,0,0,0.38)]">
+                  {globalProfilePhotoPreview ? (
+                    <img src={globalProfilePhotoPreview} alt="Previsualización de la foto de perfil" className="h-full w-full rounded-full object-cover" />
+                  ) : (
+                    <MS name="person" size={52} active />
+                  )}
+                </div>
+
+                <label htmlFor="global-profile-photo" title="Seleccionar foto" className="absolute bottom-0 right-0 grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-white/20 bg-gradient-to-br from-[#4edea3] to-[#0267b8] text-[#003824] shadow-[0_10px_25px_rgba(2,103,184,0.30)] transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-105 hover:shadow-[0_14px_30px_rgba(78,222,163,0.25)] active:translate-y-0 active:scale-[0.95] focus-within:ring-2 focus-within:ring-[#4edea3]/60">
+                  <MS name="photo_camera" size={22} active />
+                  <input id="global-profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGlobalProfilePhoto} disabled={globalProfileSaving} className="sr-only" />
+                </label>
+              </div>
+
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <div className="flex items-center justify-center gap-2 text-sm font-semibold text-[#d4e4fa] sm:justify-start">
+                  <MS name="image" size={19} active />
+                  Foto de perfil
+                </div>
+                <p className="mt-2 text-sm leading-5 text-[#86948a]">JPG, PNG o WEBP. Máximo 5 MB.</p>
+                <label htmlFor="global-profile-photo" className="mt-4 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-sm font-semibold text-[#d4e4fa] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#a4c9ff]/35 hover:bg-[#273647]/60 hover:shadow-[0_12px_26px_rgba(0,0,0,0.24)] active:translate-y-0 active:scale-[0.98]">
+                  <MS name="add_a_photo" size={20} active />
+                  Seleccionar foto
+                </label>
+              </div>
+            </section>
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.1em] text-[#bbcabf]">Nombre de usuario</span>
+              <div className="group flex min-h-14 items-center overflow-hidden rounded-xl border border-[#3c4a42] bg-[#010f1f] shadow-[inset_0_2px_8px_rgba(0,0,0,0.28)] transition-all duration-300 ease-out hover:border-[#86948a]/70 focus-within:border-[#4edea3] focus-within:ring-4 focus-within:ring-[#4edea3]/10">
+                <span className="ml-4 text-[#a4c9ff] transition-all duration-300 ease-out group-focus-within:text-[#4edea3]">
+                  <MS name="alternate_email" size={21} active />
+                </span>
+                <input
+                  value={cleanUsername}
+                  onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
+                  autoComplete="username"
+                  maxLength={30}
+                  placeholder="usuario"
+                  disabled={globalProfileSaving}
+                  className="h-14 min-w-0 flex-1 border-0 bg-transparent px-3 text-base font-semibold text-[#d4e4fa] outline-none ring-0 placeholder:text-[#86948a]/65 transition-all duration-300 ease-out focus:border-0 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+              <span className="mt-2 block text-xs leading-5 text-[#86948a]">Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
+            </label>
+
+            {globalProfileError && (
+              <div role="alert" className="flex items-start gap-3 rounded-xl border border-[#ffb4ab]/20 bg-[#93000a]/20 px-4 py-3 text-sm leading-5 text-[#ffb4ab] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-300 ease-out">
+                <MS name="error" size={20} active />
+                <span>{globalProfileError}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <footer className="flex flex-col-reverse gap-3 border-t border-white/5 bg-[#122131]/45 px-5 py-5 backdrop-blur-md sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-[#bbcabf] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-white/15 hover:bg-[#273647]/55 hover:text-[#d4e4fa] hover:shadow-[0_12px_26px_rgba(0,0,0,0.22)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a4c9ff]/45 disabled:pointer-events-none disabled:opacity-45">Cancelar</button>
+          <button type="button" onClick={saveGlobalIdentityProfile} disabled={globalProfileSaving} className="inline-flex min-h-12 min-w-[170px] items-center justify-center gap-2 rounded-full border border-white/15 bg-gradient-to-br from-[#4edea3] to-[#0267b8] px-7 text-sm font-bold text-[#003824] shadow-[0_0_22px_rgba(78,222,163,0.18)] transition-all duration-300 ease-out hover:-translate-y-1 hover:brightness-105 hover:shadow-[0_0_34px_rgba(78,222,163,0.32)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4edea3]/60 disabled:pointer-events-none disabled:opacity-55">
+            <span className={globalProfileSaving ? "animate-spin" : ""}><MS name={globalProfileSaving ? "progress_activity" : "save"} size={20} active /></span>
+            {globalProfileSaving ? "Guardando" : "Guardar cambios"}
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 function App() {
   const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
   const { subAdmin, subLogout, setShowLogin: setShowSubLogin, LoginModal } = useSubAdminSession();
@@ -28230,6 +28404,7 @@ function App() {
   const isPosturasSection = active === "donativos";
   const isPosturasMobile = isMobileViewport && isPosturasSection;
   const floatingWidgetBottom = isPosturasSection ? "104px" : "20px";
+  const [isSectionPanelOpen, setIsSectionPanelOpen] = useState(false);
   const floatingWidgetRight = isMobileViewport ? "14px" : "20px";
   
   const [showThemeConfig, setShowThemeConfig] = useState(false);
@@ -28985,6 +29160,7 @@ function App() {
           onAccountClick={() => setShowSessionMenu(v => !v)}
           showSessionMenu={showSessionMenu}
           onLogoTap={handleLogoTap}
+          onMobileMenuChange={setIsSectionPanelOpen}
         />
 
         {authQuickMode && <AuthQuickModal initialMode={authQuickMode} onClose={() => {
@@ -29031,7 +29207,7 @@ function App() {
           <CookieBanner onAccept={handleAccept} onReject={handleReject} />
         )}
         
-        <DonateBanner active={active} setActive={setActive} isAdmin={isAdmin} subAdmin={subAdmin} />
+        <DonateBanner active={active} setActive={setActive} isAdmin={isAdmin} subAdmin={subAdmin} isSectionPanelOpen={isSectionPanelOpen} />
       </div>
 
       {/* Modal Admin — fuera de cualquier stacking context */}
@@ -29080,63 +29256,18 @@ function App() {
         document.body
       )}
 
-      {globalProfileEditorOpen && authUser && createPortal(
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="global-profile-title"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) closeGlobalProfileEditor(); }}
-          style={{ position:"fixed", inset:0, zIndex:100000, display:"grid", placeItems:"center", padding:"20px", background:"rgba(2,8,18,.78)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", fontFamily:"'Inter',sans-serif" }}
-        >
-          <section style={{ width:"min(520px, 100%)", maxHeight:"calc(100vh - 40px)", overflowY:"auto", borderRadius:"20px", border:"1px solid rgba(255,255,255,.05)", background:"#051424", boxShadow:"0 28px 80px rgba(0,0,0,.58)", padding:"24px" }}>
-            <header style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"16px", marginBottom:"22px" }}>
-              <div>
-                <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", color:"#7dd3fc", fontSize:"11px", fontWeight:900, letterSpacing:".14em", textTransform:"uppercase", marginBottom:"8px" }}><MS name="verified_user" size={17} active /> Identidad global</div>
-                <h2 id="global-profile-title" style={{ margin:0, color:"#f8fafc", fontSize:"26px", lineHeight:1.2, fontWeight:900 }}>Actualizar perfil</h2>
-                <p style={{ margin:"8px 0 0", color:"rgba(203,213,225,.66)", fontSize:"13px", lineHeight:1.55 }}>Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
-              </div>
-              <button type="button" onClick={closeGlobalProfileEditor} aria-label="Cerrar" style={{ width:"38px", height:"38px", flex:"0 0 38px", display:"grid", placeItems:"center", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.04)", color:"#cbd5e1", cursor:"pointer" }}><MS name="close" size={21} active /></button>
-            </header>
-
-            <div style={{ display:"grid", gap:"18px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"16px", padding:"16px", borderRadius:"16px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.025)" }}>
-                <span style={{ width:"82px", height:"82px", flex:"0 0 82px", display:"grid", placeItems:"center", overflow:"hidden", borderRadius:"999px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.04)" }}>
-                  {globalProfilePhotoPreview ? <img src={globalProfilePhotoPreview} alt="Previsualización del avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="person" size={40} active />}
-                </span>
-                <div style={{ minWidth:0, flex:1 }}>
-                  <label htmlFor="global-profile-photo" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"11px 14px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(56,189,248,.10)", color:"#dbeafe", fontSize:"12px", fontWeight:800, cursor:"pointer" }}><MS name="add_a_photo" size={18} active /> Seleccionar foto</label>
-                  <input id="global-profile-photo" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleGlobalProfilePhoto} style={{ position:"absolute", width:"1px", height:"1px", opacity:0, pointerEvents:"none" }} />
-                  <div style={{ marginTop:"8px", color:"rgba(203,213,225,.52)", fontSize:"11px", lineHeight:1.5 }}>JPG, PNG o WEBP. Máximo 5 MB.</div>
-                </div>
-              </div>
-
-              <label style={{ display:"grid", gap:"8px" }}>
-                <span style={{ color:"#cbd5e1", fontSize:"12px", fontWeight:800 }}>Nombre de usuario</span>
-                <div style={{ display:"flex", alignItems:"center", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.035)", overflow:"hidden" }}>
-                  <span style={{ paddingLeft:"14px", color:"#7dd3fc", fontSize:"14px", fontWeight:900 }}>@</span>
-                  <input
-                    value={String(globalProfileUsername || "").replace(/^@+/, "")}
-                    onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
-                    autoComplete="username"
-                    maxLength={30}
-                    placeholder="usuario"
-                    style={{ width:"100%", border:0, outline:0, background:"transparent", color:"#f8fafc", padding:"13px 14px 13px 4px", fontFamily:"'Inter',sans-serif", fontSize:"14px", fontWeight:700 }}
-                  />
-                </div>
-                <span style={{ color:"rgba(203,213,225,.48)", fontSize:"11px" }}>Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
-              </label>
-
-              {globalProfileError && <div role="alert" style={{ display:"flex", alignItems:"flex-start", gap:"9px", padding:"12px 13px", borderRadius:"12px", border:"1px solid rgba(248,113,113,.20)", background:"rgba(239,68,68,.09)", color:"#fca5a5", fontSize:"12px", lineHeight:1.5 }}><MS name="error" size={19} active /><span>{globalProfileError}</span></div>}
-            </div>
-
-            <footer style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"24px", paddingTop:"18px", borderTop:"1px solid rgba(255,255,255,.05)" }}>
-              <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} style={{ padding:"12px 16px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(255,255,255,.04)", color:"#cbd5e1", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:globalProfileSaving?"not-allowed":"pointer" }}>Cancelar</button>
-              <button type="button" onClick={saveGlobalIdentityProfile} disabled={globalProfileSaving} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", minWidth:"150px", padding:"12px 17px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:globalProfileSaving?"rgba(14,116,144,.55)":"#0284c7", color:"#ffffff", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:900, cursor:globalProfileSaving?"wait":"pointer", boxShadow:"0 12px 28px rgba(2,132,199,.22)" }}><MS name={globalProfileSaving ? "progress_activity" : "save"} size={18} active /> {globalProfileSaving ? "Guardando" : "Guardar cambios"}</button>
-            </footer>
-          </section>
-        </div>,
-        document.body
-      )}
+      <GlobalIdentityProfileModal
+        open={globalProfileEditorOpen}
+        authUser={authUser}
+        globalProfilePhotoPreview={globalProfilePhotoPreview}
+        globalProfileUsername={globalProfileUsername}
+        setGlobalProfileUsername={setGlobalProfileUsername}
+        globalProfileError={globalProfileError}
+        globalProfileSaving={globalProfileSaving}
+        handleGlobalProfilePhoto={handleGlobalProfilePhoto}
+        saveGlobalIdentityProfile={saveGlobalIdentityProfile}
+        closeGlobalProfileEditor={closeGlobalProfileEditor}
+      />
 
       {deviceBlock && (
         <div style={{ position:"fixed", inset:0, zIndex:99997, background:"rgba(4,12,24,.88)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
@@ -29236,7 +29367,7 @@ function App() {
           }
         `}</style>
 
-        {active !== "donativos" && <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} isPrivileged={Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean))} />}
+        {active !== "donativos" && active !== "inicio" && <WhatsAppInviteBubble userName={authDisplayName} isAiActive={isAiChatActive} isPrivileged={Boolean(isAdmin || subAdmin?.id || Object.values(subAdmin?.permisos || {}).some(Boolean))} activeSection={active} isSectionPanelOpen={isSectionPanelOpen} />}
 
         {hasUnreadAdminMessages && showQRPanel !== 'admin_msg' && (
           <div
