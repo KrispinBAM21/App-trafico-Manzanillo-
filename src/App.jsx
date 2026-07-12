@@ -7633,9 +7633,18 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
             {isAdmin ? (
               <button type="button" className="cm-login-btn" onClick={logout}>ADMIN · Salir</button>
             ) : authUser ? (
-              <button type="button" className="cm-login-btn cm-global-profile-btn" onClick={onAccountClick} aria-haspopup="menu" aria-expanded={showSessionMenu}>
-                <GlobalIdentityAvatar user={authUser} size={28} />
-                <span>{showSessionMenu ? "Cerrar menú" : "MI PERFIL"}</span>
+              <button
+                type="button"
+                data-global-profile-trigger="true"
+                className="cm-login-btn cm-global-profile-btn"
+                onClick={onAccountClick}
+                aria-haspopup="menu"
+                aria-expanded={showSessionMenu}
+                aria-label={showSessionMenu ? "Cerrar menú de perfil" : "Abrir menú de perfil"}
+              >
+                <GlobalIdentityAvatar user={authUser} size={30} />
+                <span>MI PERFIL</span>
+                <MS name={showSessionMenu ? "expand_less" : "expand_more"} size={18} active />
               </button>
             ) : (
               <>
@@ -28493,6 +28502,26 @@ function App() {
   };
 
   useEffect(() => {
+    if (!showSessionMenu || typeof document === "undefined") return;
+    const closeFromOutside = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-global-profile-menu="true"]')) return;
+      if (target.closest('[data-global-profile-trigger="true"]')) return;
+      setShowSessionMenu(false);
+    };
+    const closeFromEscape = (event) => {
+      if (event.key === "Escape") setShowSessionMenu(false);
+    };
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    document.addEventListener("keydown", closeFromEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      document.removeEventListener("keydown", closeFromEscape);
+    };
+  }, [showSessionMenu]);
+
+  useEffect(() => {
     let mounted = true;
 
     const rememberAuthUser = (user) => {
@@ -28981,40 +29010,33 @@ function App() {
       )}
 
       {/* Menú de identidad global — independiente de los perfiles de Posturas */}
-      {!isAdmin && authUser && showSessionMenu && (
-        <div
-          role="menu"
-          aria-label="Opciones de identidad global"
-          style={{ position:"fixed", top:"68px", right:"18px", width:"min(300px, calc(100vw - 28px))", background:"rgba(5,20,36,.98)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"16px", padding:"12px", zIndex:99999, boxShadow:"0 22px 54px rgba(0,0,0,.48)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", fontFamily:"'Inter', sans-serif" }}
-        >
-          <div style={{ display:"flex", alignItems:"center", gap:"11px", padding:"8px 8px 12px", borderBottom:"1px solid rgba(255,255,255,.05)", marginBottom:"9px" }}>
-            <GlobalIdentityAvatar user={authUser} size={42} />
-            <div style={{ minWidth:0 }}>
-              <div style={{ color:"#f8fafc", fontSize:"13px", fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{getGlobalIdentityUsername() || "Usuario"}</div>
-              <div style={{ color:"rgba(203,213,225,.60)", fontSize:"11px", marginTop:"3px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{authUser.email}</div>
+      {!isAdmin && authUser && showSessionMenu && createPortal(
+        <div data-global-profile-menu="true" role="menu" aria-label="Opciones de identidad global" className="cm-global-user-menu">
+          <style>{`
+            @keyframes cmGlobalUserMenuIn{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+            .cm-global-user-menu{position:fixed;top:68px;right:18px;width:min(268px,calc(100vw - 28px));padding:10px;z-index:100000;overflow:hidden;border:1px solid rgba(255,255,255,.05);border-radius:16px;background:rgba(5,20,36,.92);box-shadow:0 24px 64px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(20px) saturate(130%);-webkit-backdrop-filter:blur(20px) saturate(130%);transform-origin:top right;animation:cmGlobalUserMenuIn .22s cubic-bezier(.2,.8,.2,1) both;font-family:'Inter',sans-serif}
+            .cm-global-user-menu__identity{display:flex;align-items:center;gap:12px;min-width:0;padding:10px 10px 13px;margin-bottom:7px;border-bottom:1px solid rgba(255,255,255,.05)}
+            .cm-global-user-menu__item{width:100%;min-height:46px;display:flex;align-items:center;gap:11px;padding:0 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#d4e4fa;font:600 13px/20px 'Inter',sans-serif;text-align:left;cursor:pointer;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease,color .2s ease;touch-action:manipulation}
+            .cm-global-user-menu__item:hover{background:rgba(39,54,71,.72);border-color:rgba(255,255,255,.05);box-shadow:0 10px 24px rgba(0,0,0,.18);transform:translateY(-1px);color:#fff}
+            .cm-global-user-menu__item:active{transform:scale(.98)}
+            .cm-global-user-menu__item--danger{color:#ffb4ab}
+            .cm-global-user-menu__item--danger:hover{background:rgba(147,0,10,.22);border-color:rgba(255,180,171,.12);color:#ffd7d2}
+            .cm-global-user-menu__divider{height:1px;margin:6px 4px;background:rgba(255,255,255,.05)}
+            @media(max-width:640px){.cm-global-user-menu{top:72px;right:12px;width:min(300px,calc(100vw - 24px));border-radius:18px;padding:11px}.cm-global-user-menu__identity{padding:10px 9px 14px}.cm-global-user-menu__item{min-height:52px;font-size:14px;padding:0 14px}}
+            @media(prefers-reduced-motion:reduce){.cm-global-user-menu{animation:none}.cm-global-user-menu__item{transition:none}}
+          `}</style>
+          <div className="cm-global-user-menu__identity">
+            <GlobalIdentityAvatar user={authUser} size={46} />
+            <div style={{ minWidth:0, flex:1 }}>
+              <div style={{ color:"#f8fafc", fontSize:"13px", fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{getGlobalIdentityUsername() || authUser.user_metadata?.full_name || "Usuario"}</div>
+              <div style={{ color:"rgba(187,202,191,.66)", fontSize:"11px", marginTop:"3px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{authUser.email}</div>
             </div>
           </div>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={openGlobalProfileEditor}
-            className="transition-all duration-300"
-            style={{ width:"100%", background:"rgba(56,189,248,.08)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"12px", padding:"11px 12px", color:"#dbeafe", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:"9px", textAlign:"left", marginBottom:"8px", boxShadow:"0 8px 20px rgba(0,0,0,.12)" }}
-          >
-            <MS name="manage_accounts" size={19} active />
-            <span>Actualizar perfil</span>
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            onClick={handleSignOut}
-            className="transition-all duration-300"
-            style={{ width:"100%", background:"rgba(239,68,68,.10)", border:"1px solid rgba(255,255,255,.05)", borderRadius:"12px", padding:"11px 12px", color:"#fca5a5", fontFamily:"'Inter',sans-serif", fontSize:"12px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:"9px", textAlign:"left" }}
-          >
-            <MS name="logout" size={19} active />
-            <span>Cerrar sesión</span>
-          </button>
-        </div>
+          <button role="menuitem" type="button" onClick={openGlobalProfileEditor} className="cm-global-user-menu__item"><MS name="manage_accounts" size={21} active /><span>Actualizar perfil</span></button>
+          <div className="cm-global-user-menu__divider" />
+          <button role="menuitem" type="button" onClick={handleSignOut} className="cm-global-user-menu__item cm-global-user-menu__item--danger"><MS name="logout" size={21} color="currentColor" /><span>Cerrar sesión</span></button>
+        </div>,
+        document.body
       )}
 
       {globalProfileEditorOpen && authUser && createPortal(
