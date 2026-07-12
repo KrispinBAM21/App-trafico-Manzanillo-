@@ -20144,6 +20144,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const [vista, setVista] = useState("postular");
   const [posturasMode, setPosturasMode] = useState("list");
+  const [mobilePosturasPanelOpen, setMobilePosturasPanelOpen] = useState(false);
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
@@ -23176,6 +23177,111 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>
   );
 
+  const MobilePosturasPanel = () => {
+    const items = [
+      { id:"profile", label:"Mi perfil", icon:"person", action:()=>{ setSub("posturas"); setPosturasMode("profile"); } },
+      { id:"notificaciones", label:"Notificaciones", icon:"notifications", action:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
+      { id:"tablero", label:"Tablero", icon:"dashboard", action:()=>{ setSub("tablero"); setPosturasMode("list"); } },
+      { id:"posturas", label:"Posturas", icon:"work", action:()=>{ setSub("posturas"); setPosturasMode("list"); } },
+      { id:"boletinados", label:"Boletinados", icon:"gavel", action:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
+      { id:"donativos", label:"Donativos", icon:"volunteer_activism", action:()=>{ setSub("donativos"); setPosturasMode("list"); } },
+      ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
+    ];
+
+    const isActive = (id) => {
+      if (id === "profile") return posturasMode === "profile";
+      if (id === "posturas") return sub === "posturas" && posturasMode === "list";
+      return sub === id;
+    };
+
+    return createPortal(<>
+      <button
+        type="button"
+        onClick={()=>setMobilePosturasPanelOpen(true)}
+        aria-label="Abrir panel de Posturas"
+        aria-expanded={mobilePosturasPanelOpen}
+        style={{
+          position:"fixed", left:"14px", top:"74px", zIndex:1290,
+          minWidth:"48px", height:"48px", padding:"0 14px", borderRadius:"15px",
+          border:"1px solid rgba(164,201,255,.24)", background:"rgba(18,33,49,.88)",
+          color:"#d4e4fa", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+          backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
+          boxShadow:"0 12px 30px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.05)",
+          cursor:"pointer", transition:"all .3s ease", fontFamily:getFont(theme,"secondary"),
+          fontSize:"12px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase"
+        }}
+      >
+        <MS name="menu" size={24} active />
+        <span>Panel</span>
+      </button>
+
+      <div
+        onClick={()=>setMobilePosturasPanelOpen(false)}
+        aria-hidden={!mobilePosturasPanelOpen}
+        style={{
+          position:"fixed", inset:0, zIndex:1298,
+          background:"rgba(1,15,31,.68)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)",
+          opacity:mobilePosturasPanelOpen ? 1 : 0,
+          pointerEvents:mobilePosturasPanelOpen ? "auto" : "none",
+          transition:"opacity .3s ease"
+        }}
+      />
+
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Panel de navegación de Posturas"
+        style={{
+          position:"fixed", left:0, top:0, bottom:0, zIndex:1299,
+          width:"min(86vw, 330px)", padding:"max(18px, env(safe-area-inset-top)) 14px max(20px, env(safe-area-inset-bottom))",
+          background:"rgba(5,20,36,.97)", color:"#d4e4fa",
+          borderRight:"1px solid rgba(255,255,255,.08)",
+          boxShadow:"24px 0 64px rgba(0,0,0,.52)",
+          backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+          transform:mobilePosturasPanelOpen ? "translateX(0)" : "translateX(-104%)",
+          transition:"transform .32s cubic-bezier(.22,1,.36,1)",
+          overflowY:"auto", fontFamily:getFont(theme,"secondary")
+        }}
+      >
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", padding:"8px 8px 18px", borderBottom:"1px solid rgba(255,255,255,.07)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px", minWidth:0 }}>
+            <div style={{ width:"46px", height:"46px", borderRadius:"15px", display:"grid", placeItems:"center", background:"rgba(164,201,255,.10)", border:"1px solid rgba(164,201,255,.24)" }}><MS name="space_dashboard" size={24} active /></div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:"17px", fontWeight:"900", color:"#d4e4fa" }}>Panel de Posturas</div>
+              <div style={{ marginTop:"2px", fontSize:"10px", color:"rgba(212,228,250,.56)", textTransform:"uppercase", letterSpacing:".14em", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{profileDisplayName}</div>
+            </div>
+          </div>
+          <button type="button" onClick={()=>setMobilePosturasPanelOpen(false)} aria-label="Cerrar panel" style={{ width:"44px", height:"44px", flexShrink:0, borderRadius:"14px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.035)", color:"#a4c9ff", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={22} active /></button>
+        </div>
+
+        <nav style={{ display:"grid", gap:"8px", padding:"16px 0" }}>
+          {items.map(item => {
+            const active = isActive(item.id);
+            return <button
+              key={item.id}
+              type="button"
+              onClick={()=>{ item.action(); setMobilePosturasPanelOpen(false); }}
+              style={{
+                width:"100%", minHeight:"54px", padding:"12px 14px", borderRadius:"16px",
+                border:active ? "1px solid rgba(164,201,255,.34)" : "1px solid transparent",
+                background:active ? "linear-gradient(135deg, rgba(2,103,184,.38), rgba(18,33,49,.82))" : "rgba(255,255,255,.025)",
+                color:active ? "#d6e5ff" : "rgba(212,228,250,.72)",
+                display:"flex", alignItems:"center", gap:"13px", textAlign:"left",
+                fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"850",
+                boxShadow:active ? "0 10px 24px rgba(2,103,184,.16), inset 0 1px 0 rgba(255,255,255,.05)" : "none",
+                cursor:"pointer", transition:"all .25s ease"
+              }}
+            >
+              <span style={{ width:"34px", height:"34px", borderRadius:"11px", display:"grid", placeItems:"center", background:active ? "rgba(164,201,255,.14)" : "rgba(255,255,255,.035)", color:active ? "#a4c9ff" : "rgba(212,228,250,.62)" }}><MS name={item.icon} size={20} active={active} /></span>
+              <span style={{ flex:1 }}>{item.label}</span>
+              {active && <MS name="chevron_right" size={19} active />}
+            </button>;
+          })}
+        </nav>
+      </aside>
+    </>, document.body);
+  };
+
   const MobilePosturasShell = () => {
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
@@ -23198,7 +23304,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
-  if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<MobilePosturasShell /></>;
+  if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<MobilePosturasPanel /><MobilePosturasShell /></>;
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
