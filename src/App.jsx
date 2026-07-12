@@ -119,37 +119,7 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
-const sb = createClient(SUPA_URL, SUPA_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: "pkce",
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
-    storageKey: "cm_supabase_auth_session",
-  },
-});
-
-const CM_AUTH_RETURN_KEY = "cm_auth_return_tab";
-const CM_AUTH_IN_PROGRESS_KEY = "cm_google_auth_in_progress";
-const CM_DEFAULT_AUTH_RETURN_TAB = "donativos";
-
-const getGoogleOAuthRedirectUrl = () => {
-  if (typeof window === "undefined") return undefined;
-  const url = new URL(window.location.origin + window.location.pathname);
-  url.searchParams.set("auth_callback", "google");
-  url.hash = CM_DEFAULT_AUTH_RETURN_TAB;
-  return url.toString();
-};
-
-const markGoogleAuthStarted = () => {
-  try {
-    localStorage.setItem(CM_AUTH_IN_PROGRESS_KEY, "1");
-    localStorage.setItem(CM_AUTH_RETURN_KEY, CM_DEFAULT_AUTH_RETURN_TAB);
-    localStorage.setItem("cm_posturas_pending_profile_access", "1");
-  } catch {}
-};
-
+const sb = createClient(SUPA_URL, SUPA_KEY);
 
 // Logo oficial de Conect Manzanillo
 const CONECT_LOGO_SRC = "/logo.png";
@@ -24831,17 +24801,6 @@ const WORLD_COUNTRIES = [
 
 // ─── TAB: TUTORIAL ────────────────────────────────────────────────────────────
 
-function GoogleBrandIcon({ size = 18 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true" focusable="false" style={{ display:"block", flexShrink:0 }}>
-      <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.875 2.684-6.615Z"/>
-      <path fill="#34A853" d="M9 18c2.43 0 4.468-.806 5.956-2.18l-2.91-2.258c-.805.54-1.834.86-3.046.86-2.344 0-4.328-1.585-5.037-3.714H.956v2.332A9 9 0 0 0 9 18Z"/>
-      <path fill="#FBBC05" d="M3.963 10.708A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.167.281-1.708V4.96H.956A9 9 0 0 0 0 9c0 1.452.347 2.827.956 4.04l3.007-2.332Z"/>
-      <path fill="#EA4335" d="M9 3.58c1.322 0 2.508.454 3.442 1.345l2.582-2.582C13.463.89 11.425 0 9 0A9 9 0 0 0 .956 4.96l3.007 2.332C4.672 5.163 6.656 3.58 9 3.58Z"/>
-    </svg>
-  );
-}
-
 // ─── MODAL AUTH RÁPIDO (header: iniciar sesión / crear cuenta sin redirigir) ───
 function AuthQuickModal({ initialMode = "login", onClose }) {
   const theme = React.useContext(ThemeContext);
@@ -24927,30 +24886,9 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   };
 
   const handleLoginGoogle = async () => {
-    setLoading(true);
-    setLoginMsg(null);
-    markGoogleAuthStarted();
-    try {
-      const { data, error } = await sb.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: getGoogleOAuthRedirectUrl(),
-          scopes: "openid email profile",
-          queryParams: { prompt: "select_account" },
-          skipBrowserRedirect: false,
-        },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error("Google no devolvió una URL de autorización válida.");
-    } catch (error) {
-      console.error("Google OAuth start error:", error);
-      try {
-        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
-        localStorage.removeItem(CM_AUTH_RETURN_KEY);
-      } catch {}
-      setLoginMsg({ type:"err", text:"Error al conectar con Google: " + (error?.message || "No fue posible iniciar la autenticación.") });
-      setLoading(false);
-    }
+    setLoading(true); setLoginMsg(null);
+    const { error } = await sb.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: window.location.href } });
+    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
   };
 
   const handleEnviarOtp = async () => {
@@ -25068,7 +25006,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     width: "100%",
     minHeight: "44px",
     border: "none",
-    borderRadius: "10px",
+    borderRadius: "4px",
     background: red,
     color: "#ffffff",
     fontFamily: authFont,
@@ -25078,16 +25016,15 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     textTransform: "uppercase",
     cursor: loading ? "wait" : "pointer",
     opacity: loading ? 0.72 : 1,
-    transition: "all .3s ease",
-    boxShadow: "0 10px 24px rgba(197,34,34,.18)"
+    transition: "filter .18s ease, transform .18s ease"
   };
 
   const outlineAuthBtn = {
     width: "100%",
     minHeight: "42px",
     border: `1px solid ${steel}`,
-    borderRadius: "10px",
-    background: "rgba(255,255,255,.94)",
+    borderRadius: "4px",
+    background: "#ffffff",
     color: steel,
     fontFamily: authFont,
     fontSize: "12px",
@@ -25095,8 +25032,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     letterSpacing: ".8px",
     textTransform: "uppercase",
     cursor: "pointer",
-    transition: "all .3s ease",
-    boxShadow: "0 8px 20px rgba(15,23,42,.06)"
+    transition: "background .18s ease, color .18s ease, border-color .18s ease"
   };
 
   const miniLinkBtn = {
@@ -25354,7 +25290,6 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   type="button"
                   onClick={handleLogin}
                   disabled={loading}
-                  className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
                   style={primaryAuthBtn}
                   onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = "brightness(.94)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
@@ -25370,21 +25305,10 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     ...outlineAuthBtn,
                     marginTop: "10px",
                     borderColor: panelBorder,
-                    color: textMain,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "12px",
-                    textTransform: "none",
-                    letterSpacing: ".2px",
-                    fontSize: "13px"
+                    color: textMain
                   }}
-                  className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
-                  onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.borderColor = "#cbd5e1"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,.94)"; e.currentTarget.style.borderColor = panelBorder; e.currentTarget.style.transform = "translateY(0)"; }}
                 >
-                  <GoogleBrandIcon size={18} />
-                  <span>Continuar con Google</span>
+                  CONTINUAR CON GOOGLE
                 </button>
 
                 <div style={{ height: "1px", background: panelBorder, margin: "26px 0 18px" }} />
@@ -25397,7 +25321,6 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type="button"
                     onClick={() => { setAuthMode("registro"); setRegMsg(null); setRegStep(1); }}
                     style={outlineAuthBtn}
-                    className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg"
                   >
                     CREAR CUENTA NUEVA
                   </button>
@@ -25512,7 +25435,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                       ATRÁS
                     </button>
                   )}
-                  <button type="button" onClick={handleRegStep} disabled={loading || (regStep === 4 && !isPasswordValid(regPass))} className="transition-all duration-300 active:scale-[0.98] hover:shadow-lg" style={{ ...primaryAuthBtn, flex: 1, opacity: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? 0.55 : 1, cursor: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? "not-allowed" : "pointer" }}>
+                  <button type="button" onClick={handleRegStep} disabled={loading || (regStep === 4 && !isPasswordValid(regPass))} style={{ ...primaryAuthBtn, flex: 1, opacity: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? 0.55 : 1, cursor: (loading || (regStep === 4 && !isPasswordValid(regPass))) ? "not-allowed" : "pointer" }}>
                     {loading ? "Procesando..." : regStep === 4 ? "CREAR CUENTA" : "CONTINUAR"}
                   </button>
                 </div>
@@ -25679,30 +25602,12 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
 
   // ── LOGIN con Google ──
   const handleLoginGoogle = async () => {
-    setLoading(true);
-    setLoginMsg(null);
-    markGoogleAuthStarted();
-    try {
-      const { data, error } = await sb.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: getGoogleOAuthRedirectUrl(),
-          scopes: "openid email profile",
-          queryParams: { prompt: "select_account" },
-          skipBrowserRedirect: false,
-        },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error("Google no devolvió una URL de autorización válida.");
-    } catch (error) {
-      console.error("Google OAuth start error:", error);
-      try {
-        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
-        localStorage.removeItem(CM_AUTH_RETURN_KEY);
-      } catch {}
-      setLoginMsg({ type:"err", text:"Error al conectar con Google: " + (error?.message || "No fue posible iniciar la autenticación.") });
-      setLoading(false);
-    }
+    setLoading(true); setLoginMsg(null);
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.href }
+    });
+    if (error) { setLoginMsg({type:"err", text:"Error al conectar con Google: " + error.message}); setLoading(false); }
   };
 
   // ── ENVIAR OTP por SMS ──
@@ -28056,7 +27961,6 @@ function App() {
   // Intención de autenticación disparada desde el header (login/registro)
   const [authIntent, setAuthIntent] = useState(null);
   const [authQuickMode, setAuthQuickMode] = useState(null); // "login" | "registro" para modal sin redirigir
-  const authRedirectHandledRef = useRef(false);
   
   // Validado TEMA GLOBAL: Hook con soporte para preview local (admin) y aplicación global
   const { 
@@ -28283,93 +28187,29 @@ function App() {
   };
 
   useEffect(() => {
-    let mounted = true;
-
     const rememberAuthUser = (user) => {
-      if (!mounted) return;
       setAuthUser(user ?? null);
       try {
         if (user?.id) localStorage.setItem("cm_auth_user_id", user.id);
         else localStorage.removeItem("cm_auth_user_id");
       } catch {}
     };
-
-    const completeSuccessfulAuth = (session, event = "SESSION_RESTORED") => {
-      const user = session?.user ?? null;
-      rememberAuthUser(user);
-      if (!user) return;
-
-      let pendingProfileAccess = false;
-      let googleAuthInProgress = false;
-      let returnTab = CM_DEFAULT_AUTH_RETURN_TAB;
-      try {
-        pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1";
-        googleAuthInProgress = localStorage.getItem(CM_AUTH_IN_PROGRESS_KEY) === "1";
-        returnTab = normalizeTabKey(localStorage.getItem(CM_AUTH_RETURN_KEY)) || CM_DEFAULT_AUTH_RETURN_TAB;
-      } catch {}
-
-      let isOAuthCallback = false;
-      try {
-        const params = new URLSearchParams(window.location.search);
-        isOAuthCallback = params.get("auth_callback") === "google" || params.has("code");
-      } catch {}
-
-      const shouldRedirect = pendingProfileAccess || googleAuthInProgress || isOAuthCallback || event === "SIGNED_IN";
-      if (!shouldRedirect || authRedirectHandledRef.current) return;
-
-      authRedirectHandledRef.current = true;
-      setAuthQuickMode(null);
-      setShowSessionMenu(false);
-      setActive(returnTab, { replace:true });
-
-      try {
-        localStorage.removeItem(CM_AUTH_IN_PROGRESS_KEY);
-        localStorage.removeItem(CM_AUTH_RETURN_KEY);
-        localStorage.removeItem("cm_posturas_pending_profile_access");
-
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete("auth_callback");
-        cleanUrl.searchParams.delete("code");
-        cleanUrl.searchParams.delete("error");
-        cleanUrl.searchParams.delete("error_code");
-        cleanUrl.searchParams.delete("error_description");
-        cleanUrl.hash = `#${returnTab}`;
-        window.history.replaceState({ tab:returnTab }, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
-      } catch (cleanupError) {
-        console.error("OAuth callback URL cleanup error:", cleanupError);
-      }
-    };
-
-    const restoreSession = async () => {
-      try {
-        const { data, error } = await sb.auth.getSession();
-        if (error) throw error;
-        completeSuccessfulAuth(data?.session ?? null, "INITIAL_SESSION");
-      } catch (error) {
-        console.error("Supabase session restore error:", error);
-        rememberAuthUser(null);
-      }
-    };
-
-    restoreSession();
-
-    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        authRedirectHandledRef.current = false;
-        rememberAuthUser(null);
-        return;
-      }
-
-      rememberAuthUser(session?.user ?? null);
-      if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
-        completeSuccessfulAuth(session, event);
+    sb.auth.getSession().then(({ data }) => {
+      rememberAuthUser(data?.session?.user ?? null);
+    });
+    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null;
+      rememberAuthUser(nextUser);
+      if (nextUser) {
+        let pendingProfileAccess = false;
+        try { pendingProfileAccess = localStorage.getItem("cm_posturas_pending_profile_access") === "1"; } catch {}
+        if (pendingProfileAccess) {
+          setAuthQuickMode(null);
+          setActive("donativos");
+        }
       }
     });
-
-    return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   const authDisplayName = useMemo(() => {
