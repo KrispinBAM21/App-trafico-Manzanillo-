@@ -7573,8 +7573,29 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
 
   useEffect(() => {
     if (typeof onMobileMenuChange === "function") onMobileMenuChange(mobileOpen);
+
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("cm-section-panel-open", mobileOpen);
+      document.body.classList.toggle("cm-section-panel-open", mobileOpen);
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cm-section-panel-state", {
+        detail: { open: mobileOpen }
+      }));
+    }
+
     return () => {
       if (typeof onMobileMenuChange === "function") onMobileMenuChange(false);
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.remove("cm-section-panel-open");
+        document.body.classList.remove("cm-section-panel-open");
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cm-section-panel-state", {
+          detail: { open: false }
+        }));
+      }
     };
   }, [mobileOpen, onMobileMenuChange]);
 
@@ -7600,7 +7621,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
   return (
     <>
       <style>{`
-        .cm-topbar{position:fixed;top:0;left:0;right:0;width:100%;z-index:50;background:rgba(13,17,23,.90);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+        .cm-topbar{position:fixed;top:0;left:0;right:0;width:100%;z-index:2147483000;background:rgba(13,17,23,.90);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(191,199,208,.20);box-shadow:0 8px 24px rgba(0,0,0,.22)}
         .cm-topbar-inner{width:100%;max-width:1440px;margin:0 auto;min-height:54px;padding:8px 16px;display:flex;align-items:center;gap:14px}
         .cm-topbar-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:0 0 auto;background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 2px;border-radius:8px;touch-action:manipulation}
         .cm-topbar-anchor{width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 8px rgba(0,98,140,.35));overflow:hidden;border-radius:7px}
@@ -7631,13 +7652,31 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
         .cm-global-profile-btn[aria-expanded='true'] .cm-global-profile-chevron{transform:rotate(180deg)}
         .cm-register-btn{min-height:36px;border:1px solid rgba(136,206,255,.28);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:12px;font-weight:800;padding:0 14px;cursor:pointer;transition:background .18s ease,transform .18s ease;touch-action:manipulation}
         .cm-register-btn:hover{background:rgba(255,255,255,.10);transform:translateY(-1px)}
-        .cm-menu-btn{display:none;position:relative;z-index:100001;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .cm-menu-btn{display:none;position:relative;z-index:2147483002;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(161,201,255,.22);background:rgba(39,54,71,.78);color:#a1c9ff;border-radius:10px;cursor:pointer;touch-action:manipulation;overflow:hidden;transition:background .18s ease,border-color .18s ease,transform .18s ease;box-shadow:0 10px 24px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
         .cm-menu-btn:hover{background:rgba(161,201,255,.10);border-color:rgba(161,201,255,.46);transform:translateY(-1px)}
         .cm-menu-btn-left{flex:0 0 auto;margin-right:2px}
         .cm-menu-symbol{font-size:28px!important;line-height:1;color:#ffffff;transition:transform .22s cubic-bezier(.2,.8,.2,1),color .2s ease;filter:drop-shadow(0 0 8px rgba(136,206,255,.24))}
         .cm-menu-btn:hover .cm-menu-symbol{color:#a4c9ff;transform:scale(1.06)}
         .cm-menu-btn[aria-expanded='true'] .cm-menu-symbol{transform:rotate(90deg)}
-        .cm-mobile-nav{display:none;position:fixed;inset:0;z-index:100000;height:100vh;height:100dvh;min-height:100vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:rgba(13,28,45,.97);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:0;border-radius:0;padding:82px 16px max(24px,env(safe-area-inset-bottom));grid-template-columns:1fr;align-content:start;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.05)}
+        .cm-mobile-nav{display:none;position:fixed;inset:0;z-index:2147483001;height:100vh;height:100dvh;min-height:100vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#0d1c2d;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:0;border-radius:0;padding:82px 16px max(24px,env(safe-area-inset-bottom));grid-template-columns:1fr;align-content:start;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.05)}
+        .cm-section-panel-open .leaflet-container,
+        .cm-section-panel-open .leaflet-pane,
+        .cm-section-panel-open .leaflet-control-container,
+        .cm-section-panel-open .leaflet-top,
+        .cm-section-panel-open .leaflet-bottom,
+        .cm-section-panel-open .port-map-stage,
+        .cm-section-panel-open .patio-premium-map {
+          z-index:0!important;
+          pointer-events:none!important;
+        }
+        .cm-section-panel-open .leaflet-map-pane,
+        .cm-section-panel-open .leaflet-tile-pane,
+        .cm-section-panel-open .leaflet-overlay-pane,
+        .cm-section-panel-open .leaflet-marker-pane,
+        .cm-section-panel-open .leaflet-tooltip-pane,
+        .cm-section-panel-open .leaflet-popup-pane {
+          z-index:0!important;
+        }
         .cm-mobile-nav.is-open{display:grid;animation:cmFloatingMenu .18s ease-out}
         .cm-mobile-nav-btn{min-height:54px;border:1px solid rgba(63,71,83,.70);border-radius:14px;background:rgba(39,54,71,.72);color:rgba(212,228,250,.90);font-family:'IBM Plex Sans','DM Sans',system-ui,sans-serif;font-size:13px;line-height:18px;font-weight:900;display:flex;align-items:center;justify-content:flex-start;text-align:left;padding:0 16px;cursor:pointer;touch-action:manipulation;transition:background .18s ease,border-color .18s ease,transform .18s ease,color .18s ease;letter-spacing:.08em;text-transform:uppercase}
         .cm-mobile-nav-btn:hover{background:rgba(161,201,255,.10);transform:translateY(-1px);color:#fff;border-color:rgba(161,201,255,.36)}
@@ -28995,6 +29034,15 @@ function App() {
 
   const isAiChatActive = showQRPanel === "gemini" || geminiLoading;
 
+  useEffect(() => {
+    if (!isSectionPanelOpen) return;
+
+    setSupportExpanded(false);
+    setShowQRPanel(current =>
+      ["whatsapp", "canal", "donativo"].includes(current) ? null : current
+    );
+  }, [isSectionPanelOpen]);
+
   const aiMenuClickTimerRef = useRef(null);
   const aiMenuLastTapRef = useRef(0);
   const aiMenuClickCountRef = useRef(0);
@@ -29587,7 +29635,7 @@ function App() {
 
 
         {/* Etiqueta visible del asistente principal */}
-        {!hasUnreadAdminMessages && showQRPanel !== "gemini" && (
+        {!isSectionPanelOpen && !hasUnreadAdminMessages && showQRPanel !== "gemini" && (
           <div
             onClick={() => { setSupportExpanded(false); setShowQRPanel("gemini"); }}
             style={{
@@ -29789,7 +29837,7 @@ function App() {
         )}
 
         {/* Panel QR WhatsApp Soporte */}
-        {showQRPanel === 'whatsapp' && (
+        {!isSectionPanelOpen && showQRPanel === 'whatsapp' && (
           <div
             style={{
               position: "absolute",
@@ -29951,7 +29999,7 @@ function App() {
         )}
 
         {/* Panel QR Canal WhatsApp */}
-        {showQRPanel === 'canal' && (
+        {!isSectionPanelOpen && showQRPanel === 'canal' && (
           <div
             style={{
               position: "absolute",
@@ -30107,7 +30155,7 @@ function App() {
         )}
 
         {/* Panel Donativo Mifel */}
-        {showQRPanel === 'donativo' && (
+        {!isSectionPanelOpen && showQRPanel === 'donativo' && (
           <div
             style={{
               position: "absolute",
