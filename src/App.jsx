@@ -23453,11 +23453,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             >
               <span style={{ display:"inline-flex", alignItems:"center", gap:"12px", minWidth:0 }}>
                 <span style={{ width:"40px", height:"40px", flex:"0 0 40px", borderRadius:"8px", background:"#0099ff", display:"grid", placeItems:"center", color:"#002f54" }}>
-                  <MS name="account_circle" size={25} color="#002f54" />
+                  <PosturasSidebarIcon name="account_circle" size={25} style={{ color:"#002f54" }} />
                 </span>
                 <span style={{ color:"#e0e3e5", whiteSpace:"nowrap" }}>MI PERFIL</span>
               </span>
-              <span className="cm-posturas-profile-settings" style={{ display:"inline-flex", color:"#bfc7d5" }}><MS name="settings" size={22} color="currentColor" /></span>
+              <span className="cm-posturas-profile-settings" style={{ display:"inline-flex", color:"#bfc7d5" }}><PosturasSidebarIcon name="settings" size={22} /></span>
             </button>
             {profileMenuOpen && (
               <div role="menu" aria-label="Opciones de Mi Perfil" className="transition-all duration-300" style={{ position:"absolute", left:"0", top:"calc(100% + 10px)", zIndex:5100, width:"min(248px, calc(100vw - 48px))", display:"grid", gap:"8px", padding:"12px", borderRadius:"8px", border:"1px solid #3f4753", background:"rgba(25,28,30,.98)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", boxShadow:"0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05)" }}>
