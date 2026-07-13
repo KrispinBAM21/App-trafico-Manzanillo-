@@ -126,6 +126,33 @@ function MS({ name, size = 20, active = false, color = "currentColor", style = {
   );
 }
 
+
+
+// Iconos SVG locales para el sidebar de Posturas.
+// No dependen de fuentes externas ni de ligaduras de Material Symbols.
+function PosturasSidebarIcon({ name, size = 24, filled = false, className = "", style = {} }) {
+  const common = {
+    width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+    xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true",
+    className, style: { display:"block", flex:"0 0 auto", ...style }
+  };
+  const p = { stroke:"currentColor", strokeWidth:2, strokeLinecap:"round", strokeLinejoin:"round" };
+  switch (name) {
+    case "account_circle": return <svg {...common}><circle cx="12" cy="12" r="9" {...p}/><circle cx="12" cy="9" r="3" {...p}/><path d="M6.8 18.2c1.4-2.7 3.1-4 5.2-4s3.8 1.3 5.2 4" {...p}/></svg>;
+    case "settings": return <svg {...common}><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" {...p}/><path d="M19.1 13.4c.1-.5.1-1 0-1.4l2-1.6-2-3.4-2.5 1a8.5 8.5 0 0 0-2.4-1.4L13.8 4h-3.9l-.4 2.6A8.4 8.4 0 0 0 7 8L4.6 7 2.7 10.4 4.8 12c-.1.5-.1 1 0 1.4l-2.1 1.7 1.9 3.4 2.5-1a8.5 8.5 0 0 0 2.4 1.4l.4 2.6h3.9l.4-2.6a8.5 8.5 0 0 0 2.4-1.4l2.5 1 2-3.4-2-1.7Z" {...p}/></svg>;
+    case "notifications": return <svg {...common}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" {...p}/><path d="M10 19a2.2 2.2 0 0 0 4 0" {...p}/></svg>;
+    case "grid_view": return <svg {...common}><rect x="4" y="4" width="6" height="6" rx=".8" {...p}/><rect x="14" y="4" width="6" height="6" rx=".8" {...p}/><rect x="4" y="14" width="6" height="6" rx=".8" {...p}/><rect x="14" y="14" width="6" height="6" rx=".8" {...p}/></svg>;
+    case "business_center": return <svg {...common}><rect x="3" y="7" width="18" height="12" rx="2" {...p}/><path d="M8 7V5h8v2M3 12h18M9.5 12v2h5v-2" {...p}/></svg>;
+    case "badge": return <svg {...common}><rect x="4" y="5" width="16" height="15" rx="2" {...p}/><path d="M9 5V3h6v2M8 10h.01M11 10h5M8 14h8M8 17h6" {...p}/><circle cx="8" cy="10" r="1.4" fill="currentColor" stroke="none"/></svg>;
+    case "gavel": return <svg {...common}><path d="m14 5 5 5M12 7l5 5M4 20h9M7 16l9-9M5 14l5 5" {...p}/></svg>;
+    case "volunteer_activism": return <svg {...common}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" {...p}/><path d="M3 15h4l2 2h6l4-4c.8-.8 2.2-.8 3 0M7 15l3-3h4" {...p}/></svg>;
+    case "inventory_2": return <svg {...common}><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" {...p}/></svg>;
+    case "report_problem": return <svg {...common}><path d="M12 3 2.8 20h18.4L12 3Z" {...p}/><path d="M12 9v5M12 17h.01" {...p}/></svg>;
+    case "search": return <svg {...common}><circle cx="11" cy="11" r="6.5" {...p}/><path d="m16 16 4 4" {...p}/></svg>;
+    case "chevron_right": return <svg {...common}><path d="m9 6 6 6-6 6" {...p}/></svg>;
+    default: return <svg {...common}><circle cx="12" cy="12" r="9" {...p}/><path d="M8 12h8" {...p}/></svg>;
+  }
+}
 // ─── GOOGLE ADSENSE ──────────────────────────────────────────────────────────
 // Recomendado: mantener también este script pegado directamente en /index.html.
 // Aquí solo reforzamos que exista UNA vez y agregamos el meta de cuenta.
@@ -22736,7 +22763,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             return <tr key={`${dashboardType}-${row.id}`}><td><div className={`cm-talent-rank ${rank === 1 ? "first" : ""}`}>{rank}</div></td><td><div className="cm-talent-entity"><div className="cm-talent-avatar">{image ? <img src={image} alt=""/> : <MS name={dashboardType === "trabajador" ? "person" : "apartment"} size={21} active />}</div><div><strong>{getRowTitle(row,dashboardType)}</strong><small>{getRowSubtitle(row,dashboardType)}</small></div></div></td><td><div className="cm-talent-stars">{[1,2,3,4,5].map(star=><MS key={star} name="star" size={15} active={star <= Math.round(rep.avg)} color="#4edea3" />)}<span className="cm-talent-score">{rep.avg ? rep.avg.toFixed(1) : "0.0"}</span></div></td><td><span className={`cm-talent-status ${status === "Verificado" ? "verified" : "pending"}`}>{status}</span></td><td style={{textAlign:"right"}}><button className="cm-talent-eye" onClick={()=>showEntity(row,dashboardType)} aria-label={`Ver ${getRowTitle(row,dashboardType)}`}><MS name="visibility" size={21} active color="#4edea3" /></button></td></tr>;
           })}
         </tbody></table>{visibleDashboardRows.length === 0 && <div className="cm-talent-empty">No hay perfiles con calificaciones para mostrar.</div>}</div>
-        <div className="cm-talent-ranking-foot"><span>Mostrando {dashboardRows.length ? ((safeDashboardPage - 1) * dashboardPageSize + 1) : 0}-{Math.min(safeDashboardPage * dashboardPageSize,dashboardRows.length)} de {dashboardRows.length.toLocaleString("es-MX")} {dashboardTarget === "perfiles" ? "perfiles" : "empresas"}</span><div className="cm-talent-pages"><button className="cm-talent-page" disabled={safeDashboardPage <= 1} onClick={()=>setDashboardPage(p=>Math.max(1,p-1))}><MS name="chevron_left" size={18} /></button>{visiblePageButtons.map(page=><button key={page} className={`cm-talent-page ${page === safeDashboardPage ? "active" : ""}`} onClick={()=>setDashboardPage(page)}>{page}</button>)}<button className="cm-talent-page" disabled={safeDashboardPage >= totalDashboardPages} onClick={()=>setDashboardPage(p=>Math.min(totalDashboardPages,p+1))}><MS name="chevron_right" size={18} /></button></div></div>
+        <div className="cm-talent-ranking-foot"><span>Mostrando {dashboardRows.length ? ((safeDashboardPage - 1) * dashboardPageSize + 1) : 0}-{Math.min(safeDashboardPage * dashboardPageSize,dashboardRows.length)} de {dashboardRows.length.toLocaleString("es-MX")} {dashboardTarget === "perfiles" ? "perfiles" : "empresas"}</span><div className="cm-talent-pages"><button className="cm-talent-page" disabled={safeDashboardPage <= 1} onClick={()=>setDashboardPage(p=>Math.max(1,p-1))}><MS name="chevron_left" size={18} /></button>{visiblePageButtons.map(page=><button key={page} className={`cm-talent-page ${page === safeDashboardPage ? "active" : ""}`} onClick={()=>setDashboardPage(page)}>{page}</button>)}<button className="cm-talent-page" disabled={safeDashboardPage >= totalDashboardPages} onClick={()=>setDashboardPage(p=>Math.min(totalDashboardPages,p+1))}><PosturasSidebarIcon name="chevron_right" size={18} /></button></div></div>
       </section>
       </>}
     </section>;
@@ -23391,11 +23418,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         .cm-posturas-sidebar-item:hover { background: #323537 !important; color: #9cf0ff !important; transform: translateX(4px); }
         .cm-posturas-sidebar-item:hover .cm-posturas-sidebar-icon { transform: scale(1.1); color: #9cf0ff !important; }
         .cm-posturas-sidebar-icon { transition: transform .3s ease, color .3s ease; transform-origin: center; }
-        .cm-posturas-sidebar-icon .material-symbols-outlined { font-family: "Material Symbols Outlined" !important; font-feature-settings: "liga" !important; -webkit-font-feature-settings: "liga" !important; }
+        
         .cm-posturas-profile-btn:hover { border-color: rgba(159,202,255,.5) !important; }
         .cm-posturas-profile-btn:hover .cm-posturas-profile-settings { color: #9fcaff !important; transform: rotate(18deg); }
         .cm-posturas-profile-settings { transition: color .3s ease, transform .3s ease; transform-origin:center; }
-        .cm-posturas-profile-settings .material-symbols-outlined, .cm-posturas-search-icon .material-symbols-outlined, .cm-posturas-profile-btn .material-symbols-outlined { font-family: "Material Symbols Outlined" !important; font-feature-settings: "liga" !important; -webkit-font-feature-settings: "liga" !important; }
+        
         .cm-posturas-active-nav { animation: cmPosturasActivePulse 2s ease-in-out infinite; }
         .cm-posturas-search-cta:hover { filter: brightness(1.1); box-shadow: 0 14px 28px rgba(0,153,255,.22) !important; }
         .cm-posturas-search-cta:active { transform: scale(.95); }
@@ -23437,7 +23464,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de trabajador</span></button>}
                 {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de empresario</span></button>}
                 {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={18} /><span>Mis vacantes</span></button>}
-                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#9fcaff", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="chevron_right" size={18} /><span>Editar perfil</span></button>}
+                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#9fcaff", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><PosturasSidebarIcon name="chevron_right" size={18} /><span>Editar perfil</span></button>}
               </div>
             )}
           </div>
@@ -23446,12 +23473,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
             return <button key={item.id} onClick={item.onClick} className={`cm-posturas-sidebar-item cm-posturas-dynamic-btn${active ? " cm-posturas-active-nav" : ""}`} style={{ display:"flex", alignItems:"center", gap:"14px", width:"100%", minHeight:"48px", padding:"11px 14px", border:"none", borderRight:active ? "4px solid #9fcaff" : "4px solid transparent", borderRadius:"6px", background:active ? "rgba(0,153,255,.20)" : "transparent", color:active ? "#9fcaff" : "#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:active ? "700" : "600", letterSpacing:".06em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .3s ease", boxShadow:active ? "0 10px 22px rgba(0,153,255,.10)" : "none" }}>
-              <span className="cm-posturas-sidebar-icon" style={{ display:"inline-flex", color:"currentColor" }}><MS name={item.icon} size={22} active={active} color="currentColor" /></span><span>{item.label}</span>
+              <span className="cm-posturas-sidebar-icon" style={{ display:"inline-flex", color:"currentColor" }}><PosturasSidebarIcon name={item.icon} size={22} /></span><span>{item.label}</span>
             </button>;
           })}
         </nav>
         <div style={{ padding:"18px 20px 0", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-search-cta cm-posturas-dynamic-btn" style={{ position:"relative", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", minHeight:"54px", padding:"13px", borderRadius:"8px", border:"none", background:"#0099ff", color:"#002f54", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", boxShadow:"0 10px 24px rgba(0,153,255,.18)", transition:"all .3s ease" }}><span className="cm-posturas-search-shine" style={{ position:"absolute", inset:0, background:"rgba(255,255,255,.12)", pointerEvents:"none" }} /><span className="cm-posturas-search-icon" style={{ display:"inline-flex", position:"relative" }}><MS name="search" size={20} color="#002f54" /></span><span style={{ position:"relative" }}>Buscar postura</span></button>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-search-cta cm-posturas-dynamic-btn" style={{ position:"relative", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", minHeight:"54px", padding:"13px", borderRadius:"8px", border:"none", background:"#0099ff", color:"#002f54", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", boxShadow:"0 10px 24px rgba(0,153,255,.18)", transition:"all .3s ease" }}><span className="cm-posturas-search-shine" style={{ position:"absolute", inset:0, background:"rgba(255,255,255,.12)", pointerEvents:"none" }} /><span className="cm-posturas-search-icon" style={{ display:"inline-flex", position:"relative" }}><PosturasSidebarIcon name="search" size={20} /></span><span style={{ position:"relative" }}>Buscar postura</span></button>
           <div aria-hidden="true" style={{ display:"flex", justifyContent:"center", gap:"4px", opacity:.5 }}><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"#9fcaff" }} /><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"rgba(159,202,255,.4)" }} /><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"rgba(159,202,255,.2)" }} /></div>
         </div>
       </aside>
