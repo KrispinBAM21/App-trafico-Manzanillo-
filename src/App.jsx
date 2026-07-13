@@ -20424,6 +20424,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     razon_social:"", rfc:"", tipo_empresa:"Transportista", domicilio:"", ubicacion:"", logo_empresa:"", comprobante_domicilio:"", contacto_tecnico:"", representante:"", correo:"", telefono:"", whatsapp:"", estatus:"tiene_trabajo", alcance:"Local",
     tipo_viaje:"Local", maniobra_requerida:"Full", licencia_solicitada:"Federal tipo B - Carga general", metodo_pago_ofrecido:"Transferencia",
     contacto_principal_nombre:"", contacto_principal_numero:"", contacto_principal_foto:"", contacto_secundario_nombre:"", contacto_secundario_numero:"", contacto_secundario_correo:"",
+    titulo_vacante:"", cantidad_operadores:"",
     salario_local_ofrecido:"", salario_foraneo_ofrecido:"", imagen_vacante:"", documentos_updated_at:""
   };
   const [trabForm, setTrabForm] = useState(emptyTrab);
@@ -21198,6 +21199,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const saveEmp = async () => {
     if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
     if (!authUser) return requireLogin();
+    if (vacancyModalOpen) {
+      if (!String(empForm.titulo_vacante || "").trim()) { setMsg({type:"err", text:"Escribe el título de la vacante."}); return; }
+      if (!Number(empForm.cantidad_operadores || 0) || Number(empForm.cantidad_operadores) < 1) { setMsg({type:"err", text:"Indica cuántos operadores se requieren."}); return; }
+      const selectedTrip = String(empForm.tipo_viaje || "Local").toLowerCase();
+      if (selectedTrip === "local" && !Number(empForm.salario_local_ofrecido || 0)) { setMsg({type:"err", text:"Indica el pago ofrecido para viaje local."}); return; }
+      if (selectedTrip === "foráneo" && !Number(empForm.salario_foraneo_ofrecido || 0)) { setMsg({type:"err", text:"Indica el pago ofrecido para viaje foráneo."}); return; }
+    }
     if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
     if (!isAdmin) {
       const requiredEmpresaDocs = ["logo_empresa","domicilio","comprobante_domicilio","contacto_principal_nombre","contacto_principal_numero","contacto_principal_foto"];
@@ -21211,7 +21219,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (salarioForaneoOfrecido && salarioForaneoOfrecido > salarioMaxEmpresaForaneo) { setMsg({type:"err", text:`El pago foráneo ofrecido por empresa no debe superar $${salarioMaxEmpresaForaneo}.`}); return; }
     persistPosturasUserType("empresa");
     const nowIso = new Date().toISOString();
-    const payload = { ...empForm, ubicacion: empForm.domicilio || empForm.ubicacion || "", representante: empForm.contacto_principal_nombre || empForm.representante || "", telefono: empForm.contacto_principal_numero || empForm.telefono || "", correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "", salario_local_ofrecido:salarioLocalOfrecido || null, salario_foraneo_ofrecido:salarioForaneoOfrecido || null, user_id:null, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    const selectedTrip = String(empForm.tipo_viaje || "Local").toLowerCase();
+    const payload = {
+      ...empForm,
+      titulo_vacante:String(empForm.titulo_vacante || "").trim().toUpperCase(),
+      cantidad_operadores:Number(empForm.cantidad_operadores || 0) || null,
+      ubicacion: empForm.domicilio || empForm.ubicacion || "",
+      representante: empForm.contacto_principal_nombre || empForm.representante || "",
+      telefono: empForm.contacto_principal_numero || empForm.telefono || "",
+      correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "",
+      salario_local_ofrecido:selectedTrip === "local" ? (salarioLocalOfrecido || null) : null,
+      salario_foraneo_ofrecido:selectedTrip === "foráneo" ? (salarioForaneoOfrecido || null) : null,
+      user_id:null, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true
+    };
     try {
       await apiFetch(`/api/posturas/profile?type=empresa`, {
         method:editingEmpId ? "PUT" : "POST",
@@ -21702,33 +21722,79 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
+  const VacancyLineIcon = ({ name, size = 20 }) => {
+    const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth:1.8, strokeLinecap:"round", strokeLinejoin:"round", "aria-hidden":"true" };
+    if (name === "company") return <svg {...common}><path d="M4 20V7.5L12 4l8 3.5V20"/><path d="M8 20v-4h8v4M8 9h.01M12 9h.01M16 9h.01M8 12h.01M12 12h.01M16 12h.01"/></svg>;
+    if (name === "shield") return <svg {...common}><path d="M12 3 19 6v5c0 4.6-2.8 7.7-7 10-4.2-2.3-7-5.4-7-10V6l7-3Z"/><path d="m9.2 12 1.8 1.8 3.8-4"/></svg>;
+    if (name === "money") return <svg {...common}><circle cx="12" cy="12" r="8.5"/><path d="M14.7 8.8c-.7-.6-1.6-.9-2.7-.9-1.7 0-2.8.8-2.8 2 0 1.4 1.1 1.8 2.8 2.1 1.7.3 2.8.8 2.8 2.2 0 1.3-1.1 2.2-2.9 2.2-1.2 0-2.3-.4-3.1-1.1M12 6.4v11.2"/></svg>;
+    if (name === "send") return <svg {...common}><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg>;
+    if (name === "close") return <svg {...common}><path d="m7 7 10 10M17 7 7 17"/></svg>;
+    if (name === "briefcase") return <svg {...common}><rect x="3.5" y="7" width="17" height="12" rx="2"/><path d="M9 7V5h6v2M3.5 12h17M10 12v2h4v-2"/></svg>;
+    return <svg {...common}><path d="M4 6h16v14H4zM8 3h8v3M8 10h8M8 14h5"/></svg>;
+  };
+
   const CompanyVacancyForm = () => {
     const existing = editingEmpId ? empForm : myLatestEmpresa;
     const expired = isProfileExpired(existing);
-    return <div style={card}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", flexWrap:"wrap", marginBottom:"14px" }}>
-        <div>
-          <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"900" }}>Publicar vacante</div>
-          <div style={{ color:"rgba(255,255,255,0.52)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Datos específicos de la vacante. El nombre de empresa se autocompleta desde el perfil empresarial activo.</div>
+    const companyName = empForm.razon_social || myLatestEmpresa?.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || "Empresa";
+    const companyLogo = empForm.logo_empresa || myLatestEmpresa?.logo_empresa || "";
+    const tripIsLocal = String(empForm.tipo_viaje || "Local").toLowerCase() === "local";
+    const fieldLabel = { ...label, color:"#89919e", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:800, letterSpacing:".12em", textTransform:"uppercase", marginBottom:"8px" };
+    const fieldInput = { ...input, minHeight:"48px", borderRadius:"7px", background:"#0b0f10", border:"1px solid #2d3748", color:"#ffffff", fontFamily:"'Inter', sans-serif", fontSize:"13px", padding:"0 14px", boxShadow:"none", outline:"none", transition:"border-color .25s ease, box-shadow .25s ease, transform .25s ease" };
+    const FocusWrap = ({ children, style = {} }) => <div style={{ transition:"transform .25s ease", ...style }} onFocusCapture={e=>{e.currentTarget.style.transform="scale(1.01)";}} onBlurCapture={e=>{e.currentTarget.style.transform="scale(1)";}}>{children}</div>;
+    return <div style={{ position:"relative", overflow:"hidden", borderRadius:"14px", border:"1px solid #1e293b", background:"#10141d", boxShadow:"0 24px 70px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04)" }}>
+      <style>{`
+        @keyframes cmVacancyEnter { from { opacity:0; transform:translateY(18px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes cmVacancyGlow { 0%,100% { box-shadow:0 0 0 rgba(0,227,253,0); } 50% { box-shadow:0 0 22px rgba(0,227,253,.18); } }
+        .cm-vacancy-form { animation:cmVacancyEnter .38s cubic-bezier(.22,1,.36,1) both; }
+        .cm-vacancy-input:focus { border-color:#0099ff!important; box-shadow:0 0 0 4px rgba(0,153,255,.14)!important; }
+        .cm-vacancy-primary:hover { filter:brightness(1.08); transform:translateY(-2px); box-shadow:0 14px 28px rgba(0,227,253,.18)!important; }
+        .cm-vacancy-primary:hover svg { transform:translateX(2px); }
+        .cm-vacancy-secondary:hover { border-color:#89919e!important; color:#e0e3e5!important; transform:translateY(-1px); }
+        .cm-vacancy-primary:active,.cm-vacancy-secondary:active { transform:scale(.97); }
+        .cm-vacancy-primary svg { transition:transform .25s ease; }
+        @media (prefers-reduced-motion:reduce){.cm-vacancy-form{animation:none}.cm-vacancy-primary,.cm-vacancy-secondary,.cm-vacancy-primary svg{transition:none!important}}
+      `}</style>
+      <div style={{ height:"5px", background:"linear-gradient(90deg,#0099ff,#00e3fd,#0099ff)", opacity:.9 }} />
+      <div className="cm-vacancy-form" style={{ padding:posturasMobile ? "18px" : "28px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"18px", flexWrap:"wrap", marginBottom:"26px" }}>
+          <div>
+            <div style={{ fontFamily:"'Inter', sans-serif", color:"#d2e4ff", fontSize:"20px", fontWeight:800 }}>Publicar vacante</div>
+            <div style={{ color:"rgba(191,199,213,.72)", fontFamily:"'Inter', sans-serif", fontSize:"11px", marginTop:"5px", lineHeight:1.6 }}>Datos específicos de la vacante. El nombre de empresa se autocompleta desde el perfil empresarial activo.</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px", padding:"9px 12px", borderRadius:"10px", border:"1px solid rgba(63,71,83,.55)", background:"rgba(29,32,34,.82)", minWidth:"210px" }}>
+            <div style={{ width:"38px", height:"38px", borderRadius:"999px", overflow:"hidden", border:"1px solid rgba(0,153,255,.45)", background:"rgba(0,153,255,.12)", display:"grid", placeItems:"center", color:"#9fcaff", flex:"0 0 auto" }}>{isRenderableImageSrc(companyLogo) ? <img src={companyLogo} alt="Logo de empresa" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <VacancyLineIcon name="company" size={21}/>}</div>
+            <div style={{ minWidth:0 }}><div style={{ color:"#e0e3e5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{companyName}</div><div style={{ color:"rgba(191,199,213,.6)", fontFamily:"'Inter', sans-serif", fontSize:"8px", fontWeight:700, textTransform:"uppercase", letterSpacing:".1em", marginTop:"2px" }}>{isAdmin ? "Administrador" : "Perfil empresarial"}</div></div>
+          </div>
         </div>
-        {existing && <span style={{ ...btn(expired ? "#f59e0b" : "#22c55e"), cursor:"default", background:expired ? "rgba(245,158,11,.16)" : "rgba(34,197,94,.12)" }}>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</span>}
-      </div>
-      {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Actualiza el registro empresarial antes de publicar nuevas vacantes.</div>}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Empresa de la vacante</div><input style={{...input, opacity:.78}} value={empForm.razon_social || myLatestEmpresa?.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} readOnly placeholder="Autocompletado con el perfil empresarial" /></div>
-        <div><div style={label}>Trabajo</div><select style={input} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></div>
-        <div><div style={label}>Alcance</div><select style={input} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Tipo de viaje</div><select style={input} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></div>
-        <div><div style={label}>Tipo de maniobra requerida</div><select style={input} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Licencia solicitada</div><select style={input} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Método de pago ofrecido</div><select style={input} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Imagen para ofrecer la vacante</div><input type="file" accept="image/*" style={input} onChange={e=>handleFileMeta(setEmpForm, "imagen_vacante", e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields.imagen_vacante ? "Cifrando y almacenando…" : encryptedFileLabel(empForm.imagen_vacante)}</div></div>
-        <div><div style={label}>Pago ofrecido viaje local</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} - ${salarioMaxEmpresaLocal}`} /></div>
-        <div><div style={label}>Pago ofrecido viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} - ${salarioMaxEmpresaForaneo}`} /></div>
-      </div>
-      <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
-        <button onClick={()=>{ setVacancyModalOpen(false); setCompanyFormMode("registro"); setEmpWizardStep(1); }} style={btn("#94a3b8")}>Cerrar / editar registro empresarial</button>
-        <button onClick={saveEmp} disabled={expired && !isAdmin} style={{ ...btn(actionButtonColorForProfile(existing, "#22c55e")), opacity:(expired && !isAdmin) ? .55 : 1 }}>{expired && !isAdmin ? "Actualiza empresa primero" : "Publicar vacante"}</button>
+        {existing && <div style={{ marginBottom:"16px", display:"inline-flex", alignItems:"center", gap:"7px", padding:"7px 10px", borderRadius:"8px", border:`1px solid ${expired ? "rgba(245,158,11,.38)" : "rgba(34,197,94,.30)"}`, background:expired ? "rgba(245,158,11,.09)" : "rgba(34,197,94,.08)", color:expired ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:800, textTransform:"uppercase", letterSpacing:".08em" }}><VacancyLineIcon name="shield" size={14}/>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</div>}
+        {expired && <div style={{ margin:"0 0 18px", padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(245,158,11,.38)", background:"rgba(245,158,11,.09)", color:"#fbbf24", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:700, lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Actualiza el registro empresarial antes de publicar nuevas vacantes.</div>}
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,3fr) minmax(180px,1fr)", gap:"16px", marginBottom:"16px" }}>
+          <FocusWrap><div style={fieldLabel}>Título de la vacante</div><input className="cm-vacancy-input" style={{...fieldInput,textTransform:"uppercase"}} value={empForm.titulo_vacante||""} onInput={e=>setEmpForm(f=>({...f,titulo_vacante:e.currentTarget.value.toUpperCase()}))} placeholder="OPERADOR DE TRÁILER RUTA LOCAL" /></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Cantidad de operadores requerida</div><input className="cm-vacancy-input" type="number" min="1" step="1" style={fieldInput} value={empForm.cantidad_operadores||""} onChange={e=>setEmpForm(f=>({...f,cantidad_operadores:e.target.value}))} placeholder="5" /></FocusWrap>
+        </div>
+        <FocusWrap style={{ marginBottom:"16px" }}><div style={fieldLabel}>Empresa de la vacante</div><div style={{position:"relative"}}><input className="cm-vacancy-input" style={{...fieldInput,width:"100%",paddingRight:"46px",opacity:.72,cursor:"not-allowed"}} value={companyName} readOnly /><span style={{position:"absolute",right:"14px",top:"50%",transform:"translateY(-50%)",color:"rgba(0,153,255,.65)",display:"grid",placeItems:"center"}}><VacancyLineIcon name="shield" size={18}/></span></div></FocusWrap>
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(3,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
+          <FocusWrap><div style={fieldLabel}>Trabajo</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.estatus} onChange={e=>setEmpForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Alcance</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.alcance} onChange={e=>setEmpForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Tipo de viaje</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.tipo_viaje||"Local"} onChange={e=>setEmpForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></FocusWrap>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
+          <FocusWrap><div style={fieldLabel}>Tipo de maniobra requerida</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.maniobra_requerida||"Full"} onChange={e=>setEmpForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Licencia solicitada</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>setEmpForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
+          <FocusWrap><div style={fieldLabel}>Método de pago ofrecido</div><select className="cm-vacancy-input" style={fieldInput} value={empForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>setEmpForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Imagen para ofrecer la vacante</div><input className="cm-vacancy-input" type="file" accept="image/*" style={{...fieldInput,padding:"9px 12px"}} onChange={e=>handleFileMeta(setEmpForm,"imagen_vacante",e.target.files)} /><div style={{ color:"rgba(191,199,213,.48)", fontSize:"9px", marginTop:"5px", fontFamily:"'Inter', sans-serif" }}>{encryptedUploadFields.imagen_vacante ? "Cifrando y almacenando" : encryptedFileLabel(empForm.imagen_vacante)}</div></FocusWrap>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px", paddingBottom:"24px", borderBottom:"1px solid rgba(63,71,83,.30)" }}>
+          <FocusWrap style={{display:tripIsLocal ? "block" : "none"}}><div style={fieldLabel}>Pago ofrecido viaje local</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#9fcaff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={empForm.salario_local_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} a ${salarioMaxEmpresaLocal}`} /></div></FocusWrap>
+          <FocusWrap style={{display:tripIsLocal ? "none" : "block"}}><div style={fieldLabel}>Pago ofrecido viaje foráneo</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#bdf4ff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={empForm.salario_foraneo_ofrecido||""} onChange={e=>setEmpForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} a ${salarioMaxEmpresaForaneo}`} /></div></FocusWrap>
+        </div>
+        <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"12px", marginTop:"22px", flexWrap:"wrap" }}>
+          <button type="button" className="cm-vacancy-secondary" onClick={()=>{setVacancyModalOpen(false);setCompanyFormMode("registro");setEmpWizardStep(1);}} style={{ minHeight:"44px", padding:"0 20px", borderRadius:"8px", border:"1px solid #3f4753", background:"transparent", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:800, letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer", transition:"all .25s ease" }}>Cerrar o editar registro empresarial</button>
+          <button type="button" className="cm-vacancy-primary" onClick={saveEmp} disabled={expired&&!isAdmin} style={{ minHeight:"44px", padding:"0 24px", borderRadius:"8px", border:"1px solid rgba(0,227,253,.55)", background:"linear-gradient(180deg,#00e3fd,#0099ff)", color:"#002f54", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:900, letterSpacing:".08em", textTransform:"uppercase", cursor:expired&&!isAdmin?"not-allowed":"pointer", opacity:expired&&!isAdmin?.55:1, boxShadow:"0 10px 24px rgba(0,153,255,.16)", transition:"all .25s ease" }}><VacancyLineIcon name="send" size={18}/>{expired&&!isAdmin?"Actualiza empresa primero":"Publicar vacante"}</button>
+        </div>
       </div>
     </div>;
   };
@@ -22882,7 +22948,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <div style={{ display:"flex", justifyContent:"space-between", gap:"14px", alignItems:"flex-start", marginBottom:"18px" }}>
             <div>
               <div style={{ color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase" }}>Vista previa de vacante</div>
-              <h2 style={{ margin:"6px 0 0", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(24px,5vw,34px)", lineHeight:1.08 }}>{row.razon_social || "Vacante empresarial"}</h2>
+              <h2 style={{ margin:"6px 0 0", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(24px,5vw,34px)", lineHeight:1.08 }}>{row.titulo_vacante || row.razon_social || "Vacante empresarial"}</h2>
             </div>
             <button type="button" onClick={()=>setSelectedVacancyPreview(null)} aria-label="Cerrar vista previa" style={{ width:"42px", height:"42px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.24)", background:"rgba(161,201,255,.08)", color:"#d4e4fa", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={21} active /></button>
           </div>
@@ -22933,7 +22999,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at top right, rgba(0,150,255,.13), transparent 45%)", pointerEvents:"none" }} />
         <div style={{ position:"relative", display:"flex", justifyContent:"space-between", gap:"16px", alignItems:"center", flexWrap:"wrap" }}>
           <div><div style={{ color:"#a1c9ff", fontSize:"10px", fontWeight:"900", letterSpacing:".15em", textTransform:"uppercase" }}>Perfil de empresa</div><h1 style={{ margin:"7px 0 0", color:"#d4e4fa", fontSize:"clamp(28px,5vw,40px)", lineHeight:1.05 }}>Mis vacantes</h1><p style={{ margin:"9px 0 0", color:"rgba(212,228,250,.64)", fontSize:"13px", lineHeight:1.6 }}>Resumen de vacantes publicadas y acceso directo a sus postulantes.</p></div>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", background:"rgba(161,201,255,.09)", border:"1px solid rgba(161,201,255,.24)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900" }}><MS name="work_history" size={17} active /> {myVacancies.length} vacantes</div>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px", flexWrap:"wrap", justifyContent:"flex-end" }}><div style={{ display:"inline-flex", alignItems:"center", gap:"8px", padding:"10px 13px", borderRadius:"999px", background:"rgba(161,201,255,.09)", border:"1px solid rgba(161,201,255,.24)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900" }}><MS name="work_history" size={17} active /> {activeVacancyCount} vacantes activas</div><button type="button" onClick={openVacancyModal} style={{ minHeight:"40px", padding:"0 15px", borderRadius:"9px", border:"1px solid rgba(0,227,253,.42)", background:"linear-gradient(180deg,rgba(0,227,253,.95),rgba(0,153,255,.95))", color:"#002f54", display:"inline-flex", alignItems:"center", gap:"8px", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:900, letterSpacing:".07em", textTransform:"uppercase", cursor:"pointer", boxShadow:"0 10px 22px rgba(0,153,255,.16)" }}><VacancyLineIcon name="briefcase" size={17}/>Nueva vacante</button></div>
         </div>
       </div>
       {myVacancies.length === 0 ? <div style={{ ...posturasGlass, borderRadius:"18px", padding:"42px 20px", textAlign:"center" }}><MS name="work_off" size={42} active /><div style={{ color:"#d4e4fa", fontWeight:"900", marginTop:"12px" }}>No hay vacantes publicadas.</div></div> :
@@ -22941,7 +23007,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {myVacancies.map(row => { const applicants = vacancyApplicantsFor(row); const pendingDelete = Boolean(row.delete_requested_at); return <article key={row.id} style={{ ...posturasGlass, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", minWidth:0 }}>
           <div style={{ height:"170px", background:"linear-gradient(135deg,rgba(0,150,255,.16),rgba(18,33,49,.8))", display:"grid", placeItems:"center", overflow:"hidden" }}>{isRenderableImageSrc(row.imagen_vacante) ? <img src={row.imagen_vacante} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <MS name="business_center" size={54} active />}</div>
           <div style={{ padding:"17px", display:"flex", flexDirection:"column", flex:1 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}><div style={{ minWidth:0 }}><div style={{ color:"#d4e4fa", fontSize:"18px", fontWeight:"900", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.razon_social || "Vacante empresarial"}</div><div style={{ color:"rgba(212,228,250,.56)", fontSize:"11px", marginTop:"4px" }}>{row.maniobra_requerida || row.tipo_empresa || "Operación portuaria"}</div></div><span style={{ padding:"6px 8px", borderRadius:"999px", border:`1px solid ${pendingDelete ? "rgba(245,158,11,.35)" : "rgba(34,197,94,.35)"}`, background:pendingDelete ? "rgba(245,158,11,.10)" : "rgba(34,197,94,.10)", color:pendingDelete ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:"900", whiteSpace:"nowrap" }}>{pendingDelete ? "Eliminación pendiente" : row.estatus === "tiene_trabajo" ? "Activa" : "Sin cupo"}</span></div>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:"10px", alignItems:"flex-start" }}><div style={{ minWidth:0 }}><div style={{ color:"#d4e4fa", fontSize:"18px", fontWeight:"900", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.titulo_vacante || row.razon_social || "Vacante empresarial"}</div><div style={{ color:"rgba(212,228,250,.56)", fontSize:"11px", marginTop:"4px" }}>{row.maniobra_requerida || row.tipo_empresa || "Operación portuaria"}</div></div><span style={{ padding:"6px 8px", borderRadius:"999px", border:`1px solid ${pendingDelete ? "rgba(245,158,11,.35)" : "rgba(34,197,94,.35)"}`, background:pendingDelete ? "rgba(245,158,11,.10)" : "rgba(34,197,94,.10)", color:pendingDelete ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:"900", whiteSpace:"nowrap" }}>{pendingDelete ? "Eliminación pendiente" : row.estatus === "tiene_trabajo" ? "Activa" : "Sin cupo"}</span></div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginTop:"14px" }}><ProfileMetric label="Alcance" value={row.alcance} /><ProfileMetric label="Postulantes" value={String(applicants.length)} /></div>
             <div style={{ display:"grid", gap:"8px", marginTop:"auto", paddingTop:"16px" }}>
               <button type="button" onClick={()=>setSelectedVacancyPreview(row)} className="hover:bg-primary/90 transition-all duration-300" style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px" }}><MS name="visibility" size={17} active /> Vista previa</button>
