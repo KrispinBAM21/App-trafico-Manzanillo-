@@ -22912,13 +22912,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
   const sidebarNav = [
     { id:"notificaciones", label:"Notificaciones", icon:"notifications", onClick:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
-    { id:"tablero", label:"Tablero", icon:"grid_view", onClick:()=>{ setSub("tablero"); setPosturasMode("list"); setDashboardTarget("perfiles"); setTalentView("todos"); } },
-    { id:"posturas", label:"Posturas", icon:"business_center", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
-    ...((isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") ? [{ id:"mis-vacantes", label:"Mis vacantes", icon:"badge", onClick:()=>{ setSub("posturas"); setPosturasMode("vacancies"); } }] : []),
+    { id:"tablero", label:"Tablero", icon:"dashboard", onClick:()=>{ setSub("tablero"); setPosturasMode("list"); setDashboardTarget("perfiles"); setTalentView("todos"); } },
+    { id:"posturas", label:"Posturas", icon:"work", onClick:()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); } },
+    ...((isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") ? [{ id:"mis-vacantes", label:"Mis vacantes", icon:"business_center", onClick:()=>{ setSub("posturas"); setPosturasMode("vacancies"); } }] : []),
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
-    ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report_problem", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
+    ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
   ];
   const activeSidebarId = posturasMode === "archive" ? "archivo" : posturasMode === "vacancies" ? "mis-vacantes" : sub;
   const segmentButton = (id, label) => {
@@ -23384,74 +23384,52 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
       <style>{`
         .cm-posturas-dynamic-btn { transition: all .3s ease; }
-        .cm-posturas-dynamic-btn:hover { cursor: pointer; }
-        .cm-posturas-sidebar-item:hover { background: #323537 !important; color: #9cf0ff !important; transform: translateX(4px); }
-        .cm-posturas-sidebar-item:hover .cm-posturas-sidebar-icon { transform: scale(1.1); color: #9cf0ff !important; }
-        .cm-posturas-sidebar-icon { transition: transform .3s ease, color .3s ease; }
-        .cm-posturas-profile-btn:hover { border-color: rgba(159,202,255,.5) !important; }
-        .cm-posturas-profile-btn:hover .cm-posturas-profile-settings { color: #9fcaff !important; transform: rotate(18deg); }
-        .cm-posturas-profile-settings { transition: color .3s ease, transform .3s ease; }
-        .cm-posturas-active-nav { animation: cmPosturasActivePulse 2s ease-in-out infinite; }
-        .cm-posturas-search-cta:hover { filter: brightness(1.1); box-shadow: 0 14px 28px rgba(0,153,255,.22) !important; }
-        .cm-posturas-search-cta:active { transform: scale(.95); }
-        .cm-posturas-search-cta:hover .cm-posturas-search-icon { transform: rotate(12deg); }
-        .cm-posturas-search-icon { transition: transform .3s ease; }
-        .cm-posturas-search-shine { transform: translateX(-110%); transition: transform .7s ease; }
-        .cm-posturas-search-cta:hover .cm-posturas-search-shine { transform: translateX(110%); }
+        .cm-posturas-dynamic-btn:hover { background-color: rgba(255,255,255,.10) !important; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.08); filter: none; cursor: pointer; }
         .cm-posturas-fluid-input { caret-color: #a1c9ff; }
         .cm-posturas-fluid-input:focus { border-color: rgba(161,201,255,.72) !important; box-shadow: 0 0 0 3px rgba(161,201,255,.12); }
         .cm-posturas-sticky-sidebar { position: fixed; top: 56px; bottom: 0; z-index: 1200; }
-        @keyframes cmPosturasActivePulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.22); } }
-        @media (prefers-reduced-motion: reduce) {
-          .cm-posturas-active-nav { animation: none; }
-          .cm-posturas-sidebar-item, .cm-posturas-sidebar-icon, .cm-posturas-profile-settings, .cm-posturas-search-icon, .cm-posturas-search-shine { transition: none !important; }
-        }
       `}</style>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
-      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"256px", zIndex:1200, background:"#1d2022", borderRight:"1px solid #3f4753", display:"flex", flexDirection:"column", padding:"24px 0 18px", overflow:"visible", boxShadow:"18px 0 44px rgba(0,0,0,.18)" }}>
-        <div style={{ padding:"0 20px", marginBottom:"20px", position:"relative", zIndex:5000 }}>
+      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"264px", zIndex:1200, background:"rgba(18,33,49,.90)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderRight:"1px solid rgba(63,71,83,.42)", display:"flex", flexDirection:"column", padding:"24px 0 18px", overflow:"visible" }}>
+        <div style={{ padding:"0 24px", marginBottom:"22px", position:"relative", zIndex:5000 }}>
           <div style={{ position:"relative" }}>
             <button
               type="button"
               aria-haspopup="menu"
               aria-expanded={profileMenuOpen}
               onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setProfileMenuOpen(v=>!v); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(false); }}
-              className="cm-posturas-profile-btn cm-posturas-dynamic-btn"
-              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", minHeight:"72px", padding:"12px 14px", borderRadius:"8px", border:"1px solid #3f4753", background:"#191c1e", color:"#9fcaff", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
+              className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", width:"100%", padding:"12px 12px", borderRadius:"14px", border:"1px solid rgba(161,201,255,.26)", background:posturasMode === "profile" ? "rgba(161,201,255,.12)" : "rgba(161,201,255,.06)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".16em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}
             >
-              <span style={{ display:"inline-flex", alignItems:"center", gap:"12px", minWidth:0 }}>
-                <span style={{ width:"40px", height:"40px", flex:"0 0 40px", borderRadius:"8px", background:"#0099ff", display:"grid", placeItems:"center", color:"#002f54" }}>
-                  <MS name="account_circle" size={25} color="#002f54" />
-                </span>
-                <span style={{ color:"#e0e3e5", whiteSpace:"nowrap" }}>MI PERFIL</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+                <ProfileButtonIcon size={32} />
+                <span style={{ color:"#d4e4fa", whiteSpace:"nowrap" }}>MI PERFIL</span>
               </span>
-              <span className="cm-posturas-profile-settings" style={{ display:"inline-flex", color:"#bfc7d5" }}><MS name="settings" size={22} color="currentColor" /></span>
+              <MS name={profileMenuOpen ? "expand_less" : "expand_more"} size={18} active />
             </button>
             {profileMenuOpen && (
-              <div role="menu" aria-label="Opciones de Mi Perfil" className="transition-all duration-300" style={{ position:"absolute", left:"0", top:"calc(100% + 10px)", zIndex:5100, width:"min(248px, calc(100vw - 48px))", display:"grid", gap:"8px", padding:"12px", borderRadius:"8px", border:"1px solid #3f4753", background:"rgba(25,28,30,.98)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", boxShadow:"0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05)" }}>
-                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de trabajador</span></button>}
-                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de empresario</span></button>}
-                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={18} /><span>Mis vacantes</span></button>}
-                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#9fcaff", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="chevron_right" size={18} /><span>Editar perfil</span></button>}
+              <div role="menu" aria-label="Opciones de Mi Perfil" className="transition-all duration-300" style={{ position:"absolute", left:"0", top:"calc(100% + 10px)", zIndex:5100, width:"min(248px, calc(100vw - 48px))", display:"grid", gap:"8px", padding:"12px", borderRadius:"16px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(18,33,49,.96)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", boxShadow:"0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05)" }}>
+                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de trabajador</span></button>}
+                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(16,185,129,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} active /><span>Perfil de empresario</span></button>}
+                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-dynamic-btn hover:bg-primary/90 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(161,201,255,.07)", color:"rgba(212,228,250,.88)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="business_center" size={18} active /><span>Mis vacantes</span></button>}
+                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.05)", background:"rgba(0,150,255,.09)", color:"#a1c9ff", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="chevron_right" size={18} active /><span>Editar perfil</span></button>}
               </div>
             )}
           </div>
         </div>
-        <nav style={{ display:"flex", flexDirection:"column", gap:"4px", flex:1, padding:"0 16px", overflowY:"auto" }}>
+        <nav style={{ display:"grid", gap:"4px", flex:1 }}>
           {sidebarNav.map(item => {
             const active = activeSidebarId === item.id;
-            return <button key={item.id} onClick={item.onClick} className={`cm-posturas-sidebar-item cm-posturas-dynamic-btn${active ? " cm-posturas-active-nav" : ""}`} style={{ display:"flex", alignItems:"center", gap:"14px", width:"100%", minHeight:"48px", padding:"11px 14px", border:"none", borderRight:active ? "4px solid #9fcaff" : "4px solid transparent", borderRadius:"6px", background:active ? "rgba(0,153,255,.20)" : "transparent", color:active ? "#9fcaff" : "#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:active ? "700" : "600", letterSpacing:".06em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .3s ease", boxShadow:active ? "0 10px 22px rgba(0,153,255,.10)" : "none" }}>
-              <span className="cm-posturas-sidebar-icon" style={{ display:"inline-flex", color:"currentColor" }}><MS name={item.icon} size={22} active={active} color="currentColor" /></span><span>{item.label}</span>
+            return <button key={item.id} onClick={item.onClick} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", padding:"14px 24px", border:"none", borderRight:active ? "4px solid #a1c9ff" : "4px solid transparent", background:active ? "rgba(161,201,255,.12)" : "transparent", color:active ? "#a1c9ff" : "rgba(212,228,250,.70)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"900", letterSpacing:".14em", textTransform:"uppercase", textAlign:"left", cursor:"pointer", transition:"all .18s ease" }}>
+              <MS name={item.icon} size={22} active={active} /> {item.label}
             </button>;
           })}
         </nav>
-        <div style={{ padding:"18px 20px 0", display:"grid", gap:"12px" }}>
-          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-search-cta cm-posturas-dynamic-btn" style={{ position:"relative", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", minHeight:"54px", padding:"13px", borderRadius:"8px", border:"none", background:"#0099ff", color:"#002f54", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", boxShadow:"0 10px 24px rgba(0,153,255,.18)", transition:"all .3s ease" }}><span className="cm-posturas-search-shine" style={{ position:"absolute", inset:0, background:"rgba(255,255,255,.12)", pointerEvents:"none" }} /><span className="cm-posturas-search-icon" style={{ display:"inline-flex", position:"relative" }}><MS name="search" size={20} color="#002f54" /></span><span style={{ position:"relative" }}>Buscar postura</span></button>
-          <div aria-hidden="true" style={{ display:"flex", justifyContent:"center", gap:"4px", opacity:.5 }}><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"#9fcaff" }} /><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"rgba(159,202,255,.4)" }} /><span style={{ width:"4px", height:"4px", borderRadius:"999px", background:"rgba(159,202,255,.2)" }} /></div>
+        <div style={{ padding:"0 24px", display:"grid", gap:"12px" }}>
+          <button onClick={()=>{ setSub("posturas"); setPosturasMode("list"); setTalentView("todos"); }} className="cm-posturas-dynamic-btn hover:bg-white/10 transition-all duration-300" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", width:"100%", padding:"13px", borderRadius:"10px", border:"1px solid rgba(0,150,255,.55)", background:"#0096ff", color:"#002d52", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", cursor:"pointer" }}><MS name="search" size={18} /> Buscar postura</button>
         </div>
       </aside>
 
-      <main style={{ position:"relative", zIndex:1, marginLeft:"256px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
+      <main style={{ position:"relative", zIndex:1, marginLeft:"264px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
         {VacancyModal()}
         <PosturasReportModal />
