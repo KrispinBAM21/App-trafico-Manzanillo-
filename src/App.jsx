@@ -148,6 +148,10 @@ function PosturasSidebarIcon({ name, size = 24, filled = false, className = "", 
     case "volunteer_activism": return <svg {...common}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" {...p}/><path d="M3 15h4l2 2h6l4-4c.8-.8 2.2-.8 3 0M7 15l3-3h4" {...p}/></svg>;
     case "inventory_2": return <svg {...common}><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" {...p}/></svg>;
     case "report_problem": return <svg {...common}><path d="M12 3 2.8 20h18.4L12 3Z" {...p}/><path d="M12 9v5M12 17h.01" {...p}/></svg>;
+    case "worker_profile": return <svg {...common}><circle cx="9" cy="8" r="3" {...p}/><path d="M3.5 19c.7-4 2.5-6 5.5-6s4.8 2 5.5 6" {...p}/><circle cx="17.5" cy="7.5" r="2.1" {...p}/><path d="M17.5 4.2v-1.4M17.5 12.2v-1.4M14.2 7.5h-1.4M22.2 7.5h-1.4M15.2 5.2l-1-1M20.8 10.8l-1-1M19.8 5.2l1-1M14.2 10.8l1-1" {...p}/></svg>;
+    case "employer_profile": return <svg {...common}><rect x="3" y="7" width="18" height="13" rx="2" {...p}/><path d="M8 7V5h8v2M3 12h18M9.5 12v2h5v-2" {...p}/></svg>;
+    case "vacancy_clipboard": return <svg {...common}><rect x="5" y="4" width="14" height="17" rx="2" {...p}/><path d="M9 4V2.8h6V4M8.5 9h7M8.5 13h7M8.5 17h5" {...p}/></svg>;
+    case "edit_profile": return <svg {...common}><path d="M5 4h10l4 4v4M15 4v4h4M6 19h4l8-8-4-4-8 8v4Z" {...p}/><path d="m13.5 8.5 4 4" {...p}/></svg>;
     case "search": return <svg {...common}><circle cx="11" cy="11" r="6.5" {...p}/><path d="m16 16 4 4" {...p}/></svg>;
     case "chevron_right": return <svg {...common}><path d="m9 6 6 6-6 6" {...p}/></svg>;
     default: return <svg {...common}><circle cx="12" cy="12" r="9" {...p}/><path d="M8 12h8" {...p}/></svg>;
@@ -23422,6 +23426,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         .cm-posturas-profile-btn:hover { border-color: rgba(159,202,255,.5) !important; }
         .cm-posturas-profile-btn:hover .cm-posturas-profile-settings { color: #9fcaff !important; transform: rotate(18deg); }
         .cm-posturas-profile-settings { transition: color .3s ease, transform .3s ease; transform-origin:center; }
+        .cm-profile-dropdown { animation: cmProfileMenuIn .28s cubic-bezier(.2,.8,.2,1) both; transform-origin: top left; }
+        .cm-profile-menu-card { transition: transform .28s ease, border-color .28s ease, background-color .28s ease, box-shadow .28s ease; }
+        .cm-profile-menu-card:hover { transform: translateX(4px); border-color: rgba(159,202,255,.28) !important; background: #243247 !important; box-shadow: 0 12px 28px rgba(0,0,0,.24), 0 0 20px rgba(159,202,255,.08); }
+        .cm-profile-menu-icon { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:12px; background:rgba(15,23,42,.5); color:#9fcaff; transition: transform .28s ease, color .28s ease; }
+        .cm-profile-menu-card:hover .cm-profile-menu-icon { transform: translateX(2px) scale(1.08); color:#bdf4ff; }
+        .cm-profile-menu-card:active { transform: translateX(2px) scale(.985); }
+        .cm-profile-signout { transition: color .25s ease, text-shadow .25s ease; }
+        .cm-profile-signout:hover { color:#fda4af !important; text-shadow:0 0 14px rgba(251,113,133,.28); }
+        @keyframes cmProfileMenuIn { from { opacity:0; transform:translateY(-8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
         
         .cm-posturas-active-nav { animation: cmPosturasActivePulse 2s ease-in-out infinite; }
         .cm-posturas-search-cta:hover { filter: brightness(1.1); box-shadow: 0 14px 28px rgba(0,153,255,.22) !important; }
@@ -23460,11 +23473,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <span className="cm-posturas-profile-settings" style={{ display:"inline-flex", color:"#bfc7d5" }}><PosturasSidebarIcon name="settings" size={22} /></span>
             </button>
             {profileMenuOpen && (
-              <div role="menu" aria-label="Opciones de Mi Perfil" className="transition-all duration-300" style={{ position:"absolute", left:"0", top:"calc(100% + 10px)", zIndex:5100, width:"min(248px, calc(100vw - 48px))", display:"grid", gap:"8px", padding:"12px", borderRadius:"8px", border:"1px solid #3f4753", background:"rgba(25,28,30,.98)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", boxShadow:"0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05)" }}>
-                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de trabajador</span></button>}
-                {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="subdirectory_arrow_right" size={17} /><span>Perfil de empresario</span></button>}
-                {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><MS name="badge" size={18} /><span>Mis vacantes</span></button>}
-                {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-posturas-sidebar-item cm-posturas-dynamic-btn" style={{ display:"flex", alignItems:"center", gap:"9px", width:"100%", padding:"11px 12px", borderRadius:"6px", border:"1px solid #3f4753", background:"#1d2022", color:"#9fcaff", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:"700", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><PosturasSidebarIcon name="chevron_right" size={18} /><span>Editar perfil</span></button>}
+              <div
+                role="menu"
+                aria-label="Opciones de Mi Perfil"
+                className="cm-profile-dropdown"
+                style={{
+                  position:"absolute", left:"8px", top:"calc(100% + 14px)", zIndex:5100,
+                  width:"min(520px, calc(100vw - 48px))", display:"grid", gap:"14px",
+                  padding:"18px", borderRadius:"16px", border:"1px solid rgba(159,202,255,.16)",
+                  background:"rgba(11,15,25,.97)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
+                  boxShadow:"0 28px 70px rgba(0,0,0,.56), inset 0 1px 0 rgba(255,255,255,.04)"
+                }}
+              >
+                <nav style={{ display:"grid", gap:"12px" }}>
+                  {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("trabajador"); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", minHeight:"84px", padding:"16px 18px", borderRadius:"16px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"14px", fontWeight:"700", letterSpacing:".055em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="worker_profile" size={25} /></span><span>Perfil de trabajador</span></button>}
+                  {isAdmin && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); openBaseProfile("empresa"); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", minHeight:"84px", padding:"16px 18px", borderRadius:"16px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"14px", fontWeight:"700", letterSpacing:".055em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="employer_profile" size={25} /></span><span>Perfil de empresario</span></button>}
+                  {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", minHeight:"84px", padding:"16px 18px", borderRadius:"16px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"14px", fontWeight:"700", letterSpacing:".055em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="vacancy_clipboard" size={25} /></span><span>Mis vacantes</span><span style={{ marginLeft:"auto", padding:"6px 10px", borderRadius:"6px", background:"rgba(159,202,255,.20)", color:"#9fcaff", fontSize:"10px", fontWeight:"800", letterSpacing:".01em", whiteSpace:"nowrap" }}>4 NUEVAS</span></button>}
+                  {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"16px", width:"100%", minHeight:"84px", padding:"16px 18px", borderRadius:"16px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"14px", fontWeight:"700", letterSpacing:".055em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="edit_profile" size={25} /></span><span>Editar perfil</span></button>}
+                </nav>
+                {(authUser || isAdmin) && <div style={{ marginTop:"4px", paddingTop:"16px", borderTop:"1px solid rgba(255,255,255,.06)", display:"flex", justifyContent:"flex-end" }}><button type="button" onClick={async()=>{ setProfileMenuOpen(false); try { await sb.auth.signOut(); } catch (e) { console.error("signOut error:", e); } }} className="cm-profile-signout" style={{ border:"none", background:"transparent", color:"#fb7185", fontFamily:"'Inter', sans-serif", fontSize:"11px", fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", cursor:"pointer", padding:"6px 4px" }}>Cerrar sesión</button></div>}
               </div>
             )}
           </div>
