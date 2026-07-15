@@ -8856,7 +8856,7 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
               <AppIcon name="stats" size={28} active />
             </div>
             <div style={{ minWidth:0 }}>
-              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>Tactical Report Builder</h3>
+              <h3 style={{ margin:0, color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"20px", lineHeight:1.1, fontWeight:900, letterSpacing:"-.02em" }}>REPORTE OPERATIVO</h3>
               <p style={{ margin:"6px 0 0", color:"rgba(255,255,255,.42)", fontFamily:"'JetBrains Mono','SFMono-Regular',Consolas,monospace", fontSize:"10px", fontWeight:800, letterSpacing:".20em", textTransform:"uppercase" }}>Seleccionar fuentes de datos</p>
             </div>
           </div>
