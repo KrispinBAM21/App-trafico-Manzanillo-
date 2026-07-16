@@ -2517,7 +2517,7 @@ const CARRIL_ESTADO_OPTS = [
   { id: "saturado",        label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
   { id: "bloqueo",         label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
   { id: "cerrado",         label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
-  { id: "sin_uso",         label: "Sin operación",            color: "#71717a", icon: "ban" },
+  { id: "sin_uso",         label: "SIN USO",                 color: "#71717a", icon: "ban" },
   { id: "sin_especificar", label: "Sin especificar",          color: "#64748b", icon: "help-circle" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
@@ -11502,31 +11502,6 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     setTacticalPanelOpen(true);
   };
   const closeTacticalPanel = () => setTacticalPanelOpen(false);
-
-  useEffect(() => {
-    if (!tacticalPanelOpen || typeof document === "undefined") return undefined;
-
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverscroll = document.body.style.overscrollBehavior;
-
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overscrollBehavior = "none";
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") closeTacticalPanel();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overscrollBehavior = previousBodyOverscroll;
-    };
-  }, [tacticalPanelOpen]);
-
   const MaterialIcon = ({ children, color = "#94a3b8", size = 24, fill = 0, style = {} }) => (
     <span
       className="material-symbols-outlined"
@@ -11816,59 +11791,18 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           </button>
         </div>
 
-        {tacticalPanelOpen && typeof document !== "undefined" && createPortal((
-          <div
-            role="presentation"
-            onClick={closeTacticalPanel}
-            style={{
-              position:"fixed",
-              inset:0,
-              zIndex:2147483000,
-              background:"rgba(0,0,0,.82)",
-              backdropFilter:"blur(8px)",
-              WebkitBackdropFilter:"blur(8px)",
-              display:"flex",
-              alignItems:"flex-end",
-              justifyContent:"center",
-              boxSizing:"border-box",
-              paddingTop:"max(10px, env(safe-area-inset-top))",
-              paddingRight:"max(10px, env(safe-area-inset-right))",
-              paddingBottom:"max(10px, env(safe-area-inset-bottom))",
-              paddingLeft:"max(10px, env(safe-area-inset-left))",
-              overflow:"hidden"
-            }}
-          >
-            <div
-              className="deep-glass-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="tactical-report-title"
-              onClick={e => e.stopPropagation()}
-              style={{
-                width:"100%",
-                maxWidth:520,
-                height:"auto",
-                maxHeight:"calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)))",
-                minHeight:0,
-                overflow:"hidden",
-                display:"flex",
-                flexDirection:"column",
-                borderRadius:"22px",
-                border:"1px solid rgba(255,255,255,.2)",
-                boxShadow:"0 24px 80px rgba(0,0,0,.55)",
-                overscrollBehavior:"contain",
-                WebkitOverflowScrolling:"touch"
-              }}
-            >
-              <div style={{ position:"sticky", top:0, zIndex:20, flex:"0 0 auto", padding:"14px 16px", borderBottom:"1px solid rgba(255,255,255,.1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(10,22,40,.98)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+        {tacticalPanelOpen && (
+          <div onClick={closeTacticalPanel} style={{ position:"fixed", inset:0, zIndex:100000, background:"rgba(0,0,0,.82)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", display:"flex", alignItems:"flex-end", justifyContent:"center", padding:"14px" }}>
+            <div className="deep-glass-panel" onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", borderRadius:"22px", border:"1px solid rgba(255,255,255,.2)", boxShadow:"0 24px 80px rgba(0,0,0,.55)" }}>
+              <div style={{ padding:"16px", borderBottom:"1px solid rgba(255,255,255,.1)", display:"flex", justifyContent:"space-between", alignItems:"center", background:"rgba(255,255,255,.05)" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                   {categoria === "accidente" ? <AccidentCrashIcon size={28} color={catObj.color} /> : <MaterialIcon color={catObj.color} size={24}>warning</MaterialIcon>}
-                  <h3 id="tactical-report-title" style={{ margin:0, color:"#fff", fontFamily:"JetBrains Mono, monospace", fontSize:"13px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.08em" }}>Reportar {categoria === "accidente" ? "Accidente" : "Incidente"}</h3>
+                  <h3 style={{ margin:0, color:"#fff", fontFamily:"JetBrains Mono, monospace", fontSize:"13px", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.08em" }}>Reportar {categoria === "accidente" ? "Accidente" : "Incidente"}</h3>
                 </div>
-                <button type="button" aria-label="Cerrar formulario de reporte" onClick={closeTacticalPanel} style={{ width:40, height:40, flex:"0 0 auto", borderRadius:"11px", border:"1px solid rgba(255,255,255,.16)", background:"rgba(2,6,23,.72)", color:"#e2e8f0", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", touchAction:"manipulation" }}><MaterialIcon color="#e2e8f0" size={22}>close</MaterialIcon></button>
+                <button onClick={closeTacticalPanel} style={{ width:34, height:34, borderRadius:"10px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.05)", color:"#94a3b8", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MaterialIcon color="#94a3b8" size={20}>close</MaterialIcon></button>
               </div>
 
-              <div style={{ minHeight:0, overflowY:"auto", WebkitOverflowScrolling:"touch", overscrollBehavior:"contain", padding:"18px 20px max(28px, env(safe-area-inset-bottom))", display:"flex", flexDirection:"column", gap:"16px", scrollPaddingTop:"78px" }}>
+              <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:"16px" }}>
                 <div>
                   <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Tipo Específico</label>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"7px" }}>
@@ -11941,7 +11875,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
               </div>
             </div>
           </div>
-        ), document.body)}
+        )}
       </div>
 
       {/* ── REPORTES PENDIENTES DE VERIFICACIÓN ── */}
@@ -14645,6 +14579,7 @@ function SegundoAccesoTab({ myId }) {
   const terminalOptionsConfinada = [
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
+    { id:"sin_uso", label:"SIN USO · carril fuera de operación", color:"#71717a", icon:"ban" },
   ];
 
   const laneCardShell = (accent) => ({
