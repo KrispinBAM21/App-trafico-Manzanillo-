@@ -2517,7 +2517,7 @@ const CARRIL_ESTADO_OPTS = [
   { id: "saturado",        label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
   { id: "bloqueo",         label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
   { id: "cerrado",         label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
-  { id: "sin_uso",         label: "SIN USO",                  color: "#71717a", icon: "ban" },
+  { id: "sin_uso",         label: "Sin operación",            color: "#71717a", icon: "ban" },
   { id: "sin_especificar", label: "Sin especificar",          color: "#64748b", icon: "help-circle" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
@@ -14442,53 +14442,6 @@ function SegundoAccesoTab({ myId }) {
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
-  const updateIngresoTerminal = async (id, terminalId) => {
-    if (!carriles) return;
-    const prev = carriles;
-    const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
-    const current = carriles[id] || {};
-    const isSinUso = terminalId === "sin_uso";
-    const nextState = {
-      ...current,
-      terminal: terminalId,
-      estado_carril: isSinUso ? "sin_uso" : (getCarrilEstadoId(current) === "sin_uso" ? "libre" : getCarrilEstadoId(current)),
-      saturado: isSinUso ? false : carrilEstadoIsSaturado(getCarrilEstadoId(current) === "sin_uso" ? "libre" : getCarrilEstadoId(current)),
-      retornos: isSinUso ? false : !!current.retornos,
-      expo: isSinUso ? "libre" : (current.expo || "libre"),
-      expo_contenedor: isSinUso ? null : (current.expo_contenedor || null),
-      impo: isSinUso ? "libre" : (current.impo || "libre"),
-      lastUpdate: Date.now(),
-      updatedBy: "Tú",
-    };
-    const next = { ...carriles, [id]: nextState };
-    setCarriles(next);
-    setPending(`${id}:terminal`, true);
-    const error = await saveToSupa(next);
-    setPending(`${id}:terminal`, false);
-    if (error) {
-      setCarriles(prev);
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
-      return;
-    }
-    const terminalLabel = isSinUso ? "SIN USO" : getTermName(terminalId);
-    await auditLog({
-      action:"modificar_terminal_carril_segundo",
-      section:"segundo",
-      entityId:id,
-      before:prev[id],
-      after:{ carril:def?.label || id, campo:"terminal", value:terminalId, valor_label:terminalLabel, summary:`${getDeviceId()} asignó ${terminalLabel} a ${def?.label || id}` },
-      actor:`Usuario_${myId.slice(-4)}`
-    });
-    notify(isSinUso ? "✓ Carril marcado SIN USO" : "✓ Terminal del carril actualizada", isSinUso ? "#71717a" : "#22c55e");
-    await publicarNoticia({
-      tipo:"segundo",
-      icono:"road",
-      color:isSinUso ? "#71717a" : "#34d399",
-      titulo:`2do Acceso ${def?.label || id} — ${terminalLabel}`,
-      detalle:isSinUso ? "Carril fuera de operación" : "Terminal asignada al carril actualizada"
-    });
-  };
-
   const updateSalida = async (field, value) => {
     const prev = carriles;
     const key = `c4:${field}`;
@@ -14580,55 +14533,6 @@ function SegundoAccesoTab({ myId }) {
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
-  const updateConfinadaTerminal = async (id, terminalId) => {
-    if (!confinada) return;
-    const prev = confinada;
-    const def = CONFINADA_CARRILES.find(c => c.id === id);
-    const current = confinada[id] || {};
-    const isSinUso = terminalId === "sin_uso";
-    const restoredEstado = getCarrilEstadoId(current) === "sin_uso" ? "libre" : getCarrilEstadoId(current);
-    const nextState = {
-      ...current,
-      terminal: terminalId,
-      estado_carril: isSinUso ? "sin_uso" : restoredEstado,
-      saturado: isSinUso ? false : carrilEstadoIsSaturado(restoredEstado),
-      retornos: isSinUso ? false : !!current.retornos,
-      transferencia: isSinUso ? false : !!current.transferencia,
-      expo: isSinUso ? "libre" : (current.expo || "libre"),
-      expo_contenedor: isSinUso ? null : (current.expo_contenedor || null),
-      impo: isSinUso ? "libre" : (current.impo || "libre"),
-      lastUpdate: Date.now(),
-      updatedBy: "Tú",
-    };
-    const next = { ...confinada, [id]: nextState };
-    setConfinada(next);
-    setPending(`${id}:terminal`, true);
-    const error = await saveConfinada(next);
-    setPending(`${id}:terminal`, false);
-    if (error) {
-      setConfinada(prev);
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
-      return;
-    }
-    const terminalLabel = isSinUso ? "SIN USO" : getTermName(terminalId);
-    await auditLog({
-      action:"modificar_terminal_carril_confinada",
-      section:"segundo",
-      entityId:id,
-      before:prev[id],
-      after:{ carril:def?.label || id, campo:"terminal", value:terminalId, valor_label:terminalLabel, summary:`${getDeviceId()} asignó ${terminalLabel} a ${def?.label || id}` },
-      actor:`Usuario_${myId.slice(-4)}`
-    });
-    notify(isSinUso ? "✓ Carril Confinada marcado SIN USO" : "✓ Terminal del carril Confinada actualizada", isSinUso ? "#71717a" : "#a78bfa");
-    await publicarNoticia({
-      tipo:"segundo",
-      icono:"lock",
-      color:isSinUso ? "#71717a" : "#a78bfa",
-      titulo:`Confinada ${def?.label || id} — ${terminalLabel}`,
-      detalle:isSinUso ? "Carril fuera de operación" : "Terminal asignada al carril actualizada"
-    });
-  };
-
   const updateConfinadaEstado = async (id, estadoId) => {
     if (!confinada) return;
     const prev = confinada;
@@ -14668,13 +14572,11 @@ function SegundoAccesoTab({ myId }) {
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
-    { id:"sin_uso", label:"SIN USO · carril fuera de operación", color:"#71717a", icon:"ban" },
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
   const terminalOptionsConfinada = [
-    { id:"sin_uso", label:"SIN USO · carril fuera de operación", color:"#71717a", icon:"ban" },
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
@@ -14740,7 +14642,7 @@ function SegundoAccesoTab({ myId }) {
             <WheelPickerSelect
               value={st.terminal || carril.defaultTerminal}
               options={terminalOptionsSegundo}
-              onChange={(v) => updateIngresoTerminal(carril.id, v || carril.defaultTerminal)}
+              onChange={(v) => updateIngreso(carril.id,"terminal",v)}
               pending={!!pendingKeys[`${carril.id}:terminal`]}
               theme={theme}
               title={`${carril.label} · Terminal / uso`}
@@ -14966,7 +14868,7 @@ function SegundoAccesoTab({ myId }) {
             <WheelPickerSelect
               value={st.terminal || carril.defaultTerminal}
               options={terminalOptionsConfinada}
-              onChange={(v) => updateConfinadaTerminal(carril.id, v || carril.defaultTerminal)}
+              onChange={(v) => updateConfinada(carril.id,"terminal",v)}
               pending={!!pendingKeys[`${carril.id}:terminal`]}
               theme={theme}
               title={`Confinada ${carril.label} · Terminal / uso`}
@@ -16100,6 +16002,347 @@ function ScreenshotCropModal({ onClose, onApply }) {
       </div>
     </div>,
     document.body
+  );
+}
+
+
+// ─── COMUNICADO HORIZONTAL ──────────────────────────────────────────────────
+// Toda la geometría vive en esta configuración para que un cambio de plantilla
+// no obligue a modificar la lógica de composición.
+const COMUNICADO_HORIZONTAL_CONFIG = {
+  templatePath: "/formatohorizontal.png",
+  templateWidth: 2000,
+  templateHeight: 1414,
+  safeZone: {
+    x: 80,
+    y: 470,
+    width: 1840,
+    height: 750,
+  },
+  maxUploadSizeMB: 15,
+  acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
+};
+
+const loadCanvasImage = (src) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.onload = () => resolve(image);
+  image.onerror = () => reject(new Error("No se pudo cargar la imagen requerida para generar el comunicado."));
+  image.src = src;
+});
+
+const fileToObjectUrl = (file) => {
+  if (!(file instanceof File)) throw new Error("Selecciona una imagen válida.");
+  return URL.createObjectURL(file);
+};
+
+const canvasToPngBlob = (canvas) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new Error("No se pudo exportar el comunicado horizontal."));
+  }, "image/png", 1);
+});
+
+async function composeHorizontalComunicado(file, canvas) {
+  const config = COMUNICADO_HORIZONTAL_CONFIG;
+  const objectUrl = fileToObjectUrl(file);
+
+  try {
+    const [template, uploadedImage] = await Promise.all([
+      loadCanvasImage(config.templatePath),
+      loadCanvasImage(objectUrl),
+    ]);
+
+    canvas.width = config.templateWidth;
+    canvas.height = config.templateHeight;
+
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Tu navegador no permite generar la vista previa.");
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(template, 0, 0, config.templateWidth, config.templateHeight);
+
+    const imageWidth = uploadedImage.naturalWidth || uploadedImage.width;
+    const imageHeight = uploadedImage.naturalHeight || uploadedImage.height;
+    if (!imageWidth || !imageHeight) throw new Error("No fue posible leer las dimensiones de la imagen.");
+
+    const { safeZone } = config;
+    const scale = Math.min(safeZone.width / imageWidth, safeZone.height / imageHeight);
+    const finalWidth = imageWidth * scale;
+    const finalHeight = imageHeight * scale;
+    const offsetX = safeZone.x + (safeZone.width - finalWidth) / 2;
+    const offsetY = safeZone.y + (safeZone.height - finalHeight) / 2;
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(uploadedImage, offsetX, offsetY, finalWidth, finalHeight);
+
+    return canvasToPngBlob(canvas);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function HorizontalComunicadoPanel({ onSubido }) {
+  const theme = React.useContext(ThemeContext);
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const previewObjectUrlRef = useRef("");
+  const submitLockRef = useRef(false);
+  const compositionSequenceRef = useRef(0);
+
+  const [sourceFile, setSourceFile] = useState(null);
+  const [finalBlob, setFinalBlob] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => () => {
+    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
+  }, []);
+
+  const replacePreviewUrl = (blob) => {
+    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
+    const nextUrl = URL.createObjectURL(blob);
+    previewObjectUrlRef.current = nextUrl;
+    setPreviewUrl(nextUrl);
+  };
+
+  const validateHorizontalFile = (file) => {
+    const config = COMUNICADO_HORIZONTAL_CONFIG;
+    if (!file) return "Selecciona una imagen.";
+    if (!config.acceptedFormats.includes(file.type)) {
+      return "Formato no permitido. Usa una imagen JPG, PNG o WEBP.";
+    }
+    const maximumBytes = config.maxUploadSizeMB * 1024 * 1024;
+    if (file.size > maximumBytes) {
+      return `La imagen supera el máximo de ${config.maxUploadSizeMB} MB.`;
+    }
+    return "";
+  };
+
+  const processFile = async (file) => {
+    const validationError = validateHorizontalFile(file);
+    if (validationError) {
+      setError(validationError);
+      setSourceFile(null);
+      setFinalBlob(null);
+      setPreviewUrl("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const sequence = compositionSequenceRef.current + 1;
+    compositionSequenceRef.current = sequence;
+    setProcessing(true);
+    setError("");
+    setSuccess("");
+    setSourceFile(file);
+
+    try {
+      const canvas = canvasRef.current || document.createElement("canvas");
+      const blob = await composeHorizontalComunicado(file, canvas);
+      if (compositionSequenceRef.current !== sequence) return;
+      setFinalBlob(blob);
+      replacePreviewUrl(blob);
+    } catch (compositionError) {
+      if (compositionSequenceRef.current !== sequence) return;
+      setFinalBlob(null);
+      setPreviewUrl("");
+      setError(compositionError?.message || "No se pudo generar el comunicado horizontal.");
+    } finally {
+      if (compositionSequenceRef.current === sequence) setProcessing(false);
+    }
+  };
+
+  const resetHorizontalForm = () => {
+    compositionSequenceRef.current += 1;
+    setSourceFile(null);
+    setFinalBlob(null);
+    setPreviewUrl("");
+    setError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = "";
+    }
+  };
+
+  const publishHorizontal = async () => {
+    if (submitLockRef.current || publishing) return;
+    if (!sourceFile || !finalBlob) {
+      setError("Selecciona una imagen y espera a que termine la vista previa.");
+      return;
+    }
+
+    submitLockRef.current = true;
+    setPublishing(true);
+    setError("");
+    setSuccess("");
+
+    let uploadedPath = "";
+    try {
+      const now = new Date();
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now);
+      end.setDate(end.getDate() + 30);
+      end.setHours(23, 59, 59, 999);
+
+      uploadedPath = `comunicados/horizontal/${Date.now()}_${crypto.randomUUID()}.png`;
+      const finalFile = new File(
+        [finalBlob],
+        `comunicado_horizontal_${Date.now()}.png`,
+        { type: "image/png", lastModified: Date.now() }
+      );
+
+      const { error: uploadError } = await sb.storage
+        .from("comunicados")
+        .upload(uploadedPath, finalFile, {
+          contentType: "image/png",
+          cacheControl: "3600",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: signedData, error: signedError } = await sb.storage
+        .from("comunicados")
+        .createSignedUrl(uploadedPath, 60 * 60 * 24 * 365);
+      if (signedError) throw signedError;
+      if (!signedData?.signedUrl) throw new Error("No se pudo crear la URL segura del comunicado.");
+
+      const payload = {
+        titulo: "Comunicado horizontal",
+        detalle: null,
+        archivo_url: signedData.signedUrl,
+        archivo_path: uploadedPath,
+        archivo_tipo: "image/png",
+        tipo: "horizontal",
+        fecha_inicio: start.toISOString(),
+        fecha_fin: end.toISOString(),
+        aprobado: true,
+        created_at: now.toISOString(),
+      };
+
+      const { data: comunicadoInsertado, error: insertError } = await sb
+        .from("comunicados")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (insertError) throw insertError;
+
+      if (comunicadoInsertado) {
+        await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
+      }
+
+      setSuccess("Comunicado horizontal publicado correctamente.");
+      resetHorizontalForm();
+      if (onSubido) onSubido();
+    } catch (publishError) {
+      if (uploadedPath) {
+        try { await sb.storage.from("comunicados").remove([uploadedPath]); } catch {}
+      }
+      const message = publishError?.message || "No se pudo publicar el comunicado horizontal.";
+      setError(
+        message.includes("archivo_path") || message.includes("tipo")
+          ? "Faltan las columnas tipo o archivo_path en la tabla comunicados. Ejecuta la migración incluida con el archivo."
+          : message
+      );
+    } finally {
+      submitLockRef.current = false;
+      setPublishing(false);
+    }
+  };
+
+  const labelStyle = {
+    fontFamily: "'Space Mono', monospace",
+    color: "rgba(203,213,225,.76)",
+    fontSize: "10px",
+    fontWeight: 700,
+    letterSpacing: ".09em",
+    textTransform: "uppercase",
+  };
+
+  return (
+    <div style={{ background:"rgba(18,33,49,.72)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"20px", boxShadow:"0 18px 44px rgba(0,0,0,.24)", fontFamily:getFont(theme,"secondary") }}>
+      <div style={{ marginBottom:"14px" }}>
+        <div style={{ ...labelStyle, color:"#7dd3fc", marginBottom:"6px" }}>Comunicado Horizontal</div>
+        <div style={{ color:"rgba(226,232,240,.58)", fontSize:"11px", lineHeight:1.55 }}>
+          Adjunta una sola imagen. Se centrará automáticamente dentro del área blanca de la plantilla sin recortarse ni deformarse.
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={processing || publishing}
+        style={{ width:"100%", minHeight:"112px", border:"2px dashed rgba(56,189,248,.38)", borderRadius:"10px", background:sourceFile?"rgba(34,197,94,.08)":"rgba(1,15,31,.5)", color:sourceFile?"#86efac":"#94a3b8", cursor:(processing||publishing)?"wait":"pointer", padding:"18px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}
+      >
+        {processing ? "Componiendo vista previa…" : sourceFile ? sourceFile.name : `Seleccionar JPG, PNG o WEBP · máximo ${COMUNICADO_HORIZONTAL_CONFIG.maxUploadSizeMB} MB`}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={COMUNICADO_HORIZONTAL_CONFIG.acceptedFormats.join(",")}
+        onChange={(event) => processFile(event.target.files?.[0] || null)}
+        style={{ display:"none" }}
+      />
+
+      {error && <div role="alert" style={{ marginTop:"12px", padding:"10px 12px", borderRadius:"8px", border:"1px solid rgba(239,68,68,.42)", background:"rgba(239,68,68,.09)", color:"#fca5a5", fontSize:"11px" }}>{error}</div>}
+      {success && <div role="status" style={{ marginTop:"12px", padding:"10px 12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.42)", background:"rgba(34,197,94,.09)", color:"#86efac", fontSize:"11px" }}>{success}</div>}
+
+      <canvas ref={canvasRef} width={COMUNICADO_HORIZONTAL_CONFIG.templateWidth} height={COMUNICADO_HORIZONTAL_CONFIG.templateHeight} style={{ display:"none" }} />
+
+      {previewUrl && (
+        <div style={{ marginTop:"16px" }}>
+          <div style={{ ...labelStyle, marginBottom:"8px" }}>Vista previa final</div>
+          <div style={{ background:"#fff", borderRadius:"10px", overflow:"hidden", border:"1px solid rgba(125,211,252,.28)", boxShadow:"0 16px 36px rgba(0,0,0,.28)" }}>
+            <img src={previewUrl} alt="Vista previa del comunicado horizontal" style={{ display:"block", width:"100%", height:"auto" }} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"16px" }}>
+        <button type="button" onClick={resetHorizontalForm} disabled={publishing} style={{ flex:"1 1 160px", padding:"12px", borderRadius:"8px", border:"1px solid #2c3a4c", background:"rgba(1,15,31,.5)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:publishing?"not-allowed":"pointer" }}>Limpiar</button>
+        <button type="button" onClick={publishHorizontal} disabled={publishing || processing || !finalBlob} style={{ flex:"2 1 220px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.55)", background:(publishing||processing||!finalBlob)?"rgba(34,197,94,.12)":"linear-gradient(135deg,#22c55e,#4ade80)", color:(publishing||processing||!finalBlob)?"rgba(134,239,172,.55)":"#052e16", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(publishing||processing||!finalBlob)?"not-allowed":"pointer" }}>
+          {publishing ? "Publicando…" : "PUBLICAR COMUNICADO HORIZONTAL"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ComunicadoAdminComposer({ onSubido, isAdmin }) {
+  const theme = React.useContext(ThemeContext);
+  const [type, setType] = useState("estandar");
+
+  if (!isAdmin) return <SubirComunicadoPanel onSubido={onSubido} isAdmin={false} />;
+
+  const typeButtonStyle = (active) => ({
+    flex:1,
+    padding:"11px 12px",
+    borderRadius:"8px",
+    border:`1px solid ${active ? "rgba(56,189,248,.62)" : "#2c3a4c"}`,
+    background:active ? "rgba(56,189,248,.14)" : "rgba(1,15,31,.48)",
+    color:active ? "#bae6fd" : "#94a3b8",
+    fontFamily:getFont(theme,"secondary"),
+    fontSize:"11px",
+    fontWeight:900,
+    cursor:"pointer",
+  });
+
+  return (
+    <>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:"8px", padding:"6px", marginBottom:"12px", border:"1px solid #2c3a4c", borderRadius:"10px", background:"rgba(1,15,31,.58)" }}>
+        <button type="button" onClick={() => setType("estandar")} style={typeButtonStyle(type === "estandar")}>ESTÁNDAR</button>
+        <button type="button" onClick={() => setType("horizontal")} style={typeButtonStyle(type === "horizontal")}>HORIZONTAL (IMAGEN)</button>
+      </div>
+      {type === "horizontal"
+        ? <HorizontalComunicadoPanel onSubido={onSubido} />
+        : <SubirComunicadoPanel onSubido={onSubido} isAdmin={true} />}
+    </>
   );
 }
 
@@ -18709,7 +18952,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
             </div>
           </div>
 
-          <SubirComunicadoPanel onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
+          <ComunicadoAdminComposer onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
 
           {/* ── PENDIENTES DE APROBACIÓN (solo admin) ── */}
           {isAdmin && (
