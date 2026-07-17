@@ -16020,9 +16020,11 @@ const COMUNICADO_HORIZONTAL_CONFIG = {
   templateHeight: 1414,
   safeZone: {
     x: 80,
-    y: 470,
+    // Ampliada hacia arriba hasta el límite visual indicado, sin invadir
+    // el encabezado diagonal ni modificar el pie de la plantilla.
+    y: 400,
     width: 1840,
-    height: 750,
+    height: 820,
   },
   maxUploadSizeMB: 15,
   acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
