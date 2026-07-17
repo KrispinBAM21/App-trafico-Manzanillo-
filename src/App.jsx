@@ -2517,7 +2517,7 @@ const CARRIL_ESTADO_OPTS = [
   { id: "saturado",        label: "Saturado",                 color: "#db2777", icon: "traffic-cone" },
   { id: "bloqueo",         label: "Bloqueo",                  color: "#475569", icon: "circle-x" },
   { id: "cerrado",         label: "Cerrado hasta nuevo aviso", color: "#881337", icon: "lock-keyhole" },
-  { id: "sin_uso",         label: "SIN USO",                 color: "#71717a", icon: "ban" },
+  { id: "sin_uso",         label: "SIN USO",                  color: "#71717a", icon: "ban" },
   { id: "sin_especificar", label: "Sin especificar",          color: "#64748b", icon: "help-circle" },
 ];
 const getCarrilEstadoId = (st) => st?.estado_carril || (st?.terminal === "sin_uso" ? "sin_uso" : st?.saturado ? "saturado" : "libre");
@@ -14442,6 +14442,53 @@ function SegundoAccesoTab({ myId }) {
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
+  const updateIngresoTerminal = async (id, terminalId) => {
+    if (!carriles) return;
+    const prev = carriles;
+    const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
+    const current = carriles[id] || {};
+    const isSinUso = terminalId === "sin_uso";
+    const nextState = {
+      ...current,
+      terminal: terminalId,
+      estado_carril: isSinUso ? "sin_uso" : (getCarrilEstadoId(current) === "sin_uso" ? "libre" : getCarrilEstadoId(current)),
+      saturado: isSinUso ? false : carrilEstadoIsSaturado(getCarrilEstadoId(current) === "sin_uso" ? "libre" : getCarrilEstadoId(current)),
+      retornos: isSinUso ? false : !!current.retornos,
+      expo: isSinUso ? "libre" : (current.expo || "libre"),
+      expo_contenedor: isSinUso ? null : (current.expo_contenedor || null),
+      impo: isSinUso ? "libre" : (current.impo || "libre"),
+      lastUpdate: Date.now(),
+      updatedBy: "Tú",
+    };
+    const next = { ...carriles, [id]: nextState };
+    setCarriles(next);
+    setPending(`${id}:terminal`, true);
+    const error = await saveToSupa(next);
+    setPending(`${id}:terminal`, false);
+    if (error) {
+      setCarriles(prev);
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      return;
+    }
+    const terminalLabel = isSinUso ? "SIN USO" : getTermName(terminalId);
+    await auditLog({
+      action:"modificar_terminal_carril_segundo",
+      section:"segundo",
+      entityId:id,
+      before:prev[id],
+      after:{ carril:def?.label || id, campo:"terminal", value:terminalId, valor_label:terminalLabel, summary:`${getDeviceId()} asignó ${terminalLabel} a ${def?.label || id}` },
+      actor:`Usuario_${myId.slice(-4)}`
+    });
+    notify(isSinUso ? "✓ Carril marcado SIN USO" : "✓ Terminal del carril actualizada", isSinUso ? "#71717a" : "#22c55e");
+    await publicarNoticia({
+      tipo:"segundo",
+      icono:"road",
+      color:isSinUso ? "#71717a" : "#34d399",
+      titulo:`2do Acceso ${def?.label || id} — ${terminalLabel}`,
+      detalle:isSinUso ? "Carril fuera de operación" : "Terminal asignada al carril actualizada"
+    });
+  };
+
   const updateSalida = async (field, value) => {
     const prev = carriles;
     const key = `c4:${field}`;
@@ -14572,6 +14619,7 @@ function SegundoAccesoTab({ myId }) {
   const termsNorte  = TODAS_TERMINALES.filter(t => t.zona === "Norte");
   const termsSur    = TODAS_TERMINALES.filter(t => t.zona === "Sur");
   const terminalOptionsSegundo = [
+    { id:"sin_uso", label:"SIN USO · carril fuera de operación", color:"#71717a", icon:"ban" },
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsNorte.map(t => ({ id:t.id, label:`Norte · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
@@ -14579,7 +14627,6 @@ function SegundoAccesoTab({ myId }) {
   const terminalOptionsConfinada = [
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
-    { id:"sin_uso", label:"SIN USO · carril fuera de operación", color:"#71717a", icon:"ban" },
   ];
 
   const laneCardShell = (accent) => ({
@@ -14643,7 +14690,7 @@ function SegundoAccesoTab({ myId }) {
             <WheelPickerSelect
               value={st.terminal || carril.defaultTerminal}
               options={terminalOptionsSegundo}
-              onChange={(v) => updateIngreso(carril.id,"terminal",v)}
+              onChange={(v) => updateIngresoTerminal(carril.id, v || carril.defaultTerminal)}
               pending={!!pendingKeys[`${carril.id}:terminal`]}
               theme={theme}
               title={`${carril.label} · Terminal / uso`}
