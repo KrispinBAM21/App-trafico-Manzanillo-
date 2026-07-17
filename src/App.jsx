@@ -16099,55 +16099,60 @@ const jpegBlobToSinglePagePdf = async (jpegBlob, width, height) => {
   return new Blob(chunks, { type: "application/pdf" });
 };
 
-async function composeHorizontalComunicado(file, canvas) {
+const clampHorizontalValue = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
+
+const getHorizontalContainRect = (imageWidth, imageHeight) => {
+  const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
+  const scale = Math.min(safeZone.width / imageWidth, safeZone.height / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return {
+    x: safeZone.x + (safeZone.width - width) / 2,
+    y: safeZone.y + (safeZone.height - height) / 2,
+    width,
+    height,
+  };
+};
+
+const drawHorizontalComunicado = async ({ canvas, template, uploadedImage, imageRect }) => {
   const config = COMUNICADO_HORIZONTAL_CONFIG;
-  const objectUrl = fileToObjectUrl(file);
+  canvas.width = config.templateWidth;
+  canvas.height = config.templateHeight;
 
-  try {
-    const [template, uploadedImage] = await Promise.all([
-      loadCanvasImage(config.templatePath),
-      loadCanvasImage(objectUrl),
-    ]);
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) throw new Error("Tu navegador no permite generar la vista previa.");
 
-    canvas.width = config.templateWidth;
-    canvas.height = config.templateHeight;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(template, 0, 0, config.templateWidth, config.templateHeight);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(
+    uploadedImage,
+    imageRect.x,
+    imageRect.y,
+    imageRect.width,
+    imageRect.height
+  );
 
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("Tu navegador no permite generar la vista previa.");
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(template, 0, 0, config.templateWidth, config.templateHeight);
-
-    const imageWidth = uploadedImage.naturalWidth || uploadedImage.width;
-    const imageHeight = uploadedImage.naturalHeight || uploadedImage.height;
-    if (!imageWidth || !imageHeight) throw new Error("No fue posible leer las dimensiones de la imagen.");
-
-    const { safeZone } = config;
-    const scale = Math.min(safeZone.width / imageWidth, safeZone.height / imageHeight);
-    const finalWidth = imageWidth * scale;
-    const finalHeight = imageHeight * scale;
-    const offsetX = safeZone.x + (safeZone.width - finalWidth) / 2;
-    const offsetY = safeZone.y + (safeZone.height - finalHeight) / 2;
-
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(uploadedImage, offsetX, offsetY, finalWidth, finalHeight);
-
-    return canvasToPngBlob(canvas);
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
+  return canvasToPngBlob(canvas);
+};
 
 function HorizontalComunicadoPanel({ onSubido }) {
   const theme = React.useContext(ThemeContext);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const editorStageRef = useRef(null);
   const previewObjectUrlRef = useRef("");
+  const sourceObjectUrlRef = useRef("");
+  const templateImageRef = useRef(null);
+  const uploadedImageRef = useRef(null);
   const submitLockRef = useRef(false);
   const compositionSequenceRef = useRef(0);
+  const interactionRef = useRef(null);
 
   const [sourceFile, setSourceFile] = useState(null);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [imageRect, setImageRect] = useState(null);
   const [finalBlob, setFinalBlob] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -16156,17 +16161,19 @@ function HorizontalComunicadoPanel({ onSubido }) {
   const [success, setSuccess] = useState("");
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState("");
+  const [activeInteraction, setActiveInteraction] = useState("");
 
   useEffect(() => () => {
     if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
+    if (sourceObjectUrlRef.current) URL.revokeObjectURL(sourceObjectUrlRef.current);
   }, []);
 
-  const replacePreviewUrl = (blob) => {
+  const replacePreviewUrl = useCallback((blob) => {
     if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
     const nextUrl = URL.createObjectURL(blob);
     previewObjectUrlRef.current = nextUrl;
     setPreviewUrl(nextUrl);
-  };
+  }, []);
 
   const validateHorizontalFile = (file) => {
     const config = COMUNICADO_HORIZONTAL_CONFIG;
@@ -16181,27 +16188,20 @@ function HorizontalComunicadoPanel({ onSubido }) {
     return "";
   };
 
-  const processFile = async (file) => {
-    const validationError = validateHorizontalFile(file);
-    if (validationError) {
-      setError(validationError);
-      setSourceFile(null);
-      setFinalBlob(null);
-      setPreviewUrl("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
+  const renderComposition = useCallback(async (rect) => {
+    if (!rect || !templateImageRef.current || !uploadedImageRef.current) return;
     const sequence = compositionSequenceRef.current + 1;
     compositionSequenceRef.current = sequence;
     setProcessing(true);
-    setError("");
-    setSuccess("");
-    setSourceFile(file);
 
     try {
       const canvas = canvasRef.current || document.createElement("canvas");
-      const blob = await composeHorizontalComunicado(file, canvas);
+      const blob = await drawHorizontalComunicado({
+        canvas,
+        template: templateImageRef.current,
+        uploadedImage: uploadedImageRef.current,
+        imageRect: rect,
+      });
       if (compositionSequenceRef.current !== sequence) return;
       setFinalBlob(blob);
       replacePreviewUrl(blob);
@@ -16213,18 +16213,165 @@ function HorizontalComunicadoPanel({ onSubido }) {
     } finally {
       if (compositionSequenceRef.current === sequence) setProcessing(false);
     }
+  }, [replacePreviewUrl]);
+
+  useEffect(() => {
+    if (!imageRect || !sourceFile) return undefined;
+    const timer = window.setTimeout(() => renderComposition(imageRect), 70);
+    return () => window.clearTimeout(timer);
+  }, [imageRect, sourceFile, renderComposition]);
+
+  const processFile = async (file) => {
+    const validationError = validateHorizontalFile(file);
+    if (validationError) {
+      setError(validationError);
+      setSourceFile(null);
+      setFinalBlob(null);
+      setPreviewUrl("");
+      setImageRect(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setProcessing(true);
+    setError("");
+    setSuccess("");
+    setFinalBlob(null);
+    setPreviewUrl("");
+
+    try {
+      if (sourceObjectUrlRef.current) URL.revokeObjectURL(sourceObjectUrlRef.current);
+      const nextSourceUrl = fileToObjectUrl(file);
+      sourceObjectUrlRef.current = nextSourceUrl;
+
+      const [template, uploadedImage] = await Promise.all([
+        loadCanvasImage(COMUNICADO_HORIZONTAL_CONFIG.templatePath),
+        loadCanvasImage(nextSourceUrl),
+      ]);
+
+      const imageWidth = uploadedImage.naturalWidth || uploadedImage.width;
+      const imageHeight = uploadedImage.naturalHeight || uploadedImage.height;
+      if (!imageWidth || !imageHeight) throw new Error("No fue posible leer las dimensiones de la imagen.");
+
+      templateImageRef.current = template;
+      uploadedImageRef.current = uploadedImage;
+      setSourceFile(file);
+      setSourceUrl(nextSourceUrl);
+      setImageRect(getHorizontalContainRect(imageWidth, imageHeight));
+    } catch (compositionError) {
+      setSourceFile(null);
+      setSourceUrl("");
+      setImageRect(null);
+      setError(compositionError?.message || "No se pudo preparar la imagen horizontal.");
+    } finally {
+      setProcessing(false);
+    }
   };
+
+  const resetImageFit = () => {
+    const image = uploadedImageRef.current;
+    if (!image) return;
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    setImageRect(getHorizontalContainRect(width, height));
+  };
+
+  const fillSafeZone = () => {
+    const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
+    setImageRect({ ...safeZone });
+  };
+
+  const beginImageInteraction = (event, mode) => {
+    if (!imageRect || !editorStageRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const stageBounds = editorStageRef.current.getBoundingClientRect();
+    const pointX = (event.clientX - stageBounds.left) * (COMUNICADO_HORIZONTAL_CONFIG.templateWidth / stageBounds.width);
+    const pointY = (event.clientY - stageBounds.top) * (COMUNICADO_HORIZONTAL_CONFIG.templateHeight / stageBounds.height);
+    interactionRef.current = {
+      mode,
+      startX: pointX,
+      startY: pointY,
+      startRect: { ...imageRect },
+      stageBounds,
+    };
+    setActiveInteraction(mode);
+  };
+
+  useEffect(() => {
+    const move = (event) => {
+      const interaction = interactionRef.current;
+      if (!interaction) return;
+      event.preventDefault();
+
+      const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
+      const minimumSize = 42;
+      const pointX = (event.clientX - interaction.stageBounds.left) * (COMUNICADO_HORIZONTAL_CONFIG.templateWidth / interaction.stageBounds.width);
+      const pointY = (event.clientY - interaction.stageBounds.top) * (COMUNICADO_HORIZONTAL_CONFIG.templateHeight / interaction.stageBounds.height);
+      const deltaX = pointX - interaction.startX;
+      const deltaY = pointY - interaction.startY;
+      const start = interaction.startRect;
+      let next = { ...start };
+
+      if (interaction.mode === "move") {
+        next.x = clampHorizontalValue(start.x + deltaX, safeZone.x, safeZone.x + safeZone.width - start.width);
+        next.y = clampHorizontalValue(start.y + deltaY, safeZone.y, safeZone.y + safeZone.height - start.height);
+      } else {
+        if (interaction.mode.includes("e")) {
+          next.width = clampHorizontalValue(start.width + deltaX, minimumSize, safeZone.x + safeZone.width - start.x);
+        }
+        if (interaction.mode.includes("s")) {
+          next.height = clampHorizontalValue(start.height + deltaY, minimumSize, safeZone.y + safeZone.height - start.y);
+        }
+        if (interaction.mode.includes("w")) {
+          const maximumX = start.x + start.width - minimumSize;
+          next.x = clampHorizontalValue(start.x + deltaX, safeZone.x, maximumX);
+          next.width = start.width + (start.x - next.x);
+        }
+        if (interaction.mode.includes("n")) {
+          const maximumY = start.y + start.height - minimumSize;
+          next.y = clampHorizontalValue(start.y + deltaY, safeZone.y, maximumY);
+          next.height = start.height + (start.y - next.y);
+        }
+      }
+
+      setImageRect(next);
+    };
+
+    const end = () => {
+      interactionRef.current = null;
+      setActiveInteraction("");
+    };
+
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, []);
 
   const resetHorizontalForm = () => {
     compositionSequenceRef.current += 1;
     setSourceFile(null);
+    setSourceUrl("");
+    setImageRect(null);
     setFinalBlob(null);
     setPreviewUrl("");
     setError("");
+    setSuccess("");
+    templateImageRef.current = null;
+    uploadedImageRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (previewObjectUrlRef.current) {
       URL.revokeObjectURL(previewObjectUrlRef.current);
       previewObjectUrlRef.current = "";
+    }
+    if (sourceObjectUrlRef.current) {
+      URL.revokeObjectURL(sourceObjectUrlRef.current);
+      sourceObjectUrlRef.current = "";
     }
   };
 
@@ -16250,12 +16397,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       end.setHours(23, 59, 59, 999);
 
       uploadedPath = `comunicados/horizontal/${Date.now()}_${crypto.randomUUID()}.png`;
-      const finalFile = new File(
-        [finalBlob],
-        `comunicado_horizontal_${Date.now()}.png`,
-        { type: "image/png", lastModified: Date.now() }
-      );
-
+      const finalFile = new File([finalBlob], `comunicado_horizontal_${Date.now()}.png`, { type: "image/png" });
       const { error: uploadError } = await sb.storage
         .from("comunicados")
         .upload(uploadedPath, finalFile, {
@@ -16348,12 +16490,23 @@ function HorizontalComunicadoPanel({ onSubido }) {
     textTransform: "uppercase",
   };
 
+  const handles = [
+    { mode:"nw", left:"0%", top:"0%", cursor:"nwse-resize" },
+    { mode:"n", left:"50%", top:"0%", cursor:"ns-resize" },
+    { mode:"ne", left:"100%", top:"0%", cursor:"nesw-resize" },
+    { mode:"e", left:"100%", top:"50%", cursor:"ew-resize" },
+    { mode:"se", left:"100%", top:"100%", cursor:"nwse-resize" },
+    { mode:"s", left:"50%", top:"100%", cursor:"ns-resize" },
+    { mode:"sw", left:"0%", top:"100%", cursor:"nesw-resize" },
+    { mode:"w", left:"0%", top:"50%", cursor:"ew-resize" },
+  ];
+
   return (
     <div style={{ background:"rgba(18,33,49,.72)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"20px", boxShadow:"0 18px 44px rgba(0,0,0,.24)", fontFamily:getFont(theme,"secondary") }}>
       <div style={{ marginBottom:"14px" }}>
         <div style={{ ...labelStyle, color:"#7dd3fc", marginBottom:"6px" }}>Comunicado Horizontal</div>
         <div style={{ color:"rgba(226,232,240,.58)", fontSize:"11px", lineHeight:1.55 }}>
-          Adjunta una sola imagen. Se centrará automáticamente dentro del área blanca de la plantilla sin recortarse ni deformarse.
+          Adjunta una imagen y ajusta libremente su posición, ancho y alto dentro del área blanca. Arrastra la imagen para moverla y usa cualquiera de los ocho controles para redimensionarla.
         </div>
       </div>
 
@@ -16363,7 +16516,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
         disabled={processing || publishing}
         style={{ width:"100%", minHeight:"112px", border:"2px dashed rgba(56,189,248,.38)", borderRadius:"10px", background:sourceFile?"rgba(34,197,94,.08)":"rgba(1,15,31,.5)", color:sourceFile?"#86efac":"#94a3b8", cursor:(processing||publishing)?"wait":"pointer", padding:"18px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}
       >
-        {processing ? "Componiendo vista previa…" : sourceFile ? sourceFile.name : `Seleccionar JPG, PNG o WEBP · máximo ${COMUNICADO_HORIZONTAL_CONFIG.maxUploadSizeMB} MB`}
+        {processing ? "Actualizando vista previa…" : sourceFile ? sourceFile.name : `Seleccionar JPG, PNG o WEBP · máximo ${COMUNICADO_HORIZONTAL_CONFIG.maxUploadSizeMB} MB`}
       </button>
       <input
         ref={fileInputRef}
@@ -16378,9 +16531,93 @@ function HorizontalComunicadoPanel({ onSubido }) {
 
       <canvas ref={canvasRef} width={COMUNICADO_HORIZONTAL_CONFIG.templateWidth} height={COMUNICADO_HORIZONTAL_CONFIG.templateHeight} style={{ display:"none" }} />
 
+      {sourceUrl && imageRect && (
+        <div style={{ marginTop:"16px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
+            <div style={labelStyle}>Editor de tamaño y posición</div>
+            <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
+              <button type="button" onClick={resetImageFit} style={{ padding:"7px 10px", borderRadius:"7px", border:"1px solid rgba(125,211,252,.36)", background:"rgba(56,189,248,.10)", color:"#bae6fd", fontSize:"10px", fontWeight:800, cursor:"pointer" }}>Ajuste proporcional</button>
+              <button type="button" onClick={fillSafeZone} style={{ padding:"7px 10px", borderRadius:"7px", border:"1px solid rgba(34,197,94,.36)", background:"rgba(34,197,94,.10)", color:"#86efac", fontSize:"10px", fontWeight:800, cursor:"pointer" }}>Llenar área</button>
+            </div>
+          </div>
+
+          <div
+            ref={editorStageRef}
+            style={{
+              position:"relative",
+              width:"100%",
+              aspectRatio:`${COMUNICADO_HORIZONTAL_CONFIG.templateWidth} / ${COMUNICADO_HORIZONTAL_CONFIG.templateHeight}`,
+              overflow:"hidden",
+              borderRadius:"10px",
+              border:"1px solid rgba(125,211,252,.34)",
+              background:`#fff url(${COMUNICADO_HORIZONTAL_CONFIG.templatePath}) center / 100% 100% no-repeat`,
+              boxShadow:"0 16px 36px rgba(0,0,0,.28)",
+              touchAction:"none",
+              userSelect:"none",
+            }}
+          >
+            <div style={{
+              position:"absolute",
+              left:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.x / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
+              top:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.y / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
+              width:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.width / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
+              height:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.height / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
+              border:"1px dashed rgba(14,165,233,.58)",
+              boxSizing:"border-box",
+              pointerEvents:"none",
+            }} />
+
+            <div
+              onPointerDown={(event) => beginImageInteraction(event, "move")}
+              style={{
+                position:"absolute",
+                left:`${(imageRect.x / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
+                top:`${(imageRect.y / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
+                width:`${(imageRect.width / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
+                height:`${(imageRect.height / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
+                border:"2px solid #22c55e",
+                boxSizing:"border-box",
+                cursor:activeInteraction === "move" ? "grabbing" : "grab",
+                boxShadow:"0 0 0 2px rgba(2,6,23,.48), 0 10px 24px rgba(0,0,0,.24)",
+                touchAction:"none",
+              }}
+            >
+              <img src={sourceUrl} alt="Imagen editable" draggable={false} style={{ width:"100%", height:"100%", display:"block", pointerEvents:"none" }} />
+              <div style={{ position:"absolute", left:"8px", top:"8px", padding:"4px 7px", borderRadius:"999px", background:"rgba(2,6,23,.78)", color:"#dcfce7", fontSize:"9px", fontWeight:900, pointerEvents:"none" }}>ARRASTRA PARA MOVER</div>
+              {handles.map((handle) => (
+                <button
+                  key={handle.mode}
+                  type="button"
+                  aria-label={`Redimensionar ${handle.mode}`}
+                  onPointerDown={(event) => beginImageInteraction(event, handle.mode)}
+                  style={{
+                    position:"absolute",
+                    left:handle.left,
+                    top:handle.top,
+                    transform:"translate(-50%,-50%)",
+                    width:"18px",
+                    height:"18px",
+                    padding:0,
+                    borderRadius:"5px",
+                    border:"2px solid #052e16",
+                    background:"#4ade80",
+                    boxShadow:"0 2px 8px rgba(0,0,0,.4)",
+                    cursor:handle.cursor,
+                    touchAction:"none",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <div style={{ marginTop:"7px", color:"rgba(203,213,225,.58)", fontSize:"10px", lineHeight:1.5 }}>
+            El marco verde define la imagen final. Puedes estirarla de forma independiente desde arriba, abajo, los lados o las esquinas. La imagen permanece limitada al área segura.
+          </div>
+        </div>
+      )}
+
       {previewUrl && (
         <div style={{ marginTop:"16px" }}>
-          <div style={{ ...labelStyle, marginBottom:"8px" }}>Vista previa final</div>
+          <div style={{ ...labelStyle, marginBottom:"8px" }}>Vista previa final para publicar y descargar</div>
           <div style={{ background:"#fff", borderRadius:"10px", overflow:"hidden", border:"1px solid rgba(125,211,252,.28)", boxShadow:"0 16px 36px rgba(0,0,0,.28)" }}>
             <img src={previewUrl} alt="Vista previa del comunicado horizontal" style={{ display:"block", width:"100%", height:"auto" }} />
           </div>
@@ -16408,6 +16645,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
     </div>
   );
 }
+
 
 function ComunicadoAdminComposer({ onSubido, isAdmin }) {
   const theme = React.useContext(ThemeContext);
