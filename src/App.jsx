@@ -3196,7 +3196,12 @@ const syncComunicadoToNoticia = async (comunicado, { processMedia = false } = {}
 
   const isImage = String(comunicado.archivo_tipo || "").startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(String(comunicado.archivo_url || ""));
   const isPdfFile = String(comunicado.archivo_tipo || "").includes("pdf") || /\.pdf(\?|$)/i.test(String(comunicado.archivo_url || ""));
-  const imagenes = media.imagenes?.length ? media.imagenes : (isImage && comunicado.archivo_url ? [comunicado.archivo_url] : []);
+  const storedImages = parseJsonArray(comunicado.media_urls);
+  const imagenes = [...new Set([
+    ...(media.imagenes?.length ? media.imagenes : []),
+    ...(isImage && comunicado.archivo_url ? [comunicado.archivo_url] : []),
+    ...storedImages,
+  ].filter(Boolean))];
   const pdfs = isPdfFile && comunicado.archivo_url ? [comunicado.archivo_url] : [];
   const detalleBase = [comunicado.detalle, media.textoExtraido].filter(Boolean).join("\n\n").trim();
 
@@ -16043,6 +16048,57 @@ const canvasToPngBlob = (canvas) => new Promise((resolve, reject) => {
   }, "image/png", 1);
 });
 
+const canvasToBlob = (canvas, mimeType = "image/png", quality = 1) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new Error("No se pudo generar el archivo solicitado."));
+  }, mimeType, quality);
+});
+
+const downloadBrowserBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+};
+
+// PDF mínimo de una sola página que incrusta el JPEG del canvas sin librerías externas.
+const jpegBlobToSinglePagePdf = async (jpegBlob, width, height) => {
+  const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
+  const encoder = new TextEncoder();
+  const chunks = [];
+  let offset = 0;
+  const offsets = [0];
+  const appendText = (text) => {
+    const bytes = encoder.encode(text);
+    chunks.push(bytes);
+    offset += bytes.length;
+  };
+  const appendBytes = (bytes) => { chunks.push(bytes); offset += bytes.length; };
+  const beginObject = (number) => { offsets[number] = offset; appendText(`${number} 0 obj\n`); };
+
+  appendText("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  beginObject(1); appendText("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  beginObject(2); appendText("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+  beginObject(3); appendText(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`);
+  beginObject(4);
+  appendText(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`);
+  appendBytes(jpegBytes);
+  appendText("\nendstream\nendobj\n");
+  const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
+  beginObject(5); appendText(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}endstream\nendobj\n`);
+  const xrefOffset = offset;
+  appendText("xref\n0 6\n0000000000 65535 f \n");
+  for (let i = 1; i <= 5; i += 1) appendText(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+  appendText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return new Blob(chunks, { type: "application/pdf" });
+};
+
 async function composeHorizontalComunicado(file, canvas) {
   const config = COMUNICADO_HORIZONTAL_CONFIG;
   const objectUrl = fileToObjectUrl(file);
@@ -16098,6 +16154,8 @@ function HorizontalComunicadoPanel({ onSubido }) {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState("");
 
   useEffect(() => () => {
     if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
@@ -16256,6 +16314,31 @@ function HorizontalComunicadoPanel({ onSubido }) {
     }
   };
 
+  const downloadHorizontal = async (format) => {
+    if (!finalBlob || !canvasRef.current || downloadingFormat) return;
+    setDownloadingFormat(format);
+    setError("");
+    try {
+      const canvas = canvasRef.current;
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      if (format === "png") {
+        downloadBrowserBlob(finalBlob, `comunicado_horizontal_${stamp}.png`);
+      } else if (format === "jpeg") {
+        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.92);
+        downloadBrowserBlob(jpeg, `comunicado_horizontal_${stamp}.jpg`);
+      } else if (format === "pdf") {
+        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.94);
+        const pdf = await jpegBlobToSinglePagePdf(jpeg, canvas.width, canvas.height);
+        downloadBrowserBlob(pdf, `comunicado_horizontal_${stamp}.pdf`);
+      }
+      setDownloadMenuOpen(false);
+    } catch (downloadError) {
+      setError(downloadError?.message || "No se pudo descargar el comunicado.");
+    } finally {
+      setDownloadingFormat("");
+    }
+  };
+
   const labelStyle = {
     fontFamily: "'Space Mono', monospace",
     color: "rgba(203,213,225,.76)",
@@ -16304,9 +16387,21 @@ function HorizontalComunicadoPanel({ onSubido }) {
         </div>
       )}
 
-      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"16px" }}>
-        <button type="button" onClick={resetHorizontalForm} disabled={publishing} style={{ flex:"1 1 160px", padding:"12px", borderRadius:"8px", border:"1px solid #2c3a4c", background:"rgba(1,15,31,.5)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:publishing?"not-allowed":"pointer" }}>Limpiar</button>
-        <button type="button" onClick={publishHorizontal} disabled={publishing || processing || !finalBlob} style={{ flex:"2 1 220px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.55)", background:(publishing||processing||!finalBlob)?"rgba(34,197,94,.12)":"linear-gradient(135deg,#22c55e,#4ade80)", color:(publishing||processing||!finalBlob)?"rgba(134,239,172,.55)":"#052e16", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(publishing||processing||!finalBlob)?"not-allowed":"pointer" }}>
+      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"16px", alignItems:"stretch" }}>
+        <button type="button" onClick={resetHorizontalForm} disabled={publishing} style={{ flex:"1 1 150px", padding:"12px", borderRadius:"8px", border:"1px solid #2c3a4c", background:"rgba(1,15,31,.5)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:publishing?"not-allowed":"pointer" }}>Limpiar</button>
+        <div style={{ position:"relative", flex:"1 1 190px" }}>
+          <button type="button" onClick={() => setDownloadMenuOpen((open) => !open)} disabled={!finalBlob || processing || publishing || Boolean(downloadingFormat)} aria-haspopup="menu" aria-expanded={downloadMenuOpen} style={{ width:"100%", height:"100%", minHeight:"44px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.48)", background:(!finalBlob||processing)?"rgba(56,189,248,.08)":"rgba(56,189,248,.14)", color:(!finalBlob||processing)?"rgba(125,211,252,.42)":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(!finalBlob||processing)?"not-allowed":"pointer" }}>
+            {downloadingFormat ? "Preparando archivo…" : "DESCARGAR FORMATO"}
+          </button>
+          {downloadMenuOpen && finalBlob && (
+            <div role="menu" style={{ position:"absolute", left:0, right:0, bottom:"calc(100% + 7px)", zIndex:30, padding:"6px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.34)", background:"#071729", boxShadow:"0 16px 38px rgba(0,0,0,.42)" }}>
+              {[{id:"png",label:"Descargar PNG"},{id:"jpeg",label:"Descargar JPEG"},{id:"pdf",label:"Descargar PDF"}].map((option) => (
+                <button key={option.id} role="menuitem" type="button" onClick={() => downloadHorizontal(option.id)} style={{ width:"100%", padding:"10px 12px", border:0, borderRadius:"7px", background:"transparent", color:"#dbeafe", textAlign:"left", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer" }}>{option.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button type="button" onClick={publishHorizontal} disabled={publishing || processing || !finalBlob} style={{ flex:"2 1 260px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.55)", background:(publishing||processing||!finalBlob)?"rgba(34,197,94,.12)":"linear-gradient(135deg,#22c55e,#4ade80)", color:(publishing||processing||!finalBlob)?"rgba(134,239,172,.55)":"#052e16", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(publishing||processing||!finalBlob)?"not-allowed":"pointer" }}>
           {publishing ? "Publicando…" : "PUBLICAR COMUNICADO HORIZONTAL"}
         </button>
       </div>
@@ -16353,6 +16448,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [detalle, setDetalle] = useState("");
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [complementaryFiles, setComplementaryFiles] = useState([]);
+  const [complementaryPreviews, setComplementaryPreviews] = useState([]);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [fechaFinModo, setFechaFinModo] = useState("fecha"); // "fecha" | "fecha_hora"
@@ -16379,6 +16476,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
   const inputRef = useRef();
+  const complementaryInputRef = useRef();
   const comunicadoCanvasRef = useRef(null);
   const generatedGraphicObjectUrlRef = useRef(null);
   const graphicEditorTextareaRef = useRef(null);
@@ -16397,6 +16495,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       }
     };
   }, []);
+
+  useEffect(() => () => {
+    complementaryPreviews.forEach((item) => { try { URL.revokeObjectURL(item.url); } catch {} });
+  }, [complementaryPreviews]);
 
   const localDateInput = (offsetDays = 0) => {
     const d = new Date();
@@ -16484,6 +16586,33 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     } else {
       setPreview("pdf");
     }
+  };
+
+  const addComplementaryFiles = (fileList) => {
+    const incoming = Array.from(fileList || []);
+    if (!incoming.length) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    const invalid = incoming.find((file) => !allowed.includes(file.type));
+    if (invalid) { setError(`La foto ${invalid.name} no es JPG, PNG o WEBP.`); return; }
+    const tooLarge = incoming.find((file) => file.size > 10 * 1024 * 1024);
+    if (tooLarge) { setError(`La foto ${tooLarge.name} supera 10 MB.`); return; }
+    const available = Math.max(0, 10 - complementaryFiles.length);
+    if (!available) { setError("Puedes adjuntar hasta 10 fotos complementarias."); return; }
+    const selected = incoming.slice(0, available);
+    const nextPreviews = selected.map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }));
+    setComplementaryFiles((current) => [...current, ...nextPreviews.map((item) => item.file)]);
+    setComplementaryPreviews((current) => [...current, ...nextPreviews]);
+    setError(incoming.length > available ? `Solo se agregaron ${available} fotos para respetar el límite de 10.` : "");
+    if (complementaryInputRef.current) complementaryInputRef.current.value = "";
+  };
+
+  const removeComplementaryFile = (index) => {
+    setComplementaryPreviews((current) => {
+      const target = current[index];
+      if (target?.url) URL.revokeObjectURL(target.url);
+      return current.filter((_, itemIndex) => itemIndex !== index);
+    });
+    setComplementaryFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const setToolNotice = (message, color = "#2563eb") => {
@@ -18124,25 +18253,49 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     setSubiendo(true);
     setError("");
     try {
-      const ext = archivo.name.split(".").pop();
-      const path = `comunicados/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await sb.storage
-        .from("comunicados")
-        .upload(path, archivo, { contentType: archivo.type, upsert: false });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = sb.storage.from("comunicados").getPublicUrl(path);
-      
-      const { data: comunicadoInsertado, error: insErr } = await sb.from("comunicados").insert({
+      const uploadedPaths = [];
+      const uploadOne = async (file, prefix = "principal") => {
+        const ext = String(file.name || "imagen.png").split(".").pop() || "png";
+        const path = `comunicados/${prefix}_${Date.now()}_${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await sb.storage.from("comunicados").upload(path, file, { contentType: file.type, upsert: false });
+        if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
+        return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
+      };
+
+      const publicUrl = await uploadOne(archivo, "principal");
+      const complementaryUrls = [];
+      for (const complementaryFile of complementaryFiles) {
+        complementaryUrls.push(await uploadOne(complementaryFile, "complementaria"));
+      }
+      const allImageUrls = [
+        ...(archivo.type?.startsWith("image/") ? [publicUrl] : []),
+        ...complementaryUrls,
+      ];
+
+      const basePayload = {
         titulo: titulo.trim(),
         detalle: detalle.trim() || null,
         archivo_url: publicUrl,
         archivo_tipo: archivo.type,
+        media_urls: allImageUrls,
         fecha_inicio: inicio,
         fecha_fin: fin,
         aprobado: isAdmin === true,
         created_at: new Date().toISOString()
-      }).select("*").single();
-      if (insErr) throw insErr;
+      };
+
+      let comunicadoInsertado = null;
+      let insertResult = await sb.from("comunicados").insert(basePayload).select("*").single();
+      if (insertResult.error && /media_urls|column/i.test(String(insertResult.error.message || ""))) {
+        const { media_urls, ...legacyPayload } = basePayload;
+        insertResult = await sb.from("comunicados").insert(legacyPayload).select("*").single();
+      }
+      if (insertResult.error) {
+        try { await sb.storage.from("comunicados").remove(uploadedPaths); } catch {}
+        throw insertResult.error;
+      }
+      comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
@@ -18160,6 +18313,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setDetalle("");
       setArchivo(null);
       setPreview(null);
+      complementaryPreviews.forEach((item) => { try { URL.revokeObjectURL(item.url); } catch {} });
+      setComplementaryFiles([]);
+      setComplementaryPreviews([]);
       setGeneratedGraphicFile(null);
       setGraphicPreviewUrl("");
       setFechaInicio("");
@@ -18369,6 +18525,29 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           {archivo ? `✓ ${archivo.name}` : "Seleccionar JPG, PNG o PDF (máx. 10 MB)"}
         </div>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display: "none" }} />
+      </div>
+
+      <div style={{ background:"rgba(1,15,31,.45)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"14px", marginBottom:"14px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
+          <div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#7dd3fc", fontWeight:900, letterSpacing:".07em" }}>FOTOS COMPLEMENTARIAS</div>
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.5)", marginTop:"3px" }}>Puedes añadir hasta 10 imágenes sin reemplazar el archivo principal o la imagen generada.</div>
+          </div>
+          <button type="button" onClick={() => complementaryInputRef.current?.click()} disabled={subiendo || complementaryFiles.length >= 10} style={{ padding:"9px 12px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.42)", background:"rgba(56,189,248,.1)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(subiendo||complementaryFiles.length>=10)?"not-allowed":"pointer" }}>AGREGAR FOTOS</button>
+          <input ref={complementaryInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => addComplementaryFiles(event.target.files)} style={{ display:"none" }} />
+        </div>
+        {complementaryPreviews.length > 0 ? (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(118px,1fr))", gap:"9px" }}>
+            {complementaryPreviews.map((item, index) => (
+              <div key={item.id} style={{ position:"relative", borderRadius:"8px", overflow:"hidden", border:"1px solid rgba(148,163,184,.25)", background:"#020b16", aspectRatio:"4 / 3" }}>
+                <img src={item.url} alt={`Foto complementaria ${index + 1}`} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+                <button type="button" onClick={() => removeComplementaryFile(index)} aria-label={`Eliminar foto complementaria ${index + 1}`} style={{ position:"absolute", top:"5px", right:"5px", width:"28px", height:"28px", borderRadius:"7px", border:"1px solid rgba(248,113,113,.55)", background:"rgba(69,10,10,.86)", color:"#fecaca", fontSize:"16px", lineHeight:1, cursor:"pointer" }}>×</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding:"13px", border:"1px dashed rgba(148,163,184,.22)", borderRadius:"8px", textAlign:"center", color:"rgba(148,163,184,.55)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Sin fotos complementarias</div>
+        )}
       </div>
 
       <div style={{ background:"rgba(1,15,31,.45)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"14px", marginBottom:"14px" }}>
