@@ -905,15 +905,18 @@ const INCIDENT_TYPES = [
   { id: "obra",      label: "Obra / Desvío",  icon: "construction", color: "#3b82f6" },
 ];
 
+// NOTA: `coords` son puntos aproximados (lat, lng) usados como referencia para
+// consultar TomTom Traffic Flow API en ese segmento. Verifica/ajusta cada punto
+// contra el tramo real antes de usarlo en producción — son estimaciones iniciales.
 const VIALIDADES = [
-  { id: "jalipa_puerto",    name: "Jalipa → Puerto",              fullName: "Vialidad Jalipa - Puerto" },
-  { id: "puerto_jalipa",    name: "Puerto → Jalipa",              fullName: "Vialidad Puerto - Jalipa" },
-  { id: "libramiento",      name: "Cihuatlán-Manzanillo",         fullName: "Libramiento Cihuatlán-Manzanillo" },
-  { id: "mzllo_colima",     name: "Manzanillo → Colima",          fullName: "Carretera Manzanillo-Colima" },
-  { id: "colima_mzllo",     name: "Colima → Manzanillo",          fullName: "Carretera Colima-Manzanillo" },
-  { id: "algodones",        name: "Calle Algodones",              fullName: "Calle Algodones" },
-  { id: "antonio_suarez",   name: "Antonio Suárez",               fullName: "Calle Antonio Suárez" },
-  { id: "av_trabajo",       name: "Av. del Trabajo",              fullName: "Avenida del Trabajo" },
+  { id: "jalipa_puerto",    name: "Jalipa → Puerto",              fullName: "Vialidad Jalipa - Puerto",         coords: { lat: 19.0983, lng: -104.3399 } },
+  { id: "puerto_jalipa",    name: "Puerto → Jalipa",              fullName: "Vialidad Puerto - Jalipa",         coords: { lat: 19.0983, lng: -104.3399 } },
+  { id: "libramiento",      name: "Cihuatlán-Manzanillo",         fullName: "Libramiento Cihuatlán-Manzanillo", coords: { lat: 19.1462, lng: -104.4522 } },
+  { id: "mzllo_colima",     name: "Manzanillo → Colima",          fullName: "Carretera Manzanillo-Colima",      coords: { lat: 19.0518, lng: -104.2853 } },
+  { id: "colima_mzllo",     name: "Colima → Manzanillo",          fullName: "Carretera Colima-Manzanillo",      coords: { lat: 19.0518, lng: -104.2853 } },
+  { id: "algodones",        name: "Calle Algodones",              fullName: "Calle Algodones",                  coords: { lat: 19.0742, lng: -104.3187 } },
+  { id: "antonio_suarez",   name: "Antonio Suárez",               fullName: "Calle Antonio Suárez",             coords: { lat: 19.0728, lng: -104.3161 } },
+  { id: "av_trabajo",       name: "Av. del Trabajo",              fullName: "Avenida del Trabajo",              coords: { lat: 19.0705, lng: -104.3142 } },
 ];
 
 const VIALIDAD_STATUS_OPTIONS = [
@@ -923,11 +926,12 @@ const VIALIDAD_STATUS_OPTIONS = [
   { id: "detenido", label: "Tráfico Detenido",   color: "#ef4444", icon: "xmark" },
 ];
 
+// NOTA: `coords` son puntos aproximados (lat, lng), ver aclaración sobre VIALIDADES arriba.
 const ACCESOS_PRINCIPALES = [
-  { id: "pezvela",   label: "Acceso Pez Vela",  color: "#a78bfa", zona: "Zona Sur"   },
-  { id: "puerta15",  label: "Acceso Puerta 15", color: "#34d399", zona: "Zona Sur"   },
-  { id: "zonanorte", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Zona Norte" },
-  { id: "patio",     label: "Acceso Patio Regulador", color: "#06eb7a", zona: "Zona Sur" },
+  { id: "pezvela",   label: "Acceso Pez Vela",  color: "#a78bfa", zona: "Zona Sur",   coords: { lat: 19.0611, lng: -104.3149 } },
+  { id: "puerta15",  label: "Acceso Puerta 15", color: "#34d399", zona: "Zona Sur",   coords: { lat: 19.0596, lng: -104.3129 } },
+  { id: "zonanorte", label: "Acceso Zona Norte", color: "#38bdf8", zona: "Zona Norte", coords: { lat: 19.0831, lng: -104.3067 } },
+  { id: "patio",     label: "Acceso Patio Regulador", color: "#06eb7a", zona: "Zona Sur", coords: { lat: 19.0679, lng: -104.3183 } },
 ];
 const ACCESO_STATUS_OPTIONS = [
   { id: "libre",    label: "Libre / Fluido", color: "#22c55e", icon: "check" },
@@ -2486,6 +2490,45 @@ const upsertOperationalStatus = async ({ section, itemId, itemName, status, zone
     console.warn("[operational_status] error", e);
   }
 };
+// ─── MODO AUTOMÁTICO DE TRÁFICO (TomTom) ───────────────────────────────────
+// Config compartida entre todos los usuarios vía Supabase (no localStorage),
+// igual patrón que trafico_votos: fila fija + Realtime.
+const CONFIG_TABLE = "config_sistema";
+const CONFIG_KEY_MODO_AUTOMATICO = "modo_automatico_trafico";
+const TRAFFIC_SOURCE_API = "api_tomtom";
+
+const getModoAutomatico = async () => {
+  try {
+    const { data, error } = await sb.from(CONFIG_TABLE).select("*").eq("clave", CONFIG_KEY_MODO_AUTOMATICO).maybeSingle();
+    if (error || !data) return { activo: false, updatedBy: null, updatedAt: null };
+    return { activo: !!data.valor?.activo, updatedBy: data.valor?.updatedBy || null, updatedAt: data.updated_at || null };
+  } catch (e) {
+    console.warn("[config_sistema] error leyendo modo automático", e);
+    return { activo: false, updatedBy: null, updatedAt: null };
+  }
+};
+
+const setModoAutomatico = async (activo, actor = "Admin") => {
+  try {
+    const { error } = await sb.from(CONFIG_TABLE).upsert({
+      clave: CONFIG_KEY_MODO_AUTOMATICO,
+      valor: { activo, updatedBy: actor },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "clave" });
+    if (error) { console.warn("[config_sistema] no se pudo guardar modo automático", error); return false; }
+    await auditLog({ action: activo ? "activar_modo_automatico" : "desactivar_modo_automatico", section: "trafico", entityId: CONFIG_KEY_MODO_AUTOMATICO, before: null, after: { activo }, actor });
+    // Al activar, dispara una sincronización inmediata en vez de esperar al cron de la Edge Function
+    if (activo) {
+      try { await sb.functions.invoke("tomtom-traffic-sync", { body: { trigger: "manual_toggle" } }); }
+      catch (e) { console.warn("[tomtom-traffic-sync] no se pudo invocar de inmediato, el cron lo tomará en el próximo ciclo", e); }
+    }
+    return true;
+  } catch (e) {
+    console.warn("[config_sistema] error guardando modo automático", e);
+    return false;
+  }
+};
+
 const operationalRowsToMap = (rows = [], section) => {
   const map = {};
   (rows || []).filter(r => !section || r.section === section).forEach(r => {
@@ -8029,6 +8072,8 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const [vialidades, setVialidades] = useState(null);
   const [rutasFiscales, setRutasFiscales] = useState(null);
   const [toast, setToast] = useState(null);
+  const [modoAutomatico, setModoAutomaticoState] = useState({ activo: false, updatedBy: null, updatedAt: null });
+  const [togglingModo, setTogglingModo] = useState(false);
   const initialView = defaultSection === "accesos" ? "accesos" : (defaultSection || "vialidades");
   const [activeView, setActiveView] = useState(() => {
     if (defaultSection) return initialView;
@@ -8124,7 +8169,35 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     return () => sb.removeChannel(chan);
   }, []);
 
+  useEffect(() => {
+    getModoAutomatico().then(setModoAutomaticoState);
+    const chan = sb.channel("config-sistema-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: CONFIG_TABLE, filter: `clave=eq.${CONFIG_KEY_MODO_AUTOMATICO}` }, () => {
+        getModoAutomatico().then(setModoAutomaticoState);
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
+
+  const toggleModoAutomatico = async () => {
+    if (!isAdmin || togglingModo) return;
+    setTogglingModo(true);
+    const nuevoValor = !modoAutomatico.activo;
+    const ok = await setModoAutomatico(nuevoValor, "Admin");
+    setTogglingModo(false);
+    if (ok) {
+      setModoAutomaticoState({ activo: nuevoValor, updatedBy: "Admin", updatedAt: new Date().toISOString() });
+      notify(nuevoValor ? "Modo automático (TomTom) activado — sincronizando…" : "Modo manual restaurado", nuevoValor ? "#38bdf8" : "#22c55e");
+    } else {
+      notify("No se pudo cambiar el modo. Intenta de nuevo.", "#ef4444");
+    }
+  };
+
+  // Bloquea voto manual de usuarios normales mientras el modo automático está activo.
+  // El admin conserva la opción de forzar un cambio manual en cualquier momento.
+  const bloqueadoPorModoAutomatico = modoAutomatico.activo && !isAdmin;
+
   const voteAcceso = async (id, newStatus) => {
+    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const acc = accesos?.[id];
     if (!acc) return;
@@ -8147,6 +8220,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   };
 
   const voteVialidad = async (id, newStatus) => {
+    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const v = vialidades?.[id];
     if (!v) return;
@@ -8169,6 +8243,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
+    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
     if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
@@ -8222,6 +8297,40 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         </div>
         <div className="cm-command-live">EN VIVO</div>
       </div>
+
+      {isAdmin && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px",
+          margin: "10px 0", padding: "10px 12px", borderRadius: "10px",
+          background: modoAutomatico.activo ? "rgba(56,189,248,0.08)" : "rgba(148,163,184,0.06)",
+          border: `1px solid ${modoAutomatico.activo ? "rgba(56,189,248,0.35)" : "rgba(148,163,184,0.2)"}`,
+        }}>
+          <div>
+            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: 800, color: modoAutomatico.activo ? "#38bdf8" : "rgba(212,228,250,.78)" }}>
+              {modoAutomatico.activo ? "Modo automático activo (TomTom)" : "Modo manual (votos de usuarios)"}
+            </div>
+            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(148,163,184,.75)", marginTop: "2px" }}>
+              {modoAutomatico.activo
+                ? "El estatus de accesos, vialidades y rutas se actualiza vía TomTom Traffic API. Puedes seguir forzando cambios manuales como admin."
+                : "Método de prueba: activa para que TomTom actualice el estatus automáticamente."}
+            </div>
+          </div>
+          <button
+            onClick={toggleModoAutomatico}
+            disabled={togglingModo}
+            style={{
+              flexShrink: 0, padding: "9px 14px", borderRadius: "8px",
+              border: `1px solid ${modoAutomatico.activo ? "#ef4444" : "#38bdf8"}`,
+              background: modoAutomatico.activo ? "rgba(239,68,68,.12)" : "rgba(56,189,248,.12)",
+              color: modoAutomatico.activo ? "#ef4444" : "#38bdf8",
+              fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: 800,
+              cursor: togglingModo ? "wait" : "pointer",
+            }}
+          >
+            {togglingModo ? "Aplicando…" : modoAutomatico.activo ? "Volver a modo manual" : "Activar monitoreo automático"}
+          </button>
+        </div>
+      )}
 
       <div key={`map-${activeView}`} className="cm-active-map-slot">
         {renderActiveMap()}
