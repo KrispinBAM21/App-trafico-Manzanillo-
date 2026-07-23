@@ -198,6 +198,10 @@ const ADSENSE_CLIENT_ID = "ca-pub-6574016310382297";
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "https://wnchrhglwszrrcrhhukg.supabase.co";
 const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduY2hyaGdsd3NyenJjcmhodWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyMzI0NzksImV4cCI6MjA1MjgwODQ3OX0.4EUDMOIKFUOa7pQZU8KBp_bC8xt--u10iQO5Ru4pC5Y";
 const GLOBAL_AVATARS_BUCKET = import.meta.env.VITE_SUPABASE_AVATARS_BUCKET || "avatars";
+// Bucket real usado por Noticias. El bucket "noticias" no existe en este proyecto
+// y generaba URLs 404 con { statusCode: "404", error: "Bucket not found" }.
+// Puede sobrescribirse desde VITE_SUPABASE_NOTICIAS_BUCKET si después creas otro bucket.
+const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET || "comunicados";
 
 const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
@@ -3071,9 +3075,9 @@ const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.88));
       if (blob) {
         const path = `${bucketPath || "noticias/pdf"}/page_${Date.now()}_${pageNo}_${Math.random().toString(36).slice(2)}.jpg`;
-        const { error } = await sb.storage.from("noticias").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+        const { error } = await sb.storage.from(NOTICIAS_STORAGE_BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
         if (!error) {
-          const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+          const { data: { publicUrl } } = sb.storage.from(NOTICIAS_STORAGE_BUCKET).getPublicUrl(path);
           imageUrls.push(publicUrl);
         }
       }
@@ -15788,7 +15792,16 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
         {isPdf ? (
           <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"94vh", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
         ) : (
-          <img src={item.archivo_url} alt="Imagen ampliada" style={{ maxWidth:"100%", maxHeight:"96vh", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
+          <img
+            src={item.archivo_url}
+            alt="Imagen ampliada"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              console.error("No se pudo abrir la imagen:", item.archivo_url);
+              e.currentTarget.style.display = "none";
+            }}
+            style={{ maxWidth:"100%", maxHeight:"96vh", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }}
+          />
         )}
 
         <button onClick={onClose} title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"14px", right:"14px", fontSize:"22px" }}>×</button>
@@ -17673,9 +17686,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       let publicUrl = "";
       let uploadError = null;
 
-      const upNoticias = await sb.storage.from("noticias").upload(pathNoticias, archivo, { contentType: archivo.type, upsert: false });
+      const upNoticias = await sb.storage.from(NOTICIAS_STORAGE_BUCKET).upload(pathNoticias, archivo, { contentType: archivo.type, upsert: false });
       if (!upNoticias.error) {
-        publicUrl = sb.storage.from("noticias").getPublicUrl(pathNoticias).data.publicUrl;
+        publicUrl = sb.storage.from(NOTICIAS_STORAGE_BUCKET).getPublicUrl(pathNoticias).data.publicUrl;
       } else {
         uploadError = upNoticias.error;
         const pathComunicados = `comunicados/noticias_${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
@@ -17700,7 +17713,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         ocultar_en_feed: false,
       };
       await insertNoticiaConFallback(payload);
-      setToolNotice(uploadError ? "Publicado en Noticias usando el bucket comunicados." : "Publicado en Noticias.", "#22c55e");
+      setToolNotice(`Publicado en Noticias usando el bucket ${NOTICIAS_STORAGE_BUCKET}.`, "#22c55e");
     } catch (e) {
       console.error(e);
       setToolNotice("No se pudo publicar en Noticias. Revisa bucket/políticas de Supabase.", "#ef4444");
@@ -19766,9 +19779,9 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
     for (const file of files) {
       const ext = sanitizeStorageName(file.name.split(".").pop() || (file.type === "application/pdf" ? "pdf" : "jpg"));
       const path = `noticias/${Date.now()}_${Math.random().toString(36).slice(2)}_${sanitizeStorageName(file.name)}`;
-      const { error } = await sb.storage.from("noticias").upload(path, file, { contentType: file.type, upsert: false });
+      const { error } = await sb.storage.from(NOTICIAS_STORAGE_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
       if (error) throw error;
-      const { data: { publicUrl } } = sb.storage.from("noticias").getPublicUrl(path);
+      const { data: { publicUrl } } = sb.storage.from(NOTICIAS_STORAGE_BUCKET).getPublicUrl(path);
       if (file.type === "application/pdf") uploadedPdfs.push({ url: publicUrl, type: file.type, path });
       else uploadedImages.push(publicUrl);
     }
@@ -20504,9 +20517,55 @@ function NoticiasTab({ isAdmin }) {
     return `hace ${Math.floor(d/86400000)}d`;
   };
 
-  const isPdf = (url) => url?.toLowerCase().endsWith(".pdf");
-  const getMedia = (n) => [...parseJsonArray(n.media_urls), ...(n.archivo_url && !isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
-  const getPdfs = (n) => [...parseJsonArray(n.pdf_urls), ...(n.archivo_url && isPdf(n.archivo_url) ? [n.archivo_url] : [])].filter(Boolean);
+  const normalizeNoticiasStorageUrl = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    // Corrige registros históricos que apuntan al bucket inexistente "noticias".
+    // Conserva la ruta del objeto, pero usa el bucket real configurado arriba.
+    try {
+      const url = new URL(raw, window.location.origin);
+      const marker = "/storage/v1/object/public/noticias/";
+      if (url.pathname.includes(marker)) {
+        url.pathname = url.pathname.replace(
+          marker,
+          `/storage/v1/object/public/${NOTICIAS_STORAGE_BUCKET}/`
+        );
+        return url.toString();
+      }
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  };
+
+  const isPdf = (url, mime = "") =>
+    String(mime || "").toLowerCase().includes("pdf") ||
+    /\.pdf(?:$|[?#])/i.test(String(url || ""));
+
+  const isImage = (url, mime = "") => {
+    const type = String(mime || "").toLowerCase();
+    const value = String(url || "");
+    return type.startsWith("image/") ||
+      value.startsWith("blob:") ||
+      value.startsWith("data:image/") ||
+      /\.(png|jpe?g|webp|gif|avif|svg)(?:$|[?#])/i.test(value);
+  };
+
+  const uniqueUrls = (values) => [...new Set(
+    values.map(normalizeNoticiasStorageUrl).filter(Boolean)
+  )];
+
+  const getMedia = (n) => uniqueUrls([
+    ...parseJsonArray(n.media_urls),
+    n.imagen_url,
+    n.archivo_url,
+  ]).filter((url) => isImage(url, n.archivo_tipo) && !isPdf(url, n.archivo_tipo));
+
+  const getPdfs = (n) => uniqueUrls([
+    ...parseJsonArray(n.pdf_urls),
+    n.archivo_url,
+  ]).filter((url) => isPdf(url, n.archivo_tipo));
 
   const openVisor = useCallback((item, items = null, index = 0) => {
     const list = Array.isArray(items) && items.length ? items : [item].filter(Boolean);
@@ -20861,7 +20920,18 @@ function NoticiasTab({ isAdmin }) {
                 return (
                   <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
                     <div style={{ position:"relative", display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-                      {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img src={u} alt={n.titulo} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
+                      {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img
+                          src={u}
+                          alt={n.titulo || "Imagen de noticia"}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            console.error("Imagen de Noticias no disponible:", u);
+                            const button = e.currentTarget.closest("button");
+                            if (button) button.style.display = "none";
+                          }}
+                          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                        /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
                       {origen === "comunicados" && <div style={{ position:"absolute", top:"10px", right:"10px", width:"34px", height:"34px", borderRadius:"12px", background:"rgba(7,16,30,.72)", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", boxShadow:"0 10px 24px rgba(2,6,23,.28)" }}><NoticiasComunicadoMiniIcon size={18} color="#ffffff" /></div>}
                     </div>
 
