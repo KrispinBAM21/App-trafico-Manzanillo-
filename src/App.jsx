@@ -2568,7 +2568,34 @@ function AutomaticTrafficNotice() {
   return null;
 }
 
-const automaticModeBlockedMessage = "Modo automático activo — el estado es administrado por TomTom + IA";
+// Los usuarios siguen votando durante el modo automático. El voto no cambia el
+// estado directamente: se envía al backend para contrastarlo con TomTom, el
+// historial y las reglas operativas. Si se valida, Realtime reflejará el cambio.
+const TRAFFIC_VOTE_VALIDATION_FUNCTION = "tomtom-traffic-validate-vote";
+const submitTrafficVoteForValidation = async ({
+  section, itemId, status = null, field = null, value = null, userId = null, metadata = {}
+}) => {
+  try {
+    const { data, error } = await sb.functions.invoke(TRAFFIC_VOTE_VALIDATION_FUNCTION, {
+      body: {
+        action: "validate_vote",
+        section,
+        itemId,
+        status,
+        field,
+        value,
+        userId,
+        metadata,
+        submittedAt: new Date().toISOString(),
+      },
+    });
+    if (error) throw error;
+    return { ok: data?.ok !== false, accepted: data?.accepted === true, data };
+  } catch (error) {
+    console.warn(`[${TRAFFIC_VOTE_VALIDATION_FUNCTION}] no se pudo validar el voto`, error);
+    return { ok: false, accepted: false, error };
+  }
+};
 
 const persistCarrilesRow = (rowId, data) => writeStatusCache(`carriles:${rowId}`, data);
 const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
@@ -8219,12 +8246,16 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
     }
   };
 
-  // Bloquea voto manual de usuarios normales mientras el modo automático está activo.
+  // Durante el modo automático, los votos de usuarios se validan en backend antes de aplicarse.
   // El admin conserva la opción de forzar un cambio manual en cualquier momento.
   const bloqueadoPorModoAutomatico = modoAutomatico.activo && !isAdmin;
 
   const voteAcceso = async (id, newStatus) => {
-    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"accesos", itemId:id, status:newStatus, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const acc = accesos?.[id];
     if (!acc) return;
@@ -8247,7 +8278,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   };
 
   const voteVialidad = async (id, newStatus) => {
-    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"vialidades", itemId:id, status:newStatus, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const v = vialidades?.[id];
     if (!v) return;
@@ -8270,7 +8305,11 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
-    if (bloqueadoPorModoAutomatico) return notify("Modo automático activo — estatus actualizado por TomTom", "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"rutas_fiscales", itemId:id, status:newStatus, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
@@ -13389,7 +13428,11 @@ function TerminalesTab({ myId, isAdmin = false }) {
   }, []);
 
   const vote = async (termId, newStatus, forceChange = false) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"terminales", itemId:termId, status:newStatus, userId:myId, metadata:{ forceChange } });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
@@ -13419,7 +13462,11 @@ function TerminalesTab({ myId, isAdmin = false }) {
   };
 
   const voteRutaFiscal = async (id, newStatus, forceChange = false) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"rutas_fiscales", itemId:id, status:newStatus, userId:myId, metadata:{ forceChange } });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
@@ -14573,7 +14620,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
 
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:id, field, value, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!carriles) return;
     const prev = carriles;
     const key = `${id}:${field}`;
@@ -14596,7 +14647,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:"c4", field, value, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     const prev = carriles;
     const key = `c4:${field}`;
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -14621,7 +14676,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
   const updateIngresoEstado = async (id, estadoId) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:id, status:estadoId, field:"estado_carril", value:estadoId, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!carriles) return;
     const prev = carriles;
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
@@ -14643,7 +14702,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   };
 
   const updateSalidaEstado = async (estadoId) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:"c4", status:estadoId, field:"estado_carril", value:estadoId, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!carriles?.c4) return;
     const prev = carriles;
     const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
@@ -14659,14 +14722,14 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const next = mkSegundoIngreso();
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Todos los carriles restablecidos", "#22c55e");
   };
   const resetOne = async (id) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
@@ -14676,7 +14739,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
 
   // ── Handlers CONFINADA ──
   const updateConfinada = async (id, field, value) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"confinados", itemId:id, field, value, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!confinada) return;
     const key = `${id}:${field}`;
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -14693,7 +14760,11 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateConfinadaEstado = async (id, estadoId) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"confinados", itemId:id, status:estadoId, field:"estado_carril", value:estadoId, userId:myId });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (!confinada) return;
     const prev = confinada;
     const def = CONFINADA_CARRILES.find(c => c.id === id);
@@ -14714,14 +14785,14 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   };
 
   const resetAllConfinada = async () => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const next = mkConfinadaState();
     setConfinada(next);
     await saveConfinada(next);
     notify("✓ Confinada restablecida", "#a78bfa");
   };
   const resetOneConfinada = async (id) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const def = CONFINADA_CARRILES.find(c => c.id === id);
     const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
@@ -15652,7 +15723,11 @@ function CarrilesTab({ isAdmin = false }) {
   }, []);
 
   const toggle = async (cid, value) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"accesos", itemId:cid, status:value ? "abierto" : "cerrado", field:"abierto", value, userId:getDeviceId() });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setEstado(next);
     await saveToSupa(next);
@@ -15662,7 +15737,7 @@ function CarrilesTab({ isAdmin = false }) {
   };
 
   const resetAcceso = async (acc) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const next = { ...estado };
     acc.carriles.forEach(c => { next[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
     setEstado(next);
@@ -15671,7 +15746,7 @@ function CarrilesTab({ isAdmin = false }) {
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const next = mkCarrilesState();
     setEstado(next);
     await saveToSupa(next);
@@ -26256,7 +26331,11 @@ function PatioReguladorTab({ myId, isAdmin = false }) {
   }, []);
 
   const vote = async (patioId, newStatus, forceChange = false) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) {
+      const result = await submitTrafficVoteForValidation({ section:"patios", itemId:patioId, status:newStatus, userId:myId, metadata:{ forceChange } });
+      if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
+      return;
+    }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`patio_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
@@ -26291,7 +26370,7 @@ function PatioReguladorTab({ myId, isAdmin = false }) {
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} }]));
     setPatios(next); persistStatusMap("patios", next);
     await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
@@ -26299,7 +26378,7 @@ function PatioReguladorTab({ myId, isAdmin = false }) {
   };
 
   const resetOne = async (id) => {
-    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
+    if (bloqueadoPorModoAutomatico) return;
     const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} };
     setPatios(prev => ({ ...(prev || {}), [id]: entry })); persistStatusEntry("patios", id, entry);
     await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
