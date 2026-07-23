@@ -2562,14 +2562,10 @@ function useModoAutomaticoTrafico() {
   return modo;
 }
 
-function AutomaticTrafficNotice({ modo, isAdmin=false, label="esta sección" }) {
-  if (!modo?.activo) return null;
-  return (
-    <div role="status" style={{ margin:"0 0 14px", padding:"11px 13px", borderRadius:"12px", border:"1px solid rgba(56,189,248,.38)", background:"linear-gradient(135deg,rgba(2,132,199,.18),rgba(14,165,233,.08))", color:"#bae6fd", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", lineHeight:1.5, display:"flex", gap:"9px", alignItems:"flex-start" }}>
-      <AppIcon name="satellite" size={18} active />
-      <div><strong>Modo automático TomTom + IA activo.</strong> Los estados de {label} se actualizan con evidencia histórica. Saturación no equivale a cierre y un carril solo puede declararse cerrado después de más de 2 horas de evidencia continua. {isAdmin ? "Como administrador puedes aplicar una corrección manual." : "Los controles manuales están temporalmente bloqueados."}</div>
-    </div>
-  );
+// El modo automático funciona en segundo plano sin insertar avisos dentro de las tarjetas.
+// Se conserva el componente para no alterar las llamadas existentes en cada sección.
+function AutomaticTrafficNotice() {
+  return null;
 }
 
 const automaticModeBlockedMessage = "Modo automático activo — el estado es administrado por TomTom + IA";
