@@ -2543,6 +2543,37 @@ const operationalRowsToMap = (rows = [], section) => {
   return map;
 };
 
+// Hook compartido para Terminales, Patios, Confinados y Accesos.
+// La API key y el razonamiento TomTom/IA permanecen exclusivamente en la Edge Function.
+function useModoAutomaticoTrafico() {
+  const [modo, setModo] = useState({ activo:false, updatedBy:null, updatedAt:null, loading:true });
+  useEffect(() => {
+    let mounted = true;
+    const refresh = async () => {
+      const value = await getModoAutomatico();
+      if (mounted) setModo({ ...value, loading:false });
+    };
+    refresh();
+    const channel = sb.channel(`modo-automatico-global-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event:"*", schema:"public", table:CONFIG_TABLE, filter:`clave=eq.${CONFIG_KEY_MODO_AUTOMATICO}` }, refresh)
+      .subscribe();
+    return () => { mounted = false; sb.removeChannel(channel); };
+  }, []);
+  return modo;
+}
+
+function AutomaticTrafficNotice({ modo, isAdmin=false, label="esta sección" }) {
+  if (!modo?.activo) return null;
+  return (
+    <div role="status" style={{ margin:"0 0 14px", padding:"11px 13px", borderRadius:"12px", border:"1px solid rgba(56,189,248,.38)", background:"linear-gradient(135deg,rgba(2,132,199,.18),rgba(14,165,233,.08))", color:"#bae6fd", fontFamily:"'DM Sans',sans-serif", fontSize:"11px", lineHeight:1.5, display:"flex", gap:"9px", alignItems:"flex-start" }}>
+      <AppIcon name="satellite" size={18} active />
+      <div><strong>Modo automático TomTom + IA activo.</strong> Los estados de {label} se actualizan con evidencia histórica. Saturación no equivale a cierre y un carril solo puede declararse cerrado después de más de 2 horas de evidencia continua. {isAdmin ? "Como administrador puedes aplicar una corrección manual." : "Los controles manuales están temporalmente bloqueados."}</div>
+    </div>
+  );
+}
+
+const automaticModeBlockedMessage = "Modo automático activo — el estado es administrado por TomTom + IA";
+
 const persistCarrilesRow = (rowId, data) => writeStatusCache(`carriles:${rowId}`, data);
 const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
 
@@ -13260,6 +13291,8 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
 
 function TerminalesTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  const modoAutomaticoGlobal = useModoAutomaticoTrafico();
+  const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   // Inyectar estilos antes de que el mapa Leaflet calcule tamaño.
   // Esto evita que el contenedor se inicialice con alto 0 y desaparezcan polígonos/etiquetas.
   if (typeof document !== "undefined") ensureTerminalesPortuariasPremiumStyle();
@@ -13360,6 +13393,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
   }, []);
 
   const vote = async (termId, newStatus, forceChange = false) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
@@ -13389,6 +13423,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
   };
 
   const voteRutaFiscal = async (id, newStatus, forceChange = false) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const ruta = rutasFiscales?.[id];
     if (!ruta) return;
@@ -13540,6 +13575,7 @@ function TerminalesTab({ myId, isAdmin = false }) {
 
   return (
     <div className="port-dashboard-shell">
+      <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="terminales y rutas fiscales" />
       <div className="port-dashboard-ticker"><TypewriterTicker items={tickerItems} /></div>
 
       <MapaTerminales zona={zona} vista={vistaTerminalesPortuarias} stMap={stMap} rutasFiscales={rutasFiscales} setZonaActiva={setZonaPersist} />
@@ -14490,8 +14526,10 @@ function TerminalSearchBox({ value, onChange, theme }) {
   );
 }
 
-function SegundoAccesoTab({ myId }) {
+function SegundoAccesoTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  const modoAutomaticoGlobal = useModoAutomaticoTrafico();
+  const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   const [subTab, setSubTab] = useState("segundo");
   const [segundoLegendOpen, setSegundoLegendOpen] = useState(false);
   const [selectedSecondLane, setSelectedSecondLane] = useState("c4");
@@ -14539,6 +14577,7 @@ function SegundoAccesoTab({ myId }) {
 
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (!carriles) return;
     const prev = carriles;
     const key = `${id}:${field}`;
@@ -14561,6 +14600,7 @@ function SegundoAccesoTab({ myId }) {
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateSalida = async (field, value) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const prev = carriles;
     const key = `c4:${field}`;
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -14585,6 +14625,7 @@ function SegundoAccesoTab({ myId }) {
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
   const updateIngresoEstado = async (id, estadoId) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (!carriles) return;
     const prev = carriles;
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
@@ -14606,6 +14647,7 @@ function SegundoAccesoTab({ myId }) {
   };
 
   const updateSalidaEstado = async (estadoId) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (!carriles?.c4) return;
     const prev = carriles;
     const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
@@ -14621,12 +14663,14 @@ function SegundoAccesoTab({ myId }) {
   };
 
   const resetAll = async () => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = mkSegundoIngreso();
     setCarriles(next);
     await saveToSupa(next);
     notify("✓ Todos los carriles restablecidos", "#22c55e");
   };
   const resetOne = async (id) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
@@ -14636,6 +14680,7 @@ function SegundoAccesoTab({ myId }) {
 
   // ── Handlers CONFINADA ──
   const updateConfinada = async (id, field, value) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (!confinada) return;
     const key = `${id}:${field}`;
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
@@ -14652,6 +14697,7 @@ function SegundoAccesoTab({ myId }) {
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateConfinadaEstado = async (id, estadoId) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (!confinada) return;
     const prev = confinada;
     const def = CONFINADA_CARRILES.find(c => c.id === id);
@@ -14672,12 +14718,14 @@ function SegundoAccesoTab({ myId }) {
   };
 
   const resetAllConfinada = async () => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = mkConfinadaState();
     setConfinada(next);
     await saveConfinada(next);
     notify("✓ Confinada restablecida", "#a78bfa");
   };
   const resetOneConfinada = async (id) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const def = CONFINADA_CARRILES.find(c => c.id === id);
     const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
@@ -14714,6 +14762,7 @@ function SegundoAccesoTab({ myId }) {
   });
   const laneHeaderNode = (iconName, title, subtitle, accent, iconSize = 26) => (
     <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+      <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="carriles del Segundo Acceso y Confinada" />
       <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
         <AppIcon name={iconName} size={iconSize} active />
       </div>
@@ -15572,8 +15621,10 @@ function SegundoAccesoTab({ myId }) {
 }
 
 // ─── TAB: CARRILES ────────────────────────────────────────────────────────────
-function CarrilesTab() {
+function CarrilesTab({ isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  const modoAutomaticoGlobal = useModoAutomaticoTrafico();
+  const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   const carrilesMobile = useWindowWidth() < 720;
   const [estado,  setEstado]  = useState(mkCarrilesState);
   const [accView, setAccView] = useState(() => {
@@ -15605,6 +15656,7 @@ function CarrilesTab() {
   }, []);
 
   const toggle = async (cid, value) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setEstado(next);
     await saveToSupa(next);
@@ -15614,6 +15666,7 @@ function CarrilesTab() {
   };
 
   const resetAcceso = async (acc) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = { ...estado };
     acc.carriles.forEach(c => { next[c.id] = { abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
     setEstado(next);
@@ -15622,6 +15675,7 @@ function CarrilesTab() {
   };
 
   const resetAll = async () => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = mkCarrilesState();
     setEstado(next);
     await saveToSupa(next);
@@ -15650,6 +15704,7 @@ function CarrilesTab() {
   });
   const laneHeaderNode = (iconName, title, subtitle, accent, iconSize = 26) => (
     <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
+      <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="carriles de accesos" />
       <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
         <AppIcon name={iconName} size={iconSize} active />
       </div>
@@ -26160,8 +26215,10 @@ function PatioIdentificaMap({ myId }) {
 }
 
 
-function PatioReguladorTab({ myId }) {
+function PatioReguladorTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  const modoAutomaticoGlobal = useModoAutomaticoTrafico();
+  const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
   const [patios,      setPatios]      = useState(null);  // null = loading
   const [toast,       setToast]       = useState(null);
@@ -26203,6 +26260,7 @@ function PatioReguladorTab({ myId }) {
   }, []);
 
   const vote = async (patioId, newStatus, forceChange = false) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`patio_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
@@ -26237,6 +26295,7 @@ function PatioReguladorTab({ myId }) {
   };
 
   const resetAll = async () => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} }]));
     setPatios(next); persistStatusMap("patios", next);
     await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
@@ -26244,6 +26303,7 @@ function PatioReguladorTab({ myId }) {
   };
 
   const resetOne = async (id) => {
+    if (bloqueadoPorModoAutomatico) return notify(automaticModeBlockedMessage, "#38bdf8");
     const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} };
     setPatios(prev => ({ ...(prev || {}), [id]: entry })); persistStatusEntry("patios", id, entry);
     await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
@@ -26258,6 +26318,7 @@ function PatioReguladorTab({ myId }) {
 
   return (
     <div className="port-dashboard-shell">
+      <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="patios reguladores" />
       <div className="port-dashboard-ticker"><TypewriterTicker items={patioTickerItems} /></div>
 
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"16px", padding:"14px", marginBottom:"18px" }}>
@@ -29502,7 +29563,7 @@ function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
   };
   const tabs = [
     { id: "estado", label: "Estado de Accesos", icon: TAB_PUBLIC_ICONS.accesos || "access-gate", render: () => <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} defaultSection="accesos" hideSubnav /> },
-    { id: "carriles", label: "Control de Carriles", icon: TAB_PUBLIC_ICONS.carriles || "lane-control", render: () => <CarrilesTab /> },
+    { id: "carriles", label: "Control de Carriles", icon: TAB_PUBLIC_ICONS.carriles || "lane-control", render: () => <CarrilesTab isAdmin={isAdmin} /> },
   ];
   return (
     <SectionSubTabs
@@ -29515,7 +29576,7 @@ function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
   );
 }
 
-function TerminalesPatiosTab({ myId }) {
+function TerminalesPatiosTab({ myId, isAdmin = false }) {
   const [activeSubtab, setActiveSubtab] = useState(() => {
     try { return sessionStorage.getItem("terminales_patios_subtab") || "terminales"; } catch { return "terminales"; }
   });
@@ -29524,8 +29585,8 @@ function TerminalesPatiosTab({ myId }) {
     setActiveSubtab(id);
   };
   const tabs = [
-    { id: "terminales", label: "Terminales Portuarias", icon: TAB_PUBLIC_ICONS.terminales || "port-terminal", render: () => <TerminalesTab myId={myId} /> },
-    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} /> },
+    { id: "terminales", label: "Terminales Portuarias", icon: TAB_PUBLIC_ICONS.terminales || "port-terminal", render: () => <TerminalesTab myId={myId} isAdmin={isAdmin} /> },
+    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} isAdmin={isAdmin} /> },
   ];
   return (
     <SectionSubTabs
@@ -30590,8 +30651,8 @@ function App() {
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
-        {active === "terminales" && <TerminalesPatiosTab myId={myId} />}
-        {active === "segundo"    && <SegundoAccesoTab myId={myId} />}
+        {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} />}
+        {active === "segundo"    && <SegundoAccesoTab myId={myId} isAdmin={isAdmin} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
