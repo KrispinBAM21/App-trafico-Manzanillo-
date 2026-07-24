@@ -2573,12 +2573,20 @@ function AutomaticTrafficNotice() {
 // historial y las reglas operativas. Si se valida, Realtime reflejará el cambio.
 const TRAFFIC_VOTE_VALIDATION_FUNCTION = "tomtom-traffic-validate-vote";
 const submitTrafficVoteForValidation = async ({
-  section, itemId, status = null, field = null, value = null, userId = null, metadata = {}
+  action = "validate_vote",
+  section,
+  itemId,
+  status = null,
+  field = null,
+  value = null,
+  userId = null,
+  metadata = {},
 }) => {
   try {
+    const normalizedAction = String(action || "validate_vote").trim() || "validate_vote";
     const { data, error } = await sb.functions.invoke(TRAFFIC_VOTE_VALIDATION_FUNCTION, {
       body: {
-        action: "validate_vote",
+        action: normalizedAction,
         section,
         itemId,
         status,
@@ -8279,7 +8287,7 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
 
   const voteVialidad = async (id, newStatus) => {
     if (bloqueadoPorModoAutomatico) {
-      const result = await submitTrafficVoteForValidation({ section:"vialidades", itemId:id, status:newStatus, userId:myId });
+      const result = await submitTrafficVoteForValidation({ action:"vialidad", section:"vialidades", itemId:id, status:newStatus, field:"estado_carril", value:newStatus, userId:myId });
       if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
       return;
     }
