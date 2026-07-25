@@ -4453,6 +4453,8 @@ function AdminRegistrosPanel() {
   const [query, setQuery] = useState("");
   const [onlyDevice, setOnlyDevice] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [recordsView, setRecordsView] = useState("sessions");
   const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
   const chipBtn = (active, color="#38bdf8") => ({ padding:"7px 10px", borderRadius:999, border:`1px solid ${active ? color : "rgba(255,255,255,.13)"}`, background:active ? color+"22" : "rgba(255,255,255,.04)", color:active ? color : "rgba(255,255,255,.55)", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:800, cursor:"pointer" });
   const norm = (v) => String(v || "").toLowerCase();
@@ -4472,6 +4474,17 @@ function AdminRegistrosPanel() {
     setLogs(data || []);
   };
   useEffect(() => { load(); const ch = sb.channel("admin-audit-rt").on("postgres_changes", { event:"*", schema:"public", table:"admin_audit_logs" }, load).subscribe(); return () => sb.removeChannel(ch); }, []);
+  useEffect(() => {
+    const channel = sb.channel("cm-active-sessions");
+    const sync = () => {
+      const state = channel.presenceState();
+      const sessions = Object.entries(state).flatMap(([presenceKey, entries]) => (entries || []).map(entry => ({ ...entry, presenceKey })));
+      const unique = Array.from(new Map(sessions.map(item => [item.device_id || item.user_id || item.presenceKey, item])).values());
+      setActiveSessions(unique.sort((a,b) => String(b.last_seen || b.online_at || "").localeCompare(String(a.last_seen || a.online_at || ""))));
+    };
+    channel.on("presence", { event:"sync" }, sync).on("presence", { event:"join" }, sync).on("presence", { event:"leave" }, sync).subscribe();
+    return () => sb.removeChannel(channel);
+  }, []);
   const selectedActions = () => Object.entries(actions).filter(([,v])=>v).map(([k])=>k);
   const sendMessage = async (type="mensaje") => {
     if (!deviceId.trim() || !message.trim()) return alert("Escribe device_id y mensaje.");
@@ -4549,7 +4562,21 @@ function AdminRegistrosPanel() {
       <button onClick={revokeAll} style={{...inp,width:"auto",cursor:"pointer",color:"#ef4444"}}>🧹 Anular todos sus votos</button>
     </div>
 
-    <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:8, margin:"18px 0 12px" }}>
+      {[["sessions","Sesiones activas",activeSessions.length,"sensors"],["history","Historial",logs.length,"history"],["sanctions","Sanciones y acciones",deviceId ? 1 : 0,"gavel"]].map(([id,label,count,icon]) => <button key={id} type="button" onClick={()=>setRecordsView(id)} style={{ minHeight:54, padding:"10px 12px", borderRadius:8, border:`1px solid ${recordsView===id ? "rgba(159,202,255,.58)" : "rgba(63,71,83,.55)"}`, background:recordsView===id ? "rgba(159,202,255,.10)" : "rgba(29,32,34,.70)", color:recordsView===id ? "#bdf4ff" : "#bfc7d5", fontFamily:"Inter,sans-serif", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, transition:"all .3s ease" }}><span style={{display:"inline-flex",alignItems:"center",gap:8}}><MS name={icon} size={20} active={recordsView===id}/>{label}</span><span style={{fontSize:12,color:"#9fcaff"}}>{count}</span></button>)}
+    </div>
+
+    {recordsView === "sessions" && <div style={{ background:"rgba(29,32,34,.70)", backdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,.45)", borderRadius:8, overflow:"hidden", marginBottom:12 }}>
+      <div style={{ padding:"12px 14px", background:"rgba(50,53,55,.55)", borderBottom:"1px solid rgba(63,71,83,.45)", display:"flex", justifyContent:"space-between", alignItems:"center" }}><div style={{display:"flex",alignItems:"center",gap:9,color:"#e0e3e5",fontFamily:"Inter,sans-serif",fontWeight:800}}><MS name="sensors" size={21} active/>Cuentas con sesión iniciada</div><span style={{padding:"4px 9px",borderRadius:999,background:"rgba(0,227,253,.10)",color:"#bdf4ff",fontSize:11,fontWeight:800}}>{activeSessions.length} activas</span></div>
+      <div style={{ padding:12, display:"grid", gap:8 }}>
+        {activeSessions.length === 0 ? <div style={{padding:18,color:"#89919e",fontFamily:"Inter,sans-serif",fontSize:13,textAlign:"center"}}>No hay sesiones autenticadas visibles en Realtime en este momento.</div> : activeSessions.map(session => <div key={session.presenceKey || session.device_id} style={{padding:12,borderRadius:8,border:"1px solid rgba(63,71,83,.42)",background:"rgba(11,15,16,.48)",display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:14,alignItems:"center"}}>
+          <div style={{minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}><strong style={{color:"#e0e3e5",fontFamily:"Inter,sans-serif",fontSize:14}}>{session.display_name || session.email || "Usuario"}</strong><span style={{padding:"3px 8px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.28)",color:"#bdf4ff",fontSize:10,fontWeight:900}}>SESIÓN ACTIVA</span></div><div style={{color:"#89919e",fontFamily:"Inter,sans-serif",fontSize:11,wordBreak:"break-all"}}><b style={{color:"#bfc7d5"}}>ID:</b> {session.user_id || "—"}<br/><b style={{color:"#bfc7d5"}}>Device ID:</b> {session.device_id || session.user_id || "—"}</div></div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"flex-end"}}><button type="button" onClick={()=>{setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("sanctions");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(159,202,255,.45)",background:"rgba(159,202,255,.08)",color:"#9fcaff",fontWeight:800,cursor:"pointer"}}>REVISAR</button><button type="button" onClick={()=>{setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("sanctions");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(255,180,171,.48)",background:"rgba(147,0,10,.16)",color:"#ffb4ab",fontWeight:800,cursor:"pointer"}}>SANCIONAR</button></div>
+        </div>)}
+      </div>
+    </div>}
+
+    {recordsView !== "sessions" && <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
       <div style={{ color:"#22c55e", fontWeight:900, fontSize:13, marginBottom:10, fontFamily:getFont(theme,"secondary") }}>🔎 Búsqueda rápida de registros</div>
       <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(e.target.value)} />
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
@@ -4561,9 +4588,10 @@ function AdminRegistrosPanel() {
         {subsections.map(sub => <button key={sub} onClick={()=>setSubFilter(sub)} style={chipBtn(subFilter === sub, "#a78bfa")}>{sub}</button>)}
       </div>
       <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(e.target.checked)} /> Ver solo el device_id escrito arriba</label>
-    </div>
+    </div>}
 
-    <div style={{ color:"#22c55e", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:getFont(theme,"secondary") }}>Últimas modificaciones ({filtered.length})</div>
+    {recordsView === "history" && <>
+    <div style={{ color:"#9fcaff", fontWeight:800, fontSize:12, marginBottom:8, fontFamily:"Inter,sans-serif" }}>Historial de actividad ({filtered.length})</div>
     {(logs || []).length === 0 ? <div style={{ color:"rgba(255,255,255,.45)", fontSize:12, lineHeight:1.5 }}>Sin registros todavía. El SQL solo crea las tablas; los registros empiezan a aparecer desde las acciones nuevas hechas después de subir esta versión. Prueba votar, reportar o modificar un carril y vuelve a esta pantalla.</div> : filtered.length === 0 ? <div style={{ color:"rgba(255,255,255,.4)", fontSize:12 }}>No hay registros con esos filtros.</div> : Object.entries(grouped).map(([sec, subs]) => <div key={sec} style={{ marginBottom:12 }}>
       <div style={{ color:"#38bdf8", fontWeight:900, fontSize:12, fontFamily:getFont(theme,"secondary"), margin:"10px 0 6px" }}>SECCIÓN · {sec}</div>
       {Object.entries(subs).map(([sub, items]) => <details key={sub} open style={{ background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.08)", borderRadius:12, padding:8, marginBottom:8 }}>
@@ -4580,6 +4608,7 @@ function AdminRegistrosPanel() {
         </div>})}
       </details>)}
     </div>)}
+    </>}
   </div>;
 }
 
@@ -17691,7 +17720,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         title: titulo,
         bucketPath: "comunicados/clipboard-ocr"
       });
-      const cleanText = stripFileNamesFromOcrText(String(result?.text || ""), [pastedCapture.file]).trim();
+      const rawText = stripFileNamesFromOcrText(String(result?.text || ""), [pastedCapture.file]).trim();
+      const cleanText = await depurarTextoOCRComoComunicado(rawText);
       if (!cleanText) {
         setPasteOcrError("No se reconoció texto legible. Puedes reintentar con otra captura o escribir el contenido manualmente.");
         setToolNotice("El OCR no encontró texto legible en la captura.", "#f97316");
@@ -17711,7 +17741,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   };
 
   const aplicarTextoDeZonasComunicado = async ({ text }) => {
-    const cleanText = String(text || "").trim();
+    setPasteOcrBusy(true);
+    setPasteOcrError("");
+    const cleanText = await depurarTextoOCRComoComunicado(String(text || "").trim());
     const ok = agregarTextoExtraidoADetalle(cleanText);
 
     if (ok) {
@@ -17724,8 +17756,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         setToolNotice("Texto de la zona agregado en Descripción breve. No se pudo generar el título automático.", "#f97316");
       }
     } else {
-      setToolNotice("No se detectó texto legible dentro de la zona seleccionada.", "#f97316");
+      setToolNotice("No se detectó texto informativo legible dentro de la zona seleccionada.", "#f97316");
+      setPasteOcrError("La IA no encontró contenido útil en la zona. Ajusta la selección o escribe manualmente.");
     }
+    setPasteOcrBusy(false);
   };
 
   const extraerRespuestaIA = (data) => {
@@ -17943,6 +17977,27 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     } catch (err) {
       console.warn("No se pudo generar título automático desde OCR:", err);
       return generarTituloLocalDesdeTextoExtraido(inputText);
+    }
+  };
+
+  const depurarTextoOCRComoComunicado = async (rawText) => {
+    const base = String(rawText || "").replace(/\r/g, "").trim();
+    if (!base) return "";
+    const prompt = `Actúa como editor institucional. A partir del OCR siguiente, devuelve únicamente el contenido informativo indispensable para un comunicado. Elimina nombres de usuario, enlaces, “ver más”, “ver menos”, hashtags, contadores de reacciones, likes, compartidos, marcas de tiempo de la aplicación, botones, menús y cualquier texto de interfaz. Conserva fechas, lugares, horarios, restricciones, instrucciones y datos operativos relevantes. No inventes información. Redacta en español claro y profesional, sin encabezados explicativos ni notas. OCR:
+
+${base}`;
+    try {
+      const response = await callGeminiChatForComunicados({ prompt, inputText:base, actionLabel:"depurar_ocr_comunicado" });
+      return String(response?.reply || "").trim() || base;
+    } catch (error) {
+      console.warn("No se pudo depurar OCR con IA; se aplicará limpieza local.", error);
+      return base
+        .split("\n")
+        .map(line => line.trim())
+        .filter(line => line && !/^(ver más|ver menos|me gusta|compartir|comentarios?|likes?|reacciones?|seguir|responder)$/i.test(line))
+        .filter(line => !/^#\S+/.test(line) && !/^https?:\/\//i.test(line))
+        .join("\n")
+        .trim();
     }
   };
 
@@ -19118,20 +19173,23 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         </div>
         <div style={{ minHeight:"154px", border:"1px solid rgba(56,189,248,.24)", borderRadius:"10px", padding:"12px", background:"rgba(1,15,31,.56)", display:"flex", flexDirection:"column" }}>
           {pastedCapture ? <>
-            <button type="button" onClick={() => window.open(pastedCapture.url, "_blank", "noopener,noreferrer")} style={{ border:0, background:"transparent", padding:0, cursor:"zoom-in", flex:1 }}>
-              <img src={pastedCapture.url} alt="Vista previa de captura pegada" style={{ width:"100%", height:"116px", objectFit:"contain", borderRadius:"8px", background:"#020b16" }} />
-            </button>
-            <div style={{ display:"flex", gap:"8px", marginTop:"9px" }}>
-              <button type="button" onClick={extraerTextoCapturaPegada} disabled={pasteOcrBusy} style={{ flex:1, minHeight:"38px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.48)", background:pasteOcrBusy?"rgba(100,116,139,.16)":"linear-gradient(135deg,rgba(14,116,144,.42),rgba(37,99,235,.38))", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:pasteOcrBusy?"wait":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", boxShadow:"0 8px 18px rgba(0,0,0,.22)" }}>
-                <span className={pasteOcrBusy ? "cm-paste-ocr-spinner" : ""}><AppIcon name={pasteOcrBusy ? "turnover" : "document"} size={17} active /></span>{pasteOcrBusy ? "PROCESANDO OCR" : "EXTRAER TEXTO"}
+            <div style={{ flex:1, borderRadius:"8px", overflow:"hidden", background:"#020b16", border:"1px solid rgba(63,71,83,.55)" }}>
+              <img src={pastedCapture.url} alt="Vista previa de captura pegada" draggable={false} style={{ width:"100%", height:"116px", objectFit:"contain", display:"block", pointerEvents:"none", userSelect:"none" }} />
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"8px", marginTop:"9px" }}>
+              <button type="button" onClick={extraerTextoCapturaPegada} disabled={pasteOcrBusy} style={{ minHeight:"40px", borderRadius:"4px", border:"1px solid rgba(159,202,255,.50)", background:pasteOcrBusy?"rgba(39,42,44,.7)":"linear-gradient(180deg,rgba(159,202,255,.16),rgba(0,227,253,.08))", color:"#bdf4ff", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:800, cursor:pasteOcrBusy?"wait":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", boxShadow:pasteOcrBusy?"0 0 22px rgba(0,227,253,.18)":"0 10px 22px rgba(0,0,0,.22)", transition:"all .3s ease" }}>
+                <span className={pasteOcrBusy ? "cm-paste-ocr-pulse" : ""}><MS name="document_scanner" size={19} active /></span>{pasteOcrBusy ? "PROCESANDO CON IA" : "IMAGEN COMPLETA · PROCESAR CON IA"}
               </button>
-              <button type="button" onClick={discardPastedCapture} disabled={pasteOcrBusy} style={{ minWidth:"94px", borderRadius:"9px", border:"1px solid rgba(239,106,103,.48)", background:"rgba(239,106,103,.10)", color:"#fda4af", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:pasteOcrBusy?"not-allowed":"pointer" }}>DESCARTAR</button>
+              <button type="button" onClick={()=>setZonePickerOpen(true)} disabled={pasteOcrBusy} style={{ minHeight:"40px", borderRadius:"4px", border:"1px solid rgba(255,180,171,.45)", background:"rgba(255,180,171,.08)", color:"#ffb4ab", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:800, cursor:pasteOcrBusy?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", transition:"all .3s ease" }}>
+                <MS name="crop_free" size={19} active /> ELEGIR ZONA DE EXTRACCIÓN
+              </button>
+              <button type="button" onClick={discardPastedCapture} disabled={pasteOcrBusy} style={{ minHeight:"40px", borderRadius:"4px", border:"1px solid rgba(255,180,171,.38)", background:"rgba(147,0,10,.14)", color:"#ffdad6", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:800, cursor:pasteOcrBusy?"not-allowed":"pointer" }}>DESCARTAR / REEMPLAZAR</button>
             </div>
           </> : <div style={{ flex:1, display:"grid", placeItems:"center", color:"rgba(148,163,184,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>La vista previa aparecerá aquí</div>}
           {pasteOcrError && <div role="alert" style={{ marginTop:"9px", padding:"9px", borderRadius:"8px", border:"1px solid rgba(239,106,103,.38)", background:"rgba(239,106,103,.08)", color:"#fda4af", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.45 }}>{pasteOcrError}</div>}
         </div>
       </div>
-      <style>{`@keyframes cmPasteOcrSpin{to{transform:rotate(360deg)}}.cm-paste-ocr-spinner{display:inline-flex;animation:cmPasteOcrSpin .85s linear infinite}`}</style>
+      <style>{`@keyframes cmPasteOcrPulse{0%,100%{opacity:.45;filter:drop-shadow(0 0 2px rgba(0,227,253,.2))}50%{opacity:1;filter:drop-shadow(0 0 12px rgba(0,227,253,.85))}}.cm-paste-ocr-pulse{display:inline-flex;animation:cmPasteOcrPulse 1.05s ease-in-out infinite}`}</style>
 
       <div style={{ background:"rgba(1,15,31,.45)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"14px", marginBottom:"14px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
@@ -19282,7 +19340,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
           )}
         </>
       )}
-      {zonePickerOpen && <OcrZonePickerModal files={archivo ? [archivo] : []} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonasComunicado} />}
+      {zonePickerOpen && <OcrZonePickerModal files={pastedCapture?.file ? [pastedCapture.file] : (archivo ? [archivo] : [])} onClose={()=>setZonePickerOpen(false)} onApply={aplicarTextoDeZonasComunicado} />}
       {converterOpen && <MediaConverterModal files={archivo ? [archivo] : []} onClose={()=>setConverterOpen(false)} onNotice={(message, color)=>setToolNotice(message, color)} />}
       {isAdmin && screenshotOpen && <ScreenshotCropModal onClose={()=>setScreenshotOpen(false)} onApply={aplicarCapturaWebRecortada} />}
       
@@ -20088,7 +20146,7 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
           <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : ""}</div>
           <div style={{ display:"flex", gap:"8px" }}>
             <button onClick={onClose} disabled={running} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(148,163,184,.12)", color:"#cbd5e1", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Cancelar</button>
-            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? "Extrayendo…" : "Extraer texto de zonas"}</button>
+            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? "Procesando con IA…" : "Procesar zona seleccionada con IA"}</button>
           </div>
         </div>
       </div>
@@ -21384,7 +21442,31 @@ function StarRating({ value=0, onRate=null, small=false }) {
   </div>;
 }
 
-function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister }) {
+
+// Validación cliente por firma binaria. Debe replicarse en la Edge Function que emite
+// URLs firmadas y reforzarse con políticas de Storage (bucket privado, límite 20 MB,
+// allow-list PDF/JPEG/PNG/WEBP y estado approval_status="pending"). El frontend nunca
+// interpreta adjuntos como HTML ni usa URLs data:text/html; se conservan como datos estáticos.
+async function validateStaticAttachment(file, { maxBytes = 20 * 1024 * 1024 } = {}) {
+  if (!(file instanceof Blob)) return { ok:false, error:"No se recibió un archivo válido." };
+  if (file.size <= 0) return { ok:false, error:"El archivo está vacío." };
+  if (file.size > maxBytes) return { ok:false, error:`El archivo supera el límite seguro de ${Math.round(maxBytes / 1024 / 1024)} MB.` };
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const ascii = Array.from(head).map(byte => String.fromCharCode(byte)).join("");
+  let detected = "";
+  if (ascii.startsWith("%PDF-")) detected = "application/pdf";
+  else if (head[0] === 0xFF && head[1] === 0xD8 && head[2] === 0xFF) detected = "image/jpeg";
+  else if ([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A].every((v,i)=>head[i]===v)) detected = "image/png";
+  else if (ascii.slice(0,4) === "RIFF" && ascii.slice(8,12) === "WEBP") detected = "image/webp";
+  if (!detected) return { ok:false, error:"El contenido real del archivo no corresponde a un PDF o imagen admitida." };
+  const declared = String(file.type || "").toLowerCase();
+  if (declared && declared !== detected && !(declared === "image/jpg" && detected === "image/jpeg")) {
+    return { ok:false, error:`El tipo declarado (${declared}) no coincide con la firma binaria (${detected}).` };
+  }
+  return { ok:true, detectedType:detected };
+}
+
+function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister, initialAdminView="default" }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
   const [sub, setSub] = useState(() => {
@@ -21399,6 +21481,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   });
   const [vista, setVista] = useState("postular");
   const [posturasMode, setPosturasMode] = useState("list");
+  useEffect(() => {
+    if (!isAdmin || !initialAdminView || initialAdminView === "default") return;
+    if (initialAdminView === "complaints") {
+      setSub("quejas");
+      setPosturasMode("list");
+      return;
+    }
+    setSub("posturas");
+    if (initialAdminView === "management") setPosturasMode("form");
+    if (initialAdminView === "verification") setPosturasMode("list");
+  }, [isAdmin, initialAdminView]);
   const [mobilePosturasPanelOpen, setMobilePosturasPanelOpen] = useState(false);
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
@@ -21873,15 +21966,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const handleFileMeta = async (setter, field, fileList) => {
     const file = fileList && fileList[0];
     if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      setMsg({ type:"err", text:"El archivo supera el límite seguro de 20 MB." });
+    const validation = await validateStaticAttachment(file, { maxBytes:20 * 1024 * 1024 });
+    if (!validation.ok) {
+      setMsg({ type:"err", text:validation.error });
       return;
     }
-    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!allowed.includes(file.type)) {
-      setMsg({ type:"err", text:"Formato no permitido. Usa JPG, PNG, WEBP o PDF." });
-      return;
-    }
+    const safeContentType = validation.detectedType;
     if (!authUser) return requireLogin();
     setEncryptedUploadFields(current => ({ ...current, [field]:true }));
     try {
@@ -21897,20 +21987,22 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           profileId,
           field,
           fileName:file.name,
-          contentType:file.type,
-          size:file.size
+          contentType:safeContentType,
+          size:file.size,
+          approvalStatus:"pending"
         })
       });
       const { error } = await sb.storage.from(signed.bucket || POSTURAS_FILES_BUCKET)
-        .uploadToSignedUrl(signed.path, signed.token, file, { contentType:file.type, upsert:false });
+        .uploadToSignedUrl(signed.path, signed.token, file, { contentType:safeContentType, upsert:false });
       if (error) throw error;
       const descriptor = {
         v:1,
         bucket:signed.bucket || POSTURAS_FILES_BUCKET,
         path:signed.path,
         name:file.name,
-        type:file.type,
+        type:safeContentType,
         size:file.size,
+        approval_status:"pending",
         uploadedAt:new Date().toISOString()
       };
       const encodedDescriptor = privateDescriptorPrefix + btoa(JSON.stringify(descriptor));
@@ -30018,6 +30110,8 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
   const [newsTool, setNewsTool] = useState("publish");
 
   const cards = [
+    { id:"verification", title:"Verificación", subtitle:"Aprobación de perfiles de trabajador, empresa y documentos pendientes", icon:"verified_user" },
+    { id:"complaints", title:"Quejas", subtitle:"Revisión, respuesta y cierre directo de quejas de Posturas", icon:"feedback" },
     { id:"users", title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
     { id:"news", title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
     { id:"traffic", title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
@@ -30144,8 +30238,8 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
           <nav>
             <p className="csp-label-caps">General</p>
             <button type="button" className={`csp-nav-item ${activeDashboardSection === "dashboard" ? "is-active" : ""}`} onClick={() => openSection("dashboard")}><MS name="dashboard" size={24} active={activeDashboardSection === "dashboard"} /><span>Dashboard</span></button>
-            <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="verified_user" size={24} /><span>Verificación</span></button>
-            <button type="button" className="csp-nav-item" onClick={() => openSection("posturas")}><MS name="feedback" size={24} /><span>Quejas</span></button>
+            <button type="button" className={`csp-nav-item ${activeDashboardSection === "verification" ? "is-active" : ""}`} onClick={() => openSection("verification")}><MS name="verified_user" size={24} /><span>Verificación</span></button>
+            <button type="button" className={`csp-nav-item ${activeDashboardSection === "complaints" ? "is-active" : ""}`} onClick={() => openSection("complaints")}><MS name="feedback" size={24} /><span>Quejas</span></button>
             <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="support_agent" size={24} /><span>Soporte</span></button>
             <div className="csp-sidebar__divider" />
             <p className="csp-label-caps">Gestión por sección</p>
@@ -30227,7 +30321,9 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
                 {activeDashboardSection === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
                 {activeDashboardSection === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
-                {activeDashboardSection === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
+                {activeDashboardSection === "posturas" && <PosturasTab key="admin-posturas-management" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="management" />}
+                {activeDashboardSection === "complaints" && <PosturasTab key="admin-posturas-complaints" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="complaints" />}
+                {activeDashboardSection === "verification" && <PosturasTab key="admin-posturas-verification" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="verification" />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && <div className="csp-tool-grid">
                   <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
@@ -30382,7 +30478,50 @@ function App() {
 
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
+
+  // Presencia de sesión en tiempo real sin cambios de backend: usa Supabase Realtime Presence.
+  // Cada cliente autenticado publica únicamente metadatos mínimos necesarios para moderación.
+  useEffect(() => {
+    if (!authUser?.id) return;
+    const persistentDeviceId = (() => {
+      try { return localStorage.getItem("cm_device_id") || localStorage.getItem("device_id") || authUser.id; } catch { return authUser.id; }
+    })();
+    const channel = sb.channel("cm-active-sessions", { config:{ presence:{ key:`${authUser.id}:${persistentDeviceId}` } } });
+    channel.subscribe(async status => {
+      if (status !== "SUBSCRIBED") return;
+      await channel.track({
+        user_id:authUser.id,
+        device_id:persistentDeviceId,
+        email:authUser.email || "",
+        display_name:authUser.user_metadata?.nombre || authUser.user_metadata?.name || authUser.email || "Usuario",
+        online_at:new Date().toISOString(),
+        last_seen:new Date().toISOString(),
+        user_agent:typeof navigator !== "undefined" ? navigator.userAgent : ""
+      });
+    });
+    const heartbeat = setInterval(() => channel.track({
+      user_id:authUser.id,
+      device_id:persistentDeviceId,
+      email:authUser.email || "",
+      display_name:authUser.user_metadata?.nombre || authUser.user_metadata?.name || authUser.email || "Usuario",
+      online_at:new Date().toISOString(),
+      last_seen:new Date().toISOString(),
+      user_agent:typeof navigator !== "undefined" ? navigator.userAgent : ""
+    }), 45000);
+    return () => { clearInterval(heartbeat); channel.untrack().catch(()=>{}); sb.removeChannel(channel); };
+  }, [authUser?.id]);
   const [showSessionMenu, setShowSessionMenu] = useState(false);
+  const [copiedUserId, setCopiedUserId] = useState(false);
+  const copyAuthenticatedUserId = useCallback(async () => {
+    if (!authUser?.id) return;
+    try {
+      await navigator.clipboard.writeText(authUser.id);
+      setCopiedUserId(true);
+      window.setTimeout(() => setCopiedUserId(false), 1800);
+    } catch {
+      setCopiedUserId(false);
+    }
+  }, [authUser?.id]);
   const [globalProfileEditorOpen, setGlobalProfileEditorOpen] = useState(false);
   const [globalProfileUsername, setGlobalProfileUsername] = useState("");
   const [globalProfilePhotoFile, setGlobalProfilePhotoFile] = useState(null);
@@ -31168,6 +31307,14 @@ function App() {
             </div>
           </div>
           <button role="menuitem" type="button" onClick={openGlobalProfileEditor} className="cm-global-user-menu__item"><MS name="manage_accounts" size={21} active /><span>Actualizar perfil</span></button>
+          <div style={{margin:"6px 4px",padding:"10px",border:"1px solid rgba(159,202,255,.16)",borderRadius:"8px",background:"rgba(159,202,255,.05)"}}>
+            <div style={{fontSize:"10px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:"#89919e",marginBottom:"6px"}}>ID de usuario</div>
+            <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+              <code style={{minWidth:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",font:"500 11px/18px Inter,sans-serif",color:"#bfc7d5"}} title={authUser.id}>{authUser.id}</code>
+              <button type="button" onClick={copyAuthenticatedUserId} aria-label="Copiar ID de usuario" style={{width:"36px",height:"36px",display:"grid",placeItems:"center",border:"1px solid rgba(159,202,255,.28)",borderRadius:"4px",background:copiedUserId?"rgba(0,227,253,.14)":"rgba(39,42,44,.8)",color:copiedUserId?"#bdf4ff":"#9fcaff",cursor:"pointer",transition:"all .3s ease"}}><MS name={copiedUserId?"check":"content_copy"} size={19} active /></button>
+            </div>
+            {copiedUserId && <div role="status" style={{marginTop:"6px",fontSize:"11px",color:"#bdf4ff"}}>ID copiado</div>}
+          </div>
           <div className="cm-global-user-menu__divider" />
           <button role="menuitem" type="button" onClick={handleSignOut} className="cm-global-user-menu__item cm-global-user-menu__item--danger"><MS name="logout" size={21} color="currentColor" /><span>Cerrar sesión</span></button>
         </div>,
