@@ -317,7 +317,7 @@ const TABS = [
 // Permite compartir URLs como: https://conectmanzanillo.com/#reporte
 // También acepta: ?seccion=reporte, ?tab=reporte o ?section=reporte
 // "portuario" es una tab oculta (solo admin), no aparece en TABS pero debe ser válida
-const VALID_TAB_KEYS = [...TABS.map(t => t.key), "portuario"];
+const VALID_TAB_KEYS = [...TABS.map(t => t.key), "dashboard", "portuario"];
 const TAB_ALIASES = {
   reportar: "reporte",
   patio: "terminales",
@@ -7468,7 +7468,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
               </h3>
               
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:"16px" }}>
-                {TABS.map(tab => {
+                {navTabs.map(tab => {
                   const icon = config.tabIcons[tab.key];
                   return (
                     <div key={tab.key} style={{ padding:"16px", borderRadius:"8px", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.1)" }}>
@@ -7758,6 +7758,8 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
     };
   }, [mobileOpen]);
 
+  const navTabs = isAdmin ? [{ key: "dashboard", label: "Dashboard" }, ...TABS] : TABS;
+
   const handleSelect = (id) => {
     set(id);
     setMobileOpen(false);
@@ -7851,7 +7853,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
           </button>
 
           <nav className="cm-topbar-nav" aria-label="Navegación principal">
-            {TABS.map(tab => (
+            {navTabs.map(tab => (
               <button
                 key={tab.key}
                 type="button"
@@ -29886,6 +29888,129 @@ function GlobalIdentityProfileModal({
   );
 }
 
+
+function AdminDashboardHexIcon({ icon, accent = "#2f80ed" }) {
+  return (
+    <div style={{
+      width:"54px", height:"60px", flex:"0 0 auto", display:"grid", placeItems:"center",
+      background:"linear-gradient(145deg, rgba(19,45,75,.96), rgba(6,22,40,.84))",
+      clipPath:"polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%)",
+      border:"1px solid rgba(255,255,255,.16)",
+      filter:"drop-shadow(0 10px 18px rgba(0,0,0,.28))",
+      position:"relative"
+    }}>
+      <div style={{ position:"absolute", inset:"4px", clipPath:"inherit", border:`1px solid ${accent}55`, background:`linear-gradient(145deg, ${accent}18, rgba(255,255,255,.02))` }} />
+      <AppIcon name={icon} size={27} active style={{ position:"relative", zIndex:1, filter:"none" }} />
+    </div>
+  );
+}
+
+function AdminDashboardCard({ id, title, subtitle, icon, accent, open, onToggle, children }) {
+  return (
+    <section className={`cm-admin-dashboard-card ${open ? "is-open" : ""}`}>
+      <button type="button" className="cm-admin-dashboard-card__head" onClick={() => onToggle(id)} aria-expanded={open}>
+        <AdminDashboardHexIcon icon={icon} accent={accent} />
+        <span className="cm-admin-dashboard-card__copy">
+          <strong>{title}</strong>
+          <small>{subtitle}</small>
+        </span>
+        <span className="cm-admin-dashboard-card__chevron"><MS name="expand_more" size={22} active={open} /></span>
+      </button>
+      {open && <div className="cm-admin-dashboard-card__body">{children}</div>}
+    </section>
+  );
+}
+
+function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig }) {
+  const [openCards, setOpenCards] = useState(() => new Set(["overview"]));
+  const toggle = (id) => setOpenCards(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const opened = (id) => openCards.has(id);
+
+  const cards = [
+    { id:"users", title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"user", accent:"#2f80ed" },
+    { id:"news", title:"Noticias y comunicados", subtitle:"Publicación, procesamiento de archivos y limpieza del historial", icon:"dispatch-news", accent:"#ef6a67" },
+    { id:"traffic", title:"Tráfico, vialidades y rutas fiscales", subtitle:"Estados operativos, votos y modo automático", icon:"traffic-control", accent:"#2f80ed" },
+    { id:"incidents", title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"incident-pin", accent:"#ef6a67" },
+    { id:"terminals", title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"port-terminal", accent:"#2f80ed" },
+    { id:"confinados", title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lane-status-monitor", accent:"#5b8def" },
+    { id:"access", title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"access-gate", accent:"#2f80ed" },
+    { id:"posturas", title:"Posturas", subtitle:"Perfiles, vacantes, quejas y herramientas administrativas", icon:"business_center", accent:"#ef6a67" },
+    { id:"records", title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"document", accent:"#5b8def" },
+    { id:"tools", title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"palette", accent:"#ef6a67" },
+  ];
+
+  return (
+    <main className="cm-admin-dashboard">
+      <style>{`
+        .cm-admin-dashboard{max-width:1440px;margin:0 auto;padding:26px 18px 90px;color:#fff;font-family:'Inter','DM Sans',sans-serif}
+        .cm-admin-dashboard__hero{position:relative;overflow:hidden;border:1px solid rgba(139,177,219,.22);border-radius:24px;padding:28px;background:linear-gradient(135deg,rgba(10,29,51,.98),rgba(17,42,70,.92));box-shadow:0 24px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);margin-bottom:20px}
+        .cm-admin-dashboard__hero:after{content:'';position:absolute;right:-90px;top:-120px;width:330px;height:330px;border-radius:50%;background:radial-gradient(circle,rgba(47,128,237,.20),transparent 68%);pointer-events:none}
+        .cm-admin-dashboard__eyebrow{display:flex;align-items:center;gap:10px;color:#88bfff;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
+        .cm-admin-dashboard__hero h1{margin:0;font-size:clamp(28px,4vw,48px);line-height:1.05;letter-spacing:-.04em;font-weight:900}
+        .cm-admin-dashboard__hero p{max-width:760px;margin:12px 0 0;color:#aebdd0;font-size:13px;line-height:1.7}
+        .cm-admin-dashboard__actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+        .cm-admin-dashboard__action{display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid rgba(125,176,236,.30);background:linear-gradient(180deg,rgba(38,91,148,.42),rgba(14,42,72,.58));color:#fff;font:800 12px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 10px 24px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease}
+        .cm-admin-dashboard__action:hover{transform:translateY(-2px);border-color:rgba(136,191,255,.72);background:linear-gradient(180deg,rgba(47,128,237,.58),rgba(16,54,91,.72));box-shadow:0 16px 34px rgba(0,0,0,.32),0 0 0 1px rgba(47,128,237,.12)}
+        .cm-admin-dashboard__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+        .cm-admin-dashboard-card{border:1px solid rgba(141,166,195,.18);border-radius:18px;background:linear-gradient(145deg,rgba(14,34,58,.92),rgba(8,24,43,.86));box-shadow:0 16px 38px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
+        .cm-admin-dashboard-card:hover{transform:translateY(-2px);border-color:rgba(125,176,236,.36);box-shadow:0 22px 48px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.07)}
+        .cm-admin-dashboard-card.is-open{grid-column:1/-1;border-color:rgba(73,139,216,.38)}
+        .cm-admin-dashboard-card__head{width:100%;display:flex;align-items:center;gap:15px;padding:18px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer}
+        .cm-admin-dashboard-card__copy{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+        .cm-admin-dashboard-card__copy strong{font-size:15px;font-weight:900;letter-spacing:-.01em}
+        .cm-admin-dashboard-card__copy small{color:#94a8bf;font-size:11px;line-height:1.45}
+        .cm-admin-dashboard-card__chevron{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.045);transition:transform .25s ease,background .25s ease}
+        .cm-admin-dashboard-card.is-open .cm-admin-dashboard-card__chevron{transform:rotate(180deg);background:rgba(47,128,237,.14)}
+        .cm-admin-dashboard-card__body{border-top:1px solid rgba(255,255,255,.08);padding:18px;background:rgba(2,12,25,.34);animation:cmAdminDashOpen .24s ease both}
+        .cm-admin-dashboard-card__body>.cm-admin-dashboard-embedded{border-radius:16px;overflow:hidden}
+        .cm-admin-dashboard__tool-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+        .cm-admin-dashboard__tool{min-height:116px;border:1px solid rgba(255,255,255,.10);border-radius:15px;padding:16px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.025));color:#fff;text-align:left;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,.20);transition:all .22s ease}
+        .cm-admin-dashboard__tool:hover{transform:translateY(-3px);border-color:rgba(239,106,103,.48);box-shadow:0 18px 34px rgba(0,0,0,.28)}
+        .cm-admin-dashboard__tool strong{display:block;margin-top:12px;font-size:13px}.cm-admin-dashboard__tool span{display:block;margin-top:5px;color:#9fb0c3;font-size:10px;line-height:1.5}
+        @keyframes cmAdminDashOpen{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @media(max-width:820px){.cm-admin-dashboard{padding:18px 10px 72px}.cm-admin-dashboard__grid{grid-template-columns:1fr}.cm-admin-dashboard-card.is-open{grid-column:auto}.cm-admin-dashboard__tool-row{grid-template-columns:1fr}.cm-admin-dashboard__hero{padding:22px 18px}.cm-admin-dashboard-card__head{padding:15px 13px}}
+      `}</style>
+      <header className="cm-admin-dashboard__hero">
+        <div className="cm-admin-dashboard__eyebrow"><AppIcon name="window" size={18} active /> Centro administrativo</div>
+        <h1>Dashboard</h1>
+        <p>Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales.</p>
+        <div className="cm-admin-dashboard__actions">
+          <button className="cm-admin-dashboard__action" onClick={() => toggle("news")}><AppIcon name="dispatch-news" size={18} active /> Publicar comunicado</button>
+          <button className="cm-admin-dashboard__action" onClick={() => toggle("users")}><AppIcon name="user" size={18} active /> Gestionar roles</button>
+          <button className="cm-admin-dashboard__action" onClick={() => toggle("traffic")}><AppIcon name="traffic-control" size={18} active /> Actualizar tráfico</button>
+          <button className="cm-admin-dashboard__action" onClick={() => toggle("incidents")}><AppIcon name="incident-pin" size={18} active /> Moderar incidentes</button>
+        </div>
+      </header>
+      <div className="cm-admin-dashboard__grid">
+        {cards.map(card => (
+          <AdminDashboardCard key={card.id} {...card} open={opened(card.id)} onToggle={toggle}>
+            <div className="cm-admin-dashboard-embedded">
+              {card.id === "users" && <AdminUsuariosPanel />}
+              {card.id === "news" && <><NoticiasAdminPublisher isAdmin={true} /><div style={{height:14}}/><NoticiasAdminCleanup /></>}
+              {card.id === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+              {card.id === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
+              {card.id === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
+              {card.id === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
+              {card.id === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+              {card.id === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
+              {card.id === "records" && <AdminRegistrosPanel />}
+              {card.id === "tools" && <div className="cm-admin-dashboard__tool-row">
+                <button className="cm-admin-dashboard__tool" onClick={() => setActiveTab("portuario")}><AppIcon name="anchor-port" size={28} active /><strong>Control portuario</strong><span>Abrir el sistema de control de citas y carga.</span></button>
+                <button className="cm-admin-dashboard__tool" onClick={onOpenThemeConfig}><AppIcon name="palette" size={28} active /><strong>Tema global</strong><span>Configurar la identidad visual compartida de la aplicación.</span></button>
+                <div className="cm-admin-dashboard__tool" style={{cursor:"default"}}><AppIcon name="route" size={28} active /><strong>Calculadora operativa</strong><span>Herramientas de cálculo y costos de ruta.</span><div style={{marginTop:14}}><AdminCalculadoraPanel /></div></div>
+              </div>}
+            </div>
+          </AdminDashboardCard>
+        ))}
+      </div>
+    </main>
+  );
+}
+
 function App() {
   const { isAdmin, handleLogoTap, openModal, logout, Modal } = useAdminMode();
   const { subAdmin, subLogout, setShowLogin: setShowSubLogin, LoginModal } = useSubAdminSession();
@@ -29918,6 +30043,10 @@ function App() {
       window.removeEventListener("popstate", syncFromUrl);
     };
   }, []);
+  useEffect(() => {
+    if (!isAdmin && active === "dashboard") setActive("inicio", { replace:true });
+  }, [isAdmin, active]);
+
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
@@ -30732,6 +30861,7 @@ function App() {
         {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
+        {active === "dashboard"   && isAdmin && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} />}
