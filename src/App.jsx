@@ -21468,6 +21468,52 @@ async function validateStaticAttachment(file, { maxBytes = 20 * 1024 * 1024 } = 
   return { ok:true, detectedType:detected };
 }
 
+
+/*
+SUPABASE — migración requerida para el helpdesk de Quejas (ejecutar una sola vez):
+
+create table if not exists public.quejas_tickets (
+  id uuid primary key default gen_random_uuid(),
+  ticket_number text unique not null default ('CM-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10))),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  user_email text,
+  tipo_reporte text not null check (tipo_reporte in ('vacante_postura','conducta_usuario','error_sistema','incidente_operativo','otro')),
+  comentarios text not null,
+  evidencia jsonb not null default '[]'::jsonb,
+  estatus text not null default 'pendiente' check (estatus in ('pendiente','en_revision','resuelto','rechazado','cerrado')),
+  respuesta_admin text,
+  status_history jsonb not null default '[]'::jsonb,
+  fecha_creacion timestamptz not null default now(),
+  fecha_actualizacion timestamptz not null default now()
+);
+alter table public.quejas_tickets enable row level security;
+create policy "ticket_owner_insert" on public.quejas_tickets for insert to authenticated with check (auth.uid() = user_id);
+create policy "ticket_owner_read" on public.quejas_tickets for select to authenticated using (auth.uid() = user_id);
+-- Ajustar la comprobación de admin a la tabla/RPC de roles existente del proyecto:
+create policy "ticket_admin_all" on public.quejas_tickets for all to authenticated
+using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()));
+
+Storage recomendado: bucket privado `quejas-evidencias`, máximo 10 MB por objeto, solo JPEG/PNG/WEBP.
+Replicar validateStaticAttachment en una Edge Function antes de aceptar el objeto, verificar magic bytes,
+normalizar nombres, mantener approval_status=pending y entregar evidencia únicamente mediante signed URLs cortas.
+Nunca servir adjuntos con content-type text/html ni permitir SVG/ejecutables.
+*/
+const QUEJAS_EVIDENCE_BUCKET = import.meta.env.VITE_SUPABASE_QUEJAS_BUCKET || "quejas-evidencias";
+const QUEJAS_TICKET_TYPES = [
+  { value:"vacante_postura", label:"Problema con vacante o postura" },
+  { value:"conducta_usuario", label:"Conducta de otro usuario" },
+  { value:"error_sistema", label:"Error del sistema" },
+  { value:"incidente_operativo", label:"Incidente operativo" },
+  { value:"otro", label:"Otro" },
+];
+const QUEJAS_STATUS = {
+  pendiente:{ label:"Pendiente", color:"#fbbf24", bg:"rgba(251,191,36,.12)" },
+  en_revision:{ label:"En revisión", color:"#9fcaff", bg:"rgba(159,202,255,.12)" },
+  resuelto:{ label:"Resuelto", color:"#4edea3", bg:"rgba(78,222,163,.12)" },
+  rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(255,180,171,.12)" },
+  cerrado:{ label:"Cerrado", color:"#bfc7d5", bg:"rgba(191,199,213,.10)" },
+};
+
 function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister, initialAdminView="default" }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
@@ -21507,6 +21553,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [empresas, setEmpresas] = useState([]);
   const [ratings, setRatings] = useState([]);
   const [quejas, setQuejas] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsError, setTicketsError] = useState("");
+  const [ticketForm, setTicketForm] = useState({ tipo_reporte:"", comentarios:"", evidencia:[] });
+  const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [ticketExpanded, setTicketExpanded] = useState(null);
+  const [ticketAdminDraft, setTicketAdminDraft] = useState({});
+  const [ticketFilters, setTicketFilters] = useState({ tipo:"todos", estatus:"todos", desde:"", hasta:"", search:"" });
   const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(false);
   const [posturasLoadError, setPosturasLoadError] = useState("");
@@ -22617,6 +22671,83 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
   const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
+  const loadTickets = useCallback(async () => {
+    if (!authUser?.id && !isAdmin) { setTickets([]); return; }
+    setTicketsLoading(true); setTicketsError("");
+    let query = sb.from("quejas_tickets").select("*").order("fecha_creacion", { ascending:false });
+    if (!isAdmin) query = query.eq("user_id", authUser.id);
+    const { data, error } = await query;
+    if (error) {
+      setTicketsError(error.code === "42P01" ? "La tabla de tickets aún no está disponible. Aplica la migración incluida en el código." : error.message);
+      setTickets([]);
+    } else setTickets(data || []);
+    setTicketsLoading(false);
+  }, [authUser?.id, isAdmin]);
+
+  useEffect(() => { loadTickets(); }, [loadTickets]);
+
+  const addTicketEvidence = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    const accepted = [];
+    for (const file of files.slice(0, Math.max(0, 5-ticketForm.evidencia.length))) {
+      const validation = await validateStaticAttachment(file, { maxBytes:10*1024*1024 });
+      if (!validation.ok || !validation.detectedType.startsWith("image/")) {
+        setMsg({ type:"err", text:validation.ok ? "La evidencia debe ser una imagen JPEG, PNG o WEBP." : validation.error });
+        continue;
+      }
+      accepted.push({ file, preview:URL.createObjectURL(file), detectedType:validation.detectedType, name:file.name || `evidencia-${Date.now()}` });
+    }
+    setTicketForm(prev=>({...prev,evidencia:[...prev.evidencia,...accepted]}));
+  };
+  const removeTicketEvidence = (index) => setTicketForm(prev=>{
+    const current=prev.evidencia[index]; if (current?.preview) URL.revokeObjectURL(current.preview);
+    return {...prev,evidencia:prev.evidencia.filter((_,i)=>i!==index)};
+  });
+  const createTicket = async () => {
+    if (!authUser?.id) return requireLogin();
+    if (!ticketForm.tipo_reporte) return setMsg({type:"err",text:"Selecciona el tipo de reporte."});
+    if (ticketForm.comentarios.trim().length < 10) return setMsg({type:"err",text:"Describe el problema con al menos 10 caracteres."});
+    setTicketSubmitting(true);
+    try {
+      const evidence=[];
+      for (const item of ticketForm.evidencia) {
+        const ext = item.detectedType === "image/jpeg" ? "jpg" : item.detectedType.split("/")[1];
+        const path = `${authUser.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+        const { error:uploadError } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).upload(path,item.file,{contentType:item.detectedType,upsert:false,cacheControl:"3600",metadata:{approval_status:"pending",owner_id:authUser.id}});
+        if (uploadError) throw uploadError;
+        evidence.push({ bucket:QUEJAS_EVIDENCE_BUCKET, path, name:item.name, type:item.detectedType, approval_status:"pending" });
+      }
+      const now=new Date().toISOString();
+      const payload={ user_id:authUser.id,user_email:authUser.email||null,tipo_reporte:ticketForm.tipo_reporte,comentarios:ticketForm.comentarios.trim(),evidencia:evidence,estatus:"pendiente",status_history:[{estatus:"pendiente",fecha:now,actor:"usuario"}],fecha_creacion:now,fecha_actualizacion:now };
+      const { error }=await sb.from("quejas_tickets").insert(payload);
+      if(error) throw error;
+      ticketForm.evidencia.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));
+      setTicketForm({tipo_reporte:"",comentarios:"",evidencia:[]});
+      setMsg({type:"ok",text:"Ticket creado correctamente. Puedes seguir su estado en Mis tickets."});
+      await loadTickets();
+    } catch(error) { setMsg({type:"err",text:error.message||"No fue posible crear el ticket."}); }
+    finally { setTicketSubmitting(false); }
+  };
+  const getTicketEvidenceUrl = async (item) => {
+    if (!item?.bucket || !item?.path) return;
+    const { data,error }=await sb.storage.from(item.bucket).createSignedUrl(item.path,120,{download:false});
+    if(error) return setMsg({type:"err",text:"No se pudo abrir la evidencia de forma segura."});
+    window.open(data.signedUrl,"_blank","noopener,noreferrer");
+  };
+  const updateTicketAdmin = async (ticket) => {
+    if(!isAdmin) return;
+    const draft=ticketAdminDraft[ticket.id]||{};
+    const nextStatus=draft.estatus||ticket.estatus;
+    const nextResponse=(draft.respuesta_admin??ticket.respuesta_admin??"").trim();
+    const now=new Date().toISOString();
+    const history=Array.isArray(ticket.status_history)?ticket.status_history:[];
+    const changed=nextStatus!==ticket.estatus;
+    const payload={estatus:nextStatus,respuesta_admin:nextResponse||null,fecha_actualizacion:now,status_history:changed?[...history,{estatus:nextStatus,fecha:now,actor:"admin"}]:history};
+    const {error}=await sb.from("quejas_tickets").update(payload).eq("id",ticket.id);
+    if(error) setMsg({type:"err",text:error.message}); else {setMsg({type:"ok",text:"Ticket actualizado."});await loadTickets();}
+  };
   const requestVacancyDeletion = async (row) => {
     if (!authUser && !isAdmin) return requireLogin();
     if (!isAdmin && row.user_id !== authUser?.id) return;
@@ -24220,24 +24351,42 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
+  const TicketStatusChip = ({ value }) => {
+    const meta=QUEJAS_STATUS[value]||QUEJAS_STATUS.pendiente;
+    return <span style={{display:"inline-flex",alignItems:"center",gap:"6px",padding:"5px 9px",borderRadius:"999px",background:meta.bg,border:`1px solid ${meta.color}55`,color:meta.color,fontSize:"11px",fontWeight:800}}><span style={{width:"6px",height:"6px",borderRadius:"50%",background:meta.color,boxShadow:`0 0 10px ${meta.color}66`}}/>{meta.label}</span>;
+  };
+  const TicketsHelpdesk = () => {
+    const typeLabel=(value)=>QUEJAS_TICKET_TYPES.find(x=>x.value===value)?.label||value||"Otro";
+    const filtered=isAdmin?tickets.filter(t=>{
+      const text=`${t.ticket_number||t.id} ${t.user_email||""} ${t.user_id||""}`.toLowerCase();
+      const created=new Date(t.fecha_creacion||t.created_at||0).getTime();
+      return (ticketFilters.tipo==="todos"||t.tipo_reporte===ticketFilters.tipo)&&(ticketFilters.estatus==="todos"||t.estatus===ticketFilters.estatus)&&(!ticketFilters.desde||created>=new Date(ticketFilters.desde+"T00:00:00").getTime())&&(!ticketFilters.hasta||created<=new Date(ticketFilters.hasta+"T23:59:59").getTime())&&(!ticketFilters.search||text.includes(ticketFilters.search.toLowerCase()));
+    }):tickets;
+    return <div style={{display:"grid",gap:"20px",marginTop:"14px"}}>
+      {!isAdmin&&<section style={{...card,border:"1px solid rgba(159,202,255,.24)",overflow:"hidden"}}>
+        <div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",alignItems:"center",gap:"11px"}}><MS name="confirmation_number" size={23} active/><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>Crear ticket</div><div style={{color:"#bfc7d5",fontSize:"12px"}}>Describe el problema y adjunta evidencia segura si es necesario.</div></div></div>
+        <div style={{padding:"18px",display:"grid",gap:"14px"}}>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:e.target.value}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:e.target.value}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
+          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"inline-flex",alignItems:"center",gap:"7px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
+          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"grid",placeItems:"center",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><span className="cm-cyan-pulse"/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
+        </div>
+      </section>}
+      {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:e.target.value}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:e.target.value}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:e.target.value}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:e.target.value}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:e.target.value}))} style={input}/></section>}
+      <section style={{...card,overflow:"hidden"}}><div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><div style={{color:"#89919e",fontSize:"11px"}}>{filtered.length} ticket(s)</div></div><button onClick={loadTickets} style={btn("#9fcaff")}><MS name="refresh" size={18}/>Actualizar</button></div>
+        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"38px",textAlign:"center",color:"#89919e"}}>No hay tickets para mostrar.</div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":"chevron_right"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:e.target.value}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:e.target.value}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
+    </div>;
+  };
+
   const AdminQuejas = ({ mode = "complaints" } = {}) => {
+    if (mode === "complaints") return <TicketsHelpdesk/>;
     if (!isAdmin) return null;
     const pendingProfiles = [
       ...trabajadores.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"trabajador"})),
       ...empresas.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"empresa"})),
     ];
-    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}>
-      {mode !== "verification" && <section style={{...card,border:"1px solid rgba(239,68,68,.28)"}}>
-        <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Quejas y reportes de Posturas</div>
-        <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"8px",lineHeight:1.5}}>Reportes de empresas, vacantes y perfiles enviados desde el modal obligatorio.</div>
-        {quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x=><div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 0",color:"rgba(255,255,255,.72)",fontSize:"12px",lineHeight:1.55}}><div style={{color:"#fca5a5",fontWeight:900,marginBottom:"4px"}}>Reporte pendiente</div><div>{x.comentario}</div><div style={{color:"rgba(255,255,255,.38)",marginTop:"4px"}}>Usuario: {x.user_id||"—"} · Dispositivo: {x.device_id||"—"}</div><div style={{marginTop:"8px",display:"flex",gap:"6px",flexWrap:"wrap"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Marcar revisado</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}
-      </section>}
-      {mode !== "complaints" && <section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}>
-        <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div>
-        <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>
-        {pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}
-      </section>}
-    </div>;
+    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}><section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}><div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div><div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>{pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}</section></div>;
   };
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
@@ -24378,7 +24527,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
-    ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report_problem", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
+    ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report_problem", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
   ];
   const activeSidebarId = posturasMode === "archive" ? "archivo" : posturasMode === "vacancies" ? "mis-vacantes" : sub;
   const segmentButton = (id, label) => {
@@ -24693,7 +24842,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       { id:"posturas", label:"Posturas", icon:"work", action:()=>{ setSub("posturas"); setPosturasMode("list"); } },
       { id:"boletinados", label:"Boletinados", icon:"gavel", action:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
       { id:"donativos", label:"Donativos", icon:"volunteer_activism", action:()=>{ setSub("donativos"); setPosturasMode("list"); } },
-      ...(isAdmin ? [{ id:"quejas", label:"Quejas", icon:"report", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
+      ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
     ];
 
     const isActive = (id) => {
@@ -24829,7 +24978,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
-    if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></div>;
+    if (sub === "quejas") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></div>;
     if (sub === "verificacion" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Verificación</h2><AdminQuejas mode="verification" /></div>;
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
@@ -24959,7 +25108,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "donativos" && <DonativosTab embedded />}
         {sub === "boletinados" && renderBoletinadosTab()}
         {sub === "notificaciones" && <NotificationsCenter />}
-        {sub === "quejas" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></section>}
+        {sub === "quejas" && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></section>}
         {sub === "verificacion" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Verificación</h2><AdminQuejas mode="verification" /></section>}
         {sub === "tablero" && <DashboardHub />}
         {sub === "posturas" && posturasMode === "vacancies" && <MyVacanciesView />}
