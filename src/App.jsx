@@ -29997,138 +29997,247 @@ function GlobalIdentityProfileModal({
 }
 
 
-function AdminDashboardHexIcon({ icon, accent = "#2f80ed" }) {
+function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
-    <div style={{
-      width:"54px", height:"60px", flex:"0 0 auto", display:"grid", placeItems:"center",
-      background:"linear-gradient(145deg, rgba(19,45,75,.96), rgba(6,22,40,.84))",
-      clipPath:"polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%)",
-      border:"1px solid rgba(255,255,255,.16)",
-      filter:"drop-shadow(0 10px 18px rgba(0,0,0,.28))",
-      position:"relative"
-    }}>
-      <div style={{ position:"absolute", inset:"4px", clipPath:"inherit", border:`1px solid ${accent}55`, background:`linear-gradient(145deg, ${accent}18, rgba(255,255,255,.02))` }} />
-      <AppIcon name={icon} size={27} active style={{ position:"relative", zIndex:1, filter:"none" }} />
-    </div>
-  );
-}
-
-function AdminDashboardCard({ id, title, subtitle, icon, accent, open, onToggle, children }) {
-  return (
-    <section className={`cm-admin-dashboard-card ${open ? "is-open" : ""}`}>
-      <button type="button" className="cm-admin-dashboard-card__head" onClick={() => onToggle(id)} aria-expanded={open}>
-        <AdminDashboardHexIcon icon={icon} accent={accent} />
-        <span className="cm-admin-dashboard-card__copy">
+    <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
+      <button type="button" className="csp-dashboard-card__header" onClick={() => onToggle(id)} aria-expanded={open}>
+        <span className="csp-dashboard-card__icon"><MS name={icon} size={24} active /></span>
+        <span className="csp-dashboard-card__copy">
           <strong>{title}</strong>
           <small>{subtitle}</small>
         </span>
-        <span className="cm-admin-dashboard-card__chevron"><MS name="expand_more" size={22} active={open} /></span>
+        <span className="csp-dashboard-card__chevron"><MS name="expand_more" size={22} active={open} /></span>
       </button>
-      {open && <div className="cm-admin-dashboard-card__body">{children}</div>}
+      {open && <div className="csp-dashboard-card__body">{children}</div>}
     </section>
   );
 }
 
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig }) {
-  const [openCards, setOpenCards] = useState(() => new Set(["overview"]));
+  const [openCards, setOpenCards] = useState(() => new Set());
   const [newsTool, setNewsTool] = useState("publish");
-  const toggle = (id) => setOpenCards(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const opened = (id) => openCards.has(id);
 
   const cards = [
-    { id:"users", title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"user", accent:"#2f80ed" },
-    { id:"news", title:"Noticias y comunicados", subtitle:"Publicación, procesamiento de archivos y limpieza del historial", icon:"dispatch-news", accent:"#ef6a67" },
-    { id:"traffic", title:"Tráfico, vialidades y rutas fiscales", subtitle:"Estados operativos, votos y modo automático", icon:"traffic-control", accent:"#2f80ed" },
-    { id:"incidents", title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"incident-pin", accent:"#ef6a67" },
-    { id:"terminals", title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"port-terminal", accent:"#2f80ed" },
-    { id:"confinados", title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lane-status-monitor", accent:"#5b8def" },
-    { id:"access", title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"access-gate", accent:"#2f80ed" },
-    { id:"posturas", title:"Posturas", subtitle:"Perfiles, vacantes, quejas y herramientas administrativas", icon:"business_center", accent:"#ef6a67" },
-    { id:"records", title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"document", accent:"#5b8def" },
-    { id:"tools", title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"palette", accent:"#ef6a67" },
+    { id:"users", title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
+    { id:"news", title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
+    { id:"traffic", title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
+    { id:"incidents", title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
+    { id:"terminals", title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
+    { id:"confinados", title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lock_clock" },
+    { id:"access", title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"door_sliding" },
+    { id:"posturas", title:"Posturas", subtitle:"Perfiles, vacantes, quejas y herramientas administrativas", icon:"work_history" },
+    { id:"records", title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
+    { id:"tools", title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
   ];
 
+  const toggle = useCallback((id) => {
+    setOpenCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const opened = (id) => openCards.has(id);
+
+  const openSection = useCallback((id, options = {}) => {
+    if (id === "news" && options.newsTool) setNewsTool(options.newsTool);
+    setOpenCards(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    window.setTimeout(() => {
+      document.getElementById(`admin-dashboard-${id}`)?.scrollIntoView({ behavior:"smooth", block:"start" });
+    }, 60);
+  }, []);
+
+  const incidentList = Array.isArray(incidents) ? incidents : [];
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayReports = incidentList.filter(item => toMs(item?.created_at || item?.timestamp || item?.date || item?.fecha) >= todayStart.getTime()).length;
+  const pendingReports = incidentList.filter(item => {
+    const status = String(item?.status || item?.estado || "").toLowerCase();
+    return !["aprobado", "approved", "resuelto", "resolved", "cerrado", "closed"].includes(status);
+  }).length;
+  const recentActivity = [...incidentList]
+    .sort((a, b) => toMs(b?.updated_at || b?.created_at || b?.timestamp || b?.date) - toMs(a?.updated_at || a?.created_at || a?.timestamp || a?.date))
+    .slice(0, 3);
+
+  const activityTitle = (item) => item?.title || item?.titulo || item?.type || item?.tipo || item?.description || item?.descripcion || "Reporte administrativo actualizado";
+  const activityMeta = (item) => {
+    const dateValue = item?.updated_at || item?.created_at || item?.timestamp || item?.date;
+    const dateMs = toMs(dateValue);
+    if (!dateMs) return "Registro administrativo";
+    const minutes = Math.max(0, Math.round((Date.now() - dateMs) / 60000));
+    if (minutes < 1) return "Ahora mismo";
+    if (minutes < 60) return `Hace ${minutes} min`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `Hace ${hours} h`;
+    return new Date(dateMs).toLocaleDateString("es-MX", { day:"2-digit", month:"short" });
+  };
+
   return (
-    <main className="cm-admin-dashboard">
+    <div className="csp-admin-shell">
       <style>{`
-        .cm-admin-dashboard{max-width:1440px;margin:0 auto;padding:26px 18px 90px;color:#fff;font-family:'Inter','DM Sans',sans-serif}
-        .cm-admin-dashboard__hero{position:relative;overflow:hidden;border:1px solid rgba(139,177,219,.22);border-radius:24px;padding:28px;background:linear-gradient(135deg,rgba(10,29,51,.98),rgba(17,42,70,.92));box-shadow:0 24px 70px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);margin-bottom:20px}
-        .cm-admin-dashboard__hero:after{content:'';position:absolute;right:-90px;top:-120px;width:330px;height:330px;border-radius:50%;background:radial-gradient(circle,rgba(47,128,237,.20),transparent 68%);pointer-events:none}
-        .cm-admin-dashboard__eyebrow{display:flex;align-items:center;gap:10px;color:#88bfff;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
-        .cm-admin-dashboard__hero h1{margin:0;font-size:clamp(28px,4vw,48px);line-height:1.05;letter-spacing:-.04em;font-weight:900}
-        .cm-admin-dashboard__hero p{max-width:760px;margin:12px 0 0;color:#aebdd0;font-size:13px;line-height:1.7}
-        .cm-admin-dashboard__actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
-        .cm-admin-dashboard__action{display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid rgba(125,176,236,.30);background:linear-gradient(180deg,rgba(38,91,148,.42),rgba(14,42,72,.58));color:#fff;font:800 12px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 10px 24px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease,background .22s ease}
-        .cm-admin-dashboard__action:hover{transform:translateY(-2px);border-color:rgba(136,191,255,.72);background:linear-gradient(180deg,rgba(47,128,237,.58),rgba(16,54,91,.72));box-shadow:0 16px 34px rgba(0,0,0,.32),0 0 0 1px rgba(47,128,237,.12)}
-        .cm-admin-dashboard__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
-        .cm-admin-dashboard-card{border:1px solid rgba(141,166,195,.18);border-radius:18px;background:linear-gradient(145deg,rgba(14,34,58,.92),rgba(8,24,43,.86));box-shadow:0 16px 38px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
-        .cm-admin-dashboard-card:hover{transform:translateY(-2px);border-color:rgba(125,176,236,.36);box-shadow:0 22px 48px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.07)}
-        .cm-admin-dashboard-card.is-open{grid-column:1/-1;border-color:rgba(73,139,216,.38)}
-        .cm-admin-dashboard-card__head{width:100%;display:flex;align-items:center;gap:15px;padding:18px;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer}
-        .cm-admin-dashboard-card__copy{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
-        .cm-admin-dashboard-card__copy strong{font-size:15px;font-weight:900;letter-spacing:-.01em}
-        .cm-admin-dashboard-card__copy small{color:#94a8bf;font-size:11px;line-height:1.45}
-        .cm-admin-dashboard-card__chevron{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.045);transition:transform .25s ease,background .25s ease}
-        .cm-admin-dashboard-card.is-open .cm-admin-dashboard-card__chevron{transform:rotate(180deg);background:rgba(47,128,237,.14)}
-        .cm-admin-dashboard-card__body{border-top:1px solid rgba(255,255,255,.08);padding:18px;background:rgba(2,12,25,.34);animation:cmAdminDashOpen .24s ease both}
-        .cm-admin-dashboard-card__body>.cm-admin-dashboard-embedded{border-radius:16px;overflow:hidden}
-        .cm-admin-dashboard__tool-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-        .cm-admin-dashboard__tool{min-height:116px;border:1px solid rgba(255,255,255,.10);border-radius:15px;padding:16px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.025));color:#fff;text-align:left;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,.20);transition:all .22s ease}
-        .cm-admin-dashboard__tool:hover{transform:translateY(-3px);border-color:rgba(239,106,103,.48);box-shadow:0 18px 34px rgba(0,0,0,.28)}
-        .cm-admin-dashboard__tool strong{display:block;margin-top:12px;font-size:13px}.cm-admin-dashboard__tool span{display:block;margin-top:5px;color:#9fb0c3;font-size:10px;line-height:1.5}
-        .cm-admin-dashboard__news-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:7px;margin-bottom:14px;border:1px solid rgba(125,176,236,.20);border-radius:13px;background:rgba(2,12,25,.62)}
-        .cm-admin-dashboard__news-switch button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:43px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.035);color:#9fb0c3;font:800 11px/1 'Inter',sans-serif;cursor:pointer;transition:all .22s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
-        .cm-admin-dashboard__news-switch button:hover{transform:translateY(-1px);border-color:rgba(136,191,255,.50);color:#fff;box-shadow:0 10px 22px rgba(0,0,0,.22)}
-        .cm-admin-dashboard__news-switch button.is-active{border-color:rgba(239,106,103,.58);background:linear-gradient(135deg,rgba(239,106,103,.18),rgba(47,128,237,.18));color:#fff;box-shadow:0 12px 26px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.08)}
-        @keyframes cmAdminDashOpen{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        @media(max-width:820px){.cm-admin-dashboard{padding:18px 10px 72px}.cm-admin-dashboard__grid{grid-template-columns:1fr}.cm-admin-dashboard-card.is-open{grid-column:auto}.cm-admin-dashboard__tool-row{grid-template-columns:1fr}.cm-admin-dashboard__hero{padding:22px 18px}.cm-admin-dashboard-card__head{padding:15px 13px}}
+        .csp-admin-shell{
+          --csp-surface:#101415;--csp-surface-dim:#101415;--csp-surface-bright:#363a3b;
+          --csp-surface-lowest:#0b0f10;--csp-surface-low:#191c1e;--csp-surface-container:#1d2022;
+          --csp-surface-high:#272a2c;--csp-surface-highest:#323537;--csp-on-surface:#e0e3e5;
+          --csp-on-surface-variant:#bfc7d5;--csp-outline:#89919e;--csp-outline-variant:#3f4753;
+          --csp-primary:#9fcaff;--csp-primary-container:#0099ff;--csp-on-primary-container:#002f54;
+          --csp-secondary:#bdf4ff;--csp-secondary-container:#00e3fd;--csp-error:#ffb4ab;--csp-on-error:#690005;
+          min-height:100vh;background:var(--csp-surface-lowest);color:var(--csp-on-surface);font-family:'Inter',sans-serif;
+          display:flex;max-width:1600px;margin:0 auto;isolation:isolate;
+        }
+        .csp-admin-shell *{box-sizing:border-box}
+        .csp-sidebar{width:288px;flex:0 0 288px;height:100vh;position:sticky;top:0;display:flex;flex-direction:column;gap:24px;padding:16px;background:var(--csp-surface-container);border-right:1px solid var(--csp-outline-variant);z-index:4}
+        .csp-sidebar__brand{display:flex;align-items:center;gap:12px;min-height:48px;flex:0 0 auto}
+        .csp-sidebar__avatar{width:40px;height:40px;border-radius:9999px;display:grid;place-items:center;overflow:hidden;background:var(--csp-surface-highest);color:var(--csp-primary)}
+        .csp-sidebar__avatar img{width:100%;height:100%;object-fit:cover}
+        .csp-sidebar__brand strong{font-size:20px;line-height:28px;font-weight:600;color:var(--csp-primary)}
+        .csp-sidebar__scroll{flex:1;overflow-y:auto;padding-right:4px;scrollbar-width:thin;scrollbar-color:rgba(159,202,255,.2) transparent}
+        .csp-sidebar__scroll::-webkit-scrollbar{width:4px}.csp-sidebar__scroll::-webkit-scrollbar-track{background:transparent}.csp-sidebar__scroll::-webkit-scrollbar-thumb{background:rgba(159,202,255,.2);border-radius:10px}.csp-sidebar__scroll::-webkit-scrollbar-thumb:hover{background:rgba(159,202,255,.4)}
+        .csp-sidebar nav{display:flex;flex-direction:column;gap:4px}
+        .csp-label-caps{margin:0 16px 8px;color:var(--csp-outline);font-size:12px;line-height:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+        .csp-sidebar__divider{height:1px;background:rgba(63,71,83,.3);margin:16px 0}
+        .csp-nav-item{width:100%;min-height:48px;padding:12px 16px;display:flex;align-items:center;gap:12px;border:0;border-radius:4px;background:transparent;color:var(--csp-on-surface-variant);font:500 14px/20px 'Inter',sans-serif;text-align:left;cursor:pointer;transition:background-color 300ms ease,color 300ms ease,transform 300ms ease,box-shadow 300ms ease}
+        .csp-nav-item:hover{background:var(--csp-surface-highest);color:var(--csp-on-surface);transform:translateX(4px)}
+        .csp-nav-item:hover .material-symbols-outlined{color:var(--csp-secondary)}
+        .csp-nav-item.is-active{background:var(--csp-primary-container);color:var(--csp-on-primary-container);box-shadow:0 10px 22px rgba(159,202,255,.20)}
+        .csp-nav-item.is-active:hover{transform:none}.csp-nav-item--section .material-symbols-outlined{color:var(--csp-primary)}
+        .csp-main{min-width:0;flex:1;padding:48px;position:relative}
+        .csp-main__inner{width:100%;max-width:1200px;margin:0 auto}
+        .csp-header{margin-bottom:48px}.csp-header h1{margin:0 0 12px;font-size:32px;line-height:40px;letter-spacing:-.02em;font-weight:700}.csp-header p{max-width:720px;margin:0;color:var(--csp-on-surface-variant);font-size:16px;line-height:24px}
+        .csp-quick{margin-bottom:48px}.csp-quick .csp-label-caps{margin-left:0;margin-bottom:16px}
+        .csp-quick__row{display:flex;flex-wrap:wrap;gap:16px}
+        .csp-action{min-height:52px;padding:12px 24px;display:inline-flex;align-items:center;justify-content:center;gap:12px;border:1px solid rgba(63,71,83,.3);border-radius:4px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);color:var(--csp-on-surface);font:600 16px/24px 'Inter',sans-serif;cursor:pointer;transition:all 300ms ease}
+        .csp-action:hover{border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15);transform:translateY(-2px)}
+        .csp-action .material-symbols-outlined{transition:color 300ms ease,transform 300ms ease}.csp-action:hover .material-symbols-outlined{color:var(--csp-secondary);transform:translateX(2px)}
+        .csp-action--error{border-color:var(--csp-error);color:var(--csp-error);background:var(--csp-surface-high);box-shadow:0 0 15px rgba(255,180,171,.2)}
+        .csp-action--error:hover{background:var(--csp-error);color:var(--csp-on-error);border-color:var(--csp-error);box-shadow:0 0 20px rgba(255,180,171,.28)}
+        .csp-overview{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;margin-bottom:32px}
+        .csp-glass{background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden}
+        .csp-metric{grid-column:span 4;padding:24px;min-height:190px}.csp-metric__top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.csp-metric__icon{width:43px;height:43px;display:grid;place-items:center;border-radius:4px;background:rgba(159,202,255,.1);color:var(--csp-primary)}
+        .csp-metric__badge{font-size:13px;line-height:18px;letter-spacing:.02em;font-weight:500}.csp-metric__badge--secondary{color:var(--csp-secondary)}.csp-metric__badge--error{color:var(--csp-error)}
+        .csp-metric h3{margin:0;color:var(--csp-on-surface-variant);font-size:14px;line-height:20px;font-weight:500}.csp-metric strong{display:block;margin-top:2px;font-size:24px;line-height:32px;letter-spacing:-.01em;font-weight:600}
+        .csp-meter{height:4px;margin-top:20px;border-radius:9999px;overflow:hidden;background:var(--csp-surface-highest)}.csp-meter span{display:block;height:100%;background:var(--csp-primary)}.csp-meter--cyan span{background:#00daf3}.csp-meter--soft span{background:#d2e4ff}
+        .csp-activity{grid-column:1/-1}.csp-card-glass-header{padding:24px;background:rgba(50,53,55,.34);border-bottom:1px solid rgba(63,71,83,.3);display:flex;align-items:center;justify-content:space-between}.csp-card-glass-header h2{margin:0;font-size:20px;line-height:28px;font-weight:600}.csp-card-glass-header button{border:0;background:none;color:var(--csp-primary);font:400 14px/20px 'Inter',sans-serif;cursor:pointer}
+        .csp-activity__list{padding:16px 24px 24px}.csp-activity__item{width:100%;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:20px;border:0;border-radius:4px;background:transparent;color:inherit;text-align:left;transition:background-color 300ms ease;cursor:pointer}.csp-activity__item:hover{background:var(--csp-surface-highest)}
+        .csp-activity__main{display:flex;align-items:center;gap:16px;min-width:0}.csp-activity__dot{width:8px;height:8px;flex:0 0 auto;border-radius:9999px;background:var(--csp-secondary);box-shadow:0 0 12px rgba(189,244,255,.45)}.csp-activity__dot--error{background:var(--csp-error);box-shadow:0 0 12px rgba(255,180,171,.45)}.csp-activity__dot--primary{background:var(--csp-primary);box-shadow:0 0 12px rgba(159,202,255,.45)}
+        .csp-activity__text{min-width:0}.csp-activity__text strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:20px;font-weight:500}.csp-activity__text small{display:block;color:var(--csp-on-surface-variant);font-size:12px;line-height:16px;font-weight:700;letter-spacing:.02em}.csp-activity__empty{padding:22px 12px;color:var(--csp-on-surface-variant);font-size:14px}
+        .csp-sections{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px}.csp-sections>.csp-dashboard-card{grid-column:span 6}.csp-sections>.csp-dashboard-card.is-open{grid-column:1/-1}
+        .csp-dashboard-card{scroll-margin-top:24px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden;transition:border-color 300ms ease,box-shadow 300ms ease,transform 300ms ease}.csp-dashboard-card:hover{border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15)}
+        .csp-dashboard-card__header{width:100%;min-height:92px;padding:20px 24px;display:flex;align-items:center;gap:16px;border:0;background:rgba(50,53,55,.28);color:var(--csp-on-surface);text-align:left;cursor:pointer}.csp-dashboard-card__icon{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;border-radius:4px;background:rgba(159,202,255,.1);color:var(--csp-primary)}
+        .csp-dashboard-card__copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}.csp-dashboard-card__copy strong{font-size:16px;line-height:24px;font-weight:600}.csp-dashboard-card__copy small{color:var(--csp-on-surface-variant);font-size:14px;line-height:20px;font-weight:400}.csp-dashboard-card__chevron{width:36px;height:36px;display:grid;place-items:center;border-radius:4px;color:var(--csp-on-surface-variant);transition:transform 300ms ease,color 300ms ease}.csp-dashboard-card.is-open .csp-dashboard-card__chevron{transform:rotate(180deg);color:var(--csp-secondary)}
+        .csp-dashboard-card__body{padding:24px;border-top:1px solid rgba(63,71,83,.3);background:rgba(11,15,16,.46);animation:csp-open 300ms ease both}.csp-dashboard-embedded{border-radius:8px;overflow:hidden}
+        .csp-news-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:8px;margin-bottom:16px;background:var(--csp-surface-lowest);border:1px solid rgba(63,71,83,.3);border-radius:8px}.csp-news-switch button{min-height:44px;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--csp-on-surface-variant);font:600 14px/20px 'Inter',sans-serif;cursor:pointer;transition:all 300ms ease}.csp-news-switch button:hover{background:var(--csp-surface-high);color:var(--csp-on-surface)}.csp-news-switch button.is-active{border-color:var(--csp-primary);background:rgba(159,202,255,.10);color:var(--csp-primary);box-shadow:0 0 20px rgba(159,202,255,.15)}
+        .csp-tool-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.csp-tool{min-height:124px;padding:20px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);color:var(--csp-on-surface);text-align:left;cursor:pointer;transition:all 300ms ease}.csp-tool:hover{border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15);transform:translateY(-2px)}.csp-tool strong{display:block;margin-top:14px;font-size:16px;line-height:24px;font-weight:600}.csp-tool small{display:block;margin-top:4px;color:var(--csp-on-surface-variant);font-size:14px;line-height:20px}
+        @keyframes csp-open{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes csp-pulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0)}50%{box-shadow:0 0 20px rgba(0,227,253,.35)}}
+        @media(max-width:1100px){.csp-sidebar{display:none}.csp-main{padding:32px 24px}.csp-metric{grid-column:span 6}.csp-sections>.csp-dashboard-card{grid-column:1/-1}}
+        @media(max-width:680px){.csp-main{padding:24px 16px 80px}.csp-header{margin-bottom:32px}.csp-header h1{font-size:26px;line-height:32px}.csp-quick{margin-bottom:32px}.csp-quick__row{display:grid;grid-template-columns:1fr}.csp-action{width:100%}.csp-metric{grid-column:1/-1}.csp-overview,.csp-sections{gap:16px}.csp-tool-grid{grid-template-columns:1fr}.csp-dashboard-card__header{padding:16px}.csp-dashboard-card__body{padding:12px}.csp-news-switch{grid-template-columns:1fr}}
+        @media(prefers-reduced-motion:reduce){.csp-admin-shell *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
       `}</style>
-      <header className="cm-admin-dashboard__hero">
-        <div className="cm-admin-dashboard__eyebrow"><AppIcon name="window" size={18} active /> Centro administrativo</div>
-        <h1>Dashboard</h1>
-        <p>Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales.</p>
-        <div className="cm-admin-dashboard__actions">
-          <button className="cm-admin-dashboard__action" onClick={() => { setNewsTool("publish"); if (!opened("news")) toggle("news"); }}><AppIcon name="dispatch-news" size={18} active /> Publicar comunicado</button>
-          <button className="cm-admin-dashboard__action" onClick={() => { setNewsTool("propose"); if (!opened("news")) toggle("news"); }}><AppIcon name="clipboard" size={18} active /> Proponer comunicado</button>
-          <button className="cm-admin-dashboard__action" onClick={() => toggle("users")}><AppIcon name="user" size={18} active /> Gestionar roles</button>
-          <button className="cm-admin-dashboard__action" onClick={() => toggle("traffic")}><AppIcon name="traffic-control" size={18} active /> Actualizar tráfico</button>
-          <button className="cm-admin-dashboard__action" onClick={() => toggle("incidents")}><AppIcon name="incident-pin" size={18} active /> Moderar incidentes</button>
+
+      <aside className="csp-sidebar" aria-label="Navegación administrativa">
+        <div className="csp-sidebar__brand">
+          <div className="csp-sidebar__avatar">{CONECT_LOGO_SRC ? <img src={CONECT_LOGO_SRC} alt="" /> : <MS name="admin_panel_settings" size={24} active />}</div>
+          <strong>ADMIN</strong>
         </div>
-      </header>
-      <div className="cm-admin-dashboard__grid">
-        {cards.map(card => (
-          <AdminDashboardCard key={card.id} {...card} open={opened(card.id)} onToggle={toggle}>
-            <div className="cm-admin-dashboard-embedded">
-              {card.id === "users" && <AdminUsuariosPanel />}
-              {card.id === "news" && <>
-                <div className="cm-admin-dashboard__news-switch">
-                  <button type="button" className={newsTool === "publish" ? "is-active" : ""} onClick={() => setNewsTool("publish")}><AppIcon name="dispatch-news" size={18} active={newsTool === "publish"} /> Publicar noticia</button>
-                  <button type="button" className={newsTool === "propose" ? "is-active" : ""} onClick={() => setNewsTool("propose")}><AppIcon name="clipboard" size={18} active={newsTool === "propose"} /> Proponer comunicado</button>
-                </div>
-                {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
-                <div style={{height:14}}/><NoticiasAdminCleanup />
-              </>}
-              {card.id === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
-              {card.id === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
-              {card.id === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
-              {card.id === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
-              {card.id === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
-              {card.id === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
-              {card.id === "records" && <AdminRegistrosPanel />}
-              {card.id === "tools" && <div className="cm-admin-dashboard__tool-row">
-                <button className="cm-admin-dashboard__tool" onClick={() => setActiveTab("portuario")}><AppIcon name="anchor-port" size={28} active /><strong>Control portuario</strong><span>Abrir el sistema de control de citas y carga.</span></button>
-                <button className="cm-admin-dashboard__tool" onClick={onOpenThemeConfig}><AppIcon name="palette" size={28} active /><strong>Tema global</strong><span>Configurar la identidad visual compartida de la aplicación.</span></button>
-                <div className="cm-admin-dashboard__tool" style={{cursor:"default"}}><AppIcon name="route" size={28} active /><strong>Calculadora operativa</strong><span>Herramientas de cálculo y costos de ruta.</span><div style={{marginTop:14}}><AdminCalculadoraPanel /></div></div>
-              </div>}
+        <div className="csp-sidebar__scroll">
+          <nav>
+            <p className="csp-label-caps">General</p>
+            <button type="button" className="csp-nav-item is-active"><MS name="dashboard" size={24} active /><span>Dashboard</span></button>
+            <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="verified_user" size={24} /><span>Verificación</span></button>
+            <button type="button" className="csp-nav-item" onClick={() => openSection("posturas")}><MS name="feedback" size={24} /><span>Quejas</span></button>
+            <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="support_agent" size={24} /><span>Soporte</span></button>
+            <div className="csp-sidebar__divider" />
+            <p className="csp-label-caps">Gestión por sección</p>
+            {cards.map(card => <button key={card.id} type="button" className="csp-nav-item csp-nav-item--section" onClick={() => openSection(card.id)}><MS name={card.icon} size={24} /><span>{card.title}</span></button>)}
+          </nav>
+        </div>
+      </aside>
+
+      <main className="csp-main">
+        <div className="csp-main__inner">
+          <header className="csp-header">
+            <h1>Dashboard</h1>
+            <p>Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales a través de la navegación lateral.</p>
+          </header>
+
+          <section className="csp-quick" aria-labelledby="csp-quick-label">
+            <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
+            <div className="csp-quick__row">
+              <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>
+              <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>
+              <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>
+              <button type="button" className="csp-action" onClick={() => openSection("traffic")}><MS name="traffic" size={24} active /><span>Actualizar tráfico</span></button>
+              <button type="button" className="csp-action" onClick={() => openSection("incidents")}><MS name="gavel" size={24} active /><span>Moderar incidentes</span></button>
             </div>
-          </AdminDashboardCard>
-        ))}
-      </div>
-    </main>
+          </section>
+
+          <section className="csp-overview" aria-label="Resumen administrativo">
+            <article className="csp-glass csp-metric">
+              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="trending_up" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--secondary">Hoy</span></div>
+              <h3>Reportes recibidos</h3><strong>{todayReports.toLocaleString("es-MX")}</strong>
+              <div className="csp-meter"><span style={{width:`${Math.min(100, Math.max(8, todayReports * 8))}%`}} /></div>
+            </article>
+            <article className="csp-glass csp-metric">
+              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="security" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--error">{pendingReports} alertas</span></div>
+              <h3>Estado de moderación</h3><strong>{pendingReports ? "Atención" : "Operativo"}</strong>
+              <div className="csp-meter csp-meter--cyan"><span style={{width:`${pendingReports ? Math.max(20, 100 - pendingReports * 8) : 100}%`}} /></div>
+            </article>
+            <article className="csp-glass csp-metric">
+              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="timer" size={24} active /></span><span className="csp-metric__badge">Tiempo real</span></div>
+              <h3>Tráfico y operación</h3><strong>{incidentList.length ? "Monitoreado" : "Sin novedades"}</strong>
+              <div className="csp-meter csp-meter--soft"><span style={{width:incidentList.length ? "68%" : "30%"}} /></div>
+            </article>
+
+            <article className="csp-glass csp-activity">
+              <div className="csp-card-glass-header"><h2>Actividad reciente</h2><button type="button" onClick={() => openSection("records")}>Ver todo</button></div>
+              <div className="csp-activity__list">
+                {recentActivity.length ? recentActivity.map((item, index) => (
+                  <button key={item?.id || index} type="button" className="csp-activity__item" onClick={() => openSection("incidents")}>
+                    <span className="csp-activity__main"><span className={`csp-activity__dot ${index === 1 ? "csp-activity__dot--error" : index === 2 ? "csp-activity__dot--primary" : ""}`} /><span className="csp-activity__text"><strong>{activityTitle(item)}</strong><small>{activityMeta(item)}</small></span></span>
+                    <MS name="chevron_right" size={22} />
+                  </button>
+                )) : <div className="csp-activity__empty">No hay actividad reciente disponible. Las nuevas acciones administrativas aparecerán aquí.</div>}
+              </div>
+            </article>
+          </section>
+
+          <section className="csp-sections" aria-label="Herramientas por sección">
+            {cards.map(card => (
+              <AdminDashboardCard key={card.id} {...card} open={opened(card.id)} onToggle={toggle}>
+                <div className="csp-dashboard-embedded">
+                  {card.id === "users" && <AdminUsuariosPanel />}
+                  {card.id === "news" && <>
+                    <div className="csp-news-switch">
+                      <button type="button" className={newsTool === "publish" ? "is-active" : ""} onClick={() => setNewsTool("publish")}><MS name="campaign" size={22} active={newsTool === "publish"} /> Publicar comunicado</button>
+                      <button type="button" className={newsTool === "propose" ? "is-active" : ""} onClick={() => setNewsTool("propose")}><MS name="edit_note" size={22} active={newsTool === "propose"} /> Proponer comunicado</button>
+                    </div>
+                    {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
+                    <div style={{height:16}} /><NoticiasAdminCleanup />
+                  </>}
+                  {card.id === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+                  {card.id === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
+                  {card.id === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
+                  {card.id === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
+                  {card.id === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+                  {card.id === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
+                  {card.id === "records" && <AdminRegistrosPanel />}
+                  {card.id === "tools" && <div className="csp-tool-grid">
+                    <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
+                    <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>
+                    <div className="csp-tool" style={{cursor:"default"}}><MS name="calculate" size={28} active /><strong>Calculadora operativa</strong><small>Herramientas de cálculo y costos de ruta.</small><div style={{marginTop:16}}><AdminCalculadoraPanel /></div></div>
+                  </div>}
+                </div>
+              </AdminDashboardCard>
+            ))}
+          </section>
+        </div>
+      </main>
+    </div>
   );
 }
 
