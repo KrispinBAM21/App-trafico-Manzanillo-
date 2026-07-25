@@ -22091,6 +22091,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (initialAdminView === "management") setPosturasMode("form");
   }, [isAdmin, initialAdminView]);
   const [mobilePosturasPanelOpen, setMobilePosturasPanelOpen] = useState(false);
+  const [mobilePosturasSectionsOpen, setMobilePosturasSectionsOpen] = useState(true);
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
@@ -25381,21 +25382,24 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   );
 
   const MobilePosturasPanel = () => {
-    const items = [
+    const primaryItems = [
       { id:"profile", label:"Mi perfil", icon:"person", action:()=>{ setSub("posturas"); setPosturasMode("profile"); } },
       { id:"notificaciones", label:"Notificaciones", icon:"notifications", action:()=>{ setSub("notificaciones"); setPosturasMode("list"); } },
+    ];
+    const sectionItems = [
       { id:"tablero", label:"Tablero", icon:"dashboard", action:()=>{ setSub("tablero"); setPosturasMode("list"); } },
-      { id:"posturas", label:"Posturas", icon:"work", action:()=>{ setSub("posturas"); setPosturasMode("list"); } },
+      ...((isAdmin || isEmpresaSession) ? [{ id:"vacantes", label:"Mis vacantes", icon:"badge", action:()=>{ setSub("posturas"); setPosturasMode("vacancies"); } }] : []),
       { id:"boletinados", label:"Boletinados", icon:"gavel", action:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
       { id:"donativos", label:"Donativos", icon:"volunteer_activism", action:()=>{ setSub("donativos"); setPosturasMode("list"); } },
       { id:"archivo", label:"Archivo", icon:"inventory_2", action:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
       { id:"feed", label:"Feed", icon:"feed", action:()=>{ setSub("feed"); setPosturasMode("list"); } },
-      ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
+      ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report_problem", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
     ];
 
     const isActive = (id) => {
       if (id === "profile") return posturasMode === "profile";
-      if (id === "posturas") return sub === "posturas" && posturasMode === "list";
+      if (id === "vacantes") return sub === "posturas" && posturasMode === "vacancies";
+      if (id === "archivo") return sub === "posturas" && posturasMode === "archive";
       return sub === id;
     };
 
@@ -25433,6 +25437,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         .cm-posturas-mobile-panel-trigger:active {transform:translateY(0) scale(.94);}
         .cm-posturas-mobile-panel-trigger[aria-expanded='true'] {animation:cmPosturasPanelAura 2.6s ease-in-out infinite;border-color:rgba(103,232,249,.78)!important;color:#ffffff!important;}
         .cm-posturas-mobile-panel-trigger[aria-expanded='true']::before {background:linear-gradient(145deg,rgba(6,182,212,.96),rgba(37,99,235,.92) 54%,rgba(139,92,246,.96));}
+        .cm-posturas-mobile-nav-item{transition:transform .22s cubic-bezier(.22,1,.36,1),background .22s ease,border-color .22s ease,color .22s ease,box-shadow .22s ease}.cm-posturas-mobile-nav-item:hover{transform:translateX(3px);background:rgba(164,201,255,.075)!important;border-color:rgba(164,201,255,.16)!important;color:#edf5ff!important}.cm-posturas-mobile-nav-item:active{transform:scale(.98)}
+        .cm-posturas-mobile-section-toggle{transition:background .22s ease,border-color .22s ease,transform .22s ease}.cm-posturas-mobile-section-toggle:hover{background:rgba(164,201,255,.08)!important;border-color:rgba(164,201,255,.22)!important}.cm-posturas-mobile-section-toggle:active{transform:scale(.985)}.cm-posturas-mobile-section-toggle__chevron{transition:transform .3s cubic-bezier(.22,1,.36,1)}.cm-posturas-mobile-section-toggle[aria-expanded='true'] .cm-posturas-mobile-section-toggle__chevron{transform:rotate(180deg)}
+        .cm-posturas-mobile-subsections{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s cubic-bezier(.22,1,.36,1),opacity .24s ease}.cm-posturas-mobile-subsections.is-open{grid-template-rows:1fr;opacity:1}.cm-posturas-mobile-subsections__inner{min-height:0;overflow:hidden;display:grid;gap:7px;padding-left:10px;border-left:1px solid rgba(164,201,255,.14)}
         @media (prefers-reduced-motion:reduce){.cm-posturas-mobile-panel-trigger,.cm-posturas-mobile-panel-trigger::after{animation:none!important;}}
       `}</style>
       <button
@@ -25494,29 +25501,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <button type="button" onClick={()=>setMobilePosturasPanelOpen(false)} aria-label="Cerrar panel" style={{ width:"44px", height:"44px", flexShrink:0, borderRadius:"14px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.035)", color:"#a4c9ff", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={22} active /></button>
         </div>
 
-        <nav style={{ display:"grid", gap:"8px", padding:"16px 0" }}>
-          {items.map(item => {
+        <nav style={{ display:"grid", gap:"8px", padding:"16px 0 96px" }}>
+          {primaryItems.map(item => {
             const active = isActive(item.id);
-            return <button
-              key={item.id}
-              type="button"
-              onClick={()=>{ item.action(); setMobilePosturasPanelOpen(false); }}
-              style={{
-                width:"100%", minHeight:"54px", padding:"12px 14px", borderRadius:"16px",
-                border:active ? "1px solid rgba(164,201,255,.34)" : "1px solid transparent",
-                background:active ? "linear-gradient(135deg, rgba(2,103,184,.38), rgba(18,33,49,.82))" : "rgba(255,255,255,.025)",
-                color:active ? "#d6e5ff" : "rgba(212,228,250,.72)",
-                display:"flex", alignItems:"center", gap:"13px", textAlign:"left",
-                fontFamily:getFont(theme,"secondary"), fontSize:"14px", fontWeight:"850",
-                boxShadow:active ? "0 10px 24px rgba(2,103,184,.16), inset 0 1px 0 rgba(255,255,255,.05)" : "none",
-                cursor:"pointer", transition:"all .25s ease"
-              }}
-            >
-              <span style={{ width:"34px", height:"34px", borderRadius:"11px", display:"grid", placeItems:"center", background:active ? "rgba(164,201,255,.14)" : "rgba(255,255,255,.035)", color:active ? "#a4c9ff" : "rgba(212,228,250,.62)" }}><MS name={item.icon} size={20} active={active} /></span>
-              <span style={{ flex:1 }}>{item.label}</span>
-              {active && <MS name="chevron_right" size={19} active />}
-            </button>;
+            return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{ item.action(); setMobilePosturasPanelOpen(false); }} style={{ width:"100%",minHeight:"54px",padding:"12px 14px",borderRadius:"16px",border:active?"1px solid rgba(164,201,255,.34)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.38),rgba(18,33,49,.82))":"rgba(255,255,255,.025)",color:active?"#d6e5ff":"rgba(212,228,250,.72)",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"850",boxShadow:active?"0 10px 24px rgba(2,103,184,.16),inset 0 1px 0 rgba(255,255,255,.05)":"none",cursor:"pointer" }}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.14)":"rgba(255,255,255,.035)",color:active?"#a4c9ff":"rgba(212,228,250,.62)"}}><MS name={item.icon} size={20} active={active}/></span><span style={{flex:1}}>{item.label}</span>{active&&<MS name="chevron_right" size={19} active/>}</button>;
           })}
+          <button type="button" className="cm-posturas-mobile-section-toggle" onClick={()=>setMobilePosturasSectionsOpen(v=>!v)} aria-expanded={mobilePosturasSectionsOpen} aria-controls="cm-posturas-mobile-subsections" style={{width:"100%",minHeight:"56px",padding:"12px 14px",borderRadius:"16px",border:"1px solid rgba(164,201,255,.14)",background:"rgba(164,201,255,.045)",color:"#dbeafe",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"900",cursor:"pointer"}}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:"rgba(164,201,255,.10)",color:"#a4c9ff"}}><MS name="work_history" size={20} active/></span><span style={{flex:1}}>Posturas</span><span className="cm-posturas-mobile-section-toggle__chevron" style={{display:"inline-flex"}}><PosturasSidebarIcon name="chevron_right" size={20}/></span></button>
+          <div id="cm-posturas-mobile-subsections" className={`cm-posturas-mobile-subsections ${mobilePosturasSectionsOpen ? "is-open" : ""}`}><div className="cm-posturas-mobile-subsections__inner">
+            {sectionItems.map(item=>{const active=isActive(item.id);return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{item.action();setMobilePosturasPanelOpen(false);}} style={{width:"100%",minHeight:"50px",padding:"9px 12px",borderRadius:"14px",border:active?"1px solid rgba(164,201,255,.32)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.34),rgba(18,33,49,.78))":"rgba(255,255,255,.018)",color:active?"#d6e5ff":"rgba(212,228,250,.68)",display:"flex",alignItems:"center",gap:"12px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"13px",fontWeight:"800",boxShadow:active?"0 9px 22px rgba(2,103,184,.14)":"none",cursor:"pointer"}}><span style={{width:"31px",height:"31px",borderRadius:"10px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.13)":"rgba(255,255,255,.03)",color:active?"#a4c9ff":"rgba(212,228,250,.58)"}}><MS name={item.icon} size={18} active={active}/></span><span style={{flex:1}}>{item.label}</span>{active&&<MS name="chevron_right" size={18} active/>}</button>;})}
+          </div></div>
         </nav>
       </aside>
     </>, document.body);
@@ -31177,6 +31170,7 @@ function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, childre
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig, isAdmin = false, subAdmin = null }) {
   const [activeDashboardSection, setActiveDashboardSection] = useState("dashboard");
   const [newsTool, setNewsTool] = useState("publish");
+  const [adminMobileNavOpen, setAdminMobileNavOpen] = useState(false);
   const live = useAdminDashboardLiveData(incidents);
 
   const permisos = subAdmin?.permisos || {};
@@ -31200,12 +31194,28 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"tools", permission:["herramientas_admin","ver_control_portuario"], title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
   ];
   const cards = allCards.filter(card => hasPermission(...card.permission));
+  const adminNavigationGroups = useMemo(() => ([
+    {
+      id:"general",
+      label:"General",
+      items:[
+        { id:"dashboard", title:"Dashboard", subtitle:"Resumen y accesos rápidos", icon:"dashboard" },
+        ...cards.filter(card => ["verification", "complaints", "support"].includes(card.id)),
+      ],
+    },
+    {
+      id:"management",
+      label:"Gestión por sección",
+      items:cards.filter(card => !["verification", "complaints", "support"].includes(card.id)),
+    },
+  ]), [cards]);
 
   const openSection = useCallback((id, options = {}) => {
     const target = id || "dashboard";
     if (target !== "dashboard" && !cards.some(card => card.id === target)) return;
     if (target === "news" && options.newsTool) setNewsTool(options.newsTool);
     setActiveDashboardSection(target);
+    setAdminMobileNavOpen(false);
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   }, [cards]);
 
@@ -31214,6 +31224,18 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
       setActiveDashboardSection("dashboard");
     }
   }, [activeDashboardSection, cards]);
+
+  useEffect(() => {
+    if (!adminMobileNavOpen || typeof document === "undefined") return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event) => { if (event.key === "Escape") setAdminMobileNavOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [adminMobileNavOpen]);
 
   const activeCard = cards.find(card => card.id === activeDashboardSection) || null;
 
@@ -31302,8 +31324,25 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         .csp-section-view__header h2{margin:0;color:var(--csp-on-surface);font-size:20px;line-height:28px;font-weight:600}
         .csp-section-view__header p{margin:4px 0 0;color:var(--csp-on-surface-variant);font-size:14px;line-height:20px}
         .csp-section-view__body{padding:24px;min-width:0}
-        @media(max-width:1100px){.csp-sidebar{display:none}.csp-main{padding:32px 24px}.csp-metric{grid-column:span 6}.csp-sections>.csp-dashboard-card{grid-column:1/-1}}
-        @media(max-width:680px){.csp-header__row{display:block}.csp-back-button{margin-top:16px}.csp-section-view__header{padding:16px}.csp-section-view__body{padding:12px}.csp-main{padding:24px 16px 80px}.csp-header{margin-bottom:32px}.csp-header h1{font-size:26px;line-height:32px}.csp-quick{margin-bottom:32px}.csp-quick__row{display:grid;grid-template-columns:1fr}.csp-action{width:100%}.csp-metric{grid-column:1/-1}.csp-overview,.csp-sections{gap:16px}.csp-tool-grid{grid-template-columns:1fr}.csp-dashboard-card__header{padding:16px}.csp-dashboard-card__body{padding:12px}.csp-news-switch{grid-template-columns:1fr}}
+        .csp-mobile-admin-trigger{display:none;position:fixed;left:14px;top:76px;z-index:1490;width:54px;height:54px;border-radius:17px;border:1px solid rgba(159,202,255,.42);background:linear-gradient(145deg,rgba(20,35,52,.96),rgba(7,19,31,.96));color:var(--csp-primary);place-items:center;cursor:pointer;box-shadow:0 14px 38px rgba(0,0,0,.48),0 0 28px rgba(0,153,255,.14),inset 0 1px 0 rgba(255,255,255,.1);backdrop-filter:blur(18px);transition:transform .24s cubic-bezier(.22,1,.36,1),border-color .24s ease,box-shadow .24s ease}
+        .csp-mobile-admin-trigger:hover{transform:translateY(-2px);border-color:rgba(189,244,255,.72);box-shadow:0 18px 44px rgba(0,0,0,.52),0 0 34px rgba(0,227,253,.2)}
+        .csp-mobile-admin-trigger:active{transform:scale(.94)}
+        .csp-mobile-admin-backdrop{display:none;position:fixed;inset:0;z-index:1495;background:rgba(2,8,14,.72);backdrop-filter:blur(7px);opacity:0;pointer-events:none;transition:opacity .26s ease}
+        .csp-mobile-admin-backdrop.is-open{opacity:1;pointer-events:auto}
+        .csp-mobile-admin-drawer{display:none;position:fixed;inset:0 auto 0 0;z-index:1496;width:min(88vw,360px);height:100dvh;padding:max(16px,env(safe-area-inset-top)) 14px max(18px,env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(18,25,31,.985),rgba(9,14,18,.99));border-right:1px solid rgba(159,202,255,.18);box-shadow:26px 0 74px rgba(0,0,0,.62),0 0 46px rgba(0,153,255,.08);transform:translateX(-104%);transition:transform .32s cubic-bezier(.22,1,.36,1);overflow:hidden}
+        .csp-mobile-admin-drawer::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(0,153,255,.15),transparent 32%),radial-gradient(circle at 90% 78%,rgba(0,227,253,.08),transparent 30%)}
+        .csp-mobile-admin-drawer.is-open{transform:translateX(0)}
+        .csp-mobile-admin-drawer__inner{position:relative;height:100%;display:flex;flex-direction:column;min-height:0}
+        .csp-mobile-admin-drawer__head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 15px;border-bottom:1px solid rgba(159,202,255,.12);flex:0 0 auto}
+        .csp-mobile-admin-drawer__brand{display:flex;align-items:center;gap:11px;min-width:0}.csp-mobile-admin-drawer__brand strong{display:block;color:var(--csp-on-surface);font-size:17px}.csp-mobile-admin-drawer__brand small{display:block;margin-top:2px;color:var(--csp-outline);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+        .csp-mobile-admin-close{width:44px;height:44px;flex:0 0 auto;border-radius:14px;border:1px solid rgba(159,202,255,.14);background:rgba(255,255,255,.035);color:var(--csp-primary);display:grid;place-items:center;cursor:pointer;transition:transform .2s ease,background .2s ease,border-color .2s ease}.csp-mobile-admin-close:hover{background:rgba(159,202,255,.1);border-color:rgba(159,202,255,.38);transform:rotate(3deg)}.csp-mobile-admin-close:active{transform:scale(.93)}
+        .csp-mobile-admin-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 2px 96px;scrollbar-width:thin;scrollbar-color:rgba(159,202,255,.25) transparent}
+        .csp-mobile-admin-group+.csp-mobile-admin-group{margin-top:18px;padding-top:18px;border-top:1px solid rgba(63,71,83,.38)}
+        .csp-mobile-admin-label{margin:0 10px 9px;color:var(--csp-outline);font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+        .csp-mobile-admin-list{display:grid;gap:7px}.csp-mobile-admin-item{width:100%;min-height:56px;padding:10px 12px;border-radius:15px;border:1px solid transparent;background:rgba(255,255,255,.025);color:var(--csp-on-surface-variant);display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;transition:transform .22s cubic-bezier(.22,1,.36,1),background .22s ease,border-color .22s ease,color .22s ease,box-shadow .22s ease}.csp-mobile-admin-item:hover{transform:translateX(3px);background:rgba(159,202,255,.075);border-color:rgba(159,202,255,.16);color:var(--csp-on-surface)}.csp-mobile-admin-item:active{transform:scale(.98)}.csp-mobile-admin-item.is-active{background:linear-gradient(135deg,rgba(0,153,255,.32),rgba(20,35,52,.88));border-color:rgba(159,202,255,.38);color:#e7f1ff;box-shadow:0 12px 28px rgba(0,153,255,.14),inset 0 1px 0 rgba(255,255,255,.06)}
+        .csp-mobile-admin-item__icon{width:36px;height:36px;flex:0 0 36px;border-radius:11px;display:grid;place-items:center;background:rgba(159,202,255,.07);color:var(--csp-primary);transition:transform .22s ease,background .22s ease}.csp-mobile-admin-item:hover .csp-mobile-admin-item__icon{transform:scale(1.06);background:rgba(189,244,255,.12)}.csp-mobile-admin-item__copy{min-width:0;flex:1}.csp-mobile-admin-item__copy strong{display:block;font-size:13px;line-height:18px}.csp-mobile-admin-item__copy small{display:block;margin-top:2px;color:var(--csp-outline);font-size:10px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.csp-mobile-admin-item.is-active .csp-mobile-admin-item__copy small{color:rgba(224,237,255,.68)}
+        @media(max-width:1100px){.csp-sidebar{display:none}.csp-mobile-admin-trigger,.csp-mobile-admin-backdrop,.csp-mobile-admin-drawer{display:grid}.csp-main{padding:32px 24px}.csp-header{padding-left:58px}.csp-metric{grid-column:span 6}.csp-sections>.csp-dashboard-card{grid-column:1/-1}}
+        @media(max-width:680px){.csp-header{padding-left:56px}.csp-header__row{display:block}.csp-back-button{margin-top:16px}.csp-section-view__header{padding:16px}.csp-section-view__body{padding:12px}.csp-main{padding:24px 16px 80px}.csp-header{margin-bottom:32px}.csp-header h1{font-size:26px;line-height:32px}.csp-quick{margin-bottom:32px}.csp-quick__row{display:grid;grid-template-columns:1fr}.csp-action{width:100%}.csp-metric{grid-column:1/-1}.csp-overview,.csp-sections{gap:16px}.csp-tool-grid{grid-template-columns:1fr}.csp-dashboard-card__header{padding:16px}.csp-dashboard-card__body{padding:12px}.csp-news-switch{grid-template-columns:1fr}}
         @media(prefers-reduced-motion:reduce){.csp-admin-shell *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
       `}</style>
 
@@ -31314,13 +31353,36 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         </div>
         <div className="csp-sidebar__scroll">
           <nav>
-            <p className="csp-label-caps">General</p>
-            <button type="button" className={`csp-nav-item ${activeDashboardSection === "dashboard" ? "is-active" : ""}`} onClick={() => openSection("dashboard")}><MS name="dashboard" size={24} active={activeDashboardSection === "dashboard"} /><span>Dashboard</span></button>
-            {cards.filter(card => ["verification", "complaints", "support"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
-            {cards.some(card => !["verification", "complaints", "support"].includes(card.id)) && <div className="csp-sidebar__divider" />}
-            {cards.some(card => !["verification", "complaints", "support"].includes(card.id)) && <p className="csp-label-caps">Gestión por sección</p>}
-            {cards.filter(card => !["verification", "complaints", "support"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
+            {adminNavigationGroups.map((group, groupIndex) => group.items.length ? <React.Fragment key={group.id}>
+              {groupIndex > 0 && <div className="csp-sidebar__divider" />}
+              <p className="csp-label-caps">{group.label}</p>
+              {group.items.map(item => <button key={item.id} type="button" className={`csp-nav-item ${group.id === "management" ? "csp-nav-item--section" : ""} ${activeDashboardSection === item.id ? "is-active" : ""}`} onClick={() => openSection(item.id)}><MS name={item.icon} size={24} active={activeDashboardSection === item.id} /><span>{item.title}</span></button>)}
+            </React.Fragment> : null)}
           </nav>
+        </div>
+      </aside>
+
+      <button type="button" className="csp-mobile-admin-trigger" onClick={() => setAdminMobileNavOpen(true)} aria-label="Abrir navegación administrativa" aria-expanded={adminMobileNavOpen}><MS name="menu_open" size={27} active /></button>
+      <div className={`csp-mobile-admin-backdrop ${adminMobileNavOpen ? "is-open" : ""}`} onClick={() => setAdminMobileNavOpen(false)} aria-hidden="true" />
+      <aside className={`csp-mobile-admin-drawer ${adminMobileNavOpen ? "is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Navegación administrativa móvil" aria-hidden={!adminMobileNavOpen}>
+        <div className="csp-mobile-admin-drawer__inner">
+          <div className="csp-mobile-admin-drawer__head">
+            <div className="csp-mobile-admin-drawer__brand"><span className="csp-sidebar__avatar">{CONECT_LOGO_SRC ? <img src={CONECT_LOGO_SRC} alt="" /> : <MS name="admin_panel_settings" size={24} active />}</span><span><strong>Panel admin</strong><small>Navegación completa</small></span></div>
+            <button type="button" className="csp-mobile-admin-close" onClick={() => setAdminMobileNavOpen(false)} aria-label="Cerrar navegación"><MS name="close" size={22} active /></button>
+          </div>
+          <div className="csp-mobile-admin-scroll">
+            {adminNavigationGroups.map(group => group.items.length ? <section className="csp-mobile-admin-group" key={group.id} aria-labelledby={`csp-mobile-${group.id}`}>
+              <p id={`csp-mobile-${group.id}`} className="csp-mobile-admin-label">{group.label}</p>
+              <div className="csp-mobile-admin-list">{group.items.map(item => {
+                const active = activeDashboardSection === item.id;
+                return <button key={item.id} type="button" className={`csp-mobile-admin-item ${active ? "is-active" : ""}`} onClick={() => openSection(item.id)} aria-current={active ? "page" : undefined}>
+                  <span className="csp-mobile-admin-item__icon"><MS name={item.icon} size={21} active={active} /></span>
+                  <span className="csp-mobile-admin-item__copy"><strong>{item.title}</strong><small>{item.subtitle}</small></span>
+                  <MS name="chevron_right" size={19} active={active} />
+                </button>;
+              })}</div>
+            </section> : null)}
+          </div>
         </div>
       </aside>
 
