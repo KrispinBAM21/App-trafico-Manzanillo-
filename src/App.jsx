@@ -366,7 +366,23 @@ const getVirusTotalSummary = (results = []) => {
 };
 
 const AUTH_PERSISTENCE_KEY = "cm_auth_persistence";
+const AUTH_LOGOUT_GUARD_KEY = "cm_auth_logged_out";
 const AUTH_STORAGE_PREFIXES = ["sb-", "supabase.auth."];
+let authSignOutInProgress = false;
+
+const setAuthLogoutGuard = (active) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (active) localStorage.setItem(AUTH_LOGOUT_GUARD_KEY, "1");
+    else localStorage.removeItem(AUTH_LOGOUT_GUARD_KEY);
+  } catch {}
+};
+
+const hasAuthLogoutGuard = () => {
+  if (typeof window === "undefined") return false;
+  try { return localStorage.getItem(AUTH_LOGOUT_GUARD_KEY) === "1"; }
+  catch { return false; }
+};
 const getAuthStorageMode = () => {
   try { return localStorage.getItem(AUTH_PERSISTENCE_KEY) === "local" ? "local" : "session"; }
   catch { return "session"; }
@@ -408,24 +424,34 @@ const clearPersistedAuthArtifacts = () => {
 };
 
 const signOutSupabaseSafely = async () => {
-  // El cierre local debe resolverse primero: evita que la UI quede congelada
-  // cuando el cierre global tarda o falla por red.
+  if (authSignOutInProgress) return;
+  authSignOutInProgress = true;
+  setAuthLogoutGuard(true);
+
   try {
-    await Promise.race([
-      sb.auth.signOut({ scope: "local" }),
-      new Promise((resolve) => setTimeout(resolve, 2500)),
+    // La revocación global debe esperarse; no se deja una Promise de logout viva
+    // que pueda competir con el listener o con una restauración al recargar.
+    const globalResult = await Promise.race([
+      sb.auth.signOut({ scope: "global" }),
+      new Promise((resolve) => setTimeout(() => resolve({ error:new Error("Tiempo de espera agotado al cerrar la sesión global.") }), 7000)),
     ]);
+
+    if (globalResult?.error) {
+      console.warn("Global signOut warning:", globalResult.error);
+      const localResult = await sb.auth.signOut({ scope: "local" });
+      if (localResult?.error) console.warn("Local signOut warning:", localResult.error);
+    }
   } catch (error) {
-    console.warn("Local signOut warning:", error);
+    console.warn("SignOut warning:", error);
+    try { await sb.auth.signOut({ scope: "local" }); } catch (_) {}
+  } finally {
+    // Se limpia antes y después de consultar la sesión para cubrir ambos storages
+    // y cualquier persistencia manual adicional.
+    clearPersistedAuthArtifacts();
+    try { await sb.auth.signOut({ scope: "local" }); } catch (_) {}
+    clearPersistedAuthArtifacts();
+    authSignOutInProgress = false;
   }
-
-  clearPersistedAuthArtifacts();
-
-  // Revocación global en segundo plano. No bloquea la salida visual del usuario.
-  Promise.race([
-    sb.auth.signOut({ scope: "global" }),
-    new Promise((resolve) => setTimeout(resolve, 5000)),
-  ]).catch((error) => console.warn("Global signOut warning:", error));
 };
 
 const sb = createClient(SUPA_URL, SUPA_KEY, {
@@ -27585,6 +27611,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
       localStorage.removeItem("cm_remember_pass");
       sessionStorage.removeItem("cm_remember_pass");
     } catch {}
+    setAuthLogoutGuard(false);
     const { error } = await sb.auth.signInWithPassword({ email, password: loginPass });
     setLoading(false);
     if (error) setLoginMsg({type:"err", text:error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos" : error.message});
@@ -27599,6 +27626,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     setLoading(true);
     setLoginMsg(null);
     rememberAuthReturnLocation();
+    setAuthLogoutGuard(false);
     const { error } = await sb.auth.signInWithOAuth({
       provider:"google",
       options:{
@@ -27616,6 +27644,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     const tel = regTel.trim();
     if (!tel.match(/^\+[0-9]{10,15}$/)) { setRegMsg({type:"err", text:"Número inválido. Usa formato internacional: +521XXXXXXXXXX"}); return; }
     setLoading(true); setRegMsg(null);
+    setAuthLogoutGuard(false);
     const { error } = await sb.auth.signInWithOtp({ phone: tel });
     setLoading(false);
     if (error) setRegMsg({type:"err", text:"Error al enviar SMS: " + error.message});
@@ -27625,6 +27654,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   const handleVerificarOtp = async () => {
     if (regOtp.length < 6) { setRegMsg({type:"err", text:"El código debe tener 6 dígitos"}); return; }
     setLoading(true); setRegMsg(null);
+    setAuthLogoutGuard(false);
     const { error } = await sb.auth.verifyOtp({ phone: regTel.trim(), token: regOtp, type:"sms" });
     setLoading(false);
     if (error) setRegMsg({type:"err", text:"Código incorrecto o expirado. Inténtalo de nuevo."});
@@ -27651,6 +27681,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
       if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
       setLoading(true);
       const defaultUsername = regUsername.trim().toLowerCase() || makeValidDefaultUsername(regCorreo.trim());
+      setAuthLogoutGuard(false);
       const { error } = await sb.auth.signUp({
         email: regCorreo.trim(),
         password: regPass,
@@ -32237,18 +32268,43 @@ function App() {
     };
 
     const bootstrapSession = async () => {
+      if (hasAuthLogoutGuard()) {
+        rememberAuthUser(null);
+        await signOutSupabaseSafely();
+        return;
+      }
+
       const { data, error } = await sb.auth.getSession();
       if (error) console.error("Unable to restore auth session:", error);
+
+      if (hasAuthLogoutGuard() || authSignOutInProgress) {
+        rememberAuthUser(null);
+        clearPersistedAuthArtifacts();
+        return;
+      }
+
       await finishAuthenticatedFlow(data?.session ?? null);
     };
 
     bootstrapSession();
 
     const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-        setTimeout(() => finishAuthenticatedFlow(session), 0);
-      } else if (event === "SIGNED_OUT") {
+      if (event === "SIGNED_OUT") {
         rememberAuthUser(null);
+        clearPersistedAuthArtifacts();
+        return;
+      }
+
+      if (hasAuthLogoutGuard() || authSignOutInProgress) {
+        rememberAuthUser(null);
+        clearPersistedAuthArtifacts();
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        setTimeout(() => {
+          if (!hasAuthLogoutGuard() && !authSignOutInProgress) finishAuthenticatedFlow(session);
+        }, 0);
       }
     });
 
