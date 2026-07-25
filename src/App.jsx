@@ -147,6 +147,7 @@ function PosturasSidebarIcon({ name, size = 24, filled = false, className = "", 
     case "gavel": return <svg {...common}><path d="m14 5 5 5M12 7l5 5M4 20h9M7 16l9-9M5 14l5 5" {...p}/></svg>;
     case "volunteer_activism": return <svg {...common}><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.7A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" {...p}/><path d="M3 15h4l2 2h6l4-4c.8-.8 2.2-.8 3 0M7 15l3-3h4" {...p}/></svg>;
     case "inventory_2": return <svg {...common}><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" {...p}/></svg>;
+    case "feed": return <svg {...common}><rect x="4" y="4" width="16" height="16" rx="2" {...p}/><path d="M8 8h8M8 12h5M8 16h7" {...p}/><path d="M17 12h.01M17 16h.01" {...p}/></svg>;
     case "report_problem": return <svg {...common}><path d="M12 3 2.8 20h18.4L12 3Z" {...p}/><path d="M12 9v5M12 17h.01" {...p}/></svg>;
     case "worker_profile": return <svg {...common}><circle cx="9" cy="8" r="3" {...p}/><path d="M3.5 19c.7-4 2.5-6 5.5-6s4.8 2 5.5 6" {...p}/><circle cx="17.5" cy="7.5" r="2.1" {...p}/><path d="M17.5 4.2v-1.4M17.5 12.2v-1.4M14.2 7.5h-1.4M22.2 7.5h-1.4M15.2 5.2l-1-1M20.8 10.8l-1-1M19.8 5.2l1-1M14.2 10.8l1-1" {...p}/></svg>;
     case "employer_profile": return <svg {...common}><rect x="3" y="7" width="18" height="13" rx="2" {...p}/><path d="M8 7V5h8v2M3 12h18M9.5 12v2h5v-2" {...p}/></svg>;
@@ -24754,6 +24755,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     { id:"boletinados", label:"Boletinados", icon:"gavel", onClick:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
     { id:"donativos", label:"Donativos", icon:"volunteer_activism", onClick:()=>{ setSub("donativos"); setPosturasMode("list"); } },
     { id:"archivo", label:"Archivo", icon:"inventory_2", onClick:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
+    { id:"feed", label:"Feed", icon:"feed", onClick:()=>{ setSub("feed"); setPosturasMode("list"); } },
     ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report_problem", onClick:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
   ];
   const activeSidebarId = posturasMode === "archive" ? "archivo" : posturasMode === "vacancies" ? "mis-vacantes" : sub;
@@ -25069,6 +25071,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       { id:"posturas", label:"Posturas", icon:"work", action:()=>{ setSub("posturas"); setPosturasMode("list"); } },
       { id:"boletinados", label:"Boletinados", icon:"gavel", action:()=>{ setSub("boletinados"); setPosturasMode("list"); } },
       { id:"donativos", label:"Donativos", icon:"volunteer_activism", action:()=>{ setSub("donativos"); setPosturasMode("list"); } },
+      { id:"archivo", label:"Archivo", icon:"inventory_2", action:()=>{ setSub("posturas"); setPosturasMode("archive"); setTalentView("todos"); } },
+      { id:"feed", label:"Feed", icon:"feed", action:()=>{ setSub("feed"); setPosturasMode("list"); } },
       ...((isAdmin || authUser) ? [{ id:"quejas", label:isAdmin?"Quejas":"Mis tickets", icon:"report", action:()=>{ setSub("quejas"); setPosturasMode("list"); } }] : []),
     ];
 
@@ -25204,6 +25208,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const MobilePosturasShell = () => {
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
+    if (sub === "feed") return <div style={{ background:"#0b0f10", color:"#e0e3e5", minHeight:"100vh", paddingBottom:"90px" }}><FeedTab authUser={authUser} isAdmin={isAdmin} adminMode={false} /></div>;
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
     if (sub === "quejas") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></div>;
     if (sub === "verificacion" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Verificación</h2><AdminQuejas mode="verification" /></div>;
@@ -25333,6 +25338,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {showReminder && <div style={{ marginBottom:"12px", padding:"13px", borderRadius:"12px", background:"#fbbf2417", border:"1px solid #fbbf2455", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>Han pasado cerca de 3 meses desde tu última actualización. Revisa tu perfil y guarda cambios para mantenerlo vigente.</div>}
 
         {sub === "donativos" && <DonativosTab embedded />}
+        {sub === "feed" && <FeedTab authUser={authUser} isAdmin={isAdmin} adminMode={false} />}
         {sub === "boletinados" && renderBoletinadosTab()}
         {sub === "notificaciones" && <NotificationsCenter />}
         {sub === "quejas" && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></section>}
@@ -27853,6 +27859,119 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 }
 
 function TutorialTab({ setActive, isAdmin, authIntent }) {
+  const [open, setOpen] = useState("inicio");
+  const sections = [
+    { id:"inicio", icon:"home", title:"Inicio", audience:"Todos", summary:"Resumen operativo y accesos principales.", details:[
+      "Consulta el estado general de la plataforma y abre rápidamente los módulos más usados.",
+      "Los usuarios autenticados pueden ver información personalizada; las funciones administrativas solo aparecen con permisos."
+    ]},
+    { id:"trafico", icon:"traffic", title:"Tráfico", audience:"Todos / permiso para actualizar", summary:"Estado de vialidades, accesos y rutas fiscales.", details:[
+      "Revisa condiciones operativas, votaciones y reportes recientes antes de iniciar una ruta.",
+      "Actualizar estados requiere el permiso Actualizar tráfico; la consulta permanece disponible para la comunidad."
+    ]},
+    { id:"reporte", icon:"report_problem", title:"Reportar", audience:"Todos", summary:"Registro de incidentes operativos y viales.", details:[
+      "Selecciona el tipo de incidente, confirma ubicación y agrega una descripción verificable.",
+      "Los reportes quedan sujetos a revisión y moderación administrativa."
+    ]},
+    { id:"terminales", icon:"warehouse", title:"Terminales y Patios", audience:"Todos / permisos operativos", summary:"Consulta de terminales, patios y disponibilidad.", details:[
+      "Muestra estados, horarios y condiciones reportadas para terminales y patios.",
+      "Modificar estados requiere los permisos administrativos correspondientes."
+    ]},
+    { id:"segundo", icon:"lock_clock", title:"Confinados", audience:"Todos / permiso especial", summary:"Segundo acceso, carriles confinados y fases.", details:[
+      "Consulta terminal asignada, saturación, retornos y flujo de importación o exportación.",
+      "La edición está limitada a administradores o cuentas con Gestión de confinados."
+    ]},
+    { id:"accesos", icon:"door_sliding", title:"Accesos", audience:"Todos / permiso especial", summary:"Monitoreo de puertas y carriles de ingreso.", details:[
+      "Revisa el estado actualizado de Pez Vela, Puerta 15, Zona Norte y demás accesos configurados.",
+      "Los cambios operativos requieren el permiso Gestión de accesos."
+    ]},
+    { id:"noticias", icon:"newspaper", title:"Noticias y comunicados", audience:"Todos / privilegios para publicar", summary:"Comunicados oficiales y propuestas sujetas a aprobación.", details:[
+      "Todos pueden leer comunicados vigentes.",
+      "Publicar directamente es una función administrativa. Proponer comunicado requiere permiso y queda Pendiente hasta aprobación.",
+      "Las propuestas de usuarios tienen una vigencia máxima de 30 días; el admin puede ajustar la expiración al aprobar."
+    ]},
+    { id:"feed", icon:"dynamic_feed", title:"Feed", audience:"Todos / permiso Publicar anuncios", summary:"Anuncios visuales aprobados de la comunidad portuaria.", details:[
+      "Filtra anuncios horizontales, cuadrados o verticales y consulta vigencia, empresa, descripción y contacto.",
+      "Las reacciones usan símbolos portuarios como buque, camión y contenedor.",
+      "El Feed principal y el Feed dentro de Posturas son la misma vista y usan la misma fuente de datos.",
+      "Quien tenga Publicar anuncios puede proponer contenido por hasta un mes; el admin aprueba, rechaza o publica directamente."
+    ]},
+    { id:"posturas", icon:"business_center", title:"Posturas", audience:"Todos / cuentas autenticadas", summary:"Centro de Talento, vacantes, perfiles y seguimiento.", details:[
+      "Posturas permite explorar perfiles y búsquedas de empresas.",
+      "Mi Perfil administra datos personales; Notificaciones concentra avisos; Tablero muestra actividad; Mis Vacantes gestiona publicaciones propias.",
+      "Boletinados, Donativos, Archivo, Feed y Quejas son accesos directos dentro de su sidebar.",
+      "La gestión avanzada de vacantes, salarios, perfiles y postulaciones depende del tipo de cuenta o permiso."
+    ]},
+    { id:"quejas", icon:"feedback", title:"Quejas y tickets", audience:"Usuarios autenticados / admin", summary:"Helpdesk con seguimiento de cada reporte.", details:[
+      "El usuario crea tickets con categoría, comentarios y evidencia validada, y solo puede consultar los propios.",
+      "El admin filtra, revisa evidencia, responde, cambia estatus y mantiene el historial del ticket."
+    ]},
+    { id:"verification", icon:"verified_user", title:"Verificación", audience:"Admin o permiso asignado", summary:"Aprobación de perfiles y documentos.", details:[
+      "Concentra perfiles de trabajador y empresa pendientes, validación documental y decisiones de aprobación o rechazo."
+    ]},
+    { id:"records", icon:"rule_folder", title:"Registros y moderación", audience:"Admin o permiso asignado", summary:"Auditoría, sesiones activas y sanciones.", details:[
+      "Agrupa sesiones activas, historial y sanciones.",
+      "Las cuentas iniciadas con Google o credenciales propias conservan un ID único visible y copiable."
+    ]},
+    { id:"anuncios", icon:"campaign", title:"Anuncios — administración", audience:"Admin", summary:"Aprobación y publicación directa hacia el Feed.", details:[
+      "Gestiona pendientes, vigentes, rechazados y expirados.",
+      "El admin puede publicar anuncios directamente, ajustar fechas sin límite de 30 días y revisar el ID del autor.",
+      "Los anuncios aprobados alimentan tanto el Feed principal como el acceso Feed dentro de Posturas."
+    ]},
+    { id:"dashboard", icon:"dashboard", title:"Dashboard administrativo", audience:"Según permisos", summary:"Panel central filtrado por roles.", details:[
+      "Las acciones rápidas, métricas y actividad reciente usan datos reales de Supabase.",
+      "Cada cuenta con privilegios solo ve las secciones que tiene asignadas; Quejas, Soporte o Verificación no aparecen sin permiso."
+    ]},
+  ];
+
+  const goTo = (id) => {
+    const map = { terminales:"terminales", segundo:"segundo", verification:"donativos", records:"donativos", anuncios:"feed", dashboard:"inicio" };
+    setActive(map[id] || id);
+  };
+
+  return (
+    <div style={{maxWidth:1120,margin:"0 auto",padding:"28px 18px 90px",fontFamily:"Inter,sans-serif",color:"#e0e3e5"}}>
+      <style>{`
+        .cm-info-hero{padding:28px;border:1px solid rgba(63,71,83,.38);border-radius:8px;background:linear-gradient(135deg,rgba(29,32,34,.92),rgba(11,15,16,.9));backdrop-filter:blur(12px);margin-bottom:24px}
+        .cm-info-hero h1{margin:0;font-size:32px;line-height:40px;letter-spacing:-.02em}
+        .cm-info-hero p{margin:10px 0 0;color:#bfc7d5;line-height:24px;max-width:820px}
+        .cm-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+        .cm-info-card{border:1px solid rgba(63,71,83,.38);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);overflow:hidden;transition:.3s}
+        .cm-info-card:hover{border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.12);transform:translateY(-2px)}
+        .cm-info-card button{width:100%;border:0;background:transparent;color:inherit;padding:18px;display:flex;align-items:center;gap:13px;text-align:left;cursor:pointer}
+        .cm-info-icon{width:42px;height:42px;border-radius:8px;background:rgba(159,202,255,.1);color:#9fcaff;display:grid;place-items:center;flex:0 0 auto}
+        .cm-info-title{font-size:17px;font-weight:800}.cm-info-summary{font-size:12px;color:#89919e;margin-top:3px}
+        .cm-info-chip{margin-left:auto;border:1px solid rgba(189,244,255,.3);border-radius:999px;padding:4px 8px;color:#bdf4ff;font-size:10px;font-weight:800;white-space:nowrap}
+        .cm-info-body{padding:0 18px 18px;border-top:1px solid rgba(63,71,83,.28)}
+        .cm-info-body ul{margin:14px 0;padding-left:18px;color:#bfc7d5;line-height:1.65}.cm-info-body li+li{margin-top:8px}
+        .cm-info-go{border:1px solid rgba(159,202,255,.38)!important;border-radius:4px!important;background:rgba(159,202,255,.08)!important;color:#9fcaff!important;padding:10px 12px!important;width:auto!important;font-weight:800!important}
+        @media(max-width:760px){.cm-info-grid{grid-template-columns:1fr}.cm-info-hero{padding:22px}.cm-info-hero h1{font-size:26px;line-height:32px}.cm-info-chip{display:none}}
+      `}</style>
+      <header className="cm-info-hero">
+        <div style={{display:"flex",alignItems:"center",gap:12}}><span className="cm-info-icon"><MS name="info" size={24} active /></span><div><h1>Más Info</h1><p>Guía actualizada de CONECT MANZANILLO. Consulta qué hace cada módulo, cómo usarlo y cuáles funciones requieren una cuenta o privilegios administrativos.</p></div></div>
+      </header>
+      <section className="cm-info-grid">
+        {sections.map(sec => {
+          const expanded = open === sec.id;
+          return <article key={sec.id} className="cm-info-card">
+            <button type="button" onClick={()=>setOpen(expanded ? "" : sec.id)} aria-expanded={expanded}>
+              <span className="cm-info-icon"><MS name={sec.icon} size={22} active={expanded} /></span>
+              <span style={{minWidth:0,flex:1}}><span className="cm-info-title">{sec.title}</span><span className="cm-info-summary" style={{display:"block"}}>{sec.summary}</span></span>
+              <span className="cm-info-chip">{sec.audience}</span>
+              <MS name={expanded ? "expand_less" : "expand_more"} size={22} />
+            </button>
+            {expanded && <div className="cm-info-body">
+              <ul>{sec.details.map((detail,index)=><li key={index}>{detail}</li>)}</ul>
+              {!["verification","records","anuncios","dashboard"].includes(sec.id) && <button type="button" className="cm-info-go" onClick={()=>goTo(sec.id)}><MS name="arrow_forward" size={18} active /> Abrir sección</button>}
+              {isAdmin && ["verification","records","anuncios","dashboard"].includes(sec.id) && <div style={{color:"#89919e",fontSize:12}}>Esta función se abre desde el Dashboard administrativo de acuerdo con los permisos de la cuenta.</div>}
+            </div>}
+          </article>;
+        })}
+      </section>
+      <div style={{marginTop:24}}><EncuestaSatisfaccion isAdmin={isAdmin} /></div>
+    </div>
+  );
+}) {
   const theme = React.useContext(ThemeContext);
   const [open, setOpen] = useState(null);
   const toggle = (id) => setOpen(prev => prev === id ? null : id);
@@ -30518,6 +30637,11 @@ function GlobalIdentityProfileModal({
 // con una Edge Function programada (Supabase Cron, diaria o cada hora): selecciona fecha_fin <= now(),
 // elimina imagen_path del bucket y luego borra el registro. ON DELETE CASCADE elimina las reacciones.
 
+// `feed_anuncios` es la entidad única para el Feed general y el Feed dentro de
+// Posturas/Centro de Talento. El acceso desde Posturas es una ruta visual reutilizada,
+// no una tabla, bucket ni flujo paralelo. AnunciosBanner permanece como consumidor
+// destacado/legacy mediante la tabla `anuncios`, que FeedTab integra al leer.
+// Los nuevos anuncios se crean en `feed_anuncios`.
 const FEED_BUCKET = "feed-anuncios";
 const FEED_REACTION_TYPES = [
   { id:"barco", icon:"directions_boat", label:"Buque" },
@@ -30538,7 +30662,10 @@ function FeedStatusChip({ status }) {
 }
 
 function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false }) {
-  const canPublish = Boolean(isAdmin || subAdmin?.permisos?.publicar_anuncios);
+  // Feed principal y Feed dentro de Posturas son la misma vista y consumen la misma
+  // entidad `feed_anuncios`; no existe una segunda fuente ni anuncios duplicados.
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const canPublish = Boolean(isAdmin || subAdmin?.permisos?.publicar_anuncios || permissionGranted);
   const canModerate = Boolean(isAdmin);
   const [items, setItems] = useState([]);
   const [legacyItems, setLegacyItems] = useState([]);
@@ -30558,6 +30685,29 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
   const [resolvedUrls, setResolvedUrls] = useState({});
   const [resolvedFormats, setResolvedFormats] = useState({});
   const [reviewDates, setReviewDates] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePermission = async () => {
+      if (isAdmin || subAdmin?.permisos?.publicar_anuncios) {
+        if (!cancelled) setPermissionGranted(true);
+        return;
+      }
+      if (!authUser?.id) {
+        if (!cancelled) setPermissionGranted(false);
+        return;
+      }
+      try {
+        const { data, error } = await sb.rpc("has_app_permission", { p_permission:"publicar_anuncios" });
+        if (error) throw error;
+        if (!cancelled) setPermissionGranted(Boolean(data));
+      } catch {
+        if (!cancelled) setPermissionGranted(false);
+      }
+    };
+    resolvePermission();
+    return () => { cancelled = true; };
+  }, [authUser?.id, isAdmin, subAdmin?.permisos?.publicar_anuncios]);
 
   const detectFormat = useCallback((width, height) => {
     const ratio = width / Math.max(height, 1);
@@ -30734,8 +30884,12 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
         formato:detectedFormat,
         fecha_inicio:new Date(form.fecha_inicio).toISOString(),
         fecha_fin:new Date(form.fecha_fin).toISOString(),
-        estatus:"pendiente",
+        estatus:isAdmin && adminMode ? "aprobado" : "pendiente",
         contacto_whatsapp:String(form.contacto_whatsapp || "").replace(/\D/g, "") || null,
+        ...(isAdmin && adminMode ? {
+          aprobado_por:authUser.id,
+          aprobado_at:new Date().toISOString(),
+        } : {}),
       };
       const { error:insertErr } = await sb.from("feed_anuncios").insert(payload);
       if (insertErr) throw insertErr;
@@ -30744,7 +30898,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       if (preview) URL.revokeObjectURL(preview);
       setPreview("");
       setShowComposer(false);
-      setNotice("Anuncio enviado. Quedó pendiente de aprobación administrativa.");
+      setNotice(isAdmin && adminMode ? "Anuncio publicado directamente en el Feed general y en el Feed de Posturas." : "Anuncio enviado. Quedó pendiente de aprobación administrativa.");
       loadFeed();
     } catch (e) {
       if (path) try { await sb.storage.from(FEED_BUCKET).remove([path]); } catch {}
@@ -30874,7 +31028,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:32px 24px 72px;background:#0b0f10;min-height:72vh}.cm-feed-root *{box-sizing:border-box}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px;max-width:760px}.cm-feed-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.cm-feed-btn{min-height:42px;border:1px solid rgba(159,202,255,.36);border-radius:4px;background:rgba(29,32,34,.72);color:#9fcaff;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer;transition:all .3s ease}.cm-feed-btn:hover{transform:translateY(-1px);border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-btn--primary{background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;border-color:#9fcaff}.cm-feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;padding:12px 14px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px)}.cm-feed-tabs{display:flex;gap:8px;flex-wrap:wrap}.cm-feed-tab{border:1px solid transparent;border-radius:4px;background:transparent;color:#bfc7d5;padding:9px 12px;display:flex;align-items:center;gap:7px;font-weight:700;cursor:pointer;transition:.3s}.cm-feed-tab:hover,.cm-feed-tab.is-active{color:#9fcaff;border-color:rgba(159,202,255,.42);background:rgba(159,202,255,.08);box-shadow:0 0 18px rgba(159,202,255,.1)}.cm-feed-count{font-size:13px;color:#89919e}.cm-feed-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}.cm-feed-card{grid-column:span 6;background:rgba(29,32,34,.72);border:1px solid rgba(63,71,83,.38);border-radius:8px;overflow:hidden;backdrop-filter:blur(12px);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .38s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 14px 34px rgba(0,0,0,.25),0 0 20px rgba(159,202,255,.12)}.cm-feed-card--horizontal{grid-column:span 12}.cm-feed-card--vertical{grid-column:span 4}.cm-feed-card--cuadrado{grid-column:span 6}.cm-feed-card.is-admin{grid-column:span 6}.cm-feed-card__media{position:relative;background:#101415;overflow:hidden}.cm-feed-card--horizontal .cm-feed-card__media{aspect-ratio:16/6}.cm-feed-card--cuadrado .cm-feed-card__media{aspect-ratio:1/1}.cm-feed-card--vertical .cm-feed-card__media{aspect-ratio:9/14}.cm-feed-card__media img{width:100%;height:100%;display:block;object-fit:contain;background:#101415}.cm-feed-card__missing{min-height:230px;display:grid;place-items:center;align-content:center;gap:8px;color:#89919e}.cm-feed-card__format,.cm-feed-card__pending{position:absolute;top:12px;display:flex;align-items:center;gap:6px;border:1px solid rgba(159,202,255,.3);border-radius:999px;background:rgba(11,15,16,.82);backdrop-filter:blur(10px);padding:6px 9px;color:#9fcaff;font-size:11px;font-weight:700}.cm-feed-card__format{left:12px}.cm-feed-card__pending{right:12px;color:#bdf4ff}.cm-feed-card__body{padding:20px}.cm-feed-card__top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.cm-feed-card__dates{display:flex;align-items:center;gap:6px;color:#89919e;font-size:12px}.cm-feed-card h3{font-size:20px;line-height:28px;margin:16px 0 5px;color:#e0e3e5}.cm-feed-card__company{margin:0 0 12px;color:#9fcaff;font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}.cm-feed-card__description{margin:0 0 18px;color:#bfc7d5;line-height:21px;white-space:pre-wrap}.cm-feed-contact{width:max-content;max-width:100%;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(37,211,102,.45);border-radius:4px;background:rgba(37,211,102,.1);color:#8ff0ad;padding:10px 13px;text-decoration:none;font-weight:700;transition:.3s}.cm-feed-contact:hover{transform:translateY(-2px);box-shadow:0 0 20px rgba(37,211,102,.16);border-color:#25d366}.cm-feed-reactions{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid rgba(63,71,83,.28)}.cm-feed-reaction{min-width:60px;border:1px solid rgba(63,71,83,.5);border-radius:4px;background:#191c1e;color:#bfc7d5;padding:8px 10px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00daf3;box-shadow:0 0 16px rgba(0,218,243,.14);transform:translateY(-2px)}.cm-feed-reaction:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}.cm-feed-empty,.cm-feed-loading{min-height:260px;border:1px dashed rgba(63,71,83,.7);border-radius:8px;display:grid;place-items:center;align-content:center;gap:10px;color:#89919e;text-align:center}.cm-feed-empty strong{font-size:18px;color:#e0e3e5}.cm-feed-pulse{width:18px;height:18px;border-radius:50%;background:#00daf3;box-shadow:0 0 0 0 rgba(0,218,243,.4);animation:cmFeedPulse 1.35s infinite}.cm-feed-notice{margin-bottom:18px;padding:12px 14px;border-radius:4px;border:1px solid rgba(159,202,255,.35);background:rgba(159,202,255,.08);color:#bdf4ff}.cm-feed-error{border-color:rgba(255,180,171,.45);color:#ffb4ab;background:rgba(255,180,171,.08)}.cm-feed-admin-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.cm-feed-stat{padding:16px;border:1px solid rgba(63,71,83,.35);border-radius:8px;background:rgba(29,32,34,.7)}.cm-feed-stat span{display:block;color:#89919e;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}.cm-feed-stat strong{display:block;margin-top:5px;color:#e0e3e5;font-size:24px}.cm-feed-review{margin-top:18px;padding-top:16px;border-top:1px solid rgba(63,71,83,.35)}.cm-feed-review__identity{display:grid;gap:6px;margin-bottom:12px}.cm-feed-review__identity span{display:flex;align-items:center;gap:6px;color:#89919e;font-size:11px;text-transform:uppercase;font-weight:700}.cm-feed-review__identity code{font:500 12px/18px Inter,sans-serif;color:#9fcaff;word-break:break-all}.cm-feed-review__dates{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cm-feed-review__dates label{display:grid;gap:6px;color:#89919e;font-size:11px;font-weight:700}.cm-feed-review__dates input,.cm-feed-form input,.cm-feed-form textarea{width:100%;border:1px solid rgba(63,71,83,.75);border-radius:4px;background:#101415;color:#e0e3e5;padding:11px 12px;outline:none;transition:.3s}.cm-feed-review__dates input:focus,.cm-feed-form input:focus,.cm-feed-form textarea:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1)}.cm-feed-admin-actions{display:flex;gap:10px;margin-top:13px}.cm-feed-admin-actions button{border-radius:4px;background:#191c1e;padding:10px 13px;font-weight:700;display:flex;align-items:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-admin-actions .approve{border:1px solid rgba(126,231,189,.45);color:#7ee7bd}.cm-feed-admin-actions .reject{border:1px solid rgba(255,180,171,.45);color:#ffb4ab}.cm-feed-admin-actions button:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(159,202,255,.12)}.cm-feed-legacy-note{display:flex;align-items:center;gap:8px;color:#9fcaff;font-size:12px}.cm-feed-composer-backdrop{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.74);display:grid;place-items:center;padding:20px}.cm-feed-form{width:min(760px,100%);max-height:92vh;overflow:auto;border:1px solid rgba(159,202,255,.35);border-radius:8px;background:rgba(25,28,30,.97);box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 30px rgba(159,202,255,.1);padding:22px}.cm-feed-form-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.cm-feed-form-head h3{margin:0;font-size:24px}.cm-feed-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-feed-form label{display:grid;gap:7px;color:#bfc7d5;font-size:12px;font-weight:700}.cm-feed-form label.is-wide{grid-column:1/-1}.cm-feed-form textarea{min-height:110px;resize:vertical}.cm-feed-drop{grid-column:1/-1;border:1px dashed rgba(159,202,255,.45);border-radius:8px;background:#101415;padding:16px}.cm-feed-drop input{padding:8px}.cm-feed-preview{display:grid;place-items:center;margin-top:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;overflow:hidden;background:#0b0f10}.cm-feed-preview img{max-width:100%;max-height:360px;object-fit:contain}.cm-feed-preview__meta{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:#9fcaff}.cm-feed-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}@keyframes cmFeedPulse{70%{box-shadow:0 0 0 12px rgba(0,218,243,0)}100%{box-shadow:0 0 0 0 rgba(0,218,243,0)}}@keyframes cmFeedIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@media(max-width:880px){.cm-feed-card,.cm-feed-card--horizontal,.cm-feed-card--vertical,.cm-feed-card--cuadrado,.cm-feed-card.is-admin{grid-column:span 12}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}}@media(max-width:620px){.cm-feed-root{padding:24px 14px 60px}.cm-feed-head{display:block}.cm-feed-head-actions{justify-content:flex-start;margin-top:16px}.cm-feed-toolbar{align-items:flex-start;flex-direction:column}.cm-feed-form-grid,.cm-feed-review__dates{grid-template-columns:1fr}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}.cm-feed-card__body{padding:16px}}
     `}</style>
 
-    <div className="cm-feed-head"><div><h2>{adminMode ? "Anuncios" : "Feed"}</h2><p>{adminMode ? "Gestión unificada de propuestas del Feed y anuncios activos de AnunciosBanner." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p></div><div className="cm-feed-head-actions"><button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} /><span>Actualizar</span></button>{canPublish && !adminMode && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>Proponer anuncio</span></button>}</div></div>
+    <div className="cm-feed-head"><div><h2>{adminMode ? "Anuncios" : "Feed"}</h2><p>{adminMode ? "Gestión unificada de propuestas del Feed, anuncios publicados y contenido compartido con el Feed de Posturas." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p></div><div className="cm-feed-head-actions"><button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} /><span>Actualizar</span></button>{canPublish && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</span></button>}</div></div>
 
     {notice && <div className="cm-feed-notice">{notice}</div>}
     {error && <div className="cm-feed-notice cm-feed-error">{error}</div>}
@@ -30889,7 +31043,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       {loading ? <div className="cm-feed-loading"><span className="cm-feed-pulse"/><span>Cargando Feed</span></div> : filteredPublic.length ? <div className="cm-feed-grid">{filteredPublic.map(item=>renderFeedCard(item))}</div> : <div className="cm-feed-empty"><MS name="dynamic_feed" size={40}/><strong>No hay anuncios vigentes</strong><span>Los anuncios aprobados aparecerán aquí respetando su formato original.</span></div>}
     </>}
 
-    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label="Proponer anuncio" onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>Proponer anuncio</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(e.target.value)} required/></label><label><span>Fin de vigencia * · máximo 1 mes</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(e.target.value)} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Enviando</>:<><MS name="send" size={19}/>Enviar a aprobación</>}</button></div></form></div>}
+    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label={isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"} onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(e.target.value)} required/></label><label><span>Fin de vigencia * {isAdmin && adminMode ? "· sin límite administrativo" : "· máximo 1 mes"}</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(e.target.value)} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Guardando</>:<><MS name="send" size={19}/>{isAdmin && adminMode ? "Publicar ahora" : "Enviar a aprobación"}</>}</button></div></form></div>}
   </div>;
 }
 
