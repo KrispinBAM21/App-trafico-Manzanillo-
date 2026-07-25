@@ -30244,7 +30244,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
             <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="support_agent" size={24} /><span>Soporte</span></button>
             <div className="csp-sidebar__divider" />
             <p className="csp-label-caps">Gestión por sección</p>
-            {cards.map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
+            {cards.filter(card => !["verification", "complaints"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
           </nav>
         </div>
       </aside>
