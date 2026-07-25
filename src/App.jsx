@@ -21469,6 +21469,7 @@ async function validateStaticAttachment(file, { maxBytes = 20 * 1024 * 1024 } = 
 function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister, initialAdminView="default" }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
+  const isEmbeddedAdminView = isAdmin && initialAdminView !== "default";
   const [sub, setSub] = useState(() => {
     try {
       const requested = sessionStorage.getItem("cm_open_posturas_subtab");
@@ -24840,7 +24841,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </div>;
   };
 
-  if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<MobilePosturasPanel /><MobilePosturasShell /></>;
+  if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}{!isEmbeddedAdminView && <MobilePosturasPanel />}<MobilePosturasShell /></>;
 
   return (
     <div style={{ minHeight:"calc(100vh - 56px)", background:"#051424", color:"#d4e4fa", position:"relative", overflow:"hidden" }}>
@@ -24882,7 +24883,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         }
       `}</style>
       <div style={{ position:"absolute", inset:0, pointerEvents:"none", background:"radial-gradient(circle at 0% 25%, rgba(161,201,255,.10), transparent 34%), radial-gradient(circle at 100% 80%, rgba(62,73,93,.22), transparent 34%)", opacity:.62 }} />
-      <aside className="cm-posturas-sticky-sidebar" style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"256px", zIndex:1200, background:"#1d2022", borderRight:"1px solid #3f4753", display:"flex", flexDirection:"column", padding:"24px 0 18px", overflow:"visible", boxShadow:"18px 0 44px rgba(0,0,0,.18)" }}>
+      <aside className="cm-posturas-sticky-sidebar" aria-hidden={isEmbeddedAdminView ? "true" : undefined} style={{ position:"fixed", left:0, top:"56px", bottom:0, width:"256px", zIndex:1200, background:"#1d2022", borderRight:"1px solid #3f4753", display:isEmbeddedAdminView ? "none" : "flex", flexDirection:"column", padding:"24px 0 18px", overflow:"visible", boxShadow:"18px 0 44px rgba(0,0,0,.18)" }}>
         <div style={{ padding:"0 20px", marginBottom:"20px", position:"relative", zIndex:5000 }}>
           <div style={{ position:"relative" }}>
             <button
@@ -24939,7 +24940,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         </div>
       </aside>
 
-      <main style={{ position:"relative", zIndex:1, marginLeft:"256px", padding:"28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
+      <main style={{ position:"relative", zIndex:1, marginLeft:isEmbeddedAdminView ? 0 : "256px", padding:isEmbeddedAdminView ? 0 : "28px 28px 92px", minHeight:"calc(100vh - 56px)" }}>
         {msg && <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", background:msg.type==="ok"?"#22c55e16":"#ef444416", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color:msg.type==="ok"?"#22c55e":"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800" }}>{msg.text}</div>}
         {VacancyModal()}
         <PosturasReportModal />
