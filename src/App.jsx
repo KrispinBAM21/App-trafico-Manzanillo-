@@ -5025,14 +5025,55 @@ function AnunciosBanner({ isAdmin }) {
 
   const cargar = async () => {
     const ahora = new Date().toISOString();
-    const { data } = await sb.from("anuncios")
-      .select("*")
-      .eq("activo", true)
-      .lte("fecha_inicio", ahora)
-      .gte("fecha_fin", ahora)
-      .order("orden", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (data) setAnuncios(data);
+
+    // `anuncios` continúa siendo la fuente histórica de AnunciosBanner.
+    // `feed_anuncios` complementa esa fuente con anuncios aprobados desde Feed.
+    // Ambos consumidores comparten así la misma publicación sin duplicar el flujo
+    // de captura: una propuesta aprobada en Feed también se muestra en el banner.
+    const [{ data: banners }, { data: feedRows }] = await Promise.all([
+      sb.from("anuncios")
+        .select("*")
+        .eq("activo", true)
+        .lte("fecha_inicio", ahora)
+        .gte("fecha_fin", ahora)
+        .order("orden", { ascending: false })
+        .order("created_at", { ascending: false }),
+      sb.from("feed_anuncios")
+        .select("*")
+        .eq("estatus", "aprobado")
+        .lte("fecha_inicio", ahora)
+        .gt("fecha_fin", ahora)
+        .order("created_at", { ascending: false })
+    ]);
+
+    const feedMapped = await Promise.all((feedRows || []).map(async (row) => {
+      let url = row.imagen_url || "";
+      if (row.imagen_path) {
+        const { data } = await sb.storage.from(FEED_BUCKET).createSignedUrl(row.imagen_path, 3600);
+        url = data?.signedUrl || url;
+      }
+      return {
+        id: `feed:${row.id}`,
+        _feed_id: row.id,
+        _source: "feed",
+        titulo: row.titulo || "Anuncio de la comunidad portuaria",
+        empresa: row.empresa || "Comunidad CONECT MANZANILLO",
+        texto: row.descripcion || "",
+        enlace: row.enlace || null,
+        whatsapp: row.contacto_whatsapp || null,
+        imagen_url: url,
+        fecha_inicio: row.fecha_inicio,
+        fecha_fin: row.fecha_fin,
+        activo: true,
+        orden: 0,
+        created_at: row.created_at,
+      };
+    }));
+
+    const merged = [...(banners || []).map(row => ({ ...row, _source:"anuncios" })), ...feedMapped]
+      .sort((a,b) => (Number(b.orden || 0) - Number(a.orden || 0)) || (toMs(b.created_at) - toMs(a.created_at)));
+    setAnuncios(merged);
+    setCurrent(v => merged.length ? Math.min(v, merged.length - 1) : 0);
   };
 
   useEffect(() => {
@@ -30231,104 +30272,270 @@ function FeedStatusChip({ status }) {
 function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false }) {
   const canPublish = Boolean(isAdmin || subAdmin?.permisos?.publicar_anuncios);
   const canModerate = Boolean(isAdmin);
-  const [items,setItems]=useState([]);
-  const [reactions,setReactions]=useState({});
-  const [mine,setMine]=useState({});
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState("");
-  const [form,setForm]=useState({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
-  const [image,setImage]=useState(null);
-  const [preview,setPreview]=useState("");
-  const [saving,setSaving]=useState(false);
-  const [notice,setNotice]=useState("");
+  const [items, setItems] = useState([]);
+  const [legacyItems, setLegacyItems] = useState([]);
+  const [reactions, setReactions] = useState({});
+  const [mine, setMine] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showComposer, setShowComposer] = useState(false);
+  const [formatFilter, setFormatFilter] = useState("todos");
+  const [form, setForm] = useState({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState("");
+  const [detectedFormat, setDetectedFormat] = useState("horizontal");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [resolvedUrls, setResolvedUrls] = useState({});
 
-  const loadFeed=useCallback(async()=>{
-    setLoading(true); setError("");
-    try{
-      let query=sb.from("feed_anuncios").select("*").order("created_at",{ascending:false});
-      if(!adminMode){
-        const now=new Date().toISOString();
-        query=query.eq("estatus","aprobado").lte("fecha_inicio",now).gt("fecha_fin",now);
+  const detectFormat = useCallback((width, height) => {
+    const ratio = width / Math.max(height, 1);
+    if (ratio >= 1.35) return "horizontal";
+    if (ratio <= 0.8) return "vertical";
+    return "cuadrado";
+  }, []);
+
+  const loadFeed = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const now = new Date().toISOString();
+      let feedQuery = sb.from("feed_anuncios").select("*").order("created_at", { ascending:false });
+      if (!adminMode) feedQuery = feedQuery.eq("estatus", "aprobado").lte("fecha_inicio", now).gt("fecha_fin", now);
+
+      // AnunciosBanner histórico se consume también en Feed. No se reemplaza ni se
+      // desactiva: se representa como una segunda fuente compatible.
+      let bannerQuery = sb.from("anuncios").select("*").order("orden", { ascending:false }).order("created_at", { ascending:false });
+      if (!adminMode) bannerQuery = bannerQuery.eq("activo", true).lte("fecha_inicio", now).gte("fecha_fin", now);
+
+      const [{ data: feedData, error: feedError }, { data: bannerData, error: bannerError }] = await Promise.all([
+        feedQuery,
+        bannerQuery,
+      ]);
+      if (feedError) throw feedError;
+      if (bannerError && !String(bannerError.message || "").includes("does not exist")) throw bannerError;
+
+      const feedList = (feedData || []).map(row => ({ ...row, _source:"feed", _reaction_id:row.id }));
+      const legacyList = (bannerData || []).map(row => ({
+        ...row,
+        _source:"anuncios",
+        _legacy:true,
+        estatus: row.activo === false ? "rechazado" : "aprobado",
+        contacto_whatsapp: row.whatsapp || null,
+        imagen_path: null,
+      }));
+      setItems(feedList);
+      setLegacyItems(legacyList);
+
+      const ids = feedList.map(x => x.id);
+      if (ids.length) {
+        const { data:r, error:reactionError } = await sb.from("feed_reacciones").select("anuncio_id,user_id,tipo_reaccion").in("anuncio_id", ids);
+        if (reactionError) throw reactionError;
+        const counts = {}, own = {};
+        (r || []).forEach(row => {
+          counts[row.anuncio_id] ||= {};
+          counts[row.anuncio_id][row.tipo_reaccion] = (counts[row.anuncio_id][row.tipo_reaccion] || 0) + 1;
+          if (authUser?.id && row.user_id === authUser.id) own[row.anuncio_id] = row.tipo_reaccion;
+        });
+        setReactions(counts);
+        setMine(own);
+      } else {
+        setReactions({});
+        setMine({});
       }
-      const {data,error:e}=await query;
-      if(e) throw e;
-      const list=data||[]; setItems(list);
-      const ids=list.map(x=>x.id);
-      if(ids.length){
-        const {data:r}=await sb.from("feed_reacciones").select("anuncio_id,user_id,tipo_reaccion").in("anuncio_id",ids);
-        const counts={}, own={};
-        (r||[]).forEach(row=>{ counts[row.anuncio_id] ||= {}; counts[row.anuncio_id][row.tipo_reaccion]=(counts[row.anuncio_id][row.tipo_reaccion]||0)+1; if(authUser?.id && row.user_id===authUser.id) own[row.anuncio_id]=row.tipo_reaccion; });
-        setReactions(counts); setMine(own);
-      } else { setReactions({}); setMine({}); }
-    }catch(e){setError(e?.message||"No se pudo cargar el Feed.");}
-    finally{setLoading(false);}
-  },[adminMode,authUser?.id]);
-  useEffect(()=>{loadFeed();},[loadFeed]);
-  useEffect(()=>()=>{if(preview) URL.revokeObjectURL(preview)},[preview]);
-
-  const pickImage=async(file)=>{
-    setNotice("");
-    if(!file) return;
-    const validation=await validateStaticAttachment(file,{maxBytes:10*1024*1024});
-    if(!validation.ok || !["image/jpeg","image/png"].includes(validation.detectedType||file.type)){
-      setNotice(validation.ok?"Solo se permiten imágenes JPEG o PNG reales.":validation.error); return;
+    } catch (e) {
+      setError(e?.message || "No se pudo cargar el Feed.");
+    } finally {
+      setLoading(false);
     }
-    if(preview) URL.revokeObjectURL(preview);
-    setImage(file); setPreview(URL.createObjectURL(file));
+  }, [adminMode, authUser?.id]);
+
+  useEffect(() => { loadFeed(); }, [loadFeed]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  const pickImage = async (file) => {
+    setNotice("");
+    if (!file) return;
+    const validation = await validateStaticAttachment(file, { maxBytes:10 * 1024 * 1024 });
+    const realType = validation.detectedType || file.type;
+    if (!validation.ok || !["image/jpeg", "image/png"].includes(realType)) {
+      setNotice(validation.ok ? "Solo se permiten imágenes JPEG o PNG reales." : validation.error);
+      return;
+    }
+    const dimensions = await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { resolve({ width:img.naturalWidth, height:img.naturalHeight }); URL.revokeObjectURL(url); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen.")); };
+      img.src = url;
+    }).catch(() => null);
+    if (!dimensions) { setNotice("No se pudo validar la imagen seleccionada."); return; }
+    if (preview) URL.revokeObjectURL(preview);
+    setImage(file);
+    setDetectedFormat(detectFormat(dimensions.width, dimensions.height));
+    setPreview(URL.createObjectURL(file));
   };
-  const submit=async(e)=>{
-    e.preventDefault(); setNotice("");
-    if(!authUser?.id){setNotice("Inicia sesión para publicar un anuncio.");return;}
-    if(!canPublish){setNotice("Tu cuenta no tiene el permiso Publicar anuncios.");return;}
-    if(!image||!form.fecha_inicio||!form.fecha_fin){setNotice("Selecciona una imagen y define la vigencia.");return;}
-    if(new Date(form.fecha_fin)<=new Date(form.fecha_inicio)){setNotice("La fecha final debe ser posterior a la fecha inicial.");return;}
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setNotice("");
+    if (!authUser?.id) { setNotice("Inicia sesión para publicar un anuncio."); return; }
+    if (!canPublish) { setNotice("Tu cuenta no tiene el permiso Publicar anuncios."); return; }
+    if (!image || !form.fecha_inicio || !form.fecha_fin) { setNotice("Selecciona una imagen y define la vigencia."); return; }
+    if (new Date(form.fecha_fin) <= new Date(form.fecha_inicio)) { setNotice("La fecha final debe ser posterior a la fecha inicial."); return; }
     setSaving(true);
-    let path="";
-    try{
-      const ext=image.type==="image/png"?"png":"jpg";
-      path=`${authUser.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
-      const {error:upErr}=await sb.storage.from(FEED_BUCKET).upload(path,image,{contentType:image.type,upsert:false});
-      if(upErr) throw upErr;
-      const {data:signed}=await sb.storage.from(FEED_BUCKET).createSignedUrl(path,60*60*24*7);
-      const payload={user_id:authUser.id,imagen_path:path,imagen_url:signed?.signedUrl||null,fecha_inicio:new Date(form.fecha_inicio).toISOString(),fecha_fin:new Date(form.fecha_fin).toISOString(),estatus:"pendiente",contacto_whatsapp:String(form.contacto_whatsapp||"").replace(/\D/g,"")||null};
-      const {error:insertErr}=await sb.from("feed_anuncios").insert(payload);
-      if(insertErr) throw insertErr;
-      setForm({fecha_inicio:"",fecha_fin:"",contacto_whatsapp:""});setImage(null);if(preview)URL.revokeObjectURL(preview);setPreview("");setNotice("Anuncio enviado. Quedó pendiente de aprobación administrativa.");loadFeed();
-    }catch(e){ if(path) try{await sb.storage.from(FEED_BUCKET).remove([path]);}catch{} setNotice(e?.message||"No se pudo enviar el anuncio."); }
-    finally{setSaving(false);}
+    let path = "";
+    try {
+      const ext = image.type === "image/png" ? "png" : "jpg";
+      path = `${authUser.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+      const { error:upErr } = await sb.storage.from(FEED_BUCKET).upload(path, image, { contentType:image.type, upsert:false });
+      if (upErr) throw upErr;
+      const payload = {
+        user_id:authUser.id,
+        imagen_path:path,
+        imagen_url:null,
+        fecha_inicio:new Date(form.fecha_inicio).toISOString(),
+        fecha_fin:new Date(form.fecha_fin).toISOString(),
+        estatus:"pendiente",
+        contacto_whatsapp:String(form.contacto_whatsapp || "").replace(/\D/g, "") || null,
+      };
+      const { error:insertErr } = await sb.from("feed_anuncios").insert(payload);
+      if (insertErr) throw insertErr;
+      setForm({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
+      setImage(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview("");
+      setShowComposer(false);
+      setNotice("Anuncio enviado. Quedó pendiente de aprobación administrativa.");
+      loadFeed();
+    } catch (e) {
+      if (path) try { await sb.storage.from(FEED_BUCKET).remove([path]); } catch {}
+      setNotice(e?.message || "No se pudo enviar el anuncio.");
+    } finally {
+      setSaving(false);
+    }
   };
-  const moderate=async(item,status)=>{
-    if(!canModerate)return;
-    const {error:e}=await sb.from("feed_anuncios").update({estatus:status,aprobado_por:authUser?.id||null,aprobado_at:status==="aprobado"?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq("id",item.id);
-    if(e)setNotice(e.message);else loadFeed();
+
+  const moderate = async (item, status) => {
+    if (!canModerate || item._legacy) return;
+    const { error:e } = await sb.from("feed_anuncios").update({
+      estatus:status,
+      aprobado_por:authUser?.id || null,
+      aprobado_at:status === "aprobado" ? new Date().toISOString() : null,
+      updated_at:new Date().toISOString(),
+    }).eq("id", item.id);
+    if (e) setNotice(e.message); else loadFeed();
   };
-  const react=async(item,type)=>{
-    if(!authUser?.id)return;
-    const current=mine[item.id];
-    if(current===type){ await sb.from("feed_reacciones").delete().eq("anuncio_id",item.id).eq("user_id",authUser.id); }
-    else { await sb.from("feed_reacciones").upsert({anuncio_id:item.id,user_id:authUser.id,tipo_reaccion:type},{onConflict:"anuncio_id,user_id"}); }
+
+  const react = async (item, type) => {
+    if (!authUser?.id || item._legacy) return;
+    const current = mine[item.id];
+    if (current === type) {
+      await sb.from("feed_reacciones").delete().eq("anuncio_id", item.id).eq("user_id", authUser.id);
+    } else {
+      await sb.from("feed_reacciones").upsert({ anuncio_id:item.id, user_id:authUser.id, tipo_reaccion:type }, { onConflict:"anuncio_id,user_id" });
+    }
     loadFeed();
   };
-  const imageUrl=async(item)=>{
-    if(item.imagen_url) return item.imagen_url;
-    if(!item.imagen_path) return "";
-    const {data}=await sb.storage.from(FEED_BUCKET).createSignedUrl(item.imagen_path,3600);
-    return data?.signedUrl||"";
+
+  const allItems = useMemo(() => [...items, ...legacyItems].sort((a,b) => toMs(b.created_at) - toMs(a.created_at)), [items, legacyItems]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const next = {};
+      for (const item of allItems) {
+        if (item.imagen_url) { next[`${item._source}:${item.id}`] = item.imagen_url; continue; }
+        if (item.imagen_path) {
+          const { data } = await sb.storage.from(FEED_BUCKET).createSignedUrl(item.imagen_path, 3600);
+          next[`${item._source}:${item.id}`] = data?.signedUrl || "";
+        }
+      }
+      if (alive) setResolvedUrls(next);
+    })();
+    return () => { alive = false; };
+  }, [allItems]);
+
+  const visibleItems = useMemo(() => allItems.filter(item => {
+    if (formatFilter === "todos") return true;
+    return (item._detectedFormat || "") === formatFilter;
+  }), [allItems, formatFilter]);
+
+  const cardFormat = (item, url) => {
+    if (item._detectedFormat) return item._detectedFormat;
+    return "auto";
   };
-  const [resolvedUrls,setResolvedUrls]=useState({});
-  useEffect(()=>{let alive=true;(async()=>{const next={};for(const item of items){next[item.id]=await imageUrl(item)}if(alive)setResolvedUrls(next)})();return()=>{alive=false}},[items]);
 
   return <div className="cm-feed-root">
     <style>{`
-      .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:24px;background:#0b0f10;min-height:70vh}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:28px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px}.cm-feed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}.cm-feed-card,.cm-feed-form{background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden;transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .35s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-img{aspect-ratio:16/10;background:#101415;overflow:hidden}.cm-feed-img img{width:100%;height:100%;object-fit:cover;display:block}.cm-feed-body{padding:18px}.cm-feed-meta{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#89919e;font-size:12px}.cm-feed-contact{display:inline-flex;align-items:center;gap:8px;margin-top:15px;padding:10px 14px;border-radius:4px;text-decoration:none;color:#00363d;background:linear-gradient(180deg,#bdf4ff,#00e3fd);font-weight:700;transition:.3s}.cm-feed-contact:hover{box-shadow:0 0 20px rgba(0,227,253,.18);transform:translateY(-1px)}.cm-feed-reactions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.cm-feed-reaction{border:1px solid #3f4753;background:#191c1e;color:#bfc7d5;border-radius:4px;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00e3fd;box-shadow:0 0 16px rgba(0,227,253,.14)}.cm-feed-form{padding:20px;margin-bottom:28px}.cm-feed-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cm-feed-field{display:grid;gap:7px}.cm-feed-field--full{grid-column:1/-1}.cm-feed-field label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#89919e}.cm-feed-field input{width:100%;background:#101415;border:1px solid #3f4753;border-radius:4px;padding:11px;color:#e0e3e5}.cm-feed-preview{max-height:300px;width:100%;object-fit:contain;background:#101415;border:1px solid #3f4753;border-radius:8px}.cm-feed-submit{border:1px solid rgba(159,202,255,.6);border-radius:4px;background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;padding:12px 18px;font-weight:800;cursor:pointer;transition:.3s}.cm-feed-submit:hover{box-shadow:0 0 20px rgba(159,202,255,.18)}.cm-feed-submit:disabled{opacity:.5;cursor:not-allowed}.cm-feed-admin-actions{display:flex;gap:8px;margin-top:14px}.cm-feed-admin-actions button{border-radius:4px;padding:9px 12px;font-weight:700;cursor:pointer;background:#191c1e}.cm-feed-empty{grid-column:1/-1;padding:48px;text-align:center;border:1px dashed #3f4753;border-radius:8px;color:#89919e}.cm-feed-pulse{height:160px;border-radius:8px;background:rgba(0,227,253,.08);animation:cmCyanPulse 1.3s ease-in-out infinite}.cm-feed-notice{margin-top:12px;color:#bdf4ff;font-size:13px}@keyframes cmFeedIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes cmCyanPulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0);opacity:.55}50%{box-shadow:0 0 22px rgba(0,227,253,.18);opacity:1}}@media(max-width:700px){.cm-feed-root{padding:16px}.cm-feed-head{flex-direction:column}.cm-feed-form-grid{grid-template-columns:1fr}.cm-feed-field--full{grid-column:auto}}
+      .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:32px 24px 72px;background:#0b0f10;min-height:72vh}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px;max-width:720px}.cm-feed-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.cm-feed-btn{min-height:42px;border:1px solid rgba(159,202,255,.36);border-radius:4px;background:rgba(29,32,34,.72);color:#9fcaff;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer;transition:all .3s ease}.cm-feed-btn:hover{transform:translateY(-1px);border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-btn--primary{background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;border-color:#9fcaff}.cm-feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;padding:12px 14px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px)}.cm-feed-tabs{display:flex;gap:8px;flex-wrap:wrap}.cm-feed-tab{border:1px solid transparent;border-radius:4px;background:transparent;color:#bfc7d5;padding:8px 12px;font-weight:700;cursor:pointer;transition:.3s}.cm-feed-tab:hover,.cm-feed-tab.is-active{border-color:rgba(159,202,255,.45);background:rgba(159,202,255,.1);color:#9fcaff}.cm-feed-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}.cm-feed-card{grid-column:span 6;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden;transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .35s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}.cm-feed-card[data-format="vertical"]{grid-column:span 4}.cm-feed-media{position:relative;background:#101415;display:grid;place-items:center;overflow:hidden}.cm-feed-card[data-format="horizontal"] .cm-feed-media{aspect-ratio:16/7}.cm-feed-card[data-format="cuadrado"] .cm-feed-media{aspect-ratio:1/1}.cm-feed-card[data-format="vertical"] .cm-feed-media{aspect-ratio:4/5}.cm-feed-card[data-format="auto"] .cm-feed-media{min-height:260px;max-height:560px}.cm-feed-media img{width:100%;height:100%;object-fit:contain;display:block;background:#101415}.cm-feed-media-badge{position:absolute;top:12px;left:12px;display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:rgba(11,15,16,.82);border:1px solid rgba(159,202,255,.3);color:#bdf4ff;font-size:11px;font-weight:800;backdrop-filter:blur(10px)}.cm-feed-body{padding:18px}.cm-feed-meta{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#89919e;font-size:12px}.cm-feed-title{margin:14px 0 3px;font-size:18px;line-height:26px;color:#e0e3e5}.cm-feed-source{margin:0;color:#89919e;font-size:12px}.cm-feed-contact{display:inline-flex;align-items:center;gap:8px;margin-top:15px;padding:10px 14px;border-radius:4px;text-decoration:none;color:#00363d;background:linear-gradient(180deg,#bdf4ff,#00e3fd);font-weight:800;transition:.3s}.cm-feed-contact:hover{box-shadow:0 0 20px rgba(0,227,253,.2);transform:translateY(-1px)}.cm-feed-reactions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.cm-feed-reaction{border:1px solid #3f4753;background:#191c1e;color:#bfc7d5;border-radius:4px;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00e3fd;box-shadow:0 0 16px rgba(0,227,253,.14);transform:translateY(-1px)}.cm-feed-reaction:disabled{opacity:.55;cursor:default;box-shadow:none;transform:none}.cm-feed-composer-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(4,8,10,.78);backdrop-filter:blur(12px);display:grid;place-items:center;padding:20px}.cm-feed-form{width:min(760px,100%);max-height:90vh;overflow:auto;background:rgba(29,32,34,.96);border:1px solid rgba(159,202,255,.35);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.55)}.cm-feed-form-head{padding:18px 20px;background:rgba(50,53,55,.45);border-bottom:1px solid rgba(63,71,83,.3);display:flex;align-items:center;justify-content:space-between}.cm-feed-form-head h3{margin:0;font-size:20px}.cm-feed-form-body{padding:20px}.cm-feed-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.cm-feed-field{display:grid;gap:7px}.cm-feed-field--full{grid-column:1/-1}.cm-feed-field label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#89919e}.cm-feed-field input{width:100%;box-sizing:border-box;background:#101415;border:1px solid #3f4753;border-radius:4px;padding:11px;color:#e0e3e5}.cm-feed-drop{min-height:120px;border:1px dashed rgba(159,202,255,.4);border-radius:8px;background:rgba(11,15,16,.65);display:grid;place-items:center;text-align:center;padding:18px;cursor:pointer;transition:.3s}.cm-feed-drop:hover{border-color:#9fcaff;box-shadow:0 0 20px rgba(159,202,255,.12)}.cm-feed-preview{max-height:380px;width:100%;object-fit:contain;background:#101415;border:1px solid #3f4753;border-radius:8px}.cm-feed-format{display:inline-flex;align-items:center;gap:7px;color:#bdf4ff;font-size:12px;font-weight:700}.cm-feed-submit-row{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.cm-feed-submit{border:1px solid rgba(159,202,255,.6);border-radius:4px;background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;padding:12px 18px;font-weight:800;cursor:pointer;transition:.3s}.cm-feed-submit:hover{box-shadow:0 0 20px rgba(159,202,255,.18)}.cm-feed-submit:disabled{opacity:.5;cursor:not-allowed}.cm-feed-admin-actions{display:flex;gap:8px;margin-top:14px}.cm-feed-admin-actions button{border-radius:4px;padding:9px 12px;font-weight:700;cursor:pointer;background:#191c1e}.cm-feed-empty{grid-column:1/-1;padding:64px 24px;text-align:center;border:1px dashed #3f4753;border-radius:8px;color:#89919e;background:rgba(29,32,34,.35)}.cm-feed-empty strong{display:block;color:#bfc7d5;font-size:18px;margin-top:12px}.cm-feed-pulse{grid-column:span 6;height:360px;border-radius:8px;background:rgba(0,227,253,.06);animation:cmCyanPulse 1.3s ease-in-out infinite}.cm-feed-notice{margin:0 0 16px;color:#bdf4ff;font-size:13px;padding:10px 12px;border:1px solid rgba(189,244,255,.25);border-radius:4px;background:rgba(189,244,255,.06)}@keyframes cmFeedIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes cmCyanPulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0);opacity:.5}50%{box-shadow:0 0 24px rgba(0,227,253,.22);opacity:1}}@media(max-width:900px){.cm-feed-card,.cm-feed-card[data-format="vertical"]{grid-column:span 6}.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}}@media(max-width:640px){.cm-feed-root{padding:24px 16px 80px}.cm-feed-head{display:block}.cm-feed-head-actions{justify-content:flex-start;margin-top:16px}.cm-feed-toolbar{align-items:flex-start;flex-direction:column}.cm-feed-card,.cm-feed-card[data-format="vertical"],.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}.cm-feed-form-grid{grid-template-columns:1fr}.cm-feed-field--full{grid-column:auto}}
     `}</style>
-    <div className="cm-feed-head"><div><h2>{adminMode?"Anuncios":"Feed"}</h2><p>{adminMode?"Aprobación, rechazo y seguimiento de anuncios del Feed.":"Anuncios vigentes de la comunidad portuaria."}</p></div><button type="button" className="cm-feed-reaction" onClick={loadFeed}><MS name="refresh" size={20}/>Actualizar</button></div>
-    {canPublish&&!adminMode&&<form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-grid"><div className="cm-feed-field cm-feed-field--full"><label>Imagen del anuncio</label><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0])}/>{preview&&<img className="cm-feed-preview" src={preview} alt="Vista previa del anuncio"/>}</div><div className="cm-feed-field"><label>Inicio de vigencia</label><input type="datetime-local" value={form.fecha_inicio} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div><div className="cm-feed-field"><label>Fin de vigencia</label><input type="datetime-local" value={form.fecha_fin} onChange={e=>setForm({...form,fecha_fin:e.target.value})}/></div><div className="cm-feed-field cm-feed-field--full"><label>WhatsApp opcional</label><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm({...form,contacto_whatsapp:e.target.value})} placeholder="521..."/></div></div><div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button className="cm-feed-submit" disabled={saving}>{saving?"Enviando…":"Enviar a aprobación"}</button></div>{notice&&<div className="cm-feed-notice">{notice}</div>}</form>}
-    {error&&<div className="cm-feed-empty" style={{color:"#ffb4ab"}}>{error}</div>}
-    <div className="cm-feed-grid">{loading?[1,2,3].map(x=><div key={x} className="cm-feed-pulse"/>):items.length?items.map(item=><article key={item.id} className="cm-feed-card"><div className="cm-feed-img">{resolvedUrls[item.id]?<img src={resolvedUrls[item.id]} alt="Anuncio" loading="lazy"/>:<div className="cm-feed-pulse"/>}</div><div className="cm-feed-body"><div className="cm-feed-meta"><FeedStatusChip status={new Date(item.fecha_fin)<=new Date()?"expirado":item.estatus}/><span>{new Date(item.fecha_inicio).toLocaleDateString("es-MX")} – {new Date(item.fecha_fin).toLocaleDateString("es-MX")}</span></div>{item.contacto_whatsapp&&<a className="cm-feed-contact" href={`https://wa.me/${item.contacto_whatsapp}`} target="_blank" rel="noreferrer"><MS name="chat" size={20}/>Contactar por WhatsApp</a>}<div className="cm-feed-reactions">{FEED_REACTION_TYPES.map(r=><button key={r.id} type="button" className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={()=>react(item,r.id)}><MS name={r.icon} size={19}/><span>{reactions[item.id]?.[r.id]||0}</span></button>)}</div>{adminMode&&<div className="cm-feed-admin-actions"><button style={{border:"1px solid rgba(126,231,189,.5)",color:"#7ee7bd"}} onClick={()=>moderate(item,"aprobado")}>Aprobar</button><button style={{border:"1px solid rgba(255,180,171,.5)",color:"#ffb4ab"}} onClick={()=>moderate(item,"rechazado")}>Rechazar</button></div>}</div></article>):<div className="cm-feed-empty">No hay anuncios disponibles.</div>}</div>
+
+    <div className="cm-feed-head">
+      <div>
+        <h2>{adminMode ? "Anuncios" : "Feed"}</h2>
+        <p>{adminMode ? "Aprobación y seguimiento de anuncios enviados por la comunidad. Los aprobados alimentan el Feed y complementan AnunciosBanner." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p>
+      </div>
+      <div className="cm-feed-head-actions">
+        <button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} active /><span>Actualizar</span></button>
+        {canPublish && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>Proponer anuncio</span></button>}
+      </div>
+    </div>
+
+    {notice && <div className="cm-feed-notice">{notice}</div>}
+
+    <div className="cm-feed-toolbar">
+      <div className="cm-feed-tabs" aria-label="Formato de anuncios">
+        {[{id:"todos",label:"Todos",icon:"view_module"},{id:"horizontal",label:"Horizontales",icon:"view_day"},{id:"cuadrado",label:"Cuadrados",icon:"crop_square"},{id:"vertical",label:"Verticales",icon:"stay_current_portrait"}].map(tab => <button key={tab.id} type="button" className={`cm-feed-tab ${formatFilter===tab.id?"is-active":""}`} onClick={() => setFormatFilter(tab.id)}><MS name={tab.icon} size={18} active={formatFilter===tab.id} /> {tab.label}</button>)}
+      </div>
+      <span style={{fontSize:12,color:"#89919e"}}>{visibleItems.length} anuncio(s)</span>
+    </div>
+
+    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label="Proponer anuncio" onMouseDown={e => { if (e.target === e.currentTarget) setShowComposer(false); }}>
+      <form className="cm-feed-form" onSubmit={submit}>
+        <div className="cm-feed-form-head"><h3>Proponer anuncio</h3><button type="button" className="cm-feed-btn" onClick={() => setShowComposer(false)}><MS name="close" size={20} /></button></div>
+        <div className="cm-feed-form-body">
+          <div className="cm-feed-form-grid">
+            <div className="cm-feed-field cm-feed-field--full">
+              <label>Imagen del anuncio</label>
+              {!preview ? <label className="cm-feed-drop"><span><MS name="add_photo_alternate" size={30} active /><br /><strong>Seleccionar JPEG o PNG</strong><br /><small>El formato se detecta automáticamente por su relación de aspecto.</small></span><input type="file" accept="image/jpeg,image/png" hidden onChange={e => pickImage(e.target.files?.[0])} /></label> : <><img src={preview} alt="Vista previa del anuncio" className="cm-feed-preview" /><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginTop:8}}><span className="cm-feed-format"><MS name={detectedFormat==="vertical"?"stay_current_portrait":detectedFormat==="cuadrado"?"crop_square":"view_day"} size={18} active />Formato {detectedFormat}</span><label className="cm-feed-btn"><MS name="replace_image" size={18} />Reemplazar<input type="file" accept="image/jpeg,image/png" hidden onChange={e => pickImage(e.target.files?.[0])} /></label></div></>}
+            </div>
+            <div className="cm-feed-field"><label>Inicio de vigencia</label><input type="datetime-local" value={form.fecha_inicio} onChange={e => setForm(f => ({...f,fecha_inicio:e.target.value}))} required /></div>
+            <div className="cm-feed-field"><label>Fin de vigencia</label><input type="datetime-local" value={form.fecha_fin} onChange={e => setForm(f => ({...f,fecha_fin:e.target.value}))} required /></div>
+            <div className="cm-feed-field cm-feed-field--full"><label>WhatsApp opcional</label><input inputMode="tel" placeholder="521..." value={form.contacto_whatsapp} onChange={e => setForm(f => ({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} /></div>
+          </div>
+          <div className="cm-feed-submit-row"><button type="button" className="cm-feed-btn" onClick={() => setShowComposer(false)}>Cancelar</button><button className="cm-feed-submit" disabled={saving}>{saving ? "Enviando..." : "Enviar a aprobación"}</button></div>
+        </div>
+      </form>
+    </div>}
+
+    <div className="cm-feed-grid">
+      {loading ? <><div className="cm-feed-pulse"/><div className="cm-feed-pulse"/></> : error ? <div className="cm-feed-empty"><MS name="error" size={34} /><strong>No se pudo cargar el Feed</strong><div>{error}</div></div> : visibleItems.length === 0 ? <div className="cm-feed-empty"><MS name="dynamic_feed" size={42} active /><strong>No hay anuncios vigentes</strong><div>Los anuncios aprobados aparecerán aquí respetando su formato original.</div></div> : visibleItems.map((item, index) => {
+        const key = `${item._source}:${item.id}`;
+        const url = resolvedUrls[key] || item.imagen_url || "";
+        const format = cardFormat(item, url);
+        const start = item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString("es-MX") : "";
+        const end = item.fecha_fin ? new Date(item.fecha_fin).toLocaleDateString("es-MX") : "";
+        return <article key={key} className="cm-feed-card" data-format={format} style={{animationDelay:`${Math.min(index*55,330)}ms`}}>
+          <div className="cm-feed-media">
+            {url ? <img src={url} alt={item.titulo || "Anuncio"} onLoad={e => { const fmt=detectFormat(e.currentTarget.naturalWidth,e.currentTarget.naturalHeight); e.currentTarget.closest('.cm-feed-card')?.setAttribute('data-format',fmt); }} /> : <MS name="image_not_supported" size={44} />}
+            <span className="cm-feed-media-badge"><MS name={item._legacy?"view_carousel":"dynamic_feed"} size={16} active />{item._legacy?"AnunciosBanner":"Feed"}</span>
+          </div>
+          <div className="cm-feed-body">
+            <div className="cm-feed-meta"><span>{start && end ? `${start} — ${end}` : "Vigencia activa"}</span>{adminMode && <FeedStatusChip status={item.estatus} />}</div>
+            <h3 className="cm-feed-title">{item.titulo || "Anuncio de la comunidad portuaria"}</h3>
+            <p className="cm-feed-source">{item.empresa || (item._legacy ? "AnunciosBanner" : "Comunidad CONECT MANZANILLO")}</p>
+            {(item.contacto_whatsapp || item.whatsapp) && <a className="cm-feed-contact" href={`https://wa.me/${String(item.contacto_whatsapp || item.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"><AppIcon name="whatsapp" size={19} /><span>Contactar por WhatsApp</span></a>}
+            <div className="cm-feed-reactions">
+              {FEED_REACTION_TYPES.map(r => <button key={r.id} type="button" disabled={item._legacy} title={item._legacy?"Las reacciones están disponibles en anuncios publicados desde Feed":r.label} className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={() => react(item,r.id)}><MS name={r.icon} size={19} active={mine[item.id]===r.id} /><span>{reactions[item.id]?.[r.id] || 0}</span></button>)}
+            </div>
+            {adminMode && !item._legacy && <div className="cm-feed-admin-actions"><button type="button" style={{border:"1px solid rgba(126,231,189,.4)",color:"#7ee7bd"}} onClick={() => moderate(item,"aprobado")}>Aprobar</button><button type="button" style={{border:"1px solid rgba(255,180,171,.4)",color:"#ffb4ab"}} onClick={() => moderate(item,"rechazado")}>Rechazar</button></div>}
+          </div>
+        </article>;
+      })}
+    </div>
   </div>;
 }
-
 function useAdminDashboardLiveData(incidents) {
   const [state,setState]=useState({ticketsPendientes:0,ticketsHoy:0,noticias:[],tickets:[],roles:[],loading:true});
   const load=useCallback(async()=>{
