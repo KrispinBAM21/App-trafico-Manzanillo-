@@ -310,7 +310,6 @@ const TABS = [
   { key: "segundo",     label: "Confinados",  icon: TAB_PUBLIC_ICONS.segundo },
   { key: "accesos",     label: "Accesos",     icon: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles },
   { key: "noticias",    label: "Noticias",    icon: TAB_PUBLIC_ICONS.noticias },
-  { key: "feed",        label: "Feed",        icon: TAB_PUBLIC_ICONS.noticias },
   { key: "donativos",   label: "Posturas",    icon: TAB_PUBLIC_ICONS.donativos },
   { key: "tutorial",    label: "Más Info",    icon: TAB_PUBLIC_ICONS.tutorial }
 ];
@@ -339,7 +338,8 @@ const TAB_ALIASES = {
   controldecarriles: "accesos",
   control_carriles: "accesos",
   mapa: "reporte",
-  accesos: "accesos"
+  accesos: "accesos",
+  feed: "donativos"
 };
 const normalizeTabKey = (value) => {
   if (!value || typeof value !== "string") return null;
@@ -355,7 +355,22 @@ const normalizeTabKey = (value) => {
 const getTabFromUrl = () => {
   try {
     const params = new URLSearchParams(window.location.search);
-    return normalizeTabKey(params.get("seccion") || params.get("tab") || params.get("section") || window.location.hash);
+    const requested = params.get("seccion") || params.get("tab") || params.get("section") || window.location.hash;
+    const cleanRequested = typeof requested === "string"
+      ? decodeURIComponent(requested).toLowerCase().trim().replace(/^#/, "").replace(/^\//, "").replace(/[^a-z0-9_áéíóúñ]/g, "")
+      : "";
+    if (cleanRequested === "feed") {
+      try {
+        sessionStorage.setItem("cm_open_posturas_subtab", "feed");
+        const cleanUrl = new URL(window.location.href);
+        ["seccion", "tab", "section"].forEach(key => {
+          if ((cleanUrl.searchParams.get(key) || "").toLowerCase() === "feed") cleanUrl.searchParams.delete(key);
+        });
+        cleanUrl.hash = "donativos";
+        window.history.replaceState({ tab:"donativos" }, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+      } catch {}
+    }
+    return normalizeTabKey(requested);
   } catch {
     return null;
   }
@@ -434,7 +449,6 @@ const DEFAULT_THEME = {
     segundo: { type: "image", value: TAB_PUBLIC_ICONS.segundo, size: 24 },
     accesos: { type: "image", value: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles, size: 24 },
     noticias: { type: "image", value: TAB_PUBLIC_ICONS.noticias, size: 24 },
-    feed: { type: "builtin", value: "campaign", size: 24 },
     donativos: { type: "image", value: TAB_PUBLIC_ICONS.donativos, size: 24 },
     tutorial: { type: "image", value: TAB_PUBLIC_ICONS.tutorial, size: 24 }
   },
@@ -21749,9 +21763,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [sub, setSub] = useState(() => {
     try {
       const requested = sessionStorage.getItem("cm_open_posturas_subtab");
-      if (requested === "donativos") {
+      if (requested === "donativos" || requested === "feed") {
         sessionStorage.removeItem("cm_open_posturas_subtab");
-        return "donativos";
+        return requested;
       }
     } catch {}
     return "posturas";
@@ -27893,7 +27907,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
     { id:"feed", icon:"dynamic_feed", title:"Feed", audience:"Todos / permiso Publicar anuncios", summary:"Anuncios visuales aprobados de la comunidad portuaria.", details:[
       "Filtra anuncios horizontales, cuadrados o verticales y consulta vigencia, empresa, descripción y contacto.",
       "Las reacciones usan símbolos portuarios como buque, camión y contenedor.",
-      "El Feed principal y el Feed dentro de Posturas son la misma vista y usan la misma fuente de datos.",
+      "El Feed vive únicamente dentro de Posturas y usa una sola fuente de datos.",
       "Quien tenga Publicar anuncios puede proponer contenido por hasta un mes; el admin aprueba, rechaza o publica directamente."
     ]},
     { id:"posturas", icon:"business_center", title:"Posturas", audience:"Todos / cuentas autenticadas", summary:"Centro de Talento, vacantes, perfiles y seguimiento.", details:[
@@ -27916,7 +27930,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
     { id:"anuncios", icon:"campaign", title:"Anuncios — administración", audience:"Admin", summary:"Aprobación y publicación directa hacia el Feed.", details:[
       "Gestiona pendientes, vigentes, rechazados y expirados.",
       "El admin puede publicar anuncios directamente, ajustar fechas sin límite de 30 días y revisar el ID del autor.",
-      "Los anuncios aprobados alimentan tanto el Feed principal como el acceso Feed dentro de Posturas."
+      "Los anuncios aprobados alimentan el Feed disponible dentro de Posturas."
     ]},
     { id:"dashboard", icon:"dashboard", title:"Dashboard administrativo", audience:"Según permisos", summary:"Panel central filtrado por roles.", details:[
       "Las acciones rápidas, métricas y actividad reciente usan datos reales de Supabase.",
@@ -27925,7 +27939,12 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
   ];
 
   const goTo = (id) => {
-    const map = { terminales:"terminales", segundo:"segundo", verification:"donativos", records:"donativos", anuncios:"feed", dashboard:"inicio" };
+    if (id === "feed" || id === "anuncios") {
+      try { sessionStorage.setItem("cm_open_posturas_subtab", "feed"); } catch {}
+      setActive("donativos");
+      return;
+    }
+    const map = { terminales:"terminales", segundo:"segundo", verification:"donativos", records:"donativos", dashboard:"inicio" };
     setActive(map[id] || id);
   };
 
@@ -30288,7 +30307,7 @@ function FeedStatusChip({ status }) {
 }
 
 function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false }) {
-  // Feed principal y Feed dentro de Posturas son la misma vista y consumen la misma
+  // El Feed vive únicamente dentro de Posturas y consume una sola
   // entidad `feed_anuncios`; no existe una segunda fuente ni anuncios duplicados.
   const [permissionGranted, setPermissionGranted] = useState(false);
   const canPublish = Boolean(isAdmin || subAdmin?.permisos?.publicar_anuncios || permissionGranted);
@@ -30964,7 +30983,11 @@ function App() {
   const [active,    setActiveRaw]  = useState(() => {
     const fromUrl = getTabFromUrl();
     if (fromUrl) return fromUrl;
-    try { return normalizeTabKey(localStorage.getItem("puerto_active_tab")) || "inicio"; } catch { return "inicio"; }
+    try {
+      const stored = localStorage.getItem("puerto_active_tab");
+      if (stored === "feed") sessionStorage.setItem("cm_open_posturas_subtab", "feed");
+      return normalizeTabKey(stored) || "inicio";
+    } catch { return "inicio"; }
   });
   const setActive = (tab, opts = {}) => {
     const safeTab = normalizeTabKey(tab) || "inicio";
@@ -31861,7 +31884,6 @@ function App() {
         {active === "segundo"    && <SegundoAccesoTab myId={myId} isAdmin={isAdmin} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
-        {active === "feed"       && <FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
 
