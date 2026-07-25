@@ -16946,6 +16946,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [detalle, setDetalle] = useState("");
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [pastedCapture, setPastedCapture] = useState(null);
+  const [pasteOcrBusy, setPasteOcrBusy] = useState(false);
+  const [pasteOcrError, setPasteOcrError] = useState("");
   const [complementaryFiles, setComplementaryFiles] = useState([]);
   const [complementaryPreviews, setComplementaryPreviews] = useState([]);
   const [fechaInicio, setFechaInicio] = useState("");
@@ -16974,6 +16977,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
   const inputRef = useRef();
+  const pasteZoneRef = useRef();
   const complementaryInputRef = useRef();
   const comunicadoCanvasRef = useRef(null);
   const generatedGraphicObjectUrlRef = useRef(null);
@@ -16997,6 +17001,47 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   useEffect(() => () => {
     complementaryPreviews.forEach((item) => { try { URL.revokeObjectURL(item.url); } catch {} });
   }, [complementaryPreviews]);
+
+  useEffect(() => () => {
+    if (pastedCapture?.url) { try { URL.revokeObjectURL(pastedCapture.url); } catch {} }
+  }, [pastedCapture?.url]);
+
+  const acceptClipboardImage = useCallback((event) => {
+    const items = Array.from(event?.clipboardData?.items || []);
+    const imageItem = items.find((item) => item.kind === "file" && String(item.type || "").startsWith("image/"));
+    if (!imageItem) return false;
+    const blob = imageItem.getAsFile();
+    if (!blob) return false;
+    event.preventDefault();
+    if (blob.size > 10 * 1024 * 1024) {
+      setPasteOcrError("La captura pegada supera el límite de 10 MB.");
+      return true;
+    }
+    const extension = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    const file = new File([blob], `captura_${Date.now()}.${extension}`, { type: blob.type || "image/png", lastModified: Date.now() });
+    setPastedCapture((current) => {
+      if (current?.url) { try { URL.revokeObjectURL(current.url); } catch {} }
+      return { file, url: URL.createObjectURL(file) };
+    });
+    setPasteOcrError("");
+    setError("");
+    setToolNotice("Captura pegada. Revísala y pulsa Extraer texto antes de publicar.", "#38bdf8");
+    return true;
+  }, []);
+
+  useEffect(() => {
+    const onPaste = (event) => acceptClipboardImage(event);
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [acceptClipboardImage]);
+
+  const discardPastedCapture = () => {
+    setPastedCapture((current) => {
+      if (current?.url) { try { URL.revokeObjectURL(current.url); } catch {} }
+      return null;
+    });
+    setPasteOcrError("");
+  };
 
   const localDateInput = (offsetDays = 0) => {
     const d = new Date();
@@ -17624,6 +17669,44 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setToolNotice("No se pudo extraer texto. Intenta elegir una zona o escribe la descripción manualmente.", "#ef4444");
     } finally {
       setToolBusy(false);
+    }
+  };
+
+  // OCR sin cambios de infraestructura: reutiliza callMediaProcessor, que puede resolver OCR
+  // del lado cliente. Para despliegues con documentos sensibles o alto volumen se recomienda
+  // mantener la misma interfaz y enrutar image_ocr a una Supabase Edge Function.
+  const extraerTextoCapturaPegada = async () => {
+    if (!pastedCapture?.file) {
+      setPasteOcrError("Pega una captura de pantalla antes de intentar extraer texto.");
+      return;
+    }
+    setPasteOcrBusy(true);
+    setPasteOcrError("");
+    setError("");
+    try {
+      const result = await callMediaProcessor({
+        action: "image_ocr",
+        sourceUrl: pastedCapture.url,
+        fileType: pastedCapture.file.type || "image/png",
+        title: titulo,
+        bucketPath: "comunicados/clipboard-ocr"
+      });
+      const cleanText = stripFileNamesFromOcrText(String(result?.text || ""), [pastedCapture.file]).trim();
+      if (!cleanText) {
+        setPasteOcrError("No se reconoció texto legible. Puedes reintentar con otra captura o escribir el contenido manualmente.");
+        setToolNotice("El OCR no encontró texto legible en la captura.", "#f97316");
+        return;
+      }
+      setDetalle((current) => [current?.trim(), cleanText].filter(Boolean).join("\n\n"));
+      const tituloGenerado = await generarTituloDesdeTextoExtraido(cleanText);
+      if (tituloGenerado && !titulo.trim()) setTitulo(tituloGenerado);
+      setToolNotice("Texto extraído de la captura. Revísalo y edítalo antes de publicar.", "#22c55e");
+    } catch (ocrError) {
+      console.error("OCR de captura pegada:", ocrError);
+      setPasteOcrError("No fue posible procesar la captura. Reintenta o escribe el contenido manualmente.");
+      setToolNotice("Falló la extracción de texto de la captura.", "#ef4444");
+    } finally {
+      setPasteOcrBusy(false);
     }
   };
 
@@ -18708,8 +18791,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setError("Escribe un título para el comunicado");
       return;
     }
-    if (!archivo) {
-      setError("Selecciona un archivo");
+    const archivoPrincipal = archivo || pastedCapture?.file || null;
+    if (!archivoPrincipal) {
+      setError("Adjunta un archivo o pega una captura de pantalla");
       return;
     }
     if (!fechaInicio) {
@@ -18761,13 +18845,13 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
       };
 
-      const publicUrl = await uploadOne(archivo, "principal");
+      const publicUrl = await uploadOne(archivoPrincipal, pastedCapture?.file === archivoPrincipal ? "captura" : "principal");
       const complementaryUrls = [];
       for (const complementaryFile of complementaryFiles) {
         complementaryUrls.push(await uploadOne(complementaryFile, "complementaria"));
       }
       const allImageUrls = [
-        ...(archivo.type?.startsWith("image/") ? [publicUrl] : []),
+        ...(archivoPrincipal.type?.startsWith("image/") ? [publicUrl] : []),
         ...complementaryUrls,
       ];
 
@@ -18775,7 +18859,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         titulo: titulo.trim(),
         detalle: detalle.trim() || null,
         archivo_url: publicUrl,
-        archivo_tipo: archivo.type,
+        archivo_tipo: archivoPrincipal.type,
         media_urls: allImageUrls,
         fecha_inicio: inicio,
         fecha_fin: fin,
@@ -18811,6 +18895,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       setDetalle("");
       setArchivo(null);
       setPreview(null);
+      discardPastedCapture();
       complementaryPreviews.forEach((item) => { try { URL.revokeObjectURL(item.url); } catch {} });
       setComplementaryFiles([]);
       setComplementaryPreviews([]);
@@ -19024,6 +19109,29 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         </div>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={onFileChange} style={{ display: "none" }} />
       </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:"12px", marginBottom:"14px" }}>
+        <div ref={pasteZoneRef} tabIndex={0} onPaste={acceptClipboardImage} style={{ minHeight:"154px", border:`2px dashed ${pastedCapture ? "rgba(56,189,248,.65)" : "rgba(239,106,103,.42)"}`, borderRadius:"10px", padding:"16px", background:pastedCapture ? "rgba(56,189,248,.08)" : "rgba(239,106,103,.055)", outline:"none", boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)", display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center" }}>
+          <AppIcon name="clipboard" size={28} active />
+          <div style={{ marginTop:"9px", color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900 }}>PEGAR CAPTURA</div>
+          <div style={{ marginTop:"5px", color:"rgba(203,213,225,.62)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.5 }}>Copia una captura y presiona Ctrl+V o Cmd+V. Esta opción es independiente de Adjuntar archivo.</div>
+        </div>
+        <div style={{ minHeight:"154px", border:"1px solid rgba(56,189,248,.24)", borderRadius:"10px", padding:"12px", background:"rgba(1,15,31,.56)", display:"flex", flexDirection:"column" }}>
+          {pastedCapture ? <>
+            <button type="button" onClick={() => window.open(pastedCapture.url, "_blank", "noopener,noreferrer")} style={{ border:0, background:"transparent", padding:0, cursor:"zoom-in", flex:1 }}>
+              <img src={pastedCapture.url} alt="Vista previa de captura pegada" style={{ width:"100%", height:"116px", objectFit:"contain", borderRadius:"8px", background:"#020b16" }} />
+            </button>
+            <div style={{ display:"flex", gap:"8px", marginTop:"9px" }}>
+              <button type="button" onClick={extraerTextoCapturaPegada} disabled={pasteOcrBusy} style={{ flex:1, minHeight:"38px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.48)", background:pasteOcrBusy?"rgba(100,116,139,.16)":"linear-gradient(135deg,rgba(14,116,144,.42),rgba(37,99,235,.38))", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:pasteOcrBusy?"wait":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", boxShadow:"0 8px 18px rgba(0,0,0,.22)" }}>
+                <span className={pasteOcrBusy ? "cm-paste-ocr-spinner" : ""}><AppIcon name={pasteOcrBusy ? "turnover" : "document"} size={17} active /></span>{pasteOcrBusy ? "PROCESANDO OCR" : "EXTRAER TEXTO"}
+              </button>
+              <button type="button" onClick={discardPastedCapture} disabled={pasteOcrBusy} style={{ minWidth:"94px", borderRadius:"9px", border:"1px solid rgba(239,106,103,.48)", background:"rgba(239,106,103,.10)", color:"#fda4af", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:pasteOcrBusy?"not-allowed":"pointer" }}>DESCARTAR</button>
+            </div>
+          </> : <div style={{ flex:1, display:"grid", placeItems:"center", color:"rgba(148,163,184,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>La vista previa aparecerá aquí</div>}
+          {pasteOcrError && <div role="alert" style={{ marginTop:"9px", padding:"9px", borderRadius:"8px", border:"1px solid rgba(239,106,103,.38)", background:"rgba(239,106,103,.08)", color:"#fda4af", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.45 }}>{pasteOcrError}</div>}
+        </div>
+      </div>
+      <style>{`@keyframes cmPasteOcrSpin{to{transform:rotate(360deg)}}.cm-paste-ocr-spinner{display:inline-flex;animation:cmPasteOcrSpin .85s linear infinite}`}</style>
 
       <div style={{ background:"rgba(1,15,31,.45)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"14px", marginBottom:"14px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap", marginBottom:"10px" }}>
@@ -29923,6 +30031,7 @@ function AdminDashboardCard({ id, title, subtitle, icon, accent, open, onToggle,
 
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig }) {
   const [openCards, setOpenCards] = useState(() => new Set(["overview"]));
+  const [newsTool, setNewsTool] = useState("publish");
   const toggle = (id) => setOpenCards(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -29971,6 +30080,10 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         .cm-admin-dashboard__tool{min-height:116px;border:1px solid rgba(255,255,255,.10);border-radius:15px;padding:16px;background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,.025));color:#fff;text-align:left;cursor:pointer;box-shadow:0 12px 26px rgba(0,0,0,.20);transition:all .22s ease}
         .cm-admin-dashboard__tool:hover{transform:translateY(-3px);border-color:rgba(239,106,103,.48);box-shadow:0 18px 34px rgba(0,0,0,.28)}
         .cm-admin-dashboard__tool strong{display:block;margin-top:12px;font-size:13px}.cm-admin-dashboard__tool span{display:block;margin-top:5px;color:#9fb0c3;font-size:10px;line-height:1.5}
+        .cm-admin-dashboard__news-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:7px;margin-bottom:14px;border:1px solid rgba(125,176,236,.20);border-radius:13px;background:rgba(2,12,25,.62)}
+        .cm-admin-dashboard__news-switch button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:43px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.035);color:#9fb0c3;font:800 11px/1 'Inter',sans-serif;cursor:pointer;transition:all .22s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+        .cm-admin-dashboard__news-switch button:hover{transform:translateY(-1px);border-color:rgba(136,191,255,.50);color:#fff;box-shadow:0 10px 22px rgba(0,0,0,.22)}
+        .cm-admin-dashboard__news-switch button.is-active{border-color:rgba(239,106,103,.58);background:linear-gradient(135deg,rgba(239,106,103,.18),rgba(47,128,237,.18));color:#fff;box-shadow:0 12px 26px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.08)}
         @keyframes cmAdminDashOpen{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @media(max-width:820px){.cm-admin-dashboard{padding:18px 10px 72px}.cm-admin-dashboard__grid{grid-template-columns:1fr}.cm-admin-dashboard-card.is-open{grid-column:auto}.cm-admin-dashboard__tool-row{grid-template-columns:1fr}.cm-admin-dashboard__hero{padding:22px 18px}.cm-admin-dashboard-card__head{padding:15px 13px}}
       `}</style>
@@ -29979,7 +30092,8 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         <h1>Dashboard</h1>
         <p>Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales.</p>
         <div className="cm-admin-dashboard__actions">
-          <button className="cm-admin-dashboard__action" onClick={() => toggle("news")}><AppIcon name="dispatch-news" size={18} active /> Publicar comunicado</button>
+          <button className="cm-admin-dashboard__action" onClick={() => { setNewsTool("publish"); if (!opened("news")) toggle("news"); }}><AppIcon name="dispatch-news" size={18} active /> Publicar comunicado</button>
+          <button className="cm-admin-dashboard__action" onClick={() => { setNewsTool("propose"); if (!opened("news")) toggle("news"); }}><AppIcon name="clipboard" size={18} active /> Proponer comunicado</button>
           <button className="cm-admin-dashboard__action" onClick={() => toggle("users")}><AppIcon name="user" size={18} active /> Gestionar roles</button>
           <button className="cm-admin-dashboard__action" onClick={() => toggle("traffic")}><AppIcon name="traffic-control" size={18} active /> Actualizar tráfico</button>
           <button className="cm-admin-dashboard__action" onClick={() => toggle("incidents")}><AppIcon name="incident-pin" size={18} active /> Moderar incidentes</button>
@@ -29990,7 +30104,14 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
           <AdminDashboardCard key={card.id} {...card} open={opened(card.id)} onToggle={toggle}>
             <div className="cm-admin-dashboard-embedded">
               {card.id === "users" && <AdminUsuariosPanel />}
-              {card.id === "news" && <><NoticiasAdminPublisher isAdmin={true} /><div style={{height:14}}/><NoticiasAdminCleanup /></>}
+              {card.id === "news" && <>
+                <div className="cm-admin-dashboard__news-switch">
+                  <button type="button" className={newsTool === "publish" ? "is-active" : ""} onClick={() => setNewsTool("publish")}><AppIcon name="dispatch-news" size={18} active={newsTool === "publish"} /> Publicar noticia</button>
+                  <button type="button" className={newsTool === "propose" ? "is-active" : ""} onClick={() => setNewsTool("propose")}><AppIcon name="clipboard" size={18} active={newsTool === "propose"} /> Proponer comunicado</button>
+                </div>
+                {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
+                <div style={{height:14}}/><NoticiasAdminCleanup />
+              </>}
               {card.id === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
               {card.id === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
               {card.id === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
