@@ -309,6 +309,7 @@ const TABS = [
   { key: "segundo",     label: "Confinados",  icon: TAB_PUBLIC_ICONS.segundo },
   { key: "accesos",     label: "Accesos",     icon: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles },
   { key: "noticias",    label: "Noticias",    icon: TAB_PUBLIC_ICONS.noticias },
+  { key: "feed",        label: "Feed",        icon: TAB_PUBLIC_ICONS.noticias },
   { key: "donativos",   label: "Posturas",    icon: TAB_PUBLIC_ICONS.donativos },
   { key: "tutorial",    label: "Más Info",    icon: TAB_PUBLIC_ICONS.tutorial }
 ];
@@ -432,6 +433,7 @@ const DEFAULT_THEME = {
     segundo: { type: "image", value: TAB_PUBLIC_ICONS.segundo, size: 24 },
     accesos: { type: "image", value: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles, size: 24 },
     noticias: { type: "image", value: TAB_PUBLIC_ICONS.noticias, size: 24 },
+    feed: { type: "builtin", value: "campaign", size: 24 },
     donativos: { type: "image", value: TAB_PUBLIC_ICONS.donativos, size: 24 },
     tutorial: { type: "image", value: TAB_PUBLIC_ICONS.tutorial, size: 24 }
   },
@@ -30163,6 +30165,195 @@ function GlobalIdentityProfileModal({
 }
 
 
+
+// ─── FEED DE ANUNCIOS ───────────────────────────────────────────────────────
+// Migración Supabase recomendada (ejecutar en SQL Editor):
+//
+// create table if not exists public.feed_anuncios (
+//   id uuid primary key default gen_random_uuid(),
+//   user_id uuid not null references auth.users(id) on delete cascade,
+//   imagen_path text not null,
+//   imagen_url text,
+//   fecha_inicio timestamptz not null,
+//   fecha_fin timestamptz not null,
+//   estatus text not null default 'pendiente' check (estatus in ('pendiente','aprobado','rechazado')),
+//   contacto_whatsapp text,
+//   created_at timestamptz not null default now(),
+//   updated_at timestamptz not null default now(),
+//   aprobado_por uuid references auth.users(id) on delete set null,
+//   aprobado_at timestamptz,
+//   constraint feed_anuncios_fechas_ck check (fecha_fin > fecha_inicio)
+// );
+// create table if not exists public.feed_reacciones (
+//   id uuid primary key default gen_random_uuid(),
+//   anuncio_id uuid not null references public.feed_anuncios(id) on delete cascade,
+//   user_id uuid not null references auth.users(id) on delete cascade,
+//   tipo_reaccion text not null check (tipo_reaccion in ('barco','camion','contenedor')),
+//   created_at timestamptz not null default now(),
+//   unique(anuncio_id,user_id)
+// );
+// create index if not exists feed_anuncios_estado_fechas_idx on public.feed_anuncios(estatus,fecha_inicio,fecha_fin);
+// create index if not exists feed_anuncios_user_idx on public.feed_anuncios(user_id);
+// create index if not exists feed_reacciones_anuncio_idx on public.feed_reacciones(anuncio_id);
+// alter table public.feed_anuncios enable row level security;
+// alter table public.feed_reacciones enable row level security;
+//
+// Las políticas deben usar la misma función de autorización/permisos del proyecto. Ejemplo:
+// - SELECT: todos los autenticados leen anuncios aprobados y vigentes; el autor lee los suyos; admin lee todos.
+// - INSERT: auth.uid()=user_id y el JWT/tabla de roles incluye publicar_anuncios.
+// - UPDATE: solo admin para aprobar/rechazar; autor únicamente mientras esté pendiente si se desea.
+// - Reacciones: autenticados leen; auth.uid()=user_id para INSERT/UPDATE/DELETE.
+//
+// Storage: bucket privado `feed-anuncios`, máximo 10 MB, allow-list image/jpeg,image/png.
+// Replicar validateStaticAttachment en Edge Function antes de persistir. La expiración total se realiza
+// con una Edge Function programada (Supabase Cron, diaria o cada hora): selecciona fecha_fin <= now(),
+// elimina imagen_path del bucket y luego borra el registro. ON DELETE CASCADE elimina las reacciones.
+
+const FEED_BUCKET = "feed-anuncios";
+const FEED_REACTION_TYPES = [
+  { id:"barco", icon:"directions_boat", label:"Buque" },
+  { id:"camion", icon:"local_shipping", label:"Camión" },
+  { id:"contenedor", icon:"inventory_2", label:"Contenedor" },
+];
+
+function FeedStatusChip({ status }) {
+  const key = String(status || "pendiente").toLowerCase();
+  const map = {
+    pendiente:{ label:"Pendiente", color:"#bdf4ff", bg:"rgba(189,244,255,.10)", border:"rgba(189,244,255,.34)" },
+    aprobado:{ label:"Publicado", color:"#7ee7bd", bg:"rgba(126,231,189,.10)", border:"rgba(126,231,189,.34)" },
+    rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(255,180,171,.10)", border:"rgba(255,180,171,.34)" },
+    expirado:{ label:"Expirado", color:"#89919e", bg:"rgba(137,145,158,.10)", border:"rgba(137,145,158,.30)" },
+  };
+  const item = map[key] || map.pendiente;
+  return <span style={{display:"inline-flex",alignItems:"center",gap:"6px",padding:"4px 9px",borderRadius:"999px",font:"700 11px/16px Inter,sans-serif",color:item.color,background:item.bg,border:`1px solid ${item.border}`}}><span style={{width:6,height:6,borderRadius:"50%",background:item.color}} />{item.label}</span>;
+}
+
+function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false }) {
+  const canPublish = Boolean(isAdmin || subAdmin?.permisos?.publicar_anuncios);
+  const canModerate = Boolean(isAdmin);
+  const [items,setItems]=useState([]);
+  const [reactions,setReactions]=useState({});
+  const [mine,setMine]=useState({});
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [form,setForm]=useState({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
+  const [image,setImage]=useState(null);
+  const [preview,setPreview]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [notice,setNotice]=useState("");
+
+  const loadFeed=useCallback(async()=>{
+    setLoading(true); setError("");
+    try{
+      let query=sb.from("feed_anuncios").select("*").order("created_at",{ascending:false});
+      if(!adminMode){
+        const now=new Date().toISOString();
+        query=query.eq("estatus","aprobado").lte("fecha_inicio",now).gt("fecha_fin",now);
+      }
+      const {data,error:e}=await query;
+      if(e) throw e;
+      const list=data||[]; setItems(list);
+      const ids=list.map(x=>x.id);
+      if(ids.length){
+        const {data:r}=await sb.from("feed_reacciones").select("anuncio_id,user_id,tipo_reaccion").in("anuncio_id",ids);
+        const counts={}, own={};
+        (r||[]).forEach(row=>{ counts[row.anuncio_id] ||= {}; counts[row.anuncio_id][row.tipo_reaccion]=(counts[row.anuncio_id][row.tipo_reaccion]||0)+1; if(authUser?.id && row.user_id===authUser.id) own[row.anuncio_id]=row.tipo_reaccion; });
+        setReactions(counts); setMine(own);
+      } else { setReactions({}); setMine({}); }
+    }catch(e){setError(e?.message||"No se pudo cargar el Feed.");}
+    finally{setLoading(false);}
+  },[adminMode,authUser?.id]);
+  useEffect(()=>{loadFeed();},[loadFeed]);
+  useEffect(()=>()=>{if(preview) URL.revokeObjectURL(preview)},[preview]);
+
+  const pickImage=async(file)=>{
+    setNotice("");
+    if(!file) return;
+    const validation=await validateStaticAttachment(file,{maxBytes:10*1024*1024});
+    if(!validation.ok || !["image/jpeg","image/png"].includes(validation.detectedType||file.type)){
+      setNotice(validation.ok?"Solo se permiten imágenes JPEG o PNG reales.":validation.error); return;
+    }
+    if(preview) URL.revokeObjectURL(preview);
+    setImage(file); setPreview(URL.createObjectURL(file));
+  };
+  const submit=async(e)=>{
+    e.preventDefault(); setNotice("");
+    if(!authUser?.id){setNotice("Inicia sesión para publicar un anuncio.");return;}
+    if(!canPublish){setNotice("Tu cuenta no tiene el permiso Publicar anuncios.");return;}
+    if(!image||!form.fecha_inicio||!form.fecha_fin){setNotice("Selecciona una imagen y define la vigencia.");return;}
+    if(new Date(form.fecha_fin)<=new Date(form.fecha_inicio)){setNotice("La fecha final debe ser posterior a la fecha inicial.");return;}
+    setSaving(true);
+    let path="";
+    try{
+      const ext=image.type==="image/png"?"png":"jpg";
+      path=`${authUser.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+      const {error:upErr}=await sb.storage.from(FEED_BUCKET).upload(path,image,{contentType:image.type,upsert:false});
+      if(upErr) throw upErr;
+      const {data:signed}=await sb.storage.from(FEED_BUCKET).createSignedUrl(path,60*60*24*7);
+      const payload={user_id:authUser.id,imagen_path:path,imagen_url:signed?.signedUrl||null,fecha_inicio:new Date(form.fecha_inicio).toISOString(),fecha_fin:new Date(form.fecha_fin).toISOString(),estatus:"pendiente",contacto_whatsapp:String(form.contacto_whatsapp||"").replace(/\D/g,"")||null};
+      const {error:insertErr}=await sb.from("feed_anuncios").insert(payload);
+      if(insertErr) throw insertErr;
+      setForm({fecha_inicio:"",fecha_fin:"",contacto_whatsapp:""});setImage(null);if(preview)URL.revokeObjectURL(preview);setPreview("");setNotice("Anuncio enviado. Quedó pendiente de aprobación administrativa.");loadFeed();
+    }catch(e){ if(path) try{await sb.storage.from(FEED_BUCKET).remove([path]);}catch{} setNotice(e?.message||"No se pudo enviar el anuncio."); }
+    finally{setSaving(false);}
+  };
+  const moderate=async(item,status)=>{
+    if(!canModerate)return;
+    const {error:e}=await sb.from("feed_anuncios").update({estatus:status,aprobado_por:authUser?.id||null,aprobado_at:status==="aprobado"?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq("id",item.id);
+    if(e)setNotice(e.message);else loadFeed();
+  };
+  const react=async(item,type)=>{
+    if(!authUser?.id)return;
+    const current=mine[item.id];
+    if(current===type){ await sb.from("feed_reacciones").delete().eq("anuncio_id",item.id).eq("user_id",authUser.id); }
+    else { await sb.from("feed_reacciones").upsert({anuncio_id:item.id,user_id:authUser.id,tipo_reaccion:type},{onConflict:"anuncio_id,user_id"}); }
+    loadFeed();
+  };
+  const imageUrl=async(item)=>{
+    if(item.imagen_url) return item.imagen_url;
+    if(!item.imagen_path) return "";
+    const {data}=await sb.storage.from(FEED_BUCKET).createSignedUrl(item.imagen_path,3600);
+    return data?.signedUrl||"";
+  };
+  const [resolvedUrls,setResolvedUrls]=useState({});
+  useEffect(()=>{let alive=true;(async()=>{const next={};for(const item of items){next[item.id]=await imageUrl(item)}if(alive)setResolvedUrls(next)})();return()=>{alive=false}},[items]);
+
+  return <div className="cm-feed-root">
+    <style>{`
+      .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:24px;background:#0b0f10;min-height:70vh}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:28px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px}.cm-feed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}.cm-feed-card,.cm-feed-form{background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden;transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .35s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-img{aspect-ratio:16/10;background:#101415;overflow:hidden}.cm-feed-img img{width:100%;height:100%;object-fit:cover;display:block}.cm-feed-body{padding:18px}.cm-feed-meta{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#89919e;font-size:12px}.cm-feed-contact{display:inline-flex;align-items:center;gap:8px;margin-top:15px;padding:10px 14px;border-radius:4px;text-decoration:none;color:#00363d;background:linear-gradient(180deg,#bdf4ff,#00e3fd);font-weight:700;transition:.3s}.cm-feed-contact:hover{box-shadow:0 0 20px rgba(0,227,253,.18);transform:translateY(-1px)}.cm-feed-reactions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.cm-feed-reaction{border:1px solid #3f4753;background:#191c1e;color:#bfc7d5;border-radius:4px;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00e3fd;box-shadow:0 0 16px rgba(0,227,253,.14)}.cm-feed-form{padding:20px;margin-bottom:28px}.cm-feed-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cm-feed-field{display:grid;gap:7px}.cm-feed-field--full{grid-column:1/-1}.cm-feed-field label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#89919e}.cm-feed-field input{width:100%;background:#101415;border:1px solid #3f4753;border-radius:4px;padding:11px;color:#e0e3e5}.cm-feed-preview{max-height:300px;width:100%;object-fit:contain;background:#101415;border:1px solid #3f4753;border-radius:8px}.cm-feed-submit{border:1px solid rgba(159,202,255,.6);border-radius:4px;background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;padding:12px 18px;font-weight:800;cursor:pointer;transition:.3s}.cm-feed-submit:hover{box-shadow:0 0 20px rgba(159,202,255,.18)}.cm-feed-submit:disabled{opacity:.5;cursor:not-allowed}.cm-feed-admin-actions{display:flex;gap:8px;margin-top:14px}.cm-feed-admin-actions button{border-radius:4px;padding:9px 12px;font-weight:700;cursor:pointer;background:#191c1e}.cm-feed-empty{grid-column:1/-1;padding:48px;text-align:center;border:1px dashed #3f4753;border-radius:8px;color:#89919e}.cm-feed-pulse{height:160px;border-radius:8px;background:rgba(0,227,253,.08);animation:cmCyanPulse 1.3s ease-in-out infinite}.cm-feed-notice{margin-top:12px;color:#bdf4ff;font-size:13px}@keyframes cmFeedIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes cmCyanPulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0);opacity:.55}50%{box-shadow:0 0 22px rgba(0,227,253,.18);opacity:1}}@media(max-width:700px){.cm-feed-root{padding:16px}.cm-feed-head{flex-direction:column}.cm-feed-form-grid{grid-template-columns:1fr}.cm-feed-field--full{grid-column:auto}}
+    `}</style>
+    <div className="cm-feed-head"><div><h2>{adminMode?"Anuncios":"Feed"}</h2><p>{adminMode?"Aprobación, rechazo y seguimiento de anuncios del Feed.":"Anuncios vigentes de la comunidad portuaria."}</p></div><button type="button" className="cm-feed-reaction" onClick={loadFeed}><MS name="refresh" size={20}/>Actualizar</button></div>
+    {canPublish&&!adminMode&&<form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-grid"><div className="cm-feed-field cm-feed-field--full"><label>Imagen del anuncio</label><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0])}/>{preview&&<img className="cm-feed-preview" src={preview} alt="Vista previa del anuncio"/>}</div><div className="cm-feed-field"><label>Inicio de vigencia</label><input type="datetime-local" value={form.fecha_inicio} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div><div className="cm-feed-field"><label>Fin de vigencia</label><input type="datetime-local" value={form.fecha_fin} onChange={e=>setForm({...form,fecha_fin:e.target.value})}/></div><div className="cm-feed-field cm-feed-field--full"><label>WhatsApp opcional</label><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm({...form,contacto_whatsapp:e.target.value})} placeholder="521..."/></div></div><div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button className="cm-feed-submit" disabled={saving}>{saving?"Enviando…":"Enviar a aprobación"}</button></div>{notice&&<div className="cm-feed-notice">{notice}</div>}</form>}
+    {error&&<div className="cm-feed-empty" style={{color:"#ffb4ab"}}>{error}</div>}
+    <div className="cm-feed-grid">{loading?[1,2,3].map(x=><div key={x} className="cm-feed-pulse"/>):items.length?items.map(item=><article key={item.id} className="cm-feed-card"><div className="cm-feed-img">{resolvedUrls[item.id]?<img src={resolvedUrls[item.id]} alt="Anuncio" loading="lazy"/>:<div className="cm-feed-pulse"/>}</div><div className="cm-feed-body"><div className="cm-feed-meta"><FeedStatusChip status={new Date(item.fecha_fin)<=new Date()?"expirado":item.estatus}/><span>{new Date(item.fecha_inicio).toLocaleDateString("es-MX")} – {new Date(item.fecha_fin).toLocaleDateString("es-MX")}</span></div>{item.contacto_whatsapp&&<a className="cm-feed-contact" href={`https://wa.me/${item.contacto_whatsapp}`} target="_blank" rel="noreferrer"><MS name="chat" size={20}/>Contactar por WhatsApp</a>}<div className="cm-feed-reactions">{FEED_REACTION_TYPES.map(r=><button key={r.id} type="button" className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={()=>react(item,r.id)}><MS name={r.icon} size={19}/><span>{reactions[item.id]?.[r.id]||0}</span></button>)}</div>{adminMode&&<div className="cm-feed-admin-actions"><button style={{border:"1px solid rgba(126,231,189,.5)",color:"#7ee7bd"}} onClick={()=>moderate(item,"aprobado")}>Aprobar</button><button style={{border:"1px solid rgba(255,180,171,.5)",color:"#ffb4ab"}} onClick={()=>moderate(item,"rechazado")}>Rechazar</button></div>}</div></article>):<div className="cm-feed-empty">No hay anuncios disponibles.</div>}</div>
+  </div>;
+}
+
+function useAdminDashboardLiveData(incidents) {
+  const [state,setState]=useState({ticketsPendientes:0,ticketsHoy:0,noticias:[],tickets:[],roles:[],loading:true});
+  const load=useCallback(async()=>{
+    const start=new Date();start.setHours(0,0,0,0);
+    const safe=async(p)=>{try{const r=await p;return r?.error?[]:(r?.data||[])}catch{return[]}};
+    const [tickets,news,roles]=await Promise.all([
+      safe(sb.from("quejas_tickets").select("id,ticket_numero,tipo_reporte,estatus,fecha_creacion,fecha_actualizacion,user_id").order("fecha_creacion",{ascending:false}).limit(40)),
+      safe(sb.from("noticias").select("id,titulo,tipo,origen,created_at").order("created_at",{ascending:false}).limit(30)),
+      safe(sb.from("sub_admins").select("id,nombre,username,created_at,updated_at").order("created_at",{ascending:false}).limit(20)),
+    ]);
+    setState({ticketsPendientes:tickets.filter(x=>["pendiente","en_revision"].includes(String(x.estatus||"").toLowerCase())).length,ticketsHoy:tickets.filter(x=>toMs(x.fecha_creacion)>=start.getTime()).length,tickets,noticias:news,roles,loading:false});
+  },[]);
+  useEffect(()=>{load();const channel=sb.channel("admin-dashboard-live").on("postgres_changes",{event:"*",schema:"public",table:"quejas_tickets"},load).on("postgres_changes",{event:"*",schema:"public",table:"noticias"},load).on("postgres_changes",{event:"*",schema:"public",table:"sub_admins"},load).subscribe();return()=>{sb.removeChannel(channel)}},[load]);
+  const incidentList=Array.isArray(incidents)?incidents:[];
+  const unresolvedIncidents=incidentList.filter(x=>!["aprobado","approved","resuelto","resolved","cerrado","closed"].includes(String(x?.status||x?.estado||"").toLowerCase())).length;
+  const trafficLatest=[...incidentList].sort((a,b)=>toMs(b?.updated_at||b?.created_at||b?.timestamp)-toMs(a?.updated_at||a?.created_at||a?.timestamp))[0];
+  const activity=[
+    ...state.tickets.map(x=>({id:`ticket-${x.id}`,kind:"complaints",title:`Ticket ${x.ticket_numero||String(x.id).slice(0,8)} · ${String(x.estatus||"pendiente").replaceAll("_"," ")}`,date:x.fecha_actualizacion||x.fecha_creacion,icon:"feedback"})),
+    ...state.noticias.map(x=>({id:`news-${x.id}`,kind:"news",title:x.titulo||"Comunicado publicado",date:x.created_at,icon:"newspaper"})),
+    ...state.roles.map(x=>({id:`role-${x.id}`,kind:"users",title:`Permisos actualizados: ${x.nombre||x.username||"usuario"}`,date:x.updated_at||x.created_at,icon:"manage_accounts"})),
+    ...incidentList.map((x,i)=>({id:`incident-${x.id||i}`,kind:"incidents",title:x.title||x.titulo||x.descripcion||"Incidente vial actualizado",date:x.updated_at||x.created_at||x.timestamp,icon:"report_problem"})),
+  ].filter(x=>toMs(x.date)).sort((a,b)=>toMs(b.date)-toMs(a.date)).slice(0,8);
+  return {...state,unresolvedIncidents,trafficLatest,activity,reload:load};
+}
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -30182,6 +30373,7 @@ function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, childre
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig, isAdmin = false, subAdmin = null }) {
   const [activeDashboardSection, setActiveDashboardSection] = useState("dashboard");
   const [newsTool, setNewsTool] = useState("publish");
+  const live = useAdminDashboardLiveData(incidents);
 
   const permisos = subAdmin?.permisos || {};
   const hasPermission = useCallback((...keys) => Boolean(isAdmin || keys.some(key => permisos?.[key])), [isAdmin, permisos]);
@@ -30191,7 +30383,8 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"complaints", permission:["gestionar_quejas"], title:"Quejas", subtitle:"Revisión, respuesta y cierre directo de quejas de Posturas", icon:"feedback" },
     { id:"support", permission:["gestionar_soporte"], title:"Soporte", subtitle:"Atención y seguimiento de solicitudes de soporte", icon:"support_agent" },
     { id:"users", permission:["gestionar_roles"], title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
-    { id:"news", permission:["publicar_comunicados","publicar_anuncios"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
+    { id:"news", permission:["publicar_comunicados"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
+    { id:"feed", permission:["publicar_anuncios"], title:"Anuncios", subtitle:"Aprobación, rechazo y seguimiento del Feed", icon:"campaign" },
     { id:"traffic", permission:["actualizar_trafico"], title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
     { id:"incidents", permission:["moderar_reportes"], title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
     { id:"terminals", permission:["actualizar_terminales","actualizar_patios"], title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
@@ -30220,28 +30413,21 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
   const activeCard = cards.find(card => card.id === activeDashboardSection) || null;
 
   const incidentList = Array.isArray(incidents) ? incidents : [];
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayReports = incidentList.filter(item => toMs(item?.created_at || item?.timestamp || item?.date || item?.fecha) >= todayStart.getTime()).length;
-  const pendingReports = incidentList.filter(item => {
-    const status = String(item?.status || item?.estado || "").toLowerCase();
-    return !["aprobado", "approved", "resuelto", "resolved", "cerrado", "closed"].includes(status);
-  }).length;
-  const recentActivity = [...incidentList]
-    .sort((a, b) => toMs(b?.updated_at || b?.created_at || b?.timestamp || b?.date) - toMs(a?.updated_at || a?.created_at || a?.timestamp || a?.date))
-    .slice(0, 3);
-
-  const activityTitle = (item) => item?.title || item?.titulo || item?.type || item?.tipo || item?.description || item?.descripcion || "Reporte administrativo actualizado";
+  const todayReports = live.ticketsHoy;
+  const pendingReports = live.ticketsPendientes + live.unresolvedIncidents;
+  const recentActivity = live.activity.slice(0,5);
+  const trafficState = (() => {
+    const item=live.trafficLatest;
+    if(!item) return {label:"Sin novedades",detail:"Sin incidentes viales activos",level:20};
+    const status=String(item.estado||item.status||item.nivel||item.semaforo||"").toLowerCase();
+    if(/rojo|cerrado|bloque|critico|crítico|alto/.test(status)) return {label:"Atención",detail:item.titulo||item.descripcion||"Incidente vial activo",level:90};
+    if(/amarillo|lento|medio|precauc/.test(status)) return {label:"Precaución",detail:item.titulo||item.descripcion||"Operación con afectaciones",level:60};
+    return {label:"Fluido",detail:item.titulo||item.descripcion||"Operación monitoreada",level:35};
+  })();
   const activityMeta = (item) => {
-    const dateValue = item?.updated_at || item?.created_at || item?.timestamp || item?.date;
-    const dateMs = toMs(dateValue);
-    if (!dateMs) return "Registro administrativo";
-    const minutes = Math.max(0, Math.round((Date.now() - dateMs) / 60000));
-    if (minutes < 1) return "Ahora mismo";
-    if (minutes < 60) return `Hace ${minutes} min`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `Hace ${hours} h`;
-    return new Date(dateMs).toLocaleDateString("es-MX", { day:"2-digit", month:"short" });
+    const dateMs=toMs(item?.date); if(!dateMs)return "Registro administrativo";
+    const minutes=Math.max(0,Math.round((Date.now()-dateMs)/60000));
+    if(minutes<1)return "Ahora mismo";if(minutes<60)return `Hace ${minutes} min`;const hours=Math.round(minutes/60);if(hours<24)return `Hace ${hours} h`;return new Date(dateMs).toLocaleDateString("es-MX",{day:"2-digit",month:"short"});
   };
 
   return (
@@ -30349,6 +30535,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
             <section className="csp-quick" aria-labelledby="csp-quick-label">
               <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
               <div className="csp-quick__row">
+                {hasPermission("publicar_anuncios") && <button type="button" className="csp-action" onClick={() => openSection("feed")}><MS name="campaign" size={24} active /><span>Publicar anuncio</span></button>}
                 {hasPermission("publicar_comunicados") && <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>}
                 {hasPermission("publicar_comunicados") && <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>}
                 {hasPermission("gestionar_roles") && <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>}
@@ -30360,25 +30547,25 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
             <section className="csp-overview" aria-label="Resumen administrativo">
               <article className="csp-glass csp-metric">
                 <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="trending_up" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--secondary">Hoy</span></div>
-                <h3>Reportes recibidos</h3><strong>{todayReports.toLocaleString("es-MX")}</strong>
+                <h3>Tickets recibidos hoy</h3><strong>{live.loading ? "…" : todayReports.toLocaleString("es-MX")}</strong>
                 <div className="csp-meter"><span style={{width:`${Math.min(100, Math.max(8, todayReports * 8))}%`}} /></div>
               </article>
               <article className="csp-glass csp-metric">
                 <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="security" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--error">{pendingReports} alertas</span></div>
-                <h3>Estado de moderación</h3><strong>{pendingReports ? "Atención" : "Operativo"}</strong>
+                <h3>Estado de moderación</h3><strong>{live.loading ? "Consultando" : pendingReports ? "Atención" : "Operativo"}</strong>
                 <div className="csp-meter csp-meter--cyan"><span style={{width:`${pendingReports ? Math.max(20, 100 - pendingReports * 8) : 100}%`}} /></div>
               </article>
               <article className="csp-glass csp-metric">
                 <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="timer" size={24} active /></span><span className="csp-metric__badge">Tiempo real</span></div>
-                <h3>Tráfico y operación</h3><strong>{incidentList.length ? "Monitoreado" : "Sin novedades"}</strong>
-                <div className="csp-meter csp-meter--soft"><span style={{width:incidentList.length ? "68%" : "30%"}} /></div>
+                <h3>Tráfico y operación</h3><strong>{trafficState.label}</strong><small style={{display:"block",marginTop:6,color:"var(--csp-on-surface-variant)"}}>{trafficState.detail}</small>
+                <div className="csp-meter csp-meter--soft"><span style={{width:`${trafficState.level}%`}} /></div>
               </article>
               <article className="csp-glass csp-activity">
                 <div className="csp-card-glass-header"><h2>Actividad reciente</h2><button type="button" onClick={() => openSection("records")}>Ver todo</button></div>
                 <div className="csp-activity__list">
                   {recentActivity.length ? recentActivity.map((item, index) => (
-                    <button key={item?.id || index} type="button" className="csp-activity__item" onClick={() => openSection("incidents")}> 
-                      <span className="csp-activity__main"><span className={`csp-activity__dot ${index === 1 ? "csp-activity__dot--error" : index === 2 ? "csp-activity__dot--primary" : ""}`} /><span className="csp-activity__text"><strong>{activityTitle(item)}</strong><small>{activityMeta(item)}</small></span></span>
+                    <button key={item?.id || index} type="button" className="csp-activity__item" onClick={() => openSection(item.kind || "records")}> 
+                      <span className="csp-activity__main"><span className={`csp-activity__dot ${item.kind === "complaints" || item.kind === "incidents" ? "csp-activity__dot--error" : item.kind === "news" ? "csp-activity__dot--primary" : ""}`} /><span className="csp-activity__text"><strong>{item.title}</strong><small>{activityMeta(item)}</small></span></span>
                       <MS name="chevron_right" size={22} />
                     </button>
                   )) : <div className="csp-activity__empty">No hay actividad reciente disponible. Las nuevas acciones administrativas aparecerán aquí.</div>}
@@ -30401,6 +30588,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                   {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
                   <div style={{height:16}} /><NoticiasAdminCleanup />
                 </>}
+                {activeDashboardSection === "feed" && <FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} />}
                 {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
@@ -31329,6 +31517,7 @@ function App() {
         {active === "segundo"    && <SegundoAccesoTab myId={myId} isAdmin={isAdmin} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
+        {active === "feed"       && <FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
 
