@@ -5878,6 +5878,7 @@ const PERMISOS_DISPONIBLES = [
   { id:"verificar_perfiles", label:"Verificar perfiles", icon:"verified_user", desc:"Aprobar trabajadores, empresas y documentos" },
   { id:"herramientas_admin", label:"Herramientas administrativas", icon:"construction", desc:"Usar utilidades globales, tema y controles avanzados" },
   { id:"gestionar_roles", label:"Gestionar usuarios y roles", icon:"manage_accounts", desc:"Crear operadores y asignar permisos granulares" },
+  { id:"gestionar_soporte", label:"Gestionar soporte", icon:"support_agent", desc:"Atender solicitudes de soporte y seguimiento a usuarios" },
 ];
 
 const hashPassword = async (pass) => {
@@ -30178,30 +30179,43 @@ function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, childre
   );
 }
 
-function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig }) {
+function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig, isAdmin = false, subAdmin = null }) {
   const [activeDashboardSection, setActiveDashboardSection] = useState("dashboard");
   const [newsTool, setNewsTool] = useState("publish");
 
-  const cards = [
-    { id:"verification", title:"Verificación", subtitle:"Aprobación de perfiles de trabajador, empresa y documentos pendientes", icon:"verified_user" },
-    { id:"complaints", title:"Quejas", subtitle:"Revisión, respuesta y cierre directo de quejas de Posturas", icon:"feedback" },
-    { id:"users", title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
-    { id:"news", title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
-    { id:"traffic", title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
-    { id:"incidents", title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
-    { id:"terminals", title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
-    { id:"confinados", title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lock_clock" },
-    { id:"access", title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"door_sliding" },
-    { id:"posturas", title:"Posturas", subtitle:"Perfiles, vacantes, quejas y herramientas administrativas", icon:"work_history" },
-    { id:"records", title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
-    { id:"tools", title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
+  const permisos = subAdmin?.permisos || {};
+  const hasPermission = useCallback((...keys) => Boolean(isAdmin || keys.some(key => permisos?.[key])), [isAdmin, permisos]);
+
+  const allCards = [
+    { id:"verification", permission:["verificar_perfiles"], title:"Verificación", subtitle:"Aprobación de perfiles de trabajador, empresa y documentos pendientes", icon:"verified_user" },
+    { id:"complaints", permission:["gestionar_quejas"], title:"Quejas", subtitle:"Revisión, respuesta y cierre directo de quejas de Posturas", icon:"feedback" },
+    { id:"support", permission:["gestionar_soporte"], title:"Soporte", subtitle:"Atención y seguimiento de solicitudes de soporte", icon:"support_agent" },
+    { id:"users", permission:["gestionar_roles"], title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
+    { id:"news", permission:["publicar_comunicados","publicar_anuncios"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
+    { id:"traffic", permission:["actualizar_trafico"], title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
+    { id:"incidents", permission:["moderar_reportes"], title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
+    { id:"terminals", permission:["actualizar_terminales","actualizar_patios"], title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
+    { id:"confinados", permission:["gestionar_confinados"], title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lock_clock" },
+    { id:"access", permission:["gestionar_accesos","actualizar_carriles"], title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"door_sliding" },
+    { id:"posturas", permission:["gestionar_posturas"], title:"Posturas", subtitle:"Perfiles, vacantes, salarios y postulaciones", icon:"work_history" },
+    { id:"records", permission:["gestionar_registros"], title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
+    { id:"tools", permission:["herramientas_admin","ver_control_portuario"], title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
   ];
+  const cards = allCards.filter(card => hasPermission(...card.permission));
 
   const openSection = useCallback((id, options = {}) => {
-    if (id === "news" && options.newsTool) setNewsTool(options.newsTool);
-    setActiveDashboardSection(id || "dashboard");
+    const target = id || "dashboard";
+    if (target !== "dashboard" && !cards.some(card => card.id === target)) return;
+    if (target === "news" && options.newsTool) setNewsTool(options.newsTool);
+    setActiveDashboardSection(target);
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
-  }, []);
+  }, [cards]);
+
+  useEffect(() => {
+    if (activeDashboardSection !== "dashboard" && !cards.some(card => card.id === activeDashboardSection)) {
+      setActiveDashboardSection("dashboard");
+    }
+  }, [activeDashboardSection, cards]);
 
   const activeCard = cards.find(card => card.id === activeDashboardSection) || null;
 
@@ -30311,12 +30325,10 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
           <nav>
             <p className="csp-label-caps">General</p>
             <button type="button" className={`csp-nav-item ${activeDashboardSection === "dashboard" ? "is-active" : ""}`} onClick={() => openSection("dashboard")}><MS name="dashboard" size={24} active={activeDashboardSection === "dashboard"} /><span>Dashboard</span></button>
-            <button type="button" className={`csp-nav-item ${activeDashboardSection === "verification" ? "is-active" : ""}`} onClick={() => openSection("verification")}><MS name="verified_user" size={24} /><span>Verificación</span></button>
-            <button type="button" className={`csp-nav-item ${activeDashboardSection === "complaints" ? "is-active" : ""}`} onClick={() => openSection("complaints")}><MS name="feedback" size={24} /><span>Quejas</span></button>
-            <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="support_agent" size={24} /><span>Soporte</span></button>
-            <div className="csp-sidebar__divider" />
-            <p className="csp-label-caps">Gestión por sección</p>
-            {cards.filter(card => !["verification", "complaints"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
+            {cards.filter(card => ["verification", "complaints", "support"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
+            {cards.some(card => !["verification", "complaints", "support"].includes(card.id)) && <div className="csp-sidebar__divider" />}
+            {cards.some(card => !["verification", "complaints", "support"].includes(card.id)) && <p className="csp-label-caps">Gestión por sección</p>}
+            {cards.filter(card => !["verification", "complaints", "support"].includes(card.id)).map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
           </nav>
         </div>
       </aside>
@@ -30337,11 +30349,11 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
             <section className="csp-quick" aria-labelledby="csp-quick-label">
               <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
               <div className="csp-quick__row">
-                <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>
-                <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>
-                <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>
-                <button type="button" className="csp-action" onClick={() => openSection("traffic")}><MS name="traffic" size={24} active /><span>Actualizar tráfico</span></button>
-                <button type="button" className="csp-action" onClick={() => openSection("incidents")}><MS name="gavel" size={24} active /><span>Moderar incidentes</span></button>
+                {hasPermission("publicar_comunicados") && <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>}
+                {hasPermission("publicar_comunicados") && <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>}
+                {hasPermission("gestionar_roles") && <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>}
+                {hasPermission("actualizar_trafico") && <button type="button" className="csp-action" onClick={() => openSection("traffic")}><MS name="traffic" size={24} active /><span>Actualizar tráfico</span></button>}
+                {hasPermission("moderar_reportes") && <button type="button" className="csp-action" onClick={() => openSection("incidents")}><MS name="gavel" size={24} active /><span>Moderar incidentes</span></button>}
               </div>
             </section>
 
@@ -30396,6 +30408,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "posturas" && <PosturasTab key="admin-posturas-management" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="management" />}
                 {activeDashboardSection === "complaints" && <PosturasTab key="admin-posturas-complaints" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="complaints" />}
+                {activeDashboardSection === "support" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "verification" && <PosturasTab key="admin-posturas-verification" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="verification" />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && <div className="csp-tool-grid">
@@ -30444,9 +30457,11 @@ function App() {
       window.removeEventListener("popstate", syncFromUrl);
     };
   }, []);
+  const hasAssignedAdminPermissions = Boolean(subAdmin?.id && subAdmin?.activo !== false && Object.entries(subAdmin?.permisos || {}).some(([key,value]) => !key.startsWith("__") && value === true));
+  const canAccessDashboard = Boolean(isAdmin || hasAssignedAdminPermissions);
   useEffect(() => {
-    if (!isAdmin && active === "dashboard") setActive("inicio", { replace:true });
-  }, [isAdmin, active]);
+    if (!canAccessDashboard && active === "dashboard") setActive("inicio", { replace:true });
+  }, [canAccessDashboard, active]);
 
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
@@ -31283,7 +31298,7 @@ function App() {
         <NavBar
           active={active}
           set={setActive}
-          isAdmin={isAdmin}
+          isAdmin={canAccessDashboard}
           logout={logout}
           authUser={authUser}
           onLogin={() => setAuthQuickMode("login")}
@@ -31307,7 +31322,7 @@ function App() {
         {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
 
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
-        {active === "dashboard"   && isAdmin && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} />}
+        {active === "dashboard"   && canAccessDashboard && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} />}
