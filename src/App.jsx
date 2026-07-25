@@ -407,6 +407,27 @@ const clearPersistedAuthArtifacts = () => {
   }
 };
 
+const signOutSupabaseSafely = async () => {
+  // El cierre local debe resolverse primero: evita que la UI quede congelada
+  // cuando el cierre global tarda o falla por red.
+  try {
+    await Promise.race([
+      sb.auth.signOut({ scope: "local" }),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+  } catch (error) {
+    console.warn("Local signOut warning:", error);
+  }
+
+  clearPersistedAuthArtifacts();
+
+  // Revocación global en segundo plano. No bloquea la salida visual del usuario.
+  Promise.race([
+    sb.auth.signOut({ scope: "global" }),
+    new Promise((resolve) => setTimeout(resolve, 5000)),
+  ]).catch((error) => console.warn("Global signOut warning:", error));
+};
+
 const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
     persistSession: true,
@@ -25677,7 +25698,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                   {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"10px", width:"100%", minHeight:"48px", padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"10.5px", fontWeight:"700", letterSpacing:".045em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="vacancy_clipboard" size={19} /></span><span>Mis vacantes</span>{activeVacancyCount > 0 && <span style={{ marginLeft:"auto", padding:"4px 7px", borderRadius:"6px", background:"rgba(159,202,255,.20)", color:"#9fcaff", fontSize:"9px", fontWeight:"800", letterSpacing:".01em", whiteSpace:"nowrap" }}>{activeVacancyCount} {activeVacancyCount === 1 ? "NUEVA" : "NUEVAS"}</span>}</button>}
                   {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"10px", width:"100%", minHeight:"48px", padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"10.5px", fontWeight:"700", letterSpacing:".045em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="edit_profile" size={20} /></span><span>Editar perfil</span></button>}
                 </nav>
-                {(authUser || isAdmin) && <div style={{ marginTop:"2px", paddingTop:"9px", borderTop:"1px solid rgba(255,255,255,.06)", display:"flex", justifyContent:"flex-end" }}><button type="button" onClick={async()=>{ setProfileMenuOpen(false); try { await sb.auth.signOut({scope:"global"}); } catch (e) { console.error("signOut error:", e); try { await sb.auth.signOut({scope:"local"}); } catch {} } finally { clearPersistedAuthArtifacts(); try { localStorage.removeItem(AUTH_PERSISTENCE_KEY); } catch {} window.dispatchEvent(new CustomEvent("cm:force-signout")); } }} className="cm-profile-signout" style={{ border:"none", background:"transparent", color:"#fb7185", fontFamily:"'Inter', sans-serif", fontSize:"11px", fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", cursor:"pointer", padding:"6px 4px" }}>Cerrar sesión</button></div>}
+                {(authUser || isAdmin) && <div style={{ marginTop:"2px", paddingTop:"9px", borderTop:"1px solid rgba(255,255,255,.06)", display:"flex", justifyContent:"flex-end" }}><button type="button" onClick={async()=>{ setProfileMenuOpen(false); window.dispatchEvent(new CustomEvent("cm:force-signout")); try { localStorage.removeItem(AUTH_PERSISTENCE_KEY); } catch {} await signOutSupabaseSafely(); }} className="cm-profile-signout" style={{ border:"none", background:"transparent", color:"#fb7185", fontFamily:"'Inter', sans-serif", fontSize:"11px", fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", cursor:"pointer", padding:"6px 4px" }}>Cerrar sesión</button></div>}
               </div>
             )}
           </div>
@@ -32121,30 +32142,25 @@ function App() {
   }, [authUser, getGlobalIdentityAvatar, globalProfileDisplayName, globalProfilePhotoFile, globalProfileSaving, globalProfileUsername]);
 
   const handleSignOut = async () => {
+    // Feedback inmediato: la salida visual no depende de la respuesta de red.
     setShowSessionMenu(false);
     setGlobalProfileEditorOpen(false);
     setAuthQuickMode(null);
+    setAuthUser(null);
+    subLogout();
+    logout();
+    setActive("inicio", { replace:true });
+
     try {
-      const { error } = await sb.auth.signOut({ scope:"global" });
-      if (error) throw error;
-    } catch(e) {
-      console.error("signOut error:", e);
-      try { await sb.auth.signOut({ scope:"local" }); } catch {}
-    } finally {
-      clearPersistedAuthArtifacts();
-      try {
-        localStorage.removeItem(AUTH_PERSISTENCE_KEY);
-        localStorage.removeItem("cm_remember_pass");
-        sessionStorage.removeItem("cm_remember_pass");
-        localStorage.removeItem(AUTH_RETURN_LOCATION_KEY);
-        localStorage.removeItem(AUTH_RETURN_TAB_KEY);
-        localStorage.removeItem("cm_posturas_pending_profile_access");
-      } catch {}
-      setAuthUser(null);
-      subLogout();
-      logout();
-      setActive("inicio", { replace:true });
-    }
+      localStorage.removeItem(AUTH_PERSISTENCE_KEY);
+      localStorage.removeItem("cm_remember_pass");
+      sessionStorage.removeItem("cm_remember_pass");
+      localStorage.removeItem(AUTH_RETURN_LOCATION_KEY);
+      localStorage.removeItem(AUTH_RETURN_TAB_KEY);
+      localStorage.removeItem("cm_posturas_pending_profile_access");
+    } catch {}
+
+    await signOutSupabaseSafely();
   };
 
   useEffect(() => {
