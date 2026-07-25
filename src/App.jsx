@@ -244,13 +244,21 @@ const normalizeVirusTotalResult = (raw, targetType, targetValue) => {
   };
 };
 
-const invokeVirusTotalScan = async ({ action, file, url }) => {
+const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
   let lastError = null;
   for (let attempt = 0; attempt < VT_MAX_ATTEMPTS; attempt += 1) {
     try {
       const body = action === "scan_file"
-        ? (() => { const form = new FormData(); form.append("action", action); form.append("file", file, file.name); return form; })()
-        : { action, url };
+        ? (() => {
+            const form = new FormData();
+            form.append("action", action);
+            form.append("file", file, file.name);
+            form.append("userId", String(userId || ""));
+            form.append("origen", String(origen || ""));
+            form.append("titulo", String(titulo || ""));
+            return form;
+          })()
+        : { action, url, userId, origen, titulo };
       const { data, error } = await sb.functions.invoke(VT_EDGE_FUNCTION, { body });
       if (error) throw error;
       const normalized = normalizeVirusTotalResult(data, action === "scan_file" ? "file" : "url", file || url);
@@ -4669,6 +4677,17 @@ function AdminRegistrosPanel() {
     if (error) { console.warn("No se pudieron cargar registros", error.message); setLogs([]); return; }
     setLogs(data || []);
   };
+  useEffect(() => {
+    try {
+      const pendingUserId = sessionStorage.getItem("cm_admin_moderation_user_id") || "";
+      if (pendingUserId) {
+        setTargetUserId(pendingUserId);
+        setQuery(pendingUserId);
+        setRecordsView("sessions");
+        sessionStorage.removeItem("cm_admin_moderation_user_id");
+      }
+    } catch {}
+  }, []);
   useEffect(() => { load(); const ch = sb.channel("admin-audit-rt").on("postgres_changes", { event:"*", schema:"public", table:"admin_audit_logs" }, load).subscribe(); return () => sb.removeChannel(ch); }, []);
   useEffect(() => {
     const channel = sb.channel("cm-active-sessions");
@@ -6111,6 +6130,7 @@ const PERMISOS_DISPONIBLES = [
   { id:"gestionar_posturas", label:"Gestionar Posturas", icon:"work_history", desc:"Editar vacantes, perfiles, salarios y postulaciones" },
   { id:"gestionar_quejas", label:"Gestionar quejas y tickets", icon:"feedback", desc:"Revisar, responder y cerrar tickets de usuarios" },
   { id:"gestionar_registros", label:"Registros y moderación", icon:"rule_folder", desc:"Auditar actividad, sesiones y aplicar sanciones" },
+  { id:"ver_alertas_seguridad", label:"Ver alertas de seguridad", icon:"security", desc:"Consultar intentos bloqueados por VirusTotal y dar seguimiento" },
   { id:"verificar_perfiles", label:"Verificar perfiles", icon:"verified_user", desc:"Aprobar trabajadores, empresas y documentos" },
   { id:"herramientas_admin", label:"Herramientas administrativas", icon:"construction", desc:"Usar utilidades globales, tema y controles avanzados" },
   { id:"gestionar_roles", label:"Gestionar usuarios y roles", icon:"manage_accounts", desc:"Crear operadores y asignar permisos granulares" },
@@ -19126,10 +19146,9 @@ ${base}`;
       for (const targetFile of scanTargets) {
         setVtScanMessage(`Analizando archivo: ${targetFile.name}...`);
         try {
-          const result = await invokeVirusTotalScan({ action:"scan_file", file:targetFile });
+          const result = await invokeVirusTotalScan({ action:"scan_file", file:targetFile, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
           securityResults.push(result);
-          if (result.status === "malicious") {
-            await logVirusTotalSecurityEvent({ user:scanUser, result, file:targetFile, title:titulo.trim() });
+          if (["malicious", "suspicious"].includes(result.status)) {
             setVtScanStatus("blocked");
             throw new Error(`VirusTotal bloqueó el archivo “${targetFile.name}” (${result.malicious + result.suspicious} detecciones). La propuesta no fue enviada.`);
           }
@@ -19143,10 +19162,9 @@ ${base}`;
       for (const detectedUrl of detectedUrls) {
         setVtScanMessage(`Analizando enlace: ${detectedUrl}`);
         try {
-          const result = await invokeVirusTotalScan({ action:"scan_url", url:detectedUrl });
+          const result = await invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
           securityResults.push(result);
-          if (result.status === "malicious") {
-            await logVirusTotalSecurityEvent({ user:scanUser, result, url:detectedUrl, title:titulo.trim() });
+          if (["malicious", "suspicious"].includes(result.status)) {
             setVtScanStatus("blocked");
             throw new Error(`VirusTotal bloqueó el enlace “${detectedUrl}” por riesgo de malware o phishing. La propuesta no fue enviada.`);
           }
@@ -30827,6 +30845,24 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
     setSaving(true);
     let path = "";
     try {
+      const feedUrls = extractUrlsFromText(`${form.titulo}\n${form.descripcion}`);
+      const scanTargets = [
+        { action:"scan_file", file:image, label:image.name || "imagen del anuncio" },
+        ...feedUrls.map(url => ({ action:"scan_url", url, label:url })),
+      ];
+      for (const target of scanTargets) {
+        const result = await invokeVirusTotalScan({
+          ...target,
+          userId:authUser.id,
+          origen:"anuncio",
+          titulo:form.titulo.trim(),
+        });
+        if (["malicious", "suspicious"].includes(result.status)) {
+          const detections = Number(result.malicious || 0) + Number(result.suspicious || 0);
+          throw new Error(`VirusTotal bloqueó ${target.action === "scan_file" ? "el archivo" : "el enlace"} “${target.label}” (${detections} detecciones). El anuncio no fue enviado.`);
+        }
+      }
+
       const ext = image.type === "image/png" ? "png" : "jpg";
       path = `${authUser.id}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
       const { error:upErr } = await sb.storage.from(FEED_BUCKET).upload(path, image, { contentType:image.type, upsert:false });
@@ -31029,6 +31065,99 @@ function useAdminDashboardLiveData(incidents) {
   return {...state,unresolvedIncidents,trafficLatest,activity,reload:load};
 }
 
+
+function SecurityAlertsPanel({ onOpenRecords }) {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState({ origen:"all", tipo:"all", desde:"", hasta:"", usuario:"", q:"" });
+
+  const loadAlerts = useCallback(async () => {
+    setLoading(true); setError("");
+    let query = sb.from("security_alerts").select("*").order("created_at", { ascending:false }).limit(1000);
+    if (filters.origen !== "all") query = query.eq("origen", filters.origen);
+    if (filters.tipo !== "all") query = query.eq("content_type", filters.tipo);
+    if (filters.desde) query = query.gte("created_at", new Date(`${filters.desde}T00:00:00`).toISOString());
+    if (filters.hasta) query = query.lte("created_at", new Date(`${filters.hasta}T23:59:59.999`).toISOString());
+    if (filters.usuario.trim()) query = query.eq("user_id", filters.usuario.trim());
+    const { data, error:queryError } = await query;
+    if (queryError) { setError(queryError.message); setAlerts([]); }
+    else setAlerts(data || []);
+    setLoading(false);
+  }, [filters.origen, filters.tipo, filters.desde, filters.hasta, filters.usuario]);
+
+  useEffect(() => { loadAlerts(); }, [loadAlerts]);
+  useEffect(() => {
+    const channel = sb.channel("security-alerts-live").on("postgres_changes", { event:"*", schema:"public", table:"security_alerts" }, loadAlerts).subscribe();
+    return () => sb.removeChannel(channel);
+  }, [loadAlerts]);
+
+  const visible = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    if (!q) return alerts;
+    return alerts.filter(a => [a.id,a.user_id,a.origen,a.content_type,a.content_value,a.status,a.title,a.permalink].join(" ").toLowerCase().includes(q));
+  }, [alerts, filters.q]);
+
+  const now = Date.now(), week = 7*86400000;
+  const currentWeek = alerts.filter(a => now - toMs(a.created_at) < week).length;
+  const previousWeek = alerts.filter(a => { const age=now-toMs(a.created_at); return age >= week && age < week*2; }).length;
+  const trend = previousWeek ? Math.round(((currentWeek-previousWeek)/previousWeek)*100) : currentWeek ? 100 : 0;
+  const unreviewed = alerts.filter(a => !a.reviewed_at).length;
+  const byOrigin = { comunicado:alerts.filter(a=>a.origen==="comunicado").length, anuncio:alerts.filter(a=>a.origen==="anuncio").length };
+  const byType = { file:alerts.filter(a=>a.content_type==="file").length, url:alerts.filter(a=>a.content_type==="url").length };
+  const total = Math.max(1, alerts.length);
+  const filePct = Math.round(byType.file/total*100);
+  const ranking = Object.entries(alerts.reduce((acc,a)=>{ if(a.user_id) acc[a.user_id]=(acc[a.user_id]||0)+1; return acc; },{})).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const review = async (alert) => {
+    const { data:{ user } } = await sb.auth.getUser();
+    const { error:updateError } = await sb.from("security_alerts").update({ reviewed_at:new Date().toISOString(), reviewed_by:user?.id || null }).eq("id",alert.id);
+    if (updateError) setError(updateError.message); else loadAlerts();
+  };
+  const openRecords = (userId) => {
+    try { sessionStorage.setItem("cm_admin_moderation_user_id", String(userId || "")); } catch {}
+    onOpenRecords?.();
+  };
+  const copyUser = async (id) => { try { await navigator.clipboard.writeText(id); } catch {} };
+
+  return <div className="cm-security-alerts">
+    <style>{`
+      .cm-security-alerts{font-family:Inter,sans-serif;color:#e0e3e5}.cm-security-alerts *{box-sizing:border-box}
+      .csa-metrics{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;margin-bottom:18px}.csa-card{grid-column:span 3;border:1px solid rgba(63,71,83,.48);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.92),rgba(16,20,21,.92));padding:18px;min-height:142px}.csa-card--wide{grid-column:span 6}.csa-card__head{display:flex;align-items:center;justify-content:space-between;gap:12px}.csa-card__icon{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;background:rgba(159,202,255,.10);color:#9fcaff;border:1px solid rgba(159,202,255,.22)}.csa-card h3{font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:.06em;color:#89919e;margin:14px 0 4px}.csa-card strong{font-size:30px;line-height:38px}.csa-trend{font-size:12px;font-weight:800;color:#bdf4ff}.csa-trend.is-negative{color:#ffb4ab}
+      .csa-donut-wrap{display:flex;align-items:center;gap:20px}.csa-donut{width:94px;height:94px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#9fcaff 0 var(--file-pct),#00e3fd var(--file-pct) 100%);position:relative;flex:0 0 auto}.csa-donut:after{content:"";position:absolute;inset:15px;border-radius:50%;background:#191c1e}.csa-donut span{position:relative;z-index:1;font-weight:900;color:#e0e3e5}.csa-legend{display:grid;gap:9px;flex:1}.csa-legend div{display:flex;justify-content:space-between;gap:14px;color:#bfc7d5;font-size:12px}.csa-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;background:#9fcaff}.csa-legend div:nth-child(2) i{background:#00e3fd}
+      .csa-toolbar{display:grid;grid-template-columns:1.4fr repeat(5,minmax(120px,1fr));gap:10px;padding:14px;border:1px solid rgba(63,71,83,.4);border-radius:8px;background:#191c1e;margin-bottom:16px}.csa-input{width:100%;min-height:42px;border:1px solid rgba(63,71,83,.8);border-radius:4px;background:#101415;color:#e0e3e5;padding:10px 11px;outline:none}.csa-input:focus{border-color:#9fcaff;box-shadow:0 0 0 2px rgba(159,202,255,.12)}
+      .csa-ranking{display:grid;gap:8px}.csa-rank{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;border-top:1px solid rgba(63,71,83,.28);padding-top:8px}.csa-rank code{overflow:hidden;text-overflow:ellipsis;color:#bfc7d5}.csa-rank b{color:#9fcaff}
+      .csa-list{display:grid;gap:10px}.csa-row{border:1px solid rgba(63,71,83,.45);border-radius:8px;background:rgba(29,32,34,.78);padding:15px;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(180px,.8fr) auto;gap:16px;align-items:center}.csa-row__main{min-width:0}.csa-row__title{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.csa-row__title strong{font-size:14px}.csa-chip{display:inline-flex;align-items:center;min-height:24px;border:1px solid rgba(159,202,255,.3);border-radius:999px;padding:3px 8px;color:#9fcaff;font-size:10px;font-weight:800;text-transform:uppercase}.csa-chip.is-risk{border-color:rgba(255,180,171,.45);color:#ffb4ab;background:rgba(255,180,171,.07)}.csa-value{margin-top:8px;color:#bfc7d5;font-size:12px;word-break:break-all}.csa-meta{margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px}.csa-user{display:grid;gap:7px}.csa-user code{color:#bdf4ff;word-break:break-all;font-size:11px}.csa-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.csa-btn{min-height:36px;border:1px solid rgba(159,202,255,.35);border-radius:4px;background:rgba(159,202,255,.08);color:#9fcaff;padding:7px 10px;display:inline-flex;align-items:center;gap:6px;font-weight:800;cursor:pointer;text-decoration:none}.csa-btn:disabled{opacity:.55;cursor:default}.csa-empty{min-height:180px;border:1px dashed rgba(63,71,83,.7);border-radius:8px;display:grid;place-items:center;color:#89919e;text-align:center;padding:24px}
+      @media(max-width:1100px){.csa-card{grid-column:span 6}.csa-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.csa-row{grid-template-columns:1fr}.csa-actions{justify-content:flex-start}}@media(max-width:680px){.csa-card,.csa-card--wide{grid-column:1/-1}.csa-toolbar{grid-template-columns:1fr}.csa-donut-wrap{align-items:flex-start}}
+    `}</style>
+    <div className="csa-metrics">
+      <article className="csa-card"><div className="csa-card__head"><span className="csa-card__icon"><MS name="security" size={24} active /></span><span className={`csa-trend ${trend<0?"is-negative":""}`}>{trend>=0?"+":""}{trend}%</span></div><h3>Alertas esta semana</h3><strong>{currentWeek}</strong></article>
+      <article className="csa-card"><div className="csa-card__head"><span className="csa-card__icon"><MS name="fact_check" size={24} active /></span><span className="csa-trend">Pendientes</span></div><h3>Sin revisar</h3><strong>{unreviewed}</strong></article>
+      <article className="csa-card csa-card--wide"><div className="csa-donut-wrap"><div className="csa-donut" style={{"--file-pct":`${filePct}%`}}><span>{alerts.length}</span></div><div className="csa-legend"><h3>Desglose por contenido</h3><div><span><i/>Archivos</span><b>{byType.file}</b></div><div><span><i/>URLs</span><b>{byType.url}</b></div><div><span>Comunicados / Anuncios</span><b>{byOrigin.comunicado} / {byOrigin.anuncio}</b></div></div></div></article>
+      <article className="csa-card csa-card--wide"><div className="csa-card__head"><span className="csa-card__icon"><MS name="leaderboard" size={24} active /></span><span className="csa-trend">Top 5</span></div><h3>Usuarios con más alertas</h3><div className="csa-ranking">{ranking.length?ranking.map(([id,count],idx)=><div className="csa-rank" key={id}><span>{idx+1}</span><code>{id}</code><b>{count}</b></div>):<div style={{color:"#89919e",fontSize:12}}>Sin reincidencias registradas.</div>}</div></article>
+    </div>
+    <div className="csa-toolbar">
+      <input className="csa-input" placeholder="Buscar ID, usuario, archivo, URL o resultado" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/>
+      <select className="csa-input" value={filters.origen} onChange={e=>setFilters(f=>({...f,origen:e.target.value}))}><option value="all">Todos los orígenes</option><option value="comunicado">Comunicado</option><option value="anuncio">Anuncio</option></select>
+      <select className="csa-input" value={filters.tipo} onChange={e=>setFilters(f=>({...f,tipo:e.target.value}))}><option value="all">Archivo y URL</option><option value="file">Archivo</option><option value="url">URL</option></select>
+      <input className="csa-input" type="date" value={filters.desde} onChange={e=>setFilters(f=>({...f,desde:e.target.value}))}/>
+      <input className="csa-input" type="date" value={filters.hasta} onChange={e=>setFilters(f=>({...f,hasta:e.target.value}))}/>
+      <input className="csa-input" placeholder="ID exacto de usuario" value={filters.usuario} onChange={e=>setFilters(f=>({...f,usuario:e.target.value}))}/>
+    </div>
+    {error && <div className="csa-empty" style={{color:"#ffb4ab"}}>{error}</div>}
+    {!error && loading && <div className="csa-empty">Consultando alertas de seguridad…</div>}
+    {!error && !loading && <div className="csa-list">{visible.length ? visible.map(alert => {
+      const reviewed = Boolean(alert.reviewed_at);
+      const detections = Number(alert.malicious_count||0)+Number(alert.suspicious_count||0);
+      return <article className="csa-row" key={alert.id}>
+        <div className="csa-row__main"><div className="csa-row__title"><strong>{alert.title || (alert.origen === "anuncio" ? "Propuesta de anuncio" : "Propuesta de comunicado")}</strong><span className="csa-chip">{alert.origen}</span><span className="csa-chip">{alert.content_type === "file" ? "archivo" : "url"}</span><span className="csa-chip is-risk">{alert.status}</span></div><div className="csa-value">{alert.content_value}</div><div className="csa-meta"><span>{detections} detecciones / {alert.total_engines || 0} motores</span><span>{new Date(alert.created_at).toLocaleString("es-MX")}</span><span>{reviewed ? "Revisada" : "Sin revisar"}</span>{alert.permalink && <a href={alert.permalink} target="_blank" rel="noopener noreferrer" style={{color:"#9fcaff"}}>Reporte VirusTotal</a>}</div></div>
+        <div className="csa-user"><span style={{fontSize:11,color:"#89919e",textTransform:"uppercase",fontWeight:800}}>Usuario</span><code>{alert.user_id || "Sin identificar"}</code><button type="button" className="csa-btn" onClick={()=>copyUser(alert.user_id)} disabled={!alert.user_id}><MS name="content_copy" size={17}/>Copiar ID</button></div>
+        <div className="csa-actions"><button type="button" className="csa-btn" onClick={()=>openRecords(alert.user_id)} disabled={!alert.user_id}><MS name="person_search" size={17}/>Perfil y moderación</button><button type="button" className="csa-btn" onClick={()=>review(alert)} disabled={reviewed}><MS name={reviewed?"task_alt":"fact_check"} size={17}/>{reviewed?"Revisada":"Marcar revisada"}</button></div>
+      </article>;
+    }) : <div className="csa-empty"><div><MS name="verified_user" size={34} active/><br/>No hay alertas que coincidan con los filtros.</div></div>}</div>}
+  </div>;
+}
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -31066,6 +31195,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"confinados", permission:["gestionar_confinados"], title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lock_clock" },
     { id:"access", permission:["gestionar_accesos","actualizar_carriles"], title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"door_sliding" },
     { id:"posturas", permission:["gestionar_posturas"], title:"Posturas", subtitle:"Perfiles, vacantes, salarios y postulaciones", icon:"work_history" },
+    { id:"security", permission:["ver_alertas_seguridad"], title:"Alertas de seguridad", subtitle:"Intentos bloqueados por VirusTotal, revisión y seguimiento", icon:"security" },
     { id:"records", permission:["gestionar_registros"], title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
     { id:"tools", permission:["herramientas_admin","ver_control_portuario"], title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
   ];
@@ -31273,6 +31403,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "complaints" && <PosturasTab key="admin-posturas-complaints" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="complaints" />}
                 {activeDashboardSection === "support" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "verification" && <PosturasTab key="admin-posturas-verification" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="verification" />}
+                {activeDashboardSection === "security" && <SecurityAlertsPanel onOpenRecords={() => openSection("records")} />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && <div className="csp-tool-grid">
                   <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
