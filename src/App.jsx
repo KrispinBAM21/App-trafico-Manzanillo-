@@ -4444,6 +4444,7 @@ function AdminRegistrosPanel() {
   const theme = React.useContext(ThemeContext);
   const [logs, setLogs] = useState([]);
   const [deviceId, setDeviceId] = useState("");
+  const [targetUserId, setTargetUserId] = useState("");
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
   const [hours, setHours] = useState(24);
@@ -4498,11 +4499,12 @@ function AdminRegistrosPanel() {
     load();
   };
   const sanction = async (type) => {
-    if (!deviceId.trim()) return alert("Escribe el device_id del usuario.");
-    const revokeResult = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:null, mode:"all", actor:"Admin" });
+    if (!deviceId.trim() && !targetUserId.trim()) return alert("Selecciona o escribe el ID de cuenta o el device_id del usuario.");
+    const effectiveDeviceId = deviceId.trim() || targetUserId.trim();
+    const revokeResult = await revokeDeviceVotes({ deviceId:effectiveDeviceId, log:null, mode:"all", actor:"Admin" });
     const until = type === "temp_block" ? new Date(Date.now() + Number(hours || 1) * 3600000).toISOString() : null;
-    await sb.from("admin_user_sanctions").insert({ device_id:deviceId.trim(), type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
-    await auditLog({ action:type === "ban" ? "ban_anula_votos" : "bloqueo_anula_votos", section:"admin_registros", entityId:deviceId.trim(), after:{ reason, actions:selectedActions(), until, revokeResult, subsection:type }, actor:"Admin" });
+    await sb.from("admin_user_sanctions").insert({ device_id:effectiveDeviceId, user_id:targetUserId.trim() || null, type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
+    await auditLog({ action:type === "ban" ? "ban_anula_votos" : "bloqueo_anula_votos", section:"admin_registros", entityId:targetUserId.trim() || effectiveDeviceId, after:{ reason, actions:selectedActions(), until, revokeResult, subsection:type, target_user_id:targetUserId.trim() || null, target_device_id:effectiveDeviceId }, actor:"Admin" });
     alert(type === "ban" ? "Usuario baneado y votos anulados." : "Bloqueo temporal aplicado y votos anulados.");
     load();
   };
@@ -4541,7 +4543,7 @@ function AdminRegistrosPanel() {
   return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
     <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
     <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
-    <input style={inp} placeholder="device_id / usuario objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} />
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}><input style={inp} placeholder="ID de cuenta Supabase Auth" value={targetUserId} onChange={e=>setTargetUserId(e.target.value.trim())} /><input style={inp} placeholder="device_id / dispositivo objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} /></div>
     <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
     {selectedLog && <div style={{ background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.35)", borderRadius:10, color:"#fbbf24", padding:"8px 10px", fontSize:11, fontWeight:800, marginBottom:10, fontFamily:getFont(theme,"secondary"), wordBreak:"break-word" }}>Voto seleccionado para anular con advertencia: {selectedLog.action} · {selectedLog.section} · {selectedLog.entity_id || "sin elemento"}</div>}
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
@@ -4570,8 +4572,8 @@ function AdminRegistrosPanel() {
       <div style={{ padding:"12px 14px", background:"rgba(50,53,55,.55)", borderBottom:"1px solid rgba(63,71,83,.45)", display:"flex", justifyContent:"space-between", alignItems:"center" }}><div style={{display:"flex",alignItems:"center",gap:9,color:"#e0e3e5",fontFamily:"Inter,sans-serif",fontWeight:800}}><MS name="sensors" size={21} active/>Cuentas con sesión iniciada</div><span style={{padding:"4px 9px",borderRadius:999,background:"rgba(0,227,253,.10)",color:"#bdf4ff",fontSize:11,fontWeight:800}}>{activeSessions.length} activas</span></div>
       <div style={{ padding:12, display:"grid", gap:8 }}>
         {activeSessions.length === 0 ? <div style={{padding:18,color:"#89919e",fontFamily:"Inter,sans-serif",fontSize:13,textAlign:"center"}}>No hay sesiones autenticadas visibles en Realtime en este momento.</div> : activeSessions.map(session => <div key={session.presenceKey || session.device_id} style={{padding:12,borderRadius:8,border:"1px solid rgba(63,71,83,.42)",background:"rgba(11,15,16,.48)",display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:14,alignItems:"center"}}>
-          <div style={{minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}><strong style={{color:"#e0e3e5",fontFamily:"Inter,sans-serif",fontSize:14}}>{session.display_name || session.email || "Usuario"}</strong><span style={{padding:"3px 8px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.28)",color:"#bdf4ff",fontSize:10,fontWeight:900}}>SESIÓN ACTIVA</span></div><div style={{color:"#89919e",fontFamily:"Inter,sans-serif",fontSize:11,wordBreak:"break-all"}}><b style={{color:"#bfc7d5"}}>ID:</b> {session.user_id || "—"}<br/><b style={{color:"#bfc7d5"}}>Device ID:</b> {session.device_id || session.user_id || "—"}</div></div>
-          <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"flex-end"}}><button type="button" onClick={()=>{setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("sanctions");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(159,202,255,.45)",background:"rgba(159,202,255,.08)",color:"#9fcaff",fontWeight:800,cursor:"pointer"}}>REVISAR</button><button type="button" onClick={()=>{setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("sanctions");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(255,180,171,.48)",background:"rgba(147,0,10,.16)",color:"#ffb4ab",fontWeight:800,cursor:"pointer"}}>SANCIONAR</button></div>
+          <div style={{minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}><strong style={{color:"#e0e3e5",fontFamily:"Inter,sans-serif",fontSize:14}}>{session.display_name || session.email || "Usuario"}</strong><span style={{padding:"3px 8px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.28)",color:"#bdf4ff",fontSize:10,fontWeight:900}}>SESIÓN ACTIVA</span></div><div style={{color:"#89919e",fontFamily:"Inter,sans-serif",fontSize:11,wordBreak:"break-all"}}><b style={{color:"#bfc7d5"}}>ID de cuenta:</b> {session.user_id || "—"}<br/><b style={{color:"#bfc7d5"}}>Acceso:</b> {session.provider === "google" ? "Google" : "Correo y contraseña"}<br/><b style={{color:"#bfc7d5"}}>Device ID:</b> {session.device_id || session.user_id || "—"}</div></div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"flex-end"}}><button type="button" onClick={()=>{setTargetUserId(session.user_id || "");setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("history");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(159,202,255,.45)",background:"rgba(159,202,255,.08)",color:"#9fcaff",fontWeight:800,cursor:"pointer"}}>REVISAR</button><button type="button" onClick={()=>{setTargetUserId(session.user_id || "");setDeviceId(session.device_id || session.user_id || "");setSelectedLog(null);setRecordsView("sanctions");}} style={{padding:"8px 10px",borderRadius:4,border:"1px solid rgba(255,180,171,.48)",background:"rgba(147,0,10,.16)",color:"#ffb4ab",fontWeight:800,cursor:"pointer"}}>SANCIONAR</button></div>
         </div>)}
       </div>
     </div>}
@@ -21489,9 +21491,13 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setPosturasMode("list");
       return;
     }
+    if (initialAdminView === "verification") {
+      setSub("verificacion");
+      setPosturasMode("list");
+      return;
+    }
     setSub("posturas");
     if (initialAdminView === "management") setPosturasMode("form");
-    if (initialAdminView === "verification") setPosturasMode("list");
   }, [isAdmin, initialAdminView]);
   const [mobilePosturasPanelOpen, setMobilePosturasPanelOpen] = useState(false);
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
@@ -24214,23 +24220,23 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
-  const AdminQuejas = () => {
+  const AdminQuejas = ({ mode = "complaints" } = {}) => {
     if (!isAdmin) return null;
     const pendingProfiles = [
       ...trabajadores.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"trabajador"})),
       ...empresas.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"empresa"})),
     ];
     return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}>
-      <section style={{...card,border:"1px solid rgba(239,68,68,.28)"}}>
+      {mode !== "verification" && <section style={{...card,border:"1px solid rgba(239,68,68,.28)"}}>
         <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Quejas y reportes de Posturas</div>
         <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"8px",lineHeight:1.5}}>Reportes de empresas, vacantes y perfiles enviados desde el modal obligatorio.</div>
         {quejas.filter(x=>!x.aprobado).length===0 ? <div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>Sin quejas pendientes.</div> : quejas.filter(x=>!x.aprobado).map(x=><div key={x.id} style={{borderTop:"1px solid rgba(255,255,255,.1)",padding:"12px 0",color:"rgba(255,255,255,.72)",fontSize:"12px",lineHeight:1.55}}><div style={{color:"#fca5a5",fontWeight:900,marginBottom:"4px"}}>Reporte pendiente</div><div>{x.comentario}</div><div style={{color:"rgba(255,255,255,.38)",marginTop:"4px"}}>Usuario: {x.user_id||"—"} · Dispositivo: {x.device_id||"—"}</div><div style={{marginTop:"8px",display:"flex",gap:"6px",flexWrap:"wrap"}}><button onClick={()=>approveQueja(x.id,true)} style={btn("#22c55e")}>Marcar revisado</button><button onClick={()=>approveQueja(x.id,false)} style={btn("#ef4444")}>Rechazar</button></div></div>)}
-      </section>
-      <section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}>
+      </section>}
+      {mode !== "complaints" && <section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}>
         <div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div>
         <div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>
         {pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}
-      </section>
+      </section>}
     </div>;
   };
 
@@ -24823,7 +24829,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (sub === "boletinados") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}>{renderBoletinadosTab()}</div>;
     if (sub === "donativos") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", paddingBottom:"90px" }}><DonativosTab embedded /></div>;
     if (sub === "notificaciones") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><NotificationsCenter /></div>;
-    if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></div>;
+    if (sub === "quejas" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></div>;
+    if (sub === "verificacion" && isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><h2 style={{ color:"#d4e4fa", fontSize:"28px", fontWeight:"900" }}>Verificación</h2><AdminQuejas mode="verification" /></div>;
     if (sub === "tablero") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"0 14px 90px" }}><DashboardHub /></div>;
     if (posturasMode === "profile") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><ProfileEditorView /></div>;
     if (posturasMode === "form") {
@@ -24952,7 +24959,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {sub === "donativos" && <DonativosTab embedded />}
         {sub === "boletinados" && renderBoletinadosTab()}
         {sub === "notificaciones" && <NotificationsCenter />}
-        {sub === "quejas" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas /></section>}
+        {sub === "quejas" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Quejas</h2><AdminQuejas mode="complaints" /></section>}
+        {sub === "verificacion" && isAdmin && <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:"28px", minHeight:"calc(100vh - 144px)" }}><h2 style={{ margin:"0 0 14px", color:"#d4e4fa", fontSize:"34px", fontWeight:"900" }}>Verificación</h2><AdminQuejas mode="verification" /></section>}
         {sub === "tablero" && <DashboardHub />}
         {sub === "posturas" && posturasMode === "vacancies" && <MyVacanciesView />}
         {sub === "posturas" && posturasMode === "profile" && <ProfileEditorView />}
@@ -30497,6 +30505,7 @@ function App() {
         display_name:authUser.user_metadata?.nombre || authUser.user_metadata?.name || authUser.email || "Usuario",
         online_at:new Date().toISOString(),
         last_seen:new Date().toISOString(),
+        provider:authUser.app_metadata?.provider || authUser.identities?.[0]?.provider || "email",
         user_agent:typeof navigator !== "undefined" ? navigator.userAgent : ""
       });
     });
@@ -30507,6 +30516,7 @@ function App() {
       display_name:authUser.user_metadata?.nombre || authUser.user_metadata?.name || authUser.email || "Usuario",
       online_at:new Date().toISOString(),
       last_seen:new Date().toISOString(),
+      provider:authUser.app_metadata?.provider || authUser.identities?.[0]?.provider || "email",
       user_agent:typeof navigator !== "undefined" ? navigator.userAgent : ""
     }), 45000);
     return () => { clearInterval(heartbeat); channel.untrack().catch(()=>{}); sb.removeChannel(channel); };
