@@ -30014,7 +30014,7 @@ function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, childre
 }
 
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig }) {
-  const [openCards, setOpenCards] = useState(() => new Set());
+  const [activeDashboardSection, setActiveDashboardSection] = useState("dashboard");
   const [newsTool, setNewsTool] = useState("publish");
 
   const cards = [
@@ -30030,26 +30030,13 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"tools", title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
   ];
 
-  const toggle = useCallback((id) => {
-    setOpenCards(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-  const opened = (id) => openCards.has(id);
-
   const openSection = useCallback((id, options = {}) => {
     if (id === "news" && options.newsTool) setNewsTool(options.newsTool);
-    setOpenCards(prev => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-    window.setTimeout(() => {
-      document.getElementById(`admin-dashboard-${id}`)?.scrollIntoView({ behavior:"smooth", block:"start" });
-    }, 60);
+    setActiveDashboardSection(id || "dashboard");
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   }, []);
+
+  const activeCard = cards.find(card => card.id === activeDashboardSection) || null;
 
   const incidentList = Array.isArray(incidents) ? incidents : [];
   const todayStart = new Date();
@@ -30134,8 +30121,17 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         .csp-tool-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.csp-tool{min-height:124px;padding:20px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);color:var(--csp-on-surface);text-align:left;cursor:pointer;transition:all 300ms ease}.csp-tool:hover{border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15);transform:translateY(-2px)}.csp-tool strong{display:block;margin-top:14px;font-size:16px;line-height:24px;font-weight:600}.csp-tool small{display:block;margin-top:4px;color:var(--csp-on-surface-variant);font-size:14px;line-height:20px}
         @keyframes csp-open{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes csp-pulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0)}50%{box-shadow:0 0 20px rgba(0,227,253,.35)}}
+        .csp-header__row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+        .csp-back-button{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid rgba(159,202,255,.35);border-radius:4px;background:rgba(29,32,34,.7);color:var(--csp-primary);font:600 14px/20px 'Inter',sans-serif;cursor:pointer;transition:all 300ms ease}
+        .csp-back-button:hover{border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15);transform:translateY(-1px)}
+        .csp-section-view{overflow:hidden;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .csp-section-view__header{display:flex;align-items:center;gap:16px;padding:20px 24px;background:rgba(50,53,55,.62);border-bottom:1px solid rgba(63,71,83,.35)}
+        .csp-section-view__icon{width:48px;height:48px;display:grid;place-items:center;border-radius:8px;background:rgba(159,202,255,.1);color:var(--csp-primary)}
+        .csp-section-view__header h2{margin:0;color:var(--csp-on-surface);font-size:20px;line-height:28px;font-weight:600}
+        .csp-section-view__header p{margin:4px 0 0;color:var(--csp-on-surface-variant);font-size:14px;line-height:20px}
+        .csp-section-view__body{padding:24px;min-width:0}
         @media(max-width:1100px){.csp-sidebar{display:none}.csp-main{padding:32px 24px}.csp-metric{grid-column:span 6}.csp-sections>.csp-dashboard-card{grid-column:1/-1}}
-        @media(max-width:680px){.csp-main{padding:24px 16px 80px}.csp-header{margin-bottom:32px}.csp-header h1{font-size:26px;line-height:32px}.csp-quick{margin-bottom:32px}.csp-quick__row{display:grid;grid-template-columns:1fr}.csp-action{width:100%}.csp-metric{grid-column:1/-1}.csp-overview,.csp-sections{gap:16px}.csp-tool-grid{grid-template-columns:1fr}.csp-dashboard-card__header{padding:16px}.csp-dashboard-card__body{padding:12px}.csp-news-switch{grid-template-columns:1fr}}
+        @media(max-width:680px){.csp-header__row{display:block}.csp-back-button{margin-top:16px}.csp-section-view__header{padding:16px}.csp-section-view__body{padding:12px}.csp-main{padding:24px 16px 80px}.csp-header{margin-bottom:32px}.csp-header h1{font-size:26px;line-height:32px}.csp-quick{margin-bottom:32px}.csp-quick__row{display:grid;grid-template-columns:1fr}.csp-action{width:100%}.csp-metric{grid-column:1/-1}.csp-overview,.csp-sections{gap:16px}.csp-tool-grid{grid-template-columns:1fr}.csp-dashboard-card__header{padding:16px}.csp-dashboard-card__body{padding:12px}.csp-news-switch{grid-template-columns:1fr}}
         @media(prefers-reduced-motion:reduce){.csp-admin-shell *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
       `}</style>
 
@@ -30147,13 +30143,13 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
         <div className="csp-sidebar__scroll">
           <nav>
             <p className="csp-label-caps">General</p>
-            <button type="button" className="csp-nav-item is-active"><MS name="dashboard" size={24} active /><span>Dashboard</span></button>
+            <button type="button" className={`csp-nav-item ${activeDashboardSection === "dashboard" ? "is-active" : ""}`} onClick={() => openSection("dashboard")}><MS name="dashboard" size={24} active={activeDashboardSection === "dashboard"} /><span>Dashboard</span></button>
             <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="verified_user" size={24} /><span>Verificación</span></button>
             <button type="button" className="csp-nav-item" onClick={() => openSection("posturas")}><MS name="feedback" size={24} /><span>Quejas</span></button>
             <button type="button" className="csp-nav-item" onClick={() => openSection("records")}><MS name="support_agent" size={24} /><span>Soporte</span></button>
             <div className="csp-sidebar__divider" />
             <p className="csp-label-caps">Gestión por sección</p>
-            {cards.map(card => <button key={card.id} type="button" className="csp-nav-item csp-nav-item--section" onClick={() => openSection(card.id)}><MS name={card.icon} size={24} /><span>{card.title}</span></button>)}
+            {cards.map(card => <button key={card.id} type="button" className={`csp-nav-item csp-nav-item--section ${activeDashboardSection === card.id ? "is-active" : ""}`} onClick={() => openSection(card.id)}><MS name={card.icon} size={24} active={activeDashboardSection === card.id} /><span>{card.title}</span></button>)}
           </nav>
         </div>
       </aside>
@@ -30161,80 +30157,86 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
       <main className="csp-main">
         <div className="csp-main__inner">
           <header className="csp-header">
-            <h1>Dashboard</h1>
-            <p>Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales a través de la navegación lateral.</p>
+            <div className="csp-header__row">
+              <div>
+                <h1>{activeCard ? activeCard.title : "Dashboard"}</h1>
+                <p>{activeCard ? activeCard.subtitle : "Panel central para operar las herramientas administrativas existentes de cada sección. Los controles originales permanecen disponibles en sus ubicaciones habituales a través de la navegación lateral."}</p>
+              </div>
+              {activeCard && <button type="button" className="csp-back-button" onClick={() => openSection("dashboard")}><MS name="arrow_back" size={22} active /><span>Volver al Dashboard</span></button>}
+            </div>
           </header>
 
-          <section className="csp-quick" aria-labelledby="csp-quick-label">
-            <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
-            <div className="csp-quick__row">
-              <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>
-              <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>
-              <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>
-              <button type="button" className="csp-action" onClick={() => openSection("traffic")}><MS name="traffic" size={24} active /><span>Actualizar tráfico</span></button>
-              <button type="button" className="csp-action" onClick={() => openSection("incidents")}><MS name="gavel" size={24} active /><span>Moderar incidentes</span></button>
-            </div>
-          </section>
-
-          <section className="csp-overview" aria-label="Resumen administrativo">
-            <article className="csp-glass csp-metric">
-              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="trending_up" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--secondary">Hoy</span></div>
-              <h3>Reportes recibidos</h3><strong>{todayReports.toLocaleString("es-MX")}</strong>
-              <div className="csp-meter"><span style={{width:`${Math.min(100, Math.max(8, todayReports * 8))}%`}} /></div>
-            </article>
-            <article className="csp-glass csp-metric">
-              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="security" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--error">{pendingReports} alertas</span></div>
-              <h3>Estado de moderación</h3><strong>{pendingReports ? "Atención" : "Operativo"}</strong>
-              <div className="csp-meter csp-meter--cyan"><span style={{width:`${pendingReports ? Math.max(20, 100 - pendingReports * 8) : 100}%`}} /></div>
-            </article>
-            <article className="csp-glass csp-metric">
-              <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="timer" size={24} active /></span><span className="csp-metric__badge">Tiempo real</span></div>
-              <h3>Tráfico y operación</h3><strong>{incidentList.length ? "Monitoreado" : "Sin novedades"}</strong>
-              <div className="csp-meter csp-meter--soft"><span style={{width:incidentList.length ? "68%" : "30%"}} /></div>
-            </article>
-
-            <article className="csp-glass csp-activity">
-              <div className="csp-card-glass-header"><h2>Actividad reciente</h2><button type="button" onClick={() => openSection("records")}>Ver todo</button></div>
-              <div className="csp-activity__list">
-                {recentActivity.length ? recentActivity.map((item, index) => (
-                  <button key={item?.id || index} type="button" className="csp-activity__item" onClick={() => openSection("incidents")}>
-                    <span className="csp-activity__main"><span className={`csp-activity__dot ${index === 1 ? "csp-activity__dot--error" : index === 2 ? "csp-activity__dot--primary" : ""}`} /><span className="csp-activity__text"><strong>{activityTitle(item)}</strong><small>{activityMeta(item)}</small></span></span>
-                    <MS name="chevron_right" size={22} />
-                  </button>
-                )) : <div className="csp-activity__empty">No hay actividad reciente disponible. Las nuevas acciones administrativas aparecerán aquí.</div>}
+          {activeDashboardSection === "dashboard" ? <>
+            <section className="csp-quick" aria-labelledby="csp-quick-label">
+              <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
+              <div className="csp-quick__row">
+                <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>
+                <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>
+                <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>
+                <button type="button" className="csp-action" onClick={() => openSection("traffic")}><MS name="traffic" size={24} active /><span>Actualizar tráfico</span></button>
+                <button type="button" className="csp-action" onClick={() => openSection("incidents")}><MS name="gavel" size={24} active /><span>Moderar incidentes</span></button>
               </div>
-            </article>
-          </section>
+            </section>
 
-          <section className="csp-sections" aria-label="Herramientas por sección">
-            {cards.map(card => (
-              <AdminDashboardCard key={card.id} {...card} open={opened(card.id)} onToggle={toggle}>
-                <div className="csp-dashboard-embedded">
-                  {card.id === "users" && <AdminUsuariosPanel />}
-                  {card.id === "news" && <>
-                    <div className="csp-news-switch">
-                      <button type="button" className={newsTool === "publish" ? "is-active" : ""} onClick={() => setNewsTool("publish")}><MS name="campaign" size={22} active={newsTool === "publish"} /> Publicar comunicado</button>
-                      <button type="button" className={newsTool === "propose" ? "is-active" : ""} onClick={() => setNewsTool("propose")}><MS name="edit_note" size={22} active={newsTool === "propose"} /> Proponer comunicado</button>
-                    </div>
-                    {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
-                    <div style={{height:16}} /><NoticiasAdminCleanup />
-                  </>}
-                  {card.id === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
-                  {card.id === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
-                  {card.id === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
-                  {card.id === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
-                  {card.id === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
-                  {card.id === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
-                  {card.id === "records" && <AdminRegistrosPanel />}
-                  {card.id === "tools" && <div className="csp-tool-grid">
-                    <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
-                    <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>
-                    <div className="csp-tool" style={{cursor:"default"}}><MS name="calculate" size={28} active /><strong>Calculadora operativa</strong><small>Herramientas de cálculo y costos de ruta.</small><div style={{marginTop:16}}><AdminCalculadoraPanel /></div></div>
-                  </div>}
+            <section className="csp-overview" aria-label="Resumen administrativo">
+              <article className="csp-glass csp-metric">
+                <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="trending_up" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--secondary">Hoy</span></div>
+                <h3>Reportes recibidos</h3><strong>{todayReports.toLocaleString("es-MX")}</strong>
+                <div className="csp-meter"><span style={{width:`${Math.min(100, Math.max(8, todayReports * 8))}%`}} /></div>
+              </article>
+              <article className="csp-glass csp-metric">
+                <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="security" size={24} active /></span><span className="csp-metric__badge csp-metric__badge--error">{pendingReports} alertas</span></div>
+                <h3>Estado de moderación</h3><strong>{pendingReports ? "Atención" : "Operativo"}</strong>
+                <div className="csp-meter csp-meter--cyan"><span style={{width:`${pendingReports ? Math.max(20, 100 - pendingReports * 8) : 100}%`}} /></div>
+              </article>
+              <article className="csp-glass csp-metric">
+                <div className="csp-metric__top"><span className="csp-metric__icon"><MS name="timer" size={24} active /></span><span className="csp-metric__badge">Tiempo real</span></div>
+                <h3>Tráfico y operación</h3><strong>{incidentList.length ? "Monitoreado" : "Sin novedades"}</strong>
+                <div className="csp-meter csp-meter--soft"><span style={{width:incidentList.length ? "68%" : "30%"}} /></div>
+              </article>
+              <article className="csp-glass csp-activity">
+                <div className="csp-card-glass-header"><h2>Actividad reciente</h2><button type="button" onClick={() => openSection("records")}>Ver todo</button></div>
+                <div className="csp-activity__list">
+                  {recentActivity.length ? recentActivity.map((item, index) => (
+                    <button key={item?.id || index} type="button" className="csp-activity__item" onClick={() => openSection("incidents")}> 
+                      <span className="csp-activity__main"><span className={`csp-activity__dot ${index === 1 ? "csp-activity__dot--error" : index === 2 ? "csp-activity__dot--primary" : ""}`} /><span className="csp-activity__text"><strong>{activityTitle(item)}</strong><small>{activityMeta(item)}</small></span></span>
+                      <MS name="chevron_right" size={22} />
+                    </button>
+                  )) : <div className="csp-activity__empty">No hay actividad reciente disponible. Las nuevas acciones administrativas aparecerán aquí.</div>}
                 </div>
-              </AdminDashboardCard>
-            ))}
-          </section>
+              </article>
+            </section>
+          </> : activeCard ? (
+            <section className="csp-section-view" aria-label={activeCard.title}>
+              <div className="csp-section-view__header">
+                <span className="csp-section-view__icon"><MS name={activeCard.icon} size={28} active /></span>
+                <div><h2>{activeCard.title}</h2><p>{activeCard.subtitle}</p></div>
+              </div>
+              <div className="csp-section-view__body csp-dashboard-embedded">
+                {activeDashboardSection === "users" && <AdminUsuariosPanel />}
+                {activeDashboardSection === "news" && <>
+                  <div className="csp-news-switch">
+                    <button type="button" className={newsTool === "publish" ? "is-active" : ""} onClick={() => setNewsTool("publish")}><MS name="campaign" size={22} active={newsTool === "publish"} /> Publicar comunicado</button>
+                    <button type="button" className={newsTool === "propose" ? "is-active" : ""} onClick={() => setNewsTool("propose")}><MS name="edit_note" size={22} active={newsTool === "propose"} /> Proponer comunicado</button>
+                  </div>
+                  {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
+                  <div style={{height:16}} /><NoticiasAdminCleanup />
+                </>}
+                {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+                {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
+                {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
+                {activeDashboardSection === "confinados" && <SegundoAccesoTab myId={myId} isAdmin={true} />}
+                {activeDashboardSection === "access" && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
+                {activeDashboardSection === "posturas" && <PosturasTab authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} />}
+                {activeDashboardSection === "records" && <AdminRegistrosPanel />}
+                {activeDashboardSection === "tools" && <div className="csp-tool-grid">
+                  <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
+                  <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>
+                  <div className="csp-tool" style={{cursor:"default"}}><MS name="calculate" size={28} active /><strong>Calculadora operativa</strong><small>Herramientas de cálculo y costos de ruta.</small><div style={{marginTop:16}}><AdminCalculadoraPanel /></div></div>
+                </div>}
+              </div>
+            </section>
+          ) : null}
         </div>
       </main>
     </div>
