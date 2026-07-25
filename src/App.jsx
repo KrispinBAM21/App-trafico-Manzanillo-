@@ -127,6 +127,55 @@ function MS({ name, size = 20, active = false, color = "currentColor", style = {
 }
 
 
+function CloseButton({ onClick, disabled = false, label = "Cerrar", size = 40, className = "", style = {} }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className={`cm-close-button ${className}`.trim()}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        padding: 0,
+        borderRadius: "50%",
+        border: "1px solid rgba(159,202,255,.22)",
+        background: "rgba(18,35,56,.78)",
+        color: "#d4e4fa",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+        cursor: disabled ? "not-allowed" : "pointer",
+        flex: "0 0 auto",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,.05), 0 8px 22px rgba(0,0,0,.22)",
+        transition: "transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease, opacity .2s ease",
+        opacity: disabled ? .5 : 1,
+        ...style,
+      }}
+      onMouseEnter={(event) => {
+        if (disabled) return;
+        event.currentTarget.style.background = "rgba(39,54,71,.94)";
+        event.currentTarget.style.borderColor = "rgba(164,201,255,.48)";
+        event.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = style.background || "rgba(18,35,56,.78)";
+        event.currentTarget.style.borderColor = style.borderColor || "rgba(159,202,255,.22)";
+        event.currentTarget.style.transform = "none";
+      }}
+      onMouseDown={(event) => { if (!disabled) event.currentTarget.style.transform = "scale(.94)"; }}
+      onMouseUp={(event) => { if (!disabled) event.currentTarget.style.transform = "translateY(-1px)"; }}
+    >
+      <MS name="close" size={Math.max(18, Math.round(size * .5))} active />
+    </button>
+  );
+}
+
+
 
 // Iconos SVG locales para el sidebar de Posturas.
 // No dependen de fuentes externas ni de ligaduras de Material Symbols.
@@ -30347,6 +30396,8 @@ function GlobalIdentityProfileModal({
   open,
   authUser,
   globalProfilePhotoPreview,
+  globalProfileDisplayName,
+  setGlobalProfileDisplayName,
   globalProfileUsername,
   setGlobalProfileUsername,
   globalProfileError,
@@ -30358,6 +30409,26 @@ function GlobalIdentityProfileModal({
   const [mounted, setMounted] = useState(open);
   const [visible, setVisible] = useState(false);
   const closeTimerRef = useRef(null);
+  const [copiedProfileUserId, setCopiedProfileUserId] = useState(false);
+
+  const copyProfileUserId = useCallback(async () => {
+    const value = String(authUser?.id || "");
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = value;
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    setCopiedProfileUserId(true);
+    window.setTimeout(() => setCopiedProfileUserId(false), 1800);
+  }, [authUser?.id]);
 
   useEffect(() => {
     window.clearTimeout(closeTimerRef.current);
@@ -30455,6 +30526,14 @@ function GlobalIdentityProfileModal({
         .cm-profile-modal__input-wrap:focus-within .cm-profile-modal__input-icon { color:#4edea3; }
         .cm-profile-modal__input { height:54px; min-width:0; flex:1; border:0 !important; outline:0 !important; box-shadow:none !important; background:transparent !important; padding:0 14px; color:#d4e4fa !important; font-family:Inter,sans-serif; font-size:16px; font-weight:600; }
         .cm-profile-modal__input::placeholder { color:rgba(134,148,138,.68); }
+        .cm-profile-modal__user-id { margin-top:24px; padding:14px; border-radius:14px; border:1px solid rgba(159,202,255,.16); background:rgba(159,202,255,.05); }
+        .cm-profile-modal__user-id-row { display:flex; align-items:center; gap:10px; }
+        .cm-profile-modal__user-id code { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#bfc7d5; font:500 12px/20px Inter,sans-serif; }
+        .cm-profile-modal__copy { width:40px; height:40px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; border:1px solid rgba(159,202,255,.28); background:rgba(39,42,44,.8); color:#9fcaff; cursor:pointer; line-height:0; transition:all .2s ease; }
+        .cm-profile-modal__copy:hover { transform:translateY(-1px); background:rgba(39,54,71,.85); border-color:rgba(159,202,255,.5); }
+        .cm-profile-modal__copy.is-copied { color:#bdf4ff; background:rgba(0,227,253,.14); }
+        .cm-profile-modal__copy-status { margin-top:7px; color:#bdf4ff; font-size:11px; }
+        .cm-profile-modal__close .material-symbols-outlined, .cm-close-button .material-symbols-outlined { display:block !important; width:auto !important; height:auto !important; line-height:1 !important; overflow:visible !important; }
         .cm-profile-modal__error { margin-top:16px; display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,180,171,.20); background:rgba(147,0,10,.20); color:#ffb4ab; font-size:14px; line-height:20px; }
         .cm-profile-modal__footer { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:20px 24px; border-top:1px solid rgba(255,255,255,.05); background:rgba(18,33,49,.48); backdrop-filter:blur(12px); }
         .cm-profile-modal__button { min-height:48px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:14px; padding:0 24px; font-family:Inter,sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
@@ -30490,7 +30569,7 @@ function GlobalIdentityProfileModal({
             <h2 id="cm-profile-modal-title" className="cm-profile-modal__title">Actualizar perfil</h2>
             <p id="cm-profile-modal-description" className="cm-profile-modal__description">Estos datos pertenecen a tu cuenta general y no modifican los perfiles de trabajador o empresa de Posturas.</p>
           </div>
-          <button type="button" onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} aria-label="Cerrar ventana" className="cm-profile-modal__close"><MS name="close" size={22} active /></button>
+          <CloseButton onClick={closeGlobalProfileEditor} disabled={globalProfileSaving} label="Cerrar ventana" size={44} className="cm-profile-modal__close" />
         </header>
 
         <div className="cm-profile-modal__body">
@@ -30543,6 +30622,17 @@ function GlobalIdentityProfileModal({
             </div>
             <span className="cm-profile-modal__hint">Entre 3 y 30 caracteres. Solo letras, números y guion bajo.</span>
           </label>
+
+          <section className="cm-profile-modal__user-id" aria-label="ID de usuario">
+            <span className="cm-profile-modal__label">ID de usuario</span>
+            <div className="cm-profile-modal__user-id-row">
+              <code title={authUser.id}>{authUser.id}</code>
+              <button type="button" onClick={copyProfileUserId} aria-label="Copiar ID de usuario" className={`cm-profile-modal__copy ${copiedProfileUserId ? "is-copied" : ""}`}>
+                <MS name={copiedProfileUserId ? "check" : "content_copy"} size={20} active />
+              </button>
+            </div>
+            {copiedProfileUserId && <div role="status" className="cm-profile-modal__copy-status">ID copiado</div>}
+          </section>
 
           {globalProfileError && <div role="alert" className="cm-profile-modal__error"><MS name="error" size={20} active /><span>{globalProfileError}</span></div>}
         </div>
@@ -31820,12 +31910,19 @@ function App() {
 
   const openGlobalProfileEditor = useCallback(() => {
     setShowSessionMenu(false);
-    setGlobalProfileUsername(getGlobalIdentityUsername());
-    setGlobalProfileDisplayName(String(authUser?.user_metadata?.display_name || authUser?.user_metadata?.nombre || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || ""));
-    setGlobalProfilePhotoFile(null);
-    setGlobalProfilePhotoPreview(getGlobalIdentityAvatar());
-    setGlobalProfileError("");
-    setGlobalProfileEditorOpen(true);
+    setGlobalProfileEditorOpen(false);
+    try {
+      setGlobalProfileUsername(getGlobalIdentityUsername());
+      setGlobalProfileDisplayName(String(authUser?.user_metadata?.display_name || authUser?.user_metadata?.nombre || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || ""));
+      setGlobalProfilePhotoFile(null);
+      setGlobalProfilePhotoPreview(getGlobalIdentityAvatar());
+      setGlobalProfileError("");
+      setGlobalProfileEditorOpen(true);
+    } catch (error) {
+      console.error("No se pudo abrir Actualizar perfil:", error);
+      setGlobalProfileEditorOpen(false);
+      setGlobalProfileError("No se pudo abrir el editor de perfil. Intenta nuevamente.");
+    }
   }, [authUser, getGlobalIdentityAvatar, getGlobalIdentityUsername]);
 
   const closeGlobalProfileEditor = useCallback(() => {
@@ -32535,6 +32632,8 @@ function App() {
         open={globalProfileEditorOpen}
         authUser={authUser}
         globalProfilePhotoPreview={globalProfilePhotoPreview}
+        globalProfileDisplayName={globalProfileDisplayName}
+        setGlobalProfileDisplayName={setGlobalProfileDisplayName}
         globalProfileUsername={globalProfileUsername}
         setGlobalProfileUsername={setGlobalProfileUsername}
         globalProfileError={globalProfileError}
@@ -32812,7 +32911,7 @@ function App() {
                 <div style={{ color:"#fff", fontFamily:getFont(theme,"title"), fontWeight:900, fontSize:"15px" }}>AI ConectMzo</div>
                 <div style={{ color:"rgba(255,255,255,.52)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>Asistente principal de Conect Manzanillo</div>
               </div>
-              <button onClick={()=>setShowQRPanel(null)} style={{ width:"26px", height:"26px", borderRadius:"50%", border:"none", background:"rgba(255,255,255,.1)", color:"#fff", cursor:"pointer" }}>×</button>
+              <CloseButton onClick={()=>setShowQRPanel(null)} label="Cerrar AI ConectMzo" size={32} style={{ background:"rgba(255,255,255,.08)", borderColor:"rgba(159,202,255,.24)" }} />
             </div>
 
             <div style={{ maxHeight:"320px", overflowY:"auto", paddingRight:"4px", display:"flex", flexDirection:"column", gap:"8px" }}>
