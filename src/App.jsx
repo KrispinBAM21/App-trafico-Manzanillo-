@@ -5862,242 +5862,136 @@ function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
 //   );
 // ─────────────────────────────────────────────────────────────────────────────
 const PERMISOS_DISPONIBLES = [
-  { id: "publicar_anuncios",    label: "Publicar anuncios",        icon: "megaphone", desc: "Crear y gestionar anuncios publicitarios" },
-  { id: "publicar_comunicados", label: "Publicar comunicados",     icon: "clipboard", desc: "Crear noticias y comunicados oficiales" },
-  { id: "actualizar_trafico",   label: "Actualizar tráfico",       icon: "traffic-control", desc: "Modificar estado de vialidades y accesos" },
-  { id: "actualizar_terminales",label: "Actualizar terminales",    icon: "port-terminal", desc: "Modificar estado de terminales" },
-  { id: "actualizar_patios",    label: "Actualizar patios",        icon: "container", desc: "Modificar estado de patios reguladores" },
-  { id: "actualizar_carriles",  label: "Actualizar carriles",      icon: "lane-control", desc: "Modificar estado de carriles" },
-  { id: "moderar_reportes",     label: "Moderar reportes",         icon: "pin", desc: "Resolver y eliminar reportes de usuarios" },
-  { id: "ver_control_portuario",label: "Control portuario",        icon: "anchor-port", desc: "Acceso al sistema de control de citas y carga portuaria" },
+  { id:"publicar_anuncios", label:"Publicar anuncios", icon:"campaign", desc:"Crear y gestionar anuncios publicitarios" },
+  { id:"publicar_comunicados", label:"Publicar comunicados", icon:"newspaper", desc:"Crear noticias y comunicados oficiales" },
+  { id:"actualizar_trafico", label:"Actualizar tráfico", icon:"traffic", desc:"Modificar estados, votos y rutas fiscales" },
+  { id:"actualizar_terminales", label:"Actualizar terminales", icon:"warehouse", desc:"Modificar el estado operativo de terminales" },
+  { id:"actualizar_patios", label:"Actualizar patios", icon:"inventory_2", desc:"Modificar patios reguladores y disponibilidad" },
+  { id:"actualizar_carriles", label:"Actualizar carriles", icon:"view_week", desc:"Modificar carriles y su estado operativo" },
+  { id:"moderar_reportes", label:"Moderar reportes", icon:"gavel", desc:"Revisar, resolver y eliminar reportes" },
+  { id:"ver_control_portuario", label:"Control portuario", icon:"anchor", desc:"Gestionar citas y carga portuaria" },
+  { id:"gestionar_confinados", label:"Gestionar confinados", icon:"lock_clock", desc:"Administrar segundo acceso y carriles confinados" },
+  { id:"gestionar_accesos", label:"Gestionar accesos", icon:"door_sliding", desc:"Actualizar y supervisar accesos operativos" },
+  { id:"gestionar_posturas", label:"Gestionar Posturas", icon:"work_history", desc:"Editar vacantes, perfiles, salarios y postulaciones" },
+  { id:"gestionar_quejas", label:"Gestionar quejas y tickets", icon:"feedback", desc:"Revisar, responder y cerrar tickets de usuarios" },
+  { id:"gestionar_registros", label:"Registros y moderación", icon:"rule_folder", desc:"Auditar actividad, sesiones y aplicar sanciones" },
+  { id:"verificar_perfiles", label:"Verificar perfiles", icon:"verified_user", desc:"Aprobar trabajadores, empresas y documentos" },
+  { id:"herramientas_admin", label:"Herramientas administrativas", icon:"construction", desc:"Usar utilidades globales, tema y controles avanzados" },
+  { id:"gestionar_roles", label:"Gestionar usuarios y roles", icon:"manage_accounts", desc:"Crear operadores y asignar permisos granulares" },
 ];
 
 const hashPassword = async (pass) => {
   const encoded = new TextEncoder().encode(pass + "_cm_salt_2025");
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 };
+
+const normalizeAccountLookup = (row, fallbackId) => {
+  if (!row) return null;
+  const meta = row.user_metadata || row.raw_user_meta_data || {};
+  const email = row.email || row.user_email || meta.email || "";
+  const display = row.nombre || row.display_name || row.full_name || row.name || meta.full_name || meta.name || email.split("@")[0] || "Usuario";
+  const username = row.username || row.user_name || meta.user_name || meta.preferred_username || email.split("@")[0] || `user_${String(fallbackId).slice(0,8)}`;
+  return { id:String(row.user_id || row.auth_user_id || row.id || fallbackId), username:String(username).replace(/\s+/g,"_").toLowerCase(), nombre:String(display), email };
+};
+
+async function lookupExistingAuthUser(userId) {
+  const id = String(userId || "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
+  try {
+    const { data } = await sb.rpc("admin_get_user_by_id", { target_user_id:id });
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row) return normalizeAccountLookup(row,id);
+  } catch {}
+  for (const query of [
+    () => sb.from("profiles").select("*").eq("id",id).maybeSingle(),
+    () => sb.from("profiles").select("*").eq("user_id",id).maybeSingle(),
+    () => sb.from("quejas_tickets").select("user_id,user_email").eq("user_id",id).order("fecha_creacion",{ascending:false}).limit(1).maybeSingle(),
+    () => sb.from("posturas_empresas").select("*").eq("user_id",id).limit(1).maybeSingle(),
+  ]) {
+    try { const {data,error}=await query(); if (!error && data) return normalizeAccountLookup(data,id); } catch {}
+  }
+  try {
+    const response = await fetch("/api/posturas/public");
+    if (response.ok) {
+      const payload = await response.json();
+      const row = [...(payload?.trabajadores||[]),...(payload?.empresas||[])].find(x => String(x.user_id||x.submitted_by_uid||"")===id);
+      if (row) return normalizeAccountLookup(row,id);
+    }
+  } catch {}
+  return null;
+}
 
 function AdminUsuariosPanel() {
   const theme = React.useContext(ThemeContext);
-  const [usuarios, setUsuarios] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ id: null, username: "", password: "", nombre: "", activo: true, expires_at: "", permisos: {} });
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const [showPass, setShowPass] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-
-  const cargar = async () => {
-    const { data } = await sb.from("sub_admins").select("id,username,nombre,activo,permisos,expires_at,created_at").order("created_at", { ascending: false });
-    if (data) setUsuarios(data);
+  const emptyForm = { id:null, auth_user_id:"", flow:"manual", username:"", password:"", nombre:"", email:"", activo:true, expires_at:"", permisos:{} };
+  const [usuarios,setUsuarios]=useState([]), [showForm,setShowForm]=useState(false), [form,setForm]=useState(emptyForm);
+  const [saving,setSaving]=useState(false), [msg,setMsg]=useState(null), [showPass,setShowPass]=useState(false), [confirmDelete,setConfirmDelete]=useState(null);
+  const [lookupLoading,setLookupLoading]=useState(false);
+  const lookupTimer=useRef(null);
+  const font=getFont(theme,"secondary");
+  const cargar=async()=>{ const {data}=await sb.from("sub_admins").select("id,username,nombre,activo,permisos,expires_at,created_at").order("created_at",{ascending:false}); if(data)setUsuarios(data); };
+  useEffect(()=>{cargar(); return()=>clearTimeout(lookupTimer.current);},[]);
+  const resetForm=()=>setForm({...emptyForm,permisos:{}});
+  const setFlow=(flow)=>{ setMsg(null); setForm(f=>({...emptyForm,flow,permisos:f.permisos||{}})); };
+  const resolveUserId=async(raw)=>{
+    const id=String(raw||"").trim();
+    setForm(f=>({...f,auth_user_id:id}));
+    clearTimeout(lookupTimer.current);
+    if(!id){setLookupLoading(false);return;}
+    lookupTimer.current=setTimeout(async()=>{
+      setLookupLoading(true); setMsg(null);
+      const found=await lookupExistingAuthUser(id);
+      setLookupLoading(false);
+      if(!found){ setMsg({type:"err",text:"No se encontró ningún usuario con ese ID. Puedes continuar con la creación manual."}); setForm(f=>({...f,flow:"manual",auth_user_id:id,username:"",nombre:"",email:"",password:""})); return; }
+      const existing=usuarios.find(u=>String(u.permisos?.__auth_user_id||"")===found.id);
+      setForm(f=>({ ...f, id:existing?.id||null, flow:"existing", auth_user_id:found.id, username:existing?.username||found.username, nombre:existing?.nombre||found.nombre, email:found.email||"", password:"", activo:existing?.activo??true, expires_at:existing?.expires_at?new Date(existing.expires_at).toISOString().slice(0,16):"", permisos:existing?.permisos||f.permisos||{} }));
+      setMsg({type:"ok",text:existing?"Cuenta localizada. Puedes actualizar sus permisos sin contraseña.":"Cuenta localizada. Los datos se completaron automáticamente; asigna sus permisos."});
+    },350);
   };
-
-  useEffect(() => { cargar(); }, []);
-
-  const resetForm = () => setForm({ id: null, username: "", password: "", nombre: "", activo: true, expires_at: "", permisos: {} });
-
-  const handleGuardar = async () => {
-    if (!form.username.trim()) { setMsg({ type:"err", text:"El nombre de usuario es obligatorio." }); return; }
-    if (!form.id && !form.password.trim()) { setMsg({ type:"err", text:"La contraseña es obligatoria para nuevos usuarios." }); return; }
-    if (form.password && form.password.length < 6) { setMsg({ type:"err", text:"La contraseña debe tener al menos 6 caracteres." }); return; }
-    setSaving(true); setMsg(null);
-    try {
-      const payload = {
-        username: form.username.trim().toLowerCase(),
-        nombre: form.nombre.trim() || form.username.trim(),
-        activo: form.activo,
-        permisos: form.permisos,
-        expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
-      };
-      if (form.password.trim()) {
-        payload.password_hash = await hashPassword(form.password.trim());
-      }
+  const handleGuardar=async()=>{
+    const existingFlow=form.flow==="existing" && !!form.auth_user_id;
+    if(!form.username.trim()){setMsg({type:"err",text:"El nombre de usuario es obligatorio."});return;}
+    if(!existingFlow&&!form.id&&!form.password.trim()){setMsg({type:"err",text:"La contraseña es obligatoria para crear un usuario nuevo."});return;}
+    if(form.password&&form.password.length<6){setMsg({type:"err",text:"La contraseña debe tener al menos 6 caracteres."});return;}
+    setSaving(true);setMsg(null);
+    try{
+      const permisos={...(form.permisos||{})};
+      if(existingFlow){permisos.__auth_user_id=form.auth_user_id; if(form.email)permisos.__auth_email=form.email;}
+      else {delete permisos.__auth_user_id;delete permisos.__auth_email;}
+      const payload={username:form.username.trim().toLowerCase(),nombre:form.nombre.trim()||form.username.trim(),activo:form.activo,permisos,expires_at:form.expires_at?new Date(form.expires_at).toISOString():null};
+      if(form.password.trim())payload.password_hash=await hashPassword(form.password.trim());
       let error;
-      if (form.id) {
-        ({ error } = await sb.from("sub_admins").update(payload).eq("id", form.id));
-      } else {
-        ({ error } = await sb.from("sub_admins").insert(payload));
-      }
-      if (error) { setMsg({ type:"err", text: error.code === "23505" ? "Ese nombre de usuario ya existe." : "Error: " + error.message }); }
-      else {
-        setMsg({ type:"ok", text: form.id ? "Usuario actualizado." : "Usuario creado correctamente." });
-        resetForm();
-        setTimeout(() => { setShowForm(false); setMsg(null); cargar(); }, 1500);
-      }
-    } catch(ex) {
-      setMsg({ type:"err", text:"Error inesperado: " + (ex?.message || ex) });
-    } finally { setSaving(false); }
+      if(form.id)({error}=await sb.from("sub_admins").update(payload).eq("id",form.id)); else ({error}=await sb.from("sub_admins").insert(payload));
+      if(error)setMsg({type:"err",text:error.code==="23505"?"Ese nombre de usuario ya existe.":"Error: "+error.message});
+      else {setMsg({type:"ok",text:existingFlow?"Permisos asignados a la cuenta existente.":(form.id?"Usuario actualizado.":"Usuario creado correctamente.")});resetForm();setTimeout(()=>{setShowForm(false);setMsg(null);cargar();},1200);}
+    }catch(ex){setMsg({type:"err",text:"Error inesperado: "+(ex?.message||ex)});}finally{setSaving(false);}
   };
-
-  const handleEditar = (u) => {
-    const toLocal = (iso) => {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
-      const pad = (n) => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-    setForm({ id: u.id, username: u.username, password: "", nombre: u.nombre || "", activo: u.activo, expires_at: toLocal(u.expires_at), permisos: u.permisos || {} });
-    setShowForm(true);
-    setMsg(null);
-  };
-
-  const handleEliminar = async (id) => {
-    await sb.from("sub_admins").delete().eq("id", id);
-    setConfirmDelete(null);
-    cargar();
-  };
-
-  const handleToggle = async (id, activo) => {
-    await sb.from("sub_admins").update({ activo: !activo }).eq("id", id);
-    cargar();
-  };
-
-  const togglePermiso = (pid) => {
-    setForm(f => ({ ...f, permisos: { ...f.permisos, [pid]: !f.permisos[pid] } }));
-  };
-
-  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
-
-  return (
-    <div style={{ padding:"16px", background:"rgba(99,102,241,0.05)", borderTop:"1px solid rgba(99,102,241,0.2)" }}>
-      {/* Header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
-        <div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#818cf8", letterSpacing:"1px" }}>👥 GESTIÓN DE USUARIOS</div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", marginTop:"2px" }}>Crea sub-admins y asigna permisos específicos</div>
-        </div>
-        {!showForm && (
-          <button onClick={() => { resetForm(); setShowForm(true); setMsg(null); }} style={{ background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.35)", borderRadius:"8px", padding:"6px 12px", color:"#818cf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
-            ＋ NUEVO USUARIO
-          </button>
-        )}
-      </div>
-
-      {/* Formulario */}
-      {showForm && (
-        <div style={{ background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:"12px", padding:"16px", marginBottom:"16px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
-            <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#818cf8", letterSpacing:"1px" }}>
-              {form.id ? "✏️ EDITAR USUARIO" : "👤 NUEVO USUARIO"}
-            </span>
-            <button onClick={() => { setShowForm(false); resetForm(); setMsg(null); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", fontSize:"16px" }}>✕</button>
-          </div>
-
-          {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
-
-          <input style={inp} placeholder="Nombre de usuario (único) *" value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))} />
-          <input style={inp} placeholder="Nombre visible (ej: Juan Pérez)" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} />
-
-          <div style={{ position:"relative", marginBottom:"10px" }}>
-            <input
-              type={showPass ? "text" : "password"}
-              style={{...inp, marginBottom:0, paddingRight:"44px"}}
-              placeholder={form.id ? "Nueva contraseña (dejar vacío = sin cambio)" : "Contraseña (mín. 6 caracteres) *"}
-              value={form.password}
-              onChange={e=>setForm(f=>({...f,password:e.target.value}))}
-            />
-            <span onClick={()=>setShowPass(v=>!v)} style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"rgba(255,255,255,0.4)", fontSize:"14px" }}>
-              {showPass ? "🙈" : "👁"}
-            </span>
-          </div>
-
-          <div>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA DE VENCIMIENTO DEL ACCESO</div>
-            <input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} />
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"-6px", marginBottom:"10px" }}>Al vencer, el usuario queda sin acceso aunque conserve sus permisos.</div>
-          </div>
-
-          {/* Permisos */}
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"10px" }}>PERMISOS DEL USUARIO</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px", marginBottom:"14px" }}>
-            {PERMISOS_DISPONIBLES.map(p => (
-              <div
-                key={p.id}
-                onClick={() => togglePermiso(p.id)}
-                style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"8px", cursor:"pointer", background: form.permisos[p.id] ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.04)", border:`1px solid ${form.permisos[p.id] ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.08)"}`, transition:"all 0.2s", userSelect:"none" }}
-              >
-                <div style={{ width:"14px", height:"14px", borderRadius:"3px", border:`2px solid ${form.permisos[p.id] ? "#818cf8" : "rgba(255,255,255,0.2)"}`, background: form.permisos[p.id] ? "#818cf8" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.2s" }}>
-                  {form.permisos[p.id] && <span style={{ color:"#fff", fontSize:"9px", fontWeight:"900", lineHeight:1 }}>✓</span>}
-                </div>
-                <div>
-                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", color: form.permisos[p.id] ? "#c7d2fe" : "rgba(255,255,255,0.6)" }}><AppIcon name={p.icon} size={14} active={!!form.permisos[p.id]} /> {p.label}</div>
-                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"rgba(255,255,255,0.3)", lineHeight:1.3 }}>{p.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Activo toggle */}
-          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
-            <div onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${form.activo?"#22c55e":"rgba(255,255,255,0.2)"}`, background:form.activo?"#22c55e":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, transition:"all 0.2s" }}>
-              {form.activo && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
-            </div>
-            <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)" }}>Usuario activo</span>
-          </div>
-
-          <button onClick={handleGuardar} disabled={saving} style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#6366f1,#818cf8)", border:"none", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:saving?"not-allowed":"pointer", letterSpacing:"0.5px", opacity:saving?0.7:1 }}>
-            {saving ? "Guardando..." : (form.id ? "💾 GUARDAR CAMBIOS" : "👤 CREAR USUARIO")}
-          </button>
-        </div>
-      )}
-
-      {/* Lista de usuarios */}
-      {usuarios.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"24px", color:"rgba(255,255,255,0.25)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>
-          No hay usuarios creados aún.<br/>
-          <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.15)" }}>Crea el primer sub-admin con el botón de arriba.</span>
-        </div>
-      ) : (
-        <div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px", marginBottom:"8px" }}>
-            USUARIOS CREADOS ({usuarios.length})
-          </div>
-          {usuarios.map(u => (
-            <div key={u.id} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"12px 14px", marginBottom:"8px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"8px" }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"4px" }}>
-                    <div style={{ width:"8px", height:"8px", borderRadius:"50%", background: u.activo ? "#22c55e" : "#6b7280", flexShrink:0 }} />
-                    <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"700", color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.nombre || u.username}</span>
-                    <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)", background:"rgba(255,255,255,0.06)", borderRadius:"4px", padding:"1px 5px" }}>@{u.username}</span>
-                  </div>
-                  <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color: u.expires_at && new Date(u.expires_at) < new Date() ? "#ef4444" : "rgba(255,255,255,0.35)", marginBottom:"5px" }}>
-                    {u.expires_at ? (new Date(u.expires_at) < new Date() ? "⛔ Vencido: " : "Procesando Vigente hasta: ") + new Date(u.expires_at).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"}) : "Procesando Sin vencimiento"}
-                  </div>
-                  {/* Permisos activos */}
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:"4px" }}>
-                    {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).map(p => (
-                      <span key={p.id} style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"#c7d2fe", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.25)", borderRadius:"3px", padding:"1px 6px" }}>
-                        <AppIcon name={p.icon} size={14} active={!!form.permisos[p.id]} /> {p.label}
-                      </span>
-                    ))}
-                    {PERMISOS_DISPONIBLES.filter(p => u.permisos?.[p.id]).length === 0 && (
-                      <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"8px", color:"rgba(255,255,255,0.2)" }}>Sin permisos asignados</span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display:"flex", gap:"5px", flexShrink:0 }}>
-                  <button onClick={() => handleEditar(u)} style={{ background:"rgba(56,189,248,0.12)", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"6px", padding:"5px 9px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✏️</button>
-                  <button onClick={() => handleToggle(u.id, u.activo)} style={{ background: u.activo ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", border:`1px solid ${u.activo?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.12)"}`, borderRadius:"6px", padding:"5px 9px", color: u.activo ? "#22c55e" : "rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>{u.activo?"ON":"OFF"}</button>
-                  {confirmDelete === u.id ? (
-                    <>
-                      <button onClick={() => handleEliminar(u.id)} style={{ background:"rgba(239,68,68,0.2)", border:"1px solid rgba(239,68,68,0.4)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer", fontWeight:"700" }}>✓ Confirmar</button>
-                      <button onClick={() => setConfirmDelete(null)} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"6px", padding:"5px 9px", color:"rgba(255,255,255,0.4)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>✕</button>
-                    </>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(u.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"6px", padding:"5px 9px", color:"#ef4444", fontFamily:getFont(theme, "secondary"), fontSize:"10px", cursor:"pointer" }}>Eliminar</button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const toLocal=iso=>iso?new Date(iso).toISOString().slice(0,16):"";
+  const handleEditar=u=>{const authId=u.permisos?.__auth_user_id||"";setForm({id:u.id,auth_user_id:authId,flow:authId?"existing":"manual",username:u.username,password:"",nombre:u.nombre||"",email:u.permisos?.__auth_email||"",activo:u.activo,expires_at:toLocal(u.expires_at),permisos:u.permisos||{}});setShowForm(true);setMsg(null);};
+  const handleEliminar=async id=>{await sb.from("sub_admins").delete().eq("id",id);setConfirmDelete(null);cargar();};
+  const handleToggle=async(id,activo)=>{await sb.from("sub_admins").update({activo:!activo}).eq("id",id);cargar();};
+  const togglePermiso=pid=>setForm(f=>({...f,permisos:{...f.permisos,[pid]:!f.permisos[pid]}}));
+  const inp={width:"100%",background:"#0b0f10",border:"1px solid #3f4753",borderRadius:4,padding:"11px 12px",color:"#e0e3e5",fontFamily:"Inter, sans-serif",fontSize:13,boxSizing:"border-box",outline:"none"};
+  const iconButton={display:"inline-flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:4,cursor:"pointer"};
+  return <div style={{padding:20,background:"rgba(29,32,34,.72)",borderTop:"1px solid rgba(63,71,83,.45)",fontFamily:"Inter, sans-serif"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,gap:12}}><div><div style={{fontSize:12,fontWeight:800,color:"#9fcaff",letterSpacing:".06em"}}>GESTIÓN DE USUARIOS</div><div style={{fontSize:12,color:"#89919e",marginTop:4}}>Crea operadores o asigna permisos a una cuenta existente mediante su ID.</div></div>{!showForm&&<button onClick={()=>{resetForm();setShowForm(true);setMsg(null);}} style={{display:"inline-flex",alignItems:"center",gap:7,background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.4)",borderRadius:4,padding:"9px 13px",color:"#9fcaff",fontWeight:800,cursor:"pointer"}}><MS name="person_add" size={19}/>NUEVO USUARIO</button>}</div>
+    {showForm&&<div style={{background:"rgba(11,15,16,.72)",border:"1px solid rgba(63,71,83,.65)",borderRadius:8,overflow:"hidden",marginBottom:18}}>
+      <div style={{padding:"14px 16px",background:"rgba(50,53,55,.58)",borderBottom:"1px solid rgba(63,71,83,.55)",display:"flex",justifyContent:"space-between",alignItems:"center"}}><strong style={{display:"inline-flex",alignItems:"center",gap:8,color:"#e0e3e5",fontSize:14}}><MS name={form.flow==="existing"?"manage_accounts":"person_add"} size={21}/>{form.id?"EDITAR USUARIO":form.flow==="existing"?"ASIGNAR PERMISOS":"NUEVO USUARIO"}</strong><button onClick={()=>{setShowForm(false);resetForm();setMsg(null);}} style={{...iconButton,background:"transparent",border:0,color:"#bfc7d5"}}><MS name="close" size={21}/></button></div>
+      <div style={{padding:16,display:"grid",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{[["manual","person_add","Crear usuario nuevo","Nombre, contraseña y permisos"],["existing","badge","Asignar por ID","Cuenta existente, sin contraseña"]].map(([value,icon,title,subtitle])=><button key={value} type="button" onClick={()=>setFlow(value)} style={{padding:12,textAlign:"left",borderRadius:4,border:`1px solid ${form.flow===value?"#9fcaff":"#3f4753"}`,background:form.flow===value?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",color:form.flow===value?"#d2e4ff":"#bfc7d5",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}><MS name={icon} size={22} active={form.flow===value}/><span><b style={{display:"block",fontSize:13}}>{title}</b><small style={{display:"block",color:"#89919e",marginTop:2}}>{subtitle}</small></span></button>)}</div>
+        {msg&&<div style={{padding:"10px 12px",borderRadius:4,background:msg.type==="ok"?"rgba(0,227,253,.08)":"rgba(147,0,10,.18)",border:`1px solid ${msg.type==="ok"?"rgba(0,227,253,.34)":"rgba(255,180,171,.38)"}`,color:msg.type==="ok"?"#bdf4ff":"#ffb4ab",fontSize:12}}>{msg.text}</div>}
+        {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(e.target.value)}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}/></label></div>
+        {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
+        {form.flow==="existing"&&form.auth_user_id&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:4,background:"rgba(0,227,253,.06)",border:"1px solid rgba(0,227,253,.20)",color:"#bdf4ff",fontSize:12}}><MS name="verified_user" size={19}/><span>Cuenta vinculada: <b>{form.email||form.auth_user_id}</b>. La autenticación original del usuario no se modifica.</span></div>}
+        <label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>VENCIMIENTO DEL ACCESO</span><input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))}/></label>
+        <div><div style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em",marginBottom:9}}>PERMISOS DEL USUARIO</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:8}}>{PERMISOS_DISPONIBLES.map(p=>{const checked=!!form.permisos[p.id];return <button type="button" key={p.id} onClick={()=>togglePermiso(p.id)} style={{display:"grid",gridTemplateColumns:"28px 1fr 22px",alignItems:"center",gap:9,padding:11,textAlign:"left",borderRadius:4,cursor:"pointer",background:checked?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",border:`1px solid ${checked?"rgba(159,202,255,.52)":"rgba(63,71,83,.55)"}`,color:checked?"#d2e4ff":"#bfc7d5",transition:"all .3s"}}><MS name={p.icon} size={23} active={checked}/><span><b style={{display:"block",fontSize:12}}>{p.label}</b><small style={{display:"block",color:"#89919e",fontSize:10,lineHeight:1.35,marginTop:2}}>{p.desc}</small></span><span style={{width:18,height:18,borderRadius:3,border:`2px solid ${checked?"#9fcaff":"#3f4753"}`,background:checked?"#0099ff":"transparent",display:"grid",placeItems:"center"}}>{checked&&<MS name="check" size={15} color="#002f54"/>}</span></button>})}</div></div>
+        <button type="button" onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{display:"flex",alignItems:"center",gap:9,width:"fit-content",padding:0,border:0,background:"transparent",color:"#bfc7d5",cursor:"pointer"}}><span style={{width:20,height:20,borderRadius:3,border:`2px solid ${form.activo?"#00daf3":"#3f4753"}`,background:form.activo?"rgba(0,218,243,.18)":"transparent",display:"grid",placeItems:"center"}}>{form.activo&&<MS name="check" size={16} color="#bdf4ff"/>}</span><b>Usuario activo</b></button>
+        <button onClick={handleGuardar} disabled={saving||lookupLoading} style={{width:"100%",padding:12,borderRadius:4,border:"1px solid rgba(159,202,255,.52)",background:"linear-gradient(180deg,#9fcaff 0%,#00e3fd 100%)",color:"#002f54",fontWeight:900,cursor:saving||lookupLoading?"not-allowed":"pointer",opacity:(saving||lookupLoading)?0.65:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><MS name="save" size={20}/>{saving?"GUARDANDO...":form.flow==="existing"?"ASIGNAR PERMISOS":form.id?"GUARDAR CAMBIOS":"CREAR USUARIO"}</button>
+      </div></div>}
+    {usuarios.length===0?<div style={{textAlign:"center",padding:28,color:"#89919e"}}>No hay usuarios con permisos asignados.</div>:<div style={{display:"grid",gap:8}}>{usuarios.map(u=>{const authId=u.permisos?.__auth_user_id;const activePermissions=PERMISOS_DISPONIBLES.filter(p=>u.permisos?.[p.id]);return <article key={u.id} style={{padding:14,background:"rgba(11,15,16,.52)",border:"1px solid rgba(63,71,83,.55)",borderRadius:8,display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}><div style={{minWidth:0}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><span style={{width:8,height:8,borderRadius:999,background:u.activo?"#00daf3":"#89919e"}}/><strong style={{color:"#e0e3e5"}}>{u.nombre||u.username}</strong><span style={{fontSize:10,color:"#89919e"}}>@{u.username}</span>{authId&&<span style={{fontSize:9,fontWeight:900,padding:"3px 7px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.25)",color:"#bdf4ff"}}>CUENTA VINCULADA</span>}</div>{authId&&<div style={{marginTop:5,fontSize:10,color:"#89919e",wordBreak:"break-all"}}>ID: {authId}</div>}<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{activePermissions.length?activePermissions.map(p=><span key={p.id} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,color:"#d2e4ff",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.20)",borderRadius:3,padding:"3px 6px"}}><MS name={p.icon} size={13}/>{p.label}</span>):<span style={{fontSize:10,color:"#89919e"}}>Sin permisos</span>}</div></div><div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}><button onClick={()=>handleEditar(u)} style={{...iconButton,background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.30)",color:"#9fcaff"}}><MS name="edit" size={18}/></button><button onClick={()=>handleToggle(u.id,u.activo)} style={{...iconButton,background:u.activo?"rgba(0,227,253,.08)":"rgba(63,71,83,.18)",border:`1px solid ${u.activo?"rgba(0,227,253,.28)":"#3f4753"}`,color:u.activo?"#bdf4ff":"#89919e"}}><MS name={u.activo?"toggle_on":"toggle_off"} size={22}/></button>{confirmDelete===u.id?<><button onClick={()=>handleEliminar(u.id)} style={{...iconButton,width:"auto",padding:"0 9px",background:"rgba(147,0,10,.2)",border:"1px solid rgba(255,180,171,.4)",color:"#ffb4ab"}}><MS name="check" size={18}/>Confirmar</button><button onClick={()=>setConfirmDelete(null)} style={{...iconButton,background:"transparent",border:"1px solid #3f4753",color:"#89919e"}}><MS name="close" size={18}/></button></>:<button onClick={()=>setConfirmDelete(u.id)} style={{...iconButton,background:"rgba(147,0,10,.12)",border:"1px solid rgba(255,180,171,.25)",color:"#ffb4ab"}}><MS name="delete" size={18}/></button>}</div></article>})}</div>}
+  </div>;
 }
 
 // ─── HOOK: LOGIN PARA SUB-ADMINS ─────────────────────────────────────────────
@@ -6111,6 +6005,27 @@ function useSubAdminSession() {
   const [loginErr, setLoginErr] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const theme = React.useContext(ThemeContext);
+
+  // Las cuentas existentes vinculadas por UUID conservan su login de Supabase.
+  // El vínculo se guarda dentro de permisos.__auth_user_id para no exigir cambios de esquema.
+  useEffect(() => {
+    let cancelled = false;
+    const resolveLinkedAccount = async () => {
+      try {
+        const { data:{ user } } = await sb.auth.getUser();
+        if (!user?.id) return;
+        const { data } = await sb.from("sub_admins").select("id,username,nombre,activo,permisos,expires_at").eq("activo",true);
+        const linked = (data || []).find(row => String(row?.permisos?.__auth_user_id || "") === String(user.id));
+        if (!linked || (linked.expires_at && new Date(linked.expires_at).getTime() <= Date.now()) || cancelled) return;
+        const session = { id:linked.id, username:linked.username, nombre:linked.nombre, permisos:linked.permisos || {}, expires_at:linked.expires_at || null, auth_user_id:user.id };
+        try { sessionStorage.setItem("cm_subadmin", JSON.stringify(session)); } catch {}
+        setSubAdmin(session);
+      } catch {}
+    };
+    resolveLinkedAccount();
+    const { data:listener } = sb.auth.onAuthStateChange(() => resolveLinkedAccount());
+    return () => { cancelled = true; listener?.subscription?.unsubscribe?.(); };
+  }, []);
 
   const trySubLogin = async () => {
     if (!loginForm.username.trim() || !loginForm.password.trim()) return;
