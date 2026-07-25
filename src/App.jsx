@@ -16945,6 +16945,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [fechaFin, setFechaFin] = useState("");
   const [fechaFinModo, setFechaFinModo] = useState("fecha"); // "fecha" | "fecha_hora"
   const [fechaFinHora, setFechaFinHora] = useState("");
+  const [vigenciaNotice, setVigenciaNotice] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
@@ -18802,6 +18803,46 @@ ${base}`;
     syncBodyAlignment(textAlignMode);
   }, [textAlignMode]);
 
+  const addDaysToDateInput = (dateValue, days = 30) => {
+    if (!dateValue) return "";
+    const date = new Date(`${dateValue}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return "";
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const maxFechaFinPropuesta = !isAdmin && fechaInicio
+    ? addDaysToDateInput(fechaInicio, 30)
+    : "";
+
+  const applyProposalEndDateLimit = (nextDate, nextDateTime = "") => {
+    if (isAdmin || !fechaInicio) {
+      setVigenciaNotice("");
+      return { date: nextDate, dateTime: nextDateTime };
+    }
+    const maxDate = addDaysToDateInput(fechaInicio, 30);
+    if (nextDate && maxDate && nextDate > maxDate) {
+      const adjustedDateTime = nextDateTime ? `${maxDate}T23:59` : nextDateTime;
+      setVigenciaNotice(`La vigencia máxima de una propuesta es de 30 días. La fecha final se ajustó al ${maxDate}.`);
+      return { date: maxDate, dateTime: adjustedDateTime };
+    }
+    setVigenciaNotice(maxDate ? `Las propuestas pueden tener una vigencia máxima de 30 días, hasta ${maxDate}.` : "");
+    return { date: nextDate, dateTime: nextDateTime };
+  };
+
+  useEffect(() => {
+    if (isAdmin || !fechaInicio) {
+      setVigenciaNotice("");
+      return;
+    }
+    const limited = applyProposalEndDateLimit(fechaFin, fechaFinHora);
+    if (limited.date !== fechaFin) setFechaFin(limited.date);
+    if (limited.dateTime !== fechaFinHora) setFechaFinHora(limited.dateTime);
+  }, [fechaInicio, isAdmin]);
+
   const handleSubir = async () => {
     if (!titulo.trim()) {
       setError("Escribe un título para el comunicado");
@@ -18848,6 +18889,18 @@ ${base}`;
       return;
     }
 
+    if (!isAdmin) {
+      const maxDateValue = addDaysToDateInput(fechaInicio, 30);
+      const selectedEndDate = (fechaFinModo === "fecha_hora" ? fechaFinHora : fechaFin).slice(0, 10);
+      if (maxDateValue && selectedEndDate > maxDateValue) {
+        setFechaFin(maxDateValue);
+        if (fechaFinModo === "fecha_hora") setFechaFinHora(`${maxDateValue}T23:59`);
+        setVigenciaNotice(`La vigencia máxima de una propuesta es de 30 días. La fecha final se ajustó al ${maxDateValue}.`);
+        setError("La fecha de fin no puede superar 30 días desde la fecha de inicio.");
+        return;
+      }
+    }
+
     setSubiendo(true);
     setError("");
     try {
@@ -18871,6 +18924,14 @@ ${base}`;
         ...complementaryUrls,
       ];
 
+      const { data: authData } = await sb.auth.getUser();
+      const authUser = authData?.user || null;
+      const authorName = authUser?.user_metadata?.full_name
+        || authUser?.user_metadata?.name
+        || authUser?.user_metadata?.display_name
+        || authUser?.email
+        || null;
+      const nowIso = new Date().toISOString();
       const basePayload = {
         titulo: titulo.trim(),
         detalle: detalle.trim() || null,
@@ -18879,16 +18940,48 @@ ${base}`;
         media_urls: allImageUrls,
         fecha_inicio: inicio,
         fecha_fin: fin,
+        fecha_inicio_propuesta: inicio,
+        fecha_fin_propuesta: fin,
         aprobado: isAdmin === true,
-        created_at: new Date().toISOString()
+        estado_aprobacion: isAdmin === true ? "aprobado" : "pendiente",
+        user_id: authUser?.id || null,
+        autor_id: authUser?.id || null,
+        autor_nombre: authorName,
+        autor_email: authUser?.email || null,
+        aprobado_por: isAdmin === true ? authUser?.id || null : null,
+        aprobado_at: isAdmin === true ? nowIso : null,
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+
+      const insertComunicadoWithFallback = async (payload) => {
+        let candidate = { ...payload };
+        const removable = new Set([
+          "media_urls", "fecha_inicio_propuesta", "fecha_fin_propuesta", "estado_aprobacion",
+          "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at"
+        ]);
+        for (let attempt = 0; attempt < 14; attempt += 1) {
+          const result = await sb.from("comunicados").insert(candidate).select("*").single();
+          if (!result.error) return result;
+          const message = String(result.error?.message || "");
+          const match = message.match(/(?:column|field) ["']?([a-zA-Z0-9_]+)["']?/i)
+            || message.match(/Could not find the ['"]([^'"]+)['"] column/i);
+          const missing = match?.[1];
+          if (missing && removable.has(missing) && Object.prototype.hasOwnProperty.call(candidate, missing)) {
+            delete candidate[missing];
+            continue;
+          }
+          if (/media_urls/i.test(message) && Object.prototype.hasOwnProperty.call(candidate, "media_urls")) {
+            delete candidate.media_urls;
+            continue;
+          }
+          return result;
+        }
+        return { data:null, error:new Error("No fue posible insertar el comunicado con el esquema disponible.") };
       };
 
       let comunicadoInsertado = null;
-      let insertResult = await sb.from("comunicados").insert(basePayload).select("*").single();
-      if (insertResult.error && /media_urls|column/i.test(String(insertResult.error.message || ""))) {
-        const { media_urls, ...legacyPayload } = basePayload;
-        insertResult = await sb.from("comunicados").insert(legacyPayload).select("*").single();
-      }
+      const insertResult = await insertComunicadoWithFallback(basePayload);
       if (insertResult.error) {
         try { await sb.storage.from("comunicados").remove(uploadedPaths); } catch {}
         throw insertResult.error;
@@ -18907,6 +19000,7 @@ ${base}`;
       }
 
       setExito(true);
+      if (!isAdmin) setToolNotice("Propuesta enviada. Permanecerá pendiente y no será visible hasta que un administrador la apruebe.", "#fbbf24");
       setTitulo("");
       setDetalle("");
       setArchivo(null);
@@ -18921,6 +19015,7 @@ ${base}`;
       setFechaFin("");
       setFechaFinModo("fecha");
       setFechaFinHora("");
+      setVigenciaNotice("");
       if (inputRef.current) inputRef.current.value = "";
       setTimeout(() => setExito(false), 3000);
       if (onSubido) onSubido();
@@ -19059,7 +19154,14 @@ ${base}`;
           <input
             type="date"
             value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
+            onChange={(e) => {
+              setFechaInicio(e.target.value);
+              if (!isAdmin && e.target.value) {
+                const maxDate = addDaysToDateInput(e.target.value, 30);
+                if (fechaFin && fechaFin > maxDate) setFechaFin(maxDate);
+                if (fechaFinHora && fechaFinHora.slice(0, 10) > maxDate) setFechaFinHora(`${maxDate}T23:59`);
+              }
+            }}
             style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
           />
         </div>
@@ -19087,9 +19189,12 @@ ${base}`;
               type="datetime-local"
               value={fechaFinHora}
               min={fechaInicio ? `${fechaInicio}T00:00` : undefined}
+              max={!isAdmin && maxFechaFinPropuesta ? `${maxFechaFinPropuesta}T23:59` : undefined}
               onChange={(e) => {
-                setFechaFinHora(e.target.value);
-                if (e.target.value) setFechaFin(e.target.value.slice(0, 10));
+                const raw = e.target.value;
+                const limited = applyProposalEndDateLimit(raw.slice(0, 10), raw);
+                setFechaFinHora(limited.dateTime || raw);
+                if (limited.date || raw) setFechaFin(limited.date || raw.slice(0, 10));
               }}
               style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
             />
@@ -19098,9 +19203,11 @@ ${base}`;
               type="date"
               value={fechaFin}
               min={fechaInicio || undefined}
+              max={!isAdmin && maxFechaFinPropuesta ? maxFechaFinPropuesta : undefined}
               onChange={(e) => {
-                setFechaFin(e.target.value);
-                if (fechaFinHora) setFechaFinHora(`${e.target.value}T${fechaFinHora.slice(11, 16) || "23:59"}`);
+                const limited = applyProposalEndDateLimit(e.target.value, fechaFinHora);
+                setFechaFin(limited.date);
+                if (fechaFinHora) setFechaFinHora(`${limited.date}T${fechaFinHora.slice(11, 16) || "23:59"}`);
               }}
               style={{ ...comunicadoInputStyle, marginBottom:0, padding:"12px 12px" }}
             />
@@ -19108,8 +19215,13 @@ ${base}`;
         </div>
       </div>
       <div style={{ background: "rgba(0,150,255,0.05)", borderLeft: "2px solid #0096ff", borderTop:"1px solid rgba(0,150,255,.12)", borderRight:"1px solid rgba(0,150,255,.12)", borderBottom:"1px solid rgba(0,150,255,.12)", borderRadius: "8px", padding: "12px 14px", marginBottom: "14px", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(226,232,240,0.58)", lineHeight: "1.55" }}>
-        La fecha de inicio se llena automáticamente con el día actual al escribir el título. En "Solo fecha", el comunicado permanece vigente hasta terminar el día seleccionado; en "Fecha y hora", finaliza exactamente en la hora indicada.
+        La fecha de inicio se llena automáticamente con el día actual al escribir el título. En "Solo fecha", el comunicado permanece vigente hasta terminar el día seleccionado; en "Fecha y hora", finaliza exactamente en la hora indicada. {!isAdmin && "Las propuestas tienen un límite máximo de 30 días; el administrador puede modificar la vigencia al aprobar."}
       </div>
+      {!isAdmin && vigenciaNotice && (
+        <div role="status" style={{ marginTop:"-6px", marginBottom:"14px", padding:"10px 12px", borderRadius:"8px", border:"1px solid rgba(251,191,36,.34)", background:"rgba(251,191,36,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"10px", lineHeight:1.5 }}>
+          {vigenciaNotice}
+        </div>
+      )}
 
       {/* Zona de archivo */}
       <div
@@ -19333,12 +19445,20 @@ ${base}`;
   );
 }
 
+// Supabase recomendado para aprobación de propuestas de comunicados:
+// comunicados.estado_aprobacion text, user_id uuid, autor_id uuid, autor_nombre text, autor_email text,
+// fecha_inicio_propuesta timestamptz, fecha_fin_propuesta timestamptz, fecha_fin_aprobada timestamptz,
+// aprobado_por uuid, fecha_fin_ajustada_por uuid, aprobado_at timestamptz, rechazado_por uuid, rechazado_at timestamptz.
+// RLS: el autor puede INSERT/SELECT sus filas; solo admin puede UPDATE de aprobación; el público solo SELECT aprobado=true.
 // ─── SECCIÓN COMUNICADOS (con sub-tabs: Ver / Proponer) ──────────────────────
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDownloadItem, downloadingItemUrl, timeAgo, isPdf }) {
   const theme = React.useContext(ThemeContext);
   const comunicadosMobile = useWindowWidth() < 720;
   const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
+  const [misPropuestas, setMisPropuestas] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [approvalDates, setApprovalDates] = useState({});
   const [confirmId, setConfirmId] = useState(null); // id del comunicado a eliminar
   const [eliminando, setEliminando] = useState(false); // estado de eliminación en progreso
   const [selectedIndex, setSelectedIndex] = useState(0); // comunicado destacado en vista grande
@@ -19382,6 +19502,20 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   // Esto evita que Supabase lo regrese como "true"/"false" y rompa los filtros.
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
+
+  const toDateTimeLocalValue = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const proposalStatus = (row) => {
+    const explicit = String(row?.estado_aprobacion || "").toLowerCase();
+    if (["pendiente", "aprobado", "rechazado"].includes(explicit)) return explicit;
+    return isComunicadoAprobado(row?.aprobado) ? "aprobado" : "pendiente";
+  };
 
   // Filtrar comunicados para mostrar
   const ahora = Date.now();
@@ -19430,14 +19564,50 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
           console.error("Error cargando pendientes:", error);
           return;
         }
-        if (data) setPendientes(data.filter(c => !isComunicadoAprobado(c.aprobado)));
+        if (data) {
+          const pendingRows = data.filter(c => {
+            const status = String(c.estado_aprobacion || "").toLowerCase();
+            return status === "pendiente" || (!status && !isComunicadoAprobado(c.aprobado));
+          });
+          setPendientes(pendingRows);
+          setApprovalDates(prev => {
+            const next = { ...prev };
+            pendingRows.forEach(row => {
+              if (!next[row.id]) next[row.id] = toDateTimeLocalValue(row.fecha_fin || row.fecha_fin_propuesta);
+            });
+            return next;
+          });
+        }
       });
   };
 
-  // Cargar pendientes (solo admin)
+  const cargarMisPropuestas = useCallback(async () => {
+    if (isAdmin) return;
+    const { data: authData } = await sb.auth.getUser();
+    const uid = authData?.user?.id || "";
+    setCurrentUserId(uid);
+    if (!uid) {
+      setMisPropuestas([]);
+      return;
+    }
+    const { data, error } = await sb.from("comunicados")
+      .select("*")
+      .or(`user_id.eq.${uid},autor_id.eq.${uid}`)
+      .order("created_at", { ascending:false })
+      .limit(50);
+    if (error) {
+      console.error("No se pudieron cargar las propuestas del usuario:", error);
+      setMisPropuestas([]);
+      return;
+    }
+    setMisPropuestas(data || []);
+  }, [isAdmin]);
+
+  // Cargar pendientes para admin o propuestas propias para usuario.
   useEffect(() => {
     cargarPendientes();
-  }, [isAdmin]);
+    cargarMisPropuestas();
+  }, [isAdmin, cargarMisPropuestas]);
 
   const [procesando, setProcesando] = useState(null); // id del que se está procesando
 
@@ -19445,11 +19615,47 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
     if (procesando) return;
     setProcesando(id);
 
-    const { data, error } = await sb
-      .from("comunicados")
-      .update({ aprobado: true })
-      .eq("id", id)
-      .select("*"); // confirma que Supabase realmente actualizó la fila
+    const pendingRow = pendientes.find(row => row.id === id);
+    const adjustedEnd = approvalDates[id] || toDateTimeLocalValue(pendingRow?.fecha_fin || pendingRow?.fecha_fin_propuesta);
+    if (!adjustedEnd) {
+      setProcesando(null);
+      alert("Selecciona una fecha de expiración antes de aprobar.");
+      return;
+    }
+    const adjustedEndIso = new Date(adjustedEnd).toISOString();
+    const { data: authData } = await sb.auth.getUser();
+    const adminId = authData?.user?.id || null;
+    const updatePayload = {
+      aprobado: true,
+      estado_aprobacion: "aprobado",
+      fecha_fin: adjustedEndIso,
+      fecha_fin_aprobada: adjustedEndIso,
+      aprobado_por: adminId,
+      fecha_fin_ajustada_por: adminId,
+      aprobado_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const updateWithFallback = async (payload) => {
+      let candidate = { ...payload };
+      const optional = new Set(["estado_aprobacion", "fecha_fin_aprobada", "aprobado_por", "fecha_fin_ajustada_por", "aprobado_at", "updated_at"]);
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const result = await sb.from("comunicados").update(candidate).eq("id", id).select("*");
+        if (!result.error) return result;
+        const message = String(result.error?.message || "");
+        const match = message.match(/(?:column|field) ["']?([a-zA-Z0-9_]+)["']?/i)
+          || message.match(/Could not find the ['"]([^'"]+)['"] column/i);
+        const missing = match?.[1];
+        if (missing && optional.has(missing) && Object.prototype.hasOwnProperty.call(candidate, missing)) {
+          delete candidate[missing];
+          continue;
+        }
+        return result;
+      }
+      return { data:null, error:new Error("No fue posible actualizar el comunicado.") };
+    };
+
+    const { data, error } = await updateWithFallback(updatePayload);
 
     setProcesando(null);
 
@@ -19483,21 +19689,37 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   };
 
   const rechazar = async (id) => {
+    if (procesando) return;
     setProcesando(id);
-    const com = pendientes.find(p => p.id === id);
-    if (com?.archivo_url) {
-      try {
-        const pathParts = com.archivo_url.split("/comunicados/");
-        if (pathParts[1]) {
-          await sb.storage.from("comunicados").remove([`comunicados/${pathParts[1]}`]);
-        }
-      } catch {}
+    const { data: authData } = await sb.auth.getUser();
+    const adminId = authData?.user?.id || null;
+    const payload = {
+      aprobado: false,
+      estado_aprobacion: "rechazado",
+      rechazado_por: adminId,
+      rechazado_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    let candidate = { ...payload };
+    let result = null;
+    const optional = new Set(["estado_aprobacion", "rechazado_por", "rechazado_at", "updated_at"]);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      result = await sb.from("comunicados").update(candidate).eq("id", id).select("*");
+      if (!result.error) break;
+      const message = String(result.error?.message || "");
+      const match = message.match(/(?:column|field) ["']?([a-zA-Z0-9_]+)["']?/i)
+        || message.match(/Could not find the ['"]([^'"]+)['"] column/i);
+      const missing = match?.[1];
+      if (missing && optional.has(missing) && Object.prototype.hasOwnProperty.call(candidate, missing)) {
+        delete candidate[missing];
+        continue;
+      }
+      break;
     }
-    const { error } = await sb.from("comunicados").delete().eq("id", id);
     setProcesando(null);
-    if (error) { alert("Error al rechazar: " + error.message); return; }
+    if (result?.error) { alert("Error al rechazar: " + result.error.message); return; }
     setPendientes(prev => prev.filter(p => p.id !== id));
-    onReload();
+    onReload?.();
   };
 
   const pedirEliminar = (id) => setConfirmId(id);
@@ -19550,7 +19772,8 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const handleSubidoExitoso = () => {
     onReload();
     cargarPendientes();
-    setSubTab("ver");
+    cargarMisPropuestas();
+    setSubTab(isAdmin ? "ver" : "proponer");
   };
 
 
@@ -19743,7 +19966,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
         <>
           {/* Descripción contextual */}
           <div style={{ background: isAdmin ? "rgba(56,189,248,0.06)" : "rgba(251,191,36,0.06)", border: `1px solid ${isAdmin ? "rgba(56,189,248,0.2)" : "rgba(251,191,36,0.2)"}`, borderRadius: "12px", padding: "12px 14px", marginBottom: "16px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-            <span style={{ fontSize: "20px", flexShrink: 0 }}>{isAdmin ? "📤" : "✉️"}</span>
+            <span style={{ display:"inline-flex", flexShrink:0, color:isAdmin ? "#38bdf8" : "#fbbf24" }}><MS name={isAdmin ? "publish" : "edit_note"} size={22} /></span>
             <div>
               <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "12px", color: isAdmin ? "#38bdf8" : "#fbbf24", marginBottom: "3px", letterSpacing: "0.5px" }}>
                 {isAdmin ? "PUBLICAR COMUNICADO OFICIAL" : "PROPONER COMUNICADO"}
@@ -19757,6 +19980,41 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
           </div>
 
           <ComunicadoAdminComposer onSubido={handleSubidoExitoso} isAdmin={isAdmin} />
+
+          {!isAdmin && (
+            <div style={{ marginTop:"24px", padding:"16px", borderRadius:"8px", background:"rgba(29,32,34,.70)", backdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,.30)" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"12px" }}>
+                <div>
+                  <div style={{ color:"#e0e3e5", fontFamily:"Inter, sans-serif", fontSize:"16px", fontWeight:700 }}>Mis propuestas</div>
+                  <div style={{ color:"#bfc7d5", fontFamily:"Inter, sans-serif", fontSize:"11px", marginTop:"3px" }}>Seguimiento de comunicados enviados para aprobación.</div>
+                </div>
+                <button type="button" onClick={cargarMisPropuestas} style={{ display:"inline-flex", alignItems:"center", gap:"6px", padding:"8px 10px", borderRadius:"4px", border:"1px solid rgba(159,202,255,.35)", background:"rgba(159,202,255,.08)", color:"#9fcaff", cursor:"pointer", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:700 }}><MS name="refresh" size={16} /> Actualizar</button>
+              </div>
+              {!currentUserId ? (
+                <div style={{ color:"#ffb4ab", fontSize:"11px", padding:"12px", border:"1px solid rgba(255,180,171,.28)", borderRadius:"8px" }}>Inicia sesión para consultar tus propuestas.</div>
+              ) : misPropuestas.length === 0 ? (
+                <div style={{ color:"rgba(191,199,213,.62)", fontSize:"11px", padding:"18px", textAlign:"center", border:"1px dashed rgba(63,71,83,.65)", borderRadius:"8px" }}>Todavía no has enviado propuestas.</div>
+              ) : (
+                <div style={{ display:"grid", gap:"10px" }}>
+                  {misPropuestas.map(row => {
+                    const status = proposalStatus(row);
+                    const statusTheme = status === "aprobado"
+                      ? { color:"#bdf4ff", bg:"rgba(0,227,253,.10)", border:"rgba(0,227,253,.32)", icon:"verified" }
+                      : status === "rechazado"
+                        ? { color:"#ffb4ab", bg:"rgba(255,180,171,.10)", border:"rgba(255,180,171,.32)", icon:"block" }
+                        : { color:"#d2e4ff", bg:"rgba(159,202,255,.10)", border:"rgba(159,202,255,.30)", icon:"pending_actions" };
+                    return <div key={row.id} style={{ padding:"12px", borderRadius:"8px", background:"rgba(16,20,21,.62)", border:"1px solid rgba(63,71,83,.38)", display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"12px", alignItems:"start" }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ color:"#e0e3e5", fontFamily:"Inter, sans-serif", fontSize:"12px", fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.titulo}</div>
+                        <div style={{ color:"#bfc7d5", fontSize:"10px", marginTop:"4px" }}>Propuesta: {formatDateTime(row.created_at)} · Fin: {formatDateTime(row.fecha_fin_propuesta || row.fecha_fin)}</div>
+                      </div>
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", padding:"5px 8px", borderRadius:"999px", color:statusTheme.color, background:statusTheme.bg, border:`1px solid ${statusTheme.border}`, fontFamily:"Inter, sans-serif", fontSize:"9px", fontWeight:800, textTransform:"uppercase", letterSpacing:".05em" }}><MS name={statusTheme.icon} size={14} /> {status === "aprobado" ? "Aprobado" : status === "rechazado" ? "Rechazado" : "Pendiente"}</span>
+                    </div>;
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── PENDIENTES DE APROBACIÓN (solo admin) ── */}
           {isAdmin && (
@@ -19797,10 +20055,20 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                         <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.titulo}</div>
                         {p.detalle && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", marginBottom: "5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.detalle}</div>}
                         <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: getFont(theme, "secondary"), lineHeight: "1.6" }}>
-                          <div>📅 Inicio: {formatDateTime(p.fecha_inicio)}</div>
-                          <div>⏰ Fin: {formatDateTime(p.fecha_fin)}</div>
+                          <div><MS name="calendar_month" size={13} /> Inicio propuesto: {formatDateTime(p.fecha_inicio_propuesta || p.fecha_inicio)}</div>
+                          <div><MS name="event_busy" size={13} /> Fin propuesto: {formatDateTime(p.fecha_fin_propuesta || p.fecha_fin)}</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:"5px", marginTop:"3px" }}><MS name="person" size={13} /> Autor: {p.autor_nombre || p.autor_email || "Usuario"}</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:"6px", flexWrap:"wrap" }}>
+                            <code style={{ color:"#9fcaff", fontSize:"9px" }}>{p.user_id || p.autor_id || "ID no disponible"}</code>
+                            {(p.user_id || p.autor_id) && <button type="button" onClick={() => navigator.clipboard?.writeText(p.user_id || p.autor_id)} style={{ border:"1px solid rgba(159,202,255,.34)", background:"rgba(159,202,255,.08)", color:"#9fcaff", borderRadius:"4px", padding:"3px 6px", cursor:"pointer", display:"inline-flex", alignItems:"center", gap:"3px", fontSize:"9px" }}><MS name="content_copy" size={12} /> Copiar ID</button>}
+                          </div>
                         </div>
                       </div>
+                    </div>
+                    <div style={{ marginBottom:"10px", padding:"10px", borderRadius:"8px", background:"rgba(2,6,23,.42)", border:"1px solid rgba(159,202,255,.22)" }}>
+                      <label style={{ display:"block", color:"#9fcaff", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", marginBottom:"6px" }}>Fecha de expiración al aprobar</label>
+                      <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
+                      <div style={{ marginTop:"5px", color:"rgba(191,199,213,.62)", fontSize:"9px", lineHeight:1.4 }}>El administrador puede conservar, acortar o ampliar la vigencia más allá de 30 días.</div>
                     </div>
                     {/* Acciones: 3 botones */}
                     <div style={{ display: "flex", gap: "6px" }}>
@@ -19809,21 +20077,21 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                         disabled={procesando === p.id}
                         style={{ flex: 1, padding: "8px 4px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.4)", borderRadius: "8px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                       >
-                        👁 VER
+                        <MS name="visibility" size={15} /> VER
                       </button>
                       <button
                         onClick={() => aprobar(p.id)}
                         disabled={procesando !== null}
                         style={{ flex: 1, padding: "8px 4px", background: procesando === p.id ? "rgba(34,197,94,0.3)" : "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.5)", borderRadius: "8px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: procesando !== null ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: procesando !== null && procesando !== p.id ? 0.5 : 1 }}
                       >
-                        {procesando === p.id ? "Procesando" : "✓"} APROBAR
+                        {procesando === p.id ? "Procesando" : <MS name="verified" size={15} />} APROBAR
                       </button>
                       <button
                         onClick={() => rechazar(p.id)}
                         disabled={procesando !== null}
                         style={{ flex: 1, padding: "8px 4px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.5)", borderRadius: "8px", color: "#ef4444", fontFamily: getFont(theme, "secondary"), fontSize: "10px", fontWeight: "700", cursor: procesando !== null ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", opacity: procesando !== null && procesando !== p.id ? 0.5 : 1 }}
                       >
-                        ✕ RECHAZAR
+                        <MS name="block" size={15} /> RECHAZAR
                       </button>
                     </div>
                   </div>
@@ -30278,15 +30546,18 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
   const [mine, setMine] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [showComposer, setShowComposer] = useState(false);
   const [formatFilter, setFormatFilter] = useState("todos");
-  const [form, setForm] = useState({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
+  const [adminFilter, setAdminFilter] = useState("pendiente");
+  const [form, setForm] = useState({ titulo:"", empresa:"", descripcion:"", fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState("");
   const [detectedFormat, setDetectedFormat] = useState("horizontal");
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
   const [resolvedUrls, setResolvedUrls] = useState({});
+  const [resolvedFormats, setResolvedFormats] = useState({});
+  const [reviewDates, setReviewDates] = useState({});
 
   const detectFormat = useCallback((width, height) => {
     const ratio = width / Math.max(height, 1);
@@ -30295,37 +30566,66 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
     return "cuadrado";
   }, []);
 
+  const toLocalInput = useCallback((value) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, []);
+
+  const maxOneMonth = useCallback((startValue) => {
+    const start = new Date(startValue);
+    if (Number.isNaN(start.getTime())) return "";
+    const max = new Date(start);
+    max.setMonth(max.getMonth() + 1);
+    return toLocalInput(max);
+  }, [toLocalInput]);
+
   const loadFeed = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const now = new Date().toISOString();
       let feedQuery = sb.from("feed_anuncios").select("*").order("created_at", { ascending:false });
-      if (!adminMode) feedQuery = feedQuery.eq("estatus", "aprobado").lte("fecha_inicio", now).gt("fecha_fin", now);
+      if (!adminMode) {
+        feedQuery = feedQuery.or(`and(estatus.eq.aprobado,fecha_inicio.lte.${now},fecha_fin.gt.${now}),user_id.eq.${authUser?.id || "00000000-0000-0000-0000-000000000000"}`);
+      }
 
-      // AnunciosBanner histórico se consume también en Feed. No se reemplaza ni se
-      // desactiva: se representa como una segunda fuente compatible.
       let bannerQuery = sb.from("anuncios").select("*").order("orden", { ascending:false }).order("created_at", { ascending:false });
       if (!adminMode) bannerQuery = bannerQuery.eq("activo", true).lte("fecha_inicio", now).gte("fecha_fin", now);
 
-      const [{ data: feedData, error: feedError }, { data: bannerData, error: bannerError }] = await Promise.all([
-        feedQuery,
-        bannerQuery,
-      ]);
+      const [{ data: feedData, error: feedError }, { data: bannerData, error: bannerError }] = await Promise.all([feedQuery, bannerQuery]);
       if (feedError) throw feedError;
       if (bannerError && !String(bannerError.message || "").includes("does not exist")) throw bannerError;
 
-      const feedList = (feedData || []).map(row => ({ ...row, _source:"feed", _reaction_id:row.id }));
+      const feedList = (feedData || []).map(row => ({
+        ...row,
+        titulo: row.titulo || "Anuncio de la comunidad portuaria",
+        empresa: row.empresa || "",
+        descripcion: row.descripcion || row.texto || "",
+        formato: row.formato || row.tipo_formato || null,
+        _source:"feed",
+        _reaction_id:row.id,
+      }));
       const legacyList = (bannerData || []).map(row => ({
         ...row,
         _source:"anuncios",
         _legacy:true,
-        estatus: row.activo === false ? "rechazado" : "aprobado",
+        estatus: row.activo === false ? "rechazado" : (new Date(row.fecha_fin) <= new Date() ? "expirado" : "aprobado"),
         contacto_whatsapp: row.whatsapp || null,
+        descripcion: row.texto || "",
         imagen_path: null,
+        formato: row.formato || null,
       }));
       setItems(feedList);
       setLegacyItems(legacyList);
+
+      const nextDates = {};
+      feedList.forEach(row => {
+        nextDates[row.id] = { inicio:toLocalInput(row.fecha_inicio), fin:toLocalInput(row.fecha_fin) };
+      });
+      setReviewDates(nextDates);
 
       const ids = feedList.map(x => x.id);
       if (ids.length) {
@@ -30348,9 +30648,17 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
     } finally {
       setLoading(false);
     }
-  }, [adminMode, authUser?.id]);
+  }, [adminMode, authUser?.id, toLocalInput]);
 
   useEffect(() => { loadFeed(); }, [loadFeed]);
+  useEffect(() => {
+    const channel = sb.channel(`feed-ui-${adminMode ? "admin" : "public"}`)
+      .on("postgres_changes", { event:"*", schema:"public", table:"feed_anuncios" }, loadFeed)
+      .on("postgres_changes", { event:"*", schema:"public", table:"feed_reacciones" }, loadFeed)
+      .on("postgres_changes", { event:"*", schema:"public", table:"anuncios" }, loadFeed)
+      .subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, [adminMode, loadFeed]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const pickImage = async (file) => {
@@ -30376,13 +30684,39 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
     setPreview(URL.createObjectURL(file));
   };
 
+  const updateStart = (value) => {
+    setForm(f => {
+      const next = { ...f, fecha_inicio:value };
+      if (value) {
+        const max = maxOneMonth(value);
+        if (!f.fecha_fin || new Date(f.fecha_fin) > new Date(max)) next.fecha_fin = max;
+      }
+      return next;
+    });
+  };
+
+  const updateEnd = (value) => {
+    if (!form.fecha_inicio) { setForm(f => ({...f, fecha_fin:value})); return; }
+    const max = maxOneMonth(form.fecha_inicio);
+    if (!isAdmin && value && new Date(value) > new Date(max)) {
+      setForm(f => ({...f, fecha_fin:max}));
+      setNotice("La vigencia máxima al proponer un anuncio es de un mes. La fecha final fue ajustada automáticamente.");
+      return;
+    }
+    setForm(f => ({...f, fecha_fin:value}));
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setNotice("");
-    if (!authUser?.id) { setNotice("Inicia sesión para publicar un anuncio."); return; }
+    if (!authUser?.id) { setNotice("Inicia sesión para proponer un anuncio."); return; }
     if (!canPublish) { setNotice("Tu cuenta no tiene el permiso Publicar anuncios."); return; }
+    if (!form.titulo.trim() || !form.descripcion.trim()) { setNotice("Completa el título y la descripción del anuncio."); return; }
     if (!image || !form.fecha_inicio || !form.fecha_fin) { setNotice("Selecciona una imagen y define la vigencia."); return; }
     if (new Date(form.fecha_fin) <= new Date(form.fecha_inicio)) { setNotice("La fecha final debe ser posterior a la fecha inicial."); return; }
+    const max = maxOneMonth(form.fecha_inicio);
+    if (!isAdmin && new Date(form.fecha_fin) > new Date(max)) { setNotice("La vigencia máxima para una propuesta es de un mes."); return; }
+
     setSaving(true);
     let path = "";
     try {
@@ -30392,8 +30726,12 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       if (upErr) throw upErr;
       const payload = {
         user_id:authUser.id,
+        titulo:form.titulo.trim(),
+        empresa:form.empresa.trim() || null,
+        descripcion:form.descripcion.trim(),
         imagen_path:path,
         imagen_url:null,
+        formato:detectedFormat,
         fecha_inicio:new Date(form.fecha_inicio).toISOString(),
         fecha_fin:new Date(form.fecha_fin).toISOString(),
         estatus:"pendiente",
@@ -30401,7 +30739,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       };
       const { error:insertErr } = await sb.from("feed_anuncios").insert(payload);
       if (insertErr) throw insertErr;
-      setForm({ fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
+      setForm({ titulo:"", empresa:"", descripcion:"", fecha_inicio:"", fecha_fin:"", contacto_whatsapp:"" });
       setImage(null);
       if (preview) URL.revokeObjectURL(preview);
       setPreview("");
@@ -30418,23 +30756,33 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
 
   const moderate = async (item, status) => {
     if (!canModerate || item._legacy) return;
-    const { error:e } = await sb.from("feed_anuncios").update({
+    const dates = reviewDates[item.id] || {};
+    if (status === "aprobado" && (!dates.inicio || !dates.fin || new Date(dates.fin) <= new Date(dates.inicio))) {
+      setNotice("Define un rango de vigencia válido antes de aprobar.");
+      return;
+    }
+    const payload = {
       estatus:status,
       aprobado_por:authUser?.id || null,
       aprobado_at:status === "aprobado" ? new Date().toISOString() : null,
       updated_at:new Date().toISOString(),
-    }).eq("id", item.id);
-    if (e) setNotice(e.message); else loadFeed();
+    };
+    if (status === "aprobado") {
+      payload.fecha_inicio = new Date(dates.inicio).toISOString();
+      payload.fecha_fin = new Date(dates.fin).toISOString();
+    }
+    const { error:e } = await sb.from("feed_anuncios").update(payload).eq("id", item.id);
+    if (e) setNotice(e.message); else {
+      setNotice(status === "aprobado" ? "Anuncio aprobado y programado." : "Anuncio rechazado.");
+      loadFeed();
+    }
   };
 
   const react = async (item, type) => {
-    if (!authUser?.id || item._legacy) return;
+    if (!authUser?.id || item._legacy || item.estatus !== "aprobado") return;
     const current = mine[item.id];
-    if (current === type) {
-      await sb.from("feed_reacciones").delete().eq("anuncio_id", item.id).eq("user_id", authUser.id);
-    } else {
-      await sb.from("feed_reacciones").upsert({ anuncio_id:item.id, user_id:authUser.id, tipo_reaccion:type }, { onConflict:"anuncio_id,user_id" });
-    }
+    if (current === type) await sb.from("feed_reacciones").delete().eq("anuncio_id", item.id).eq("user_id", authUser.id);
+    else await sb.from("feed_reacciones").upsert({ anuncio_id:item.id, user_id:authUser.id, tipo_reaccion:type }, { onConflict:"anuncio_id,user_id" });
     loadFeed();
   };
 
@@ -30443,99 +30791,108 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
   useEffect(() => {
     let alive = true;
     (async () => {
-      const next = {};
+      const nextUrls = {}, nextFormats = {};
       for (const item of allItems) {
-        if (item.imagen_url) { next[`${item._source}:${item.id}`] = item.imagen_url; continue; }
-        if (item.imagen_path) {
+        const key = `${item._source}:${item.id}`;
+        let url = item.imagen_url || "";
+        if (!url && item.imagen_path) {
           const { data } = await sb.storage.from(FEED_BUCKET).createSignedUrl(item.imagen_path, 3600);
-          next[`${item._source}:${item.id}`] = data?.signedUrl || "";
+          url = data?.signedUrl || "";
+        }
+        nextUrls[key] = url;
+        nextFormats[key] = item.formato || item.tipo_formato || "";
+        if (url && !nextFormats[key]) {
+          nextFormats[key] = await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve(detectFormat(img.naturalWidth, img.naturalHeight));
+            img.onerror = () => resolve("horizontal");
+            img.src = url;
+          });
         }
       }
-      if (alive) setResolvedUrls(next);
+      if (alive) { setResolvedUrls(nextUrls); setResolvedFormats(nextFormats); }
     })();
     return () => { alive = false; };
-  }, [allItems]);
+  }, [allItems, detectFormat]);
 
-  const visibleItems = useMemo(() => allItems.filter(item => {
+  const nowMs = Date.now();
+  const publicItems = useMemo(() => allItems.filter(item => {
+    if (item.estatus !== "aprobado") return false;
+    const start = toMs(item.fecha_inicio), end = toMs(item.fecha_fin);
+    return (!start || start <= nowMs) && (!end || end > nowMs);
+  }), [allItems, nowMs]);
+
+  const ownPending = useMemo(() => items.filter(item => item.user_id === authUser?.id && item.estatus === "pendiente"), [items, authUser?.id]);
+
+  const filteredPublic = useMemo(() => publicItems.filter(item => {
     if (formatFilter === "todos") return true;
-    return (item._detectedFormat || "") === formatFilter;
-  }), [allItems, formatFilter]);
+    return resolvedFormats[`${item._source}:${item.id}`] === formatFilter;
+  }), [publicItems, formatFilter, resolvedFormats]);
 
-  const cardFormat = (item, url) => {
-    if (item._detectedFormat) return item._detectedFormat;
-    return "auto";
+  const adminItems = useMemo(() => allItems.filter(item => {
+    const expired = toMs(item.fecha_fin) > 0 && toMs(item.fecha_fin) <= nowMs;
+    if (adminFilter === "expirado") return expired;
+    if (expired) return false;
+    return item.estatus === adminFilter;
+  }), [allItems, adminFilter, nowMs]);
+
+  const formatIcon = fmt => fmt === "vertical" ? "stay_current_portrait" : fmt === "cuadrado" ? "crop_square" : "view_agenda";
+  const formatLabel = fmt => fmt === "vertical" ? "Vertical" : fmt === "cuadrado" ? "Cuadrado" : "Horizontal";
+
+  const renderFeedCard = (item, { adminCard = false } = {}) => {
+    const key = `${item._source}:${item.id}`;
+    const url = resolvedUrls[key] || item.imagen_url || "";
+    const fmt = resolvedFormats[key] || item.formato || "horizontal";
+    const isOwnPending = item.user_id === authUser?.id && item.estatus === "pendiente";
+    return <article key={key} className={`cm-feed-card cm-feed-card--${fmt} ${adminCard ? "is-admin" : ""}`}>
+      <div className="cm-feed-card__media">
+        {url ? <img src={url} alt={item.titulo || "Anuncio"} loading="lazy" /> : <div className="cm-feed-card__missing"><MS name="image" size={36} /><span>Imagen no disponible</span></div>}
+        <div className="cm-feed-card__format"><MS name={formatIcon(fmt)} size={16} /><span>{formatLabel(fmt)}</span></div>
+        {isOwnPending && <div className="cm-feed-card__pending"><MS name="schedule" size={16} /><span>Tu anuncio está pendiente</span></div>}
+      </div>
+      <div className="cm-feed-card__body">
+        <div className="cm-feed-card__top"><FeedStatusChip status={toMs(item.fecha_fin) <= nowMs ? "expirado" : item.estatus} /><span className="cm-feed-card__dates"><MS name="date_range" size={16} />{new Date(item.fecha_inicio).toLocaleDateString("es-MX")} – {new Date(item.fecha_fin).toLocaleDateString("es-MX")}</span></div>
+        <h3>{item.titulo || "Anuncio"}</h3>
+        {item.empresa && <p className="cm-feed-card__company"><MS name="apartment" size={17} />{item.empresa}</p>}
+        {item.descripcion && <p className="cm-feed-card__description">{item.descripcion}</p>}
+        {(item.contacto_whatsapp || item.whatsapp) && item.estatus === "aprobado" && <a className="cm-feed-contact" href={`https://wa.me/${String(item.contacto_whatsapp || item.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"><AppIcon name="whatsapp" size={19} /><span>Contactar por WhatsApp</span></a>}
+        {!adminCard && item.estatus === "aprobado" && <div className="cm-feed-reactions">{FEED_REACTION_TYPES.map(r => <button key={r.id} type="button" disabled={item._legacy || !authUser?.id} title={item._legacy ? "Reacciones disponibles para anuncios del Feed" : r.label} className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={() => react(item,r.id)}><MS name={r.icon} size={19} active={mine[item.id]===r.id} /><span>{reactions[item.id]?.[r.id] || 0}</span></button>)}</div>}
+        {adminCard && <div className="cm-feed-review">
+          <div className="cm-feed-review__identity"><span><MS name="badge" size={17} />Autor</span><code>{item.user_id || "AnunciosBanner"}</code></div>
+          {!item._legacy && item.estatus === "pendiente" && <>
+            <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:e.target.value}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:e.target.value}}))} /></label></div>
+            <div className="cm-feed-admin-actions"><button type="button" className="approve" onClick={() => moderate(item,"aprobado")}><MS name="verified" size={18} />Aprobar</button><button type="button" className="reject" onClick={() => moderate(item,"rechazado")}><MS name="block" size={18} />Rechazar</button></div>
+          </>}
+          {item._legacy && <div className="cm-feed-legacy-note"><MS name="view_carousel" size={17} />Administrado por AnunciosBanner</div>}
+        </div>}
+      </div>
+    </article>;
   };
 
   return <div className="cm-feed-root">
     <style>{`
-      .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:32px 24px 72px;background:#0b0f10;min-height:72vh}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px;max-width:720px}.cm-feed-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.cm-feed-btn{min-height:42px;border:1px solid rgba(159,202,255,.36);border-radius:4px;background:rgba(29,32,34,.72);color:#9fcaff;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer;transition:all .3s ease}.cm-feed-btn:hover{transform:translateY(-1px);border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-btn--primary{background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;border-color:#9fcaff}.cm-feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;padding:12px 14px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px)}.cm-feed-tabs{display:flex;gap:8px;flex-wrap:wrap}.cm-feed-tab{border:1px solid transparent;border-radius:4px;background:transparent;color:#bfc7d5;padding:8px 12px;font-weight:700;cursor:pointer;transition:.3s}.cm-feed-tab:hover,.cm-feed-tab.is-active{border-color:rgba(159,202,255,.45);background:rgba(159,202,255,.1);color:#9fcaff}.cm-feed-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}.cm-feed-card{grid-column:span 6;background:rgba(29,32,34,.7);backdrop-filter:blur(12px);border:1px solid rgba(63,71,83,.3);border-radius:8px;overflow:hidden;transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .35s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}.cm-feed-card[data-format="vertical"]{grid-column:span 4}.cm-feed-media{position:relative;background:#101415;display:grid;place-items:center;overflow:hidden}.cm-feed-card[data-format="horizontal"] .cm-feed-media{aspect-ratio:16/7}.cm-feed-card[data-format="cuadrado"] .cm-feed-media{aspect-ratio:1/1}.cm-feed-card[data-format="vertical"] .cm-feed-media{aspect-ratio:4/5}.cm-feed-card[data-format="auto"] .cm-feed-media{min-height:260px;max-height:560px}.cm-feed-media img{width:100%;height:100%;object-fit:contain;display:block;background:#101415}.cm-feed-media-badge{position:absolute;top:12px;left:12px;display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:rgba(11,15,16,.82);border:1px solid rgba(159,202,255,.3);color:#bdf4ff;font-size:11px;font-weight:800;backdrop-filter:blur(10px)}.cm-feed-body{padding:18px}.cm-feed-meta{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#89919e;font-size:12px}.cm-feed-title{margin:14px 0 3px;font-size:18px;line-height:26px;color:#e0e3e5}.cm-feed-source{margin:0;color:#89919e;font-size:12px}.cm-feed-contact{display:inline-flex;align-items:center;gap:8px;margin-top:15px;padding:10px 14px;border-radius:4px;text-decoration:none;color:#00363d;background:linear-gradient(180deg,#bdf4ff,#00e3fd);font-weight:800;transition:.3s}.cm-feed-contact:hover{box-shadow:0 0 20px rgba(0,227,253,.2);transform:translateY(-1px)}.cm-feed-reactions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.cm-feed-reaction{border:1px solid #3f4753;background:#191c1e;color:#bfc7d5;border-radius:4px;padding:7px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00e3fd;box-shadow:0 0 16px rgba(0,227,253,.14);transform:translateY(-1px)}.cm-feed-reaction:disabled{opacity:.55;cursor:default;box-shadow:none;transform:none}.cm-feed-composer-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(4,8,10,.78);backdrop-filter:blur(12px);display:grid;place-items:center;padding:20px}.cm-feed-form{width:min(760px,100%);max-height:90vh;overflow:auto;background:rgba(29,32,34,.96);border:1px solid rgba(159,202,255,.35);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.55)}.cm-feed-form-head{padding:18px 20px;background:rgba(50,53,55,.45);border-bottom:1px solid rgba(63,71,83,.3);display:flex;align-items:center;justify-content:space-between}.cm-feed-form-head h3{margin:0;font-size:20px}.cm-feed-form-body{padding:20px}.cm-feed-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.cm-feed-field{display:grid;gap:7px}.cm-feed-field--full{grid-column:1/-1}.cm-feed-field label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#89919e}.cm-feed-field input{width:100%;box-sizing:border-box;background:#101415;border:1px solid #3f4753;border-radius:4px;padding:11px;color:#e0e3e5}.cm-feed-drop{min-height:120px;border:1px dashed rgba(159,202,255,.4);border-radius:8px;background:rgba(11,15,16,.65);display:grid;place-items:center;text-align:center;padding:18px;cursor:pointer;transition:.3s}.cm-feed-drop:hover{border-color:#9fcaff;box-shadow:0 0 20px rgba(159,202,255,.12)}.cm-feed-preview{max-height:380px;width:100%;object-fit:contain;background:#101415;border:1px solid #3f4753;border-radius:8px}.cm-feed-format{display:inline-flex;align-items:center;gap:7px;color:#bdf4ff;font-size:12px;font-weight:700}.cm-feed-submit-row{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.cm-feed-submit{border:1px solid rgba(159,202,255,.6);border-radius:4px;background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;padding:12px 18px;font-weight:800;cursor:pointer;transition:.3s}.cm-feed-submit:hover{box-shadow:0 0 20px rgba(159,202,255,.18)}.cm-feed-submit:disabled{opacity:.5;cursor:not-allowed}.cm-feed-admin-actions{display:flex;gap:8px;margin-top:14px}.cm-feed-admin-actions button{border-radius:4px;padding:9px 12px;font-weight:700;cursor:pointer;background:#191c1e}.cm-feed-empty{grid-column:1/-1;padding:64px 24px;text-align:center;border:1px dashed #3f4753;border-radius:8px;color:#89919e;background:rgba(29,32,34,.35)}.cm-feed-empty strong{display:block;color:#bfc7d5;font-size:18px;margin-top:12px}.cm-feed-pulse{grid-column:span 6;height:360px;border-radius:8px;background:rgba(0,227,253,.06);animation:cmCyanPulse 1.3s ease-in-out infinite}.cm-feed-notice{margin:0 0 16px;color:#bdf4ff;font-size:13px;padding:10px 12px;border:1px solid rgba(189,244,255,.25);border-radius:4px;background:rgba(189,244,255,.06)}@keyframes cmFeedIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes cmCyanPulse{0%,100%{box-shadow:0 0 0 rgba(0,227,253,0);opacity:.5}50%{box-shadow:0 0 24px rgba(0,227,253,.22);opacity:1}}@media(max-width:900px){.cm-feed-card,.cm-feed-card[data-format="vertical"]{grid-column:span 6}.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}}@media(max-width:640px){.cm-feed-root{padding:24px 16px 80px}.cm-feed-head{display:block}.cm-feed-head-actions{justify-content:flex-start;margin-top:16px}.cm-feed-toolbar{align-items:flex-start;flex-direction:column}.cm-feed-card,.cm-feed-card[data-format="vertical"],.cm-feed-card[data-format="horizontal"]{grid-column:1/-1}.cm-feed-form-grid{grid-template-columns:1fr}.cm-feed-field--full{grid-column:auto}}
+      .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:32px 24px 72px;background:#0b0f10;min-height:72vh}.cm-feed-root *{box-sizing:border-box}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px;max-width:760px}.cm-feed-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.cm-feed-btn{min-height:42px;border:1px solid rgba(159,202,255,.36);border-radius:4px;background:rgba(29,32,34,.72);color:#9fcaff;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer;transition:all .3s ease}.cm-feed-btn:hover{transform:translateY(-1px);border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-btn--primary{background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;border-color:#9fcaff}.cm-feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;padding:12px 14px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px)}.cm-feed-tabs{display:flex;gap:8px;flex-wrap:wrap}.cm-feed-tab{border:1px solid transparent;border-radius:4px;background:transparent;color:#bfc7d5;padding:9px 12px;display:flex;align-items:center;gap:7px;font-weight:700;cursor:pointer;transition:.3s}.cm-feed-tab:hover,.cm-feed-tab.is-active{color:#9fcaff;border-color:rgba(159,202,255,.42);background:rgba(159,202,255,.08);box-shadow:0 0 18px rgba(159,202,255,.1)}.cm-feed-count{font-size:13px;color:#89919e}.cm-feed-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}.cm-feed-card{grid-column:span 6;background:rgba(29,32,34,.72);border:1px solid rgba(63,71,83,.38);border-radius:8px;overflow:hidden;backdrop-filter:blur(12px);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .38s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 14px 34px rgba(0,0,0,.25),0 0 20px rgba(159,202,255,.12)}.cm-feed-card--horizontal{grid-column:span 12}.cm-feed-card--vertical{grid-column:span 4}.cm-feed-card--cuadrado{grid-column:span 6}.cm-feed-card.is-admin{grid-column:span 6}.cm-feed-card__media{position:relative;background:#101415;overflow:hidden}.cm-feed-card--horizontal .cm-feed-card__media{aspect-ratio:16/6}.cm-feed-card--cuadrado .cm-feed-card__media{aspect-ratio:1/1}.cm-feed-card--vertical .cm-feed-card__media{aspect-ratio:9/14}.cm-feed-card__media img{width:100%;height:100%;display:block;object-fit:contain;background:#101415}.cm-feed-card__missing{min-height:230px;display:grid;place-items:center;align-content:center;gap:8px;color:#89919e}.cm-feed-card__format,.cm-feed-card__pending{position:absolute;top:12px;display:flex;align-items:center;gap:6px;border:1px solid rgba(159,202,255,.3);border-radius:999px;background:rgba(11,15,16,.82);backdrop-filter:blur(10px);padding:6px 9px;color:#9fcaff;font-size:11px;font-weight:700}.cm-feed-card__format{left:12px}.cm-feed-card__pending{right:12px;color:#bdf4ff}.cm-feed-card__body{padding:20px}.cm-feed-card__top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.cm-feed-card__dates{display:flex;align-items:center;gap:6px;color:#89919e;font-size:12px}.cm-feed-card h3{font-size:20px;line-height:28px;margin:16px 0 5px;color:#e0e3e5}.cm-feed-card__company{margin:0 0 12px;color:#9fcaff;font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}.cm-feed-card__description{margin:0 0 18px;color:#bfc7d5;line-height:21px;white-space:pre-wrap}.cm-feed-contact{width:max-content;max-width:100%;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(37,211,102,.45);border-radius:4px;background:rgba(37,211,102,.1);color:#8ff0ad;padding:10px 13px;text-decoration:none;font-weight:700;transition:.3s}.cm-feed-contact:hover{transform:translateY(-2px);box-shadow:0 0 20px rgba(37,211,102,.16);border-color:#25d366}.cm-feed-reactions{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid rgba(63,71,83,.28)}.cm-feed-reaction{min-width:60px;border:1px solid rgba(63,71,83,.5);border-radius:4px;background:#191c1e;color:#bfc7d5;padding:8px 10px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00daf3;box-shadow:0 0 16px rgba(0,218,243,.14);transform:translateY(-2px)}.cm-feed-reaction:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}.cm-feed-empty,.cm-feed-loading{min-height:260px;border:1px dashed rgba(63,71,83,.7);border-radius:8px;display:grid;place-items:center;align-content:center;gap:10px;color:#89919e;text-align:center}.cm-feed-empty strong{font-size:18px;color:#e0e3e5}.cm-feed-pulse{width:18px;height:18px;border-radius:50%;background:#00daf3;box-shadow:0 0 0 0 rgba(0,218,243,.4);animation:cmFeedPulse 1.35s infinite}.cm-feed-notice{margin-bottom:18px;padding:12px 14px;border-radius:4px;border:1px solid rgba(159,202,255,.35);background:rgba(159,202,255,.08);color:#bdf4ff}.cm-feed-error{border-color:rgba(255,180,171,.45);color:#ffb4ab;background:rgba(255,180,171,.08)}.cm-feed-admin-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.cm-feed-stat{padding:16px;border:1px solid rgba(63,71,83,.35);border-radius:8px;background:rgba(29,32,34,.7)}.cm-feed-stat span{display:block;color:#89919e;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}.cm-feed-stat strong{display:block;margin-top:5px;color:#e0e3e5;font-size:24px}.cm-feed-review{margin-top:18px;padding-top:16px;border-top:1px solid rgba(63,71,83,.35)}.cm-feed-review__identity{display:grid;gap:6px;margin-bottom:12px}.cm-feed-review__identity span{display:flex;align-items:center;gap:6px;color:#89919e;font-size:11px;text-transform:uppercase;font-weight:700}.cm-feed-review__identity code{font:500 12px/18px Inter,sans-serif;color:#9fcaff;word-break:break-all}.cm-feed-review__dates{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cm-feed-review__dates label{display:grid;gap:6px;color:#89919e;font-size:11px;font-weight:700}.cm-feed-review__dates input,.cm-feed-form input,.cm-feed-form textarea{width:100%;border:1px solid rgba(63,71,83,.75);border-radius:4px;background:#101415;color:#e0e3e5;padding:11px 12px;outline:none;transition:.3s}.cm-feed-review__dates input:focus,.cm-feed-form input:focus,.cm-feed-form textarea:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1)}.cm-feed-admin-actions{display:flex;gap:10px;margin-top:13px}.cm-feed-admin-actions button{border-radius:4px;background:#191c1e;padding:10px 13px;font-weight:700;display:flex;align-items:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-admin-actions .approve{border:1px solid rgba(126,231,189,.45);color:#7ee7bd}.cm-feed-admin-actions .reject{border:1px solid rgba(255,180,171,.45);color:#ffb4ab}.cm-feed-admin-actions button:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(159,202,255,.12)}.cm-feed-legacy-note{display:flex;align-items:center;gap:8px;color:#9fcaff;font-size:12px}.cm-feed-composer-backdrop{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.74);display:grid;place-items:center;padding:20px}.cm-feed-form{width:min(760px,100%);max-height:92vh;overflow:auto;border:1px solid rgba(159,202,255,.35);border-radius:8px;background:rgba(25,28,30,.97);box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 30px rgba(159,202,255,.1);padding:22px}.cm-feed-form-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.cm-feed-form-head h3{margin:0;font-size:24px}.cm-feed-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-feed-form label{display:grid;gap:7px;color:#bfc7d5;font-size:12px;font-weight:700}.cm-feed-form label.is-wide{grid-column:1/-1}.cm-feed-form textarea{min-height:110px;resize:vertical}.cm-feed-drop{grid-column:1/-1;border:1px dashed rgba(159,202,255,.45);border-radius:8px;background:#101415;padding:16px}.cm-feed-drop input{padding:8px}.cm-feed-preview{display:grid;place-items:center;margin-top:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;overflow:hidden;background:#0b0f10}.cm-feed-preview img{max-width:100%;max-height:360px;object-fit:contain}.cm-feed-preview__meta{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:#9fcaff}.cm-feed-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}@keyframes cmFeedPulse{70%{box-shadow:0 0 0 12px rgba(0,218,243,0)}100%{box-shadow:0 0 0 0 rgba(0,218,243,0)}}@keyframes cmFeedIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@media(max-width:880px){.cm-feed-card,.cm-feed-card--horizontal,.cm-feed-card--vertical,.cm-feed-card--cuadrado,.cm-feed-card.is-admin{grid-column:span 12}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}}@media(max-width:620px){.cm-feed-root{padding:24px 14px 60px}.cm-feed-head{display:block}.cm-feed-head-actions{justify-content:flex-start;margin-top:16px}.cm-feed-toolbar{align-items:flex-start;flex-direction:column}.cm-feed-form-grid,.cm-feed-review__dates{grid-template-columns:1fr}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}.cm-feed-card__body{padding:16px}}
     `}</style>
 
-    <div className="cm-feed-head">
-      <div>
-        <h2>{adminMode ? "Anuncios" : "Feed"}</h2>
-        <p>{adminMode ? "Aprobación y seguimiento de anuncios enviados por la comunidad. Los aprobados alimentan el Feed y complementan AnunciosBanner." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p>
-      </div>
-      <div className="cm-feed-head-actions">
-        <button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} active /><span>Actualizar</span></button>
-        {canPublish && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>Proponer anuncio</span></button>}
-      </div>
-    </div>
+    <div className="cm-feed-head"><div><h2>{adminMode ? "Anuncios" : "Feed"}</h2><p>{adminMode ? "Gestión unificada de propuestas del Feed y anuncios activos de AnunciosBanner." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p></div><div className="cm-feed-head-actions"><button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} /><span>Actualizar</span></button>{canPublish && !adminMode && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>Proponer anuncio</span></button>}</div></div>
 
     {notice && <div className="cm-feed-notice">{notice}</div>}
+    {error && <div className="cm-feed-notice cm-feed-error">{error}</div>}
 
-    <div className="cm-feed-toolbar">
-      <div className="cm-feed-tabs" aria-label="Formato de anuncios">
-        {[{id:"todos",label:"Todos",icon:"view_module"},{id:"horizontal",label:"Horizontales",icon:"view_day"},{id:"cuadrado",label:"Cuadrados",icon:"crop_square"},{id:"vertical",label:"Verticales",icon:"stay_current_portrait"}].map(tab => <button key={tab.id} type="button" className={`cm-feed-tab ${formatFilter===tab.id?"is-active":""}`} onClick={() => setFormatFilter(tab.id)}><MS name={tab.icon} size={18} active={formatFilter===tab.id} /> {tab.label}</button>)}
-      </div>
-      <span style={{fontSize:12,color:"#89919e"}}>{visibleItems.length} anuncio(s)</span>
-    </div>
+    {adminMode ? <>
+      <div className="cm-feed-admin-summary"><div className="cm-feed-stat"><span>Pendientes</span><strong>{items.filter(x=>x.estatus==="pendiente").length}</strong></div><div className="cm-feed-stat"><span>Vigentes</span><strong>{publicItems.length}</strong></div><div className="cm-feed-stat"><span>Rechazados</span><strong>{items.filter(x=>x.estatus==="rechazado").length}</strong></div><div className="cm-feed-stat"><span>Expirados</span><strong>{allItems.filter(x=>toMs(x.fecha_fin)<=nowMs).length}</strong></div></div>
+      <div className="cm-feed-toolbar"><div className="cm-feed-tabs">{[{id:"pendiente",label:"Pendientes",icon:"pending_actions"},{id:"aprobado",label:"Aprobados",icon:"verified"},{id:"rechazado",label:"Rechazados",icon:"block"},{id:"expirado",label:"Expirados",icon:"history"}].map(t=><button key={t.id} type="button" className={`cm-feed-tab ${adminFilter===t.id?"is-active":""}`} onClick={()=>setAdminFilter(t.id)}><MS name={t.icon} size={18}/><span>{t.label}</span></button>)}</div><span className="cm-feed-count">{adminItems.length} anuncio(s)</span></div>
+      {loading ? <div className="cm-feed-loading"><span className="cm-feed-pulse"/><span>Cargando anuncios</span></div> : adminItems.length ? <div className="cm-feed-grid">{adminItems.map(item=>renderFeedCard(item,{adminCard:true}))}</div> : <div className="cm-feed-empty"><MS name="inventory_2" size={38}/><strong>No hay anuncios en esta categoría</strong><span>Los anuncios aparecerán aquí según su estado.</span></div>}
+    </> : <>
+      {ownPending.length > 0 && <div className="cm-feed-notice"><strong>Mis propuestas pendientes:</strong> {ownPending.length}. El administrador debe aprobarlas antes de que aparezcan en el Feed.</div>}
+      <div className="cm-feed-toolbar"><div className="cm-feed-tabs">{[{id:"todos",label:"Todos",icon:"grid_view"},{id:"horizontal",label:"Horizontales",icon:"view_agenda"},{id:"cuadrado",label:"Cuadrados",icon:"crop_square"},{id:"vertical",label:"Verticales",icon:"stay_current_portrait"}].map(t=><button key={t.id} type="button" className={`cm-feed-tab ${formatFilter===t.id?"is-active":""}`} onClick={()=>setFormatFilter(t.id)}><MS name={t.icon} size={18}/><span>{t.label}</span></button>)}</div><span className="cm-feed-count">{filteredPublic.length} anuncio(s)</span></div>
+      {loading ? <div className="cm-feed-loading"><span className="cm-feed-pulse"/><span>Cargando Feed</span></div> : filteredPublic.length ? <div className="cm-feed-grid">{filteredPublic.map(item=>renderFeedCard(item))}</div> : <div className="cm-feed-empty"><MS name="dynamic_feed" size={40}/><strong>No hay anuncios vigentes</strong><span>Los anuncios aprobados aparecerán aquí respetando su formato original.</span></div>}
+    </>}
 
-    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label="Proponer anuncio" onMouseDown={e => { if (e.target === e.currentTarget) setShowComposer(false); }}>
-      <form className="cm-feed-form" onSubmit={submit}>
-        <div className="cm-feed-form-head"><h3>Proponer anuncio</h3><button type="button" className="cm-feed-btn" onClick={() => setShowComposer(false)}><MS name="close" size={20} /></button></div>
-        <div className="cm-feed-form-body">
-          <div className="cm-feed-form-grid">
-            <div className="cm-feed-field cm-feed-field--full">
-              <label>Imagen del anuncio</label>
-              {!preview ? <label className="cm-feed-drop"><span><MS name="add_photo_alternate" size={30} active /><br /><strong>Seleccionar JPEG o PNG</strong><br /><small>El formato se detecta automáticamente por su relación de aspecto.</small></span><input type="file" accept="image/jpeg,image/png" hidden onChange={e => pickImage(e.target.files?.[0])} /></label> : <><img src={preview} alt="Vista previa del anuncio" className="cm-feed-preview" /><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginTop:8}}><span className="cm-feed-format"><MS name={detectedFormat==="vertical"?"stay_current_portrait":detectedFormat==="cuadrado"?"crop_square":"view_day"} size={18} active />Formato {detectedFormat}</span><label className="cm-feed-btn"><MS name="replace_image" size={18} />Reemplazar<input type="file" accept="image/jpeg,image/png" hidden onChange={e => pickImage(e.target.files?.[0])} /></label></div></>}
-            </div>
-            <div className="cm-feed-field"><label>Inicio de vigencia</label><input type="datetime-local" value={form.fecha_inicio} onChange={e => setForm(f => ({...f,fecha_inicio:e.target.value}))} required /></div>
-            <div className="cm-feed-field"><label>Fin de vigencia</label><input type="datetime-local" value={form.fecha_fin} onChange={e => setForm(f => ({...f,fecha_fin:e.target.value}))} required /></div>
-            <div className="cm-feed-field cm-feed-field--full"><label>WhatsApp opcional</label><input inputMode="tel" placeholder="521..." value={form.contacto_whatsapp} onChange={e => setForm(f => ({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} /></div>
-          </div>
-          <div className="cm-feed-submit-row"><button type="button" className="cm-feed-btn" onClick={() => setShowComposer(false)}>Cancelar</button><button className="cm-feed-submit" disabled={saving}>{saving ? "Enviando..." : "Enviar a aprobación"}</button></div>
-        </div>
-      </form>
-    </div>}
-
-    <div className="cm-feed-grid">
-      {loading ? <><div className="cm-feed-pulse"/><div className="cm-feed-pulse"/></> : error ? <div className="cm-feed-empty"><MS name="error" size={34} /><strong>No se pudo cargar el Feed</strong><div>{error}</div></div> : visibleItems.length === 0 ? <div className="cm-feed-empty"><MS name="dynamic_feed" size={42} active /><strong>No hay anuncios vigentes</strong><div>Los anuncios aprobados aparecerán aquí respetando su formato original.</div></div> : visibleItems.map((item, index) => {
-        const key = `${item._source}:${item.id}`;
-        const url = resolvedUrls[key] || item.imagen_url || "";
-        const format = cardFormat(item, url);
-        const start = item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString("es-MX") : "";
-        const end = item.fecha_fin ? new Date(item.fecha_fin).toLocaleDateString("es-MX") : "";
-        return <article key={key} className="cm-feed-card" data-format={format} style={{animationDelay:`${Math.min(index*55,330)}ms`}}>
-          <div className="cm-feed-media">
-            {url ? <img src={url} alt={item.titulo || "Anuncio"} onLoad={e => { const fmt=detectFormat(e.currentTarget.naturalWidth,e.currentTarget.naturalHeight); e.currentTarget.closest('.cm-feed-card')?.setAttribute('data-format',fmt); }} /> : <MS name="image_not_supported" size={44} />}
-            <span className="cm-feed-media-badge"><MS name={item._legacy?"view_carousel":"dynamic_feed"} size={16} active />{item._legacy?"AnunciosBanner":"Feed"}</span>
-          </div>
-          <div className="cm-feed-body">
-            <div className="cm-feed-meta"><span>{start && end ? `${start} — ${end}` : "Vigencia activa"}</span>{adminMode && <FeedStatusChip status={item.estatus} />}</div>
-            <h3 className="cm-feed-title">{item.titulo || "Anuncio de la comunidad portuaria"}</h3>
-            <p className="cm-feed-source">{item.empresa || (item._legacy ? "AnunciosBanner" : "Comunidad CONECT MANZANILLO")}</p>
-            {(item.contacto_whatsapp || item.whatsapp) && <a className="cm-feed-contact" href={`https://wa.me/${String(item.contacto_whatsapp || item.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"><AppIcon name="whatsapp" size={19} /><span>Contactar por WhatsApp</span></a>}
-            <div className="cm-feed-reactions">
-              {FEED_REACTION_TYPES.map(r => <button key={r.id} type="button" disabled={item._legacy} title={item._legacy?"Las reacciones están disponibles en anuncios publicados desde Feed":r.label} className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={() => react(item,r.id)}><MS name={r.icon} size={19} active={mine[item.id]===r.id} /><span>{reactions[item.id]?.[r.id] || 0}</span></button>)}
-            </div>
-            {adminMode && !item._legacy && <div className="cm-feed-admin-actions"><button type="button" style={{border:"1px solid rgba(126,231,189,.4)",color:"#7ee7bd"}} onClick={() => moderate(item,"aprobado")}>Aprobar</button><button type="button" style={{border:"1px solid rgba(255,180,171,.4)",color:"#ffb4ab"}} onClick={() => moderate(item,"rechazado")}>Rechazar</button></div>}
-          </div>
-        </article>;
-      })}
-    </div>
+    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label="Proponer anuncio" onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>Proponer anuncio</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(e.target.value)} required/></label><label><span>Fin de vigencia * · máximo 1 mes</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(e.target.value)} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Enviando</>:<><MS name="send" size={19}/>Enviar a aprobación</>}</button></div></form></div>}
   </div>;
 }
+
 function useAdminDashboardLiveData(incidents) {
   const [state,setState]=useState({ticketsPendientes:0,ticketsHoy:0,noticias:[],tickets:[],roles:[],loading:true});
   const load=useCallback(async()=>{
