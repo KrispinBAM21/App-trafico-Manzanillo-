@@ -22108,6 +22108,15 @@ const QUEJAS_STATUS = {
   cerrado:{ label:"Cerrado", color:"#bfc7d5", bg:"rgba(191,199,213,.10)" },
 };
 
+const BUG_REPORTS_BUCKET = import.meta.env.VITE_SUPABASE_BUG_REPORTS_BUCKET || "reportes-bugs";
+const BUG_REPORT_STATUS = {
+  pendiente:{ label:"Pendiente", color:"#fbbf24", bg:"rgba(251,191,36,.12)" },
+  en_revision:{ label:"En revisión", color:"#9fcaff", bg:"rgba(159,202,255,.12)" },
+  resuelto:{ label:"Resuelto", color:"#4edea3", bg:"rgba(78,222,163,.12)" },
+  descartado:{ label:"Descartado", color:"#ffb4ab", bg:"rgba(255,180,171,.12)" },
+};
+
+
 function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegister, initialAdminView="default" }) {
   const theme = React.useContext(ThemeContext);
   const posturasMobile = useWindowWidth() < 760;
@@ -28226,7 +28235,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
 }
 
-function TutorialTab({ setActive, isAdmin, authIntent }) {
+function TutorialTab({ setActive, isAdmin, authIntent, onReportBug }) {
   const [open, setOpen] = useState("inicio");
   const sections = [
     { id:"inicio", icon:"home", title:"Inicio", audience:"Todos", summary:"Resumen operativo y accesos principales.", details:[
@@ -28323,6 +28332,7 @@ function TutorialTab({ setActive, isAdmin, authIntent }) {
       <header className="cm-info-hero">
         <div style={{display:"flex",alignItems:"center",gap:12}}><span className="cm-info-icon"><MS name="info" size={24} active /></span><div><h1>Más Info</h1><p>Guía actualizada de CONECT MANZANILLO. Consulta qué hace cada módulo, cómo usarlo y cuáles funciones requieren una cuenta o privilegios administrativos.</p></div></div>
       </header>
+      <div style={{display:"flex",justifyContent:"flex-end",margin:"-8px 0 20px"}}><button type="button" className="cm-info-go" onClick={onReportBug}><MS name="bug_report" size={19} active /> Reportar bug</button></div>
       <section className="cm-info-grid">
         {sections.map(sec => {
           const expanded = open === sec.id;
@@ -28457,7 +28467,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
       {/* ── Botón trigger ── */}
       <button
         onClick={() => { setExpanded(v=>!v); setAdminView(false); }}
-        style={{ width:"100%", background: expanded ? "linear-gradient(135deg,rgba(251,191,36,0.12),rgba(167,139,250,0.12))" : "linear-gradient(135deg,rgba(56,189,248,0.08),rgba(167,139,250,0.08))", border:`1px solid ${expanded?"rgba(251,191,36,0.4)":"rgba(56,189,248,0.25)"}`, borderRadius: expanded?"14px 14px 0 0":"14px", padding:"14px 18px", display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", textAlign:"left", transition:"all 0.2s" }}
+        style={{ width:"100%", background: expanded ? "linear-gradient(135deg,rgba(251,191,36,0.12),rgba(167,139,250,0.12))" : "linear-gradient(135deg,rgba(56,189,248,0.08),rgba(167,139,250,0.08))", border:`1px solid ${expanded?"rgba(251,191,36,0.4)":"rgba(56,189,248,0.25)"}`, borderRadius: expanded?"14px 14px 0 0":"14px", padding:"14px 18px", display:"flex", alignItems:"center", gap:"12px", cursor:"pointer", textAlign:"left", transition:"transform .22s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease" }}
       >
         <div style={{ fontSize:"24px" }}>📊</div>
         <div style={{ flex:1 }}>
@@ -28473,7 +28483,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
           {/* ── VISTA ADMIN ── */}
           {isAdmin && !adminView && step !== "thanks" && (
             <div style={{ padding:"12px 16px 0", borderBottom:"1px solid rgba(255,255,255,0.06)", marginBottom:"4px" }}>
-              <button onClick={handleAdminView} style={{ padding:"7px 14px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:"8px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
+              <button onClick={handleAdminView} style={{ padding:"7px 14px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:"8px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", boxShadow:loading?"none":"0 12px 28px rgba(14,165,233,.22),0 0 24px rgba(56,189,248,.12)" }}>
                 🔑 VER RESPUESTAS (SOLO ADMIN)
               </button>
             </div>
@@ -28552,7 +28562,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               <div style={{ textAlign:"center", marginBottom:"18px" }}>
                 <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", lineHeight:"1.7" }}>
                   Ayúdanos a mejorar Conect Manzanillo.<br/>
-                  <span style={{ color:"rgba(255,255,255,0.25)", fontSize:"10px" }}>🔒 Tus respuestas son anónimas. Solo el administrador puede verlas.</span>
+                  <span style={{ color:"rgba(255,255,255,0.25)", fontSize:"10px" }}>Tus respuestas son anónimas. Solo el administrador puede verlas.</span>
                 </div>
               </div>
 
@@ -28568,7 +28578,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               <input type="email" value={correo} onChange={e=>setCorreo(e.target.value)} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
 
               {/* Dispositivo — múltiple choice */}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px", marginTop:"4px" }}>📱 ¿EN QUÉ DISPOSITIVO USAS MÁS LA APP? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px", marginTop:"4px" }}>¿EN QUÉ DISPOSITIVO USAS MÁS LA APP? <span style={{color:"#ef4444"}}>*</span></div>
               <div style={{ marginBottom:"12px" }}>
                 {DISPOSITIVOS.map(d => (
                   <span key={d} onClick={() => setDispositivo(d)} style={chipStyle(dispositivo===d)}>{d}</span>
@@ -28576,7 +28586,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               </div>
 
               {/* Frecuencia */}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🕐 ¿CON QUÉ FRECUENCIA LA USAS? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿CON QUÉ FRECUENCIA LA USAS? <span style={{color:"#ef4444"}}>*</span></div>
               <div style={{ marginBottom:"12px" }}>
                 {FRECUENCIAS.map(f => (
                   <span key={f} onClick={() => setFrecuencia(f)} style={chipStyle(frecuencia===f)}>{f}</span>
@@ -28584,7 +28594,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               </div>
 
               {/* Funciones más usadas */}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>🛠️ ¿QUÉ FUNCIONES UTILIZAS MÁS? <span style={{color:"rgba(255,255,255,0.2)"}}>(selecciona todas las que apliquen)</span></div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ FUNCIONES UTILIZAS MÁS? <span style={{color:"rgba(255,255,255,0.2)"}}>(selecciona todas las que apliquen)</span></div>
               <div style={{ marginBottom:"12px" }}>
                 {FUNCIONES_LIST.map(f => (
                   <span key={f} onClick={() => toggleFuncion(f)} style={chipStyle(funciones.includes(f))}>{f}</span>
@@ -28592,7 +28602,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
               </div>
 
               {/* Calificación */}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>⭐ ¿CÓMO CALIFICARÍAS LA APP EN GENERAL? <span style={{color:"#ef4444"}}>*</span></div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿CÓMO CALIFICARÍAS LA APP EN GENERAL? <span style={{color:"#ef4444"}}>*</span></div>
               <div style={{ marginBottom:"14px" }}>
                 {CALIFICACIONES.map(c => (
                   <span key={c} onClick={() => setCalificacion(c)} style={chipStyle(calificacion===c)}>{c}</span>
@@ -28600,26 +28610,26 @@ function EncuestaSatisfaccion({ isAdmin }) {
               </div>
 
               {/* Preguntas abiertas */}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>✨ ¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
               <textarea value={agregarDesc} onChange={e=>setAgregarDesc(e.target.value)} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>Eliminar️ ¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
               <textarea value={quitarDesc} onChange={e=>setQuitarDesc(e.target.value)} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>💬 COMENTARIO LIBRE</div>
+              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>COMENTARIO LIBRE</div>
               <textarea value={comentario} onChange={e=>setComentario(e.target.value)} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
 
               {/* Aviso privacidad + botón enviar */}
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:"4px", gap:"12px", flexWrap:"wrap" }}>
                 <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.2)", lineHeight:"1.6", flex:1 }}>
-                  🔒 Tus respuestas son anónimas y confidenciales.<br/>Solo el administrador de la plataforma puede verlas.
+                  Tus respuestas son anónimas y confidenciales.<br/>Solo el administrador de la plataforma puede verlas.
                 </div>
                 <button
                   onClick={handleEnviar}
                   disabled={loading}
-                  style={{ padding:"9px 18px", background: loading?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#38bdf8,#0ea5e9)", border:"none", borderRadius:"10px", color: loading?"#38bdf8":"#0a1628", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor: loading?"not-allowed":"pointer", letterSpacing:"0.5px", flexShrink:0, opacity: loading?0.7:1, transition:"all 0.2s" }}
+                  style={{ padding:"9px 18px", background: loading?"rgba(56,189,248,0.1)":"linear-gradient(135deg,#38bdf8,#0ea5e9)", border:"none", borderRadius:"10px", color: loading?"#38bdf8":"#0a1628", fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", cursor: loading?"not-allowed":"pointer", letterSpacing:"0.5px", flexShrink:0, opacity: loading?0.7:1, transition:"transform .22s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease" }}
                 >
-                  {loading ? "Enviando..." : "ENVIAR ✓"}
+                  {loading ? "Enviando..." : "ENVIAR"}
                 </button>
               </div>
             </div>
@@ -28628,7 +28638,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
           {/* ── GRACIAS ── */}
           {!adminView && step === "thanks" && (
             <div style={{ padding:"28px 20px", textAlign:"center" }}>
-              <div style={{ fontSize:"40px", marginBottom:"12px" }}>🙏</div>
+              <div style={{ width:58,height:58,margin:"0 auto 12px",borderRadius:18,display:"grid",placeItems:"center",background:"rgba(52,211,153,.12)",border:"1px solid rgba(52,211,153,.28)",boxShadow:"0 0 28px rgba(52,211,153,.12)" }}><MS name="task_alt" size={34} active /></div>
               <div style={{ fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px", color:"#34d399", marginBottom:"8px" }}>¡Gracias por tu respuesta!</div>
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.4)", lineHeight:"1.8", maxWidth:"260px", margin:"0 auto 16px" }}>
                 Tu opinión es muy valiosa para seguir mejorando Conect Manzanillo. El equipo la tomará en cuenta.
@@ -31241,6 +31251,100 @@ function SecurityAlertsPanel({ onOpenRecords }) {
   </div>;
 }
 
+
+function BugReportStatusChip({ status }) {
+  const cfg = BUG_REPORT_STATUS[status] || BUG_REPORT_STATUS.pendiente;
+  return <span style={{display:"inline-flex",alignItems:"center",gap:6,minHeight:26,padding:"3px 9px",borderRadius:999,border:`1px solid ${cfg.color}55`,background:cfg.bg,color:cfg.color,font:"800 10px/16px Inter,sans-serif",letterSpacing:".04em",textTransform:"uppercase"}}><MS name="circle" size={10} active />{cfg.label}</span>;
+}
+
+function BugReportModal({ open, onClose, authUser, section }) {
+  const [view,setView]=useState("new");
+  const [comments,setComments]=useState("");
+  const [file,setFile]=useState(null);
+  const [preview,setPreview]=useState("");
+  const [error,setError]=useState("");
+  const [success,setSuccess]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [reports,setReports]=useState([]);
+  const [loadingReports,setLoadingReports]=useState(false);
+  const inputRef=useRef(null);
+  const origin=normalizeTabKey(section) || String(section || "inicio");
+
+  const loadMine=useCallback(async()=>{
+    if(!authUser?.id){setReports([]);return;}
+    setLoadingReports(true);
+    const {data,error:loadError}=await sb.from("reportes_bugs").select("*").eq("user_id",authUser.id).order("fecha_creacion",{ascending:false});
+    if(loadError)setError(loadError.message); else setReports(data||[]);
+    setLoadingReports(false);
+  },[authUser?.id]);
+  useEffect(()=>{if(open&&view==="mine")loadMine();},[open,view,loadMine]);
+  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
+  useEffect(()=>{if(!open){setView("new");setComments("");setFile(null);setError("");setSuccess("");if(preview)URL.revokeObjectURL(preview);setPreview("");}},[open]);
+  if(!open)return null;
+
+  const chooseFile=async(candidate)=>{
+    setError("");setSuccess("");
+    if(!candidate)return;
+    const validation=await validateStaticAttachment(candidate,{maxBytes:10*1024*1024});
+    if(!validation.ok||!String(validation.detectedType||"").startsWith("image/")){setError(validation.ok?"La captura debe ser una imagen JPG, PNG o WEBP.":validation.error);if(inputRef.current)inputRef.current.value="";return;}
+    if(preview)URL.revokeObjectURL(preview);
+    setFile(candidate);setPreview(URL.createObjectURL(candidate));
+  };
+  const submit=async(e)=>{
+    e.preventDefault();
+    setError("");setSuccess("");
+    if(!authUser?.id){setError("Inicia sesión para enviar y consultar tus reportes.");return;}
+    if(comments.trim().length<10){setError("Describe el problema con al menos 10 caracteres.");return;}
+    setSaving(true);
+    let uploadedPath=null;
+    try{
+      const validation=file?await validateStaticAttachment(file,{maxBytes:10*1024*1024}):{ok:true};
+      if(!validation.ok||(file&&!String(validation.detectedType||"").startsWith("image/")))throw new Error(validation.ok?"La captura no es una imagen admitida.":validation.error);
+      const form=new FormData();
+      form.append("comentarios",comments.trim());
+      form.append("seccion_origen",origin);
+      if(file)form.append("captura",file,file.name);
+      const {data:created,error:functionError}=await sb.functions.invoke("bug-report-submit",{body:form});
+      if(functionError)throw functionError;
+      if(!created?.ok)throw new Error(created?.error||"No se pudo registrar el reporte.");
+      setComments("");setFile(null);if(inputRef.current)inputRef.current.value="";if(preview)URL.revokeObjectURL(preview);setPreview("");
+      setSuccess("Reporte enviado. Puedes consultar su avance en “Mis reportes”.");
+      await loadMine();
+    }catch(err){setError(err?.message||"No se pudo enviar el reporte.");}
+    finally{setSaving(false);}
+  };
+  const signedCapture=async(report)=>{
+    if(!report?.captura)return;
+    const {data,error:signedError}=await sb.storage.from(BUG_REPORTS_BUCKET).createSignedUrl(report.captura,120);
+    if(signedError)setError(signedError.message);else window.open(data.signedUrl,"_blank","noopener,noreferrer");
+  };
+  return createPortal(<div className="cm-bug-backdrop" role="dialog" aria-modal="true" aria-labelledby="cm-bug-title" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)onClose()}}>
+    <style>{`
+      @keyframes cmBugIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+      .cm-bug-backdrop{position:fixed;inset:0;z-index:120000;background:rgba(2,8,16,.78);backdrop-filter:blur(14px);display:grid;place-items:center;padding:18px}.cm-bug-modal{width:min(760px,100%);max-height:min(860px,calc(100vh - 28px));overflow:auto;border:1px solid rgba(159,202,255,.25);border-radius:22px;background:linear-gradient(145deg,rgba(10,25,43,.98),rgba(5,15,27,.98));box-shadow:0 30px 90px rgba(0,0,0,.58),0 0 42px rgba(56,189,248,.10);animation:cmBugIn .28s cubic-bezier(.2,.8,.2,1);color:#e8f2ff;font-family:Inter,sans-serif}.cm-bug-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 22px;background:rgba(7,21,37,.94);border-bottom:1px solid rgba(159,202,255,.13);backdrop-filter:blur(18px)}.cm-bug-head h2{margin:0;font-size:22px}.cm-bug-tabs{display:flex;gap:8px;padding:14px 22px 0}.cm-bug-tab,.cm-bug-btn{border:1px solid rgba(159,202,255,.24);background:rgba(159,202,255,.07);color:#cfe5ff;border-radius:12px;min-height:42px;padding:9px 13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .2s ease,box-shadow .25s ease,border-color .2s ease,background .2s ease}.cm-bug-tab:hover,.cm-bug-btn:hover{transform:translateY(-2px);border-color:rgba(159,202,255,.55);box-shadow:0 12px 28px rgba(0,0,0,.26),0 0 24px rgba(56,189,248,.12)}.cm-bug-tab:active,.cm-bug-btn:active{transform:scale(.97)}.cm-bug-tab.is-active,.cm-bug-btn--primary{background:linear-gradient(135deg,rgba(14,165,233,.95),rgba(59,130,246,.9));color:#03111f;border-color:rgba(186,230,253,.72);box-shadow:0 12px 30px rgba(14,165,233,.22)}.cm-bug-body{padding:20px 22px 24px}.cm-bug-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cm-bug-field{display:grid;gap:7px}.cm-bug-field.is-wide{grid-column:1/-1}.cm-bug-field span{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9fb4ca}.cm-bug-input{width:100%;border:1px solid rgba(159,202,255,.18);border-radius:12px;background:rgba(2,12,24,.7);color:#edf6ff;padding:12px;outline:none;transition:border-color .2s,box-shadow .2s}.cm-bug-input:focus{border-color:#7dd3fc;box-shadow:0 0 0 3px rgba(56,189,248,.12)}textarea.cm-bug-input{min-height:130px;resize:vertical}.cm-bug-drop{border:1px dashed rgba(125,211,252,.38);border-radius:16px;padding:16px;background:radial-gradient(circle at top,rgba(56,189,248,.11),transparent 68%),rgba(2,12,24,.55)}.cm-bug-preview{margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid rgba(159,202,255,.18)}.cm-bug-preview img{display:block;width:100%;max-height:280px;object-fit:contain;background:#020812}.cm-bug-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap}.cm-bug-msg{margin:0 0 14px;padding:11px 13px;border-radius:10px;font-size:12px}.cm-bug-list{display:grid;gap:12px}.cm-bug-report{border:1px solid rgba(159,202,255,.17);border-radius:15px;background:rgba(10,25,43,.68);padding:15px;transition:.25s}.cm-bug-report:hover{border-color:rgba(159,202,255,.38);box-shadow:0 14px 34px rgba(0,0,0,.2)}.cm-bug-report__top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.cm-bug-report p{color:#c5d5e8;line-height:1.6;white-space:pre-wrap}.cm-bug-meta{display:flex;gap:10px;flex-wrap:wrap;color:#8298af;font-size:11px}.cm-bug-answer{margin-top:12px;padding:12px;border-left:3px solid #7dd3fc;background:rgba(56,189,248,.08);border-radius:0 10px 10px 0;color:#d8edff}.cm-bug-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}.cm-bug-empty{padding:34px;text-align:center;color:#8298af;border:1px dashed rgba(159,202,255,.2);border-radius:14px}@media(max-width:640px){.cm-bug-grid{grid-template-columns:1fr}.cm-bug-field.is-wide{grid-column:auto}.cm-bug-head,.cm-bug-body{padding-left:16px;padding-right:16px}.cm-bug-tabs{padding-left:16px;padding-right:16px}.cm-bug-report__top{display:grid}}
+    `}</style>
+    <section className="cm-bug-modal">
+      <header className="cm-bug-head"><div style={{display:"flex",alignItems:"center",gap:12}}><span style={{width:42,height:42,borderRadius:12,display:"grid",placeItems:"center",background:"rgba(56,189,248,.12)",color:"#7dd3fc"}}><MS name="bug_report" size={25} active /></span><div><h2 id="cm-bug-title">Reportar bug</h2><div style={{fontSize:11,color:"#8298af",marginTop:3}}>Ayúdanos a detectar y resolver problemas técnicos.</div></div></div><CloseButton onClick={onClose} disabled={saving}/></header>
+      <div className="cm-bug-tabs"><button type="button" className={`cm-bug-tab ${view==="new"?"is-active":""}`} onClick={()=>setView("new")}><MS name="add_comment" size={19} active={view==="new"}/>Nuevo reporte</button>{authUser&&<button type="button" className={`cm-bug-tab ${view==="mine"?"is-active":""}`} onClick={()=>setView("mine")}><MS name="fact_check" size={19} active={view==="mine"}/>Mis reportes</button>}</div>
+      <div className="cm-bug-body">{error&&<div className="cm-bug-msg" style={{background:"rgba(255,180,171,.10)",border:"1px solid rgba(255,180,171,.26)",color:"#ffb4ab"}}>{error}</div>}{success&&<div className="cm-bug-msg" style={{background:"rgba(78,222,163,.10)",border:"1px solid rgba(78,222,163,.26)",color:"#7ef0bd"}}>{success}</div>}
+      {view==="new"?<form onSubmit={submit}><div className="cm-bug-grid"><label className="cm-bug-field is-wide"><span>Descripción del problema</span><textarea className="cm-bug-input" value={comments} onChange={e=>setComments(e.target.value)} maxLength={2000} placeholder="Describe qué ocurrió, qué esperabas que sucediera y cómo reproducir el problema." required/></label><div className="cm-bug-field is-wide"><span>Captura de pantalla</span><div className="cm-bug-drop"><button className="cm-bug-btn" type="button" onClick={()=>inputRef.current?.click()}><MS name="add_photo_alternate" size={20} active />Adjuntar imagen</button><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseFile(e.target.files?.[0]||null)}/><div style={{fontSize:11,color:"#8298af",marginTop:9}}>JPG, PNG o WEBP; máximo 10 MB. Se valida el contenido binario real.</div>{preview&&<div className="cm-bug-preview"><img src={preview} alt="Vista previa de la captura"/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:10,gap:10}}><span style={{fontSize:11,color:"#a9bed3",overflow:"hidden",textOverflow:"ellipsis"}}>{file?.name}</span><button type="button" className="cm-bug-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setFile(null);if(inputRef.current)inputRef.current.value=""}}><MS name="delete" size={18}/>Quitar</button></div></div>}</div></div><label className="cm-bug-field"><span>Sección de origen</span><input className="cm-bug-input" value={origin} readOnly/></label><label className="cm-bug-field"><span>Fecha y hora</span><input className="cm-bug-input" value={new Date().toLocaleString("es-MX")} readOnly/></label><label className="cm-bug-field is-wide"><span>ID de usuario</span><input className="cm-bug-input" value={authUser?.id||"No autenticado"} readOnly/></label></div><div className="cm-bug-actions"><button type="button" className="cm-bug-btn" onClick={onClose}>Cancelar</button><button type="submit" className="cm-bug-btn cm-bug-btn--primary" disabled={saving||!authUser}>{saving?<><MS name="progress_activity" size={19}/>Enviando</>:<><MS name="send" size={19}/>Enviar reporte</>}</button></div>{!authUser&&<div style={{marginTop:12,color:"#fbbf24",fontSize:12}}>Debes iniciar sesión para registrar y dar seguimiento al reporte.</div>}</form>:<div className="cm-bug-list">{loadingReports?<div className="cm-bug-empty">Consultando tus reportes…</div>:reports.length?reports.map(report=><article className="cm-bug-report" key={report.id}><div className="cm-bug-report__top"><div><strong style={{fontSize:14}}>Reporte {String(report.id).slice(0,8).toUpperCase()}</strong><div className="cm-bug-meta" style={{marginTop:7}}><span><MS name="schedule" size={14}/> {new Date(report.fecha_creacion).toLocaleString("es-MX")}</span><span><MS name="view_quilt" size={14}/> {report.seccion_origen}</span></div></div><BugReportStatusChip status={report.estatus}/></div><p>{report.comentarios}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{report.captura&&<button type="button" className="cm-bug-btn" onClick={()=>signedCapture(report)}><MS name="image" size={18}/>Ver captura</button>}</div>{report.respuesta_admin&&<div className="cm-bug-answer"><strong>Respuesta de soporte</strong><div style={{marginTop:6,whiteSpace:"pre-wrap"}}>{report.respuesta_admin}</div></div>}</article>):<div className="cm-bug-empty"><MS name="inbox" size={32} active/><div style={{marginTop:8}}>Aún no has enviado reportes.</div></div>}</div>}</div>
+    </section></div>,document.body);
+}
+
+function AdminBugReportsPanel() {
+  const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [filters,setFilters]=useState({status:"all",section:"all",from:"",to:"",q:""});
+  const [selected,setSelected]=useState(null),[reply,setReply]=useState(""),[status,setStatus]=useState("pendiente"),[saving,setSaving]=useState(false);
+  const load=useCallback(async()=>{setLoading(true);setError("");const {data,error:e}=await sb.from("reportes_bugs").select("*").order("fecha_creacion",{ascending:false});if(e)setError(e.message);else setItems(data||[]);setLoading(false);},[]);
+  useEffect(()=>{load();},[load]);
+  const visible=useMemo(()=>items.filter(x=>{if(filters.status!=="all"&&x.estatus!==filters.status)return false;if(filters.section!=="all"&&x.seccion_origen!==filters.section)return false;const ms=toMs(x.fecha_creacion);if(filters.from&&ms<new Date(filters.from+"T00:00:00").getTime())return false;if(filters.to&&ms>new Date(filters.to+"T23:59:59").getTime())return false;const q=filters.q.toLowerCase().trim();return !q||[x.id,x.user_id,x.comentarios,x.seccion_origen,x.respuesta_admin].join(" ").toLowerCase().includes(q)}),[items,filters]);
+  const sections=[...new Set(items.map(x=>x.seccion_origen).filter(Boolean))].sort();
+  const openItem=x=>{setSelected(x);setReply(x.respuesta_admin||"");setStatus(x.estatus||"pendiente")};
+  const save=async()=>{if(!selected)return;setSaving(true);const {error:e}=await sb.from("reportes_bugs").update({estatus:status,respuesta_admin:reply.trim()||null,fecha_actualizacion:new Date().toISOString()}).eq("id",selected.id);if(e)setError(e.message);else{await load();setSelected(null)}setSaving(false)};
+  const openCapture=async x=>{const {data,error:e}=await sb.storage.from(BUG_REPORTS_BUCKET).createSignedUrl(x.captura,180);if(e)setError(e.message);else window.open(data.signedUrl,"_blank","noopener,noreferrer")};
+  return <div className="cm-admin-bugs"><style>{`.cm-admin-bugs{font-family:Inter,sans-serif}.cab-toolbar{display:grid;grid-template-columns:1.4fr repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:16px}.cab-control{width:100%;min-height:42px;border:1px solid rgba(159,202,255,.2);border-radius:8px;background:#101415;color:#e0e3e5;padding:9px 11px;outline:none}.cab-control:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.cab-list{display:grid;gap:10px}.cab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.84),rgba(16,20,21,.9));transition:.25s}.cab-row:hover{border-color:rgba(159,202,255,.46);box-shadow:0 0 24px rgba(159,202,255,.09);transform:translateY(-1px)}.cab-meta{display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px;margin-top:8px}.cab-btn{min-height:38px;border:1px solid rgba(159,202,255,.32);border-radius:6px;background:rgba(159,202,255,.08);color:#9fcaff;padding:8px 11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}.cab-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22),0 0 20px rgba(159,202,255,.1)}.cab-empty{padding:38px;text-align:center;color:#89919e;border:1px dashed rgba(63,71,83,.7);border-radius:8px}.cab-modal{position:fixed;inset:0;z-index:130000;background:rgba(0,0,0,.74);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px}.cab-dialog{width:min(760px,100%);max-height:calc(100vh - 30px);overflow:auto;border:1px solid rgba(159,202,255,.3);border-radius:16px;background:#101415;color:#e0e3e5;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.cab-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cab-box{padding:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:#191c1e}.cab-box.is-wide{grid-column:1/-1}.cab-box small{display:block;color:#89919e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}@media(max-width:900px){.cab-toolbar{grid-template-columns:1fr 1fr}.cab-row{grid-template-columns:1fr}}@media(max-width:600px){.cab-toolbar,.cab-detail{grid-template-columns:1fr}.cab-box.is-wide{grid-column:auto}}`}</style><div className="cab-toolbar"><input className="cab-control" placeholder="Buscar ID, usuario o comentario" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/><select className="cab-control" value={filters.status} onChange={e=>setFilters(f=>({...f,status:e.target.value}))}><option value="all">Todos los estatus</option>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><select className="cab-control" value={filters.section} onChange={e=>setFilters(f=>({...f,section:e.target.value}))}><option value="all">Todas las secciones</option>{sections.map(x=><option key={x}>{x}</option>)}</select><input className="cab-control" type="date" value={filters.from} onChange={e=>setFilters(f=>({...f,from:e.target.value}))}/><input className="cab-control" type="date" value={filters.to} onChange={e=>setFilters(f=>({...f,to:e.target.value}))}/></div>{error&&<div className="cab-empty" style={{color:"#ffb4ab"}}>{error}</div>}{!error&&loading&&<div className="cab-empty">Cargando reportes…</div>}{!error&&!loading&&<div className="cab-list">{visible.length?visible.map(x=><article className="cab-row" key={x.id}><div><div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><strong>{String(x.id).slice(0,8).toUpperCase()}</strong><BugReportStatusChip status={x.estatus}/></div><p style={{color:"#bfc7d5",lineHeight:1.55,margin:"10px 0 0"}}>{x.comentarios}</p><div className="cab-meta"><span>Sección: {x.seccion_origen}</span><span>Usuario: {x.user_id}</span><span>{new Date(x.fecha_creacion).toLocaleString("es-MX")}</span></div></div><div style={{display:"flex",alignItems:"center"}}><button className="cab-btn" onClick={()=>openItem(x)}><MS name="open_in_new" size={18}/>Atender</button></div></article>):<div className="cab-empty"><MS name="bug_report" size={34} active/><div style={{marginTop:8}}>No hay reportes que coincidan con los filtros.</div></div>}</div>}{selected&&<div className="cab-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setSelected(null)}}><section className="cab-dialog"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><div><h3 style={{margin:0,fontSize:22}}>Detalle del reporte</h3><div style={{color:"#89919e",fontSize:11,marginTop:4}}>{selected.id}</div></div><CloseButton onClick={()=>setSelected(null)} disabled={saving}/></div><div className="cab-detail"><div className="cab-box"><small>Usuario</small><code style={{wordBreak:"break-all"}}>{selected.user_id}</code></div><div className="cab-box"><small>Fecha</small>{new Date(selected.fecha_creacion).toLocaleString("es-MX")}</div><div className="cab-box"><small>Sección</small>{selected.seccion_origen}</div><div className="cab-box"><small>Estatus actual</small><BugReportStatusChip status={selected.estatus}/></div><div className="cab-box is-wide"><small>Comentarios</small><div style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{selected.comentarios}</div></div>{selected.captura&&<div className="cab-box is-wide"><small>Captura</small><button className="cab-btn" onClick={()=>openCapture(selected)}><MS name="image" size={18}/>Abrir captura segura</button></div>}<label className="cab-box"><small>Nuevo estatus</small><select className="cab-control" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></label><label className="cab-box"><small>ID / perfil del usuario</small><div style={{display:"flex",gap:8}}><input className="cab-control" readOnly value={selected.user_id}/><button className="cab-btn" type="button" onClick={()=>navigator.clipboard?.writeText(selected.user_id)} aria-label="Copiar ID"><MS name="content_copy" size={18}/></button></div></label><label className="cab-box is-wide"><small>Respuesta visible para el usuario</small><textarea className="cab-control" style={{minHeight:130,resize:"vertical"}} value={reply} onChange={e=>setReply(e.target.value)} maxLength={3000}/></label></div><div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}><button className="cab-btn" onClick={()=>setSelected(null)}>Cancelar</button><button className="cab-btn" style={{background:"linear-gradient(135deg,#9fcaff,#00e3fd)",color:"#002f54"}} onClick={save} disabled={saving}><MS name="save" size={18}/>{saving?"Guardando":"Guardar cambios"}</button></div></section></div>}</div>;
+}
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -31279,6 +31383,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"confinados", permission:["gestionar_confinados"], title:"Confinados", subtitle:"Control operativo del segundo acceso y carriles confinados", icon:"lock_clock" },
     { id:"access", permission:["gestionar_accesos","actualizar_carriles"], title:"Accesos", subtitle:"Monitoreo y actualización directa de accesos", icon:"door_sliding" },
     { id:"posturas", permission:["gestionar_posturas"], title:"Posturas", subtitle:"Perfiles, vacantes, salarios y postulaciones", icon:"work_history" },
+    { id:"bug_reports", permission:["gestionar_soporte","gestionar_quejas"], title:"Reportes de bugs", subtitle:"Recepción, diagnóstico, respuesta y resolución de problemas técnicos", icon:"bug_report" },
     { id:"security", permission:["ver_alertas_seguridad"], title:"Alertas de seguridad", subtitle:"Intentos bloqueados por VirusTotal, revisión y seguimiento", icon:"security" },
     { id:"records", permission:["gestionar_registros"], title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
     { id:"tools", permission:["herramientas_admin","ver_control_portuario"], title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
@@ -31555,6 +31660,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "complaints" && <PosturasTab key="admin-posturas-complaints" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="complaints" />}
                 {activeDashboardSection === "support" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "verification" && <PosturasTab key="admin-posturas-verification" authUser={authUser} myId={myId} setActive={setActiveTab} isAdmin={true} onLogin={onLogin} onRegister={onRegister} initialAdminView="verification" />}
+                {activeDashboardSection === "bug_reports" && <AdminBugReportsPanel />}
                 {activeDashboardSection === "security" && <SecurityAlertsPanel onOpenRecords={() => openSection("records")} />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && <div className="csp-tool-grid">
@@ -31716,6 +31822,8 @@ function App() {
 
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const openBugReport = useCallback(() => { setShowSessionMenu(false); setBugReportOpen(true); }, []);
   useEffect(() => {
     const forceSignOut = () => {
       setAuthUser(null);
@@ -32546,7 +32654,7 @@ function App() {
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
-        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} />}
+        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} onReportBug={openBugReport} />}
 
         {/* CONTROL PORTUARIO PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
         {active === "portuario" && (
@@ -32614,19 +32722,14 @@ function App() {
             </div>
           </div>
           <button role="menuitem" type="button" onClick={openGlobalProfileEditor} className="cm-global-user-menu__item"><MS name="manage_accounts" size={21} active /><span>Actualizar perfil</span></button>
-          <div style={{margin:"6px 4px",padding:"10px",border:"1px solid rgba(159,202,255,.16)",borderRadius:"8px",background:"rgba(159,202,255,.05)"}}>
-            <div style={{fontSize:"10px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:"#89919e",marginBottom:"6px"}}>ID de usuario</div>
-            <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-              <code style={{minWidth:0,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",font:"500 11px/18px Inter,sans-serif",color:"#bfc7d5"}} title={authUser.id}>{authUser.id}</code>
-              <button type="button" onClick={copyAuthenticatedUserId} aria-label="Copiar ID de usuario" style={{width:"36px",height:"36px",display:"grid",placeItems:"center",border:"1px solid rgba(159,202,255,.28)",borderRadius:"4px",background:copiedUserId?"rgba(0,227,253,.14)":"rgba(39,42,44,.8)",color:copiedUserId?"#bdf4ff":"#9fcaff",cursor:"pointer",transition:"all .3s ease"}}><MS name={copiedUserId?"check":"content_copy"} size={19} active /></button>
-            </div>
-            {copiedUserId && <div role="status" style={{marginTop:"6px",fontSize:"11px",color:"#bdf4ff"}}>ID copiado</div>}
-          </div>
+          <button role="menuitem" type="button" onClick={openBugReport} className="cm-global-user-menu__item"><MS name="bug_report" size={21} active /><span>Reportar bug</span></button>
           <div className="cm-global-user-menu__divider" />
           <button role="menuitem" type="button" onClick={handleSignOut} className="cm-global-user-menu__item cm-global-user-menu__item--danger"><MS name="logout" size={21} color="currentColor" /><span>Cerrar sesión</span></button>
         </div>,
         document.body
       )}
+
+      <BugReportModal open={bugReportOpen} onClose={()=>setBugReportOpen(false)} authUser={authUser} section={active} />
 
       <GlobalIdentityProfileModal
         open={globalProfileEditorOpen}
