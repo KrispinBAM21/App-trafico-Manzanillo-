@@ -204,9 +204,52 @@ const GLOBAL_AVATARS_BUCKET = import.meta.env.VITE_SUPABASE_AVATARS_BUCKET || "a
 // Puede sobrescribirse desde VITE_SUPABASE_NOTICIAS_BUCKET si después creas otro bucket.
 const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET || "comunicados";
 
+const AUTH_PERSISTENCE_KEY = "cm_auth_persistence";
+const AUTH_STORAGE_PREFIXES = ["sb-", "supabase.auth."];
+const getAuthStorageMode = () => {
+  try { return localStorage.getItem(AUTH_PERSISTENCE_KEY) === "local" ? "local" : "session"; }
+  catch { return "session"; }
+};
+const authStorage = {
+  getItem(key) {
+    if (typeof window === "undefined") return null;
+    try {
+      const primary = getAuthStorageMode() === "local" ? localStorage : sessionStorage;
+      const secondary = primary === localStorage ? sessionStorage : localStorage;
+      return primary.getItem(key) ?? secondary.getItem(key);
+    } catch { return null; }
+  },
+  setItem(key, value) {
+    if (typeof window === "undefined") return;
+    try {
+      const primary = getAuthStorageMode() === "local" ? localStorage : sessionStorage;
+      const secondary = primary === localStorage ? sessionStorage : localStorage;
+      primary.setItem(key, value);
+      secondary.removeItem(key);
+    } catch {}
+  },
+  removeItem(key) {
+    if (typeof window === "undefined") return;
+    try { localStorage.removeItem(key); } catch {}
+    try { sessionStorage.removeItem(key); } catch {}
+  },
+};
+const clearPersistedAuthArtifacts = () => {
+  if (typeof window === "undefined") return;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      for (let i = storage.length - 1; i >= 0; i -= 1) {
+        const key = storage.key(i) || "";
+        if (AUTH_STORAGE_PREFIXES.some(prefix => key.startsWith(prefix)) || key === "cm_auth_user_id") storage.removeItem(key);
+      }
+    } catch {}
+  }
+};
+
 const sb = createClient(SUPA_URL, SUPA_KEY, {
   auth: {
     persistSession: true,
+    storage: authStorage,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: "pkce",
@@ -383,6 +426,17 @@ const updateUrlForTab = (tab, replace = false) => {
     const fn = replace ? "replaceState" : "pushState";
     window.history[fn]({ tab: safe }, "", nextUrl);
   } catch {}
+};
+
+const makeValidDefaultUsername = (userOrEmail, fallbackId = "") => {
+  const email = typeof userOrEmail === "string" ? userOrEmail : (userOrEmail?.email || "");
+  const id = String(fallbackId || userOrEmail?.id || "").replace(/[^a-zA-Z0-9]/g, "");
+  let base = String(email).split("@")[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+  if (base.length < 3) base = `usuario_${id.slice(0, 8) || Math.random().toString(36).slice(2, 10)}`;
+  const suffix = id.slice(0, 6).toLowerCase();
+  if (base.length > 30) base = base.slice(0, 30);
+  if (!/^[a-z0-9_]{3,30}$/.test(base)) base = `usuario_${suffix || Math.random().toString(36).slice(2, 8)}`.slice(0, 30);
+  return base;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5947,13 +6001,24 @@ const hashPassword = async (pass) => {
 
 const normalizeAccountLookup = (row, fallbackId) => {
   if (!row) return null;
-  const meta = row.user_metadata || row.raw_user_meta_data || {};
-  const email = row.email || row.user_email || meta.email || "";
-  const display = row.nombre || row.display_name || row.full_name || row.name || meta.full_name || meta.name || email.split("@")[0] || "Usuario";
-  const username = row.username || row.user_name || meta.user_name || meta.preferred_username || email.split("@")[0] || `user_${String(fallbackId).slice(0,8)}`;
-  return { id:String(row.user_id || row.auth_user_id || row.id || fallbackId), username:String(username).replace(/\s+/g,"_").toLowerCase(), nombre:String(display), email };
+  const source = row.user || row.auth_user || row.account || row.profile || row;
+  const parseMeta = (value) => {
+    if (!value) return {};
+    if (typeof value === "object") return value;
+    try { return JSON.parse(value); } catch { return {}; }
+  };
+  const meta = {
+    ...parseMeta(row.user_metadata),
+    ...parseMeta(row.raw_user_meta_data),
+    ...parseMeta(source.user_metadata),
+    ...parseMeta(source.raw_user_meta_data),
+  };
+  const email = source.email || row.email || row.user_email || meta.email || "";
+  const display = source.nombre || source.nombre_visible || source.display_name || source.full_name || source.name || row.nombre || row.nombre_visible || row.display_name || row.full_name || row.name || meta.nombre || meta.nombre_visible || meta.display_name || meta.full_name || meta.name || email.split("@")[0] || "Usuario";
+  const rawUsername = source.username || source.nombre_usuario || source.user_name || source.preferred_username || row.username || row.nombre_usuario || row.user_name || meta.username || meta.nombre_usuario || meta.user_name || meta.preferred_username || "";
+  const username = /^[a-z0-9_]{3,30}$/i.test(String(rawUsername)) ? String(rawUsername).toLowerCase() : makeValidDefaultUsername(email, fallbackId);
+  return { id:String(source.user_id || source.auth_user_id || source.id || row.user_id || row.auth_user_id || row.id || fallbackId), username, nombre:String(display), email };
 };
-
 async function lookupExistingAuthUser(userId) {
   const id = String(userId || "").trim();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return null;
@@ -5965,6 +6030,8 @@ async function lookupExistingAuthUser(userId) {
   for (const query of [
     () => sb.from("profiles").select("*").eq("id",id).maybeSingle(),
     () => sb.from("profiles").select("*").eq("user_id",id).maybeSingle(),
+    () => sb.from("global_profiles").select("*").eq("user_id",id).maybeSingle(),
+    () => sb.from("user_profiles").select("*").eq("user_id",id).maybeSingle(),
     () => sb.from("quejas_tickets").select("user_id,user_email").eq("user_id",id).order("fecha_creacion",{ascending:false}).limit(1).maybeSingle(),
     () => sb.from("posturas_empresas").select("*").eq("user_id",id).limit(1).maybeSingle(),
   ]) {
@@ -25323,7 +25390,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                   {(isAdmin || posturasUserType === "empresa" || sessionPosturasType === "empresa") && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("vacancies"); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"10px", width:"100%", minHeight:"48px", padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"10.5px", fontWeight:"700", letterSpacing:".045em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="vacancy_clipboard" size={19} /></span><span>Mis vacantes</span>{activeVacancyCount > 0 && <span style={{ marginLeft:"auto", padding:"4px 7px", borderRadius:"6px", background:"rgba(159,202,255,.20)", color:"#9fcaff", fontSize:"9px", fontWeight:"800", letterSpacing:".01em", whiteSpace:"nowrap" }}>{activeVacancyCount} {activeVacancyCount === 1 ? "NUEVA" : "NUEVAS"}</span>}</button>}
                   {(authUser || isAdmin) && <button role="menuitem" onClick={()=>{ setProfileMenuOpen(false); setSub("posturas"); setPosturasMode("profile"); setProfileEditorOpen(true); }} className="cm-profile-menu-card" style={{ display:"flex", alignItems:"center", gap:"10px", width:"100%", minHeight:"48px", padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(159,202,255,.08)", background:"#1e293b", color:"#f8fafc", fontFamily:"'Inter', sans-serif", fontSize:"10.5px", fontWeight:"700", letterSpacing:".045em", textTransform:"uppercase", cursor:"pointer", textAlign:"left" }}><span className="cm-profile-menu-icon"><PosturasSidebarIcon name="edit_profile" size={20} /></span><span>Editar perfil</span></button>}
                 </nav>
-                {(authUser || isAdmin) && <div style={{ marginTop:"2px", paddingTop:"9px", borderTop:"1px solid rgba(255,255,255,.06)", display:"flex", justifyContent:"flex-end" }}><button type="button" onClick={async()=>{ setProfileMenuOpen(false); try { await sb.auth.signOut(); } catch (e) { console.error("signOut error:", e); } }} className="cm-profile-signout" style={{ border:"none", background:"transparent", color:"#fb7185", fontFamily:"'Inter', sans-serif", fontSize:"11px", fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", cursor:"pointer", padding:"6px 4px" }}>Cerrar sesión</button></div>}
+                {(authUser || isAdmin) && <div style={{ marginTop:"2px", paddingTop:"9px", borderTop:"1px solid rgba(255,255,255,.06)", display:"flex", justifyContent:"flex-end" }}><button type="button" onClick={async()=>{ setProfileMenuOpen(false); try { await sb.auth.signOut({scope:"global"}); } catch (e) { console.error("signOut error:", e); try { await sb.auth.signOut({scope:"local"}); } catch {} } finally { clearPersistedAuthArtifacts(); try { localStorage.removeItem(AUTH_PERSISTENCE_KEY); } catch {} window.dispatchEvent(new CustomEvent("cm:force-signout")); } }} className="cm-profile-signout" style={{ border:"none", background:"transparent", color:"#fb7185", fontFamily:"'Inter', sans-serif", fontSize:"11px", fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", cursor:"pointer", padding:"6px 4px" }}>Cerrar sesión</button></div>}
               </div>
             )}
           </div>
@@ -27137,8 +27204,8 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
   // Login
   const [loginUser, setLoginUser] = useState(() => { try { return localStorage.getItem("cm_remember_email") || ""; } catch { return ""; } });
-  const [loginPass, setLoginPass] = useState(() => { try { return localStorage.getItem("cm_remember_pass") || ""; } catch { return ""; } });
-  const [loginRemember, setLoginRemember] = useState(() => { try { return !!localStorage.getItem("cm_remember_email"); } catch { return false; } });
+  const [loginPass, setLoginPass] = useState("");
+  const [loginRemember, setLoginRemember] = useState(() => getAuthStorageMode() === "local");
   const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginMsg, setLoginMsg] = useState(null);
 
@@ -27199,16 +27266,23 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     const email = loginUser.includes("@") ? loginUser.trim() : null;
     if (!email) { setLoginMsg({type:"err", text:"Ingresa tu correo electrónico para iniciar sesión"}); return; }
     setLoading(true); setLoginMsg(null);
+    try {
+      if (loginRemember) {
+        localStorage.setItem(AUTH_PERSISTENCE_KEY, "local");
+        localStorage.setItem("cm_remember_email", loginUser.trim());
+      } else {
+        localStorage.removeItem(AUTH_PERSISTENCE_KEY);
+        localStorage.removeItem("cm_remember_email");
+      }
+      localStorage.removeItem("cm_remember_pass");
+      sessionStorage.removeItem("cm_remember_pass");
+    } catch {}
     const { error } = await sb.auth.signInWithPassword({ email, password: loginPass });
     setLoading(false);
     if (error) setLoginMsg({type:"err", text:error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos" : error.message});
     else {
+      setLoginPass("");
       setLoginMsg({type:"ok", text:"Sesión iniciada correctamente."});
-      if (loginRemember) {
-        try { localStorage.setItem("cm_remember_email", loginUser.trim()); localStorage.setItem("cm_remember_pass", loginPass); } catch {}
-      } else {
-        try { localStorage.removeItem("cm_remember_email"); localStorage.removeItem("cm_remember_pass"); } catch {}
-      }
       setTimeout(() => onClose && onClose(), 650);
     }
   };
@@ -27252,7 +27326,8 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
   const handleRegStep = async () => {
     setRegMsg(null);
     if (regStep === 1) {
-      if (!regNombre.trim() || !regApellidos.trim() || !regUsername.trim() || !regFecha || !regPais.trim() || !regCiudad.trim()) { setRegMsg({type:"err", text:"Completa todos los campos obligatorios"}); return; }
+      if (!regNombre.trim() || !regApellidos.trim() || !regFecha || !regPais.trim() || !regCiudad.trim()) { setRegMsg({type:"err", text:"Completa todos los campos obligatorios"}); return; }
+      if (regUsername.trim() && !/^[A-Za-z0-9_]{3,30}$/.test(regUsername.trim())) { setRegMsg({type:"err", text:"El nombre de usuario debe tener entre 3 y 30 caracteres y usar solo letras, números o guion bajo"}); return; }
       setRegStep(2);
     } else if (regStep === 2) {
       setRegMsg({type:"err", text:"Verifica tu número de teléfono primero"});
@@ -27267,10 +27342,11 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
       if (regAntibot.trim() !== "8") { setRegMsg({type:"err", text:"Respuesta incorrecta — ¿cuánto es 3 + 5?"}); return; }
       if (!regTerminos || !regPrivacidad) { setRegMsg({type:"err", text:"Debes aceptar los términos y la política de privacidad"}); return; }
       setLoading(true);
+      const defaultUsername = regUsername.trim().toLowerCase() || makeValidDefaultUsername(regCorreo.trim());
       const { error } = await sb.auth.signUp({
         email: regCorreo.trim(),
         password: regPass,
-        options: { data: { nombre:regNombre.trim(), apellidos:regApellidos.trim(), username:regUsername.trim(), fecha_nacimiento:regFecha, pais:regPais.trim(), ciudad:regCiudad.trim(), telefono:regTel.trim(), tipo_usuario:regTipoUsuario } }
+        options: { data: { nombre:regNombre.trim(), display_name:`${regNombre.trim()} ${regApellidos.trim()}`.trim(), apellidos:regApellidos.trim(), username:defaultUsername, user_name:defaultUsername, preferred_username:defaultUsername, fecha_nacimiento:regFecha, pais:regPais.trim(), ciudad:regCiudad.trim(), telefono:regTel.trim(), tipo_usuario:regTipoUsuario } }
       });
       setLoading(false);
       if (error) setRegMsg({type:"err", text:error.message});
@@ -27625,7 +27701,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <AuthCheckbox
                     checked={loginRemember}
                     onToggle={() => setLoginRemember(v => !v)}
-                    label="Recordar mi sesión por 30 días"
+                    label="Mantener sesión iniciada en este dispositivo"
                   />
                 </div>
 
@@ -30199,10 +30275,25 @@ function GlobalIdentityProfileModal({
 
             <div className="cm-profile-modal__photo-copy">
               <div className="cm-profile-modal__photo-title"><MS name="image" size={19} active /><span>Foto de perfil</span></div>
-              <p className="cm-profile-modal__hint">JPG, PNG o WEBP. Máximo 5 MB.</p>
-              <label htmlFor="global-profile-photo" className="cm-profile-modal__upload-button"><MS name="add_a_photo" size={20} active /><span>Seleccionar foto</span></label>
+              <p className="cm-profile-modal__hint">Pulsa el ícono de cámara. JPG, PNG o WEBP; máximo 5 MB.</p>
             </div>
           </section>
+
+          <label className="cm-profile-modal__field">
+            <span className="cm-profile-modal__label">Nombre visible</span>
+            <div className="cm-profile-modal__input-wrap">
+              <span className="cm-profile-modal__input-icon"><MS name="badge" size={21} active /></span>
+              <input
+                value={globalProfileDisplayName}
+                onChange={(event) => setGlobalProfileDisplayName(event.target.value.slice(0, 80))}
+                autoComplete="name"
+                maxLength={80}
+                placeholder="Tu nombre visible"
+                disabled={globalProfileSaving}
+                className="cm-profile-modal__input"
+              />
+            </div>
+          </label>
 
           <label className="cm-profile-modal__field">
             <span className="cm-profile-modal__label">Nombre de usuario</span>
@@ -31121,6 +31212,18 @@ function App() {
 
   // ── Sesión de usuario Supabase Auth ──
   const [authUser, setAuthUser] = useState(null);
+  useEffect(() => {
+    const forceSignOut = () => {
+      setAuthUser(null);
+      subLogout();
+      logout();
+      setShowSessionMenu(false);
+      setGlobalProfileEditorOpen(false);
+      setActive("inicio", { replace:true });
+    };
+    window.addEventListener("cm:force-signout", forceSignOut);
+    return () => window.removeEventListener("cm:force-signout", forceSignOut);
+  }, [logout, subLogout]);
 
   // Presencia de sesión en tiempo real sin cambios de backend: usa Supabase Realtime Presence.
   // Cada cliente autenticado publica únicamente metadatos mínimos necesarios para moderación.
@@ -31169,6 +31272,7 @@ function App() {
   }, [authUser?.id]);
   const [globalProfileEditorOpen, setGlobalProfileEditorOpen] = useState(false);
   const [globalProfileUsername, setGlobalProfileUsername] = useState("");
+  const [globalProfileDisplayName, setGlobalProfileDisplayName] = useState("");
   const [globalProfilePhotoFile, setGlobalProfilePhotoFile] = useState(null);
   const [globalProfilePhotoPreview, setGlobalProfilePhotoPreview] = useState("");
   const [globalProfileSaving, setGlobalProfileSaving] = useState(false);
@@ -31303,11 +31407,12 @@ function App() {
   const openGlobalProfileEditor = useCallback(() => {
     setShowSessionMenu(false);
     setGlobalProfileUsername(getGlobalIdentityUsername());
+    setGlobalProfileDisplayName(String(authUser?.user_metadata?.display_name || authUser?.user_metadata?.nombre || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || ""));
     setGlobalProfilePhotoFile(null);
     setGlobalProfilePhotoPreview(getGlobalIdentityAvatar());
     setGlobalProfileError("");
     setGlobalProfileEditorOpen(true);
-  }, [getGlobalIdentityAvatar, getGlobalIdentityUsername]);
+  }, [authUser, getGlobalIdentityAvatar, getGlobalIdentityUsername]);
 
   const closeGlobalProfileEditor = useCallback(() => {
     if (globalProfileSaving) return;
@@ -31369,6 +31474,9 @@ function App() {
           username: normalized,
           user_name: normalized,
           preferred_username: normalized,
+          display_name: String(globalProfileDisplayName || "").trim() || null,
+          nombre: String(globalProfileDisplayName || "").trim() || currentMetadata.nombre || null,
+          full_name: String(globalProfileDisplayName || "").trim() || currentMetadata.full_name || null,
           avatar_url: avatarUrl || null,
           picture: avatarUrl || currentMetadata.picture || null
         }
@@ -31391,17 +31499,33 @@ function App() {
     } finally {
       setGlobalProfileSaving(false);
     }
-  }, [authUser, getGlobalIdentityAvatar, globalProfilePhotoFile, globalProfileSaving, globalProfileUsername]);
+  }, [authUser, getGlobalIdentityAvatar, globalProfileDisplayName, globalProfilePhotoFile, globalProfileSaving, globalProfileUsername]);
 
   const handleSignOut = async () => {
+    setShowSessionMenu(false);
+    setGlobalProfileEditorOpen(false);
+    setAuthQuickMode(null);
     try {
-      await sb.auth.signOut();
+      const { error } = await sb.auth.signOut({ scope:"global" });
+      if (error) throw error;
     } catch(e) {
       console.error("signOut error:", e);
+      try { await sb.auth.signOut({ scope:"local" }); } catch {}
+    } finally {
+      clearPersistedAuthArtifacts();
+      try {
+        localStorage.removeItem(AUTH_PERSISTENCE_KEY);
+        localStorage.removeItem("cm_remember_pass");
+        sessionStorage.removeItem("cm_remember_pass");
+        localStorage.removeItem(AUTH_RETURN_LOCATION_KEY);
+        localStorage.removeItem(AUTH_RETURN_TAB_KEY);
+        localStorage.removeItem("cm_posturas_pending_profile_access");
+      } catch {}
+      setAuthUser(null);
+      subLogout();
+      logout();
+      setActive("inicio", { replace:true });
     }
-    setAuthUser(null);
-    try { localStorage.removeItem("cm_auth_user_id"); } catch {}
-    setShowSessionMenu(false);
   };
 
   useEffect(() => {
@@ -31437,9 +31561,24 @@ function App() {
     };
 
     const finishAuthenticatedFlow = async (session) => {
-      const nextUser = session?.user ?? null;
+      let nextUser = session?.user ?? null;
       rememberAuthUser(nextUser);
       if (!nextUser) return;
+
+      const metadata = nextUser.user_metadata || {};
+      const existingUsername = metadata.username || metadata.user_name || metadata.preferred_username || "";
+      if (!/^[a-z0-9_]{3,30}$/i.test(String(existingUsername))) {
+        const generatedUsername = makeValidDefaultUsername(nextUser.email, nextUser.id);
+        try {
+          const { data:updateData, error:updateError } = await sb.auth.updateUser({ data:{ ...metadata, username:generatedUsername, user_name:generatedUsername, preferred_username:generatedUsername } });
+          if (!updateError && updateData?.user) {
+            nextUser = updateData.user;
+            rememberAuthUser(nextUser);
+          }
+        } catch (error) {
+          console.error("Unable to assign default username:", error);
+        }
+      }
 
       setAuthQuickMode(null);
       try {
