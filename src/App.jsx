@@ -28819,7 +28819,10 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
             <button type="button" className="cm-hero-btn primary" onClick={() => onSetActive?.("trafico")}>
               <AppIcon name="window" size={22} active /> Panel de Control
             </button>
-            <button type="button" className="cm-hero-btn secondary" onClick={() => onSetActive?.("reporte")}>
+            <button type="button" className="cm-hero-btn secondary" onClick={() => {
+              try { sessionStorage.setItem("trafico_command_view", "mapa_maestro"); } catch {}
+              onSetActive?.("trafico");
+            }}>
               <AppIcon name="route" size={22} active /> Ver Rutas Live
             </button>
           </div>
@@ -32204,6 +32207,16 @@ function App() {
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
           .cm-compact-text{white-space:pre-wrap;word-break:normal;overflow-wrap:break-word;line-height:1.45;}
           @media(max-width:640px){.cm-compact-text{max-height:120px;overflow-y:auto;}}
+          .cm-section-shell{
+            --cm-fixed-nav-offset:96px;
+            min-height:100vh;
+            padding-top:var(--cm-fixed-nav-offset);
+            scroll-padding-top:var(--cm-fixed-nav-offset);
+          }
+          .cm-section-shell > *{scroll-margin-top:var(--cm-fixed-nav-offset);}
+          .cm-section-shell--home{--cm-fixed-nav-offset:0px;padding-top:0;scroll-padding-top:0;}
+          @media(max-width:1180px){.cm-section-shell{--cm-fixed-nav-offset:92px;}}
+          @media(max-width:520px){.cm-section-shell{--cm-fixed-nav-offset:88px;}}
 
         `}</style>
 
@@ -32229,6 +32242,7 @@ function App() {
           }
         }} />}
 
+        <main className={`cm-section-shell ${active === "inicio" ? "cm-section-shell--home" : ""}`}>
         {active !== "inicio" && <AnunciosBanner isAdmin={isAdmin} />}
         {active !== "inicio" && <HorizontalAdSenseSection sectionKey={active} />}
         {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
@@ -32260,6 +32274,7 @@ function App() {
               </div>
             )
         )}
+        </main>
 
         {/* Validado FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
         {consent === null && (
