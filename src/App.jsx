@@ -794,7 +794,7 @@ const ensureCmMapSharedStyle = () => {
   s.textContent = `
     .cm-tooltip{background:rgba(4,12,24,0.95)!important;border:1px solid rgba(56,189,248,0.35)!important;border-radius:6px!important;color:rgba(255,255,255,0.9)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;font-weight:600!important;padding:4px 9px!important;box-shadow:0 2px 12px rgba(0,0,0,0.5)!important;white-space:nowrap!important;}
     .cm-tooltip::before{display:none!important;}
-    .cm-tooltip-permanent{background:rgba(4,12,24,0.88)!important;border:1px solid rgba(56,189,248,0.4)!important;border-radius:5px!important;color:rgba(255,255,255,0.92)!important;font-family:'DM Sans',sans-serif!important;font-size:10px!important;font-weight:700!important;padding:2px 7px!important;box-shadow:0 2px 8px rgba(0,0,0,0.6)!important;white-space:nowrap!important;pointer-events:none!important;}
+    .cm-tooltip-permanent{background:rgba(4,12,24,0.88)!important;border:1px solid rgba(56,189,248,0.4)!important;border-radius:5px!important;color:rgba(255,255,255,0.92)!important;font-family:'DM Sans',sans-serif!important;font-size:10px!important;font-weight:700!important;padding:2px 7px!important;box-shadow:0 2px 8px rgba(0,0,0,0.6)!important;white-space:nowrap!important;pointer-events:auto!important;max-width:132px!important;overflow:hidden!important;text-overflow:ellipsis!important;}
     .cm-tooltip-permanent::before{display:none!important;}
     .cm-map-ref-icon{background:transparent!important;border:none!important;}
   `;
@@ -871,6 +871,8 @@ const ensureTerminalesPortuariasPremiumStyle = () => {
     .status-moderado.is-active{background:linear-gradient(180deg,#fb923c 0%,#f97316 54%,#9a3412 100%);border-color:rgba(253,186,116,.48);box-shadow:0 12px 28px rgba(249,115,22,.28),0 0 26px rgba(251,146,60,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(154,52,18,.34);}
     .status-detenido.is-active{background:linear-gradient(180deg,#f87171 0%,#ef4444 54%,#991b1b 100%);border-color:rgba(252,165,165,.48);box-shadow:0 12px 28px rgba(239,68,68,.30),0 0 26px rgba(248,113,113,.18),inset 0 2px 0 rgba(255,255,255,.24),inset 0 -8px 14px rgba(127,29,29,.36);}
     .route-card-premium .terminal-status-buttons{grid-template-columns:1fr;}
+    @media (min-width:761px) and (max-width:1365px){.port-dashboard-shell{padding-left:12px;padding-right:12px}.port-map-stage{height:clamp(410px,48vh,560px)}.zone-floating-control{gap:10px}.zone-pill{min-width:160px;padding:14px 22px}.port-map-legend{left:14px;right:14px}.status-monitor-panel{padding:22px}.terminal-status-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.terminal-card{padding:20px}.status-view-btn{padding:12px 15px}}
+    .port-dashboard-shell,.cm-command-shell{content-visibility:auto;contain-intrinsic-size:900px;}
     @media(max-width:760px){.port-dashboard-shell{padding:12px 12px 86px}.port-map-stage{min-height:360px;border-radius:18px}.zone-floating-control{top:14px;gap:8px;width:calc(100% - 88px);left:14px;right:auto;transform:none}.zone-pill{min-width:0;flex:1;padding:13px 10px;font-size:11px}.layer-floating-trigger{top:14px;right:14px;width:50px;height:50px}.layer-floating-control{top:74px;right:14px;width:120px}.port-map-legend{left:12px;right:12px;bottom:12px}.terminal-status-grid{grid-template-columns:1fr}.terminal-card{padding:20px}.terminal-status-buttons{grid-template-columns:1fr}.route-status-buttons{grid-template-columns:1fr}.status-monitor-header{align-items:stretch}.status-view-switch{width:100%;}.status-view-btn{flex:1;padding:12px 10px;font-size:10px}}
   `;
   document.head.appendChild(s);
@@ -883,22 +885,40 @@ const bindCmMapPermanentLabel = (layer, name) => {
 
 const addCmMapReferenceLabels = (L, targetLayer, refs = [], store = {}) => {
   ensureCmMapSharedStyle();
-  refs.forEach(ref => {
+  const directions = ["top", "right", "left", "bottom"];
+  const offsets = [[0,-12],[12,0],[-12,0],[0,12],[18,-8],[-18,-8],[18,8],[-18,8]];
+  refs.forEach((ref, index) => {
     if (!ref?.coords) return;
     const color = cmVividMapColor(ref.color || (ref.tipo === "acceso" ? "#facc15" : "#38bdf8"), ref.id || ref.name);
+    const fullName = String(ref.name || ref.short || ref.id || "");
+    const compactName = fullName.length > 22 ? `${fullName.slice(0, 20)}…` : fullName;
     const marker = L.marker(ref.coords, {
-      interactive: false,
+      interactive: true,
       keyboard: false,
-      zIndexOffset: 650,
+      zIndexOffset: 650 + (index % 8),
       icon: L.divIcon({
         className: "cm-map-ref-icon",
-        html: `<div style="width:14px;height:14px;background:${color};border:2.5px solid rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 0 7px ${color}aa;"></div>`,
+        html: `<div title="${sanitize(fullName)}" style="width:14px;height:14px;background:${color};border:2.5px solid rgba(255,255,255,0.9);border-radius:50%;box-shadow:0 0 7px ${color}aa;"></div>`,
         iconSize: [14, 14],
         iconAnchor: [7, 7],
       })
     }).addTo(targetLayer);
-    // ETIQUETAS COMPARTIDAS: misma lógica, fuente y clase visual usada por la sección principal de Mapa.
-    bindCmMapPermanentLabel(marker, ref.name || ref.short || ref.id);
+    const offset = offsets[index % offsets.length];
+    marker.bindTooltip(`<span title="${sanitize(fullName)}">${sanitize(compactName)}</span>`, {
+      permanent: true,
+      direction: directions[index % directions.length],
+      offset,
+      opacity: 0.96,
+      className: "cm-tooltip-permanent",
+    }).openTooltip();
+    marker.on("mouseover", () => {
+      const tooltip = marker.getTooltip();
+      if (tooltip) tooltip.setContent(`<span title="${sanitize(fullName)}">${sanitize(fullName)}</span>`);
+    });
+    marker.on("mouseout", () => {
+      const tooltip = marker.getTooltip();
+      if (tooltip) tooltip.setContent(`<span title="${sanitize(fullName)}">${sanitize(compactName)}</span>`);
+    });
     store[ref.id || ref.name] = marker;
   });
   return store;
@@ -4773,11 +4793,11 @@ function DonateBanner({ active, setActive, isAdmin=false, subAdmin=null, isSecti
       style={{
         position:"fixed",
         top:"calc(78px + env(safe-area-inset-top))",
-        right:"max(0px, env(safe-area-inset-right))",
-        width:"min(238px, calc(100vw - 26px))",
-        zIndex:601,
+        right:"max(12px, env(safe-area-inset-right))",
+        width:"min(220px, calc(100vw - 32px))",
+        zIndex:120,
         pointerEvents:"none",
-        transform:expanded ? "translateX(0)" : "translateX(calc(100% - 34px))",
+        transform:expanded ? "translateX(0)" : "translateX(calc(100% - 32px))",
         opacity:1,
         transition:"transform .54s cubic-bezier(.175,.885,.32,1.12)",
         animation:expanded ? "cmDonateBannerSlideIn .38s cubic-bezier(.175,.885,.32,1.275) both" : "none"
@@ -21127,6 +21147,20 @@ function NoticiasAdminCleanup({ onCleaned }) {
 }
 
 function NoticiasTab({ isAdmin }) {
+  useEffect(() => {
+    if (typeof document === "undefined" || document.getElementById("cm-noticias-responsive-fix")) return;
+    const style = document.createElement("style");
+    style.id = "cm-noticias-responsive-fix";
+    style.textContent = `
+      [data-cm-news-grid], .cm-noticias-grid{padding-inline:clamp(10px,1.5vw,22px)!important;gap:clamp(14px,1.4vw,22px)!important;}
+      [data-cm-news-card], .cm-noticia-card{min-width:0!important;overflow:hidden!important;}
+      [data-cm-news-card] img, .cm-noticia-card img{display:block;width:100%;height:auto;object-fit:cover;}
+      [data-cm-news-card] > *, .cm-noticia-card > *{min-width:0;}
+      @media (min-width:1200px) and (max-width:1460px){[data-cm-news-grid],.cm-noticias-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))!important;}}
+      @media (max-width:1280px){body{overflow-x:hidden}.cm-auto-port-report{margin-inline:12px!important;padding:16px!important;}.cm-donate-banner{right:12px!important;}}
+    `;
+    document.head.appendChild(style);
+  }, []);
   const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
   const [comunicados,   setComunicados]   = useState([]);
