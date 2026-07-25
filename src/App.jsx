@@ -204,6 +204,110 @@ const GLOBAL_AVATARS_BUCKET = import.meta.env.VITE_SUPABASE_AVATARS_BUCKET || "a
 // Puede sobrescribirse desde VITE_SUPABASE_NOTICIAS_BUCKET si después creas otro bucket.
 const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET || "comunicados";
 
+
+// ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
+const VT_EDGE_FUNCTION = "virustotal-scan";
+const VT_MAX_ATTEMPTS = 3;
+const VT_RETRY_DELAYS = [1200, 2600];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const extractUrlsFromText = (value = "") => {
+  const matches = String(value).match(/https?:\/\/[^\s<>{}\[\]"']+/gi) || [];
+  return [...new Set(matches.map((url) => url.replace(/[),.;!?]+$/g, "")))].slice(0, 12);
+};
+
+const normalizeVirusTotalResult = (raw, targetType, targetValue) => {
+  const source = raw?.result || raw?.data || raw || {};
+  const stats = source?.stats || source?.attributes?.stats || source?.last_analysis_stats || source?.analysis_stats || {};
+  const malicious = Number(stats.malicious || source.malicious || source.malicious_count || 0);
+  const suspicious = Number(stats.suspicious || source.suspicious || source.suspicious_count || 0);
+  const harmless = Number(stats.harmless || source.harmless || 0);
+  const undetected = Number(stats.undetected || source.undetected || 0);
+  const total = Number(source.total || source.engines || source.engine_count || (malicious + suspicious + harmless + undetected) || 0);
+  const statusText = String(source.status || raw?.status || "").toLowerCase();
+  const pending = ["queued", "pending", "processing", "running"].includes(statusText) || source.pending === true;
+  const explicitUnsafe = source.safe === false || source.clean === false || source.malicious === true || source.blocked === true;
+  const unsafe = explicitUnsafe || malicious > 0 || suspicious > 0;
+  return {
+    target_type: targetType,
+    target: targetType === "file" ? (targetValue?.name || "archivo") : String(targetValue || ""),
+    status: pending ? "pending" : (unsafe ? "malicious" : "clean"),
+    malicious,
+    suspicious,
+    harmless,
+    undetected,
+    total,
+    analysis_id: source.analysis_id || source.id || raw?.analysis_id || raw?.id || null,
+    permalink: source.permalink || source.link || raw?.permalink || null,
+    scanned_at: new Date().toISOString(),
+  };
+};
+
+const invokeVirusTotalScan = async ({ action, file, url }) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < VT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const body = action === "scan_file"
+        ? (() => { const form = new FormData(); form.append("action", action); form.append("file", file, file.name); return form; })()
+        : { action, url };
+      const { data, error } = await sb.functions.invoke(VT_EDGE_FUNCTION, { body });
+      if (error) throw error;
+      const normalized = normalizeVirusTotalResult(data, action === "scan_file" ? "file" : "url", file || url);
+      if (normalized.status !== "pending") return normalized;
+      lastError = new Error("El análisis de VirusTotal continúa en proceso.");
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "").toLowerCase();
+      const retryable = /timeout|network|fetch|rate|limit|429|tempor|process|pending|queue/.test(message);
+      if (!retryable && attempt === 0) throw error;
+    }
+    if (attempt < VT_MAX_ATTEMPTS - 1) await sleep(VT_RETRY_DELAYS[attempt] || 2600);
+  }
+  throw lastError || new Error("VirusTotal no respondió después de varios intentos.");
+};
+
+const logVirusTotalSecurityEvent = async ({ user, result, file, url, title }) => {
+  const payload = {
+    event_type: "virustotal_blocked_communication",
+    user_id: user?.id || null,
+    user_email: user?.email || null,
+    title: title || null,
+    target_type: file ? "file" : "url",
+    target_name: file?.name || url || null,
+    result,
+    created_at: new Date().toISOString(),
+  };
+  for (const table of ["security_events", "admin_audit_logs", "audit_logs"]) {
+    try {
+      const { error } = await sb.from(table).insert(payload);
+      if (!error) return true;
+    } catch (_) {}
+  }
+  console.warn("No se pudo persistir el evento de seguridad VirusTotal", payload);
+  return false;
+};
+
+const getVirusTotalSummary = (results = []) => {
+  const valid = Array.isArray(results) ? results : [];
+  const malicious = valid.reduce((sum, item) => sum + Number(item?.malicious || 0), 0);
+  const suspicious = valid.reduce((sum, item) => sum + Number(item?.suspicious || 0), 0);
+  const total = valid.reduce((sum, item) => sum + Number(item?.total || 0), 0);
+  const hasPending = valid.some((item) => item?.status === "pending" || item?.status === "error");
+  const hasUnsafe = valid.some((item) => item?.status === "malicious" || Number(item?.malicious || 0) > 0 || Number(item?.suspicious || 0) > 0);
+  return {
+    status: hasUnsafe ? "malicious" : (hasPending ? "pending" : "clean"),
+    malicious,
+    suspicious,
+    total,
+    label: hasUnsafe
+      ? `${malicious + suspicious} detección${malicious + suspicious === 1 ? "" : "es"}`
+      : hasPending
+        ? "Pendiente de verificación"
+        : `Verificado por VirusTotal: 0/${total || "—"} detecciones`,
+  };
+};
+
 const AUTH_PERSISTENCE_KEY = "cm_auth_persistence";
 const AUTH_STORAGE_PREFIXES = ["sb-", "supabase.auth."];
 const getAuthStorageMode = () => {
@@ -17051,6 +17155,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState(false);
+  const [vtScanStatus, setVtScanStatus] = useState("idle");
+  const [vtScanMessage, setVtScanMessage] = useState("");
+  const [vtScanResults, setVtScanResults] = useState([]);
   const [toolBusy, setToolBusy] = useState(false);
   const [toolMsg, setToolMsg] = useState(null);
   const [aiAssistOpen, setAiAssistOpen] = useState(false);
@@ -19005,7 +19112,56 @@ ${base}`;
 
     setSubiendo(true);
     setError("");
+    setVtScanStatus("scanning");
+    setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
+    setVtScanResults([]);
     try {
+      const { data: authDataBeforeScan } = await sb.auth.getUser();
+      const scanUser = authDataBeforeScan?.user || null;
+      const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
+      const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
+      const securityResults = [];
+      let verificationPending = false;
+
+      for (const targetFile of scanTargets) {
+        setVtScanMessage(`Analizando archivo: ${targetFile.name}...`);
+        try {
+          const result = await invokeVirusTotalScan({ action:"scan_file", file:targetFile });
+          securityResults.push(result);
+          if (result.status === "malicious") {
+            await logVirusTotalSecurityEvent({ user:scanUser, result, file:targetFile, title:titulo.trim() });
+            setVtScanStatus("blocked");
+            throw new Error(`VirusTotal bloqueó el archivo “${targetFile.name}” (${result.malicious + result.suspicious} detecciones). La propuesta no fue enviada.`);
+          }
+        } catch (scanError) {
+          if (/bloqueó el archivo/i.test(String(scanError?.message || ""))) throw scanError;
+          verificationPending = true;
+          securityResults.push({ target_type:"file", target:targetFile.name, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
+        }
+      }
+
+      for (const detectedUrl of detectedUrls) {
+        setVtScanMessage(`Analizando enlace: ${detectedUrl}`);
+        try {
+          const result = await invokeVirusTotalScan({ action:"scan_url", url:detectedUrl });
+          securityResults.push(result);
+          if (result.status === "malicious") {
+            await logVirusTotalSecurityEvent({ user:scanUser, result, url:detectedUrl, title:titulo.trim() });
+            setVtScanStatus("blocked");
+            throw new Error(`VirusTotal bloqueó el enlace “${detectedUrl}” por riesgo de malware o phishing. La propuesta no fue enviada.`);
+          }
+        } catch (scanError) {
+          if (/bloqueó el enlace/i.test(String(scanError?.message || ""))) throw scanError;
+          verificationPending = true;
+          securityResults.push({ target_type:"url", target:detectedUrl, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
+        }
+      }
+
+      const vtSummary = getVirusTotalSummary(securityResults);
+      setVtScanResults(securityResults);
+      setVtScanStatus(verificationPending ? "pending" : "verified");
+      setVtScanMessage(verificationPending ? "VirusTotal no pudo completar todas las verificaciones. Se enviará como Pendiente de verificación para revisión administrativa." : vtSummary.label);
+
       const uploadedPaths = [];
       const uploadOne = async (file, prefix = "principal") => {
         const ext = String(file.name || "imagen.png").split(".").pop() || "png";
@@ -19053,14 +19209,19 @@ ${base}`;
         aprobado_por: isAdmin === true ? authUser?.id || null : null,
         aprobado_at: isAdmin === true ? nowIso : null,
         created_at: nowIso,
-        updated_at: nowIso
+        updated_at: nowIso,
+        virustotal_status: verificationPending ? "pending" : "verified",
+        virustotal_results: securityResults,
+        virustotal_summary: getVirusTotalSummary(securityResults),
+        security_verification_status: verificationPending ? "pendiente_verificacion" : "verificado"
       };
 
       const insertComunicadoWithFallback = async (payload) => {
         let candidate = { ...payload };
         const removable = new Set([
           "media_urls", "fecha_inicio_propuesta", "fecha_fin_propuesta", "estado_aprobacion",
-          "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at"
+          "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at",
+          "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
         ]);
         for (let attempt = 0; attempt < 14; attempt += 1) {
           const result = await sb.from("comunicados").insert(candidate).select("*").single();
@@ -19118,11 +19279,15 @@ ${base}`;
       setFechaFinModo("fecha");
       setFechaFinHora("");
       setVigenciaNotice("");
+      setVtScanStatus("idle");
+      setVtScanMessage("");
+      setVtScanResults([]);
       if (inputRef.current) inputRef.current.value = "";
       setTimeout(() => setExito(false), 3000);
       if (onSubido) onSubido();
     } catch (err) {
-      setError("Error al subir: " + (err.message || "Intenta de nuevo"));
+      if (vtScanStatus !== "blocked" && /VirusTotal bloqueó/i.test(String(err?.message || ""))) setVtScanStatus("blocked");
+      setError(err?.message || "Error al subir. Intenta de nuevo.");
     }
     setSubiendo(false);
   };
@@ -19536,12 +19701,20 @@ ${base}`;
         </div>
       )}
       
+      {vtScanStatus !== "idle" && (
+        <div style={{ marginBottom:"12px", padding:"11px 13px", borderRadius:"10px", display:"flex", alignItems:"center", gap:"10px", border: vtScanStatus === "blocked" ? "1px solid rgba(239,68,68,.5)" : vtScanStatus === "verified" ? "1px solid rgba(34,197,94,.45)" : "1px solid rgba(56,189,248,.42)", background: vtScanStatus === "blocked" ? "rgba(239,68,68,.10)" : vtScanStatus === "verified" ? "rgba(34,197,94,.10)" : "rgba(56,189,248,.08)", color: vtScanStatus === "blocked" ? "#f87171" : vtScanStatus === "verified" ? "#4ade80" : "#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:700, lineHeight:1.5 }}>
+          {(vtScanStatus === "scanning" || vtScanStatus === "pending") && <span className="cm-feed-pulse" style={{ flex:"0 0 auto" }} />}
+          <MS name={vtScanStatus === "blocked" ? "gpp_bad" : vtScanStatus === "verified" ? "verified_user" : "security"} size={18} />
+          <span>{vtScanMessage}</span>
+        </div>
+      )}
+
       <button
         onClick={handleSubir}
         disabled={subiendo}
         style={{ width: "100%", padding: "15px 18px", background: subiendo ? "rgba(44,58,76,.45)" : "linear-gradient(135deg,#f59e0b,#fbbf24)", border: "1px solid rgba(245,158,11,.55)", borderRadius: "8px", color: subiendo ? "rgba(255,255,255,0.45)" : "#010f1f", fontFamily: getFont(theme, "secondary"), fontWeight: "900", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.8px", boxShadow: subiendo ? "none" : "0 14px 32px rgba(245,158,11,.22)" }}
       >
-        {subiendo ? "Procesando subida..." : isAdmin ? "PUBLICAR COMUNICADO" : "ENVIAR A REVISIÓN"}
+        {subiendo ? (vtScanStatus === "scanning" ? "ANALIZANDO SEGURIDAD..." : "PROCESANDO SUBIDA...") : isAdmin ? "PUBLICAR COMUNICADO" : "ENVIAR A REVISIÓN"}
       </button>
     </div>
   );
@@ -20167,6 +20340,17 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                         </div>
                       </div>
                     </div>
+                    {(() => {
+                      const rawResults = Array.isArray(p.virustotal_results) ? p.virustotal_results : parseJsonArray(p.virustotal_results);
+                      const summary = p.virustotal_summary && typeof p.virustotal_summary === "object" ? p.virustotal_summary : getVirusTotalSummary(rawResults);
+                      const status = p.virustotal_status || p.security_verification_status || summary.status || "pending";
+                      const unsafe = status === "malicious" || summary.status === "malicious";
+                      const pendingVerification = /pending|pendiente/i.test(String(status));
+                      return <div style={{ marginBottom:"10px", padding:"10px 12px", borderRadius:"9px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", background:unsafe ? "rgba(239,68,68,.10)" : pendingVerification ? "rgba(245,158,11,.10)" : "rgba(34,197,94,.10)", border:`1px solid ${unsafe ? "rgba(239,68,68,.45)" : pendingVerification ? "rgba(245,158,11,.42)" : "rgba(34,197,94,.42)"}` }}>
+                        <span style={{ display:"inline-flex", alignItems:"center", gap:"6px", color:unsafe ? "#f87171" : pendingVerification ? "#fbbf24" : "#4ade80", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900 }}><MS name={unsafe ? "gpp_bad" : pendingVerification ? "pending" : "verified_user"} size={16} />{unsafe ? `ALERTA · ${summary.malicious + summary.suspicious} DETECCIONES` : pendingVerification ? "PENDIENTE DE VERIFICACIÓN" : summary.label.toUpperCase()}</span>
+                        <span style={{ color:"rgba(226,232,240,.55)", fontSize:"9px" }}>{rawResults.length} elemento{rawResults.length === 1 ? "" : "s"} analizado{rawResults.length === 1 ? "" : "s"}</span>
+                      </div>;
+                    })()}
                     <div style={{ marginBottom:"10px", padding:"10px", borderRadius:"8px", background:"rgba(2,6,23,.42)", border:"1px solid rgba(159,202,255,.22)" }}>
                       <label style={{ display:"block", color:"#9fcaff", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", marginBottom:"6px" }}>Fecha de expiración al aprobar</label>
                       <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
