@@ -189,6 +189,10 @@ function PosturasSidebarIcon({ name, size = 24, filled = false, className = "", 
   switch (name) {
     case "account_circle": return <svg {...common}><circle cx="12" cy="12" r="9" {...p}/><circle cx="12" cy="9" r="3" {...p}/><path d="M6.8 18.2c1.4-2.7 3.1-4 5.2-4s3.8 1.3 5.2 4" {...p}/></svg>;
     case "settings": return <svg {...common}><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" {...p}/><path d="M19.1 13.4c.1-.5.1-1 0-1.4l2-1.6-2-3.4-2.5 1a8.5 8.5 0 0 0-2.4-1.4L13.8 4h-3.9l-.4 2.6A8.4 8.4 0 0 0 7 8L4.6 7 2.7 10.4 4.8 12c-.1.5-.1 1 0 1.4l-2.1 1.7 1.9 3.4 2.5-1a8.5 8.5 0 0 0 2.4 1.4l.4 2.6h3.9l.4-2.6a8.5 8.5 0 0 0 2.4-1.4l2.5 1 2-3.4-2-1.7Z" {...p}/></svg>;
+    case "close": return <svg {...common}><path d="M6 6l12 12M18 6 6 18" {...p}/></svg>;
+    case "person": return <svg {...common}><circle cx="12" cy="8" r="3.2" {...p}/><path d="M5.5 20c.8-4.3 2.9-6.4 6.5-6.4s5.7 2.1 6.5 6.4" {...p}/></svg>;
+    case "dashboard": return <svg {...common}><rect x="4" y="4" width="6" height="6" rx="1" {...p}/><rect x="14" y="4" width="6" height="6" rx="1" {...p}/><rect x="4" y="14" width="6" height="6" rx="1" {...p}/><rect x="14" y="14" width="6" height="6" rx="1" {...p}/></svg>;
+    case "work_history": return <svg {...common}><rect x="3" y="7" width="18" height="12" rx="2" {...p}/><path d="M8 7V5h8v2M3 12h18M9.5 12v2h5v-2" {...p}/></svg>;
     case "notifications": return <svg {...common}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" {...p}/><path d="M10 19a2.2 2.2 0 0 0 4 0" {...p}/></svg>;
     case "grid_view": return <svg {...common}><rect x="4" y="4" width="6" height="6" rx=".8" {...p}/><rect x="14" y="4" width="6" height="6" rx=".8" {...p}/><rect x="4" y="14" width="6" height="6" rx=".8" {...p}/><rect x="14" y="14" width="6" height="6" rx=".8" {...p}/></svg>;
     case "business_center": return <svg {...common}><rect x="3" y="7" width="18" height="12" rx="2" {...p}/><path d="M8 7V5h8v2M3 12h18M9.5 12v2h5v-2" {...p}/></svg>;
@@ -8445,6 +8449,7 @@ function SkeletonCard({ n = 3 }) {
 function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = null, hideSubnav = false }) {
   const theme = React.useContext(ThemeContext);
   const [accesos, setAccesos] = useState(null);
+  const accesosLoadRunRef = useRef(0);
   const [vialidades, setVialidades] = useState(null);
   const [rutasFiscales, setRutasFiscales] = useState(null);
   const [toast, setToast] = useState(null);
@@ -8474,28 +8479,53 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   };
 
   useEffect(() => {
-    sb.from("accesos").select("*").then(async ({ data, error }) => {
-      if (error) { setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {})); return; }
-      if (!data || data.length === 0) {
-        await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Sistema" })));
-        setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), {}));
-        return;
+    let mounted = true;
+    const runId = ++accesosLoadRunRef.current;
+    setAccesos(null);
+
+    const applyFallback = () => {
+      if (!mounted || accesosLoadRunRef.current !== runId) return;
+      setAccesos(prev => prev || mergeStatusMapsByLatest("accesos", mkAccesos(), {}));
+    };
+
+    const loadAccesos = async () => {
+      try {
+        const request = sb.from("accesos").select("*");
+        const timeout = new Promise(resolve => window.setTimeout(() => resolve({ data:null, error:new Error("timeout") }), 7000));
+        const { data, error } = await Promise.race([request, timeout]);
+        if (!mounted || accesosLoadRunRef.current !== runId) return;
+        if (error) { applyFallback(); return; }
+        if (!data || data.length === 0) {
+          await sb.from("accesos").upsert(ACCESOS_PRINCIPALES.map(a => ({ id: a.id, status: "libre", retornos: "none", last_update: Date.now(), updated_by: "Sistema" })));
+          applyFallback();
+          return;
+        }
+        const map = {};
+        data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
+        setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), map));
+      } catch (_) {
+        applyFallback();
       }
-      const map = {};
-      data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-      setAccesos(mergeStatusMapsByLatest("accesos", mkAccesos(), map));
-    });
-    const chan = sb.channel("accesos-command-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, () => {
-        sb.from("accesos").select("*").then(({ data }) => {
-          if (!data) return;
-          const map = {};
-          data.forEach(r => { map[r.id] = { status: r.status, retornos: r.retornos || "none", lastUpdate: r.last_update, updatedBy: r.updated_by, pendingVoters: r.pending_voters || {} }; });
-          setAccesos(prev => mergeStatusMapsByLatest("accesos", prev || mkAccesos(), map));
-        });
-      }).subscribe();
-    return () => sb.removeChannel(chan);
-  }, []);
+    };
+
+    const fallbackTimer = window.setTimeout(applyFallback, 1800);
+    loadAccesos();
+    const refreshOnActivation = (event) => {
+      if (!event?.detail?.section || event.detail.section === "accesos") loadAccesos();
+    };
+    window.addEventListener("cm:section-activated", refreshOnActivation);
+    window.addEventListener("pageshow", loadAccesos);
+    const chan = sb.channel(`accesos-command-rt-${runId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "accesos" }, loadAccesos)
+      .subscribe();
+    return () => {
+      mounted = false;
+      window.clearTimeout(fallbackTimer);
+      window.removeEventListener("cm:section-activated", refreshOnActivation);
+      window.removeEventListener("pageshow", loadAccesos);
+      sb.removeChannel(chan);
+    };
+  }, [defaultSection]);
 
   useEffect(() => {
     sb.from("vialidades").select("*").then(async ({ data, error }) => {
@@ -25603,17 +25633,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <div style={{ marginTop:"2px", fontSize:"10px", color:"rgba(212,228,250,.56)", textTransform:"uppercase", letterSpacing:".14em", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{profileDisplayName}</div>
             </div>
           </div>
-          <button type="button" onClick={()=>setMobilePosturasPanelOpen(false)} aria-label="Cerrar panel" style={{ width:"44px", height:"44px", flexShrink:0, borderRadius:"14px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(255,255,255,.035)", color:"#a4c9ff", display:"grid", placeItems:"center", cursor:"pointer" }}><MS name="close" size={22} active /></button>
+          <CloseButton onClick={()=>setMobilePosturasPanelOpen(false)} label="Cerrar panel" size={44} style={{ borderRadius:"14px", background:"rgba(255,255,255,.035)", color:"#a4c9ff", boxShadow:"none" }} />
         </div>
 
         <nav style={{ display:"grid", gap:"8px", padding:"16px 0 96px" }}>
           {primaryItems.map(item => {
             const active = isActive(item.id);
-            return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{ item.action(); setMobilePosturasPanelOpen(false); }} style={{ width:"100%",minHeight:"54px",padding:"12px 14px",borderRadius:"16px",border:active?"1px solid rgba(164,201,255,.34)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.38),rgba(18,33,49,.82))":"rgba(255,255,255,.025)",color:active?"#d6e5ff":"rgba(212,228,250,.72)",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"850",boxShadow:active?"0 10px 24px rgba(2,103,184,.16),inset 0 1px 0 rgba(255,255,255,.05)":"none",cursor:"pointer" }}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.14)":"rgba(255,255,255,.035)",color:active?"#a4c9ff":"rgba(212,228,250,.62)"}}><MS name={item.icon} size={20} active={active}/></span><span style={{flex:1}}>{item.label}</span>{active&&<MS name="chevron_right" size={19} active/>}</button>;
+            return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{ item.action(); setMobilePosturasPanelOpen(false); }} style={{ width:"100%",minHeight:"54px",padding:"12px 14px",borderRadius:"16px",border:active?"1px solid rgba(164,201,255,.34)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.38),rgba(18,33,49,.82))":"rgba(255,255,255,.025)",color:active?"#d6e5ff":"rgba(212,228,250,.72)",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"850",boxShadow:active?"0 10px 24px rgba(2,103,184,.16),inset 0 1px 0 rgba(255,255,255,.05)":"none",cursor:"pointer" }}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.14)":"rgba(255,255,255,.035)",color:active?"#a4c9ff":"rgba(212,228,250,.62)"}}><PosturasSidebarIcon name={item.icon} size={20} /></span><span style={{flex:1}}>{item.label}</span>{active&&<PosturasSidebarIcon name="chevron_right" size={19} />}</button>;
           })}
-          <button type="button" className="cm-posturas-mobile-section-toggle" onClick={()=>setMobilePosturasSectionsOpen(v=>!v)} aria-expanded={mobilePosturasSectionsOpen} aria-controls="cm-posturas-mobile-subsections" style={{width:"100%",minHeight:"56px",padding:"12px 14px",borderRadius:"16px",border:"1px solid rgba(164,201,255,.14)",background:"rgba(164,201,255,.045)",color:"#dbeafe",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"900",cursor:"pointer"}}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:"rgba(164,201,255,.10)",color:"#a4c9ff"}}><MS name="work_history" size={20} active/></span><span style={{flex:1}}>Posturas</span><span className="cm-posturas-mobile-section-toggle__chevron" style={{display:"inline-flex"}}><PosturasSidebarIcon name="chevron_right" size={20}/></span></button>
+          <button type="button" className="cm-posturas-mobile-section-toggle" onClick={()=>setMobilePosturasSectionsOpen(v=>!v)} aria-expanded={mobilePosturasSectionsOpen} aria-controls="cm-posturas-mobile-subsections" style={{width:"100%",minHeight:"56px",padding:"12px 14px",borderRadius:"16px",border:"1px solid rgba(164,201,255,.14)",background:"rgba(164,201,255,.045)",color:"#dbeafe",display:"flex",alignItems:"center",gap:"13px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"14px",fontWeight:"900",cursor:"pointer"}}><span style={{width:"34px",height:"34px",borderRadius:"11px",display:"grid",placeItems:"center",background:"rgba(164,201,255,.10)",color:"#a4c9ff"}}><PosturasSidebarIcon name="work_history" size={20} /></span><span style={{flex:1}}>Posturas</span><span className="cm-posturas-mobile-section-toggle__chevron" style={{display:"inline-flex"}}><PosturasSidebarIcon name="chevron_right" size={20}/></span></button>
           <div id="cm-posturas-mobile-subsections" className={`cm-posturas-mobile-subsections ${mobilePosturasSectionsOpen ? "is-open" : ""}`}><div className="cm-posturas-mobile-subsections__inner">
-            {sectionItems.map(item=>{const active=isActive(item.id);return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{item.action();setMobilePosturasPanelOpen(false);}} style={{width:"100%",minHeight:"50px",padding:"9px 12px",borderRadius:"14px",border:active?"1px solid rgba(164,201,255,.32)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.34),rgba(18,33,49,.78))":"rgba(255,255,255,.018)",color:active?"#d6e5ff":"rgba(212,228,250,.68)",display:"flex",alignItems:"center",gap:"12px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"13px",fontWeight:"800",boxShadow:active?"0 9px 22px rgba(2,103,184,.14)":"none",cursor:"pointer"}}><span style={{width:"31px",height:"31px",borderRadius:"10px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.13)":"rgba(255,255,255,.03)",color:active?"#a4c9ff":"rgba(212,228,250,.58)"}}><MS name={item.icon} size={18} active={active}/></span><span style={{flex:1}}>{item.label}</span>{active&&<MS name="chevron_right" size={18} active/>}</button>;})}
+            {sectionItems.map(item=>{const active=isActive(item.id);return <button key={item.id} type="button" className="cm-posturas-mobile-nav-item" onClick={()=>{item.action();setMobilePosturasPanelOpen(false);}} style={{width:"100%",minHeight:"50px",padding:"9px 12px",borderRadius:"14px",border:active?"1px solid rgba(164,201,255,.32)":"1px solid transparent",background:active?"linear-gradient(135deg,rgba(2,103,184,.34),rgba(18,33,49,.78))":"rgba(255,255,255,.018)",color:active?"#d6e5ff":"rgba(212,228,250,.68)",display:"flex",alignItems:"center",gap:"12px",textAlign:"left",fontFamily:getFont(theme,"secondary"),fontSize:"13px",fontWeight:"800",boxShadow:active?"0 9px 22px rgba(2,103,184,.14)":"none",cursor:"pointer"}}><span style={{width:"31px",height:"31px",borderRadius:"10px",display:"grid",placeItems:"center",background:active?"rgba(164,201,255,.13)":"rgba(255,255,255,.03)",color:active?"#a4c9ff":"rgba(212,228,250,.58)"}}><PosturasSidebarIcon name={item.icon} size={18} /></span><span style={{flex:1}}>{item.label}</span>{active&&<PosturasSidebarIcon name="chevron_right" size={18} />}</button>;})}
           </div></div>
         </nav>
       </aside>
@@ -30407,6 +30437,7 @@ function SectionSubTabs({ tabs, active, onChange, title, subtitle }) {
 }
 
 function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
+  const [activationKey, setActivationKey] = useState(0);
   const [activeSubtab, setActiveSubtab] = useState(() => {
     try { return sessionStorage.getItem("accesos_subtab") || "estado"; } catch { return "estado"; }
   });
@@ -30414,8 +30445,23 @@ function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
     try { sessionStorage.setItem("accesos_subtab", id); } catch {}
     setActiveSubtab(id);
   };
+  useEffect(() => {
+    setActivationKey(key => key + 1);
+    const notifyVisible = () => {
+      window.dispatchEvent(new CustomEvent("cm:section-activated", { detail:{ section:"accesos" } }));
+      window.dispatchEvent(new Event("resize"));
+    };
+    const frame = window.requestAnimationFrame(notifyVisible);
+    const timerA = window.setTimeout(notifyVisible, 140);
+    const timerB = window.setTimeout(notifyVisible, 480);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timerA);
+      window.clearTimeout(timerB);
+    };
+  }, []);
   const tabs = [
-    { id: "estado", label: "Estado de Accesos", icon: TAB_PUBLIC_ICONS.accesos || "access-gate", render: () => <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} defaultSection="accesos" hideSubnav /> },
+    { id: "estado", label: "Estado de Accesos", icon: TAB_PUBLIC_ICONS.accesos || "access-gate", render: () => <TraficoTab key={`accesos-estado-${activationKey}`} myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} defaultSection="accesos" hideSubnav /> },
     { id: "carriles", label: "Control de Carriles", icon: TAB_PUBLIC_ICONS.carriles || "lane-control", render: () => <CarrilesTab isAdmin={isAdmin} /> },
   ];
   return (
