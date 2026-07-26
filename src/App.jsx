@@ -22083,7 +22083,7 @@ const POSTURAS_LICENCIAS = [
 const POSTURAS_MANIOBRAS = ["Full", "Sencillo", "Caja seca", "Rabón", "Torton", "Plataforma", "Portacontenedor", "Lowboy", "Dolly", "Refrigerado", "Material peligroso", "Maniobra local", "Otro"];
 const POSTURAS_ALCANCE = ["Local", "Foráneo", "Ambos"];
 const POSTURAS_TIPO_EMPRESA = ["Transportista", "Agencia aduanal", "Patio", "Terminal", "Operador logístico", "Maniobrista", "Taller", "Refacciones", "Otro"];
-const PIS_DOC_TYPES = ["DEO", "DEA", "DEI", "DEV", "DEP", "DEC"];
+const PIS_DOC_TYPES = ["Sin especificar", "DEO", "DEA", "DEI", "DEV", "DEP", "DEC"];
 const PIS_ASIPONAS = [
   "ACAPULCO", "ALTAMIRA", "CABO SAN LUCAS", "CAMPECHE", "CHIAPAS", "COATZACOALCOS", "DOS BOCAS",
   "ENSENADA", "GUAYMAS", "LA PAZ", "LÁZARO CÁRDENAS", "MANZANILLO", "MAZATLÁN", "PROGRESO",
@@ -22246,6 +22246,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(false);
   const [posturasLoadError, setPosturasLoadError] = useState("");
+  const posturasLoadPromiseRef = useRef(null);
+  const posturasLoadRequestRef = useRef(0);
   const [q, setQ] = useState(() => {
     try { return localStorage.getItem("cm_posturas_search") || ""; } catch { return ""; }
   });
@@ -22269,7 +22271,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [pageEmp, setPageEmp] = useState(1);
   const [msg, setMsg] = useState(null);
   const [showReminder, setShowReminder] = useState(false);
-  const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
+  const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
   const [pisLoading, setPisLoading] = useState(false);
   const [pisResult, setPisResult] = useState(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
@@ -23063,54 +23065,102 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     setMsg({ type:"ok", text:"Archivo limpiado correctamente." });
   };
 
-  const loadPosturas = async () => {
-    setLoading(true);
-    try {
-      setPosturasLoadError("");
-      const [publicPayload, ratingsResult, complaintsResult] = await Promise.all([
-        fetch("/api/posturas/public").then(async response => {
+  const isSupabaseLockAbort = (error) => {
+    const name = String(error?.name || "").toLowerCase();
+    const message = String(error?.message || error || "").toLowerCase();
+    return name === "aborterror" || (message.includes("lock") && (message.includes("steal") || message.includes("broken") || message.includes("aborted")));
+  };
+
+  const runWithSupabaseLockRetry = async (operation, { attempts = 4, baseDelay = 140 } = {}) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        const result = await operation();
+        if (result?.error) throw result.error;
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (!isSupabaseLockAbort(error) || attempt === attempts - 1) throw error;
+        await sleep(baseDelay * (attempt + 1));
+      }
+    }
+    throw lastError || new Error("No se pudo completar la consulta.");
+  };
+
+  const loadPosturas = async ({ force = false } = {}) => {
+    if (!force && posturasLoadPromiseRef.current) return posturasLoadPromiseRef.current;
+    const requestId = ++posturasLoadRequestRef.current;
+    const task = (async () => {
+      setLoading(true);
+      try {
+        setPosturasLoadError("");
+        const publicPayload = await fetch("/api/posturas/public").then(async response => {
           const body = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
           return body;
-        }),
-        sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
-        sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
-      ]);
-      const trabResult = { data:publicPayload.trabajadores || [], error:null };
-      const empResult = { data:publicPayload.empresas || [], error:null };
-      const queryError = trabResult.error || empResult.error || ratingsResult.error || complaintsResult.error;
-      if (queryError) throw queryError;
-      const t = trabResult.data || [];
-      const e = empResult.data || [];
-      const r = ratingsResult.data || [];
-      const qj = complaintsResult.data || [];
-      const now = Date.now();
-      const empresasVisibles = (e || []).filter(row => {
-        const requestedAt = row.delete_requested_at || row.deletion_requested_at;
-        if (!requestedAt) return true;
-        return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
-      });
-      setTrabajadores((t || []).filter(row => !isProfileBanned(row))); setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row))); setRatings(r || []); setQuejas(qj || []);
-      // Centro de notificaciones: la tabla es opcional para no romper instalaciones antiguas.
-      try {
-        const { data:notifRows } = await sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false });
-        const visibleNotifications = (notifRows || []).filter(n => {
-          if (isAdmin) return true;
-          if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
-          if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
-          return false;
         });
-        setNotificaciones(visibleNotifications);
-      } catch { setNotificaciones([]); }
-      const myProfiles = [...(t||[]), ...(e||[])].filter(x => (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId);
-      const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
-      setShowReminder(!!authUser && stale);
-    } catch (e) {
-      const errorMessage = e?.message || "No se pudieron cargar los datos de Supabase.";
-      setPosturasLoadError(errorMessage);
-      setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
+
+        // Las consultas que pueden depender de Supabase Auth se ejecutan de forma
+        // serializada y con reintento acotado para no competir por el Web Lock de sesión.
+        const ratingsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_ratings").select("*").order("created_at", { ascending:false })
+        );
+        const complaintsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_quejas").select("*").order("created_at", { ascending:false })
+        );
+
+        if (requestId !== posturasLoadRequestRef.current) return;
+        const t = publicPayload.trabajadores || [];
+        const e = publicPayload.empresas || [];
+        const r = ratingsResult.data || [];
+        const qj = complaintsResult.data || [];
+        const now = Date.now();
+        const empresasVisibles = e.filter(row => {
+          const requestedAt = row.delete_requested_at || row.deletion_requested_at;
+          if (!requestedAt) return true;
+          return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
+        });
+        setTrabajadores(t.filter(row => !isProfileBanned(row)));
+        setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row)));
+        setRatings(r);
+        setQuejas(qj);
+
+        try {
+          const notifResult = await runWithSupabaseLockRetry(() =>
+            sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false })
+          );
+          if (requestId !== posturasLoadRequestRef.current) return;
+          const visibleNotifications = (notifResult.data || []).filter(n => {
+            if (isAdmin) return true;
+            if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
+            if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
+            return false;
+          });
+          setNotificaciones(visibleNotifications);
+        } catch (notificationError) {
+          if (!isSupabaseLockAbort(notificationError)) setNotificaciones([]);
+        }
+
+        const myProfiles = [...t, ...e].filter(x =>
+          (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId
+        );
+        const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
+        setShowReminder(!!authUser && stale);
+        setMsg(current => current?.text === "No se pudieron cargar los datos del Centro de Talento." ? null : current);
+      } catch (error) {
+        if (requestId !== posturasLoadRequestRef.current) return;
+        const errorMessage = error?.message || "No se pudieron cargar los datos de Supabase.";
+        setPosturasLoadError(errorMessage);
+        setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
+      } finally {
+        if (requestId === posturasLoadRequestRef.current) setLoading(false);
+      }
+    })();
+    posturasLoadPromiseRef.current = task;
+    try {
+      return await task;
     } finally {
-      setLoading(false);
+      if (posturasLoadPromiseRef.current === task) posturasLoadPromiseRef.current = null;
     }
   };
   useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
@@ -23123,7 +23173,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   useEffect(() => {
     if (!pisResult) return undefined;
     const resetTimer = setTimeout(() => {
-      setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" });
+      setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
       setPisResult(null);
       setPisContactMessage("");
       setPisEmailCopied(false);
@@ -23972,6 +24022,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
   const verifyPisDocument = async () => {
+    if (!authUser && !isAdmin) {
+      setPisResult({ ok:false, status:"sesion_requerida", message:"Inicia sesión en Conect Manzanillo para realizar consultas de Boletinados." });
+      return;
+    }
     const id = String(pisForm.id || "").trim();
     if (!pisForm.asipona || !pisForm.tipo || !id) {
       setPisResult({ ok:false, status:"incompleto", message:"Selecciona ASIPONA, tipo de documento y escribe el ID." });
@@ -24168,6 +24222,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ background:"rgba(12,24,39,.84)", border:"1px solid rgba(63,71,83,.55)", borderRadius:"12px", padding:posturasMobile ? "14px" : "16px", marginBottom:"18px", color:"rgba(255,255,255,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(12px, 3.5vw, 14px)", lineHeight:1.6 }}>
               El proceso de consulta en esta sección se gestiona a través de la plataforma PIS/SEMAR. Cabe destacar que este procedimiento cumple con todas las normativas y no infringe ninguna política, lo cual puede comprobarse de manera transparente dentro del mismo sistema.
             </div>
+            {!authUser && !isAdmin && <div role="status" style={{ margin:"-4px 0 18px", padding:"12px 14px", borderRadius:"12px", border:"1px solid rgba(251,191,36,.42)", background:"rgba(120,74,0,.18)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:"800", lineHeight:1.5 }}>Debes iniciar sesión en Conect Manzanillo para realizar una consulta.</div>}
 
             <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px", minWidth:0 }}>
               <div>
@@ -24185,11 +24240,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             </div>
 
             <div style={{ display:"flex", flexWrap:"wrap", gap:"12px", alignItems:"center" }}>
-              <button onClick={verifyPisDocument} disabled={pisLoading} style={{ ...pisActionBtn, background:"#1295f0", color:"#07223d", border:"1px solid rgba(56,189,248,.92)", boxShadow:"0 12px 24px rgba(0,150,255,.20)", opacity:pisLoading ? 0.75 : 1, flex:posturasMobile ? "1 1 100%" : "0 1 288px" }}>
+              <button onClick={verifyPisDocument} disabled={pisLoading || (!authUser && !isAdmin)} aria-disabled={pisLoading || (!authUser && !isAdmin)} title={!authUser && !isAdmin ? "Inicia sesión para verificar documentos" : undefined} style={{ ...pisActionBtn, background:"#1295f0", color:"#07223d", border:"1px solid rgba(56,189,248,.92)", boxShadow:"0 12px 24px rgba(0,150,255,.20)", opacity:(pisLoading || (!authUser && !isAdmin)) ? 0.55 : 1, cursor:(!authUser && !isAdmin) ? "not-allowed" : "pointer", flex:posturasMobile ? "1 1 100%" : "0 1 288px" }}>
                 {pisDocumentCheckIcon({ size: 18, color: "#ffffff" })}
-                {pisLoading ? "Consultando…" : "Verificar documento"}
+                {pisLoading ? "Consultando…" : ((!authUser && !isAdmin) ? "Inicia sesión para consultar" : "Verificar documento")}
               </button>
-              <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"DEA", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
+              <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
               <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...pisActionBtn, background:"transparent", color:"#d4e4fa", border:"1px solid rgba(161,201,255,.38)", flex:posturasMobile ? "1 1 100%" : "0 1 220px" }}>
                 {pisShieldIcon({ size: 18 })}
                 Abrir PIS oficial
@@ -25798,6 +25853,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title="FORMULARIO" />{AccessSelectorModal()}{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<>{AdminSalaryControlPanel()}{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}</div>;
     }
     if (posturasMode === "vacancies") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title="MIS VACANTES" /><MyVacanciesView /></div>;
+    if (posturasMode === "archive" && (authUser || isAdmin)) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}><MobilePosturasHeader title="ARCHIVO" /><SharedTalentCenter /></div>;
     if (!hasAdvancedPosturasAccess) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title={posturasMode === "archive" ? "ARCHIVO" : "MARITIME TALENT"} showEdit={posturasMode !== "archive"} /><section style={{ maxWidth:"760px", margin:"36px auto", padding:"24px 18px", borderRadius:"20px", border:"1px solid rgba(161,201,255,.24)", background:"linear-gradient(145deg, rgba(9,23,39,.96), rgba(5,15,27,.98))", boxShadow:"0 24px 70px rgba(0,0,0,.36)", textAlign:"center" }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"42px", color:pendingOwnProfile ? "#fbbf24" : "#a1c9ff", marginBottom:"12px" }}>{pendingOwnProfile ? "hourglass_top" : "person_add"}</span><h2 style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:"'Inter', sans-serif", fontSize:"24px", fontWeight:"900" }}>{pendingOwnProfile ? "En revisión por administración" : "Perfil requerido"}</h2><p style={{ margin:"0 auto 22px", maxWidth:"580px", color:"rgba(212,228,250,.68)", fontFamily:"'Inter', sans-serif", fontSize:"14px", lineHeight:1.7 }}>{pendingOwnProfile ? "Tu formulario fue recibido. Las funciones avanzadas se activarán automáticamente cuando administración valide y vincule tu perfil." : "La cuenta de acceso y el perfil de Posturas son independientes. Abre el formulario para crear un perfil de trabajador o empresa."}</p>{!pendingOwnProfile && <button type="button" onClick={()=>{ setPosturasMode("profile"); setSub("posturas"); }} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", minHeight:"46px", padding:"0 20px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.42)", background:"linear-gradient(135deg,#4dabff,#2589e8)", color:"#001c39", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"900", cursor:"pointer" }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"19px" }}>description</span>Abrir Formulario</button>}</section></div>;
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}><MobilePosturasHeader title={posturasMode === "archive" ? "ARCHIVO" : "MARITIME TALENT"} showEdit={posturasMode !== "archive"} /><SharedTalentCenter /></div>;
   };
@@ -25929,7 +25985,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           )
         )}
 
-        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && !hasAdvancedPosturasAccess && (
+        {sub === "posturas" && posturasMode === "archive" && (authUser || isAdmin) && <SharedTalentCenter />}
+
+        {sub === "posturas" && posturasMode !== "archive" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && !hasAdvancedPosturasAccess && (
           <section style={{ maxWidth:"760px", margin:"60px auto", padding:"30px", borderRadius:"20px", border:"1px solid rgba(161,201,255,.24)", background:"linear-gradient(145deg, rgba(9,23,39,.96), rgba(5,15,27,.98))", boxShadow:"0 24px 70px rgba(0,0,0,.36)", textAlign:"center" }}>
             <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"42px", color:pendingOwnProfile ? "#fbbf24" : "#a1c9ff", marginBottom:"12px" }}>{pendingOwnProfile ? "hourglass_top" : "person_add"}</span>
             <h2 style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:"'Inter', sans-serif", fontSize:"26px", fontWeight:"900" }}>{pendingOwnProfile ? "En revisión por administración" : "Perfil requerido"}</h2>
@@ -25938,7 +25996,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </section>
         )}
 
-        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && hasAdvancedPosturasAccess && <SharedTalentCenter />}
+        {sub === "posturas" && posturasMode !== "archive" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && hasAdvancedPosturasAccess && <SharedTalentCenter />}
       </main>
 
       {(isPosturasLoggedIn || isAdmin) && !vacancyModalOpen && (isAdmin ? (
