@@ -25644,7 +25644,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           style={{
             width:"42px", height:"42px", minWidth:"42px", padding:0, borderRadius:"13px",
             border:"1px solid rgba(161,201,255,.30)", background:"rgba(18,33,49,.82)",
-            display:"grid", placeItems:"center", color:"#a1c9ff", cursor:"pointer",
+            display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:0,
+            boxSizing:"border-box", color:"#a1c9ff", cursor:"pointer",
             boxShadow:"inset 0 1px 0 rgba(255,255,255,.06), 0 8px 20px rgba(0,0,0,.22)"
           }}
         >
@@ -25657,6 +25658,130 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       </div>
       {showEdit && <button type="button" onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} aria-label="Editar perfil" style={{ width:"40px", height:"40px", minWidth:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button>}
     </div>
+  );
+
+  const SharedTalentCenter = () => (
+          <section className="cm-posturas-target">
+            <PosturasTargetStyles />
+            <div className="cm-posturas-target-header">
+              <div className="cm-posturas-target-heading-row">
+                <div className="cm-posturas-target-title">
+                  <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
+                  <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
+                </div>
+                {posturasMode === "archive" && (savedTrabajadores.length > 0 || savedEmpresas.length > 0) && (
+                  <button type="button" onClick={clearArchivedProfiles} aria-label="Limpiar todos los elementos del Archivo" title="Limpiar todos" style={{ display:"inline-flex", alignItems:"center", gap:"8px", minHeight:"42px", padding:"0 14px", borderRadius:"12px", border:"1px solid rgba(248,113,113,.34)", background:"rgba(127,29,29,.18)", color:"#fecaca", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)" }}>
+                    <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"21px" }}>delete_sweep</span>
+                    Limpiar todos
+                  </button>
+                )}
+              </div>
+
+              {posturasMode !== "archive" && <>
+                <div className="cm-posturas-search-shell">
+                  <div className="cm-posturas-search-top">
+                    <button
+                      type="button"
+                      className={`cm-posturas-search-toggle ${posturasSearchOpen ? "open" : ""}`}
+                      onClick={openPosturasSearch}
+                      onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
+                      aria-label="Abrir búsqueda; doble clic para cerrar"
+                      aria-expanded={posturasSearchOpen}
+                    >
+                      <MS name="search" size={22} color={posturasSearchOpen ? "#4edea3" : "#bbcabf"} />
+                    </button>
+
+                    <div className={`cm-posturas-search-expand ${posturasSearchOpen ? "open" : ""}`}>
+                      <div className="cm-posturas-search-expand-inner">
+                        <div className="cm-posturas-search-input-wrap">
+                          <input
+                            ref={posturasSearchInputRef}
+                            value={q}
+                            onFocus={registerPosturasSearchActivity}
+                            onKeyDown={registerPosturasSearchActivity}
+                            onMouseMove={registerPosturasSearchActivity}
+                            onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
+                            onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
+                            placeholder="Nombre, edad, empresa, calificación, licencia o maniobra..."
+                            aria-label="Buscar perfiles, empresas o vacantes"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`cm-posturas-filter-toggle ${posturasFilterOpen ? "active" : ""}`}
+                      onClick={()=>setPosturasFilterOpen(value=>!value)}
+                      aria-label="Abrir filtros"
+                      aria-expanded={posturasFilterOpen}
+                    >
+                      <MS name="filter_list" size={21} color={posturasFilterOpen ? "#4edea3" : "#bbcabf"} />
+                      <span>Filtros</span>
+                    </button>
+                  </div>
+
+                  {posturasFilterOpen && (
+                    <div className="cm-posturas-filter-panel">
+                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:e.target.value}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
+                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:e.target.value}))} placeholder="18"/></label>
+                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:e.target.value}))} placeholder="Nombre"/></label>
+                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:e.target.value}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
+                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:e.target.value}))} placeholder="Tipo de licencia"/></label>
+                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:e.target.value}))} placeholder="Tipo de maniobra"/></label>
+                      <button type="button" onClick={()=>setPosturasAdvancedFilter({tipo:"todos",edadMin:"",empresa:"",estrellas:"todos",licencia:"",maniobra:""})}>Limpiar</button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="cm-posturas-target-tabs">
+                  {[
+                    ["todos","Todos"],
+                    ["posturas","Posturas"],
+                    ["perfiles","Perfiles"],
+                    ["busquedas","Búsquedas"],
+                  ].map(([id,label]) => (
+                    <button key={id} type="button" className={talentView===id ? "active" : ""} onClick={()=>{setTalentView(id);setPosturasSmartFilter("todos");setPageTrab(1);setPageEmp(1)}}>{label}</button>
+                  ))}
+                </div>
+              </>}
+            </div>
+
+            {loading && <div style={{color:"#94a3b8",textAlign:"center",padding:"20px"}}>Cargando perfiles…</div>}
+
+            {posturasMode === "archive" && (
+              savedTrabajadores.length || savedEmpresas.length ? (
+                <div className="cm-target-grid">
+                  {savedTrabajadores.map(row=><TalentProfileCard key={`saved-trab-${row.id}`} row={row} type="trabajador"/>)}
+                  {savedEmpresas.map(row=><TalentProfileCard key={`saved-emp-${row.id}`} row={row} type="empresa"/>)}
+                </div>
+              ) : <div className="cm-target-empty"><MS name="bookmark" size={42} color="#86948a"/><p>Aún no tienes perfiles guardados.</p></div>
+            )}
+
+            {posturasMode !== "archive" && <>
+{(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && trabFiltrados.length > 0 && (
+                <section className="cm-target-sample-section">
+                  <div className="cm-target-section-head"><h3>Perfiles de Operadores <span>({trabFiltrados.length})</span></h3></div>
+                  <div className="cm-target-grid">{trabajadoresPage.map(row=><TalentProfileCard key={row.id} row={row} type="trabajador"/>)}</div>
+                  <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE}/>
+                </section>
+              )}
+
+              {(talentView === "todos" || talentView === "busquedas") && (
+                <section className="cm-target-sample-section">
+                  <div className="cm-target-section-head"><h3>Búsquedas / Empresas <span style={{color:"#86948a"}}>({empFiltradas.length})</span></h3></div>
+                  {empFiltradas.length ? (
+                    <>
+                      <div className="cm-target-grid">{empresasPage.map(row=><TalentProfileCard key={row.id} row={row} type="empresa"/>)}</div>
+                      <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE}/>
+                    </>
+                  ) : (
+                    <div className="cm-target-empty"><MS name="domain" size={48} color="#86948a"/><p>No hay búsquedas de empresas activas en este momento.</p></div>
+                  )}
+                </section>
+              )}
+            </>}
+          </section>
   );
 
   const MobilePosturasShell = () => {
@@ -25672,15 +25797,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       if (!authUser && !isAdmin) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title="FORMULARIO" /><AccessGate /></div>;
       return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title="FORMULARIO" />{AccessSelectorModal()}{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}<ProfileHeader />{isAdmin ? (<>{AdminSalaryControlPanel()}{adminPosturasProfileView !== "empresa" && WorkerForm()}{adminPosturasProfileView !== "postulante" && <div style={{ marginTop:"14px" }}>{CompanyForm()}</div>}</>) : ((posturasUserType === "empresa" || vista === "empresario") ? CompanyForm() : WorkerForm())}</div>;
     }
-    const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
-    return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
-      <MobilePosturasHeader showEdit />
-      <div style={{ display:"grid", gap:"10px", marginBottom:"16px" }}><div style={{ position:"relative" }}><span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={18} /></span><input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar puestos, talentos..." style={{ ...input, paddingLeft:"40px", background:"rgba(28,43,60,.86)", borderRadius:"14px", minHeight:"46px" }} /></div><button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.64)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}><MS name="filter_list" size={17} active /> Filtros avanzados</button></div>
-      <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
-      {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
-      {sub !== "tablero" && <div style={{ display:"grid", gap:"12px" }}>{mobileItems.length ? mobileItems.slice(0, 14).map(({type,row}) => type === "trabajador" ? <MobileTrabCard key={`mt-${row.id}`} row={row} /> : <MobileEmpresaCard key={`me-${row.id}`} row={row} />) : <div style={{ ...card, padding:"24px", textAlign:"center", color:"rgba(212,228,250,.50)" }}>Sin resultados para mostrar.</div>}</div>}
-      
-    </div>;
+    if (posturasMode === "vacancies") return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title="MIS VACANTES" /><MyVacanciesView /></div>;
+    if (!hasAdvancedPosturasAccess) return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 90px" }}><MobilePosturasHeader title={posturasMode === "archive" ? "ARCHIVO" : "MARITIME TALENT"} showEdit={posturasMode !== "archive"} /><section style={{ maxWidth:"760px", margin:"36px auto", padding:"24px 18px", borderRadius:"20px", border:"1px solid rgba(161,201,255,.24)", background:"linear-gradient(145deg, rgba(9,23,39,.96), rgba(5,15,27,.98))", boxShadow:"0 24px 70px rgba(0,0,0,.36)", textAlign:"center" }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"42px", color:pendingOwnProfile ? "#fbbf24" : "#a1c9ff", marginBottom:"12px" }}>{pendingOwnProfile ? "hourglass_top" : "person_add"}</span><h2 style={{ margin:"0 0 10px", color:"#ffffff", fontFamily:"'Inter', sans-serif", fontSize:"24px", fontWeight:"900" }}>{pendingOwnProfile ? "En revisión por administración" : "Perfil requerido"}</h2><p style={{ margin:"0 auto 22px", maxWidth:"580px", color:"rgba(212,228,250,.68)", fontFamily:"'Inter', sans-serif", fontSize:"14px", lineHeight:1.7 }}>{pendingOwnProfile ? "Tu formulario fue recibido. Las funciones avanzadas se activarán automáticamente cuando administración valide y vincule tu perfil." : "La cuenta de acceso y el perfil de Posturas son independientes. Abre el formulario para crear un perfil de trabajador o empresa."}</p>{!pendingOwnProfile && <button type="button" onClick={()=>{ setPosturasMode("profile"); setSub("posturas"); }} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", minHeight:"46px", padding:"0 20px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.42)", background:"linear-gradient(135deg,#4dabff,#2589e8)", color:"#001c39", fontFamily:"'Inter', sans-serif", fontSize:"12px", fontWeight:"900", cursor:"pointer" }}><span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"19px" }}>description</span>Abrir Formulario</button>}</section></div>;
+    return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}><MobilePosturasHeader title={posturasMode === "archive" ? "ARCHIVO" : "MARITIME TALENT"} showEdit={posturasMode !== "archive"} /><SharedTalentCenter /></div>;
   };
 
   if (posturasMobile) return <>{VacancyModal()}<PosturasReportModal />{ProfileDetailModal()}{!isEmbeddedAdminView && <MobilePosturasPanel />}<MobilePosturasShell /></>;
@@ -25819,129 +25938,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           </section>
         )}
 
-        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && hasAdvancedPosturasAccess && (
-          <section className="cm-posturas-target">
-            <PosturasTargetStyles />
-            <div className="cm-posturas-target-header">
-              <div className="cm-posturas-target-heading-row">
-                <div className="cm-posturas-target-title">
-                  <h2>{posturasMode === "archive" ? "Archivo de perfiles" : "Centro de Talento"}</h2>
-                  <p>{posturasMode === "archive" ? "Perfiles guardados localmente para consulta rápida." : "Gestión activa de vacantes y perfiles especializados de operadores."}</p>
-                </div>
-                {posturasMode === "archive" && (savedTrabajadores.length > 0 || savedEmpresas.length > 0) && (
-                  <button type="button" onClick={clearArchivedProfiles} aria-label="Limpiar todos los elementos del Archivo" title="Limpiar todos" style={{ display:"inline-flex", alignItems:"center", gap:"8px", minHeight:"42px", padding:"0 14px", borderRadius:"12px", border:"1px solid rgba(248,113,113,.34)", background:"rgba(127,29,29,.18)", color:"#fecaca", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".06em", textTransform:"uppercase", cursor:"pointer", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)" }}>
-                    <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize:"21px" }}>delete_sweep</span>
-                    Limpiar todos
-                  </button>
-                )}
-              </div>
-
-              {posturasMode !== "archive" && <>
-                <div className="cm-posturas-search-shell">
-                  <div className="cm-posturas-search-top">
-                    <button
-                      type="button"
-                      className={`cm-posturas-search-toggle ${posturasSearchOpen ? "open" : ""}`}
-                      onClick={openPosturasSearch}
-                      onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
-                      aria-label="Abrir búsqueda; doble clic para cerrar"
-                      aria-expanded={posturasSearchOpen}
-                    >
-                      <MS name="search" size={22} color={posturasSearchOpen ? "#4edea3" : "#bbcabf"} />
-                    </button>
-
-                    <div className={`cm-posturas-search-expand ${posturasSearchOpen ? "open" : ""}`}>
-                      <div className="cm-posturas-search-expand-inner">
-                        <div className="cm-posturas-search-input-wrap">
-                          <input
-                            ref={posturasSearchInputRef}
-                            value={q}
-                            onFocus={registerPosturasSearchActivity}
-                            onKeyDown={registerPosturasSearchActivity}
-                            onMouseMove={registerPosturasSearchActivity}
-                            onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
-                            onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
-                            placeholder="Nombre, edad, empresa, calificación, licencia o maniobra..."
-                            aria-label="Buscar perfiles, empresas o vacantes"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className={`cm-posturas-filter-toggle ${posturasFilterOpen ? "active" : ""}`}
-                      onClick={()=>setPosturasFilterOpen(value=>!value)}
-                      aria-label="Abrir filtros"
-                      aria-expanded={posturasFilterOpen}
-                    >
-                      <MS name="filter_list" size={21} color={posturasFilterOpen ? "#4edea3" : "#bbcabf"} />
-                      <span>Filtros</span>
-                    </button>
-                  </div>
-
-                  {posturasFilterOpen && (
-                    <div className="cm-posturas-filter-panel">
-                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:e.target.value}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
-                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:e.target.value}))} placeholder="18"/></label>
-                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:e.target.value}))} placeholder="Nombre"/></label>
-                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:e.target.value}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
-                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:e.target.value}))} placeholder="Tipo de licencia"/></label>
-                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:e.target.value}))} placeholder="Tipo de maniobra"/></label>
-                      <button type="button" onClick={()=>setPosturasAdvancedFilter({tipo:"todos",edadMin:"",empresa:"",estrellas:"todos",licencia:"",maniobra:""})}>Limpiar</button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="cm-posturas-target-tabs">
-                  {[
-                    ["todos","Todos"],
-                    ["posturas","Posturas"],
-                    ["perfiles","Perfiles"],
-                    ["busquedas","Búsquedas"],
-                  ].map(([id,label]) => (
-                    <button key={id} type="button" className={talentView===id ? "active" : ""} onClick={()=>{setTalentView(id);setPosturasSmartFilter("todos");setPageTrab(1);setPageEmp(1)}}>{label}</button>
-                  ))}
-                </div>
-              </>}
-            </div>
-
-            {loading && <div style={{color:"#94a3b8",textAlign:"center",padding:"20px"}}>Cargando perfiles…</div>}
-
-            {posturasMode === "archive" && (
-              savedTrabajadores.length || savedEmpresas.length ? (
-                <div className="cm-target-grid">
-                  {savedTrabajadores.map(row=><TalentProfileCard key={`saved-trab-${row.id}`} row={row} type="trabajador"/>)}
-                  {savedEmpresas.map(row=><TalentProfileCard key={`saved-emp-${row.id}`} row={row} type="empresa"/>)}
-                </div>
-              ) : <div className="cm-target-empty"><MS name="bookmark" size={42} color="#86948a"/><p>Aún no tienes perfiles guardados.</p></div>
-            )}
-
-            {posturasMode !== "archive" && <>
-{(talentView === "todos" || talentView === "posturas" || talentView === "perfiles") && trabFiltrados.length > 0 && (
-                <section className="cm-target-sample-section">
-                  <div className="cm-target-section-head"><h3>Perfiles de Operadores <span>({trabFiltrados.length})</span></h3></div>
-                  <div className="cm-target-grid">{trabajadoresPage.map(row=><TalentProfileCard key={row.id} row={row} type="trabajador"/>)}</div>
-                  <Pagination total={trabFiltrados.length} page={pageTrab} setPage={setPageTrab} pageSize={PAGE_SIZE}/>
-                </section>
-              )}
-
-              {(talentView === "todos" || talentView === "busquedas") && (
-                <section className="cm-target-sample-section">
-                  <div className="cm-target-section-head"><h3>Búsquedas / Empresas <span style={{color:"#86948a"}}>({empFiltradas.length})</span></h3></div>
-                  {empFiltradas.length ? (
-                    <>
-                      <div className="cm-target-grid">{empresasPage.map(row=><TalentProfileCard key={row.id} row={row} type="empresa"/>)}</div>
-                      <Pagination total={empFiltradas.length} page={pageEmp} setPage={setPageEmp} pageSize={PAGE_SIZE}/>
-                    </>
-                  ) : (
-                    <div className="cm-target-empty"><MS name="domain" size={48} color="#86948a"/><p>No hay búsquedas de empresas activas en este momento.</p></div>
-                  )}
-                </section>
-              )}
-            </>}
-          </section>
-        )}
+        {sub === "posturas" && posturasMode !== "form" && posturasMode !== "profile" && posturasMode !== "vacancies" && hasAdvancedPosturasAccess && <SharedTalentCenter />}
       </main>
 
       {(isPosturasLoggedIn || isAdmin) && !vacancyModalOpen && (isAdmin ? (
