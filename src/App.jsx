@@ -2909,8 +2909,22 @@ const submitTrafficVoteForValidation = async ({
   }
 };
 
-const persistCarrilesRow = (rowId, data) => writeStatusCache(`carriles:${rowId}`, data);
-const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
+const CARRILES_RUNTIME_STORE = new Map();
+const persistCarrilesRow = (rowId, data) => {
+  CARRILES_RUNTIME_STORE.set(rowId, data || {});
+  writeStatusCache(`carriles:${rowId}`, data);
+};
+const getPersistedCarrilesRow = (rowId) => {
+  const runtime = CARRILES_RUNTIME_STORE.get(rowId);
+  if (runtime && typeof runtime === "object" && Object.keys(runtime).length > 0) return runtime;
+  const cached = readStatusCache(`carriles:${rowId}`);
+  return cached && typeof cached === "object" && Object.keys(cached).length > 0 ? cached : null;
+};
+const mergeCarrilesRowByLatest = (rowId, defaults = {}, remote = {}) => {
+  const merged = mergeStatusMapsByLatest(`carriles:${rowId}`, defaults, remote);
+  CARRILES_RUNTIME_STORE.set(rowId, merged);
+  return merged;
+};
 
 const SEGUNDO_CARRILES_INGRESO = [
   { id: "c1", label: "Carril 1", defaultTerminal: "ssa"   },
@@ -14934,20 +14948,29 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   const [terminalSearch, setTerminalSearch] = useState({}); // { [carrilId]: string } — filtro en vivo del buscador de terminal
   const [pendingKeys, setPendingKeys] = useState({}); // { "carrilId:field": true } — feedback optimista mientras confirma el servidor
 
-  // ── Estado 2DO ACCESO ──
-  const [carriles, setCarriles] = useState(mkSegundoIngreso);
-  // ── Estado CONFINADA ──
-  const [confinada, setConfinada] = useState(mkConfinadaState);
-
-  const [toast, setToast] = useState(null);
-  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
-
   const TABLA = "carriles";
   const ROW_ID = "segundo_acceso";
   const ROW_ID_CF = "confinada_acceso";
 
-  const saveToSupa = async (newState) => { persistCarrilesRow(ROW_ID, newState); const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }); return error; };
-  const saveConfinada = async (newState) => { persistCarrilesRow(ROW_ID_CF, newState); const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }); return error; };
+  const initialSegundoSnapshot = getPersistedCarrilesRow(ROW_ID);
+  const initialConfinadaSnapshot = getPersistedCarrilesRow(ROW_ID_CF);
+  const [carriles, setCarriles] = useState(() => initialSegundoSnapshot || mkSegundoIngreso());
+  const [confinada, setConfinada] = useState(() => initialConfinadaSnapshot || mkConfinadaState());
+  const [snapshotReady, setSnapshotReady] = useState(() => !!initialSegundoSnapshot && !!initialConfinadaSnapshot);
+
+  const [toast, setToast] = useState(null);
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+
+  const saveToSupa = async (newState) => {
+    const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }, { onConflict: "id" });
+    if (!error) persistCarrilesRow(ROW_ID, newState);
+    return error;
+  };
+  const saveConfinada = async (newState) => {
+    const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }, { onConflict: "id" });
+    if (!error) persistCarrilesRow(ROW_ID_CF, newState);
+    return error;
+  };
 
   // ── Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
   const setPending = (key, on) => setPendingKeys(prev => {
@@ -14956,20 +14979,76 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     return rest;
   });
 
-  useEffect(() => {
-    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data, error }) => {
-      setCarriles(mergeCarrilesRowByLatest(ROW_ID, mkSegundoIngreso(), error ? {} : (data?.data || {})));
-    });
-    sb.from(TABLA).select("*").eq("id", ROW_ID_CF).single().then(({ data, error }) => {
-      setConfinada(mergeCarrilesRowByLatest(ROW_ID_CF, mkConfinadaState(), error ? {} : (data?.data || {})));
-    });
-    const chan = sb.channel("segundo-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
-        if (r?.id === ROW_ID && r?.data) setCarriles(prev => mergeCarrilesRowByLatest(ROW_ID, prev || mkSegundoIngreso(), r.data));
-        if (r?.id === ROW_ID_CF && r?.data) setConfinada(prev => mergeCarrilesRowByLatest(ROW_ID_CF, prev || mkConfinadaState(), r.data));
-      }).subscribe();
-    return () => sb.removeChannel(chan);
+  const applySegundoSnapshot = useCallback((remoteData) => {
+    const merged = mergeCarrilesRowByLatest(ROW_ID, mkSegundoIngreso(), remoteData || {});
+    setCarriles(merged);
+    persistCarrilesRow(ROW_ID, merged);
   }, []);
+
+  const applyConfinadaSnapshot = useCallback((remoteData) => {
+    const merged = mergeCarrilesRowByLatest(ROW_ID_CF, mkConfinadaState(), remoteData || {});
+    setConfinada(merged);
+    persistCarrilesRow(ROW_ID_CF, merged);
+  }, []);
+
+  const loadCurrentSnapshots = useCallback(async ({ silent = false } = {}) => {
+    const [segundoResult, confinadaResult] = await Promise.all([
+      sb.from(TABLA).select("id,data").eq("id", ROW_ID).maybeSingle(),
+      sb.from(TABLA).select("id,data").eq("id", ROW_ID_CF).maybeSingle(),
+    ]);
+
+    if (!segundoResult.error) {
+      if (segundoResult.data?.data) applySegundoSnapshot(segundoResult.data.data);
+      else {
+        const fallback = getPersistedCarrilesRow(ROW_ID) || mkSegundoIngreso();
+        const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: fallback }, { onConflict: "id" });
+        if (!error) applySegundoSnapshot(fallback);
+      }
+    } else if (!silent) console.warn("[segundo_acceso] no se pudo recuperar el snapshot", segundoResult.error);
+
+    if (!confinadaResult.error) {
+      if (confinadaResult.data?.data) applyConfinadaSnapshot(confinadaResult.data.data);
+      else {
+        const fallback = getPersistedCarrilesRow(ROW_ID_CF) || mkConfinadaState();
+        const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: fallback }, { onConflict: "id" });
+        if (!error) applyConfinadaSnapshot(fallback);
+      }
+    } else if (!silent) console.warn("[confinada_acceso] no se pudo recuperar el snapshot", confinadaResult.error);
+
+    setSnapshotReady(true);
+  }, [applySegundoSnapshot, applyConfinadaSnapshot]);
+
+  useEffect(() => {
+    let active = true;
+    let refreshTimer = null;
+    const refresh = async (options) => { if (active) await loadCurrentSnapshots(options); };
+
+    refresh();
+    const chan = sb.channel(`segundo-confinada-rt-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: row, old: oldRow }) => {
+        const rowId = row?.id || oldRow?.id;
+        if (rowId !== ROW_ID && rowId !== ROW_ID_CF) return;
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => refresh({ silent: true }), 40);
+      })
+      .subscribe((status) => { if (status === "SUBSCRIBED") refresh({ silent: true }); });
+
+    const refreshWhenActive = () => { if (document.visibilityState === "visible") refresh({ silent: true }); };
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("pageshow", refreshWhenActive);
+    window.addEventListener("hashchange", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+
+    return () => {
+      active = false;
+      clearTimeout(refreshTimer);
+      window.removeEventListener("focus", refreshWhenActive);
+      window.removeEventListener("pageshow", refreshWhenActive);
+      window.removeEventListener("hashchange", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+      sb.removeChannel(chan);
+    };
+  }, [loadCurrentSnapshots]);
 
   // ── Handlers 2DO ACCESO ──
   const updateIngreso = async (id, field, value) => {
@@ -15100,10 +15179,16 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     if (!confinada) return;
     const key = `${id}:${field}`;
     const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    const prev = confinada;
     setConfinada(next);
     setPending(key, true);
-    await saveConfinada(next);
+    const error = await saveConfinada(next);
     setPending(key, false);
+    if (error) {
+      setConfinada(prev);
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      return;
+    }
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
     await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -15130,8 +15215,13 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     };
     setConfinada(next);
     setPending(`${id}:estado_carril`, true);
-    await saveConfinada(next);
+    const error = await saveConfinada(next);
     setPending(`${id}:estado_carril`, false);
+    if (error) {
+      setConfinada(prev);
+      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      return;
+    }
     await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("✓ Estado del carril Confinada actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "🔒", color: opt.color, titulo: `Confinada ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
@@ -15557,6 +15647,16 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       </div>
     );
   };
+
+  if (!snapshotReady) {
+    return (
+      <div style={{ padding:"28px 16px 100px", maxWidth:"1400px", margin:"0 auto" }}>
+        <div style={{ minHeight:"280px", display:"grid", placeItems:"center", border:"1px solid rgba(56,189,248,.18)", borderRadius:"18px", background:"rgba(5,16,31,.72)" }}>
+          <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:700 }}>Sincronizando estado actual de carriles…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
