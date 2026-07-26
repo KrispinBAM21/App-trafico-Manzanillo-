@@ -207,6 +207,7 @@ function PosturasSidebarIcon({ name, size = 24, filled = false, className = "", 
     case "vacancy_clipboard": return <svg {...common}><rect x="5" y="4" width="14" height="17" rx="2" {...p}/><path d="M9 4V2.8h6V4M8.5 9h7M8.5 13h7M8.5 17h5" {...p}/></svg>;
     case "edit_profile": return <svg {...common}><path d="M5 4h10l4 4v4M15 4v4h4M6 19h4l8-8-4-4-8 8v4Z" {...p}/><path d="m13.5 8.5 4 4" {...p}/></svg>;
     case "search": return <svg {...common}><circle cx="11" cy="11" r="6.5" {...p}/><path d="m16 16 4 4" {...p}/></svg>;
+    case "menu": return <svg {...common}><path d="M4 7h16M4 12h16M4 17h16" {...p}/></svg>;
     case "chevron_right": return <svg {...common}><path d="m9 6 6 6-6 6" {...p}/></svg>;
     default: return <svg {...common}><circle cx="12" cy="12" r="9" {...p}/><path d="M8 12h8" {...p}/></svg>;
   }
@@ -25577,26 +25578,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         .cm-posturas-mobile-subsections{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s cubic-bezier(.22,1,.36,1),opacity .24s ease}.cm-posturas-mobile-subsections.is-open{grid-template-rows:1fr;opacity:1}.cm-posturas-mobile-subsections__inner{min-height:0;overflow:hidden;display:grid;gap:7px;padding-left:10px;border-left:1px solid rgba(164,201,255,.14)}
         @media (prefers-reduced-motion:reduce){.cm-posturas-mobile-panel-trigger,.cm-posturas-mobile-panel-trigger::after{animation:none!important;}}
       `}</style>
-      <button
-        type="button"
-        className="cm-posturas-mobile-panel-trigger"
-        onClick={()=>setMobilePosturasPanelOpen(true)}
-        aria-label="Abrir panel de Posturas"
-        aria-expanded={mobilePosturasPanelOpen}
-        style={{
-          position:"fixed", left:"14px", top:"78px", zIndex:1290,
-          width:"56px", height:"56px", padding:0, borderRadius:"18px",
-          border:"1px solid rgba(165,180,252,.48)",
-          background:"rgba(15,23,42,.72)",
-          color:"#ffffff", display:"grid", placeItems:"center", overflow:"hidden",
-          backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
-          boxShadow:"0 14px 34px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.13)",
-          cursor:"pointer", transition:"all .3s cubic-bezier(.22,1,.36,1)"
-        }}
-      >
-        <MS name={mobilePosturasPanelOpen ? "dock_to_right" : "view_sidebar"} size={29} color="currentColor" />
-      </button>
-
       <div
         onClick={()=>setMobilePosturasPanelOpen(false)}
         aria-hidden={!mobilePosturasPanelOpen}
@@ -25665,7 +25646,29 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     }
     const mobileItems = talentView === "perfiles" ? trabFiltrados.map(row=>({type:"trabajador", row})) : talentView === "busquedas" ? empFiltradas.map(row=>({type:"empresa", row})) : [...trabFiltrados.map(row=>({type:"trabajador", row})), ...empFiltradas.map(row=>({type:"empresa", row}))].sort((a,b)=>avgFor(b.type,b.row.id).avg-avgFor(a.type,a.row.id).avg);
     return <div style={{ background:"#051424", color:"#d4e4fa", minHeight:"100vh", padding:"14px 14px 96px", fontFamily:getFont(theme,"secondary") }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(161,201,255,.30)", background:"rgba(161,201,255,.10)", display:"grid", placeItems:"center" }}><MS name="person_circle" size={23} active /></div><div><div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em" }}>MARITIME TALENT</div><div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em" }}>{profileDisplayName}</div></div></div><button onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button></div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", padding:"10px 0 14px", borderBottom:"1px solid rgba(63,71,83,.46)", marginBottom:"14px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0, flex:1 }}>
+          <button
+            type="button"
+            onClick={()=>setMobilePosturasPanelOpen(true)}
+            aria-label="Abrir panel de Posturas"
+            aria-expanded={mobilePosturasPanelOpen}
+            style={{
+              width:"42px", height:"42px", minWidth:"42px", padding:0, borderRadius:"13px",
+              border:"1px solid rgba(161,201,255,.30)", background:"rgba(18,33,49,.82)",
+              display:"grid", placeItems:"center", color:"#a1c9ff", cursor:"pointer",
+              boxShadow:"inset 0 1px 0 rgba(255,255,255,.06), 0 8px 20px rgba(0,0,0,.22)"
+            }}
+          >
+            <PosturasSidebarIcon name="menu" size={23} />
+          </button>
+          <div style={{ minWidth:0 }}>
+            <div style={{ color:"#a1c9ff", fontSize:"18px", fontWeight:"900", letterSpacing:"-.02em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>MARITIME TALENT</div>
+            <div style={{ color:"rgba(212,228,250,.58)", fontSize:"10px", textTransform:"uppercase", letterSpacing:".14em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{profileDisplayName}</div>
+          </div>
+        </div>
+        <button onClick={()=>{ if (!authUser && !isAdmin) { requestProtectedProfileAccess("register"); return; } setSub("posturas"); setPosturasMode("profile"); }} style={{ width:"40px", height:"40px", minWidth:"40px", borderRadius:"999px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.76)", display:"grid", placeItems:"center", color:"#a1c9ff" }}><MS name="edit" size={18} active /></button>
+      </div>
       <div style={{ display:"grid", gap:"10px", marginBottom:"16px" }}><div style={{ position:"relative" }}><span style={{ position:"absolute", left:"12px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={18} /></span><input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar puestos, talentos..." style={{ ...input, paddingLeft:"40px", background:"rgba(28,43,60,.86)", borderRadius:"14px", minHeight:"46px" }} /></div><button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.48)", background:"rgba(18,33,49,.64)", color:"#a1c9ff", fontSize:"11px", fontWeight:"900", letterSpacing:".1em", textTransform:"uppercase" }}><MS name="filter_list" size={17} active /> Filtros avanzados</button></div>
       <nav style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(63,71,83,.56)", marginBottom:"16px" }}>{[["todos","Todos"],["perfiles","Perfiles"],["busquedas","Búsquedas"]].map(([id,label])=><button key={id} onClick={()=>setTalentView(id)} style={{ position:"relative", flex:1, padding:"12px 4px", border:"none", background:"transparent", color:talentView===id?"#a1c9ff":"rgba(212,228,250,.60)", fontSize:"11px", fontWeight:"900", letterSpacing:".08em", textTransform:"uppercase" }}>{label}{talentView===id && <span style={{ position:"absolute", bottom:"-1px", left:0, right:0, height:"2px", background:"#a1c9ff" }} />}</button>)}</nav>
       {sub === "tablero" && <div style={{ display:"grid", gap:"12px", marginBottom:"16px" }}><div style={{ color:"#d4e4fa", fontSize:"20px", fontWeight:"900" }}>Tablero de reputación</div><RankingModule title="Top Usuarios" subtitle="Ranking móvil" items={trabFiltrados.slice(0,5)} type="trabajador" /><RankingModule title="Top Empresas" subtitle="Ranking móvil" items={empFiltradas.slice(0,5)} type="empresa" /></div>}
