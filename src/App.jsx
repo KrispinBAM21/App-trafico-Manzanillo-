@@ -17806,6 +17806,8 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const canvasTemplateRef = useRef(null);
   const dragStateRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
   const exportDebounceRef = useRef(null);
+  const canvasRenderVersionRef = useRef(0);
+  const canvasExportVersionRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -18964,13 +18966,19 @@ ${base}`;
     }
 
     const template = await ensureCanvasTemplate();
-    const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
-    const width = template.naturalWidth || template.width || 1024;
-    const height = template.naturalHeight || template.height || 1448;
-    canvas.width = width;
-    canvas.height = height;
+    // La medición se hace en un canvas fuera de pantalla para no borrar el canvas visible
+    // durante cada recálculo tipográfico. La salida se genera al doble de resolución cuando
+    // la plantilla original es menor a 2000 px de ancho, mejorando notablemente la nitidez.
+    const sourceWidth = template.naturalWidth || template.width || 1024;
+    const sourceHeight = template.naturalHeight || template.height || 1448;
+    const qualityScale = sourceWidth < 2000 ? 2 : 1;
+    const width = Math.round(sourceWidth * qualityScale);
+    const height = Math.round(sourceHeight * qualityScale);
+    const measurementCanvas = document.createElement("canvas");
+    measurementCanvas.width = width;
+    measurementCanvas.height = height;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = measurementCanvas.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
 
     const scale = width / 1024;
@@ -19214,24 +19222,31 @@ ${base}`;
     metrics = canvasMetrics,
     skipElementId = inlineEditor?.elementId || null,
   } = {}) => {
-    if (!elements?.length || !metrics) return;
+    if (!elements?.length || !metrics) return false;
 
+    const renderVersion = ++canvasRenderVersionRef.current;
     const template = metrics.template || await ensureCanvasTemplate();
     const canvas = comunicadoCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas || renderVersion !== canvasRenderVersionRef.current) return false;
 
-    canvas.width = metrics.width;
-    canvas.height = metrics.height;
+    // Renderizado con doble buffer: toda la escena se compone fuera de pantalla y se copia
+    // al canvas visible en una sola operación. Así se elimina el parpadeo causado por
+    // clearRect/cambios de width y height mientras React actualiza la vista previa.
+    const buffer = document.createElement("canvas");
+    buffer.width = metrics.width;
+    buffer.height = metrics.height;
+    const bufferCtx = buffer.getContext("2d", { alpha: false, desynchronized: true });
+    if (!bufferCtx) return false;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    bufferCtx.imageSmoothingEnabled = true;
+    bufferCtx.imageSmoothingQuality = "high";
+    bufferCtx.fillStyle = "#ffffff";
+    bufferCtx.fillRect(0, 0, metrics.width, metrics.height);
+    bufferCtx.drawImage(template, 0, 0, metrics.width, metrics.height);
 
-    ctx.clearRect(0, 0, metrics.width, metrics.height);
-    ctx.drawImage(template, 0, 0, metrics.width, metrics.height);
-
-    ctx.font = `bold ${Math.round(22 * metrics.scale)}px "Noto Sans"`;
+    bufferCtx.font = `bold ${Math.round(22 * metrics.scale)}px "Noto Sans"`;
     drawWrappedTextCanvas({
-      ctx,
+      ctx: bufferCtx,
       text: metrics.headerText,
       x: metrics.centerX,
       y: metrics.headerY,
@@ -19243,8 +19258,20 @@ ${base}`;
 
     elements.forEach((element) => {
       if (skipElementId && element.id === skipElementId) return;
-      drawCanvasElement({ ctx, element });
+      drawCanvasElement({ ctx: bufferCtx, element });
     });
+
+    if (renderVersion !== canvasRenderVersionRef.current) return false;
+    if (canvas.width !== metrics.width || canvas.height !== metrics.height) {
+      canvas.width = metrics.width;
+      canvas.height = metrics.height;
+    }
+    const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    if (!ctx) return false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(buffer, 0, 0);
+    return true;
   };
 
   const exportCanvasToGraphic = async ({ silent = true } = {}) => {
@@ -19255,7 +19282,7 @@ ${base}`;
       canvas.toBlob((result) => {
         if (result) resolve(result);
         else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
-      }, "image/jpeg", 0.95);
+      }, "image/jpeg", 0.99);
     });
 
     if (generatedGraphicObjectUrlRef.current) {
@@ -19687,7 +19714,7 @@ ${base}`;
   };
 
   useEffect(() => {
-    if (!isAdmin || graphicEditorOpen || !graphicPreviewUrl || !detalle.trim() || !titulo.trim()) return;
+    if (!isAdmin || graphicEditorOpen || !canvasElements.length || !detalle.trim() || !titulo.trim()) return;
     const debounceId = setTimeout(() => {
       renderComunicadoCanvas({
         bodyText: detalle.trim(),
@@ -19699,7 +19726,7 @@ ${base}`;
       }).catch((e) => console.error("Error recalculando ajuste tipográfico:", e));
     }, 260);
     return () => clearTimeout(debounceId);
-  }, [detalle, titulo, textAlignMode, bodyFontMode, manualBodyFontSize, graphicPreviewUrl, graphicEditorOpen, isAdmin]);
+  }, [detalle, titulo, textAlignMode, bodyFontMode, manualBodyFontSize, graphicEditorOpen, isAdmin]);
 
   useEffect(() => {
     if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
@@ -19727,18 +19754,21 @@ ${base}`;
   useEffect(() => {
     if (!canvasElements.length || !canvasMetrics) return;
 
+    const effectVersion = ++canvasExportVersionRef.current;
     renderCanvasScene({
       elements: canvasElements,
       metrics: canvasMetrics,
       skipElementId: inlineEditor?.elementId || null,
+    }).then((painted) => {
+      if (!painted || effectVersion !== canvasExportVersionRef.current) return;
+      if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
+      exportDebounceRef.current = setTimeout(() => {
+        if (effectVersion !== canvasExportVersionRef.current) return;
+        exportCanvasToGraphic({ silent: true }).catch((e) => console.error("Error exportando la vista previa:", e));
+      }, 260);
     }).catch((e) => {
       console.error("Error redibujando el canvas:", e);
     });
-
-    if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
-    exportDebounceRef.current = setTimeout(() => {
-      exportCanvasToGraphic({ silent: true }).catch((e) => console.error("Error exportando la vista previa:", e));
-    }, 180);
 
     return () => {
       if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
