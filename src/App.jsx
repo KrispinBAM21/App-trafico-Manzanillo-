@@ -17790,6 +17790,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [graphicEditorOpen, setGraphicEditorOpen] = useState(false);
   const [graphicEditorText, setGraphicEditorText] = useState("");
   const [textAlignMode, setTextAlignMode] = useState("left"); // "left" | "center" | "right" | "justify"
+  const [bodyFontMode, setBodyFontMode] = useState("auto"); // "auto" | "manual"
+  const [manualBodyFontSize, setManualBodyFontSize] = useState(null);
+  const [autoBodyFontSize, setAutoBodyFontSize] = useState(null);
   const [canvasElements, setCanvasElements] = useState([]);
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
@@ -18939,6 +18942,7 @@ ${base}`;
     titleText,
     alignMode = textAlignMode,
     preservePositions = true,
+    requestedBodyFontSize = bodyFontMode === "manual" ? manualBodyFontSize : null,
   }) => {
     const cleanBodyText = String(bodyText || "").trim();
     const cleanTitleText = String(titleText || "").trim();
@@ -19011,40 +19015,62 @@ ${base}`;
     const bodyYEnd = height - (170 * scale);
     const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
 
-    // Autoescalado más agresivo para textos cortos.
+    // Ajuste tipográfico: mide el bloque real y reduce fuente/interlineado hasta que todo quepa.
     const maxBodyFontSize = Math.round(40 * scale);
-    const minBodyFontSize = Math.round(20 * scale);
-    const paragraphSpacingFactor = 0.65;
+    const minBodyFontSize = Math.round(14 * scale);
+    const defaultLineHeightFactor = 1.42;
+    const compactLineHeightFactor = 1.18;
+    const defaultParagraphSpacingFactor = 0.52;
+    const compactParagraphSpacingFactor = 0.18;
 
-    let selectedBodyFontSize = maxBodyFontSize;
-    let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
-    let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
-    let selectedBodyHeight = 0;
-
-    for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
-      const testLineHeight = Math.round(testFontSize * 1.5);
-      const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
-      const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
-      const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
-
+    const measureBodyAt = (fontSize, lineHeightFactor, paragraphSpacingFactor) => {
+      const lineHeight = Math.max(Math.round(fontSize * lineHeightFactor), fontSize + 2);
+      const paragraphSpacing = Math.max(0, Math.round(lineHeight * paragraphSpacingFactor));
       const measured = calculateRichTextHeight({
         ctx,
         text: cleanBodyText,
         maxWidth: bodyMaxWidth,
-        lineHeight: testLineHeight,
-        normalFont: testNormalFont,
-        boldFont: testBoldFont,
-        paragraphSpacing: testParagraphSpacing,
+        lineHeight,
+        normalFont: `normal ${fontSize}px "Noto Sans"`,
+        boldFont: `bold ${fontSize}px "Noto Sans"`,
+        paragraphSpacing,
       });
+      return { fontSize, lineHeight, paragraphSpacing, height: measured.height };
+    };
 
-      if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
-        selectedBodyFontSize = testFontSize;
-        selectedBodyLineHeight = testLineHeight;
-        selectedParagraphSpacing = testParagraphSpacing;
-        selectedBodyHeight = measured.height;
-        break;
+    let automaticFit = null;
+    for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
+      const measured = measureBodyAt(testFontSize, defaultLineHeightFactor, defaultParagraphSpacingFactor);
+      if (measured.height <= availableHeight) { automaticFit = measured; break; }
+    }
+
+    if (!automaticFit) {
+      // Antes de bajar de la fuente mínima, compacta progresivamente interlineado y párrafos.
+      for (let step = 0; step <= 12; step += 1) {
+        const ratio = step / 12;
+        const lineFactor = defaultLineHeightFactor - ((defaultLineHeightFactor - compactLineHeightFactor) * ratio);
+        const paragraphFactor = defaultParagraphSpacingFactor - ((defaultParagraphSpacingFactor - compactParagraphSpacingFactor) * ratio);
+        const measured = measureBodyAt(minBodyFontSize, lineFactor, paragraphFactor);
+        if (measured.height <= availableHeight || step === 12) { automaticFit = measured; break; }
       }
     }
+
+    const requestedSize = Number(requestedBodyFontSize);
+    let selectedFit = automaticFit;
+    if (Number.isFinite(requestedSize) && requestedSize > 0) {
+      const clampedRequested = Math.max(minBodyFontSize, Math.min(maxBodyFontSize, Math.round(requestedSize)));
+      // El control manual nunca permite desbordar: compacta primero y, si no cabe, usa el mayor tamaño seguro.
+      let manualFit = measureBodyAt(clampedRequested, defaultLineHeightFactor, defaultParagraphSpacingFactor);
+      if (manualFit.height > availableHeight) {
+        manualFit = measureBodyAt(clampedRequested, compactLineHeightFactor, compactParagraphSpacingFactor);
+      }
+      selectedFit = manualFit.height <= availableHeight ? manualFit : automaticFit;
+    }
+
+    const selectedBodyFontSize = selectedFit.fontSize;
+    const selectedBodyLineHeight = selectedFit.lineHeight;
+    const selectedParagraphSpacing = selectedFit.paragraphSpacing;
+    const selectedBodyHeight = selectedFit.height;
 
     const safeAlignMode = ["left", "center", "right", "justify"].includes(alignMode)
       ? alignMode
@@ -19508,16 +19534,23 @@ ${base}`;
     alignMode = textAlignMode,
     silent = false,
     preservePositions = true,
+    requestedBodyFontSize = bodyFontMode === "manual" ? manualBodyFontSize : null,
   }) => {
     const { elements, metrics } = await buildCanvasElementsState({
       bodyText,
       titleText,
       alignMode,
       preservePositions,
+      requestedBodyFontSize,
     });
 
     setCanvasMetrics(metrics);
     setCanvasElements(elements);
+    const renderedBody = elements.find((item) => item.id === "body");
+    if (renderedBody?.fontSize) {
+      if (bodyFontMode === "auto") setAutoBodyFontSize(renderedBody.fontSize);
+      else setManualBodyFontSize(renderedBody.fontSize);
+    }
 
     if (!silent) {
       setToolNotice("Comunicado gráfico generado correctamente. Ya puedes arrastrar, editar o descargar.", "#22c55e");
@@ -19578,6 +19611,45 @@ ${base}`;
     }
   };
 
+  const actualizarTamanoCuerpo = async (nextSize) => {
+    const bodyElement = canvasElements.find((item) => item.id === "body");
+    const currentSize = Number(bodyElement?.fontSize || autoBodyFontSize || manualBodyFontSize || 20);
+    const desired = Math.max(10, Math.round(Number(nextSize ?? currentSize)));
+    setBodyFontMode("manual");
+    setManualBodyFontSize(desired);
+    try {
+      setGraphicBusy(true);
+      await renderComunicadoCanvas({
+        bodyText: String(bodyElement?.text || graphicEditorText || detalle || "").trim(),
+        titleText: String(canvasElements.find((item) => item.id === "title")?.text || titulo || "").trim(),
+        alignMode: textAlignMode,
+        silent: true,
+        preservePositions: true,
+        requestedBodyFontSize: desired,
+      });
+    } finally {
+      setGraphicBusy(false);
+    }
+  };
+
+  const restablecerTamanoAutomatico = async () => {
+    setBodyFontMode("auto");
+    setManualBodyFontSize(null);
+    try {
+      setGraphicBusy(true);
+      await renderComunicadoCanvas({
+        bodyText: String(canvasElements.find((item) => item.id === "body")?.text || graphicEditorText || detalle || "").trim(),
+        titleText: String(canvasElements.find((item) => item.id === "title")?.text || titulo || "").trim(),
+        alignMode: textAlignMode,
+        silent: true,
+        preservePositions: true,
+        requestedBodyFontSize: null,
+      });
+    } finally {
+      setGraphicBusy(false);
+    }
+  };
+
   const crearComunicadoPorFormato = async () => {
     if (!isAdmin) return;
 
@@ -19613,6 +19685,21 @@ ${base}`;
       setGraphicBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!isAdmin || graphicEditorOpen || !graphicPreviewUrl || !detalle.trim() || !titulo.trim()) return;
+    const debounceId = setTimeout(() => {
+      renderComunicadoCanvas({
+        bodyText: detalle.trim(),
+        titleText: titulo.trim(),
+        alignMode: textAlignMode,
+        silent: true,
+        preservePositions: true,
+        requestedBodyFontSize: bodyFontMode === "manual" ? manualBodyFontSize : null,
+      }).catch((e) => console.error("Error recalculando ajuste tipográfico:", e));
+    }, 260);
+    return () => clearTimeout(debounceId);
+  }, [detalle, titulo, textAlignMode, bodyFontMode, manualBodyFontSize, graphicPreviewUrl, graphicEditorOpen, isAdmin]);
 
   useEffect(() => {
     if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
@@ -20266,6 +20353,15 @@ ${base}`;
                 <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
                 <button type="button" onClick={abrirEditorComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Editar texto</button>
                 <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
+              </div>
+
+              <div style={{ marginTop:"8px", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", flexWrap:"wrap", padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.35)", background:"rgba(250,204,21,.08)" }}>
+                <span style={{ color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900 }}>TAMAÑO DEL CUERPO</span>
+                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) - 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"30px", height:"30px", borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>−</button>
+                <span style={{ minWidth:"62px", textAlign:"center", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900 }}>{Math.round(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 0)) || "—"} px</span>
+                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) + 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"30px", height:"30px", borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>+</button>
+                <button type="button" onClick={restablecerTamanoAutomatico} disabled={graphicBusy || !canvasElements.length || bodyFontMode === "auto"} style={{ padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.50)", background:bodyFontMode === "auto"?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:bodyFontMode === "auto"?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:bodyFontMode === "auto"?"default":"pointer" }}>AUTO</button>
+                <span style={{ color:"rgba(226,232,240,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"9px" }}>{bodyFontMode === "auto" ? "Ajuste automático activo" : "Ajuste manual activo"}</span>
               </div>
 
               <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.58)", lineHeight:1.5 }}>
