@@ -141,6 +141,8 @@ const verifyAdminPass = async (input) => {
   return hashHex === ADMIN_HASH;
 };
 const ADMIN_KEY    = "cm_admin_session";
+const ADMIN_EMAIL_KEY = "cm_admin_email";
+const DEFAULT_ADMIN_EMAIL = String(import.meta.env.VITE_SUPABASE_ADMIN_EMAIL || "").trim();
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
 };
@@ -546,29 +548,27 @@ const getVirusTotalAccessToken = async () => {
   try {
     const current = await withAsyncTimeout(
       sb.auth.getSession(),
-      8000,
-      "Tiempo agotado recuperando la sesión administrativa."
+      5000,
+      "Tiempo agotado recuperando la sesión administrativa de Supabase Auth."
     );
+    if (current?.error) throw current.error;
 
     let session = current?.data?.session || null;
-
-    if (!session?.access_token) {
+    const expiresSoon = session?.expires_at && (Number(session.expires_at) * 1000 - Date.now() < 60000);
+    if (!session?.access_token || expiresSoon) {
       const refreshed = await withAsyncTimeout(
         sb.auth.refreshSession(),
-        8000,
+        10000,
         "Tiempo agotado renovando la sesión administrativa."
       );
+      if (refreshed?.error) throw refreshed.error;
       session = refreshed?.data?.session || null;
     }
 
-    const accessToken = session?.access_token || null;
-    if (!accessToken) {
-      throw new Error(
-        "No se encontró una sesión administrativa válida. Cierra sesión, vuelve a entrar e intenta publicar nuevamente."
-      );
+    if (!session?.access_token || !session?.user?.id) {
+      throw new Error("No existe una sesión administrativa de Supabase Auth. Sal del modo administrador e inicia sesión nuevamente con correo y contraseña.");
     }
-
-    return accessToken;
+    return { accessToken:session.access_token, userId:session.user.id };
   } catch (error) {
     console.error("[VirusTotal] No se pudo obtener una sesión autenticada.", error);
     throw error;
@@ -576,7 +576,7 @@ const getVirusTotalAccessToken = async () => {
 };
 
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
-  const accessToken = await getVirusTotalAccessToken();
+  const { accessToken, userId:authenticatedUserId } = await getVirusTotalAccessToken();
   const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
 
   const body = action === "scan_file"
@@ -584,7 +584,7 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
         const form = new FormData();
         form.append("action", "scan_file");
         form.append("file", file, file.name);
-        if (userId) form.append("userId", String(userId));
+        form.append("userId", String(authenticatedUserId));
         form.append("origen", String(origen || "comunicado"));
         form.append("titulo", String(titulo || ""));
         return form;
@@ -592,7 +592,7 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
     : JSON.stringify({
         action:"scan_url",
         url:String(url || ""),
-        ...(userId ? { userId:String(userId) } : {}),
+        userId:String(authenticatedUserId),
         origen:String(origen || "comunicado"),
         titulo:String(titulo || ""),
       });
@@ -3367,7 +3367,13 @@ function useAdminMode() {
   const [showModal, setShowModal] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [pass, setPass] = useState("");
+  const [adminEmail, setAdminEmail] = useState(() => {
+    try { return sessionStorage.getItem(ADMIN_EMAIL_KEY) || DEFAULT_ADMIN_EMAIL; }
+    catch { return DEFAULT_ADMIN_EMAIL; }
+  });
   const [err, setErr] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState(0);
@@ -3401,21 +3407,23 @@ function useAdminMode() {
       setTapCount(0);
       setPass("");
       setErr(false);
+      setAuthError("");
       setShowAdminPass(false);
       setShowModal(true);
     }
   }, [tapCount]);
 
   const tryLogin = async () => {
-    if (Date.now() < lockoutUntil) return;
+    if (Date.now() < lockoutUntil || loggingIn) return;
+    setAuthError("");
+    const normalizedEmail = String(adminEmail || "").trim().toLowerCase();
+    if (!normalizedEmail) {
+      setAuthError("Ingresa el correo del usuario administrador creado en Supabase Auth.");
+      return;
+    }
+
     const ok = await verifyAdminPass(pass);
-    if (ok) {
-      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
-      setIsAdmin(true);
-      setShowModal(false);
-      setFailedAttempts(0);
-      setPass("");
-    } else {
+    if (!ok) {
       const newFails = failedAttempts + 1;
       setFailedAttempts(newFails);
       setErr(true);
@@ -3427,12 +3435,50 @@ function useAdminMode() {
         setLockoutRemaining(Math.ceil(lockMs / 1000));
         setFailedAttempts(0);
       }
+      return;
+    }
+
+    setLoggingIn(true);
+    try {
+      const loginResult = await withAsyncTimeout(
+        sb.auth.signInWithPassword({ email:normalizedEmail, password:pass }),
+        15000,
+        "Tiempo agotado iniciando la sesión administrativa en Supabase Auth."
+      );
+      const loginError = loginResult?.error;
+      const session = loginResult?.data?.session || null;
+      if (loginError || !session?.access_token || !session?.user?.id) {
+        throw new Error(loginError?.message || "Supabase Auth no devolvió una sesión administrativa válida.");
+      }
+
+      try {
+        sessionStorage.setItem(ADMIN_KEY, "1");
+        sessionStorage.setItem(ADMIN_EMAIL_KEY, normalizedEmail);
+      } catch {}
+      setIsAdmin(true);
+      setShowModal(false);
+      setFailedAttempts(0);
+      setPass("");
+      setErr(false);
+      setAuthError("");
+    } catch (error) {
+      setAuthError(safeErrorMessage(error, "No se pudo iniciar la sesión administrativa."));
+      try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+      setIsAdmin(false);
+    } finally {
+      setLoggingIn(false);
     }
   };
 
   const logout = () => {
-    try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+    try {
+      sessionStorage.removeItem(ADMIN_KEY);
+      sessionStorage.removeItem(ADMIN_EMAIL_KEY);
+    } catch {}
     setIsAdmin(false);
+    setPass("");
+    setAuthError("");
+    void sb.auth.signOut({ scope:"local" }).catch(() => {});
   };
 
   const isLocked = Date.now() < lockoutUntil;
@@ -3454,7 +3500,7 @@ function useAdminMode() {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa la contraseña para activar el modo administrador.</div>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Inicia sesión con el usuario administrador de Supabase Auth.</div>
         {isLocked ? (
           <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
             <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
@@ -3465,14 +3511,22 @@ function useAdminMode() {
           </div>
         ) : (
           <>
+            <input
+              type="email"
+              value={adminEmail}
+              onChange={e => { setAdminEmail(safeEventValue(e)); setAuthError(""); }}
+              placeholder="Correo administrador"
+              autoComplete="username"
+              style={{ width:"100%", padding:"11px 14px", marginBottom:"8px", background:"rgba(255,255,255,0.07)", border:`1px solid ${authError ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
+            />
             <div style={{ position:"relative", marginBottom:"8px" }}>
               <input
                 type={showAdminPass ? "text" : "password"}
                 value={pass}
-                onChange={e => { setPass(safeEventValue(e)); setErr(false); }}
+                onChange={e => { setPass(safeEventValue(e)); setErr(false); setAuthError(""); }}
                 onKeyDown={e => e.key === "Enter" && tryLogin()}
                 placeholder="Contraseña"
-                autoFocus
+                autoComplete="current-password"
                 style={{ width:"100%", padding:"11px 44px 11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${err ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
               />
               <span
@@ -3487,11 +3541,16 @@ function useAdminMode() {
                 Contraseña incorrecta{failedAttempts >= 3 ? ` (${failedAttempts}/5 intentos)` : ""}
               </div>
             )}
+            {authError && (
+              <div style={{ color:"#fca5a5", fontFamily:getFont(theme, "secondary"), fontSize:"11px", lineHeight:1.45, marginBottom:"8px" }}>
+                {authError}
+              </div>
+            )}
           </>
         )}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           <button onClick={() => { setShowModal(false); setPass(""); setErr(false); }} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
-          <button onClick={tryLogin} disabled={isLocked} style={{ padding:"11px", background: isLocked ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: isLocked ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700", cursor: isLocked ? "not-allowed" : "pointer" }}>Entrar</button>
+          <button onClick={tryLogin} disabled={isLocked || loggingIn} style={{ padding:"11px", background: (isLocked || loggingIn) ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: (isLocked || loggingIn) ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700", cursor: (isLocked || loggingIn) ? "not-allowed" : "pointer" }}>{loggingIn ? "Conectando..." : "Entrar"}</button>
         </div>
       </div>
     </div>
@@ -3500,6 +3559,7 @@ function useAdminMode() {
   const openModal = () => {
     setPass("");
     setErr(false);
+    setAuthError("");
     setShowAdminPass(false);
     setShowModal(true);
   };
