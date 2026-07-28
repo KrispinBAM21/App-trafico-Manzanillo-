@@ -22373,7 +22373,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [showReminder, setShowReminder] = useState(false);
   const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
   const [pisLoading, setPisLoading] = useState(false);
+  const [pisTakingLong, setPisTakingLong] = useState(false);
   const [pisResult, setPisResult] = useState(null);
+  const pisRequestRef = useRef(0);
+  const pisSlowTimerRef = useRef(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisCopiedField, setPisCopiedField] = useState("");
   const [pisContactMessage, setPisContactMessage] = useState("");
@@ -22384,6 +22387,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
   const [pisDonateOpen, setPisDonateOpen] = useState(false);
+
+  const clearPisSlowTimer = useCallback(() => {
+    if (pisSlowTimerRef.current) {
+      clearTimeout(pisSlowTimerRef.current);
+      pisSlowTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sub === "boletinados") return;
+    pisRequestRef.current += 1;
+    clearPisSlowTimer();
+    setPisTakingLong(false);
+    setPisLoading(false);
+  }, [sub, clearPisSlowTimer]);
+
+  useEffect(() => () => {
+    pisRequestRef.current += 1;
+    clearPisSlowTimer();
+  }, [clearPisSlowTimer]);
 
   const clearPosturasSearchTimer = useCallback(() => {
     if (posturasSearchTimerRef.current) {
@@ -24136,8 +24159,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       return;
     }
 
+    const requestId = ++pisRequestRef.current;
+    const isCurrentRequest = () => pisRequestRef.current === requestId;
+    clearPisSlowTimer();
+    setPisTakingLong(false);
     setPisLoading(true);
     setPisResult(null);
+    pisSlowTimerRef.current = setTimeout(() => {
+      if (isCurrentRequest()) setPisTakingLong(true);
+    }, 7000);
+
     const contactAlreadyUnlocked = hasPisContactUnlock();
 
     const payload = {
@@ -24151,7 +24182,27 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     ).trim();
 
     try {
-      const { data, error } = await sb.functions.invoke(PIS_EDGE_FUNCTION, { body: payload });
+      let invokeTimeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        invokeTimeoutId = setTimeout(() => {
+          const timeoutError = new Error("timeout");
+          timeoutError.code = "PIS_TIMEOUT";
+          reject(timeoutError);
+        }, 12000);
+      });
+
+      let invokeResponse;
+      try {
+        invokeResponse = await Promise.race([
+          sb.functions.invoke(PIS_EDGE_FUNCTION, { body: payload }),
+          timeoutPromise,
+        ]);
+      } finally {
+        clearTimeout(invokeTimeoutId);
+      }
+
+      if (!isCurrentRequest()) return;
+      const { data, error } = invokeResponse || {};
       if (error) throw error;
 
       const result = data || {};
@@ -24201,12 +24252,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       savePisHistory(normalized);
       auditLog({ action:"pis_verificacion_documento", section:"posturas_boletinados", entityId:`${payload.asipona}-${payload.tipo}-${payload.id}`, after:{ summary:`Consulta PIS ${payload.asipona} ${payload.tipo} ${payload.id}`, valid:normalized.valid, message:normalized.message }, actor:authUser?.email || myId || "Usuario" });
     } catch (e) {
+      if (!isCurrentRequest()) return;
+      const isTimeout = e?.code === "PIS_TIMEOUT" || String(e?.message || "").toLowerCase() === "timeout";
       const fallback = {
         ok:false,
         valid:false,
-        status:"backend_no_configurado",
-        message:"No se pudo consultar PIS/SEMAR desde la app. Revisa que la Edge Function smooth-service esté desplegada, pública y con el código correcto.",
-        detail:e?.message || String(e),
+        status:isTimeout ? "timeout_pis" : "backend_no_configurado",
+        message:isTimeout
+          ? "La consulta a PIS/SEMAR está tardando demasiado. Puedes reintentar o verificar directamente en el portal oficial."
+          : "No se pudo consultar PIS/SEMAR desde la app. Revisa que la Edge Function smooth-service esté desplegada, pública y con el código correcto.",
+        detail:isTimeout ? "timeout" : (e?.message || String(e)),
         query:payload,
         checked_at:new Date().toISOString(),
       };
@@ -24216,7 +24271,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setPisResult(fallback);
       setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
     } finally {
-      setPisLoading(false);
+      if (isCurrentRequest()) {
+        clearPisSlowTimer();
+        setPisTakingLong(false);
+        setPisLoading(false);
+      }
     }
   };
 
@@ -24350,6 +24409,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 Abrir PIS oficial
               </a>
             </div>
+            {pisLoading && pisTakingLong && (
+              <div role="status" aria-live="polite" style={{ marginTop:"12px", display:"flex", alignItems:"flex-start", gap:"9px", padding:"11px 13px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.22)", background:"rgba(8,24,42,.58)", color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, backdropFilter:"blur(12px)" }}>
+                <MS name="schedule" size={18} active color="#9fcaff" style={{ marginTop:"1px" }} />
+                <span>Esto está tardando más de lo normal, seguimos esperando respuesta de PIS/SEMAR…</span>
+              </div>
+            )}
           </section>
 
           {pisResult && (
@@ -24357,10 +24422,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", marginBottom:"8px" }}>
                 <div style={{ minWidth:0, flex:1 }}>
                   <div style={{ fontFamily:getFont(theme,"title"), fontSize:posturasMobile ? "clamp(26px, 9vw, 40px)" : "clamp(40px, 4vw, 54px)", lineHeight:1.02, color:resultTone.title, fontWeight:"900", letterSpacing:"-.03em", overflowWrap:"anywhere" }}>
-                    {pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")}
+                    {pisResult.status === "timeout_pis" ? "Tiempo de espera agotado" : (pisResult.status === "backend_no_configurado" ? "Servicio no disponible" : (pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")))}
                   </div>
                   <div style={{ marginTop:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(13px, 3.7vw, 15px)", color:resultTone.title, lineHeight:1.55, fontWeight:"500", overflowWrap:"break-word" }}>{pisResult.message}</div>
                   {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.46)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
+                  {["timeout_pis", "backend_no_configurado"].includes(pisResult.status) && (
+                    <button type="button" onClick={verifyPisDocument} disabled={pisLoading} style={{ marginTop:"14px", minHeight:"42px", padding:"0 16px", borderRadius:"11px", border:"1px solid rgba(161,201,255,.46)", background:"linear-gradient(135deg, rgba(18,149,240,.96), rgba(37,137,232,.92))", color:"#041d35", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".05em", textTransform:"uppercase", cursor:pisLoading ? "wait" : "pointer", opacity:pisLoading ? .58 : 1, boxShadow:"0 10px 24px rgba(0,150,255,.18)" }}>
+                      <MS name="refresh" size={18} active color="#041d35" />
+                      {pisLoading ? "Reintentando…" : "Reintentar consulta"}
+                    </button>
+                  )}
                 </div>
                 <div style={{ width:posturasMobile ? "52px" : "64px", height:posturasMobile ? "52px" : "64px", flexShrink:0, borderRadius:"999px", display:"grid", placeItems:"center", background: pisResult.ok ? (pisResult.valid ? "rgba(52,211,153,.16)" : "rgba(248,113,113,.16)") : "rgba(251,191,36,.14)", border:`1px solid ${resultTone.border}` }}>
                   <AppIcon name={resultTone.icon} size={posturasMobile ? 24 : 28} active />
