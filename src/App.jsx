@@ -22451,6 +22451,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [msg, setMsg] = useState(null);
   const [showReminder, setShowReminder] = useState(false);
   const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
+  const pisIdInputRef = useRef(null);
   const [pisLoading, setPisLoading] = useState(false);
   const [pisTakingLong, setPisTakingLong] = useState(false);
   const [pisResult, setPisResult] = useState(null);
@@ -24228,7 +24229,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setPisResult({ ok:false, status:"sesion_requerida", message:"Inicia sesión en Conect Manzanillo para realizar consultas de Boletinados." });
       return;
     }
-    const id = String(pisForm.id || "").trim();
+    const id = String(pisIdInputRef.current?.value ?? pisForm.id ?? "").trim();
     if (!pisForm.asipona || !pisForm.tipo || !id) {
       setPisResult({ ok:false, status:"incompleto", message:"Selecciona ASIPONA, tipo de documento y escribe el ID." });
       return;
@@ -24456,7 +24457,49 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               </div>
               <div style={{ gridColumn:"1 / -1" }}>
                 <div style={label}>ID</div>
-                <input style={{ ...input, background:"rgba(39,54,71,.96)" }} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Ej. 36938" value={pisForm.id} onChange={e=>{ const nextId = e.currentTarget.value.replace(/[^0-9]/g, ""); setPisForm(f=>({...f, id:nextId})); }} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} />
+                <input
+                  ref={pisIdInputRef}
+                  id="pis-document-id"
+                  name="pis_document_id"
+                  style={{ ...input, background:"rgba(39,54,71,.96)", WebkitUserSelect:"text", userSelect:"text", touchAction:"manipulation" }}
+                  type="text"
+                  inputMode="numeric"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="Ej. 36938"
+                  defaultValue={pisForm.id}
+                  onInput={e=>{
+                    const raw = e.currentTarget.value;
+                    const normalized = raw.replace(/[^0-9]/g, "");
+                    if (raw !== normalized) {
+                      const cursor = e.currentTarget.selectionStart;
+                      e.currentTarget.value = normalized;
+                      if (typeof cursor === "number") {
+                        const removedBeforeCursor = raw.slice(0, cursor).replace(/[0-9]/g, "").length;
+                        const nextCursor = Math.max(0, cursor - removedBeforeCursor);
+                        requestAnimationFrame(() => {
+                          try { e.currentTarget.setSelectionRange(nextCursor, nextCursor); } catch {}
+                        });
+                      }
+                    }
+                  }}
+                  onBlur={e=>setPisForm(f=>({...f, id:e.currentTarget.value}))}
+                  onPaste={e=>{
+                    const pasted = e.clipboardData?.getData("text") || "";
+                    if (!pasted) return;
+                    e.preventDefault();
+                    const digits = pasted.replace(/[^0-9]/g, "");
+                    const field = e.currentTarget;
+                    const start = field.selectionStart ?? field.value.length;
+                    const end = field.selectionEnd ?? start;
+                    field.setRangeText(digits, start, end, "end");
+                    field.dispatchEvent(new Event("input", { bubbles:true }));
+                  }}
+                  onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }}
+                />
               </div>
             </div>
 
@@ -24465,7 +24508,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 {pisDocumentCheckIcon({ size: 18, color: "#ffffff" })}
                 {pisLoading ? "Consultando…" : ((!authUser && !isAdmin) ? "Inicia sesión para consultar" : "Verificar documento")}
               </button>
-              <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
+              <button onClick={()=>{ if (pisIdInputRef.current) pisIdInputRef.current.value = ""; setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
               <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...pisActionBtn, background:"transparent", color:"#d4e4fa", border:"1px solid rgba(161,201,255,.38)", flex:posturasMobile ? "1 1 100%" : "0 1 220px" }}>
                 {pisShieldIcon({ size: 18 })}
                 Abrir PIS oficial
