@@ -20249,30 +20249,27 @@ ${base}`;
       const uploadOne = async (file, prefix = "principal") => {
         const ext = String(file.name || "imagen.png").split(".").pop() || "png";
         const path = `comunicados/${prefix}_${Date.now()}_${crypto.randomUUID()}.${ext}`;
-        const uploadPromise = sb.storage.from("comunicados").upload(path, file, {
+        const { error: uploadError } = await sb.storage.from("comunicados").upload(path, file, {
           contentType: file.type || "application/octet-stream",
           cacheControl: "3600",
           upsert: false,
         });
-        const { error: uploadError } = await withAsyncTimeout(
-          uploadPromise,
-          15000,
-          `Tiempo agotado subiendo ${file.name || "el archivo"}.`
-        );
         if (uploadError) throw uploadError;
         uploadedPaths.push(path);
         return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
       };
 
-      // Todos los archivos se suben en paralelo. Antes los complementarios se
-      // esperaban uno por uno, multiplicando el tiempo total de publicación.
-      const uploadEntries = [
-        { file:archivoPrincipal, prefix:pastedCapture?.file === archivoPrincipal ? "captura" : "principal" },
-        ...complementaryFiles.map((file) => ({ file, prefix:"complementaria" })),
-      ];
-      const uploadedUrls = await Promise.all(uploadEntries.map(({ file, prefix }) => uploadOne(file, prefix)));
-      const publicUrl = uploadedUrls[0];
-      const complementaryUrls = uploadedUrls.slice(1);
+      // Flujo estable recuperado de la versión que publicaba correctamente:
+      // primero se sube el archivo principal y luego los complementarios uno a uno.
+      // No se cancela una subida válida por un timeout artificial del navegador.
+      const publicUrl = await uploadOne(
+        archivoPrincipal,
+        pastedCapture?.file === archivoPrincipal ? "captura" : "principal"
+      );
+      const complementaryUrls = [];
+      for (const complementaryFile of complementaryFiles) {
+        complementaryUrls.push(await uploadOne(complementaryFile, "complementaria"));
+      }
       const allImageUrls = [
         ...(archivoPrincipal.type?.startsWith("image/") ? [publicUrl] : []),
         ...complementaryUrls,
@@ -20337,11 +20334,7 @@ ${base}`;
           "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
         ]);
         for (let attempt = 0; attempt < 5; attempt += 1) {
-          const result = await withAsyncTimeout(
-            sb.from("comunicados").insert(candidate).select("*").single(),
-            10000,
-            "Tiempo agotado guardando el comunicado."
-          );
+          const result = await sb.from("comunicados").insert(candidate).select("*").single();
           if (!result.error) return result;
           const message = String(result.error?.message || "");
           // PostgREST puede reportar columnas ausentes con variantes como:
@@ -20376,11 +20369,7 @@ ${base}`;
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
         try {
-          await withAsyncTimeout(
-            syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false }),
-            8000,
-            "La réplica en Noticias excedió el tiempo de espera."
-          );
+          await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
           setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
         } catch (syncErr) {
           console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
