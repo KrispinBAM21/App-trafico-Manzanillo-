@@ -20176,62 +20176,74 @@ ${base}`;
 
     setSubiendo(true);
     setError("");
-    setVtScanStatus("scanning");
-    setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
-    setVtScanResults([]);
+
+    // Los administradores y usuarios que ya tienen permiso de publicación directa
+    // son identidades de confianza. Para ellos no se ejecuta VirusTotal.
+    // Los usuarios comunes que solo envían propuestas conservan la verificación.
+    const bypassVirusTotal = isAdmin === true;
+    let securityResults = [];
+    let verificationPending = false;
+
+    if (bypassVirusTotal) {
+      setVtScanStatus("verified");
+      setVtScanMessage("Publicación autorizada: la verificación con VirusTotal no aplica a este usuario.");
+      setVtScanResults([]);
+    } else {
+      setVtScanStatus("scanning");
+      setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
+      setVtScanResults([]);
+    }
+
     try {
-      // No consultar getUser() antes del escaneo: esa llamada podía quedar bloqueada
-      // antes de que existiera cualquier solicitud a la Edge Function.
-      const scanUserId = null;
-      const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
-      const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
-      const securityResults = [];
-      const scanJobs = [
-        ...scanTargets.map((targetFile) => ({
-          type:"file",
-          target:targetFile.name,
-          run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
-        })),
-        ...detectedUrls.map((detectedUrl) => ({
-          type:"url",
-          target:detectedUrl,
-          run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
-        })),
-      ];
+      if (!bypassVirusTotal) {
+        const scanUserId = null;
+        const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
+        const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
+        const scanJobs = [
+          ...scanTargets.map((targetFile) => ({
+            type:"file",
+            target:targetFile.name,
+            run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
+          })),
+          ...detectedUrls.map((detectedUrl) => ({
+            type:"url",
+            target:detectedUrl,
+            run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
+          })),
+        ];
 
-      setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
-      const settled = await withAsyncTimeout(
-        Promise.allSettled(scanJobs.map((job) => job.run())),
-        35000,
-        "VirusTotal excedió el tiempo límite de 35 segundos. No se publicó el comunicado."
-      );
+        setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
+        const settled = await withAsyncTimeout(
+          Promise.allSettled(scanJobs.map((job) => job.run())),
+          35000,
+          "VirusTotal excedió el tiempo límite de 35 segundos. No se publicó el comunicado."
+        );
 
-      let verificationPending = false;
-      settled.forEach((entry, index) => {
-        const job = scanJobs[index];
-        if (entry.status === "fulfilled") {
-          const result = entry.value;
-          securityResults.push(result);
-          if (result?.status === "malicious" || Number(result?.malicious || 0) > 0 || Number(result?.suspicious || 0) > 0) {
-            const detections = Number(result?.malicious || 0) + Number(result?.suspicious || 0);
-            throw new Error(`VirusTotal bloqueó ${job.type === "file" ? "el archivo" : "el enlace"} “${job.target}” (${detections} detección${detections === 1 ? "" : "es"}). La publicación fue detenida.`);
+        settled.forEach((entry, index) => {
+          const job = scanJobs[index];
+          if (entry.status === "fulfilled") {
+            const result = entry.value;
+            securityResults.push(result);
+            if (result?.status === "malicious" || Number(result?.malicious || 0) > 0 || Number(result?.suspicious || 0) > 0) {
+              const detections = Number(result?.malicious || 0) + Number(result?.suspicious || 0);
+              throw new Error(`VirusTotal bloqueó ${job.type === "file" ? "el archivo" : "el enlace"} “${job.target}” (${detections} detección${detections === 1 ? "" : "es"}). La publicación fue detenida.`);
+            }
+            if (result?.status !== "clean") verificationPending = true;
+            return;
           }
-          if (result?.status !== "clean") verificationPending = true;
-          return;
+          verificationPending = true;
+          securityResults.push({ target_type:job.type, target:job.target, status:"error", error:String(entry.reason?.message || entry.reason), scanned_at:new Date().toISOString() });
+        });
+
+        if (verificationPending) {
+          throw new Error("VirusTotal no pudo completar todas las verificaciones dentro del tiempo permitido. Reintenta la publicación; no se cargó ningún archivo.");
         }
-        verificationPending = true;
-        securityResults.push({ target_type:job.type, target:job.target, status:"error", error:String(entry.reason?.message || entry.reason), scanned_at:new Date().toISOString() });
-      });
 
-      // Se conserva el nivel de exigencia: un resultado inconcluso nunca publica automáticamente.
-      if (verificationPending) {
-        throw new Error("VirusTotal no pudo completar todas las verificaciones dentro del tiempo permitido. Reintenta la publicación; no se cargó ningún archivo.");
+        const vtSummary = getVirusTotalSummary(securityResults);
+        setVtScanResults(securityResults);
+        setVtScanStatus("verified");
+        setVtScanMessage(vtSummary.label);
       }
-
-      const vtSummary = getVirusTotalSummary(securityResults);
-      setVtScanResults(securityResults);
-      setVtScanStatus(verificationPending ? "pending" : "verified");
-      setVtScanMessage(verificationPending ? "VirusTotal no pudo completar todas las verificaciones. Se enviará como Pendiente de verificación para revisión administrativa." : vtSummary.label);
 
       const uploadedPaths = [];
       const uploadOne = async (file, prefix = "principal") => {
@@ -20281,10 +20293,12 @@ ${base}`;
         aprobado_at: isAdmin === true ? nowIso : null,
         created_at: nowIso,
         updated_at: nowIso,
-        virustotal_status: verificationPending ? "pending" : "verified",
+        virustotal_status: bypassVirusTotal ? "trusted_bypass" : (verificationPending ? "pending" : "verified"),
         virustotal_results: securityResults,
-        virustotal_summary: getVirusTotalSummary(securityResults),
-        security_verification_status: verificationPending ? "pendiente_verificacion" : "verificado"
+        virustotal_summary: bypassVirusTotal
+          ? { status:"trusted_bypass", malicious:0, suspicious:0, total:0, label:"Verificación omitida para usuario autorizado" }
+          : getVirusTotalSummary(securityResults),
+        security_verification_status: bypassVirusTotal ? "usuario_autorizado" : (verificationPending ? "pendiente_verificacion" : "verificado")
       };
 
       const insertComunicadoWithFallback = async (payload) => {
