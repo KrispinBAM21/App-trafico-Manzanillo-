@@ -21383,28 +21383,50 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const eliminar = async (id) => {
     if (eliminando) return;
     setEliminando(true);
-    setProcesando({ id, accion:"Eliminando comunicado…" });
+    setProcesando({ id, accion:"Eliminando comunicado y publicación relacionada…" });
     try {
       const adminSession = readAdminAuthSession?.() || null;
       const sessionResult = adminSession?.access_token ? null : await Promise.race([
         sb.auth.getSession(),
-        new Promise((resolve)=>setTimeout(()=>resolve({data:{session:null}}),3000)),
+        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 5000)),
       ]);
       const token = adminSession?.access_token || sessionResult?.data?.session?.access_token;
       if (!token) throw new Error("No existe una sesión autorizada para eliminar.");
-      setProcesando({ id, accion:"Eliminando publicación en Noticias…" });
-      const response = await fetch(`${SUPA_URL.replace(/\/+$/,"")}/rest/v1/rpc/eliminar_comunicado_cascada`, {
-        method:"POST", headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${token}`, "Content-Type":"application/json" },
-        body:JSON.stringify({ p_comunicado_id:id }),
-      });
-      const raw = await response.text(); let result=null; try{result=raw?JSON.parse(raw):null}catch{}
-      if (!response.ok) throw new Error(result?.message || result?.error || raw || `HTTP ${response.status}`);
-      setConfirmId(null); onReload();
+
+      const response = await fetch(
+        `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/comunicados-manager`,
+        {
+          method:"POST",
+          cache:"no-store",
+          credentials:"omit",
+          headers:{
+            apikey:SUPA_KEY,
+            Authorization:`Bearer ${token}`,
+            "Content-Type":"application/json",
+          },
+          body:JSON.stringify({ action:"delete_comunicado_cascada", id }),
+        }
+      );
+
+      const raw = await response.text();
+      let result = null;
+      try { result = raw ? JSON.parse(raw) : null; } catch {}
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(result?.message || result?.error || raw || `HTTP ${response.status}`);
+      }
+
+      setConfirmId(null);
+      onReload?.();
+
+      if (Array.isArray(result?.warnings) && result.warnings.length > 0) {
+        alert(`El comunicado y su publicación fueron eliminados.\n\nAvisos de limpieza de archivos:\n${result.warnings.join("\n")}`);
+      }
     } catch (error) {
       console.error("Error en eliminación en cascada:", error);
       alert(`No se pudo completar la eliminación en cascada.\n\n${error?.message || error}`);
     } finally {
-      setProcesando(null); setEliminando(false);
+      setProcesando(null);
+      setEliminando(false);
     }
   };
 
