@@ -22190,6 +22190,85 @@ const PIS_ASIPONAS = [
   "PUERTO VALLARTA", "SALINA CRUZ", "TAMPICO", "TOPOLOBAMPO", "TUXPAN", "VERACRUZ"
 ];
 const PIS_EDGE_FUNCTION = "smooth-service";
+const PIS_FRONTEND_TIMEOUT_MS = 13000;
+
+const invokePisEdgeFunction = async (payload) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PIS_FRONTEND_TIMEOUT_MS);
+  const functionUrl = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${PIS_EDGE_FUNCTION}`;
+
+  try {
+    console.log("[PIS FRONTEND] Enviando consulta directa", {
+      functionUrl,
+      payload,
+    });
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      mode: "cors",
+      cache: "no-store",
+      credentials: "omit",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        apikey: SUPA_KEY,
+        Authorization: `Bearer ${SUPA_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseText = await response.text();
+
+    console.log("[PIS FRONTEND] Respuesta HTTP", {
+      status: response.status,
+      ok: response.ok,
+      responseText,
+    });
+
+    let data = null;
+    try {
+      data = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      const parseError = new Error(
+        `smooth-service devolvió una respuesta no JSON (${response.status}).`
+      );
+      parseError.code = "PIS_INVALID_JSON";
+      parseError.status = response.status;
+      parseError.responseText = responseText;
+      throw parseError;
+    }
+
+    if (!response.ok) {
+      const httpError = new Error(
+        data?.mensaje ||
+        data?.message ||
+        `smooth-service respondió con HTTP ${response.status}.`
+      );
+      httpError.code = data?.errorCode || "PIS_HTTP_ERROR";
+      httpError.status = response.status;
+      httpError.data = data;
+      throw httpError;
+    }
+
+    return { data, error:null };
+  } catch (error) {
+    if (
+      error?.name === "AbortError" ||
+      String(error?.message || "").toLowerCase().includes("aborted")
+    ) {
+      const timeoutError = new Error("timeout");
+      timeoutError.code = "PIS_TIMEOUT";
+      throw timeoutError;
+    }
+
+    console.error("[PIS FRONTEND] Error al invocar smooth-service", error);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const PIS_ASIPONA_WHATSAPP_URL = "https://wa.me/+523141215154";
 const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
 const PIS_ASIPONA_MAIN_PHONE = "314 3311 400";
@@ -24182,24 +24261,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     ).trim();
 
     try {
-      let invokeTimeoutId;
-      const timeoutPromise = new Promise((_, reject) => {
-        invokeTimeoutId = setTimeout(() => {
-          const timeoutError = new Error("timeout");
-          timeoutError.code = "PIS_TIMEOUT";
-          reject(timeoutError);
-        }, 12000);
-      });
-
-      let invokeResponse;
-      try {
-        invokeResponse = await Promise.race([
-          sb.functions.invoke(PIS_EDGE_FUNCTION, { body: payload }),
-          timeoutPromise,
-        ]);
-      } finally {
-        clearTimeout(invokeTimeoutId);
-      }
+      const invokeResponse = await invokePisEdgeFunction(payload);
 
       if (!isCurrentRequest()) return;
       const { data, error } = invokeResponse || {};
