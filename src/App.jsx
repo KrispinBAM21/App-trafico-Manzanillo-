@@ -353,8 +353,8 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
 const VT_EDGE_FUNCTION = "virustotal-scan";
-const VT_MAX_ATTEMPTS = 3;
-const VT_RETRY_DELAYS = [1200, 2600];
+const VT_MAX_ATTEMPTS = 5;
+const VT_RETRY_DELAYS = [450, 750, 1100, 1600];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -520,6 +520,26 @@ const normalizeVirusTotalResult = (raw, targetType, targetValue) => {
     permalink: source.permalink || source.link || raw?.permalink || null,
     scanned_at: new Date().toISOString(),
   };
+};
+
+const sha256FileHex = async (file) => {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
+  const sha256 = await sha256FileHex(file);
+  try {
+    const cached = await invokeVirusTotalScan({ action:"lookup_file_hash", url:sha256, userId, origen, titulo });
+    if (cached?.status && cached.status !== "pending" && Number(cached.total || 0) > 0) {
+      return { ...cached, target_type:"file", target:file.name, sha256, source:"hash" };
+    }
+  } catch (error) {
+    console.info("VirusTotal: consulta por hash no disponible; se subirá el archivo.", error?.message || error);
+  }
+  const uploaded = await invokeVirusTotalScan({ action:"scan_file", file, userId, origen, titulo });
+  return { ...uploaded, target_type:"file", target:file.name, sha256, source:"upload" };
 };
 
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
@@ -17808,6 +17828,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const exportDebounceRef = useRef(null);
   const canvasRenderVersionRef = useRef(0);
   const canvasExportVersionRef = useRef(0);
+  const canvasBuildVersionRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -19276,22 +19297,53 @@ ${base}`;
 
   const exportCanvasToGraphic = async ({ silent = true } = {}) => {
     const canvas = comunicadoCanvasRef.current;
-    if (!canvas) return null;
+    if (!canvas || !canvasMetrics || !canvasElements.length) return null;
+
+    // La exportación se vuelve a dibujar vectorialmente en un canvas independiente y de
+    // mayor densidad. No se amplía el bitmap de la vista previa, por lo que las letras
+    // conservan bordes nítidos incluso con tamaños manuales grandes.
+    const bodyElement = canvasElements.find((item) => item.id === "body");
+    const deviceScale = typeof window !== "undefined" ? Number(window.devicePixelRatio || 1) : 1;
+    const fontScale = Math.max(1, Number(bodyElement?.fontSize || 20) / Math.max(20, 40 * Number(canvasMetrics.scale || 1)));
+    const exportScale = Math.min(4, Math.max(2, deviceScale, 1 + fontScale));
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = Math.round(canvasMetrics.width * exportScale);
+    exportCanvas.height = Math.round(canvasMetrics.height * exportScale);
+    const exportCtx = exportCanvas.getContext("2d", { alpha:false });
+    if (!exportCtx) throw new Error("No se pudo crear el canvas de exportación.");
+
+    exportCtx.imageSmoothingEnabled = true;
+    exportCtx.imageSmoothingQuality = "high";
+    exportCtx.setTransform(exportScale, 0, 0, exportScale, 0, 0);
+    exportCtx.fillStyle = "#ffffff";
+    exportCtx.fillRect(0, 0, canvasMetrics.width, canvasMetrics.height);
+    exportCtx.drawImage(canvasMetrics.template, 0, 0, canvasMetrics.width, canvasMetrics.height);
+    exportCtx.font = `bold ${Math.round(22 * canvasMetrics.scale)}px "Noto Sans"`;
+    drawWrappedTextCanvas({
+      ctx: exportCtx,
+      text: canvasMetrics.headerText,
+      x: canvasMetrics.centerX,
+      y: canvasMetrics.headerY,
+      maxWidth: canvasMetrics.headerMaxWidth,
+      lineHeight: canvasMetrics.headerLineHeight,
+      textAlign: "center",
+      fillStyle: canvasMetrics.corporateBlue,
+    });
+    canvasElements.forEach((element) => drawCanvasElement({ ctx:exportCtx, element }));
+    exportCtx.setTransform(1, 0, 0, 1, 0, 0);
 
     const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
+      exportCanvas.toBlob((result) => {
         if (result) resolve(result);
-        else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
-      }, "image/jpeg", 0.99);
+        else reject(new Error("No se pudo exportar el canvas a imagen PNG."));
+      }, "image/png");
     });
 
-    if (generatedGraphicObjectUrlRef.current) {
-      URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
-    }
-
     const objectUrl = URL.createObjectURL(blob);
+    const previousObjectUrl = generatedGraphicObjectUrlRef.current;
     generatedGraphicObjectUrlRef.current = objectUrl;
     setGraphicPreviewUrl(objectUrl);
+    if (previousObjectUrl) setTimeout(() => URL.revokeObjectURL(previousObjectUrl), 1200);
 
     const titleElement = canvasElements.find((item) => item.id === "title");
     const safeTitle = String(titleElement?.text || titulo || "comunicado")
@@ -19301,14 +19353,11 @@ ${base}`;
       .replace(/^_+|_+$/g, "")
       .toLowerCase();
 
-    const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.jpg`, { type: "image/jpeg" });
+    const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.png`, { type:"image/png" });
     setGeneratedGraphicFile(generatedFile);
 
-    if (!silent) {
-      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
-    }
-
-    return { objectUrl, file: generatedFile };
+    if (!silent) setToolNotice("Comunicado gráfico generado en alta resolución. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
+    return { objectUrl, file:generatedFile };
   };
 
   const getCanvasPointerPosition = (event) => {
@@ -19541,7 +19590,7 @@ ${base}`;
 
     const a = document.createElement("a");
     a.href = graphicPreviewUrl;
-    a.download = `${safeTitle || "comunicado"}_formato.jpg`;
+    a.download = `${safeTitle || "comunicado"}_formato.png`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -19563,6 +19612,7 @@ ${base}`;
     preservePositions = true,
     requestedBodyFontSize = bodyFontMode === "manual" ? manualBodyFontSize : null,
   }) => {
+    const buildVersion = ++canvasBuildVersionRef.current;
     const { elements, metrics } = await buildCanvasElementsState({
       bodyText,
       titleText,
@@ -19571,6 +19621,7 @@ ${base}`;
       requestedBodyFontSize,
     });
 
+    if (buildVersion !== canvasBuildVersionRef.current) return null;
     setCanvasMetrics(metrics);
     setCanvasElements(elements);
     const renderedBody = elements.find((item) => item.id === "body");
@@ -19775,10 +19826,6 @@ ${base}`;
     };
   }, [canvasElements, canvasMetrics, inlineEditor?.elementId]);
 
-  useEffect(() => {
-    syncBodyAlignment(textAlignMode);
-  }, [textAlignMode]);
-
   const addDaysToDateInput = (dateValue, days = 30) => {
     if (!dateValue) return "";
     const date = new Date(`${dateValue}T12:00:00`);
@@ -19888,38 +19935,46 @@ ${base}`;
       const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
       const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
       const securityResults = [];
+      const scanJobs = [
+        ...scanTargets.map((targetFile) => ({
+          type:"file",
+          target:targetFile.name,
+          run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() }),
+        })),
+        ...detectedUrls.map((detectedUrl) => ({
+          type:"url",
+          target:detectedUrl,
+          run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() }),
+        })),
+      ];
+
+      setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
+      const settled = await withAsyncTimeout(
+        Promise.allSettled(scanJobs.map((job) => job.run())),
+        30000,
+        "VirusTotal excedió el tiempo límite de 30 segundos. No se publicó el comunicado."
+      );
+
       let verificationPending = false;
-
-      for (const targetFile of scanTargets) {
-        setVtScanMessage(`Analizando archivo: ${targetFile.name}...`);
-        try {
-          const result = await invokeVirusTotalScan({ action:"scan_file", file:targetFile, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
+      settled.forEach((entry, index) => {
+        const job = scanJobs[index];
+        if (entry.status === "fulfilled") {
+          const result = entry.value;
           securityResults.push(result);
-          if (["malicious", "suspicious"].includes(result.status)) {
-            setVtScanStatus("blocked");
-            throw new Error(`VirusTotal bloqueó el archivo “${targetFile.name}” (${result.malicious + result.suspicious} detecciones). La propuesta no fue enviada.`);
+          if (result?.status === "malicious" || Number(result?.malicious || 0) > 0 || Number(result?.suspicious || 0) > 0) {
+            const detections = Number(result?.malicious || 0) + Number(result?.suspicious || 0);
+            throw new Error(`VirusTotal bloqueó ${job.type === "file" ? "el archivo" : "el enlace"} “${job.target}” (${detections} detección${detections === 1 ? "" : "es"}). La publicación fue detenida.`);
           }
-        } catch (scanError) {
-          if (/bloqueó el archivo/i.test(String(scanError?.message || ""))) throw scanError;
-          verificationPending = true;
-          securityResults.push({ target_type:"file", target:targetFile.name, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
+          if (result?.status !== "clean") verificationPending = true;
+          return;
         }
-      }
+        verificationPending = true;
+        securityResults.push({ target_type:job.type, target:job.target, status:"error", error:String(entry.reason?.message || entry.reason), scanned_at:new Date().toISOString() });
+      });
 
-      for (const detectedUrl of detectedUrls) {
-        setVtScanMessage(`Analizando enlace: ${detectedUrl}`);
-        try {
-          const result = await invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
-          securityResults.push(result);
-          if (["malicious", "suspicious"].includes(result.status)) {
-            setVtScanStatus("blocked");
-            throw new Error(`VirusTotal bloqueó el enlace “${detectedUrl}” por riesgo de malware o phishing. La propuesta no fue enviada.`);
-          }
-        } catch (scanError) {
-          if (/bloqueó el enlace/i.test(String(scanError?.message || ""))) throw scanError;
-          verificationPending = true;
-          securityResults.push({ target_type:"url", target:detectedUrl, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
-        }
+      // Se conserva el nivel de exigencia: un resultado inconcluso nunca publica automáticamente.
+      if (verificationPending) {
+        throw new Error("VirusTotal no pudo completar todas las verificaciones dentro del tiempo permitido. Reintenta la publicación; no se cargó ningún archivo.");
       }
 
       const vtSummary = getVirusTotalSummary(securityResults);
