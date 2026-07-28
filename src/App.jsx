@@ -3500,9 +3500,52 @@ const imageUrlToCanvas = (src, maxSide = 1800) => new Promise((resolve, reject) 
   img.src = src;
 });
 
-const ocrCanvasClient = async (canvas) => {
+let cmTesseractWorkerPromise = null;
+const getTesseractWorkerClient = async () => {
   const Tesseract = await loadTesseractClient();
-  const result = await Tesseract.recognize(canvas, "spa+eng");
+  if (!cmTesseractWorkerPromise && typeof Tesseract?.createWorker === "function") {
+    cmTesseractWorkerPromise = Tesseract.createWorker("spa+eng", 1, {
+      logger: () => {},
+      cacheMethod: "readOnly",
+    }).catch((error) => {
+      cmTesseractWorkerPromise = null;
+      throw error;
+    });
+  }
+  return cmTesseractWorkerPromise ? await cmTesseractWorkerPromise : null;
+};
+
+const prepareCanvasForFastOcr = (sourceCanvas) => {
+  if (!sourceCanvas) throw new Error("No hay imagen disponible para OCR");
+  const maxPixels = 2400000;
+  const sourcePixels = Math.max(1, Number(sourceCanvas.width || 1) * Number(sourceCanvas.height || 1));
+  const ratio = sourcePixels > maxPixels ? Math.sqrt(maxPixels / sourcePixels) : 1;
+  if (ratio >= .995) return sourceCanvas;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceCanvas.width * ratio));
+  canvas.height = Math.max(1, Math.round(sourceCanvas.height * ratio));
+  const ctx = canvas.getContext("2d", { alpha:false });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+  return canvas;
+};
+
+const ocrCanvasClient = async (canvas) => {
+  const optimizedCanvas = prepareCanvasForFastOcr(canvas);
+  const Tesseract = await loadTesseractClient();
+  try {
+    const worker = await getTesseractWorkerClient();
+    if (worker?.recognize) {
+      const result = await worker.recognize(optimizedCanvas);
+      return String(result?.data?.text || "").trim();
+    }
+  } catch (workerError) {
+    console.warn("Worker OCR persistente no disponible; usando reconocimiento directo.", workerError?.message || workerError);
+  }
+  const result = await Tesseract.recognize(optimizedCanvas, "spa+eng", { logger:() => {} });
   return String(result?.data?.text || "").trim();
 };
 
@@ -3734,13 +3777,30 @@ const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
 };
 
 const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPath }) => {
-  // Primero intenta una Edge Function opcional llamada media-process, útil si después
-  // decides hacer OCR en servidor. Si no existe, cae automáticamente al OCR en navegador.
+  const source = String(sourceUrl || "");
+  const isLocalSource = /^(blob:|data:)/i.test(source);
+  const isPdfAction = action === "pdf_to_images_ocr" || String(fileType || "").includes("pdf") || /\.pdf(\?|$)/i.test(source);
+
+  // Los archivos recién elegidos ya viven en memoria. Procesarlos localmente evita
+  // una llamada de red innecesaria y elimina la demora de esperar una Edge Function.
+  if (isLocalSource) {
+    try {
+      return isPdfAction
+        ? await processPdfOcrClient(sourceUrl, bucketPath)
+        : await processImageOcrClient(sourceUrl);
+    } catch (localError) {
+      console.warn("OCR local no disponible.", localError?.message || localError);
+      return { ok:false, text:"", image_urls:[] };
+    }
+  }
+
+  // Para URLs remotas se conserva la Edge Function, pero con tiempo límite corto.
   try {
     if (sb?.functions?.invoke) {
-      const { data, error } = await sb.functions.invoke("media-process", {
-        body: { action, source_url: sourceUrl, file_type: fileType, title, bucket_path: bucketPath, lang: "spa+eng" }
+      const invokePromise = sb.functions.invoke("media-process", {
+        body: { action, source_url:sourceUrl, file_type:fileType, title, bucket_path:bucketPath, lang:"spa+eng" }
       });
+      const { data, error } = await withAsyncTimeout(invokePromise, 4500, "Tiempo agotado al procesar el archivo con IA.");
       if (!error && data?.ok !== false && (data?.text || data?.image_urls)) return data;
     }
   } catch (e) {
@@ -3748,13 +3808,12 @@ const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPa
   }
 
   try {
-    const isPdfAction = action === "pdf_to_images_ocr" || String(fileType || "").includes("pdf") || /\.pdf(\?|$)/i.test(String(sourceUrl || ""));
     return isPdfAction
       ? await processPdfOcrClient(sourceUrl, bucketPath)
       : await processImageOcrClient(sourceUrl);
   } catch (e) {
     console.warn("OCR en navegador no disponible.", e?.message || e);
-    return { ok: false, text: "", image_urls: [] };
+    return { ok:false, text:"", image_urls:[] };
   }
 };
 
@@ -26009,50 +26068,480 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return <span style={{display:"inline-flex",alignItems:"center",gap:"6px",padding:"5px 9px",borderRadius:"999px",background:meta.bg,border:`1px solid ${meta.color}55`,color:meta.color,fontSize:"11px",fontWeight:800}}><span style={{width:"6px",height:"6px",borderRadius:"50%",background:meta.color,boxShadow:`0 0 10px ${meta.color}66`}}/>{meta.label}</span>;
   };
   const TicketsHelpdesk = () => {
-    const typeMeta = (value) => QUEJAS_TICKET_TYPES.find((item) => item.value === value) || { label:"Sin categoría", icon:"report_problem" };
+    const typeMeta = (value) =>
+      QUEJAS_TICKET_TYPES.find((item) => item.value === value) ||
+      { label:"Sin categoría", icon:"report_problem" };
+
     const filtered = safeArray(tickets).filter(Boolean);
     const evidenceInputRef = useRef(null);
+
+    const MaterialTicketIcon = ({
+      name,
+      className = "",
+      filled = false,
+      style = {},
+      title = "",
+    }) => (
+      <span
+        className={`material-symbols-outlined ${className}`.trim()}
+        aria-hidden={title ? undefined : "true"}
+        role={title ? "img" : undefined}
+        title={title || undefined}
+        style={{
+          fontVariationSettings:`'FILL' ${filled ? 1 : 0}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+          ...style,
+        }}
+      >
+        {name}
+      </span>
+    );
+
     const openFilePicker = () => {
       const inputNode = evidenceInputRef?.current ?? null;
       if (inputNode && typeof inputNode.click === "function") inputNode.click();
     };
+
     const formatTicketDate = (value) => {
       const date = value ? new Date(value) : null;
-      return date && Number.isFinite(date.getTime()) ? date.toLocaleString("es-MX") : "Fecha no disponible";
+      return date && Number.isFinite(date.getTime())
+        ? date.toLocaleString("es-MX")
+        : "Fecha no disponible";
     };
-    return <div style={{display:"grid",gap:"32px",marginTop:"14px",fontFamily:"Inter, sans-serif"}}>
-      {!isAdmin&&<section className="glass-card rounded-xl" style={{overflow:"hidden",borderRadius:"8px",background:"rgba(25,28,30,.70)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",border:"1px solid rgba(137,145,158,.15)",boxShadow:"0 8px 32px rgba(0,0,0,.37)"}}>
-        <div className="glass-header" style={{padding:"24px",display:"flex",alignItems:"flex-start",gap:"16px",background:"rgba(255,255,255,.03)",borderBottom:"1px solid rgba(137,145,158,.10)"}}>
-          <div style={{width:"48px",height:"48px",borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.20)",color:"#9fcaff"}}><TicketSymbol name="shield" size={24} active/></div>
-          <div><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>Quejas</div><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>Describe el problema y adjunta evidencia segura si es necesario para nuestra terminal de inteligencia.</div></div>
-        </div>
-        <div style={{padding:"32px",display:"grid",gap:"32px"}}>
-          <div style={{display:"grid",gap:"12px"}}><div style={{color:"#9fcaff",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em"}}>TIPO DE REPORTE</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"16px"}}>{QUEJAS_TICKET_TYPES.map((item)=>{const active=ticketForm?.tipo_reporte===item.value;return <button key={item.value} type="button" disabled={ticketSubmitting} onClick={()=>setTicketForm((prev)=>({...prev,tipo_reporte:item.value}))} style={{padding:"16px",minHeight:"76px",borderRadius:"8px",border:`1px solid ${active?"#9fcaff":"#3f4753"}`,background:active?"rgba(159,202,255,.10)":"#191c1e",color:active?"#9fcaff":"#e0e3e5",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",transition:"all .3s ease"}}><TicketSymbol name={item.icon} size={23} active={active}/><span style={{fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{item.label}</span></button>})}</div></div>
-          <label style={{display:"grid",gap:"12px"}}><span style={{color:"#9fcaff",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em"}}>COMENTARIOS</span><textarea className="cyan-glow" value={ticketForm?.comentarios ?? ""} disabled={ticketSubmitting} onChange={(event)=>setTicketForm((prev)=>({...prev,comentarios:event?.currentTarget?.value ?? ""}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas. Sé específico con los códigos de error encontrados." rows={6} style={{width:"100%",boxSizing:"border-box",border:"1px solid #3f4753",borderRadius:"8px",padding:"16px",fontFamily:"Inter, sans-serif",fontSize:"14px",lineHeight:"20px",color:"#e0e3e5",background:"#191c1e",outline:"none",resize:"vertical",transition:"all .3s ease"}}/></label>
-          <div style={{border:"2px dashed #3f4753",borderRadius:"8px",padding:"24px",background:"rgba(25,28,30,.50)",display:"grid",gap:"16px"}}>
-            <input ref={evidenceInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addTicketEvidence} style={{display:"none"}}/>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"24px",flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:"16px"}}><div style={{width:"48px",height:"48px",borderRadius:"9999px",background:"#323537",display:"flex",alignItems:"center",justifyContent:"center",color:"#bfc7d5"}}><TicketSymbol name="image" size={22}/></div><div><div style={{fontSize:"16px",lineHeight:"24px",fontWeight:600,color:"#e0e3e5"}}>Evidencia en imagen</div><div style={{fontSize:"14px",lineHeight:"20px",color:"#bfc7d5"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div></div><button className="btn-gradient" type="button" disabled={ticketSubmitting} onClick={openFilePicker} style={{padding:"12px 24px",border:0,borderRadius:"9999px",color:"#003259",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",opacity:ticketSubmitting?.65:1}}><TicketSymbol name="add_photo_alternate" size={20}/>ADJUNTAR IMÁGENES</button></div>
-            {!!safeArray(ticketForm?.evidencia).length&&<div style={{display:"flex",gap:"12px",flexWrap:"wrap"}}>{safeArray(ticketForm?.evidencia).map((item,index)=><div key={`${item?.name ?? "imagen"}-${index}`} style={{position:"relative",width:"88px",height:"72px",borderRadius:"4px",overflow:"hidden",border:"1px solid #3f4753",background:"#191c1e"}}><img src={item?.preview ?? ""} alt={`Evidencia ${index+1}`} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/><button type="button" disabled={ticketSubmitting} aria-label={`Quitar imagen ${index+1}`} onClick={()=>removeTicketEvidence(index)} style={{position:"absolute",top:"4px",right:"4px",width:"28px",height:"28px",padding:0,borderRadius:"9999px",border:"1px solid #ffb4ab",background:"rgba(147,0,10,.80)",color:"#ffb4ab",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><TicketSymbol name="close" size={17}/></button></div>)}</div>}
-          </div>
-          <div style={{paddingTop:"28px",borderTop:"1px solid #3f4753",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:"8px",color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}><TicketSymbol name="schedule" size={18}/>La fecha y hora se registran automáticamente en el sistema.</div><button className="btn-gradient animate-pulse-cyan" type="button" disabled={ticketSubmitting} onClick={createTicket} style={{padding:"16px 40px",border:0,borderRadius:"8px",color:"#003259",fontSize:"20px",lineHeight:"28px",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",opacity:ticketSubmitting?.68:1}}><TicketSymbol name={ticketSubmitting?"hourglass_top":"send"} size={23}/>{ticketSubmitting?"ENVIANDO…":"ENVIAR TICKET"}</button></div>
-        </div>
-      </section>}
 
-      <section className="glass-card rounded-xl" style={{overflow:"hidden",borderRadius:"8px",background:"rgba(25,28,30,.70)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",border:"1px solid rgba(137,145,158,.15)",boxShadow:"0 8px 32px rgba(0,0,0,.37)"}}>
-        <div className="glass-header" style={{padding:"24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",flexWrap:"wrap",background:"rgba(255,255,255,.03)",borderBottom:"1px solid rgba(137,145,158,.10)"}}><div style={{display:"flex",alignItems:"center",gap:"16px"}}><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><span style={{padding:"4px 12px",borderRadius:"9999px",background:"#323537",color:"#bfc7d5",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{filtered.length} ticket(s)</span></div><button className="rotate-hover" type="button" disabled={ticketsLoading} onClick={loadTickets} style={{padding:"8px 16px",border:"1px solid #3f4753",borderRadius:"9999px",background:"transparent",color:"#bfc7d5",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketsLoading?"wait":"pointer",appearance:"none",WebkitAppearance:"none",transition:"color .3s ease,border-color .3s ease,box-shadow .3s ease",opacity:ticketsLoading?.65:1}}><span className="rotate-icon" style={{display:"inline-flex",animation:ticketsLoading?"spin 1s linear infinite":"none"}}><TicketSymbol name="refresh" size={19}/></span>ACTUALIZAR</button></div>
-        {ticketsLoading?<div style={{padding:"64px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:"24px"}}><div className="animate-pulse-cyan" style={{position:"relative",width:"192px",height:"192px",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"9999px"}}><div style={{position:"absolute",inset:0,border:"2px solid rgba(159,202,255,.20)",borderRadius:"9999px",animation:"cmTicketPing 2s cubic-bezier(0,0,.2,1) infinite"}}/><div style={{position:"absolute",inset:"16px",border:"2px solid rgba(159,202,255,.40)",borderRadius:"9999px",animation:"cmTicketPing 2s cubic-bezier(0,0,.2,1) .5s infinite"}}/><div style={{width:"128px",height:"128px",borderRadius:"9999px",border:"1px solid rgba(159,202,255,.30)",display:"flex",alignItems:"center",justifyContent:"center",background:"#191c1e",boxShadow:"inset 0 2px 8px rgba(0,0,0,.35)",color:"#9fcaff",position:"relative",zIndex:2}}><TicketSymbol name="radar" size={52} filled/></div><div style={{position:"absolute",inset:0,borderRadius:"9999px",background:"conic-gradient(from 0deg, transparent 0deg, transparent 286deg, rgba(159,202,255,.22) 338deg, transparent 360deg)",animation:"cmTicketSweep 4s linear infinite",pointerEvents:"none",zIndex:1}}/></div><div style={{display:"grid",gap:"8px"}}><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>Consultando el núcleo de tickets</div><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>Sincronizando registros seguros con el núcleo central.</div></div></div>:ticketsError?<div style={{margin:"24px",padding:"20px",borderRadius:"8px",border:"1px solid #ffb4ab",background:"rgba(147,0,10,.20)",color:"#ffb4ab",display:"flex",alignItems:"flex-start",gap:"12px"}}><TicketSymbol name="error" size={24} active/><div><div style={{fontSize:"16px",lineHeight:"24px",fontWeight:600}}>Error de conexión</div><div style={{marginTop:"4px",fontSize:"14px",lineHeight:"20px"}}>{ticketsError}</div></div></div>:!filtered.length?<div style={{padding:"64px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:"24px"}}><div style={{position:"relative",width:"192px",height:"192px",display:"flex",alignItems:"center",justifyContent:"center"}}><div className="animate-ping" style={{position:"absolute",inset:0,border:"2px solid rgba(159,202,255,.20)",borderRadius:"9999px",opacity:.2}}/><div className="animate-ping" style={{position:"absolute",inset:"16px",border:"2px solid rgba(159,202,255,.40)",borderRadius:"9999px",opacity:.1,animationDelay:".5s"}}/><div style={{width:"128px",height:"128px",borderRadius:"9999px",border:"1px solid rgba(159,202,255,.30)",display:"flex",alignItems:"center",justifyContent:"center",background:"#191c1e",boxShadow:"inset 0 2px 8px rgba(0,0,0,.35)"}}><TicketSymbol name="radar" size={52} active/></div><div style={{position:"absolute",inset:0,borderRadius:"9999px",background:"linear-gradient(45deg,transparent,rgba(159,202,255,.20))",animation:"spin 4s linear infinite",pointerEvents:"none"}}/></div><div><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>Sin registros detectados</div><div style={{marginTop:"8px",maxWidth:"448px",color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>No se han encontrado tickets activos en tu terminal. Los nuevos incidentes aparecerán aquí una vez que sean validados por el núcleo central.</div></div></div>:<div className="custom-scrollbar" style={{padding:"24px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(290px,1fr))",gap:"24px"}}>{filtered.map((ticket,index)=>{const type=typeMeta(ticket?.tipo_reporte);const evidence=safeArray(ticket?.evidencia);const open=ticketExpanded===ticket?.id;return <article key={ticket?.id ?? `ticket-${index}`} className="glass-card rounded-xl" style={{borderRadius:"8px",overflow:"hidden",opacity:1,transform:"translateY(0)",animation:`cmTicketReveal .3s ease ${Math.min(index,8)*45}ms both`}}><button type="button" onClick={()=>setTicketExpanded(open?null:(ticket?.id ?? null))} style={{width:"100%",padding:0,border:0,background:"transparent",color:"inherit",textAlign:"left",cursor:"pointer"}}><div className="glass-header" style={{padding:"16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px"}}><div style={{display:"flex",alignItems:"center",gap:"10px",minWidth:0}}><div style={{width:"40px",height:"40px",borderRadius:"8px",background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.20)",color:"#9fcaff",display:"flex",alignItems:"center",justifyContent:"center"}}><TicketSymbol name={type.icon} size={21}/></div><div style={{minWidth:0}}><div style={{color:"#e0e3e5",fontSize:"16px",lineHeight:"24px",fontWeight:600}}>{type.label}</div><div style={{color:"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>#{String(ticket?.id ?? "").slice(0,12).toUpperCase()}</div></div></div><TicketStatusChip value={ticket?.estatus}/></div><div style={{padding:"16px",display:"grid",gap:"14px"}}><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px",display:"-webkit-box",WebkitLineClamp:open?6:3,WebkitBoxOrient:"vertical",overflow:"hidden",whiteSpace:"pre-wrap"}}>{ticket?.comentarios ?? "Sin comentarios."}</div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{formatTicketDate(ticket?.fecha_creacion)}</span><span style={{display:"flex",alignItems:"center",gap:"6px",color:evidence.length?"#bdf4ff":"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px"}}><TicketSymbol name={evidence.length?"image":"image_not_supported"} size={18}/>{evidence.length}</span></div></div></button>{!!evidence.length&&<div style={{padding:"0 16px 16px",display:"flex",gap:"8px",flexWrap:"wrap"}}>{evidence.map((image,imageIndex)=><button key={image?.id ?? `${image?.path ?? "image"}-${imageIndex}`} type="button" onClick={()=>getTicketEvidenceUrl(image)} aria-label={`Abrir evidencia ${imageIndex+1}`} style={{width:"64px",height:"52px",borderRadius:"4px",border:"1px solid #3f4753",background:"#191c1e",color:"#9fcaff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><TicketSymbol name="image" size={23}/></button>)}</div>}</article>})}</div>}
-      </section>
-      <style>{`
-        @keyframes cmTicketReveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes cmTicketPing{0%{transform:scale(.88);opacity:.42}70%,100%{transform:scale(1.12);opacity:0}}
-        @keyframes cmTicketSweep{to{transform:rotate(360deg)}}
-        .cm-ticket-portal .glass-card{background:rgba(25,28,30,.70);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(137,145,158,.15);box-shadow:0 8px 32px rgba(0,0,0,.37)}
-        .cm-ticket-portal .glass-header{background:rgba(255,255,255,.03);border-bottom:1px solid rgba(137,145,158,.10)}
-        .cm-ticket-portal button:focus-visible,.cm-ticket-portal input:focus-visible,.cm-ticket-portal textarea:focus-visible{outline:2px solid #00daf3;outline-offset:2px}
-        .cm-ticket-portal .cm-ticket-radar-ring{animation:cmTicketPing 2s cubic-bezier(0,0,.2,1) infinite}
-        .cm-ticket-portal .cm-ticket-radar-sweep{animation:cmTicketSweep 4s linear infinite;transform-origin:center}
-      `}</style>
-    </div>;
+    return (
+      <div className="cm-ticket-portal max-w-container-max mx-auto p-gutter space-y-8">
+        {!isAdmin && (
+          <section className="glass-card rounded-xl overflow-hidden">
+            <div className="glass-header p-6 flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary">
+                <MaterialTicketIcon name="shield" filled />
+              </div>
+              <div>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface">Quejas</h2>
+                <p className="font-body-md text-body-md text-on-surface-variant">
+                  Describe el problema y adjunta evidencia segura si es necesario para nuestra terminal de inteligencia.
+                </p>
+              </div>
+            </div>
+
+            <form
+              className="p-8 space-y-8"
+              onSubmit={(event) => {
+                event?.preventDefault?.();
+                if (!ticketSubmitting) createTicket();
+              }}
+            >
+              <div className="space-y-3">
+                <label className="font-label-caps text-label-caps text-primary block">
+                  TIPO DE REPORTE
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {QUEJAS_TICKET_TYPES.map((item) => (
+                    <label key={item.value} className="relative group cursor-pointer">
+                      <input
+                        className="peer sr-only"
+                        name="category"
+                        type="radio"
+                        value={item.value}
+                        checked={(ticketForm?.tipo_reporte ?? "") === item.value}
+                        disabled={ticketSubmitting}
+                        onChange={(event) => {
+                          const nextValue = event?.currentTarget?.value ?? "";
+                          setTicketForm((previous) => ({
+                            ...(previous ?? {}),
+                            tipo_reporte:nextValue,
+                          }));
+                        }}
+                      />
+                      <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-outline-variant bg-surface-container-low peer-checked:bg-primary/10 peer-checked:border-primary transition-all duration-300 group-hover:bg-surface-container">
+                        <MaterialTicketIcon name={item.icon} className="text-primary mb-2" />
+                        <span className="font-mono-label text-mono-label">{item.label}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label
+                  htmlFor="ticket-comments"
+                  className="font-label-caps text-label-caps text-primary block"
+                >
+                  COMENTARIOS
+                </label>
+                <textarea
+                  id="ticket-comments"
+                  className="w-full border border-outline-variant rounded-xl p-4 font-body-md text-body-md focus:ring-0 outline-none cyan-glow transition-all duration-300 placeholder:text-on-surface-variant/30 bg-surface-container-low text-on-surface"
+                  value={ticketForm?.comentarios ?? ""}
+                  disabled={ticketSubmitting}
+                  onChange={(event) => {
+                    const nextValue = event?.currentTarget?.value ?? "";
+                    setTicketForm((previous) => ({
+                      ...(previous ?? {}),
+                      comentarios:nextValue,
+                    }));
+                  }}
+                  placeholder="Explica qué ocurrió, dónde y qué resultado esperabas. Sé específico con los códigos de error encontrados."
+                  rows={6}
+                />
+              </div>
+
+              <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 bg-surface-container-low/50 transition-all duration-300 hover:border-secondary-container flex flex-col gap-6">
+                <input
+                  ref={evidenceInputRef}
+                  className="hidden"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  onChange={addTicketEvidence}
+                />
+
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center">
+                      <MaterialTicketIcon name="image" className="text-on-surface-variant" />
+                    </div>
+                    <div>
+                      <h4 className="font-headline-sm text-[16px] text-on-surface">
+                        Evidencia en imagen
+                      </h4>
+                      <p className="font-body-md text-body-md text-on-surface-variant">
+                        Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn-gradient px-6 py-3 rounded-full font-label-caps text-label-caps text-on-primary flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                    type="button"
+                    disabled={ticketSubmitting}
+                    onClick={openFilePicker}
+                  >
+                    <MaterialTicketIcon name="add_photo_alternate" />
+                    ADJUNTAR IMÁGENES
+                  </button>
+                </div>
+
+                {!!safeArray(ticketForm?.evidencia).length && (
+                  <div className="flex flex-wrap gap-3">
+                    {safeArray(ticketForm?.evidencia).map((item, index) => (
+                      <div
+                        key={`${item?.name ?? "imagen"}-${index}`}
+                        className="relative w-24 h-20 rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low"
+                      >
+                        <img
+                          src={item?.preview ?? ""}
+                          alt={`Evidencia ${index + 1}`}
+                          className="w-full h-full object-cover block"
+                        />
+                        <button
+                          type="button"
+                          disabled={ticketSubmitting}
+                          aria-label={`Quitar imagen ${index + 1}`}
+                          onClick={() => removeTicketEvidence(index)}
+                          className="absolute top-1 right-1 w-7 h-7 p-0 rounded-full border border-error bg-error-container/80 text-error flex items-center justify-center disabled:opacity-60"
+                        >
+                          <MaterialTicketIcon name="close" className="text-[17px]" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col md:flex-row items-center justify-between border-t border-outline-variant pt-8 gap-4">
+                <div className="flex items-center gap-2 text-on-surface-variant">
+                  <MaterialTicketIcon name="schedule" className="text-[18px]" />
+                  <p className="font-body-md text-body-md">
+                    La fecha y hora se registran automáticamente en el sistema.
+                  </p>
+                </div>
+
+                <button
+                  className="animate-pulse-cyan w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-headline-sm text-headline-sm rounded-xl flex items-center justify-center gap-3 hover:shadow-[0_0_25px_rgba(159,202,255,0.4)] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                  type="submit"
+                  disabled={ticketSubmitting}
+                >
+                  <MaterialTicketIcon name={ticketSubmitting ? "hourglass_top" : "send"} />
+                  {ticketSubmitting ? "ENVIANDO..." : "ENVIAR TICKET"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        <section className="glass-card rounded-xl">
+          <div className="glass-header p-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface">
+                {isAdmin ? "Todos los tickets" : "Mis tickets"}
+              </h2>
+              <span className="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full font-mono-label text-mono-label">
+                {filtered.length} ticket(s)
+              </span>
+            </div>
+
+            <button
+              className="rotate-hover flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-full text-on-surface-variant hover:text-primary transition-colors disabled:opacity-60 disabled:cursor-wait"
+              type="button"
+              disabled={ticketsLoading}
+              onClick={loadTickets}
+            >
+              <MaterialTicketIcon
+                name="refresh"
+                className={`rotate-icon ${ticketsLoading ? "cm-ticket-refresh-active" : ""}`}
+              />
+              <span className="font-label-caps text-label-caps">ACTUALIZAR</span>
+            </button>
+          </div>
+
+          {ticketsLoading ? (
+            <div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
+              <div className="relative w-48 h-48 flex items-center justify-center animate-pulse-cyan">
+                <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping opacity-20" />
+                <div
+                  className="absolute inset-4 border-2 border-primary/40 rounded-full animate-ping opacity-10"
+                  style={{ animationDelay:"0.5s" }}
+                />
+                <div className="w-32 h-32 rounded-full border border-primary/30 flex items-center justify-center bg-surface-container-low shadow-inner">
+                  <MaterialTicketIcon
+                    name="radar"
+                    filled
+                    className="text-primary text-5xl"
+                  />
+                </div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none">
+                  <div className="w-full h-full bg-gradient-to-tr from-transparent to-primary/20 rounded-full animate-[spin_4s_linear_infinite]" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-headline-sm text-headline-sm text-on-surface">
+                  Consultando el núcleo de tickets
+                </h3>
+                <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
+                  Sincronizando registros seguros con el núcleo central.
+                </p>
+              </div>
+            </div>
+          ) : ticketsError ? (
+            <div className="m-6 p-5 rounded-xl border border-error bg-error-container/20 text-error flex items-start gap-3">
+              <MaterialTicketIcon name="error" filled />
+              <div>
+                <h3 className="font-headline-sm text-[16px]">Error de conexión</h3>
+                <p className="font-body-md text-body-md mt-1">{ticketsError}</p>
+              </div>
+            </div>
+          ) : !filtered.length ? (
+            <div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
+              <div className="relative w-48 h-48 flex items-center justify-center">
+                <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping opacity-20" />
+                <div
+                  className="absolute inset-4 border-2 border-primary/40 rounded-full animate-ping opacity-10"
+                  style={{ animationDelay:"0.5s" }}
+                />
+                <div className="w-32 h-32 rounded-full border border-primary/30 flex items-center justify-center bg-surface-container-low shadow-inner">
+                  <MaterialTicketIcon
+                    name="radar"
+                    filled
+                    className="text-primary text-5xl"
+                  />
+                </div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none">
+                  <div className="w-full h-full bg-gradient-to-tr from-transparent to-primary/20 rounded-full animate-[spin_4s_linear_infinite]" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-headline-sm text-headline-sm text-on-surface">
+                  Sin registros detectados
+                </h3>
+                <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
+                  No se han encontrado tickets activos en tu terminal. Los nuevos incidentes aparecerán aquí una vez que sean validados por el núcleo central.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="custom-scrollbar p-gutter grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+              {filtered.map((ticket, index) => {
+                const type = typeMeta(ticket?.tipo_reporte);
+                const evidence = safeArray(ticket?.evidencia);
+                const open = ticketExpanded === ticket?.id;
+
+                return (
+                  <article
+                    key={ticket?.id ?? `ticket-${index}`}
+                    className="glass-card rounded-xl overflow-hidden cm-ticket-reveal"
+                    style={{ animationDelay:`${Math.min(index, 8) * 45}ms` }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setTicketExpanded(open ? null : (ticket?.id ?? null))}
+                      className="w-full p-0 border-0 bg-transparent text-left text-on-surface cursor-pointer"
+                    >
+                      <div className="glass-header p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
+                            <MaterialTicketIcon name={type.icon} />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-headline-sm text-[16px] text-on-surface truncate">
+                              {type.label}
+                            </h3>
+                            <p className="font-mono-label text-mono-label text-outline truncate">
+                              #{String(ticket?.id ?? "").slice(0, 12).toUpperCase()}
+                            </p>
+                          </div>
+                        </div>
+                        <TicketStatusChip value={ticket?.estatus} />
+                      </div>
+
+                      <div className="p-4 space-y-4">
+                        <p
+                          className={`font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap ${
+                            open ? "" : "line-clamp-3"
+                          }`}
+                        >
+                          {ticket?.comentarios ?? "Sin comentarios."}
+                        </p>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <span className="font-mono-label text-mono-label text-outline">
+                            {formatTicketDate(ticket?.fecha_creacion)}
+                          </span>
+                          <span
+                            className={`font-mono-label text-mono-label flex items-center gap-2 ${
+                              evidence.length ? "text-secondary" : "text-outline"
+                            }`}
+                          >
+                            <MaterialTicketIcon
+                              name={evidence.length ? "image" : "image_not_supported"}
+                              className="text-[18px]"
+                            />
+                            {evidence.length}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {!!evidence.length && (
+                      <div className="px-4 pb-4 flex flex-wrap gap-2">
+                        {evidence.map((image, imageIndex) => (
+                          <button
+                            key={image?.id ?? `${image?.path ?? "image"}-${imageIndex}`}
+                            type="button"
+                            onClick={() => getTicketEvidenceUrl(image)}
+                            aria-label={`Abrir evidencia ${imageIndex + 1}`}
+                            className="w-16 h-14 rounded-lg border border-outline-variant bg-surface-container-low text-primary flex items-center justify-center hover:border-secondary-container transition-colors duration-300"
+                          >
+                            <MaterialTicketIcon name="image" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <style>{`
+          @keyframes cmTicketReveal {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes cmTicketRefreshSpin {
+            to { transform: rotate(360deg); }
+          }
+          .cm-ticket-reveal {
+            opacity: 0;
+            animation: cmTicketReveal 300ms ease forwards;
+          }
+          .cm-ticket-refresh-active {
+            animation: cmTicketRefreshSpin 1s linear infinite;
+          }
+          .cm-ticket-portal {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+            box-sizing: border-box;
+            color: #e0e3e5;
+            font-family: Inter, sans-serif;
+          }
+          .cm-ticket-portal .glass-card {
+            background: rgba(25, 28, 30, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(137, 145, 158, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+          }
+          .cm-ticket-portal .glass-header {
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(137, 145, 158, 0.1);
+          }
+          .cm-ticket-portal .btn-gradient {
+            background: linear-gradient(135deg, #0099ff 0%, #00daf3 100%) !important;
+            color: #003259 !important;
+            border: 0;
+            opacity: 1;
+            box-shadow: none;
+          }
+          .cm-ticket-portal .btn-gradient:hover:not(:disabled) {
+            box-shadow: 0 0 20px rgba(0, 218, 243, 0.6);
+            transform: translateY(-1px);
+          }
+          .cm-ticket-portal button.bg-primary {
+            background: #9fcaff !important;
+            color: #003259 !important;
+            border-color: transparent !important;
+          }
+          .cm-ticket-portal button:disabled {
+            opacity: .60;
+          }
+          .cm-ticket-portal .text-on-surface { color:#e0e3e5 !important; }
+          .cm-ticket-portal .text-on-surface-variant { color:#bfc7d5 !important; }
+          .cm-ticket-portal .text-on-primary { color:#003259 !important; }
+          .cm-ticket-portal .text-primary { color:#9fcaff !important; }
+          .cm-ticket-portal .bg-surface-container-low { background-color:#191c1e !important; }
+          .cm-ticket-portal .bg-surface-container-highest { background-color:#323537 !important; }
+          .cm-ticket-portal .border-outline-variant { border-color:#3f4753 !important; }
+          .cm-ticket-portal .border-primary { border-color:#9fcaff !important; }
+          .cm-ticket-portal .rounded-xl { border-radius:.5rem; }
+          .cm-ticket-portal .rounded-lg { border-radius:.25rem; }
+          .cm-ticket-portal .rounded-full { border-radius:9999px; }
+          .cm-ticket-portal .font-headline-sm,
+          .cm-ticket-portal .font-body-md { font-family:Inter, sans-serif; }
+          .cm-ticket-portal .font-label-caps,
+          .cm-ticket-portal .font-mono-label { font-family:"JetBrains Mono", monospace; }
+          .cm-ticket-portal .text-headline-sm { font-size:20px; line-height:28px; font-weight:600; }
+          .cm-ticket-portal .text-body-md { font-size:14px; line-height:20px; font-weight:400; }
+          .cm-ticket-portal .text-label-caps { font-size:12px; line-height:16px; letter-spacing:.06em; font-weight:700; }
+          .cm-ticket-portal .text-mono-label { font-size:13px; line-height:18px; letter-spacing:.02em; font-weight:500; }
+          .cm-ticket-portal textarea { color:#e0e3e5; }
+          .cm-ticket-portal textarea::placeholder { color:rgba(191,199,213,.30); }
+          @media (max-width: 767px) {
+            .cm-ticket-portal { padding:16px; }
+          }
+          .cm-ticket-portal .material-symbols-outlined {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-family: "Material Symbols Outlined";
+            font-style: normal;
+            font-weight: 400;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            font-feature-settings: "liga";
+            -webkit-font-feature-settings: "liga";
+            -webkit-font-smoothing: antialiased;
+          }
+        `}</style>
+      </div>
+    );
   };
 
   const AdminQuejas = ({ mode = "complaints" } = {}) => {
