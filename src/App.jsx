@@ -352,9 +352,9 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
-const VT_EDGE_FUNCTION = "virustotal-scan";
-const VT_MAX_ATTEMPTS = 2;
-const VT_RETRY_DELAYS = [700];
+const VT_EDGE_FUNCTION = "super-handler";
+const VT_MAX_ATTEMPTS = 1;
+const VT_RETRY_DELAYS = [];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -566,24 +566,24 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
           };
 
       // Usar el cliente oficial conserva correctamente la sesión y apunta a la
-      // función real desplegada: /functions/v1/virustotal-scan.
+      // función real desplegada: /functions/v1/super-handler.
       const invocation = sb.functions.invoke(VT_EDGE_FUNCTION, { body });
       const { data, error } = await withAsyncTimeout(
         invocation,
-        22000,
-        "VirusTotal excedió el tiempo máximo de respuesta."
+        30000,
+        "La verificación de VirusTotal excedió el tiempo máximo de respuesta."
       );
 
       if (error) {
         const functionError = new Error(
-          error?.context?.message || error?.message || "No se pudo ejecutar virustotal-scan."
+          error?.context?.message || error?.message || "No se pudo ejecutar super-handler."
         );
         functionError.details = error?.context || error;
         throw functionError;
       }
 
       if (!data || typeof data !== "object") {
-        throw new Error("virustotal-scan devolvió una respuesta vacía o inválida.");
+        throw new Error("super-handler devolvió una respuesta vacía o inválida.");
       }
 
       if (String(data.status || "").toLowerCase() === "error") {
@@ -19991,8 +19991,8 @@ ${base}`;
       setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
       const settled = await withAsyncTimeout(
         Promise.allSettled(scanJobs.map((job) => job.run())),
-        26000,
-        "VirusTotal excedió el tiempo límite de 26 segundos. No se publicó el comunicado."
+        35000,
+        "VirusTotal excedió el tiempo límite de 35 segundos. No se publicó el comunicado."
       );
 
       let verificationPending = false;
