@@ -352,7 +352,7 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
-const VT_EDGE_FUNCTION = "virustotal-scan";
+const VT_EDGE_FUNCTION = "super-handler";
 const VT_MAX_ATTEMPTS = 5;
 const VT_RETRY_DELAYS = [450, 750, 1100, 1600];
 
@@ -557,8 +557,52 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
             return form;
           })()
         : { action, url, userId, origen, titulo };
-      const { data, error } = await sb.functions.invoke(VT_EDGE_FUNCTION, { body });
-      if (error) throw error;
+      const functionUrl = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
+      const { data:sessionData } = await sb.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || SUPA_KEY;
+      const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      let response;
+      try {
+        response = await fetch(functionUrl, {
+          method: "POST",
+          mode: "cors",
+          cache: "no-store",
+          credentials: "omit",
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            ...(isFormData ? {} : { "Content-Type":"application/json" }),
+          },
+          body: isFormData ? body : JSON.stringify(body),
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const responseText = await response.text();
+      let data = null;
+      try { data = responseText ? JSON.parse(responseText) : null; }
+      catch {
+        const parseError = new Error(`La función ${VT_EDGE_FUNCTION} devolvió una respuesta no JSON (${response.status}).`);
+        parseError.status = response.status;
+        parseError.responseText = responseText;
+        throw parseError;
+      }
+
+      if (!response.ok) {
+        const requestError = new Error(
+          data?.error || data?.message || `La función ${VT_EDGE_FUNCTION} respondió con HTTP ${response.status}.`
+        );
+        requestError.status = response.status;
+        requestError.details = data;
+        throw requestError;
+      }
+
       const normalized = normalizeVirusTotalResult(data, action === "scan_file" ? "file" : "url", file || url);
       if (normalized.status !== "pending") return normalized;
       lastError = new Error("El análisis de VirusTotal continúa en proceso.");
