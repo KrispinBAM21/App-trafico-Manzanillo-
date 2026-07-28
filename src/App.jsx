@@ -352,10 +352,9 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
-const VT_EDGE_FUNCTION = "super-handler";
-const VT_INTERNAL_HANDLER = "virustotal-scan";
-const VT_MAX_ATTEMPTS = 5;
-const VT_RETRY_DELAYS = [450, 750, 1100, 1600];
+const VT_EDGE_FUNCTION = "virustotal-scan";
+const VT_MAX_ATTEMPTS = 2;
+const VT_RETRY_DELAYS = [700];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -530,33 +529,28 @@ const sha256FileHex = async (file) => {
 };
 
 const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
-  const sha256 = await sha256FileHex(file);
-  try {
-    const cached = await invokeVirusTotalScan({ action:"lookup_file_hash", url:sha256, userId, origen, titulo });
-    if (cached?.status && cached.status !== "pending" && Number(cached.total || 0) > 0) {
-      return { ...cached, target_type:"file", target:file.name, sha256, source:"hash" };
-    }
-  } catch (error) {
-    console.info("VirusTotal: consulta por hash no disponible; se subirá el archivo.", error?.message || error);
-  }
-  const uploaded = await invokeVirusTotalScan({ action:"scan_file", file, userId, origen, titulo });
-  return { ...uploaded, target_type:"file", target:file.name, sha256, source:"upload" };
+  // La propia Edge Function consulta primero el SHA-256 y solo sube el archivo
+  // cuando VirusTotal todavía no tiene un reporte. No se debe enviar una acción
+  // lookup_file_hash porque el backend no la admite.
+  const result = await invokeVirusTotalScan({
+    action:"scan_file",
+    file,
+    userId,
+    origen,
+    titulo,
+  });
+  return { ...result, target_type:"file", target:file.name };
 };
 
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
   let lastError = null;
+
   for (let attempt = 0; attempt < VT_MAX_ATTEMPTS; attempt += 1) {
     try {
       const body = action === "scan_file"
         ? (() => {
             const form = new FormData();
-            // `super-handler` es la única Edge Function pública. Este valor
-            // selecciona internamente la integración configurada como virustotal-scan.
-            form.append("handler", VT_INTERNAL_HANDLER);
-            form.append("service", VT_INTERNAL_HANDLER);
-            form.append("route", VT_INTERNAL_HANDLER);
-            form.append("api", VT_INTERNAL_HANDLER);
-            form.append("action", action);
+            form.append("action", "scan_file");
             form.append("file", file, file.name);
             form.append("userId", String(userId || ""));
             form.append("origen", String(origen || ""));
@@ -564,74 +558,59 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
             return form;
           })()
         : {
-            handler: VT_INTERNAL_HANDLER,
-            service: VT_INTERNAL_HANDLER,
-            route: VT_INTERNAL_HANDLER,
-            api: VT_INTERNAL_HANDLER,
-            action,
-            url,
-            userId,
-            origen,
-            titulo,
+            action:"scan_url",
+            url:String(url || ""),
+            userId:String(userId || ""),
+            origen:String(origen || ""),
+            titulo:String(titulo || ""),
           };
-      const functionUrl = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
-      const { data:sessionData } = await sb.auth.getSession();
-      const accessToken = sessionData?.session?.access_token || SUPA_KEY;
-      const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      let response;
-      try {
-        response = await fetch(functionUrl, {
-          method: "POST",
-          mode: "cors",
-          cache: "no-store",
-          credentials: "omit",
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json",
-            apikey: SUPA_KEY,
-            Authorization: `Bearer ${accessToken}`,
-            ...(isFormData ? {} : { "Content-Type":"application/json" }),
-          },
-          body: isFormData ? body : JSON.stringify(body),
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      // Usar el cliente oficial conserva correctamente la sesión y apunta a la
+      // función real desplegada: /functions/v1/virustotal-scan.
+      const invocation = sb.functions.invoke(VT_EDGE_FUNCTION, { body });
+      const { data, error } = await withAsyncTimeout(
+        invocation,
+        22000,
+        "VirusTotal excedió el tiempo máximo de respuesta."
+      );
 
-      const responseText = await response.text();
-      let data = null;
-      try { data = responseText ? JSON.parse(responseText) : null; }
-      catch {
-        const parseError = new Error(`La función ${VT_EDGE_FUNCTION} devolvió una respuesta no JSON (${response.status}).`);
-        parseError.status = response.status;
-        parseError.responseText = responseText;
-        throw parseError;
-      }
-
-      if (!response.ok) {
-        const requestError = new Error(
-          data?.error || data?.message || `La función ${VT_EDGE_FUNCTION} respondió con HTTP ${response.status}.`
+      if (error) {
+        const functionError = new Error(
+          error?.context?.message || error?.message || "No se pudo ejecutar virustotal-scan."
         );
-        requestError.status = response.status;
-        requestError.details = data;
-        throw requestError;
+        functionError.details = error?.context || error;
+        throw functionError;
       }
 
-      const normalized = normalizeVirusTotalResult(data, action === "scan_file" ? "file" : "url", file || url);
-      if (normalized.status !== "pending") return normalized;
-      lastError = new Error("El análisis de VirusTotal continúa en proceso.");
+      if (!data || typeof data !== "object") {
+        throw new Error("virustotal-scan devolvió una respuesta vacía o inválida.");
+      }
+
+      if (String(data.status || "").toLowerCase() === "error") {
+        throw new Error(data.message || "VirusTotal devolvió un error durante el análisis.");
+      }
+
+      const normalized = normalizeVirusTotalResult(
+        data,
+        action === "scan_file" ? "file" : "url",
+        file || url
+      );
+
+      if (normalized.status === "pending") {
+        throw new Error(data.message || "El análisis continúa pendiente en VirusTotal.");
+      }
+
+      return normalized;
     } catch (error) {
       lastError = error;
       const message = String(error?.message || "").toLowerCase();
-      const retryable = /timeout|network|fetch|rate|limit|429|tempor|process|pending|queue/.test(message);
-      if (!retryable && attempt === 0) throw error;
+      const retryable = /timeout|network|fetch|429|rate|tempor|pending/.test(message);
+      if (!retryable || attempt === VT_MAX_ATTEMPTS - 1) break;
+      await sleep(VT_RETRY_DELAYS[attempt] || 700);
     }
-    if (attempt < VT_MAX_ATTEMPTS - 1) await sleep(VT_RETRY_DELAYS[attempt] || 2600);
   }
-  throw lastError || new Error("VirusTotal no respondió después de varios intentos.");
+
+  throw lastError || new Error("VirusTotal no respondió.");
 };
 
 const logVirusTotalSecurityEvent = async ({ user, result, file, url, title }) => {
@@ -20012,8 +19991,8 @@ ${base}`;
       setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
       const settled = await withAsyncTimeout(
         Promise.allSettled(scanJobs.map((job) => job.run())),
-        30000,
-        "VirusTotal excedió el tiempo límite de 30 segundos. No se publicó el comunicado."
+        26000,
+        "VirusTotal excedió el tiempo límite de 26 segundos. No se publicó el comunicado."
       );
 
       let verificationPending = false;
