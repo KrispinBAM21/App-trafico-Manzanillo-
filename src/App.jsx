@@ -3533,19 +3533,77 @@ const prepareCanvasForFastOcr = (sourceCanvas) => {
   return canvas;
 };
 
-const ocrCanvasClient = async (canvas) => {
+const prepareCanvasForZoneOcr = (sourceCanvas) => {
+  if (!sourceCanvas) throw new Error("No hay recorte disponible para OCR");
+
+  // Para documentos con texto pequeño, 1.6 MP conserva legibilidad y evita enviar/procesar
+  // recortes de 8–20 MP. Nunca amplía imágenes pequeñas porque eso solo agrega bytes.
+  const maxPixels = 1600000;
+  const maxWidth = 1800;
+  const sourceWidth = Math.max(1, Number(sourceCanvas.width || 1));
+  const sourceHeight = Math.max(1, Number(sourceCanvas.height || 1));
+  const pixelRatio = Math.sqrt(maxPixels / Math.max(1, sourceWidth * sourceHeight));
+  const widthRatio = maxWidth / sourceWidth;
+  const ratio = Math.min(1, pixelRatio, widthRatio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
+  canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
+  const ctx = canvas.getContext("2d", { alpha:false, willReadFrequently:true });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+
+  // Contraste ligero para texto oscuro sobre fondos claros. Se evita binarización agresiva
+  // porque puede borrar acentos y trazos finos en comunicados escaneados.
+  try {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114);
+      const adjusted = Math.max(0, Math.min(255, Math.round((gray - 128) * 1.12 + 128)));
+      data[i] = adjusted;
+      data[i + 1] = adjusted;
+      data[i + 2] = adjusted;
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  } catch (_) {}
+
+  return canvas;
+};
+
+const ocrCanvasClient = async (canvas, { timeoutMs = 45000, onProgress } = {}) => {
   const optimizedCanvas = prepareCanvasForFastOcr(canvas);
   const Tesseract = await loadTesseractClient();
+  const recognizeWithTimeout = (promise) => withAsyncTimeout(
+    promise,
+    timeoutMs,
+    "La extracción de texto excedió el tiempo máximo permitido."
+  );
+
   try {
     const worker = await getTesseractWorkerClient();
     if (worker?.recognize) {
-      const result = await worker.recognize(optimizedCanvas);
+      onProgress?.(35);
+      const result = await recognizeWithTimeout(worker.recognize(optimizedCanvas));
+      onProgress?.(100);
       return String(result?.data?.text || "").trim();
     }
   } catch (workerError) {
     console.warn("Worker OCR persistente no disponible; usando reconocimiento directo.", workerError?.message || workerError);
   }
-  const result = await Tesseract.recognize(optimizedCanvas, "spa+eng", { logger:() => {} });
+
+  const result = await recognizeWithTimeout(Tesseract.recognize(optimizedCanvas, "spa+eng", {
+    logger:(message) => {
+      if (message?.status === "recognizing text" && Number.isFinite(message?.progress)) {
+        onProgress?.(Math.max(35, Math.min(99, Math.round(message.progress * 100))));
+      }
+    }
+  }));
+  onProgress?.(100);
   return String(result?.data?.text || "").trim();
 };
 
@@ -18470,26 +18528,59 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
   };
 
-  const aplicarTextoDeZonasComunicado = async ({ text }) => {
-    setPasteOcrBusy(true);
+  const aplicarTextoDeZonasComunicado = ({ text }) => {
+    const rawText = String(text || "").trim();
     setPasteOcrError("");
-    const cleanText = await depurarTextoOCRComoComunicado(String(text || "").trim());
-    const ok = agregarTextoExtraidoADetalle(cleanText);
 
-    if (ok) {
-      setToolNotice("Texto de la zona agregado. Generando título automático con IA...", "#2563eb");
-      const tituloGenerado = await generarTituloDesdeTextoExtraido(cleanText);
-      if (tituloGenerado) {
-        setTitulo(tituloGenerado);
-        setToolNotice("Texto de la zona agregado y título generado automáticamente.", "#22c55e");
-      } else {
-        setToolNotice("Texto de la zona agregado en Descripción breve. No se pudo generar el título automático.", "#f97316");
-      }
-    } else {
+    // El OCR ya entrega el contenido de un recorte aislado. Se agrega inmediatamente para
+    // evitar que la interfaz espere una segunda llamada de IA antes de cerrar el modal.
+    const localCleanText = rawText
+      .split("\n")
+      .map(line => line.trimEnd())
+      .filter(line => line.trim() && !/^(ver más|ver menos|me gusta|compartir|comentarios?|likes?|reacciones?|seguir|responder)$/i.test(line.trim()))
+      .filter(line => !/^https?:\/\//i.test(line.trim()))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    const ok = agregarTextoExtraidoADetalle(localCleanText);
+    if (!ok) {
       setToolNotice("No se detectó texto informativo legible dentro de la zona seleccionada.", "#f97316");
-      setPasteOcrError("La IA no encontró contenido útil en la zona. Ajusta la selección o escribe manualmente.");
+      setPasteOcrError("No se encontró contenido útil en la zona. Ajusta la selección o escribe manualmente.");
+      return;
     }
-    setPasteOcrBusy(false);
+
+    setToolNotice("Texto de la zona agregado. La optimización editorial continúa en segundo plano.", "#22c55e");
+
+    // La depuración y el título son mejoras opcionales. Se ejecutan sin bloquear el modal y
+    // con límites estrictos para impedir estados de carga indefinidos con textos extensos.
+    const backgroundStartedAt = performance.now();
+    void (async () => {
+      setPasteOcrBusy(true);
+      try {
+        const aiInput = localCleanText.slice(0, 14000);
+        const [refinedText, generatedTitle] = await Promise.all([
+          withAsyncTimeout(depurarTextoOCRComoComunicado(aiInput), 18000, "Tiempo de depuración IA agotado.")
+            .catch(() => localCleanText),
+          titulo.trim()
+            ? Promise.resolve("")
+            : withAsyncTimeout(generarTituloDesdeTextoExtraido(aiInput.slice(0, 6000)), 12000, "Tiempo de título IA agotado.")
+                .catch(() => generarTituloLocalDesdeTextoExtraido(aiInput)),
+        ]);
+
+        if (generatedTitle && !titulo.trim()) setTitulo(generatedTitle);
+        console.info("[OCR zonas] posproceso IA completado", {
+          inputCharacters: aiInput.length,
+          refinedCharacters: String(refinedText || "").length,
+          elapsedMs: Math.round(performance.now() - backgroundStartedAt),
+        });
+        setToolNotice(generatedTitle ? "Texto agregado y título generado automáticamente." : "Texto agregado en Descripción breve.", "#22c55e");
+      } catch (backgroundError) {
+        console.warn("[OCR zonas] posproceso IA omitido", backgroundError);
+      } finally {
+        setPasteOcrBusy(false);
+      }
+    })();
   };
 
   const extraerRespuestaIA = (data) => {
@@ -21027,6 +21118,8 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
   const [activeKey, setActiveKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
   const [error, setError] = useState("");
   const dragRef = useRef(null);
   // Congela los archivos al abrir el modal. Evita que un arreglo nuevo en cada render
@@ -21144,25 +21237,94 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
 
   const apply = async () => {
     setRunning(true);
+    setProgress(1);
+    setProgressLabel("Preparando recorte…");
     setError("");
+    const totalStartedAt = performance.now();
+
     try {
       let text = "";
       const results = [];
-      for (const page of pages) {
+      const selectedPages = pages.filter(page => page?.canvas && page?.zone);
+      if (!selectedPages.length) throw new Error("No hay zonas válidas para procesar.");
+
+      for (let index = 0; index < selectedPages.length; index += 1) {
+        const page = selectedPages[index];
+        const stageStartedAt = performance.now();
+        const pageBaseProgress = Math.round((index / selectedPages.length) * 90);
+        const pageProgressSpan = Math.max(1, Math.round(90 / selectedPages.length));
+
+        setProgressLabel(`Recortando zona ${index + 1} de ${selectedPages.length}…`);
         const cropped = cropCanvasByZone(page.canvas, page.zone);
-        const pageText = await ocrCanvasClient(cropped);
-        results.push({ key: page.key, fileName: page.fileName, pageNo: page.pageNo, text: pageText });
-        if (pageText) {
-          text += `${text ? "\n\n" : ""}${pageText}`;
-        }
+        const optimizedCrop = prepareCanvasForZoneOcr(cropped);
+        const estimatedBytes = Math.round(optimizedCrop.width * optimizedCrop.height * 4);
+
+        console.info("[OCR zonas] recorte preparado", {
+          page: page.pageNo,
+          original: `${cropped.width}x${cropped.height}`,
+          optimized: `${optimizedCrop.width}x${optimizedCrop.height}`,
+          estimatedRawBytes: estimatedBytes,
+          elapsedMs: Math.round(performance.now() - stageStartedAt),
+        });
+
+        setProgressLabel(`Extrayendo texto de la zona ${index + 1} de ${selectedPages.length}…`);
+        const pageText = await ocrCanvasClient(optimizedCrop, {
+          timeoutMs: 45000,
+          onProgress: (value) => {
+            const normalized = Math.max(0, Math.min(100, Number(value) || 0));
+            setProgress(Math.min(94, pageBaseProgress + Math.round((normalized / 100) * pageProgressSpan)));
+          }
+        });
+
+        results.push({
+          key: page.key,
+          fileName: page.fileName,
+          pageNo: page.pageNo,
+          text: pageText,
+          sourceWidth: cropped.width,
+          sourceHeight: cropped.height,
+          processedWidth: optimizedCrop.width,
+          processedHeight: optimizedCrop.height,
+          elapsedMs: Math.round(performance.now() - stageStartedAt),
+        });
+
+        if (pageText) text += `${text ? "\n\n" : ""}${pageText}`;
+        console.info("[OCR zonas] zona completada", results[results.length - 1]);
       }
+
+      setProgress(95);
+      setProgressLabel("Agregando texto a Descripción breve…");
       const cleanedText = stripFileNamesFromOcrText(text, sourceFilesRef.current || []);
-      await onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
+      if (!cleanedText.trim()) throw new Error("No se detectó texto legible dentro de la zona seleccionada.");
+
+      // onApply agrega inmediatamente el OCR al formulario. La depuración/título por IA se
+      // ejecutan en segundo plano para que el modal no permanezca bloqueado.
+      await withAsyncTimeout(
+        Promise.resolve(onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) })),
+        8000,
+        "La interfaz tardó demasiado en aplicar el texto extraído."
+      );
+
+      setProgress(100);
+      setProgressLabel("Texto extraído correctamente.");
+      console.info("[OCR zonas] proceso completo", {
+        zones: selectedPages.length,
+        characters: cleanedText.length,
+        elapsedMs: Math.round(performance.now() - totalStartedAt),
+      });
       onClose?.();
     } catch (e) {
+      console.error("[OCR zonas] fallo", {
+        message: e?.message,
+        elapsedMs: Math.round(performance.now() - totalStartedAt),
+      });
       setError(e?.message || "No se pudo extraer texto de las zonas seleccionadas.");
     } finally {
       setRunning(false);
+      setTimeout(() => {
+        setProgress(0);
+        setProgressLabel("");
+      }, 500);
     }
   };
 
@@ -21215,10 +21377,13 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
         )}
 
         <div style={{ padding:"12px 15px", borderTop:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", gap:"10px", flexWrap:"wrap" }}>
-          <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : ""}</div>
+          <div style={{ minWidth:"220px", flex:"1 1 280px" }}>
+            <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{running ? (progressLabel || "Procesando zona seleccionada…") : (pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : "")}</div>
+            {running && <div style={{ marginTop:"7px", height:"4px", borderRadius:"999px", overflow:"hidden", background:"rgba(148,163,184,.16)", border:"1px solid rgba(148,163,184,.18)" }}><div style={{ width:`${Math.max(2, progress)}%`, height:"100%", background:"#22c55e", transition:"width .2s ease" }} /></div>}
+          </div>
           <div style={{ display:"flex", gap:"8px" }}>
             <button onClick={onClose} disabled={running} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(148,163,184,.12)", color:"#cbd5e1", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Cancelar</button>
-            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? "Procesando con IA…" : "Procesar zona seleccionada con IA"}</button>
+            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? `Procesando ${Math.max(1, progress)}%` : "Procesar zona seleccionada con IA"}</button>
           </div>
         </div>
       </div>
