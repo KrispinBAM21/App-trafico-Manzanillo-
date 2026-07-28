@@ -266,138 +266,6 @@ const VT_RETRY_DELAYS = [1200, 2600];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const readJsonCache = (key, fallback = null, storage = "session") => {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const source = storage === "local" ? localStorage : sessionStorage;
-    const raw = source.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed?.data ?? parsed ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const writeJsonCache = (key, data, storage = "session") => {
-  if (typeof window === "undefined") return;
-  try {
-    const target = storage === "local" ? localStorage : sessionStorage;
-    target.setItem(key, JSON.stringify({ savedAt:Date.now(), data }));
-  } catch {}
-};
-
-const withAsyncTimeout = (promise, timeoutMs, message = "timeout") => {
-  let timerId;
-  const timeout = new Promise((_, reject) => {
-    timerId = setTimeout(() => {
-      const error = new Error(message);
-      error.code = "ASYNC_TIMEOUT";
-      reject(error);
-    }, timeoutMs);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timerId));
-};
-
-const fetchSupabaseRowsDirect = async (
-  table,
-  {
-    select = "*",
-    order = "",
-    ascending = false,
-    limit = 100,
-    filters = [],
-    timeoutMs = 12000,
-  } = {}
-) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const url = new URL(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/${encodeURIComponent(table)}`);
-    url.searchParams.set("select", select);
-
-    if (order) {
-      url.searchParams.set("order", `${order}.${ascending ? "asc" : "desc"}`);
-    }
-    if (Number.isFinite(limit) && limit > 0) {
-      url.searchParams.set("limit", String(limit));
-    }
-
-    for (const filter of filters) {
-      if (!filter?.column || !filter?.operator) continue;
-      url.searchParams.append(
-        filter.column,
-        `${filter.operator}.${String(filter.value ?? "")}`
-      );
-    }
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      mode: "cors",
-      cache: "no-store",
-      credentials: "omit",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-      },
-    });
-
-    const responseText = await response.text();
-    let data = [];
-
-    try {
-      data = responseText ? JSON.parse(responseText) : [];
-    } catch {
-      const parseError = new Error(
-        `Supabase REST devolvió una respuesta no JSON (${response.status}).`
-      );
-      parseError.code = "SUPABASE_REST_INVALID_JSON";
-      parseError.status = response.status;
-      parseError.responseText = responseText;
-      throw parseError;
-    }
-
-    if (!response.ok) {
-      const error = new Error(
-        data?.message ||
-        data?.hint ||
-        `Supabase REST respondió con HTTP ${response.status}.`
-      );
-      error.code = data?.code || "SUPABASE_REST_HTTP_ERROR";
-      error.status = response.status;
-      error.details = data;
-      throw error;
-    }
-
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    if (
-      error?.name === "AbortError" ||
-      String(error?.message || "").toLowerCase().includes("aborted")
-    ) {
-      const timeoutError = new Error(
-        `Tiempo de espera agotado al consultar ${table}.`
-      );
-      timeoutError.code = "SUPABASE_REST_TIMEOUT";
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
-const deferWork = (callback, delay = 0) => {
-  if (typeof window === "undefined") return setTimeout(callback, delay);
-  if ("requestIdleCallback" in window) {
-    return window.requestIdleCallback(callback, { timeout:Math.max(1000, delay + 1000) });
-  }
-  return setTimeout(callback, delay);
-};
-
 const extractUrlsFromText = (value = "") => {
   const matches = String(value).match(/https?:\/\/[^\s<>{}\[\]"']+/gi) || [];
   return [...new Set(matches.map((url) => url.replace(/[),.;!?]+$/g, "")))].slice(0, 12);
@@ -21318,17 +21186,17 @@ function NoticiasComunicadoMiniIcon({ size = 18, color = "#ffffff" }) {
 
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
-  const reportCacheRef = useRef(getNoticiasAutoReportCache() || {});
-  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current?.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
+  const reportCacheRef = useRef(getNoticiasAutoReportCache());
+  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
   const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
-  const objectUrlsRef = useRef(reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const canvasesRef = useRef(reportCacheRef.current?.canvases || (reportCacheRef.current?.canvas ? [reportCacheRef.current.canvas] : []));
-  if (canvasesRef.current?.length && reportCacheRef.current?.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
+  const objectUrlsRef = useRef(reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const canvasesRef = useRef(reportCacheRef.current.canvases || (reportCacheRef.current.canvas ? [reportCacheRef.current.canvas] : []));
+  if (canvasesRef.current?.length && reportCacheRef.current.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
 
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
@@ -21723,13 +21591,9 @@ function NoticiasTab({ isAdmin }) {
     document.head.appendChild(style);
   }, []);
   const theme = React.useContext(ThemeContext);
-  const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v3";
-  const COMUNICADOS_CACHE_KEY = "cm_comunicados_cache_v3";
-  const noticiasCacheInicial = useMemo(() => readJsonCache(NOTICIAS_CACHE_KEY, [], "local"), []);
-  const comunicadosCacheInicial = useMemo(() => readJsonCache(COMUNICADOS_CACHE_KEY, [], "session"), []);
-  const [noticias,      setNoticias]      = useState(() => Array.isArray(noticiasCacheInicial) ? noticiasCacheInicial : []);
-  const [comunicados,   setComunicados]   = useState(() => Array.isArray(comunicadosCacheInicial) ? comunicadosCacheInicial : []);
-  const [loading,       setLoading]       = useState(() => !Array.isArray(noticiasCacheInicial) || noticiasCacheInicial.length === 0);
+  const [noticias,      setNoticias]      = useState([]);
+  const [comunicados,   setComunicados]   = useState([]);
+  const [loading,       setLoading]       = useState(true);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
@@ -21740,165 +21604,67 @@ function NoticiasTab({ isAdmin }) {
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const noticiasLoadRef = useRef(null);
-
-  const cargarNoticias = useCallback(({ force = false } = {}) => {
-    if (!force && noticiasLoadRef.current) return noticiasLoadRef.current;
-    if (!noticias.length) setLoading(true);
-
-    const task = fetchSupabaseRowsDirect("noticias", {
-      select:"*",
-      order:"created_at",
-      ascending:false,
-      limit:150,
-      timeoutMs:12000,
-    })
-      .then((data) => {
-        const next = Array.isArray(data) ? data : [];
-        setNoticias(next);
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-        return next;
-      })
-      .catch(error => {
-        console.error("Error cargando noticias:", error);
-        return null;
-      })
-      .finally(() => {
+  const cargarNoticias = useCallback(() => {
+    setLoading(true);
+    return sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
+      .then(({ data, error }) => {
+        if (error) console.error("Error cargando noticias:", error);
+        if (data) setNoticias(data);
         setLoading(false);
-        noticiasLoadRef.current = null;
       });
-
-    noticiasLoadRef.current = task;
-    return task;
   }, []);
 
-  const cargarComunicados = useCallback(async () => {
-    try {
-      const data = await fetchSupabaseRowsDirect("comunicados", {
-        select:"*",
-        order:"created_at",
-        ascending:false,
-        limit:100,
-        timeoutMs:12000,
+  const cargarComunicados = useCallback(() => {
+    sb.from("comunicados")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(async ({ data, error }) => {
+        if (error) console.error("Error cargando comunicados:", error);
+        if (data) {
+          const aprobados = data.filter(c => isComunicadoAprobado(c.aprobado));
+          setComunicados(aprobados);
+          // Sincronización idempotente hacia Noticias.
+          for (const c of aprobados.slice(0, 25)) {
+            const n = await syncComunicadoToNoticia(c, { processMedia: false });
+            if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
+          }
+        }
       });
-
-      const aprobados = (Array.isArray(data) ? data : []).filter(c => isComunicadoAprobado(c.aprobado));
-      setComunicados(aprobados);
-      writeJsonCache(COMUNICADOS_CACHE_KEY, aprobados, "session");
-
-      // La sincronización secundaria no bloquea el primer render ni la carga del feed.
-      deferWork(() => {
-        Promise.allSettled(
-          aprobados.slice(0, 8).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
-        ).then(results => {
-          const sincronizadas = results
-            .filter(result => result.status === "fulfilled" && result.value)
-            .map(result => result.value);
-          if (!sincronizadas.length) return;
-          setNoticias(prev => {
-            const merged = [...sincronizadas, ...prev]
-              .filter((row, index, rows) => rows.findIndex(x => String(x.id) === String(row.id)) === index)
-              .slice(0, 150);
-            writeJsonCache(NOTICIAS_CACHE_KEY, merged, "local");
-            return merged;
-          });
-        });
-      }, 250);
-      return aprobados;
-    } catch (error) {
-      console.error("Error cargando comunicados:", error);
-      return null;
-    }
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    // Render inmediato desde caché; la red revalida en segundo plano.
-    Promise.allSettled([
-      cargarNoticias({ force:true }),
-      cargarComunicados(),
-    ]);
-
+    cargarNoticias();
+    cargarComunicados();
     const chan = sb.channel("noticias-comunicados-rt")
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"noticias" }, ({ new:r }) => {
-        if (!active || !r) return;
-        setNoticias(prev => {
-          const next = prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-          return next;
-        });
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150));
       })
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"noticias" }, ({ new:r }) => {
-        if (!active || !r) return;
-        setNoticias(prev => {
-          const next = prev.map(x => x.id === r.id ? r : x);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-          return next;
-        });
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => prev.map(x => x.id === r.id ? r : x));
       })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"noticias" }, ({ old:r }) => {
-        if (!active || !r?.id) return;
-        setNoticias(prev => {
-          const next = prev.filter(x => x.id !== r.id);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"comunicados" }, async ({ new:r }) => {
-        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
-        setComunicados(prev => {
-          const next = prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 100);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-        const n = await syncComunicadoToNoticia(r, { processMedia:true });
-        if (active && n) setNoticias(prev => {
-          const next = prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"comunicados" }, async ({ new:r }) => {
-        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
-        setComunicados(prev => {
-          const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 100);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-        const n = await syncComunicadoToNoticia(r, { processMedia:true });
-        if (active && n) setNoticias(prev => {
-          const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? n : x) : [n, ...prev].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"comunicados" }, ({ old:r }) => {
-        if (!active || !r?.id) return;
-        setComunicados(prev => {
-          const next = prev.filter(c => c.id !== r.id);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-      })
-      .subscribe(status => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.warn("[Noticias] Canal realtime no disponible; se conserva caché y actualización por visibilidad.", status);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
+        if (r && aprobado) {
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
         }
-      });
-
-    const visibilityHandler = () => {
-      if (document.visibilityState === "visible") cargarNoticias({ force:true });
-    };
-    document.addEventListener("visibilitychange", visibilityHandler);
-
-    return () => {
-      active = false;
-      document.removeEventListener("visibilitychange", visibilityHandler);
-      sb.removeChannel(chan);
-    };
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
+        if (r && aprobado) {
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
+        if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
+      })
+      .subscribe();
+    return () => sb.removeChannel(chan);
   }, [cargarNoticias, cargarComunicados]);
-
 
   const FILTROS = [
     { id: "todos",      label: "Todos",       icon: "news" },
@@ -22644,14 +22410,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
-  const POSTURAS_DASHBOARD_CACHE_KEY = "cm_posturas_dashboard_cache_v3";
-  const posturasDashboardCache = useMemo(
-    () => readJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, { trabajadores:[], empresas:[], ratings:[] }, "session"),
-    []
-  );
-  const [trabajadores, setTrabajadores] = useState(() => Array.isArray(posturasDashboardCache?.trabajadores) ? posturasDashboardCache.trabajadores : []);
-  const [empresas, setEmpresas] = useState(() => Array.isArray(posturasDashboardCache?.empresas) ? posturasDashboardCache.empresas : []);
-  const [ratings, setRatings] = useState(() => Array.isArray(posturasDashboardCache?.ratings) ? posturasDashboardCache.ratings : []);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [empresas, setEmpresas] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [quejas, setQuejas] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
@@ -22964,25 +22725,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const card = { background:"rgba(18,33,49,0.88)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,0.55)", borderRadius:"18px", padding:"18px", boxShadow:"0 18px 42px rgba(1,15,31,0.28), inset 0 1px 0 rgba(255,255,255,0.04)" };
   const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
-  const btn = (color="#a1c9ff") => ({
-    border:`1px solid ${color}55`,
-    background:`${color}14`,
-    color,
-    borderRadius:"12px",
-    padding:"10px 14px",
-    fontFamily:getFont(theme,"secondary"),
-    fontSize:"11px",
-    fontWeight:"900",
-    cursor:"pointer",
-    letterSpacing:".04em",
-    textTransform:"uppercase",
-    transition:"all .18s ease",
-    display:"inline-flex",
-    alignItems:"center",
-    justifyContent:"center",
-    gap:"8px",
-    lineHeight:1.2,
-  });
+  const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
   const POSTURAS_PAGO = ["Efectivo", "Transferencia", "Criptomonedas"];
   const sessionPosturasType = authUser?.user_metadata?.posturas_user_type || authUser?.user_metadata?.userType || posturasUserType || "";
   const isPosturasLoggedIn = !!authUser;
@@ -23550,142 +23293,72 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const loadPosturas = async ({ force = false } = {}) => {
     if (!force && posturasLoadPromiseRef.current) return posturasLoadPromiseRef.current;
     const requestId = ++posturasLoadRequestRef.current;
-    const hasHydratedDashboard = trabajadores.length > 0 || empresas.length > 0 || ratings.length > 0;
-
     const task = (async () => {
-      if (!hasHydratedDashboard) setLoading(true);
-      setPosturasLoadError("");
-
+      setLoading(true);
       try {
-        // Los datos públicos y las valoraciones se solicitan en paralelo. Las quejas y
-        // notificaciones son secundarias y no bloquean la hidratación del TABLERO.
-        const publicRequest = withAsyncTimeout(
-          fetch("/api/posturas/public", { cache:"no-store" }).then(async response => {
-            const body = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
-            return body;
-          }),
-          9000,
-          "Tiempo de espera agotado al cargar el tablero."
-        );
+        setPosturasLoadError("");
+        const publicPayload = await fetch("/api/posturas/public").then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
+          return body;
+        });
 
-        const ratingsRequest = withAsyncTimeout(
-          runWithSupabaseLockRetry(
-            () => sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
-            { attempts:3, baseDelay:120 }
-          ),
-          8500,
-          "Tiempo de espera agotado al cargar valoraciones."
+        // Las consultas que pueden depender de Supabase Auth se ejecutan de forma
+        // serializada y con reintento acotado para no competir por el Web Lock de sesión.
+        const ratingsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_ratings").select("*").order("created_at", { ascending:false })
         );
-
-        const [publicSettled, ratingsSettled] = await Promise.allSettled([
-          publicRequest,
-          ratingsRequest,
-        ]);
+        const complaintsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_quejas").select("*").order("created_at", { ascending:false })
+        );
 
         if (requestId !== posturasLoadRequestRef.current) return;
-
-        const cached = readJsonCache(
-          POSTURAS_DASHBOARD_CACHE_KEY,
-          { trabajadores, empresas, ratings },
-          "session"
-        );
-        const publicPayload = publicSettled.status === "fulfilled"
-          ? publicSettled.value
-          : { trabajadores:cached?.trabajadores || trabajadores, empresas:cached?.empresas || empresas };
-        const ratingRows = ratingsSettled.status === "fulfilled"
-          ? (ratingsSettled.value?.data || [])
-          : (cached?.ratings || ratings);
-
-        if (publicSettled.status === "rejected") {
-          console.error("Error cargando perfiles para TABLERO:", publicSettled.reason);
-        }
-        if (ratingsSettled.status === "rejected") {
-          console.error("Error cargando valoraciones para TABLERO:", ratingsSettled.reason);
-        }
-
-        const t = Array.isArray(publicPayload?.trabajadores) ? publicPayload.trabajadores : [];
-        const e = Array.isArray(publicPayload?.empresas) ? publicPayload.empresas : [];
+        const t = publicPayload.trabajadores || [];
+        const e = publicPayload.empresas || [];
+        const r = ratingsResult.data || [];
+        const qj = complaintsResult.data || [];
         const now = Date.now();
         const empresasVisibles = e.filter(row => {
           const requestedAt = row.delete_requested_at || row.deletion_requested_at;
           if (!requestedAt) return true;
           return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
         });
-        const nextTrabajadores = t.filter(row => !isProfileBanned(row));
-        const nextEmpresas = empresasVisibles.filter(row => !isProfileBanned(row));
+        setTrabajadores(t.filter(row => !isProfileBanned(row)));
+        setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row)));
+        setRatings(r);
+        setQuejas(qj);
 
-        setTrabajadores(nextTrabajadores);
-        setEmpresas(nextEmpresas);
-        setRatings(ratingRows);
-        writeJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, {
-          trabajadores:nextTrabajadores,
-          empresas:nextEmpresas,
-          ratings:ratingRows,
-        }, "session");
+        try {
+          const notifResult = await runWithSupabaseLockRetry(() =>
+            sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false })
+          );
+          if (requestId !== posturasLoadRequestRef.current) return;
+          const visibleNotifications = (notifResult.data || []).filter(n => {
+            if (isAdmin) return true;
+            if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
+            if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
+            return false;
+          });
+          setNotificaciones(visibleNotifications);
+        } catch (notificationError) {
+          if (!isSupabaseLockAbort(notificationError)) setNotificaciones([]);
+        }
 
         const myProfiles = [...t, ...e].filter(x =>
           (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId
         );
-        const stale = myProfiles.some(x =>
-          Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000
-        );
+        const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
         setShowReminder(!!authUser && stale);
         setMsg(current => current?.text === "No se pudieron cargar los datos del Centro de Talento." ? null : current);
-
-        // Carga diferida de módulos secundarios.
-        deferWork(async () => {
-          try {
-            const complaintsResult = await withAsyncTimeout(
-              runWithSupabaseLockRetry(
-                () => sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
-                { attempts:2, baseDelay:160 }
-              ),
-              7000,
-              "timeout"
-            );
-            if (requestId === posturasLoadRequestRef.current) setQuejas(complaintsResult.data || []);
-          } catch (error) {
-            if (!isSupabaseLockAbort(error)) console.error("Error cargando reportes secundarios:", error);
-          }
-
-          try {
-            const notifResult = await withAsyncTimeout(
-              runWithSupabaseLockRetry(
-                () => sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false }),
-                { attempts:2, baseDelay:160 }
-              ),
-              7000,
-              "timeout"
-            );
-            if (requestId !== posturasLoadRequestRef.current) return;
-            const visibleNotifications = (notifResult.data || []).filter(n => {
-              if (isAdmin) return true;
-              if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
-              if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
-              return false;
-            });
-            setNotificaciones(visibleNotifications);
-          } catch (error) {
-            if (!isSupabaseLockAbort(error)) console.error("Error cargando notificaciones secundarias:", error);
-          }
-        }, 120);
-
-        if (publicSettled.status === "rejected" && ratingsSettled.status === "rejected" && !hasHydratedDashboard) {
-          throw publicSettled.reason || ratingsSettled.reason;
-        }
       } catch (error) {
         if (requestId !== posturasLoadRequestRef.current) return;
         const errorMessage = error?.message || "No se pudieron cargar los datos de Supabase.";
         setPosturasLoadError(errorMessage);
-        if (!hasHydratedDashboard) {
-          setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
-        }
+        setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
       } finally {
         if (requestId === posturasLoadRequestRef.current) setLoading(false);
       }
     })();
-
     posturasLoadPromiseRef.current = task;
     try {
       return await task;
@@ -23693,6 +23366,59 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       if (posturasLoadPromiseRef.current === task) posturasLoadPromiseRef.current = null;
     }
   };
+  useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+  useEffect(() => {
+    const refreshLinkedProfile = () => loadPosturas();
+    window.addEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+    return () => window.removeEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+  }, [authUser?.id, myId]);
+
+  useEffect(() => {
+    if (!pisResult) return undefined;
+    const resetTimer = setTimeout(() => {
+      setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
+      setPisResult(null);
+      setPisContactMessage("");
+      setPisEmailCopied(false);
+      setPisCopiedField("");
+      setPisContactUnlocked(hasPisContactUnlock());
+      setPisUnlockRequested(false);
+      setPisUnlockSeconds(0);
+    }, 120000);
+    return () => clearTimeout(resetTimer);
+  }, [pisResult?.checked_at, pisResult?.status, hasPisContactUnlock]);
+
+  useEffect(() => {
+    if (!pisResult || !pisUnlockRequested || pisContactUnlocked) return undefined;
+    setPisUnlockSeconds(30);
+    const unlockStartedAt = Date.now();
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, 30 - Math.floor((Date.now() - unlockStartedAt) / 1000));
+      setPisUnlockSeconds(remaining);
+      if (remaining <= 0) {
+        markPisContactUnlocked();
+        clearInterval(interval);
+      }
+    }, 500);
+    const unlockTimer = setTimeout(() => {
+      markPisContactUnlocked();
+    }, 30000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(unlockTimer);
+    };
+  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
+
+  const canEdit = (row) => !!authUser && row.user_id === authUser.id;
+  const requireLogin = () => { requestProtectedProfileAccess("login"); setMsg({ type:"err", text:"Inicia sesión o crea una cuenta antes de configurar un perfil." }); return false; };
+  const deletionDaysLeft = (row) => {
+    if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
+    const start = new Date(row.delete_requested_at || row.deletion_requested_at).getTime();
+    if (!Number.isFinite(start)) return null;
+    return Math.max(0, Math.ceil((start + 7*24*60*60*1000 - Date.now()) / (24*60*60*1000)));
+  };
+  const isDeletionPending = (row) => deletionDaysLeft(row) !== null && deletionDaysLeft(row) > 0;
+  const isProfileBanned = (row) => String(row?.perfil_estado || row?.estado || "").toLowerCase() === "baneado" || row?.banned === true || row?.banneado === true;
 
   const saveTrab = async () => {
     if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
@@ -25655,14 +25381,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{padding:"18px",display:"grid",gap:"14px"}}>
           <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:e.target.value}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
           <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:e.target.value}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
-          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
-          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><MS name="hourglass_top" size={18}/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
+          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"inline-flex",alignItems:"center",gap:"7px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
+          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"grid",placeItems:"center",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><span className="cm-cyan-pulse"/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
         </div>
       </section>}
       {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:e.target.value}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:e.target.value}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:e.target.value}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:e.target.value}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:e.target.value}))} style={input}/></section>}
       <section style={{...card,overflow:"hidden"}}><div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><div style={{color:"#89919e",fontSize:"11px"}}>{filtered.length} ticket(s)</div></div><button onClick={loadTickets} style={btn("#9fcaff")}><MS name="refresh" size={18}/>Actualizar</button></div>
-        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"38px",textAlign:"center",color:"#89919e"}}>No hay tickets para mostrar.</div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":open?"expand_less":"expand_more"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:e.target.value}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:e.target.value}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
+        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"38px",textAlign:"center",color:"#89919e"}}>No hay tickets para mostrar.</div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":"chevron_right"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:e.target.value}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:e.target.value}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
     </div>;
   };
 
