@@ -353,6 +353,7 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
 const VT_EDGE_FUNCTION = "super-handler";
+const VT_INTERNAL_HANDLER = "virustotal-scan";
 const VT_MAX_ATTEMPTS = 5;
 const VT_RETRY_DELAYS = [450, 750, 1100, 1600];
 
@@ -549,6 +550,12 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
       const body = action === "scan_file"
         ? (() => {
             const form = new FormData();
+            // `super-handler` es la única Edge Function pública. Este valor
+            // selecciona internamente la integración configurada como virustotal-scan.
+            form.append("handler", VT_INTERNAL_HANDLER);
+            form.append("service", VT_INTERNAL_HANDLER);
+            form.append("route", VT_INTERNAL_HANDLER);
+            form.append("api", VT_INTERNAL_HANDLER);
             form.append("action", action);
             form.append("file", file, file.name);
             form.append("userId", String(userId || ""));
@@ -556,7 +563,17 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
             form.append("titulo", String(titulo || ""));
             return form;
           })()
-        : { action, url, userId, origen, titulo };
+        : {
+            handler: VT_INTERNAL_HANDLER,
+            service: VT_INTERNAL_HANDLER,
+            route: VT_INTERNAL_HANDLER,
+            api: VT_INTERNAL_HANDLER,
+            action,
+            url,
+            userId,
+            origen,
+            titulo,
+          };
       const functionUrl = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
       const { data:sessionData } = await sb.auth.getSession();
       const accessToken = sessionData?.session?.access_token || SUPA_KEY;
