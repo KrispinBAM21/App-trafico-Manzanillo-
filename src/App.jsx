@@ -20312,8 +20312,13 @@ ${base}`;
           const result = await sb.from("comunicados").insert(candidate).select("*").single();
           if (!result.error) return result;
           const message = String(result.error?.message || "");
-          const match = message.match(/(?:column|field) ["']?([a-zA-Z0-9_]+)["']?/i)
-            || message.match(/Could not find the ['"]([^'"]+)['"] column/i);
+          // PostgREST puede reportar columnas ausentes con variantes como:
+          // “Could not find the 'aprobado_at' column of 'comunicados' in the schema cache”.
+          // Extraemos únicamente el nombre real de la columna y reintentamos sin ese
+          // campo opcional, conservando la lógica histórica de publicación/replicación.
+          const match = message.match(/Could not find the ['"]([a-zA-Z0-9_]+)['"] column(?: of [^ ]+)?/i)
+            || message.match(/column ['"]?([a-zA-Z0-9_]+)['"]? (?:does not exist|was not found)/i)
+            || message.match(/(?:unknown|missing) (?:column|field) ['"]?([a-zA-Z0-9_]+)['"]?/i);
           const missing = match?.[1];
           if (missing && removable.has(missing) && Object.prototype.hasOwnProperty.call(candidate, missing)) {
             delete candidate[missing];
