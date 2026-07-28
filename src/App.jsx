@@ -142,6 +142,7 @@ const verifyAdminPass = async (input) => {
 };
 const ADMIN_KEY    = "cm_admin_session";
 const ADMIN_EMAIL_KEY = "cm_admin_email";
+const ADMIN_AUTH_SESSION_KEY = "cm_admin_supabase_session";
 const DEFAULT_ADMIN_EMAIL = String(import.meta.env.VITE_SUPABASE_ADMIN_EMAIL || "conectmanzanillo@gmail.com").trim().toLowerCase();
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
@@ -544,35 +545,90 @@ const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
   return { ...result, target_type:"file", target:file.name };
 };
 
-const getVirusTotalAccessToken = async () => {
+const decodeJwtPayload = (token = "") => {
   try {
-    const current = await withAsyncTimeout(
-      sb.auth.getSession(),
-      5000,
-      "Tiempo agotado recuperando la sesión administrativa de Supabase Auth."
-    );
-    if (current?.error) throw current.error;
-
-    let session = current?.data?.session || null;
-    const expiresSoon = session?.expires_at && (Number(session.expires_at) * 1000 - Date.now() < 60000);
-    if (!session?.access_token || expiresSoon) {
-      const refreshed = await withAsyncTimeout(
-        sb.auth.refreshSession(),
-        10000,
-        "Tiempo agotado renovando la sesión administrativa."
-      );
-      if (refreshed?.error) throw refreshed.error;
-      session = refreshed?.data?.session || null;
-    }
-
-    if (!session?.access_token || !session?.user?.id) {
-      throw new Error("No existe una sesión administrativa de Supabase Auth. Sal del modo administrador e inicia sesión nuevamente con correo y contraseña.");
-    }
-    return { accessToken:session.access_token, userId:session.user.id };
-  } catch (error) {
-    console.error("[VirusTotal] No se pudo obtener una sesión autenticada.", error);
-    throw error;
+    const payload = String(token).split(".")[1] || "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    return JSON.parse(decodeURIComponent(Array.from(atob(normalized)).map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")));
+  } catch {
+    return null;
   }
+};
+
+const readAdminAuthSession = () => {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    return session && typeof session === "object" ? session : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAdminAuthSession = (session) => {
+  try {
+    sessionStorage.setItem(ADMIN_AUTH_SESSION_KEY, JSON.stringify(session));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const refreshAdminAuthSession = async (session) => {
+  if (!session?.refresh_token) throw new Error("La sesión administrativa no puede renovarse. Sal e inicia sesión nuevamente.");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/auth/v1/token?grant_type=refresh_token`, {
+      method:"POST",
+      signal:controller.signal,
+      cache:"no-store",
+      credentials:"omit",
+      headers:{
+        apikey:SUPA_KEY,
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify({ refresh_token:session.refresh_token }),
+    });
+    const raw = await response.text();
+    let payload = {};
+    try { payload = raw ? JSON.parse(raw) : {}; } catch {}
+    if (!response.ok || !payload?.access_token) {
+      throw new Error(payload?.msg || payload?.message || payload?.error_description || `No se pudo renovar la sesión (HTTP ${response.status}).`);
+    }
+    const next = {
+      access_token:payload.access_token,
+      refresh_token:payload.refresh_token || session.refresh_token,
+      expires_at:Number(payload.expires_at || (Date.now() / 1000 + Number(payload.expires_in || 3600))),
+      user:payload.user || session.user || null,
+    };
+    if (!writeAdminAuthSession(next)) throw new Error("La sesión renovada no pudo guardarse en este navegador.");
+    return next;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Tiempo agotado renovando la sesión administrativa.");
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const getVirusTotalAccessToken = async () => {
+  let session = readAdminAuthSession();
+  if (!session?.access_token) {
+    throw new Error("No existe una sesión administrativa válida. Sal del modo administrador e inicia sesión nuevamente.");
+  }
+
+  const claims = decodeJwtPayload(session.access_token);
+  const expiresAt = Number(session.expires_at || claims?.exp || 0);
+  if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
+    session = await refreshAdminAuthSession(session);
+  }
+
+  const nextClaims = decodeJwtPayload(session.access_token);
+  const userId = String(session?.user?.id || nextClaims?.sub || "");
+  if (!userId) throw new Error("La sesión administrativa no contiene un usuario válido.");
+  return { accessToken:session.access_token, userId };
 };
 
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
@@ -3484,13 +3540,15 @@ function useAdminMode() {
         throw new Error("Supabase Auth no devolvió una sesión administrativa válida.");
       }
 
-      const setSessionResult = await withAsyncTimeout(
-        sb.auth.setSession({ access_token:accessToken, refresh_token:refreshToken }),
-        10000,
-        "La sesión fue validada, pero no pudo guardarse en este navegador."
-      );
-      if (setSessionResult?.error || !setSessionResult?.data?.session?.access_token) {
-        throw new Error(setSessionResult?.error?.message || "No se pudo activar la sesión administrativa.");
+      const expiresAt = Number(authPayload?.expires_at || (Date.now() / 1000 + Number(authPayload?.expires_in || 3600)));
+      const stored = writeAdminAuthSession({
+        access_token:accessToken,
+        refresh_token:refreshToken,
+        expires_at:expiresAt,
+        user,
+      });
+      if (!stored) {
+        throw new Error("La sesión fue validada, pero este navegador bloqueó el almacenamiento de sesión.");
       }
 
       try {
@@ -3514,6 +3572,7 @@ function useAdminMode() {
   const logout = () => {
     try {
       sessionStorage.removeItem(ADMIN_KEY);
+      sessionStorage.removeItem(ADMIN_AUTH_SESSION_KEY);
     } catch {}
     setIsAdmin(false);
     setPass("");
