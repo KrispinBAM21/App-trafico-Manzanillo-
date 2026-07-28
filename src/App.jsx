@@ -542,105 +542,75 @@ const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
   return { ...result, target_type:"file", target:file.name };
 };
 
-const getVirusTotalAccessToken = async () => {
-  try {
-    const sessionResult = await withAsyncTimeout(
-      sb.auth.getSession(),
-      2500,
-      "No fue posible recuperar la sesión para VirusTotal."
-    );
-    return sessionResult?.data?.session?.access_token || null;
-  } catch (error) {
-    console.warn("[VirusTotal] No se pudo recuperar la sesión de Supabase.", error);
-    return null;
-  }
-};
-
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
-  const accessToken = await getVirusTotalAccessToken();
-  const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
+  let lastError = null;
 
-  const body = action === "scan_file"
-    ? (() => {
-        const form = new FormData();
-        form.append("action", "scan_file");
-        form.append("file", file, file.name);
-        if (userId) form.append("userId", String(userId));
-        form.append("origen", String(origen || "comunicado"));
-        form.append("titulo", String(titulo || ""));
-        return form;
-      })()
-    : JSON.stringify({
-        action:"scan_url",
-        url:String(url || ""),
-        ...(userId ? { userId:String(userId) } : {}),
-        origen:String(origen || "comunicado"),
-        titulo:String(titulo || ""),
-      });
+  for (let attempt = 0; attempt < VT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const body = action === "scan_file"
+        ? (() => {
+            const form = new FormData();
+            form.append("action", "scan_file");
+            form.append("file", file, file.name);
+            form.append("userId", String(userId || ""));
+            form.append("origen", String(origen || ""));
+            form.append("titulo", String(titulo || ""));
+            return form;
+          })()
+        : {
+            action:"scan_url",
+            url:String(url || ""),
+            userId:String(userId || ""),
+            origen:String(origen || ""),
+            titulo:String(titulo || ""),
+          };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+      // Usar el cliente oficial conserva correctamente la sesión y apunta a la
+      // función real desplegada: /functions/v1/super-handler.
+      const invocation = sb.functions.invoke(VT_EDGE_FUNCTION, { body });
+      const { data, error } = await withAsyncTimeout(
+        invocation,
+        30000,
+        "La verificación de VirusTotal excedió el tiempo máximo de respuesta."
+      );
 
-  try {
-    console.info("[VirusTotal] Invocando Edge Function", {
-      endpoint,
-      action,
-      target: action === "scan_file" ? file?.name : url,
-      authenticated:Boolean(accessToken),
-    });
+      if (error) {
+        const functionError = new Error(
+          error?.context?.message || error?.message || "No se pudo ejecutar super-handler."
+        );
+        functionError.details = error?.context || error;
+        throw functionError;
+      }
 
-    const response = await fetch(endpoint, {
-      method:"POST",
-      mode:"cors",
-      cache:"no-store",
-      credentials:"omit",
-      signal:controller.signal,
-      headers:{
-        apikey:SUPA_KEY,
-        Authorization:`Bearer ${accessToken || SUPA_KEY}`,
-        ...(action === "scan_file" ? {} : { "Content-Type":"application/json" }),
-      },
-      body,
-    });
+      if (!data || typeof data !== "object") {
+        throw new Error("super-handler devolvió una respuesta vacía o inválida.");
+      }
 
-    const responseText = await response.text();
-    let data = null;
-    try { data = responseText ? JSON.parse(responseText) : null; }
-    catch (_) {
-      throw new Error(`super-handler devolvió una respuesta no JSON (HTTP ${response.status}).`);
+      if (String(data.status || "").toLowerCase() === "error") {
+        throw new Error(data.message || "VirusTotal devolvió un error durante el análisis.");
+      }
+
+      const normalized = normalizeVirusTotalResult(
+        data,
+        action === "scan_file" ? "file" : "url",
+        file || url
+      );
+
+      if (normalized.status === "pending") {
+        throw new Error(data.message || "El análisis continúa pendiente en VirusTotal.");
+      }
+
+      return normalized;
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "").toLowerCase();
+      const retryable = /timeout|network|fetch|429|rate|tempor|pending/.test(message);
+      if (!retryable || attempt === VT_MAX_ATTEMPTS - 1) break;
+      await sleep(VT_RETRY_DELAYS[attempt] || 700);
     }
-
-    if (!response.ok) {
-      const error = new Error(data?.message || `super-handler respondió con HTTP ${response.status}.`);
-      error.status = response.status;
-      error.details = data;
-      throw error;
-    }
-
-    if (!data || typeof data !== "object") {
-      throw new Error("super-handler devolvió una respuesta vacía o inválida.");
-    }
-    if (String(data.status || "").toLowerCase() === "error") {
-      throw new Error(data.message || "VirusTotal devolvió un error durante el análisis.");
-    }
-
-    const normalized = normalizeVirusTotalResult(
-      data,
-      action === "scan_file" ? "file" : "url",
-      file || url
-    );
-    if (normalized.status === "pending") {
-      throw new Error(data.message || "El análisis continúa pendiente en VirusTotal.");
-    }
-    return normalized;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error("La verificación de VirusTotal excedió 30 segundos.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  throw lastError || new Error("VirusTotal no respondió.");
 };
 
 const logVirusTotalSecurityEvent = async ({ user, result, file, url, title }) => {
@@ -20000,9 +19970,8 @@ ${base}`;
     setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
     setVtScanResults([]);
     try {
-      // No consultar getUser() antes del escaneo: esa llamada podía quedar bloqueada
-      // antes de que existiera cualquier solicitud a la Edge Function.
-      const scanUserId = null;
+      const { data: authDataBeforeScan } = await sb.auth.getUser();
+      const scanUser = authDataBeforeScan?.user || null;
       const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
       const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
       const securityResults = [];
@@ -20010,12 +19979,12 @@ ${base}`;
         ...scanTargets.map((targetFile) => ({
           type:"file",
           target:targetFile.name,
-          run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
+          run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() }),
         })),
         ...detectedUrls.map((detectedUrl) => ({
           type:"url",
           target:detectedUrl,
-          run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
+          run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() }),
         })),
       ];
 
