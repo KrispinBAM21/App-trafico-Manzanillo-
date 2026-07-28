@@ -20249,24 +20249,52 @@ ${base}`;
       const uploadOne = async (file, prefix = "principal") => {
         const ext = String(file.name || "imagen.png").split(".").pop() || "png";
         const path = `comunicados/${prefix}_${Date.now()}_${crypto.randomUUID()}.${ext}`;
-        const { error: uploadError } = await sb.storage.from("comunicados").upload(path, file, { contentType: file.type, upsert: false });
+        const uploadPromise = sb.storage.from("comunicados").upload(path, file, {
+          contentType: file.type || "application/octet-stream",
+          cacheControl: "3600",
+          upsert: false,
+        });
+        const { error: uploadError } = await withAsyncTimeout(
+          uploadPromise,
+          15000,
+          `Tiempo agotado subiendo ${file.name || "el archivo"}.`
+        );
         if (uploadError) throw uploadError;
         uploadedPaths.push(path);
         return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
       };
 
-      const publicUrl = await uploadOne(archivoPrincipal, pastedCapture?.file === archivoPrincipal ? "captura" : "principal");
-      const complementaryUrls = [];
-      for (const complementaryFile of complementaryFiles) {
-        complementaryUrls.push(await uploadOne(complementaryFile, "complementaria"));
-      }
+      // Todos los archivos se suben en paralelo. Antes los complementarios se
+      // esperaban uno por uno, multiplicando el tiempo total de publicación.
+      const uploadEntries = [
+        { file:archivoPrincipal, prefix:pastedCapture?.file === archivoPrincipal ? "captura" : "principal" },
+        ...complementaryFiles.map((file) => ({ file, prefix:"complementaria" })),
+      ];
+      const uploadedUrls = await Promise.all(uploadEntries.map(({ file, prefix }) => uploadOne(file, prefix)));
+      const publicUrl = uploadedUrls[0];
+      const complementaryUrls = uploadedUrls.slice(1);
       const allImageUrls = [
         ...(archivoPrincipal.type?.startsWith("image/") ? [publicUrl] : []),
         ...complementaryUrls,
       ];
 
-      const { data: authData } = await sb.auth.getUser();
-      const authUser = authData?.user || null;
+      // El administrador usa la sesión propia almacenada por el acceso oculto.
+      // No se llama sb.auth.getUser(), porque ese método puede esperar el lock
+      // interno del cliente y dejar la interfaz en “PROCESANDO SUBIDA”.
+      const storedAdminSession = isAdmin ? readAdminAuthSession() : null;
+      let authUser = storedAdminSession?.user || null;
+      if (!authUser && !isAdmin) {
+        try {
+          const sessionResult = await withAsyncTimeout(
+            sb.auth.getSession(),
+            3000,
+            "Tiempo agotado consultando la sesión del usuario."
+          );
+          authUser = sessionResult?.data?.session?.user || null;
+        } catch (sessionError) {
+          console.warn("No se pudo resolver la sesión del autor; se continuará sin datos opcionales.", sessionError);
+        }
+      }
       const authorName = authUser?.user_metadata?.full_name
         || authUser?.user_metadata?.name
         || authUser?.user_metadata?.display_name
@@ -20308,8 +20336,12 @@ ${base}`;
           "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at",
           "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
         ]);
-        for (let attempt = 0; attempt < 14; attempt += 1) {
-          const result = await sb.from("comunicados").insert(candidate).select("*").single();
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const result = await withAsyncTimeout(
+            sb.from("comunicados").insert(candidate).select("*").single(),
+            10000,
+            "Tiempo agotado guardando el comunicado."
+          );
           if (!result.error) return result;
           const message = String(result.error?.message || "");
           // PostgREST puede reportar columnas ausentes con variantes como:
@@ -20344,11 +20376,15 @@ ${base}`;
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
         try {
-          await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
+          await withAsyncTimeout(
+            syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false }),
+            8000,
+            "La réplica en Noticias excedió el tiempo de espera."
+          );
           setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
         } catch (syncErr) {
           console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
-          setToolNotice("Comunicado publicado, pero no se pudo replicar en Noticias. Revisa permisos INSERT/RLS de la tabla noticias.", "#ef4444");
+          setToolNotice("Comunicado publicado. La réplica en Noticias quedó pendiente; revisa permisos INSERT/RLS de la tabla noticias.", "#fbbf24");
         }
       }
 
