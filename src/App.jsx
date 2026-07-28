@@ -142,7 +142,7 @@ const verifyAdminPass = async (input) => {
 };
 const ADMIN_KEY    = "cm_admin_session";
 const ADMIN_EMAIL_KEY = "cm_admin_email";
-const DEFAULT_ADMIN_EMAIL = String(import.meta.env.VITE_SUPABASE_ADMIN_EMAIL || "").trim();
+const DEFAULT_ADMIN_EMAIL = String(import.meta.env.VITE_SUPABASE_ADMIN_EMAIL || "conectmanzanillo@gmail.com").trim().toLowerCase();
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
 };
@@ -3514,9 +3514,11 @@ function useAdminMode() {
             <input
               type="email"
               value={adminEmail}
-              onChange={e => { setAdminEmail(safeEventValue(e)); setAuthError(""); }}
+              onChange={() => {}}
               placeholder="Correo administrador"
               autoComplete="username"
+              readOnly
+              aria-readonly="true"
               style={{ width:"100%", padding:"11px 14px", marginBottom:"8px", background:"rgba(255,255,255,0.07)", border:`1px solid ${authError ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
             />
             <div style={{ position:"relative", marginBottom:"8px" }}>
