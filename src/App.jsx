@@ -5,6 +5,50 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 
+
+// ─── RUNTIME SAFETY HELPERS ──────────────────────────────────────────────────
+const safeEventValue = (event, fallback = "") => {
+  const value = event?.currentTarget?.value ?? event?.target?.value;
+  return value == null ? fallback : value;
+};
+const safeEventChecked = (event, fallback = false) => {
+  const value = event?.currentTarget?.checked ?? event?.target?.checked;
+  return typeof value === "boolean" ? value : fallback;
+};
+const safeEventFiles = (event) => Array.from(event?.currentTarget?.files ?? event?.target?.files ?? []);
+const safelyResetFileInput = (event) => {
+  const input = event?.currentTarget ?? event?.target ?? null;
+  if (input && "value" in input) { try { input.value = ""; } catch (_) {} }
+};
+const safeArray = (value) => Array.isArray(value) ? value : [];
+const safeObject = (value) => value && typeof value === "object" ? value : {};
+const safeErrorMessage = (error, fallback = "Ocurrió un error inesperado.") =>
+  typeof error?.message === "string" && error.message.trim() ? error.message : fallback;
+
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError:false, error:null, retryKey:0 };
+  }
+  static getDerivedStateFromError(error) { return { hasError:true, error }; }
+  componentDidCatch(error, info) {
+    try { console.error("Runtime error capturado por GlobalErrorBoundary", error, info); } catch (_) {}
+  }
+  retry = () => this.setState((state) => ({ hasError:false, error:null, retryKey:state.retryKey + 1 }));
+  render() {
+    if (!this.state.hasError) return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
+    return (
+      <main style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:"24px",background:"#0a0f1a",color:"#e0e3e5",fontFamily:"Inter, sans-serif"}}>
+        <section style={{width:"min(560px,100%)",padding:"24px",borderRadius:"8px",border:"1px solid rgba(159,202,255,.24)",background:"rgba(25,28,30,.88)",backdropFilter:"blur(18px)",boxShadow:"0 18px 50px rgba(0,0,0,.38)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",fontSize:"20px",fontWeight:800}}><MS name="shield" size={24} active/>Interfaz protegida</div>
+          <p style={{color:"#bfc7d5",lineHeight:1.6}}>Se aisló un error de ejecución para evitar que la aplicación quedara en blanco. Puedes reintentar sin recargar toda la sesión.</p>
+          <button type="button" onClick={this.retry} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px",border:0,borderRadius:"4px",padding:"11px 16px",background:"linear-gradient(135deg,#0099ff,#00daf3)",color:"#003259",fontWeight:800,cursor:"pointer"}}><MS name="refresh" size={19}/>Reintentar</button>
+        </section>
+      </main>
+    );
+  }
+}
+
 if (typeof window !== "undefined" && !window.L) window.L = L;
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
@@ -265,6 +309,138 @@ const VT_MAX_ATTEMPTS = 3;
 const VT_RETRY_DELAYS = [1200, 2600];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const readJsonCache = (key, fallback = null, storage = "session") => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const source = storage === "local" ? localStorage : sessionStorage;
+    const raw = source.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed?.data ?? parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeJsonCache = (key, data, storage = "session") => {
+  if (typeof window === "undefined") return;
+  try {
+    const target = storage === "local" ? localStorage : sessionStorage;
+    target.setItem(key, JSON.stringify({ savedAt:Date.now(), data }));
+  } catch {}
+};
+
+const withAsyncTimeout = (promise, timeoutMs, message = "timeout") => {
+  let timerId;
+  const timeout = new Promise((_, reject) => {
+    timerId = setTimeout(() => {
+      const error = new Error(message);
+      error.code = "ASYNC_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timerId));
+};
+
+const fetchSupabaseRowsDirect = async (
+  table,
+  {
+    select = "*",
+    order = "",
+    ascending = false,
+    limit = 100,
+    filters = [],
+    timeoutMs = 12000,
+  } = {}
+) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const url = new URL(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/${encodeURIComponent(table)}`);
+    url.searchParams.set("select", select);
+
+    if (order) {
+      url.searchParams.set("order", `${order}.${ascending ? "asc" : "desc"}`);
+    }
+    if (Number.isFinite(limit) && limit > 0) {
+      url.searchParams.set("limit", String(limit));
+    }
+
+    for (const filter of filters) {
+      if (!filter?.column || !filter?.operator) continue;
+      url.searchParams.append(
+        filter.column,
+        `${filter.operator}.${String(filter.value ?? "")}`
+      );
+    }
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      mode: "cors",
+      cache: "no-store",
+      credentials: "omit",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        apikey: SUPA_KEY,
+        Authorization: `Bearer ${SUPA_KEY}`,
+      },
+    });
+
+    const responseText = await response.text();
+    let data = [];
+
+    try {
+      data = responseText ? JSON.parse(responseText) : [];
+    } catch {
+      const parseError = new Error(
+        `Supabase REST devolvió una respuesta no JSON (${response.status}).`
+      );
+      parseError.code = "SUPABASE_REST_INVALID_JSON";
+      parseError.status = response.status;
+      parseError.responseText = responseText;
+      throw parseError;
+    }
+
+    if (!response.ok) {
+      const error = new Error(
+        data?.message ||
+        data?.hint ||
+        `Supabase REST respondió con HTTP ${response.status}.`
+      );
+      error.code = data?.code || "SUPABASE_REST_HTTP_ERROR";
+      error.status = response.status;
+      error.details = data;
+      throw error;
+    }
+
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    if (
+      error?.name === "AbortError" ||
+      String(error?.message || "").toLowerCase().includes("aborted")
+    ) {
+      const timeoutError = new Error(
+        `Tiempo de espera agotado al consultar ${table}.`
+      );
+      timeoutError.code = "SUPABASE_REST_TIMEOUT";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const deferWork = (callback, delay = 0) => {
+  if (typeof window === "undefined") return setTimeout(callback, delay);
+  if ("requestIdleCallback" in window) {
+    return window.requestIdleCallback(callback, { timeout:Math.max(1000, delay + 1000) });
+  }
+  return setTimeout(callback, delay);
+};
 
 const extractUrlsFromText = (value = "") => {
   const matches = String(value).match(/https?:\/\/[^\s<>{}\[\]"']+/gi) || [];
@@ -3136,7 +3312,7 @@ function useAdminMode() {
               <input
                 type={showAdminPass ? "text" : "password"}
                 value={pass}
-                onChange={e => { setPass(e.target.value); setErr(false); }}
+                onChange={e => { setPass(safeEventValue(e)); setErr(false); }}
                 onKeyDown={e => e.key === "Enter" && tryLogin()}
                 placeholder="Contraseña"
                 autoFocus
@@ -4209,7 +4385,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Estado de origen</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🟢</span>
-                <select value={originState} onChange={e => setOriginState(e.target.value)} style={sx.input}>
+                <select value={originState} onChange={e => setOriginState(safeEventValue(e))} style={sx.input}>
                   {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
                 </select>
               </div>
@@ -4218,7 +4394,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Ciudad/localidad de origen</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>📍</span>
-                <select ref={originRef} value={originCity} onChange={e => setOriginCity(e.target.value)} style={sx.input}>
+                <select ref={originRef} value={originCity} onChange={e => setOriginCity(safeEventValue(e))} style={sx.input}>
                   {(MX_STATES_CITIES[originState] || []).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -4229,7 +4405,7 @@ function RutaCostoAdmin() {
             <label style={sx.lbl}>Origen exacto opcional</label>
             <div style={sx.inputWrap}>
               <span style={sx.inputIcon}>✏️</span>
-              <input ref={originRef} type="text" value={origin} onChange={e => setOrigin(e.target.value)} placeholder="Puedes ajustar colonia, calle o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && destRef.current?.focus()} />
+              <input ref={originRef} type="text" value={origin} onChange={e => setOrigin(safeEventValue(e))} placeholder="Puedes ajustar colonia, calle o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && destRef.current?.focus()} />
             </div>
           </div>
 
@@ -4246,7 +4422,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Estado de destino</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🔴</span>
-                <select value={destState} onChange={e => setDestState(e.target.value)} style={sx.input}>
+                <select value={destState} onChange={e => setDestState(safeEventValue(e))} style={sx.input}>
                   {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
                 </select>
               </div>
@@ -4255,7 +4431,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Ciudad/localidad de destino</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>📍</span>
-                <select value={destCity} onChange={e => setDestCity(e.target.value)} style={sx.input}>
+                <select value={destCity} onChange={e => setDestCity(safeEventValue(e))} style={sx.input}>
                   {(MX_STATES_CITIES[destState] || []).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -4266,7 +4442,7 @@ function RutaCostoAdmin() {
             <label style={sx.lbl}>Destino exacto opcional</label>
             <div style={sx.inputWrap}>
               <span style={sx.inputIcon}>✏️</span>
-              <input ref={destRef} type="text" value={destination} onChange={e => setDestination(e.target.value)} placeholder="Puedes ajustar colonia, calle, caseta o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && calcular()} />
+              <input ref={destRef} type="text" value={destination} onChange={e => setDestination(safeEventValue(e))} placeholder="Puedes ajustar colonia, calle, caseta o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && calcular()} />
             </div>
           </div>
 
@@ -4294,7 +4470,7 @@ function RutaCostoAdmin() {
                     <input
                       type="text"
                       value={stop}
-                      onChange={e => setStops(prev => prev.map((s, i) => i === idx ? e.target.value : s))}
+                      onChange={e => setStops(prev => prev.map((s, i) => i === idx ? safeEventValue(e) : s))}
                       placeholder={`Referencia ${idx + 1}: Ej. Terminal SSA, Puerto, Pez Vela...`}
                       style={sx.input}
                     />
@@ -4353,7 +4529,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>💲</span>
                 <input type="number" value={gasPrice} min="1" step="0.5"
-                  onChange={e => setGasPrice(parseFloat(e.target.value) || 0)}
+                  onChange={e => setGasPrice(parseFloat(safeEventValue(e)) || 0)}
                   style={sx.input} />
               </div>
             </div>
@@ -4362,7 +4538,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>💲</span>
                 <input type="number" value={dieselPrice} min="1" step="0.5"
-                  onChange={e => setDieselPrice(parseFloat(e.target.value) || 0)}
+                  onChange={e => setDieselPrice(parseFloat(safeEventValue(e)) || 0)}
                   style={sx.input} />
               </div>
             </div>
@@ -4374,7 +4550,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🏙️</span>
                 <input type="number" value={cityKmPerLiter} min="1" step="0.5"
-                  onChange={e => setCityKmPerLiter(parseFloat(e.target.value) || 0)}
+                  onChange={e => setCityKmPerLiter(parseFloat(safeEventValue(e)) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Sugerido editable: 10 - 15 km/L</div>
@@ -4384,7 +4560,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🛣️</span>
                 <input type="number" value={roadKmPerLiter} min="1" step="0.5"
-                  onChange={e => setRoadKmPerLiter(parseFloat(e.target.value) || 0)}
+                  onChange={e => setRoadKmPerLiter(parseFloat(safeEventValue(e)) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Sugerido editable: 15 - 20 km/L</div>
@@ -4397,7 +4573,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>% </span>
                 <input type="number" value={cityPercent} min="0" max="100" step="5"
-                  onChange={e => setCityPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  onChange={e => setCityPercent(Math.max(0, Math.min(100, Number(safeEventValue(e)) || 0)))}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Carretera calculada: {roadPercent}%</div>
@@ -4407,7 +4583,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>⚡</span>
                 <input type="number" value={maxSpeed} min="10" max="120" step="5"
-                  onChange={e => setMaxSpeed(parseFloat(e.target.value) || 0)}
+                  onChange={e => setMaxSpeed(parseFloat(safeEventValue(e)) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Variable editable de referencia para operación.</div>
@@ -4445,7 +4621,7 @@ function RutaCostoAdmin() {
               </div>
               <div style={{ flex: 1 }}>
                 <input type="range" min="0" max="200" step="5" value={profit}
-                  onChange={e => setProfit(Number(e.target.value))}
+                  onChange={e => setProfit(Number(safeEventValue(e)))}
                   style={{ width: "100%", accentColor: "#f97316", cursor: "pointer" }} />
                 <div style={sx.sliderRange}>
                   <span>0%</span><span>100%</span><span>200%</span>
@@ -4872,17 +5048,17 @@ function AdminRegistrosPanel() {
   return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
     <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
     <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}><input style={inp} placeholder="ID de cuenta Supabase Auth" value={targetUserId} onChange={e=>setTargetUserId(e.target.value.trim())} /><input style={inp} placeholder="device_id / dispositivo objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} /></div>
-    <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}><input style={inp} placeholder="ID de cuenta Supabase Auth" value={targetUserId} onChange={e=>setTargetUserId(safeEventValue(e).trim())} /><input style={inp} placeholder="device_id / dispositivo objetivo" value={deviceId} onChange={e=>setDeviceId(safeEventValue(e).trim())} /></div>
+    <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(safeEventValue(e))} />
     {selectedLog && <div style={{ background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.35)", borderRadius:10, color:"#fbbf24", padding:"8px 10px", fontSize:11, fontWeight:800, marginBottom:10, fontFamily:getFont(theme,"secondary"), wordBreak:"break-word" }}>Voto seleccionado para anular con advertencia: {selectedLog.action} · {selectedLog.section} · {selectedLog.entity_id || "sin elemento"}</div>}
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
       <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
       <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>Advertencia</button>
     </div>
-    <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(e.target.value)} />
-    <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(e.target.value)} />
+    <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(safeEventValue(e))} />
+    <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(safeEventValue(e))} />
     <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, color:"rgba(255,255,255,.75)", fontFamily:getFont(theme,"secondary"), fontSize:12 }}>
-      {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:e.target.checked}))}/> {l}</label>)}
+      {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:safeEventChecked(e)}))}/> {l}</label>)}
     </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
       <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>Procesando Bloquear por tiempo + anular votos</button>
@@ -4909,7 +5085,7 @@ function AdminRegistrosPanel() {
 
     {recordsView !== "sessions" && <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
       <div style={{ color:"#22c55e", fontWeight:900, fontSize:13, marginBottom:10, fontFamily:getFont(theme,"secondary") }}>🔎 Búsqueda rápida de registros</div>
-      <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(e.target.value)} />
+      <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(safeEventValue(e))} />
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
         <button onClick={()=>{setSectionFilter("all");setSubFilter("all");}} style={chipBtn(sectionFilter === "all")}>Todas las secciones</button>
         {sections.map(sec => <button key={sec} onClick={()=>{setSectionFilter(sec);setSubFilter("all");}} style={chipBtn(sectionFilter === sec)}>{sec} ({logs.filter(l => (l.section || "sin_seccion") === sec).length})</button>)}
@@ -4918,7 +5094,7 @@ function AdminRegistrosPanel() {
         <button onClick={()=>setSubFilter("all")} style={chipBtn(subFilter === "all", "#a78bfa")}>Todas las subsecciones</button>
         {subsections.map(sub => <button key={sub} onClick={()=>setSubFilter(sub)} style={chipBtn(subFilter === sub, "#a78bfa")}>{sub}</button>)}
       </div>
-      <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(e.target.checked)} /> Ver solo el device_id escrito arriba</label>
+      <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(safeEventChecked(e))} /> Ver solo el device_id escrito arriba</label>
     </div>}
 
     {recordsView === "history" && <>
@@ -5580,18 +5756,18 @@ function AnunciosBanner({ isAdmin }) {
         }));
         setMsg({ type:"ok", text:"Plantilla cargada en el formulario. Ajusta fechas y publica cuando quieras." });
       }} />
-      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
-      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
-      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
+      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} />
+      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} />
+      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:safeEventValue(e)}))} />
       <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div style={{ position:"relative", isolation:"isolate" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="whatsapp" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:safeEventValue(e).replace(/\D/g,"")}))} />
         </div>
         <div style={{ position:"relative" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="web" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:safeEventValue(e)}))} />
         </div>
       </div>
       {/* ── Imagen: subir archivo O pegar URL ── */}
@@ -5635,18 +5811,18 @@ function AnunciosBanner({ isAdmin }) {
             </label>
           </div>
         ) : (
-          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
+          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:safeEventValue(e)}))} />
         )}
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"5px" }}>📐 Recomendado: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1) · móvil se adapta automáticamente</div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div>
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA INICIO *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:e.target.value}))} />
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:safeEventValue(e)}))} />
         </div>
         <div>
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA FIN *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:e.target.value}))} />
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:safeEventValue(e)}))} />
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
@@ -5903,19 +6079,19 @@ function AdminAdTemplates({ onUseTemplate }) {
       {open && (
         <div style={{ border:"1px solid rgba(255,255,255,.10)", borderRadius:"11px", padding:"10px", marginBottom:"12px", background:"rgba(0,0,0,.12)" }}>
           <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
-            <input style={inp} placeholder="Nombre interno de plantilla" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} />
-            <input style={inp} placeholder="Empresa / organización" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
+            <input style={inp} placeholder="Nombre interno de plantilla" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:safeEventValue(e)}))} />
+            <input style={inp} placeholder="Empresa / organización" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} />
           </div>
-          <input style={inp} placeholder="Título que usará el anuncio" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
-          <textarea style={{...inp, minHeight:"72px", resize:"vertical"}} placeholder="Mensaje de invitación o promoción" value={form.mensaje} onChange={e=>setForm(f=>({...f,mensaje:e.target.value}))} />
+          <input style={inp} placeholder="Título que usará el anuncio" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} />
+          <textarea style={{...inp, minHeight:"72px", resize:"vertical"}} placeholder="Mensaje de invitación o promoción" value={form.mensaje} onChange={e=>setForm(f=>({...f,mensaje:safeEventValue(e)}))} />
           <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
-            <input style={inp} placeholder="WhatsApp opcional" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
-            <input style={inp} placeholder="Enlace opcional" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
+            <input style={inp} placeholder="WhatsApp opcional" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:safeEventValue(e).replace(/\D/g,"")}))} />
+            <input style={inp} placeholder="Enlace opcional" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:safeEventValue(e)}))} />
           </div>
           <div style={{ marginBottom:"8px" }}>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,.42)", marginBottom:"6px" }}>IMAGEN DE PLANTILLA</div>
             <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr auto", gap:"8px", alignItems:"stretch" }}>
-              <input style={{...inp, marginBottom:0}} placeholder="URL de imagen o sube archivo" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value,_preview:e.target.value}))} />
+              <input style={{...inp, marginBottom:0}} placeholder="URL de imagen o sube archivo" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:safeEventValue(e),_preview:safeEventValue(e)}))} />
               <label style={{ padding:"9px 12px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", whiteSpace:"nowrap" }}>
                 📁 Subir
                 <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
@@ -6366,11 +6542,11 @@ function AdminUsuariosPanel() {
       <div style={{padding:16,display:"grid",gap:14}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{[["manual","person_add","Crear usuario nuevo","Nombre, contraseña y permisos"],["existing","badge","Asignar por ID","Cuenta existente, sin contraseña"]].map(([value,icon,title,subtitle])=><button key={value} type="button" onClick={()=>setFlow(value)} style={{padding:12,textAlign:"left",borderRadius:4,border:`1px solid ${form.flow===value?"#9fcaff":"#3f4753"}`,background:form.flow===value?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",color:form.flow===value?"#d2e4ff":"#bfc7d5",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}><MS name={icon} size={22} active={form.flow===value}/><span><b style={{display:"block",fontSize:13}}>{title}</b><small style={{display:"block",color:"#89919e",marginTop:2}}>{subtitle}</small></span></button>)}</div>
         {msg&&<div style={{padding:"10px 12px",borderRadius:4,background:msg.type==="ok"?"rgba(0,227,253,.08)":"rgba(147,0,10,.18)",border:`1px solid ${msg.type==="ok"?"rgba(0,227,253,.34)":"rgba(255,180,171,.38)"}`,color:msg.type==="ok"?"#bdf4ff":"#ffb4ab",fontSize:12}}>{msg.text}</div>}
-        {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(e.target.value)}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}/></label></div>
-        {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
+        {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(safeEventValue(e))}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:safeEventValue(e).replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:safeEventValue(e)}))}/></label></div>
+        {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:safeEventValue(e)}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
         {form.flow==="existing"&&form.auth_user_id&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:4,background:"rgba(0,227,253,.06)",border:"1px solid rgba(0,227,253,.20)",color:"#bdf4ff",fontSize:12}}><MS name="verified_user" size={19}/><span>Cuenta vinculada: <b>{form.email||form.auth_user_id}</b>. La autenticación original del usuario no se modifica.</span></div>}
-        <label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>VENCIMIENTO DEL ACCESO</span><input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))}/></label>
+        <label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>VENCIMIENTO DEL ACCESO</span><input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:safeEventValue(e)}))}/></label>
         <div><div style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em",marginBottom:9}}>PERMISOS DEL USUARIO</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:8}}>{PERMISOS_DISPONIBLES.map(p=>{const checked=!!form.permisos[p.id];return <button type="button" key={p.id} onClick={()=>togglePermiso(p.id)} style={{display:"grid",gridTemplateColumns:"28px 1fr 22px",alignItems:"center",gap:9,padding:11,textAlign:"left",borderRadius:4,cursor:"pointer",background:checked?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",border:`1px solid ${checked?"rgba(159,202,255,.52)":"rgba(63,71,83,.55)"}`,color:checked?"#d2e4ff":"#bfc7d5",transition:"all .3s"}}><MS name={p.icon} size={23} active={checked}/><span><b style={{display:"block",fontSize:12}}>{p.label}</b><small style={{display:"block",color:"#89919e",fontSize:10,lineHeight:1.35,marginTop:2}}>{p.desc}</small></span><span style={{width:18,height:18,borderRadius:3,border:`2px solid ${checked?"#9fcaff":"#3f4753"}`,background:checked?"#0099ff":"transparent",display:"grid",placeItems:"center"}}>{checked&&<MS name="check" size={15} color="#002f54"/>}</span></button>})}</div></div>
         <button type="button" onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{display:"flex",alignItems:"center",gap:9,width:"fit-content",padding:0,border:0,background:"transparent",color:"#bfc7d5",cursor:"pointer"}}><span style={{width:20,height:20,borderRadius:3,border:`2px solid ${form.activo?"#00daf3":"#3f4753"}`,background:form.activo?"rgba(0,218,243,.18)":"transparent",display:"grid",placeItems:"center"}}>{form.activo&&<MS name="check" size={16} color="#bdf4ff"/>}</span><b>Usuario activo</b></button>
         <button onClick={handleGuardar} disabled={saving||lookupLoading} style={{width:"100%",padding:12,borderRadius:4,border:"1px solid rgba(159,202,255,.52)",background:"linear-gradient(180deg,#9fcaff 0%,#00e3fd 100%)",color:"#002f54",fontWeight:900,cursor:saving||lookupLoading?"not-allowed":"pointer",opacity:(saving||lookupLoading)?0.65:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><MS name="save" size={20}/>{saving?"GUARDANDO...":form.flow==="existing"?"ASIGNAR PERMISOS":form.id?"GUARDAR CAMBIOS":"CREAR USUARIO"}</button>
@@ -6441,8 +6617,8 @@ function useSubAdminSession() {
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:getFont(theme,"title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Acceso Operador</div>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa tus credenciales de acceso.</div>
-        <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:e.target.value}))} />
-        <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:e.target.value})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
+        <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:safeEventValue(e)}))} />
+        <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:safeEventValue(e)})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
         {loginErr && <div style={{ color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }}>Usuario, contraseña incorrectos o acceso vencido.</div>}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           <button onClick={()=>{setShowLogin(false);setLoginErr(false);setLoginForm({username:"",password:""});}} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
@@ -6828,7 +7004,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 <input
                   type="checkbox"
                   checked={config.uiAutoAdjust !== false}
-                  onChange={(e) => setConfig(prev => ({ ...prev, uiAutoAdjust: e.target.checked }))}
+                  onChange={(e) => setConfig(prev => ({ ...prev, uiAutoAdjust: safeEventChecked(e) }))}
                 />
                 Auto-ajustar header, tabs, ventanas e iconos cuando el fondo sea un color sólido
               </label>
@@ -6866,13 +7042,13 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     <input
                       type="color"
                       value={config.backgroundColor}
-                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: safeEventValue(e) }))}
                       style={{ width:"60px", height:"60px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                     />
                     <input
                       type="text"
                       value={config.backgroundColor}
-                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: safeEventValue(e) }))}
                       placeholder="#0a1628"
                       style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"13px" }}
                     />
@@ -6932,7 +7108,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   <input
                     type="text"
                     value={config.backgroundGradient}
-                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundGradient: e.target.value }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundGradient: safeEventValue(e) }))}
                     placeholder="linear-gradient(135deg, #0a1628 0%, #1a2942 100%)"
                     style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"monospace", fontSize:"12px" }}
                   />
@@ -7006,7 +7182,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         max="1"
                         step="0.05"
                         value={config.backgroundImageOverlayOpacity || 0.65}
-                        onChange={(e) => setConfig(prev => ({ ...prev, backgroundImageOverlayOpacity: parseFloat(e.target.value) }))}
+                        onChange={(e) => setConfig(prev => ({ ...prev, backgroundImageOverlayOpacity: parseFloat(safeEventValue(e)) }))}
                         style={{ 
                           width:"100%", 
                           height:"6px",
@@ -7206,7 +7382,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     max="32"
                     step="1"
                     value={config.baseFontSize}
-                    onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(e.target.value) }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(safeEventValue(e)) }))}
                     style={{ 
                       width:"100%", 
                       height:"6px",
@@ -7255,7 +7431,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     max="48"
                     step="1"
                     value={config.titleFontSize}
-                    onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(e.target.value) }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(safeEventValue(e)) }))}
                     style={{ 
                       width:"100%", 
                       height:"6px",
@@ -7309,7 +7485,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.primary || "#ffffff"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, primary: e.target.value }
+                              textColors: { ...prev.textColors, primary: safeEventValue(e) }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -7318,7 +7494,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.primary || "#ffffff"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, primary: e.target.value }
+                              textColors: { ...prev.textColors, primary: safeEventValue(e) }
                             }))}
                             placeholder="#ffffff"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7336,7 +7512,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.secondary || "#e2e8f0"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, secondary: e.target.value }
+                              textColors: { ...prev.textColors, secondary: safeEventValue(e) }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -7345,7 +7521,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.secondary || "#e2e8f0"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, secondary: e.target.value }
+                              textColors: { ...prev.textColors, secondary: safeEventValue(e) }
                             }))}
                             placeholder="#e2e8f0"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7365,7 +7541,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.muted || "#94a3b8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, muted: e.target.value }
+                              textColors: { ...prev.textColors, muted: safeEventValue(e) }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -7374,7 +7550,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.muted || "#94a3b8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, muted: e.target.value }
+                              textColors: { ...prev.textColors, muted: safeEventValue(e) }
                             }))}
                             placeholder="#94a3b8"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7392,7 +7568,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.accent || "#38bdf8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, accent: e.target.value }
+                              textColors: { ...prev.textColors, accent: safeEventValue(e) }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -7401,7 +7577,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.accent || "#38bdf8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, accent: e.target.value }
+                              textColors: { ...prev.textColors, accent: safeEventValue(e) }
                             }))}
                             placeholder="#38bdf8"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7428,7 +7604,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   checked={config.contentBox?.autoAdjustWithSolidBackground !== false}
                   onChange={(e) => setConfig(prev => ({
                     ...prev,
-                    contentBox: { ...prev.contentBox, autoAdjustWithSolidBackground: e.target.checked }
+                    contentBox: { ...prev.contentBox, autoAdjustWithSolidBackground: safeEventChecked(e) }
                   }))}
                 />
                 Ajustar automáticamente el color de ventanas según el fondo sólido
@@ -7443,7 +7619,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       checked={config.contentBox?.enabled ?? true}
                       onChange={(e) => setConfig(prev => ({
                         ...prev,
-                        contentBox: { ...prev.contentBox, enabled: e.target.checked }
+                        contentBox: { ...prev.contentBox, enabled: safeEventChecked(e) }
                       }))}
                       style={{ width:"18px", height:"18px", cursor:"pointer" }}
                     />
@@ -7493,7 +7669,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.background || "rgba(255, 255, 255, 0.05)"}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, background: e.target.value }
+                            contentBox: { ...prev.contentBox, background: safeEventValue(e) }
                           }))}
                           placeholder="rgba(255, 255, 255, 0.05)"
                           style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7517,7 +7693,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         value={config.contentBox?.backdropBlur || 12}
                         onChange={(e) => setConfig(prev => ({
                           ...prev,
-                          contentBox: { ...prev.contentBox, backdropBlur: parseInt(e.target.value) }
+                          contentBox: { ...prev.contentBox, backdropBlur: parseInt(safeEventValue(e)) }
                         }))}
                         style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                       />
@@ -7560,7 +7736,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)"}
                             onChange={(e) => setConfig(prev => ({
                               ...prev,
-                              contentBox: { ...prev.contentBox, borderColor: e.target.value }
+                              contentBox: { ...prev.contentBox, borderColor: safeEventValue(e) }
                             }))}
                             placeholder="rgba(255,255,255,0.1)"
                             style={{ flex:1, padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"11px" }}
@@ -7579,7 +7755,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.borderWidth || 1}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, borderWidth: parseInt(e.target.value) }
+                            contentBox: { ...prev.contentBox, borderWidth: parseInt(safeEventValue(e)) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -7600,7 +7776,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.borderRadius || 12}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, borderRadius: parseInt(e.target.value) }
+                            contentBox: { ...prev.contentBox, borderRadius: parseInt(safeEventValue(e)) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -7617,7 +7793,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.padding || 16}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, padding: parseInt(e.target.value) }
+                            contentBox: { ...prev.contentBox, padding: parseInt(safeEventValue(e)) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -7638,7 +7814,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.minHeight || 0}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, minHeight: parseInt(e.target.value) }
+                            contentBox: { ...prev.contentBox, minHeight: parseInt(safeEventValue(e)) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -7655,7 +7831,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.maxWidth || 0}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, maxWidth: parseInt(e.target.value) }
+                            contentBox: { ...prev.contentBox, maxWidth: parseInt(safeEventValue(e)) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -7673,7 +7849,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, enabled: e.target.checked }
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, enabled: safeEventChecked(e) }
                             }
                           }))}
                           style={{ width:"18px", height:"18px", cursor:"pointer" }}
@@ -7691,7 +7867,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, gradient: e.target.value }
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, gradient: safeEventValue(e) }
                             }
                           }))}
                           placeholder="linear-gradient(...)"
@@ -7710,7 +7886,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              shadow: { ...prev.contentBox?.shadow, enabled: e.target.checked }
+                              shadow: { ...prev.contentBox?.shadow, enabled: safeEventChecked(e) }
                             }
                           }))}
                           style={{ width:"18px", height:"18px", cursor:"pointer" }}
@@ -7733,7 +7909,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                                 ...prev,
                                 contentBox: {
                                   ...prev.contentBox,
-                                  shadow: { ...prev.contentBox?.shadow, color: e.target.value }
+                                  shadow: { ...prev.contentBox?.shadow, color: safeEventValue(e) }
                                 }
                               }))}
                               style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}
@@ -7753,7 +7929,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                                 ...prev,
                                 contentBox: {
                                   ...prev.contentBox,
-                                  shadow: { ...prev.contentBox?.shadow, blur: parseInt(e.target.value) }
+                                  shadow: { ...prev.contentBox?.shadow, blur: parseInt(safeEventValue(e)) }
                                 }
                               }))}
                               style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
@@ -7820,7 +7996,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             tabIcons: {
                               ...prev.tabIcons,
-                              [tab.key]: { ...prev.tabIcons[tab.key], type: "builtin", value: e.target.value }
+                              [tab.key]: { ...prev.tabIcons[tab.key], type: "builtin", value: safeEventValue(e) }
                             }
                           }))}
                           placeholder="Nombre del icono SVG"
@@ -7855,7 +8031,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             tabIcons: {
                               ...prev.tabIcons,
-                              [tab.key]: { ...prev.tabIcons[tab.key], size: parseInt(e.target.value) }
+                              [tab.key]: { ...prev.tabIcons[tab.key], size: parseInt(safeEventValue(e)) }
                             }
                           }))}
                           style={{ width:"100%" }}
@@ -7903,7 +8079,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             otherIcons: {
                               ...prev.otherIcons,
-                              [key]: { ...prev.otherIcons[key], type: "builtin", value: e.target.value }
+                              [key]: { ...prev.otherIcons[key], type: "builtin", value: safeEventValue(e) }
                             }
                           }))}
                           placeholder="Nombre del icono SVG"
@@ -7938,7 +8114,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             otherIcons: {
                               ...prev.otherIcons,
-                              [key]: { ...prev.otherIcons[key], size: parseInt(e.target.value) }
+                              [key]: { ...prev.otherIcons[key], size: parseInt(safeEventValue(e)) }
                             }
                           }))}
                           style={{ width:"100%" }}
@@ -11518,12 +11694,12 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
   return <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.28)", borderRadius:12, padding:12, marginBottom:14 }}>
     <div style={{ color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:800, marginBottom:8 }}>⚙️ Admin · Tipos de incidentes y accidentes</div>
     <div style={{ display:"grid", gridTemplateColumns:"130px 70px 1fr auto", gap:8, alignItems:"center" }}>
-      <select value={category} onChange={e=>{ setCategory(e.target.value); setIcon(e.target.value === "accidente" ? "emergency" : "warning-triangle"); }} style={inp}>
+      <select value={category} onChange={e=>{ setCategory(safeEventValue(e)); setIcon(safeEventValue(e) === "accidente" ? "emergency" : "warning-triangle"); }} style={inp}>
         <option value="incidente">Incidente</option>
         <option value="accidente">Accidente</option>
       </select>
-      <input value={icon} onChange={e=>setIcon(e.target.value)} placeholder="Icono" style={inp} />
-      <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="Nuevo tipo, ej. Derrame de diesel" style={inp} />
+      <input value={icon} onChange={e=>setIcon(safeEventValue(e))} placeholder="Icono" style={inp} />
+      <input value={label} onChange={e=>setLabel(safeEventValue(e))} placeholder="Nuevo tipo, ej. Derrame de diesel" style={inp} />
       <button onClick={addType} style={{...inp,cursor:"pointer",color:"#22c55e",fontWeight:800}}>＋ Añadir</button>
     </div>
     <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
@@ -11726,14 +11902,14 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <div>
             <label style={labelStyle}>Texto detectado</label>
-            <textarea value={rawText} onChange={e => { const t = e.target.value; setRawText(t); if (t && !draft) setDraft(parseAsiponaEventText(t, customIncidentTypes)); }} rows={5} placeholder="Aquí aparecerá el OCR. También puedes pegar el texto del comunicado." style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+            <textarea value={rawText} onChange={e => { const t = safeEventValue(e); setRawText(t); if (t && !draft) setDraft(parseAsiponaEventText(t, customIncidentTypes)); }} rows={5} placeholder="Aquí aparecerá el OCR. También puedes pegar el texto del comunicado." style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
           </div>
 
           {draft && <>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={labelStyle}>Categoría</label>
-                <select value={draft.category || "incidente"} onChange={e => { const cat = e.target.value; const known = resolveKnownEventSubtype(cat, draft.subtype_label, draft.subtype_id, customIncidentTypes); updateDraft({ category:cat, subtype_id:known?.id || `${cat}_${slugifyEventType(draft.subtype_label || "evento")}`, subtype_label:known?.label || draft.subtype_label, subtype_icon:known?.icon || draft.subtype_icon, needs_new_type:!known }); }} style={inputStyle}>
+                <select value={draft.category || "incidente"} onChange={e => { const cat = safeEventValue(e); const known = resolveKnownEventSubtype(cat, draft.subtype_label, draft.subtype_id, customIncidentTypes); updateDraft({ category:cat, subtype_id:known?.id || `${cat}_${slugifyEventType(draft.subtype_label || "evento")}`, subtype_label:known?.label || draft.subtype_label, subtype_icon:known?.icon || draft.subtype_icon, needs_new_type:!known }); }} style={inputStyle}>
                   <option value="incidente">Incidente</option>
                   <option value="accidente">Accidente</option>
                 </select>
@@ -11747,7 +11923,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 110px", gap:10 }}>
               <div>
                 <label style={labelStyle}>Tipo específico</label>
-                <input value={draft.subtype_label || ""} onChange={e => { const label = e.target.value; const cat = draft.category || "incidente"; const known = resolveKnownEventSubtype(cat, label, "", customIncidentTypes); updateDraft({ subtype_label: known?.label || label, subtype_id: known?.id || `${cat}_${slugifyEventType(label)}`, subtype_icon: known?.icon || draft.subtype_icon, needs_new_type: !known }); }} style={inputStyle} />
+                <input value={draft.subtype_label || ""} onChange={e => { const label = safeEventValue(e); const cat = draft.category || "incidente"; const known = resolveKnownEventSubtype(cat, label, "", customIncidentTypes); updateDraft({ subtype_label: known?.label || label, subtype_id: known?.id || `${cat}_${slugifyEventType(label)}`, subtype_icon: known?.icon || draft.subtype_icon, needs_new_type: !known }); }} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Nuevo tipo</label>
@@ -11757,18 +11933,18 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
 
             <div>
               <label style={labelStyle}>Ubicación / referencia sugerida</label>
-              <input value={draft.location || ""} onChange={e => updateDraft({ location:e.target.value })} style={inputStyle} />
+              <input value={draft.location || ""} onChange={e => updateDraft({ location:safeEventValue(e) })} style={inputStyle} />
             </div>
 
             <div>
               <label style={labelStyle}>Descripción operativa</label>
-              <textarea value={draft.description || ""} onChange={e => updateDraft({ description:e.target.value })} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+              <textarea value={draft.description || ""} onChange={e => updateDraft({ description:safeEventValue(e) })} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"end" }}>
               <div>
                 <label style={labelStyle}>Coordenadas</label>
-                <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(e.target.value)} placeholder="19.0927, -104.2765" style={inputStyle} />
+                <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(safeEventValue(e))} placeholder="19.0927, -104.2765" style={inputStyle} />
                 <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "Puedes geocodificar o colocar un pin manual; valida el punto antes de aprobar."}</div>
               </div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
@@ -12390,14 +12566,14 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       ))}
                     </div>
                   )}
-                  <input value={location} onChange={e => setLocation(sanitize(e.target.value))} placeholder="O escribe una referencia operativa" style={{ width:"100%", marginTop:"8px", boxSizing:"border-box", padding:"12px 13px", background:"#0a1628", border:"1px solid rgba(255,255,255,.1)", borderRadius:"11px", color:"#fff", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", outline:"none" }} />
+                  <input value={location} onChange={e => setLocation(sanitize(safeEventValue(e)))} placeholder="O escribe una referencia operativa" style={{ width:"100%", marginTop:"8px", boxSizing:"border-box", padding:"12px 13px", background:"#0a1628", border:"1px solid rgba(255,255,255,.1)", borderRadius:"11px", color:"#fff", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", outline:"none" }} />
                 </div>
 
                 <div>
                   <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Coordenadas / Google Maps Link</label>
                   <div style={{ position:"relative" }}>
                     <MaterialIcon color="#64748b" size={19} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)" }}>pincode</MaterialIcon>
-                    <input value={gmapsLink} onChange={e => handleGmapsInput(e.target.value)} placeholder="Pega el link o coordenadas" style={{ width:"100%", boxSizing:"border-box", padding:"12px 38px 12px 40px", background:"#0a1628", border:`1px solid ${coords ? "rgba(34,197,94,.55)" : coordsError ? "rgba(239,68,68,.55)" : "rgba(255,255,255,.1)"}`, borderRadius:"11px", color:coords ? "#22c55e" : "#00f2ea", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", outline:"none" }} />
+                    <input value={gmapsLink} onChange={e => handleGmapsInput(safeEventValue(e))} placeholder="Pega el link o coordenadas" style={{ width:"100%", boxSizing:"border-box", padding:"12px 38px 12px 40px", background:"#0a1628", border:`1px solid ${coords ? "rgba(34,197,94,.55)" : coordsError ? "rgba(239,68,68,.55)" : "rgba(255,255,255,.1)"}`, borderRadius:"11px", color:coords ? "#22c55e" : "#00f2ea", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", outline:"none" }} />
                     <MaterialIcon color={coords ? "#22c55e" : coordsError ? "#ef4444" : "#64748b"} size={19} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)" }}>{coordsLoading ? "sync" : coords ? "verified" : coordsError ? "error" : "link"}</MaterialIcon>
                   </div>
                   <p style={{ margin:"6px 0 0", color:coords ? "#22c55e" : coordsError ? "#f97316" : "#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px", textTransform:"uppercase", lineHeight:1.5 }}>
@@ -14916,7 +15092,7 @@ function TerminalSearchBox({ value, onChange, theme }) {
       <input
         type="text"
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => onChange(safeEventValue(e))}
         placeholder="Buscar terminal (ej. CONTECON)…"
         style={{
           width:"100%", padding:"8px 10px 8px 30px", background:"#0a1628",
@@ -16672,7 +16848,7 @@ function ScreenshotCropModal({ onClose, onApply }) {
         </div>
 
         <div style={{ padding:"12px", display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
-          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ejemplo.com" onKeyDown={e=>{ if(e.key === "Enter") takeScreenshot(); }} style={{ minWidth:0, background:"#061428", border:"1px solid rgba(56,189,248,.30)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), outline:"none" }} />
+          <input value={url} onChange={e=>setUrl(safeEventValue(e))} placeholder="https://ejemplo.com" onKeyDown={e=>{ if(e.key === "Enter") takeScreenshot(); }} style={{ minWidth:0, background:"#061428", border:"1px solid rgba(56,189,248,.30)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), outline:"none" }} />
           <button onClick={takeScreenshot} disabled={loading} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid #2563eb", background:loading ? "#1e3a8a" : "#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:loading ? "wait" : "pointer" }}>{loading ? "Capturando…" : "Tomar screenshot"}</button>
         </div>
 
@@ -19583,7 +19759,7 @@ ${base}`;
           placeholder="Ingrese el título..."
           value={titulo}
           onChange={(e) => {
-            const v = e.target.value;
+            const v = safeEventValue(e);
             setTitulo(v);
             if (v.trim()) ensureFechaInicio();
           }}
@@ -19606,7 +19782,7 @@ ${base}`;
           placeholder={aiAssistOpen ? "Redacta tu texto que deseas resumir o las especificaciones para generar un texto" : "Escriba el contenido aquí..."}
           aria-label={aiAssistOpen ? "Texto para resumir o especificaciones para crear con IA" : "Descripción breve"}
           value={detalle}
-          onChange={(e) => setDetalle(e.target.value)}
+          onChange={(e) => setDetalle(safeEventValue(e))}
           rows={aiAssistOpen ? 5 : 4}
           style={comunicadoTextareaStyle(aiAssistOpen)}
         />
@@ -19640,7 +19816,7 @@ ${base}`;
           </button>
           <textarea
             value={aiOutput}
-            onChange={(e) => setAiOutput(e.target.value)}
+            onChange={(e) => setAiOutput(safeEventValue(e))}
             placeholder="Aquí aparecerá el texto final devuelto por la IA"
             rows={5}
             readOnly={aiBusy}
@@ -19667,9 +19843,9 @@ ${base}`;
             type="date"
             value={fechaInicio}
             onChange={(e) => {
-              setFechaInicio(e.target.value);
-              if (!isAdmin && e.target.value) {
-                const maxDate = addDaysToDateInput(e.target.value, 30);
+              setFechaInicio(safeEventValue(e));
+              if (!isAdmin && safeEventValue(e)) {
+                const maxDate = addDaysToDateInput(safeEventValue(e), 30);
                 if (fechaFin && fechaFin > maxDate) setFechaFin(maxDate);
                 if (fechaFinHora && fechaFinHora.slice(0, 10) > maxDate) setFechaFinHora(`${maxDate}T23:59`);
               }
@@ -19703,7 +19879,7 @@ ${base}`;
               min={fechaInicio ? `${fechaInicio}T00:00` : undefined}
               max={!isAdmin && maxFechaFinPropuesta ? `${maxFechaFinPropuesta}T23:59` : undefined}
               onChange={(e) => {
-                const raw = e.target.value;
+                const raw = safeEventValue(e);
                 const limited = applyProposalEndDateLimit(raw.slice(0, 10), raw);
                 setFechaFinHora(limited.dateTime || raw);
                 if (limited.date || raw) setFechaFin(limited.date || raw.slice(0, 10));
@@ -19717,7 +19893,7 @@ ${base}`;
               min={fechaInicio || undefined}
               max={!isAdmin && maxFechaFinPropuesta ? maxFechaFinPropuesta : undefined}
               onChange={(e) => {
-                const limited = applyProposalEndDateLimit(e.target.value, fechaFinHora);
+                const limited = applyProposalEndDateLimit(safeEventValue(e), fechaFinHora);
                 setFechaFin(limited.date);
                 if (fechaFinHora) setFechaFinHora(`${limited.date}T${fechaFinHora.slice(11, 16) || "23:59"}`);
               }}
@@ -19836,7 +20012,7 @@ ${base}`;
                     <textarea
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
+                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: safeEventValue(e) }))}
                       onBlur={commitInlineEditor}
                       style={getInlineEditorStyle()}
                     />
@@ -19844,7 +20020,7 @@ ${base}`;
                     <input
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
+                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: safeEventValue(e) }))}
                       onBlur={commitInlineEditor}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -19914,7 +20090,7 @@ ${base}`;
                   <textarea
                     ref={graphicEditorTextareaRef}
                     value={graphicEditorText}
-                    onChange={(e) => setGraphicEditorText(e.target.value)}
+                    onChange={(e) => setGraphicEditorText(safeEventValue(e))}
                     rows={8}
                     placeholder="Edita el texto del comunicado. Usa **texto** para negritas."
                     style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.78)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, resize:"vertical", outline:"none" }}
@@ -20598,7 +20774,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                     })()}
                     <div style={{ marginBottom:"10px", padding:"10px", borderRadius:"8px", background:"rgba(2,6,23,.42)", border:"1px solid rgba(159,202,255,.22)" }}>
                       <label style={{ display:"block", color:"#9fcaff", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", marginBottom:"6px" }}>Fecha de expiración al aprobar</label>
-                      <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
+                      <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:safeEventValue(e) }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
                       <div style={{ marginTop:"5px", color:"rgba(191,199,213,.62)", fontSize:"9px", lineHeight:1.4 }}>El administrador puede conservar, acortar o ampliar la vigencia más allá de 30 días.</div>
                     </div>
                     {/* Acciones: 3 botones */}
@@ -20934,7 +21110,7 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
   const setNotice = (text, color = "#2563eb") => { setMsg({ text, color }); setTimeout(() => setMsg(null), 3500); };
 
   const onFiles = (e) => {
-    const selected = Array.from(e.target.files || []);
+    const selected = Array.from(safeEventFiles(e));
     const bad = selected.find(f => !allowed.includes(f.type));
     if (bad) return setNotice("Solo se permiten JPG, PNG, WEBP y PDF.", "#ef4444");
     const tooLarge = selected.find(f => f.size > 15 * 1024 * 1024);
@@ -21080,8 +21256,8 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
       {!isAdmin && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.28)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px", lineHeight:1.45 }}>Estas herramientas son para preparar tu propuesta. La publicación directa en Noticias queda reservada para administradores; los comunicados de usuarios normales pasan por aprobación.</div>}
       {isAdmin && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 150px", gap:"8px", marginBottom:"8px" }}>
-        <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
-        <select value={categoria} onChange={e=>setCategoria(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+        <input value={titulo} onChange={e=>setTitulo(safeEventValue(e))} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={categoria} onChange={e=>setCategoria(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
           <option value="comunicado">Comunicado</option>
           <option value="acceso">Accesos</option>
           <option value="terminal">Terminales</option>
@@ -21091,14 +21267,14 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
           <option value="carril">Carriles</option>
         </select>
       </div>
-      <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
+      <input type="date" value={fecha} onChange={e=>setFecha(safeEventValue(e))} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
       </>}
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={onFiles} style={{ width:"100%", color:"rgba(255,255,255,0.7)", marginBottom:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
       {(mediaUrls.length > 0 || pdfUrls.length > 0) && <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
         {mediaUrls.map((u,i)=><img key={u+i} src={u} alt="preview" style={{ width:"82px", height:"62px", objectFit:"cover", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)" }} />)}
         {pdfUrls.map((u,i)=><div key={u+i} style={{ width:"82px", height:"62px", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", color:"#cbd5e1", fontSize:"10px", fontFamily:getFont(theme,"secondary") }}>PDF</div>)}
       </div>}
-      <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder={isAdmin ? "Texto extraído o descripción editable antes de publicar…" : "Texto extraído. Puedes copiarlo y pegarlo en tu propuesta de comunicado…"} rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
+      <textarea value={texto} onChange={e=>setTexto(safeEventValue(e))} placeholder={isAdmin ? "Texto extraído o descripción editable antes de publicar…" : "Texto extraído. Puedes copiarlo y pegarlo en tu propuesta de comunicado…"} rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:"8px" }}>
         <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
         <button onClick={()=>setZonePickerOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
@@ -21186,17 +21362,17 @@ function NoticiasComunicadoMiniIcon({ size = 18, color = "#ffffff" }) {
 
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
-  const reportCacheRef = useRef(getNoticiasAutoReportCache());
-  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
+  const reportCacheRef = useRef(getNoticiasAutoReportCache() || {});
+  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current?.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
   const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
-  const objectUrlsRef = useRef(reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const canvasesRef = useRef(reportCacheRef.current.canvases || (reportCacheRef.current.canvas ? [reportCacheRef.current.canvas] : []));
-  if (canvasesRef.current?.length && reportCacheRef.current.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
+  const objectUrlsRef = useRef(reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const canvasesRef = useRef(reportCacheRef.current?.canvases || (reportCacheRef.current?.canvas ? [reportCacheRef.current.canvas] : []));
+  if (canvasesRef.current?.length && reportCacheRef.current?.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
 
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
@@ -21533,15 +21709,15 @@ function NoticiasAdminCleanup({ onCleaned }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px", marginBottom:"8px" }}>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Fecha inicio
-              <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+              <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Fecha fin
-              <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+              <input type="date" value={fechaFin} onChange={e=>setFechaFin(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Origen
-              <select value={origen} onChange={e=>setOrigen(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+              <select value={origen} onChange={e=>setOrigen(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
                 <option value="todos">Todos</option>
                 <option value="sistema">Sistema</option>
                 <option value="admin_noticias">Admin noticias</option>
@@ -21550,7 +21726,7 @@ function NoticiasAdminCleanup({ onCleaned }) {
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Tipo
-              <select value={tipo} onChange={e=>setTipo(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+              <select value={tipo} onChange={e=>setTipo(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
                 <option value="todos">Todos</option>
                 <option value="comunicado">Comunicado</option>
                 <option value="acceso">Acceso</option>
@@ -21566,7 +21742,7 @@ function NoticiasAdminCleanup({ onCleaned }) {
             </label>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", alignItems:"center" }}>
-            <input value={confirmacion} onChange={e=>setConfirmacion(e.target.value)} placeholder="Escribe LIMPIAR para confirmar" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+            <input value={confirmacion} onChange={e=>setConfirmacion(safeEventValue(e))} placeholder="Escribe LIMPIAR para confirmar" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             <button onClick={limpiar} disabled={busy} style={{ padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(239,68,68,0.45)", background:busy ? "rgba(100,116,139,.18)" : "linear-gradient(135deg,#ef4444,#b91c1c)", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:busy ? "wait" : "pointer" }}>{busy ? "Limpiando…" : "Eliminar"}</button>
           </div>
         </div>
@@ -21591,9 +21767,13 @@ function NoticiasTab({ isAdmin }) {
     document.head.appendChild(style);
   }, []);
   const theme = React.useContext(ThemeContext);
-  const [noticias,      setNoticias]      = useState([]);
-  const [comunicados,   setComunicados]   = useState([]);
-  const [loading,       setLoading]       = useState(true);
+  const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v3";
+  const COMUNICADOS_CACHE_KEY = "cm_comunicados_cache_v3";
+  const noticiasCacheInicial = useMemo(() => readJsonCache(NOTICIAS_CACHE_KEY, [], "local"), []);
+  const comunicadosCacheInicial = useMemo(() => readJsonCache(COMUNICADOS_CACHE_KEY, [], "session"), []);
+  const [noticias,      setNoticias]      = useState(() => Array.isArray(noticiasCacheInicial) ? noticiasCacheInicial : []);
+  const [comunicados,   setComunicados]   = useState(() => Array.isArray(comunicadosCacheInicial) ? comunicadosCacheInicial : []);
+  const [loading,       setLoading]       = useState(() => !Array.isArray(noticiasCacheInicial) || noticiasCacheInicial.length === 0);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
@@ -21604,67 +21784,165 @@ function NoticiasTab({ isAdmin }) {
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const cargarNoticias = useCallback(() => {
-    setLoading(true);
-    return sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
-      .then(({ data, error }) => {
-        if (error) console.error("Error cargando noticias:", error);
-        if (data) setNoticias(data);
+  const noticiasLoadRef = useRef(null);
+
+  const cargarNoticias = useCallback(({ force = false } = {}) => {
+    if (!force && noticiasLoadRef.current) return noticiasLoadRef.current;
+    if (!noticias.length) setLoading(true);
+
+    const task = fetchSupabaseRowsDirect("noticias", {
+      select:"*",
+      order:"created_at",
+      ascending:false,
+      limit:150,
+      timeoutMs:12000,
+    })
+      .then((data) => {
+        const next = Array.isArray(data) ? data : [];
+        setNoticias(next);
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        return next;
+      })
+      .catch(error => {
+        console.error("Error cargando noticias:", error);
+        return null;
+      })
+      .finally(() => {
         setLoading(false);
+        noticiasLoadRef.current = null;
       });
+
+    noticiasLoadRef.current = task;
+    return task;
   }, []);
 
-  const cargarComunicados = useCallback(() => {
-    sb.from("comunicados")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100)
-      .then(async ({ data, error }) => {
-        if (error) console.error("Error cargando comunicados:", error);
-        if (data) {
-          const aprobados = data.filter(c => isComunicadoAprobado(c.aprobado));
-          setComunicados(aprobados);
-          // Sincronización idempotente hacia Noticias.
-          for (const c of aprobados.slice(0, 25)) {
-            const n = await syncComunicadoToNoticia(c, { processMedia: false });
-            if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
-          }
-        }
+  const cargarComunicados = useCallback(async () => {
+    try {
+      const data = await fetchSupabaseRowsDirect("comunicados", {
+        select:"*",
+        order:"created_at",
+        ascending:false,
+        limit:100,
+        timeoutMs:12000,
       });
+
+      const aprobados = (Array.isArray(data) ? data : []).filter(c => isComunicadoAprobado(c.aprobado));
+      setComunicados(aprobados);
+      writeJsonCache(COMUNICADOS_CACHE_KEY, aprobados, "session");
+
+      // La sincronización secundaria no bloquea el primer render ni la carga del feed.
+      deferWork(() => {
+        Promise.allSettled(
+          aprobados.slice(0, 8).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
+        ).then(results => {
+          const sincronizadas = results
+            .filter(result => result.status === "fulfilled" && result.value)
+            .map(result => result.value);
+          if (!sincronizadas.length) return;
+          setNoticias(prev => {
+            const merged = [...sincronizadas, ...prev]
+              .filter((row, index, rows) => rows.findIndex(x => String(x.id) === String(row.id)) === index)
+              .slice(0, 150);
+            writeJsonCache(NOTICIAS_CACHE_KEY, merged, "local");
+            return merged;
+          });
+        });
+      }, 250);
+      return aprobados;
+    } catch (error) {
+      console.error("Error cargando comunicados:", error);
+      return null;
+    }
   }, []);
 
   useEffect(() => {
-    cargarNoticias();
-    cargarComunicados();
+    let active = true;
+
+    // Render inmediato desde caché; la red revalida en segundo plano.
+    Promise.allSettled([
+      cargarNoticias({ force:true }),
+      cargarComunicados(),
+    ]);
+
     const chan = sb.channel("noticias-comunicados-rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150));
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"noticias" }, ({ new:r }) => {
+        if (!active || !r) return;
+        setNoticias(prev => {
+          const next = prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150);
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          return next;
+        });
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => prev.map(x => x.id === r.id ? r : x));
+      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"noticias" }, ({ new:r }) => {
+        if (!active || !r) return;
+        setNoticias(prev => {
+          const next = prev.map(x => x.id === r.id ? r : x);
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          return next;
+        });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
-        const aprobado = isComunicadoAprobado(r?.aprobado);
-        if (r && aprobado) {
-          setComunicados(prev => prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 80));
-          const n = await syncComunicadoToNoticia(r, { processMedia: true });
-          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+      .on("postgres_changes", { event:"DELETE", schema:"public", table:"noticias" }, ({ old:r }) => {
+        if (!active || !r?.id) return;
+        setNoticias(prev => {
+          const next = prev.filter(x => x.id !== r.id);
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          return next;
+        });
+      })
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"comunicados" }, async ({ new:r }) => {
+        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
+        setComunicados(prev => {
+          const next = prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 100);
+          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
+          return next;
+        });
+        const n = await syncComunicadoToNoticia(r, { processMedia:true });
+        if (active && n) setNoticias(prev => {
+          const next = prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150);
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          return next;
+        });
+      })
+      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"comunicados" }, async ({ new:r }) => {
+        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
+        setComunicados(prev => {
+          const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 100);
+          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
+          return next;
+        });
+        const n = await syncComunicadoToNoticia(r, { processMedia:true });
+        if (active && n) setNoticias(prev => {
+          const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? n : x) : [n, ...prev].slice(0, 150);
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          return next;
+        });
+      })
+      .on("postgres_changes", { event:"DELETE", schema:"public", table:"comunicados" }, ({ old:r }) => {
+        if (!active || !r?.id) return;
+        setComunicados(prev => {
+          const next = prev.filter(c => c.id !== r.id);
+          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
+          return next;
+        });
+      })
+      .subscribe(status => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[Noticias] Canal realtime no disponible; se conserva caché y actualización por visibilidad.", status);
         }
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, async ({ new: r }) => {
-        const aprobado = isComunicadoAprobado(r?.aprobado);
-        if (r && aprobado) {
-          setComunicados(prev => prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 80));
-          const n = await syncComunicadoToNoticia(r, { processMedia: true });
-          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
-        }
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
-        if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
-      })
-      .subscribe();
-    return () => sb.removeChannel(chan);
+      });
+
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible") cargarNoticias({ force:true });
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      sb.removeChannel(chan);
+    };
   }, [cargarNoticias, cargarComunicados]);
+
 
   const FILTROS = [
     { id: "todos",      label: "Todos",       icon: "news" },
@@ -22410,9 +22688,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
-  const [trabajadores, setTrabajadores] = useState([]);
-  const [empresas, setEmpresas] = useState([]);
-  const [ratings, setRatings] = useState([]);
+  const POSTURAS_DASHBOARD_CACHE_KEY = "cm_posturas_dashboard_cache_v3";
+  const posturasDashboardCache = useMemo(
+    () => readJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, { trabajadores:[], empresas:[], ratings:[] }, "session"),
+    []
+  );
+  const [trabajadores, setTrabajadores] = useState(() => Array.isArray(posturasDashboardCache?.trabajadores) ? posturasDashboardCache.trabajadores : []);
+  const [empresas, setEmpresas] = useState(() => Array.isArray(posturasDashboardCache?.empresas) ? posturasDashboardCache.empresas : []);
+  const [ratings, setRatings] = useState(() => Array.isArray(posturasDashboardCache?.ratings) ? posturasDashboardCache.ratings : []);
   const [quejas, setQuejas] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
@@ -22725,7 +23008,25 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const card = { background:"rgba(18,33,49,0.88)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,0.55)", borderRadius:"18px", padding:"18px", boxShadow:"0 18px 42px rgba(1,15,31,0.28), inset 0 1px 0 rgba(255,255,255,0.04)" };
   const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
-  const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
+  const btn = (color="#a1c9ff") => ({
+    border:`1px solid ${color}55`,
+    background:`${color}14`,
+    color,
+    borderRadius:"12px",
+    padding:"10px 14px",
+    fontFamily:getFont(theme,"secondary"),
+    fontSize:"11px",
+    fontWeight:"900",
+    cursor:"pointer",
+    letterSpacing:".04em",
+    textTransform:"uppercase",
+    transition:"all .18s ease",
+    display:"inline-flex",
+    alignItems:"center",
+    justifyContent:"center",
+    gap:"8px",
+    lineHeight:1.2,
+  });
   const POSTURAS_PAGO = ["Efectivo", "Transferencia", "Criptomonedas"];
   const sessionPosturasType = authUser?.user_metadata?.posturas_user_type || authUser?.user_metadata?.userType || posturasUserType || "";
   const isPosturasLoggedIn = !!authUser;
@@ -23293,72 +23594,142 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const loadPosturas = async ({ force = false } = {}) => {
     if (!force && posturasLoadPromiseRef.current) return posturasLoadPromiseRef.current;
     const requestId = ++posturasLoadRequestRef.current;
-    const task = (async () => {
-      setLoading(true);
-      try {
-        setPosturasLoadError("");
-        const publicPayload = await fetch("/api/posturas/public").then(async response => {
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
-          return body;
-        });
+    const hasHydratedDashboard = trabajadores.length > 0 || empresas.length > 0 || ratings.length > 0;
 
-        // Las consultas que pueden depender de Supabase Auth se ejecutan de forma
-        // serializada y con reintento acotado para no competir por el Web Lock de sesión.
-        const ratingsResult = await runWithSupabaseLockRetry(() =>
-          sb.from("posturas_ratings").select("*").order("created_at", { ascending:false })
+    const task = (async () => {
+      if (!hasHydratedDashboard) setLoading(true);
+      setPosturasLoadError("");
+
+      try {
+        // Los datos públicos y las valoraciones se solicitan en paralelo. Las quejas y
+        // notificaciones son secundarias y no bloquean la hidratación del TABLERO.
+        const publicRequest = withAsyncTimeout(
+          fetch("/api/posturas/public", { cache:"no-store" }).then(async response => {
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
+            return body;
+          }),
+          9000,
+          "Tiempo de espera agotado al cargar el tablero."
         );
-        const complaintsResult = await runWithSupabaseLockRetry(() =>
-          sb.from("posturas_quejas").select("*").order("created_at", { ascending:false })
+
+        const ratingsRequest = withAsyncTimeout(
+          runWithSupabaseLockRetry(
+            () => sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
+            { attempts:3, baseDelay:120 }
+          ),
+          8500,
+          "Tiempo de espera agotado al cargar valoraciones."
         );
+
+        const [publicSettled, ratingsSettled] = await Promise.allSettled([
+          publicRequest,
+          ratingsRequest,
+        ]);
 
         if (requestId !== posturasLoadRequestRef.current) return;
-        const t = publicPayload.trabajadores || [];
-        const e = publicPayload.empresas || [];
-        const r = ratingsResult.data || [];
-        const qj = complaintsResult.data || [];
+
+        const cached = readJsonCache(
+          POSTURAS_DASHBOARD_CACHE_KEY,
+          { trabajadores, empresas, ratings },
+          "session"
+        );
+        const publicPayload = publicSettled.status === "fulfilled"
+          ? publicSettled.value
+          : { trabajadores:cached?.trabajadores || trabajadores, empresas:cached?.empresas || empresas };
+        const ratingRows = ratingsSettled.status === "fulfilled"
+          ? (ratingsSettled.value?.data || [])
+          : (cached?.ratings || ratings);
+
+        if (publicSettled.status === "rejected") {
+          console.error("Error cargando perfiles para TABLERO:", publicSettled.reason);
+        }
+        if (ratingsSettled.status === "rejected") {
+          console.error("Error cargando valoraciones para TABLERO:", ratingsSettled.reason);
+        }
+
+        const t = Array.isArray(publicPayload?.trabajadores) ? publicPayload.trabajadores : [];
+        const e = Array.isArray(publicPayload?.empresas) ? publicPayload.empresas : [];
         const now = Date.now();
         const empresasVisibles = e.filter(row => {
           const requestedAt = row.delete_requested_at || row.deletion_requested_at;
           if (!requestedAt) return true;
           return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
         });
-        setTrabajadores(t.filter(row => !isProfileBanned(row)));
-        setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row)));
-        setRatings(r);
-        setQuejas(qj);
+        const nextTrabajadores = t.filter(row => !isProfileBanned(row));
+        const nextEmpresas = empresasVisibles.filter(row => !isProfileBanned(row));
 
-        try {
-          const notifResult = await runWithSupabaseLockRetry(() =>
-            sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false })
-          );
-          if (requestId !== posturasLoadRequestRef.current) return;
-          const visibleNotifications = (notifResult.data || []).filter(n => {
-            if (isAdmin) return true;
-            if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
-            if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
-            return false;
-          });
-          setNotificaciones(visibleNotifications);
-        } catch (notificationError) {
-          if (!isSupabaseLockAbort(notificationError)) setNotificaciones([]);
-        }
+        setTrabajadores(nextTrabajadores);
+        setEmpresas(nextEmpresas);
+        setRatings(ratingRows);
+        writeJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, {
+          trabajadores:nextTrabajadores,
+          empresas:nextEmpresas,
+          ratings:ratingRows,
+        }, "session");
 
         const myProfiles = [...t, ...e].filter(x =>
           (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId
         );
-        const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
+        const stale = myProfiles.some(x =>
+          Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000
+        );
         setShowReminder(!!authUser && stale);
         setMsg(current => current?.text === "No se pudieron cargar los datos del Centro de Talento." ? null : current);
+
+        // Carga diferida de módulos secundarios.
+        deferWork(async () => {
+          try {
+            const complaintsResult = await withAsyncTimeout(
+              runWithSupabaseLockRetry(
+                () => sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
+                { attempts:2, baseDelay:160 }
+              ),
+              7000,
+              "timeout"
+            );
+            if (requestId === posturasLoadRequestRef.current) setQuejas(complaintsResult.data || []);
+          } catch (error) {
+            if (!isSupabaseLockAbort(error)) console.error("Error cargando reportes secundarios:", error);
+          }
+
+          try {
+            const notifResult = await withAsyncTimeout(
+              runWithSupabaseLockRetry(
+                () => sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false }),
+                { attempts:2, baseDelay:160 }
+              ),
+              7000,
+              "timeout"
+            );
+            if (requestId !== posturasLoadRequestRef.current) return;
+            const visibleNotifications = (notifResult.data || []).filter(n => {
+              if (isAdmin) return true;
+              if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
+              if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
+              return false;
+            });
+            setNotificaciones(visibleNotifications);
+          } catch (error) {
+            if (!isSupabaseLockAbort(error)) console.error("Error cargando notificaciones secundarias:", error);
+          }
+        }, 120);
+
+        if (publicSettled.status === "rejected" && ratingsSettled.status === "rejected" && !hasHydratedDashboard) {
+          throw publicSettled.reason || ratingsSettled.reason;
+        }
       } catch (error) {
         if (requestId !== posturasLoadRequestRef.current) return;
         const errorMessage = error?.message || "No se pudieron cargar los datos de Supabase.";
         setPosturasLoadError(errorMessage);
-        setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
+        if (!hasHydratedDashboard) {
+          setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
+        }
       } finally {
         if (requestId === posturasLoadRequestRef.current) setLoading(false);
       }
     })();
+
     posturasLoadPromiseRef.current = task;
     try {
       return await task;
@@ -23366,59 +23737,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       if (posturasLoadPromiseRef.current === task) posturasLoadPromiseRef.current = null;
     }
   };
-  useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
-  useEffect(() => {
-    const refreshLinkedProfile = () => loadPosturas();
-    window.addEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
-    return () => window.removeEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
-  }, [authUser?.id, myId]);
-
-  useEffect(() => {
-    if (!pisResult) return undefined;
-    const resetTimer = setTimeout(() => {
-      setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
-      setPisResult(null);
-      setPisContactMessage("");
-      setPisEmailCopied(false);
-      setPisCopiedField("");
-      setPisContactUnlocked(hasPisContactUnlock());
-      setPisUnlockRequested(false);
-      setPisUnlockSeconds(0);
-    }, 120000);
-    return () => clearTimeout(resetTimer);
-  }, [pisResult?.checked_at, pisResult?.status, hasPisContactUnlock]);
-
-  useEffect(() => {
-    if (!pisResult || !pisUnlockRequested || pisContactUnlocked) return undefined;
-    setPisUnlockSeconds(30);
-    const unlockStartedAt = Date.now();
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, 30 - Math.floor((Date.now() - unlockStartedAt) / 1000));
-      setPisUnlockSeconds(remaining);
-      if (remaining <= 0) {
-        markPisContactUnlocked();
-        clearInterval(interval);
-      }
-    }, 500);
-    const unlockTimer = setTimeout(() => {
-      markPisContactUnlocked();
-    }, 30000);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(unlockTimer);
-    };
-  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
-
-  const canEdit = (row) => !!authUser && row.user_id === authUser.id;
-  const requireLogin = () => { requestProtectedProfileAccess("login"); setMsg({ type:"err", text:"Inicia sesión o crea una cuenta antes de configurar un perfil." }); return false; };
-  const deletionDaysLeft = (row) => {
-    if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
-    const start = new Date(row.delete_requested_at || row.deletion_requested_at).getTime();
-    if (!Number.isFinite(start)) return null;
-    return Math.max(0, Math.ceil((start + 7*24*60*60*1000 - Date.now()) / (24*60*60*1000)));
-  };
-  const isDeletionPending = (row) => deletionDaysLeft(row) !== null && deletionDaysLeft(row) > 0;
-  const isProfileBanned = (row) => String(row?.perfil_estado || row?.estado || "").toLowerCase() === "baneado" || row?.banned === true || row?.banneado === true;
 
   const saveTrab = async () => {
     if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
@@ -23607,23 +23925,45 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
   const loadTickets = useCallback(async () => {
-    if (!authUser?.id && !isAdmin) { setTickets([]); return; }
-    setTicketsLoading(true); setTicketsError("");
-    let query = sb.from("quejas_tickets").select("*").order("fecha_creacion", { ascending:false });
-    if (!isAdmin) query = query.eq("user_id", authUser.id);
-    const { data, error } = await query;
-    if (error) {
-      setTicketsError(error.code === "42P01" ? "La tabla de tickets aún no está disponible. Aplica la migración incluida en el código." : error.message);
+    if (!authUser?.id && !isAdmin) { setTickets([]); setTicketsError(""); return; }
+    setTicketsLoading(true);
+    setTicketsError("");
+    try {
+      let query = sb.from("quejas_tickets").select("*").order("fecha_creacion", { ascending:false });
+      if (!isAdmin) query = query.eq("user_id", authUser?.id ?? "");
+      const { data, error } = await query;
+      if (error) throw error;
+      setTickets(safeArray(data));
+    } catch (error) {
       setTickets([]);
-    } else setTickets(data || []);
-    setTicketsLoading(false);
+      setTicketsError(error?.code === "42P01"
+        ? "La tabla de tickets aún no está disponible. Aplica la migración incluida en el código."
+        : safeErrorMessage(error, "No fue posible cargar los tickets."));
+    } finally {
+      setTicketsLoading(false);
+    }
   }, [authUser?.id, isAdmin]);
 
-  useEffect(() => { loadTickets(); }, [loadTickets]);
+  useEffect(() => {
+    let active = true;
+    void loadTickets();
+    let channel = null;
+    try {
+      channel = sb.channel(`quejas-tickets-${authUser?.id || "admin"}`)
+        .on("postgres_changes", { event:"*", schema:"public", table:"quejas_tickets" }, () => { if (active) void loadTickets(); })
+        .subscribe();
+    } catch (error) {
+      console.warn("No se pudo iniciar la actualización en tiempo real de tickets", error);
+    }
+    return () => {
+      active = false;
+      if (channel) { try { void sb.removeChannel(channel); } catch (_) {} }
+    };
+  }, [loadTickets, authUser?.id]);
 
   const addTicketEvidence = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
+    const files = safeEventFiles(event);
+    safelyResetFileInput(event);
     if (!files.length) return;
     const accepted = [];
     for (const file of files.slice(0, Math.max(0, 5-ticketForm.evidencia.length))) {
@@ -23883,14 +24223,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"10px", alignItems:"center", marginBottom:"10px" }}>
       <div style={{ position:"relative" }}>
         <span style={{ position:"absolute", left:"13px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><AppIcon name="search" size={17} /></span>
-        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"42px"}} />
+        <input value={q} onChange={e=>{setQ(safeEventValue(e)); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"42px"}} />
       </div>
       <div style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", gap:"7px", padding:"12px 14px", whiteSpace:"nowrap" }}><AppIcon name="filter-list" size={16} active /> Filtros</div>
     </div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px" }}>
-      <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
-      <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
-      <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+      <select value={filtroEstatus} onChange={e=>setFiltroEstatus(safeEventValue(e))} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+      <select value={filtroAlcance} onChange={e=>setFiltroAlcance(safeEventValue(e))} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+      <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(safeEventValue(e))} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
     </div>
   </div>;
 
@@ -23942,7 +24282,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ marginTop:"16px", padding:"13px", border:"1px solid rgba(251,191,36,.22)", background:"rgba(251,191,36,.06)", borderRadius:"14px" }}>
           <div style={{ color:"rgba(255,255,255,0.62)", fontSize:"10px", fontWeight:"900", marginBottom:"7px", fontFamily:getFont(theme,"secondary"), textTransform:"uppercase", letterSpacing:".08em" }}>Calificar trabajo</div>
           <StarRating value={myStars} onRate={setMyStars} />
-          <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"8px", minHeight:"58px"}} />
+          <textarea value={comment} onChange={e=>setComment(safeEventValue(e))} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"8px", minHeight:"58px"}} />
           <button disabled={!myStars} onClick={()=>rate("trabajador", row.id, myStars, comment)} style={{...btn("#fbbf24"), opacity:myStars?1:.45, marginTop:"8px"}}>Guardar calificación</button>
         </div>
         {commentsFor(row.id).slice(0,3).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.62)", fontSize:"10px", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"9px" }}>★ {c.stars} · {c.comment}</div>)}
@@ -23997,7 +24337,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         autoComplete="off"
         style={input}
         value={posturasSalaryRules[field] ?? ""}
-        onChange={e=>updatePosturasSalaryRule(field, e.target.value)}
+        onChange={e=>updatePosturasSalaryRule(field, safeEventValue(e))}
         placeholder="Escribe la cantidad"
       />
     </div>
@@ -24078,19 +24418,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       </div>
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil suspendido por vigencia mayor a 90 días. Conservas tu histórico, pero debes actualizar datos y documentos para volver a postularte.</div>}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
-        <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:e.target.value}))}/></div>
-        <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
-        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
-        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
-        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
-        <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
-        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
-        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
-        <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:safeEventValue(e)}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:safeEventValue(e)}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:safeEventValue(e)}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:safeEventValue(e)==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
+        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:safeEventValue(e)}))}/></div>
+        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:safeEventValue(e)}))}/></div>
+        <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:safeEventValue(e)}))} placeholder="Domicilio actual para vigencia documental" /></div>
+        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:safeEventValue(e)}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
+        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:safeEventValue(e)}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
+        <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:safeEventValue(e)}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields[field] ? "Cifrando y almacenando…" : encryptedFileLabel(trabForm[field])}</div></div>)}
       </div>
       <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear perfil")}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
@@ -24114,20 +24454,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Conservas el histórico, pero debes actualizar documentos para publicar vacantes.</div>}
       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /></div>
       {step === 1 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
-        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
-        <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:e.target.value, ubicacion:e.target.value}))} placeholder="Domicilio fiscal u operativo" /></div>
+        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:safeEventValue(e)}))} placeholder="Se autocompleta con la sesión activa" /></div>
+        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:safeEventValue(e).toUpperCase()}))}/></div>
+        <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:safeEventValue(e)}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:safeEventValue(e), ubicacion:safeEventValue(e)}))} placeholder="Domicilio fiscal u operativo" /></div>
         <FileInput field="logo_empresa" textLabel="Logo de la empresa" />
         <FileInput field="comprobante_domicilio" textLabel="Comprobante de domicilio" />
       </div>}
       {step === 2 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value, representante:e.target.value}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value, telefono:e.target.value}))}/></div>
+        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:safeEventValue(e), representante:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:safeEventValue(e), telefono:safeEventValue(e)}))}/></div>
         <FileInput field="contacto_principal_foto" textLabel="Foto de contacto principal" />
-        <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
-        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:e.target.value, correo:e.target.value}))}/></div>
+        <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:safeEventValue(e), correo:safeEventValue(e)}))}/></div>
       </div>}
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
         <div style={{ display:"flex", gap:"8px" }}>
@@ -24188,26 +24528,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {existing && <div style={{ marginBottom:"16px", display:"inline-flex", alignItems:"center", gap:"7px", padding:"7px 10px", borderRadius:"8px", border:`1px solid ${expired ? "rgba(245,158,11,.38)" : "rgba(34,197,94,.30)"}`, background:expired ? "rgba(245,158,11,.09)" : "rgba(34,197,94,.08)", color:expired ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:800, textTransform:"uppercase", letterSpacing:".08em" }}><VacancyLineIcon name="shield" size={14}/>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</div>}
         {expired && <div style={{ margin:"0 0 18px", padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(245,158,11,.38)", background:"rgba(245,158,11,.09)", color:"#fbbf24", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:700, lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Actualiza el registro empresarial antes de publicar nuevas vacantes.</div>}
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,3fr) minmax(180px,1fr)", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Título de la vacante</div><input className="cm-vacancy-input" style={{...fieldInput,textTransform:"uppercase"}} value={vacancyForm.titulo_vacante||""} onInput={e=>updateVacancyForm(f=>({...f,titulo_vacante:e.currentTarget.value.toUpperCase()}))} placeholder="OPERADOR DE TRÁILER RUTA LOCAL" /></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Cantidad de operadores requerida</div><input className="cm-vacancy-input" type="number" min="1" step="1" style={fieldInput} value={vacancyForm.cantidad_operadores||""} onChange={e=>updateVacancyForm(f=>({...f,cantidad_operadores:e.target.value}))} placeholder="5" /></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Título de la vacante</div><input className="cm-vacancy-input" style={{...fieldInput,textTransform:"uppercase"}} value={vacancyForm.titulo_vacante||""} onInput={e=>updateVacancyForm(f=>({...f,titulo_vacante:safeEventValue(e).toUpperCase()}))} placeholder="OPERADOR DE TRÁILER RUTA LOCAL" /></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Cantidad de operadores requerida</div><input className="cm-vacancy-input" type="number" min="1" step="1" style={fieldInput} value={vacancyForm.cantidad_operadores||""} onChange={e=>updateVacancyForm(f=>({...f,cantidad_operadores:safeEventValue(e)}))} placeholder="5" /></FocusWrap>
         </div>
         <FocusWrap style={{ marginBottom:"16px" }}><div style={fieldLabel}>Empresa de la vacante</div><div style={{position:"relative"}}><input className="cm-vacancy-input" style={{...fieldInput,width:"100%",paddingRight:"46px",opacity:.72,cursor:"not-allowed"}} value={companyName} readOnly /><span style={{position:"absolute",right:"14px",top:"50%",transform:"translateY(-50%)",color:"rgba(0,153,255,.65)",display:"grid",placeItems:"center"}}><VacancyLineIcon name="shield" size={18}/></span></div></FocusWrap>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(3,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Trabajo</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.estatus} onChange={e=>updateVacancyForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Alcance</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.alcance} onChange={e=>updateVacancyForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Tipo de viaje</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.tipo_viaje||"Local"} onChange={e=>updateVacancyForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Trabajo</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.estatus} onChange={e=>updateVacancyForm(f=>({...f,estatus:safeEventValue(e)}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Alcance</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.alcance} onChange={e=>updateVacancyForm(f=>({...f,alcance:safeEventValue(e)}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Tipo de viaje</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.tipo_viaje||"Local"} onChange={e=>updateVacancyForm(f=>({...f,tipo_viaje:safeEventValue(e)}))}><option>Local</option><option>Foráneo</option></select></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Tipo de maniobra requerida</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.maniobra_requerida||"Full"} onChange={e=>updateVacancyForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Licencia solicitada</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>updateVacancyForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Tipo de maniobra requerida</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.maniobra_requerida||"Full"} onChange={e=>updateVacancyForm(f=>({...f,maniobra_requerida:safeEventValue(e)}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Licencia solicitada</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>updateVacancyForm(f=>({...f,licencia_solicitada:safeEventValue(e)}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Método de pago ofrecido</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>updateVacancyForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Método de pago ofrecido</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>updateVacancyForm(f=>({...f,metodo_pago_ofrecido:safeEventValue(e)}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
           <FocusWrap><div style={fieldLabel}>Imagen para ofrecer la vacante</div><input className="cm-vacancy-input" type="file" accept="image/*" style={{...fieldInput,padding:"9px 12px"}} onChange={e=>{ setIsVacancyDirty(true); handleFileMeta(setVacancyForm,"imagen_vacante",e.target.files); }} /><div style={{ color:"rgba(191,199,213,.48)", fontSize:"9px", marginTop:"5px", fontFamily:"'Inter', sans-serif" }}>{encryptedUploadFields.imagen_vacante ? "Cifrando y almacenando" : encryptedFileLabel(vacancyForm.imagen_vacante)}</div></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px", paddingBottom:"24px", borderBottom:"1px solid rgba(63,71,83,.30)" }}>
-          <FocusWrap style={{display:tripIsLocal ? "block" : "none"}}><div style={fieldLabel}>Pago ofrecido viaje local</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#9fcaff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_local_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} a ${salarioMaxEmpresaLocal}`} /></div></FocusWrap>
-          <FocusWrap style={{display:tripIsLocal ? "none" : "block"}}><div style={fieldLabel}>Pago ofrecido viaje foráneo</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#bdf4ff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_foraneo_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} a ${salarioMaxEmpresaForaneo}`} /></div></FocusWrap>
+          <FocusWrap style={{display:tripIsLocal ? "block" : "none"}}><div style={fieldLabel}>Pago ofrecido viaje local</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#9fcaff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_local_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_local_ofrecido:safeEventValue(e)}))} placeholder={`Rango local ${salarioMinEmpresaLocal} a ${salarioMaxEmpresaLocal}`} /></div></FocusWrap>
+          <FocusWrap style={{display:tripIsLocal ? "none" : "block"}}><div style={fieldLabel}>Pago ofrecido viaje foráneo</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#bdf4ff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_foraneo_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_foraneo_ofrecido:safeEventValue(e)}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} a ${salarioMaxEmpresaForaneo}`} /></div></FocusWrap>
         </div>
         <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"12px", marginTop:"22px", flexWrap:"wrap" }}>
           <button type="button" className="cm-vacancy-secondary" onClick={()=>{closeVacancyModal();setCompanyFormMode("registro");setEmpWizardStep(1);}} style={{ minHeight:"44px", padding:"0 20px", borderRadius:"8px", border:"1px solid #3f4753", background:"transparent", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:800, letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer", transition:"all .25s ease" }}>Cerrar o editar registro empresarial</button>
@@ -24449,11 +24789,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px", minWidth:0 }}>
               <div>
                 <div style={label}>ASIPONA</div>
-                <select style={{ ...input, background:"rgba(39,54,71,.96)" }} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
+                <select style={{ ...input, background:"rgba(39,54,71,.96)" }} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:safeEventValue(e)}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
               </div>
               <div>
                 <div style={label}>Tipo</div>
-                <select style={{ ...input, border:"1px solid rgba(161,201,255,.88)", background:"rgba(51,68,91,.95)" }} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select>
+                <select style={{ ...input, border:"1px solid rgba(161,201,255,.88)", background:"rgba(51,68,91,.95)" }} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:safeEventValue(e)}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select>
               </div>
               <div style={{ gridColumn:"1 / -1" }}>
                 <div style={label}>ID</div>
@@ -24472,11 +24812,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                   placeholder="Ej. 36938"
                   defaultValue={pisForm.id}
                   onInput={e=>{
-                    const raw = e.currentTarget.value;
+                    const raw = safeEventValue(e);
                     const normalized = raw.replace(/[^0-9]/g, "");
                     if (raw !== normalized) {
                       const cursor = e.currentTarget.selectionStart;
-                      e.currentTarget.value = normalized;
+                      try { if (e?.currentTarget) e.currentTarget.value = normalized; else if (e?.target) e.target.value = normalized; } catch (_) {}
                       if (typeof cursor === "number") {
                         const removedBeforeCursor = raw.slice(0, cursor).replace(/[0-9]/g, "").length;
                         const nextCursor = Math.max(0, cursor - removedBeforeCursor);
@@ -24486,7 +24826,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                       }
                     }
                   }}
-                  onBlur={e=>setPisForm(f=>({...f, id:e.currentTarget.value}))}
+                  onBlur={e=>setPisForm(f=>({...f, id:safeEventValue(e)}))}
                   onPaste={e=>{
                     const pasted = e.clipboardData?.getData("text") || "";
                     if (!pasted) return;
@@ -24596,7 +24936,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                     </div>
                     <textarea
                       value={pisContactMessage}
-                      onChange={e=>setPisContactMessage(e.target.value)}
+                      onChange={e=>setPisContactMessage(safeEventValue(e))}
                       placeholder="Escribe aquí tu consulta específica para ASIPONA..."
                       rows={3}
                       style={{ ...input, resize:"vertical", minHeight:"78px", marginBottom:"10px" }}
@@ -25317,7 +25657,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend={talentAvgTrend} spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
         <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend={companyAvgTrend} spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
       </div>
-      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
+      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(safeEventValue(e));setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
       <section className="cm-talent-ranking">
         <div className="cm-talent-ranking-head"><h2>Ranking de Reputación</h2><div className="cm-talent-tabs"><button className={`cm-talent-tab ${dashboardTarget === "perfiles" ? "active" : ""}`} onClick={()=>{setDashboardTarget("perfiles");setDashboardPage(1);}}>TALENTO</button><button className={`cm-talent-tab ${dashboardTarget === "empresas" ? "active" : ""}`} onClick={()=>{setDashboardTarget("empresas");setDashboardPage(1);}}>EMPRESAS</button></div></div>
         <div className="cm-talent-table-wrap"><table className="cm-talent-table"><thead><tr><th>Ranking</th><th>Usuario / Empresa</th><th>Reputación</th><th>Estado</th><th style={{textAlign:"right"}}>Acciones</th></tr></thead><tbody>
@@ -25379,16 +25719,16 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {!isAdmin&&<section style={{...card,border:"1px solid rgba(159,202,255,.24)",overflow:"hidden"}}>
         <div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",alignItems:"center",gap:"11px"}}><MS name="confirmation_number" size={23} active/><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>Crear ticket</div><div style={{color:"#bfc7d5",fontSize:"12px"}}>Describe el problema y adjunta evidencia segura si es necesario.</div></div></div>
         <div style={{padding:"18px",display:"grid",gap:"14px"}}>
-          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:e.target.value}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
-          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:e.target.value}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
-          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"inline-flex",alignItems:"center",gap:"7px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
-          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"grid",placeItems:"center",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><span className="cm-cyan-pulse"/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:safeEventValue(e)}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:safeEventValue(e)}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
+          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
+          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><MS name="hourglass_top" size={18}/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
         </div>
       </section>}
-      {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:e.target.value}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:e.target.value}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:e.target.value}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:e.target.value}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:e.target.value}))} style={input}/></section>}
+      {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:safeEventValue(e)}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:safeEventValue(e)}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:safeEventValue(e)}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:safeEventValue(e)}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:safeEventValue(e)}))} style={input}/></section>}
       <section style={{...card,overflow:"hidden"}}><div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><div style={{color:"#89919e",fontSize:"11px"}}>{filtered.length} ticket(s)</div></div><button onClick={loadTickets} style={btn("#9fcaff")}><MS name="refresh" size={18}/>Actualizar</button></div>
-        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"38px",textAlign:"center",color:"#89919e"}}>No hay tickets para mostrar.</div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":"chevron_right"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:e.target.value}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:e.target.value}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
+        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"48px 20px",display:"grid",placeItems:"center",textAlign:"center",color:"#89919e"}}><div style={{display:"grid",placeItems:"center",width:"156px",height:"156px",borderRadius:"18px",border:"1px solid rgba(159,202,255,.14)",background:"rgba(11,15,16,.55)",boxShadow:"inset 0 0 0 12px rgba(159,202,255,.025)"}}><MS name="radar" size={64} active/></div><div style={{marginTop:"18px",color:"#e0e3e5",fontWeight:800,fontSize:"18px"}}>Sin registros detectados</div><div style={{marginTop:"6px",maxWidth:"460px",lineHeight:1.55}}>No se han encontrado tickets activos. Los nuevos incidentes aparecerán aquí cuando sean registrados y validados.</div></div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":open?"expand_less":"expand_more"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:safeEventValue(e)}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:safeEventValue(e)}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
     </div>;
   };
 
@@ -25399,7 +25739,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       ...trabajadores.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"trabajador"})),
       ...empresas.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"empresa"})),
     ];
-    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}><section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}><div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div><div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>{pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}</section></div>;
+    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}><section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}><div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div><div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>{pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:safeEventValue(e)}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}</section></div>;
   };
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
@@ -25552,7 +25892,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"14px", marginBottom:"22px", padding:"16px", background:"rgba(13,28,45,.52)", border:"1px solid rgba(63,71,83,.32)", borderRadius:"16px" }}>
       <div style={{ flex:1, minWidth:"260px", position:"relative" }}>
         <span style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={20} /></span>
-        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
+        <input value={q} onChange={e=>{setQ(safeEventValue(e)); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
       </div>
       <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
         <button type="button" onClick={()=>setTalentView("perfiles")} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 16px", borderRadius:"12px", border:`1px solid ${talentView === "perfiles" ? "rgba(161,201,255,.55)" : "rgba(63,71,83,.45)"}`, background:talentView === "perfiles" ? "rgba(161,201,255,.14)" : "rgba(18,33,49,.72)", color:talentView === "perfiles" ? "#a1c9ff" : "#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer" }}><MS name="groups" size={18} active={talentView === "perfiles"} /> Ver perfiles</button>
@@ -25828,8 +26168,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <button onClick={()=>setPosturasReportTarget(null)} style={{ ...btn("#94a3b8"), padding:"8px 10px" }}>Cerrar</button>
         </div>
         <div style={{ display:"grid", gap:"10px" }}>
-          <div><div style={label}>Tipo de queja</div><select required style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:e.target.value}))}><option value="">Selecciona un tipo de reporte</option><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
-          <div><div style={label}>Comentarios</div><textarea required style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:e.target.value}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
+          <div><div style={label}>Tipo de queja</div><select required style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:safeEventValue(e)}))}><option value="">Selecciona un tipo de reporte</option><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
+          <div><div style={label}>Comentarios</div><textarea required style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:safeEventValue(e)}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
           <button onClick={sendPosturasReport} style={{ ...btn("#ef4444"), width:"100%" }}>Enviar reporte al admin</button>
         </div>
       </div>
@@ -26032,7 +26372,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                             onKeyDown={registerPosturasSearchActivity}
                             onMouseMove={registerPosturasSearchActivity}
                             onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
-                            onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
+                            onChange={e=>{setQ(safeEventValue(e));setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
                             placeholder="Nombre, edad, empresa, calificación, licencia o maniobra..."
                             aria-label="Buscar perfiles, empresas o vacantes"
                           />
@@ -26054,12 +26394,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
                   {posturasFilterOpen && (
                     <div className="cm-posturas-filter-panel">
-                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:e.target.value}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
-                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:e.target.value}))} placeholder="18"/></label>
-                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:e.target.value}))} placeholder="Nombre"/></label>
-                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:e.target.value}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
-                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:e.target.value}))} placeholder="Tipo de licencia"/></label>
-                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:e.target.value}))} placeholder="Tipo de maniobra"/></label>
+                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:safeEventValue(e)}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
+                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:safeEventValue(e)}))} placeholder="18"/></label>
+                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:safeEventValue(e)}))} placeholder="Nombre"/></label>
+                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:safeEventValue(e)}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
+                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:safeEventValue(e)}))} placeholder="Tipo de licencia"/></label>
+                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:safeEventValue(e)}))} placeholder="Tipo de maniobra"/></label>
                       <button type="button" onClick={()=>setPosturasAdvancedFilter({tipo:"todos",edadMin:"",empresa:"",estrellas:"todos",licencia:"",maniobra:""})}>Limpiar</button>
                     </div>
                   )}
@@ -27641,7 +27981,7 @@ function PatioIdentificaMap({ myId }) {
         <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
         <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
         <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}>🎨 Color
-          <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(e.target.value)} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
+          <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(safeEventValue(e))} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
         </label>
         <button onClick={() => fetchGlobalPatios(false)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🔄 Sincronizar</button>
       </div>
@@ -27655,8 +27995,8 @@ function PatioIdentificaMap({ myId }) {
       {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa y herramientas de dibujo…</div>}
 
       <div className="patio-identifica-search" style={{ display:"grid", gridTemplateColumns:"1.15fr .85fr", gap:"8px", marginTop:"12px" }}>
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
-        <select value={selectedId || ""} onChange={e => selectFeature(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+        <input value={query} onChange={e => setQuery(safeEventValue(e))} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={selectedId || ""} onChange={e => selectFeature(safeEventValue(e))} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
           <option value="">Selecciona un patio para centrar el mapa</option>
           {filteredFeatures.map(f => <option key={f.id} value={f.id}>{f.type === "marker" ? `${f.name} · Pin` : f.name}</option>)}
         </select>
@@ -28353,7 +28693,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type="email"
                     autoComplete="email"
                     value={loginUser}
-                    onChange={e => setLoginUser(e.target.value)}
+                    onChange={e => setLoginUser(safeEventValue(e))}
                     placeholder="tu@correo.com"
                     style={cleanInput}
                     onFocus={e => { e.currentTarget.style.borderColor = red; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(197,34,34,.10)"; }}
@@ -28379,7 +28719,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type={showLoginPass ? "text" : "password"}
                     autoComplete="current-password"
                     value={loginPass}
-                    onChange={e => setLoginPass(e.target.value)}
+                    onChange={e => setLoginPass(safeEventValue(e))}
                     placeholder="Ingresa tu contraseña"
                     style={cleanInput}
                     onKeyDown={e => e.key === "Enter" && handleLogin()}
@@ -28496,25 +28836,25 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 1 && (
                   <>
                     <label style={formLabel}>Nombre(s)</label>
-                    <input value={regNombre} onChange={e => setRegNombre(e.target.value)} placeholder="Ej. Juan Carlos" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regNombre} onChange={e => setRegNombre(safeEventValue(e))} placeholder="Ej. Juan Carlos" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Apellidos</label>
-                    <input value={regApellidos} onChange={e => setRegApellidos(e.target.value)} placeholder="Ej. Pérez López" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regApellidos} onChange={e => setRegApellidos(safeEventValue(e))} placeholder="Ej. Pérez López" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Nombre de usuario</label>
-                    <input value={regUsername} onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/\s/g, ""))} placeholder="usuario_sin_espacios" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regUsername} onChange={e => setRegUsername(safeEventValue(e).toLowerCase().replace(/\s/g, ""))} placeholder="usuario_sin_espacios" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Fecha de nacimiento</label>
-                    <input type="date" value={regFecha} onChange={e => setRegFecha(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input type="date" value={regFecha} onChange={e => setRegFecha(safeEventValue(e))} style={{ ...plainInput, marginBottom: "12px" }} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       <div>
                         <label style={formLabel}>País</label>
-                        <input value={regPais} onChange={e => setRegPais(e.target.value)} placeholder="México" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regPais} onChange={e => setRegPais(safeEventValue(e))} placeholder="México" style={{ ...plainInput, marginBottom: "12px" }} />
                       </div>
                       <div>
                         <label style={formLabel}>Ciudad</label>
-                        <input value={regCiudad} onChange={e => setRegCiudad(e.target.value)} placeholder="Manzanillo" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regCiudad} onChange={e => setRegCiudad(safeEventValue(e))} placeholder="Manzanillo" style={{ ...plainInput, marginBottom: "12px" }} />
                       </div>
                     </div>
                     <label style={formLabel}>Tipo de usuario</label>
-                    <select value={regTipoUsuario} onChange={e => setRegTipoUsuario(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }}>
+                    <select value={regTipoUsuario} onChange={e => setRegTipoUsuario(safeEventValue(e))} style={{ ...plainInput, marginBottom: "12px" }}>
                       <option value="visualizador_votante">Visualizador / votante</option>
                       <option value="operador">Operador</option>
                       <option value="empresa">Empresa</option>
@@ -28526,14 +28866,14 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 2 && (
                   <>
                     <label style={formLabel}>Teléfono</label>
-                    <input value={regTel} onChange={e => setRegTel(e.target.value)} placeholder="+5213140000000" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regTel} onChange={e => setRegTel(safeEventValue(e))} placeholder="+5213140000000" style={{ ...plainInput, marginBottom: "12px" }} />
                     <button type="button" onClick={handleEnviarOtp} disabled={loading} style={primaryAuthBtn}>
                       {otpEnviado ? "REENVIAR SMS" : "ENVIAR SMS"}
                     </button>
                     {otpEnviado && (
                       <>
                         <label style={{ ...formLabel, marginTop: "14px" }}>Código de verificación</label>
-                        <input value={regOtp} onChange={e => setRegOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regOtp} onChange={e => setRegOtp(safeEventValue(e).replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" style={{ ...plainInput, marginBottom: "12px" }} />
                         <button type="button" onClick={handleVerificarOtp} disabled={loading} style={outlineAuthBtn}>VERIFICAR TELÉFONO</button>
                       </>
                     )}
@@ -28543,9 +28883,9 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 3 && (
                   <>
                     <label style={formLabel}>Correo electrónico</label>
-                    <input value={regCorreo} onChange={e => setRegCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regCorreo} onChange={e => setRegCorreo(safeEventValue(e))} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Confirmar correo</label>
-                    <input value={regCorreo2} onChange={e => setRegCorreo2(e.target.value)} placeholder="Repite tu correo" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regCorreo2} onChange={e => setRegCorreo2(safeEventValue(e))} placeholder="Repite tu correo" style={{ ...plainInput, marginBottom: "12px" }} />
                   </>
                 )}
 
@@ -28553,17 +28893,17 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <>
                     <label style={formLabel}>Contraseña segura</label>
                     <div style={fieldWrap}>
-                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="Mín. 12 caracteres, mayúscula, minúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(safeEventValue(e))} placeholder="Mín. 12 caracteres, mayúscula, minúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
                       <button type="button" onClick={() => setShowRegPass(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass ? "🙈" : "👁️"}</button>
                     </div>
                     <PasswordStrengthChecklist password={regPass} />
                     <label style={formLabel}>Confirmar contraseña</label>
                     <div style={fieldWrap}>
-                      <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(safeEventValue(e))} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
                       <button type="button" onClick={() => setShowRegPass2(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass2 ? "🙈" : "👁️"}</button>
                     </div>
                     <label style={formLabel}>Verificación humana</label>
-                    <input value={regAntibot} onChange={e => setRegAntibot(e.target.value)} placeholder="¿Cuánto es 3 + 5?" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regAntibot} onChange={e => setRegAntibot(safeEventValue(e))} placeholder="¿Cuánto es 3 + 5?" style={{ ...plainInput, marginBottom: "12px" }} />
                     <div style={{ display: "grid", gap: "9px", marginBottom: "12px" }}>
                       <AuthCheckbox checked={regTerminos} onToggle={() => setRegTerminos(v => !v)} label="Acepto términos y condiciones" />
                       <AuthCheckbox checked={regPrivacidad} onToggle={() => setRegPrivacidad(v => !v)} label="Acepto política de privacidad" />
@@ -28603,7 +28943,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 <AuthMsgBox msg={forgotMsg} />
 
                 <label style={formLabel}>Correo electrónico</label>
-                <input value={forgotCorreo} onChange={e => setForgotCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "16px" }} />
+                <input value={forgotCorreo} onChange={e => setForgotCorreo(safeEventValue(e))} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "16px" }} />
                 <button type="button" onClick={handleForgot} disabled={loading} style={primaryAuthBtn}>
                   {loading ? "ENVIANDO..." : "ENVIAR ENLACE DE RECUPERACIÓN"}
                 </button>
@@ -28996,8 +29336,8 @@ function EncuestaSatisfaccion({ isAdmin }) {
 
               {/* Datos opcionales */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>DATOS DE CONTACTO (OPCIONALES)</div>
-              <input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre (opcional)" style={inputStyle} maxLength={80} />
-              <input type="email" value={correo} onChange={e=>setCorreo(e.target.value)} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
+              <input value={nombre} onChange={e=>setNombre(safeEventValue(e))} placeholder="Tu nombre (opcional)" style={inputStyle} maxLength={80} />
+              <input type="email" value={correo} onChange={e=>setCorreo(safeEventValue(e))} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
 
               {/* Dispositivo — múltiple choice */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px", marginTop:"4px" }}>¿EN QUÉ DISPOSITIVO USAS MÁS LA APP? <span style={{color:"#ef4444"}}>*</span></div>
@@ -29033,13 +29373,13 @@ function EncuestaSatisfaccion({ isAdmin }) {
 
               {/* Preguntas abiertas */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
-              <textarea value={agregarDesc} onChange={e=>setAgregarDesc(e.target.value)} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+              <textarea value={agregarDesc} onChange={e=>setAgregarDesc(safeEventValue(e))} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
-              <textarea value={quitarDesc} onChange={e=>setQuitarDesc(e.target.value)} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+              <textarea value={quitarDesc} onChange={e=>setQuitarDesc(safeEventValue(e))} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>COMENTARIO LIBRE</div>
-              <textarea value={comentario} onChange={e=>setComentario(e.target.value)} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
+              <textarea value={comentario} onChange={e=>setComentario(safeEventValue(e))} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
 
               {/* Aviso privacidad + botón enviar */}
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:"4px", gap:"12px", flexWrap:"wrap" }}>
@@ -29677,7 +30017,7 @@ function SliderField({ label, value, min, max, step, unit, color, onChange, getF
         <div style={{ position: "absolute", left: 0, top: 0, height: "6px", width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: "3px", transition: "width 0.1s" }} />
         <input
           type="range" min={min} max={max} step={step} value={value}
-          onChange={e => onChange(Number(e.target.value))}
+          onChange={e => onChange(Number(safeEventValue(e)))}
           style={{ position: "absolute", top: "-5px", left: 0, width: "100%", opacity: 0, cursor: "pointer", height: "16px" }}
         />
         <div style={{
@@ -29790,13 +30130,13 @@ function CalculadoraFlete({ theme, getFont }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <div>
                 <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>ORIGEN</div>
-                <select value={origen} onChange={e => setOrigen(e.target.value)} style={selectStyle}>
+                <select value={origen} onChange={e => setOrigen(safeEventValue(e))} style={selectStyle}>
                   {ORIGENES_FLETE.map(o => <option key={o} value={o} style={{ background: "#0a1628" }}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>DESTINO</div>
-                <select value={destino} onChange={e => setDestino(e.target.value)} style={selectStyle}>
+                <select value={destino} onChange={e => setDestino(safeEventValue(e))} style={selectStyle}>
                   {destinosDisp.map(d => <option key={d} value={d} style={{ background: "#0a1628" }}>{d}</option>)}
                 </select>
               </div>
@@ -29880,7 +30220,7 @@ function CalculadoraFlete({ theme, getFont }) {
               </div>
               <input
                 type="number" value={valorDeclarado} min={0} step={10000}
-                onChange={e => setValorDeclarado(Number(e.target.value))}
+                onChange={e => setValorDeclarado(Number(safeEventValue(e)))}
                 style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "9px 12px", color: "#fff", fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
               />
               <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.25)", marginTop: "4px" }}>Necesario para calcular seguro de carga (1%)</div>
@@ -31044,7 +31384,7 @@ function GlobalIdentityProfileModal({
               <span className="cm-profile-modal__input-icon"><MS name="badge" size={21} active /></span>
               <input
                 value={globalProfileDisplayName}
-                onChange={(event) => setGlobalProfileDisplayName(event.target.value.slice(0, 80))}
+                onChange={(event) => setGlobalProfileDisplayName(safeEventValue(event).slice(0, 80))}
                 autoComplete="name"
                 maxLength={80}
                 placeholder="Tu nombre visible"
@@ -31060,7 +31400,7 @@ function GlobalIdentityProfileModal({
               <span className="cm-profile-modal__input-icon"><MS name="alternate_email" size={21} active /></span>
               <input
                 value={cleanUsername}
-                onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
+                onChange={(event) => setGlobalProfileUsername(safeEventValue(event).replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
                 autoComplete="username"
                 maxLength={30}
                 placeholder="usuario"
@@ -31538,7 +31878,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
         {adminCard && <div className="cm-feed-review">
           <div className="cm-feed-review__identity"><span><MS name="badge" size={17} />Autor</span><code>{item.user_id || "AnunciosBanner"}</code></div>
           {!item._legacy && item.estatus === "pendiente" && <>
-            <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:e.target.value}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:e.target.value}}))} /></label></div>
+            <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:safeEventValue(e)}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:safeEventValue(e)}}))} /></label></div>
             <div className="cm-feed-admin-actions"><button type="button" className="approve" onClick={() => moderate(item,"aprobado")}><MS name="verified" size={18} />Aprobar</button><button type="button" className="reject" onClick={() => moderate(item,"rechazado")}><MS name="block" size={18} />Rechazar</button></div>
           </>}
           {item._legacy && <div className="cm-feed-legacy-note"><MS name="view_carousel" size={17} />Administrado por AnunciosBanner</div>}
@@ -31567,7 +31907,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       {loading ? <div className="cm-feed-loading"><span className="cm-feed-pulse"/><span>Cargando Feed</span></div> : filteredPublic.length ? <div className="cm-feed-grid">{filteredPublic.map(item=>renderFeedCard(item))}</div> : <div className="cm-feed-empty"><MS name="dynamic_feed" size={40}/><strong>No hay anuncios vigentes</strong><span>Los anuncios aprobados aparecerán aquí respetando su formato original.</span></div>}
     </>}
 
-    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label={isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"} onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(e.target.value)} required/></label><label><span>Fin de vigencia * {isAdmin && adminMode ? "· sin límite administrativo" : "· máximo 1 mes"}</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(e.target.value)} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Guardando</>:<><MS name="send" size={19}/>{isAdmin && adminMode ? "Publicar ahora" : "Enviar a aprobación"}</>}</button></div></form></div>}
+    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label={isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"} onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:safeEventValue(e)}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(safeEventValue(e))} required/></label><label><span>Fin de vigencia * {isAdmin && adminMode ? "· sin límite administrativo" : "· máximo 1 mes"}</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(safeEventValue(e))} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:safeEventValue(e).replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Guardando</>:<><MS name="send" size={19}/>{isAdmin && adminMode ? "Publicar ahora" : "Enviar a aprobación"}</>}</button></div></form></div>}
   </div>;
 }
 
@@ -31668,12 +32008,12 @@ function SecurityAlertsPanel({ onOpenRecords }) {
       <article className="csa-card csa-card--wide"><div className="csa-card__head"><span className="csa-card__icon"><MS name="leaderboard" size={24} active /></span><span className="csa-trend">Top 5</span></div><h3>Usuarios con más alertas</h3><div className="csa-ranking">{ranking.length?ranking.map(([id,count],idx)=><div className="csa-rank" key={id}><span>{idx+1}</span><code>{id}</code><b>{count}</b></div>):<div style={{color:"#89919e",fontSize:12}}>Sin reincidencias registradas.</div>}</div></article>
     </div>
     <div className="csa-toolbar">
-      <input className="csa-input" placeholder="Buscar ID, usuario, archivo, URL o resultado" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/>
-      <select className="csa-input" value={filters.origen} onChange={e=>setFilters(f=>({...f,origen:e.target.value}))}><option value="all">Todos los orígenes</option><option value="comunicado">Comunicado</option><option value="anuncio">Anuncio</option></select>
-      <select className="csa-input" value={filters.tipo} onChange={e=>setFilters(f=>({...f,tipo:e.target.value}))}><option value="all">Archivo y URL</option><option value="file">Archivo</option><option value="url">URL</option></select>
-      <input className="csa-input" type="date" value={filters.desde} onChange={e=>setFilters(f=>({...f,desde:e.target.value}))}/>
-      <input className="csa-input" type="date" value={filters.hasta} onChange={e=>setFilters(f=>({...f,hasta:e.target.value}))}/>
-      <input className="csa-input" placeholder="ID exacto de usuario" value={filters.usuario} onChange={e=>setFilters(f=>({...f,usuario:e.target.value}))}/>
+      <input className="csa-input" placeholder="Buscar ID, usuario, archivo, URL o resultado" value={filters.q} onChange={e=>setFilters(f=>({...f,q:safeEventValue(e)}))}/>
+      <select className="csa-input" value={filters.origen} onChange={e=>setFilters(f=>({...f,origen:safeEventValue(e)}))}><option value="all">Todos los orígenes</option><option value="comunicado">Comunicado</option><option value="anuncio">Anuncio</option></select>
+      <select className="csa-input" value={filters.tipo} onChange={e=>setFilters(f=>({...f,tipo:safeEventValue(e)}))}><option value="all">Archivo y URL</option><option value="file">Archivo</option><option value="url">URL</option></select>
+      <input className="csa-input" type="date" value={filters.desde} onChange={e=>setFilters(f=>({...f,desde:safeEventValue(e)}))}/>
+      <input className="csa-input" type="date" value={filters.hasta} onChange={e=>setFilters(f=>({...f,hasta:safeEventValue(e)}))}/>
+      <input className="csa-input" placeholder="ID exacto de usuario" value={filters.usuario} onChange={e=>setFilters(f=>({...f,usuario:safeEventValue(e)}))}/>
     </div>
     {error && <div className="csa-empty" style={{color:"#ffb4ab"}}>{error}</div>}
     {!error && loading && <div className="csa-empty">Consultando alertas de seguridad…</div>}
@@ -31765,7 +32105,7 @@ function BugReportModal({ open, onClose, authUser, section }) {
       <header className="cm-bug-head"><div style={{display:"flex",alignItems:"center",gap:12}}><span style={{width:42,height:42,borderRadius:12,display:"grid",placeItems:"center",background:"rgba(56,189,248,.12)",color:"#7dd3fc"}}><MS name="bug_report" size={25} active /></span><div><h2 id="cm-bug-title">Reportar bug</h2><div style={{fontSize:11,color:"#8298af",marginTop:3}}>Ayúdanos a detectar y resolver problemas técnicos.</div></div></div><CloseButton onClick={onClose} disabled={saving}/></header>
       <div className="cm-bug-tabs"><button type="button" className={`cm-bug-tab ${view==="new"?"is-active":""}`} onClick={()=>setView("new")}><MS name="add_comment" size={19} active={view==="new"}/>Nuevo reporte</button>{authUser&&<button type="button" className={`cm-bug-tab ${view==="mine"?"is-active":""}`} onClick={()=>setView("mine")}><MS name="fact_check" size={19} active={view==="mine"}/>Mis reportes</button>}</div>
       <div className="cm-bug-body">{error&&<div className="cm-bug-msg" style={{background:"rgba(255,180,171,.10)",border:"1px solid rgba(255,180,171,.26)",color:"#ffb4ab"}}>{error}</div>}{success&&<div className="cm-bug-msg" style={{background:"rgba(78,222,163,.10)",border:"1px solid rgba(78,222,163,.26)",color:"#7ef0bd"}}>{success}</div>}
-      {view==="new"?<form onSubmit={submit}><div className="cm-bug-grid"><label className="cm-bug-field is-wide"><span>Descripción del problema</span><textarea className="cm-bug-input" value={comments} onChange={e=>setComments(e.target.value)} maxLength={2000} placeholder="Describe qué ocurrió, qué esperabas que sucediera y cómo reproducir el problema." required/></label><div className="cm-bug-field is-wide"><span>Captura de pantalla</span><div className="cm-bug-drop"><button className="cm-bug-btn" type="button" onClick={()=>inputRef.current?.click()}><MS name="add_photo_alternate" size={20} active />Adjuntar imagen</button><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseFile(e.target.files?.[0]||null)}/><div style={{fontSize:11,color:"#8298af",marginTop:9}}>JPG, PNG o WEBP; máximo 10 MB. Se valida el contenido binario real.</div>{preview&&<div className="cm-bug-preview"><img src={preview} alt="Vista previa de la captura"/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:10,gap:10}}><span style={{fontSize:11,color:"#a9bed3",overflow:"hidden",textOverflow:"ellipsis"}}>{file?.name}</span><button type="button" className="cm-bug-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setFile(null);if(inputRef.current)inputRef.current.value=""}}><MS name="delete" size={18}/>Quitar</button></div></div>}</div></div><label className="cm-bug-field"><span>Sección de origen</span><input className="cm-bug-input" value={origin} readOnly/></label><label className="cm-bug-field"><span>Fecha y hora</span><input className="cm-bug-input" value={new Date().toLocaleString("es-MX")} readOnly/></label><label className="cm-bug-field is-wide"><span>ID de usuario</span><input className="cm-bug-input" value={authUser?.id||"No autenticado"} readOnly/></label></div><div className="cm-bug-actions"><button type="button" className="cm-bug-btn" onClick={onClose}>Cancelar</button><button type="submit" className="cm-bug-btn cm-bug-btn--primary" disabled={saving||!authUser}>{saving?<><MS name="progress_activity" size={19}/>Enviando</>:<><MS name="send" size={19}/>Enviar reporte</>}</button></div>{!authUser&&<div style={{marginTop:12,color:"#fbbf24",fontSize:12}}>Debes iniciar sesión para registrar y dar seguimiento al reporte.</div>}</form>:<div className="cm-bug-list">{loadingReports?<div className="cm-bug-empty">Consultando tus reportes…</div>:reports.length?reports.map(report=><article className="cm-bug-report" key={report.id}><div className="cm-bug-report__top"><div><strong style={{fontSize:14}}>Reporte {String(report.id).slice(0,8).toUpperCase()}</strong><div className="cm-bug-meta" style={{marginTop:7}}><span><MS name="schedule" size={14}/> {new Date(report.fecha_creacion).toLocaleString("es-MX")}</span><span><MS name="view_quilt" size={14}/> {report.seccion_origen}</span></div></div><BugReportStatusChip status={report.estatus}/></div><p>{report.comentarios}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{report.captura&&<button type="button" className="cm-bug-btn" onClick={()=>signedCapture(report)}><MS name="image" size={18}/>Ver captura</button>}</div>{report.respuesta_admin&&<div className="cm-bug-answer"><strong>Respuesta de soporte</strong><div style={{marginTop:6,whiteSpace:"pre-wrap"}}>{report.respuesta_admin}</div></div>}</article>):<div className="cm-bug-empty"><MS name="inbox" size={32} active/><div style={{marginTop:8}}>Aún no has enviado reportes.</div></div>}</div>}</div>
+      {view==="new"?<form onSubmit={submit}><div className="cm-bug-grid"><label className="cm-bug-field is-wide"><span>Descripción del problema</span><textarea className="cm-bug-input" value={comments} onChange={e=>setComments(safeEventValue(e))} maxLength={2000} placeholder="Describe qué ocurrió, qué esperabas que sucediera y cómo reproducir el problema." required/></label><div className="cm-bug-field is-wide"><span>Captura de pantalla</span><div className="cm-bug-drop"><button className="cm-bug-btn" type="button" onClick={()=>inputRef.current?.click()}><MS name="add_photo_alternate" size={20} active />Adjuntar imagen</button><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseFile(e.target.files?.[0]||null)}/><div style={{fontSize:11,color:"#8298af",marginTop:9}}>JPG, PNG o WEBP; máximo 10 MB. Se valida el contenido binario real.</div>{preview&&<div className="cm-bug-preview"><img src={preview} alt="Vista previa de la captura"/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:10,gap:10}}><span style={{fontSize:11,color:"#a9bed3",overflow:"hidden",textOverflow:"ellipsis"}}>{file?.name}</span><button type="button" className="cm-bug-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setFile(null);if(inputRef.current)inputRef.current.value=""}}><MS name="delete" size={18}/>Quitar</button></div></div>}</div></div><label className="cm-bug-field"><span>Sección de origen</span><input className="cm-bug-input" value={origin} readOnly/></label><label className="cm-bug-field"><span>Fecha y hora</span><input className="cm-bug-input" value={new Date().toLocaleString("es-MX")} readOnly/></label><label className="cm-bug-field is-wide"><span>ID de usuario</span><input className="cm-bug-input" value={authUser?.id||"No autenticado"} readOnly/></label></div><div className="cm-bug-actions"><button type="button" className="cm-bug-btn" onClick={onClose}>Cancelar</button><button type="submit" className="cm-bug-btn cm-bug-btn--primary" disabled={saving||!authUser}>{saving?<><MS name="progress_activity" size={19}/>Enviando</>:<><MS name="send" size={19}/>Enviar reporte</>}</button></div>{!authUser&&<div style={{marginTop:12,color:"#fbbf24",fontSize:12}}>Debes iniciar sesión para registrar y dar seguimiento al reporte.</div>}</form>:<div className="cm-bug-list">{loadingReports?<div className="cm-bug-empty">Consultando tus reportes…</div>:reports.length?reports.map(report=><article className="cm-bug-report" key={report.id}><div className="cm-bug-report__top"><div><strong style={{fontSize:14}}>Reporte {String(report.id).slice(0,8).toUpperCase()}</strong><div className="cm-bug-meta" style={{marginTop:7}}><span><MS name="schedule" size={14}/> {new Date(report.fecha_creacion).toLocaleString("es-MX")}</span><span><MS name="view_quilt" size={14}/> {report.seccion_origen}</span></div></div><BugReportStatusChip status={report.estatus}/></div><p>{report.comentarios}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{report.captura&&<button type="button" className="cm-bug-btn" onClick={()=>signedCapture(report)}><MS name="image" size={18}/>Ver captura</button>}</div>{report.respuesta_admin&&<div className="cm-bug-answer"><strong>Respuesta de soporte</strong><div style={{marginTop:6,whiteSpace:"pre-wrap"}}>{report.respuesta_admin}</div></div>}</article>):<div className="cm-bug-empty"><MS name="inbox" size={32} active/><div style={{marginTop:8}}>Aún no has enviado reportes.</div></div>}</div>}</div>
     </section></div>,document.body);
 }
 
@@ -31780,7 +32120,7 @@ function AdminBugReportsPanel() {
   const openItem=x=>{setSelected(x);setReply(x.respuesta_admin||"");setStatus(x.estatus||"pendiente")};
   const save=async()=>{if(!selected)return;setSaving(true);const {error:e}=await sb.from("reportes_bugs").update({estatus:status,respuesta_admin:reply.trim()||null,fecha_actualizacion:new Date().toISOString()}).eq("id",selected.id);if(e)setError(e.message);else{await load();setSelected(null)}setSaving(false)};
   const openCapture=async x=>{const {data,error:e}=await sb.storage.from(BUG_REPORTS_BUCKET).createSignedUrl(x.captura,180);if(e)setError(e.message);else window.open(data.signedUrl,"_blank","noopener,noreferrer")};
-  return <div className="cm-admin-bugs"><style>{`.cm-admin-bugs{font-family:Inter,sans-serif}.cab-toolbar{display:grid;grid-template-columns:1.4fr repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:16px}.cab-control{width:100%;min-height:42px;border:1px solid rgba(159,202,255,.2);border-radius:8px;background:#101415;color:#e0e3e5;padding:9px 11px;outline:none}.cab-control:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.cab-list{display:grid;gap:10px}.cab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.84),rgba(16,20,21,.9));transition:.25s}.cab-row:hover{border-color:rgba(159,202,255,.46);box-shadow:0 0 24px rgba(159,202,255,.09);transform:translateY(-1px)}.cab-meta{display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px;margin-top:8px}.cab-btn{min-height:38px;border:1px solid rgba(159,202,255,.32);border-radius:6px;background:rgba(159,202,255,.08);color:#9fcaff;padding:8px 11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}.cab-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22),0 0 20px rgba(159,202,255,.1)}.cab-empty{padding:38px;text-align:center;color:#89919e;border:1px dashed rgba(63,71,83,.7);border-radius:8px}.cab-modal{position:fixed;inset:0;z-index:130000;background:rgba(0,0,0,.74);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px}.cab-dialog{width:min(760px,100%);max-height:calc(100vh - 30px);overflow:auto;border:1px solid rgba(159,202,255,.3);border-radius:16px;background:#101415;color:#e0e3e5;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.cab-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cab-box{padding:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:#191c1e}.cab-box.is-wide{grid-column:1/-1}.cab-box small{display:block;color:#89919e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}@media(max-width:900px){.cab-toolbar{grid-template-columns:1fr 1fr}.cab-row{grid-template-columns:1fr}}@media(max-width:600px){.cab-toolbar,.cab-detail{grid-template-columns:1fr}.cab-box.is-wide{grid-column:auto}}`}</style><div className="cab-toolbar"><input className="cab-control" placeholder="Buscar ID, usuario o comentario" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/><select className="cab-control" value={filters.status} onChange={e=>setFilters(f=>({...f,status:e.target.value}))}><option value="all">Todos los estatus</option>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><select className="cab-control" value={filters.section} onChange={e=>setFilters(f=>({...f,section:e.target.value}))}><option value="all">Todas las secciones</option>{sections.map(x=><option key={x}>{x}</option>)}</select><input className="cab-control" type="date" value={filters.from} onChange={e=>setFilters(f=>({...f,from:e.target.value}))}/><input className="cab-control" type="date" value={filters.to} onChange={e=>setFilters(f=>({...f,to:e.target.value}))}/></div>{error&&<div className="cab-empty" style={{color:"#ffb4ab"}}>{error}</div>}{!error&&loading&&<div className="cab-empty">Cargando reportes…</div>}{!error&&!loading&&<div className="cab-list">{visible.length?visible.map(x=><article className="cab-row" key={x.id}><div><div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><strong>{String(x.id).slice(0,8).toUpperCase()}</strong><BugReportStatusChip status={x.estatus}/></div><p style={{color:"#bfc7d5",lineHeight:1.55,margin:"10px 0 0"}}>{x.comentarios}</p><div className="cab-meta"><span>Sección: {x.seccion_origen}</span><span>Usuario: {x.user_id}</span><span>{new Date(x.fecha_creacion).toLocaleString("es-MX")}</span></div></div><div style={{display:"flex",alignItems:"center"}}><button className="cab-btn" onClick={()=>openItem(x)}><MS name="open_in_new" size={18}/>Atender</button></div></article>):<div className="cab-empty"><MS name="bug_report" size={34} active/><div style={{marginTop:8}}>No hay reportes que coincidan con los filtros.</div></div>}</div>}{selected&&<div className="cab-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setSelected(null)}}><section className="cab-dialog"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><div><h3 style={{margin:0,fontSize:22}}>Detalle del reporte</h3><div style={{color:"#89919e",fontSize:11,marginTop:4}}>{selected.id}</div></div><CloseButton onClick={()=>setSelected(null)} disabled={saving}/></div><div className="cab-detail"><div className="cab-box"><small>Usuario</small><code style={{wordBreak:"break-all"}}>{selected.user_id}</code></div><div className="cab-box"><small>Fecha</small>{new Date(selected.fecha_creacion).toLocaleString("es-MX")}</div><div className="cab-box"><small>Sección</small>{selected.seccion_origen}</div><div className="cab-box"><small>Estatus actual</small><BugReportStatusChip status={selected.estatus}/></div><div className="cab-box is-wide"><small>Comentarios</small><div style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{selected.comentarios}</div></div>{selected.captura&&<div className="cab-box is-wide"><small>Captura</small><button className="cab-btn" onClick={()=>openCapture(selected)}><MS name="image" size={18}/>Abrir captura segura</button></div>}<label className="cab-box"><small>Nuevo estatus</small><select className="cab-control" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></label><label className="cab-box"><small>ID / perfil del usuario</small><div style={{display:"flex",gap:8}}><input className="cab-control" readOnly value={selected.user_id}/><button className="cab-btn" type="button" onClick={()=>navigator.clipboard?.writeText(selected.user_id)} aria-label="Copiar ID"><MS name="content_copy" size={18}/></button></div></label><label className="cab-box is-wide"><small>Respuesta visible para el usuario</small><textarea className="cab-control" style={{minHeight:130,resize:"vertical"}} value={reply} onChange={e=>setReply(e.target.value)} maxLength={3000}/></label></div><div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}><button className="cab-btn" onClick={()=>setSelected(null)}>Cancelar</button><button className="cab-btn" style={{background:"linear-gradient(135deg,#9fcaff,#00e3fd)",color:"#002f54"}} onClick={save} disabled={saving}><MS name="save" size={18}/>{saving?"Guardando":"Guardar cambios"}</button></div></section></div>}</div>;
+  return <div className="cm-admin-bugs"><style>{`.cm-admin-bugs{font-family:Inter,sans-serif}.cab-toolbar{display:grid;grid-template-columns:1.4fr repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:16px}.cab-control{width:100%;min-height:42px;border:1px solid rgba(159,202,255,.2);border-radius:8px;background:#101415;color:#e0e3e5;padding:9px 11px;outline:none}.cab-control:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.cab-list{display:grid;gap:10px}.cab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.84),rgba(16,20,21,.9));transition:.25s}.cab-row:hover{border-color:rgba(159,202,255,.46);box-shadow:0 0 24px rgba(159,202,255,.09);transform:translateY(-1px)}.cab-meta{display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px;margin-top:8px}.cab-btn{min-height:38px;border:1px solid rgba(159,202,255,.32);border-radius:6px;background:rgba(159,202,255,.08);color:#9fcaff;padding:8px 11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}.cab-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22),0 0 20px rgba(159,202,255,.1)}.cab-empty{padding:38px;text-align:center;color:#89919e;border:1px dashed rgba(63,71,83,.7);border-radius:8px}.cab-modal{position:fixed;inset:0;z-index:130000;background:rgba(0,0,0,.74);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px}.cab-dialog{width:min(760px,100%);max-height:calc(100vh - 30px);overflow:auto;border:1px solid rgba(159,202,255,.3);border-radius:16px;background:#101415;color:#e0e3e5;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.cab-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cab-box{padding:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:#191c1e}.cab-box.is-wide{grid-column:1/-1}.cab-box small{display:block;color:#89919e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}@media(max-width:900px){.cab-toolbar{grid-template-columns:1fr 1fr}.cab-row{grid-template-columns:1fr}}@media(max-width:600px){.cab-toolbar,.cab-detail{grid-template-columns:1fr}.cab-box.is-wide{grid-column:auto}}`}</style><div className="cab-toolbar"><input className="cab-control" placeholder="Buscar ID, usuario o comentario" value={filters.q} onChange={e=>setFilters(f=>({...f,q:safeEventValue(e)}))}/><select className="cab-control" value={filters.status} onChange={e=>setFilters(f=>({...f,status:safeEventValue(e)}))}><option value="all">Todos los estatus</option>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><select className="cab-control" value={filters.section} onChange={e=>setFilters(f=>({...f,section:safeEventValue(e)}))}><option value="all">Todas las secciones</option>{sections.map(x=><option key={x}>{x}</option>)}</select><input className="cab-control" type="date" value={filters.from} onChange={e=>setFilters(f=>({...f,from:safeEventValue(e)}))}/><input className="cab-control" type="date" value={filters.to} onChange={e=>setFilters(f=>({...f,to:safeEventValue(e)}))}/></div>{error&&<div className="cab-empty" style={{color:"#ffb4ab"}}>{error}</div>}{!error&&loading&&<div className="cab-empty">Cargando reportes…</div>}{!error&&!loading&&<div className="cab-list">{visible.length?visible.map(x=><article className="cab-row" key={x.id}><div><div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><strong>{String(x.id).slice(0,8).toUpperCase()}</strong><BugReportStatusChip status={x.estatus}/></div><p style={{color:"#bfc7d5",lineHeight:1.55,margin:"10px 0 0"}}>{x.comentarios}</p><div className="cab-meta"><span>Sección: {x.seccion_origen}</span><span>Usuario: {x.user_id}</span><span>{new Date(x.fecha_creacion).toLocaleString("es-MX")}</span></div></div><div style={{display:"flex",alignItems:"center"}}><button className="cab-btn" onClick={()=>openItem(x)}><MS name="open_in_new" size={18}/>Atender</button></div></article>):<div className="cab-empty"><MS name="bug_report" size={34} active/><div style={{marginTop:8}}>No hay reportes que coincidan con los filtros.</div></div>}</div>}{selected&&<div className="cab-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setSelected(null)}}><section className="cab-dialog"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><div><h3 style={{margin:0,fontSize:22}}>Detalle del reporte</h3><div style={{color:"#89919e",fontSize:11,marginTop:4}}>{selected.id}</div></div><CloseButton onClick={()=>setSelected(null)} disabled={saving}/></div><div className="cab-detail"><div className="cab-box"><small>Usuario</small><code style={{wordBreak:"break-all"}}>{selected.user_id}</code></div><div className="cab-box"><small>Fecha</small>{new Date(selected.fecha_creacion).toLocaleString("es-MX")}</div><div className="cab-box"><small>Sección</small>{selected.seccion_origen}</div><div className="cab-box"><small>Estatus actual</small><BugReportStatusChip status={selected.estatus}/></div><div className="cab-box is-wide"><small>Comentarios</small><div style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{selected.comentarios}</div></div>{selected.captura&&<div className="cab-box is-wide"><small>Captura</small><button className="cab-btn" onClick={()=>openCapture(selected)}><MS name="image" size={18}/>Abrir captura segura</button></div>}<label className="cab-box"><small>Nuevo estatus</small><select className="cab-control" value={status} onChange={e=>setStatus(safeEventValue(e))}>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></label><label className="cab-box"><small>ID / perfil del usuario</small><div style={{display:"flex",gap:8}}><input className="cab-control" readOnly value={selected.user_id}/><button className="cab-btn" type="button" onClick={()=>navigator.clipboard?.writeText(selected.user_id)} aria-label="Copiar ID"><MS name="content_copy" size={18}/></button></div></label><label className="cab-box is-wide"><small>Respuesta visible para el usuario</small><textarea className="cab-control" style={{minHeight:130,resize:"vertical"}} value={reply} onChange={e=>setReply(safeEventValue(e))} maxLength={3000}/></label></div><div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}><button className="cab-btn" onClick={()=>setSelected(null)}>Cancelar</button><button className="cab-btn" style={{background:"linear-gradient(135deg,#9fcaff,#00e3fd)",color:"#002f54"}} onClick={save} disabled={saving}><MS name="save" size={18}/>{saving?"Guardando":"Guardar cambios"}</button></div></section></div>}</div>;
 }
 
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
@@ -32485,12 +32825,12 @@ function App() {
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
       setGlobalProfileError("La foto debe estar en formato JPG, PNG o WEBP.");
-      event.target.value = "";
+      safelyResetFileInput(event);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       setGlobalProfileError("La foto no puede superar 5 MB.");
-      event.target.value = "";
+      safelyResetFileInput(event);
       return;
     }
     setGlobalProfilePhotoFile(file);
@@ -33506,7 +33846,7 @@ function App() {
             <div style={{ display:"flex", gap:"8px", marginTop:"12px" }}>
               <textarea
                 value={geminiInput}
-                onChange={e=>setGeminiInput(e.target.value)}
+                onChange={e=>setGeminiInput(safeEventValue(e))}
                 onKeyDown={e=>{ if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendGeminiMessage(); } }}
                 placeholder="Escribe tu mensaje…"
                 style={{ flex:1, minHeight:"42px", maxHeight:"90px", resize:"vertical", borderRadius:"12px", border:"1px solid rgba(96,165,250,.35)", background:"rgba(2,12,27,.75)", color:"#fff", padding:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" }}
@@ -33992,5 +34332,6 @@ function App() {
   );
 }
 
-export default App;
+function StableApp() { return <GlobalErrorBoundary><App /></GlobalErrorBoundary>; }
+export default StableApp;
 const CM_REPORT_WATERMARK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZgAAAG3CAYAAACJwUO2AAAYvklEQVR42u3dQZLjMI5A0SyH97WsPZd1//PwLLPq6ZqcTKdkkRRAvB/REdM9WTZFAviEJEu/fv/5+wEMon36792UAHV5mgJMEMvn/51ogII8TAEWCaiZBoBggBHdy9W/BUAwwDQhASAYgGQAEAzmi6Jf+LcACAZ4CckABAPc3gURDUAwwJDORTcDEAywvJsBQDAgA5IBQDAgLwAEg8T0gZIgGYBgoMPQyQAgGJAZAIJBsoLfb/hOAAQDEiIZgGCAWuICQDAIXOB7gDEAIBjoMkgGIBggVvfyeTxEAxAMinQlLfDYABAMEtGDjINkAIKB7oVkAIIBXhftnmy8AAgGCeXSkowbAMEgUZFuyccPgGAQpDj3TY4DAMFgYUE+K5eW4JgAEAwCiyWjXEgGIBgEF0tmuZAMcCNPU7CtPEaRXS4AdDBY3JVUkwsxAjoY6FqmzlEXKgDBYL1cKpwOIxmAYLCQatdZSAYgGCwSSgWpkAxAMBgokfaiuIJkgKm4i2yPIvlKMl0RfXv+ABAMTnQ1IBmAYDBcJE1HQzIAwWBmISUakgEIBtMK4r+iqd7ZkQxAMJgkqSo3AxwVKskABIODu/QjBbOd2OWTDACC2bxQziq6FU6buf4ETMYPLfGdsPrGO/kzXQwRAToY3cvFYthf/N994znsb841AIIho5O7+v5CQLvu5kkGIBgskNFPxbQXnhsABFOy0I18QvJPoukbzqlrLQDBIAi7nDJrJySjiwEIRveysBjudG2GZACCIZegHU32bqyTDEAwWNO9tJOf1TeYv37wWEgGIBjdy+KuJNsps5ZwXQCCwfQCOPvay5W7qzJI5icZurMMIBgkLeAZuhenygCC0b1MKnYjPjN7J0AyAMGQS+IiTTIAwSCgXLKIIdopsz7470kGIJi0ctmlsPUbv/ff25AJASAYcnlRmNvNY8okmc+/6+kTxk1aAMGEE0tEuezYyYw4TUcyAMFs0bXsKpeRBf+sGFbcGUcyKM+v33/+moW4Yokolx5gTiKNv9JrDQAdDLmklMuqgtwCrjNAMBhScI6eEqsml5+OPSpOlQEEk0IsrwpWC3AMOwitJxorQDAYIpaPF11LhF1wv2Esu3QyuhgQDG4VS/Q7xdrH/30pV0bJ9JvnDyAYXJLK2UIS9ZTYV+NrNxXqHuQzrn4HyaAUT1Nw2440uliiii7DQz1b0HVxrQgEs6FMMoplhwIe8XljR1/idterF0gIw/BDy3XFfSex9GRr1oONryeLAdIBwQSUy653FvUka9c3ji0xgPBUP0XWFiee02Dj57oZX4jcIRwQzKRi77rK/Tvpq4/hx/h8sg7FqXyK7Erx3/npxkd34j3omvbNYm3nTQF0MPhip1ytYLRvhNMDrlFUyYwoxrvcGq/b1MGUbuntOO0+K3UxVR+sCh1MuWTPMHcKwPvdVaZ8uOt2atdzCAbFC6WE338z0z6OXX+788kF4pBgyhTeCh2S7q/WHL16/ty/D0C9aw6Ih2BKFpVdhSNxa8r3q/juJ+KkBcpHEEz6wrmjcCSpru6rYz7yW6RowhHTBLNlQmZ498t3iejaS22pfBcTH2/ERsRbpslnMBVvUz6yk2kLEjNTASOX4zFU4fljq2OhBZ0HEEwowbxbqJvkChU/391ZVaGryfKgU3lBMGEC867zwz1ZYlVOovZR507BMxulSJ1txLfAlsY1mPw7SNcC7pn3Ck996C86tozd1cpbp0mmYAcT6RfLfeHx2Z3V2DmPFst3stmtiDa5ooPZrVjMSNAZu2pCObaOmXb6Z9e7fyGZXR8o6swAwWyzy5j1VNnR1wq0/HU6mfaDRKvEw4jbqMvnzVPylxJouzBvES/qRpvnCk9s6B9ucFBfDvIwBSECti/+rv5mUpHLPgX36AXxSk82bh/vve+JXL6hykX+aI8j/wiUtC3RWHXK8+T4WZRf/XecW+vyc6aDybGbvKur6ZJm6x1se3EMbZNjtOY34iJ/nF1kDzKWf5OnkcrpDULmaxT9izVvN8ZpxCcitzdioiwVTpE5PXZ97lzcfy/eosrm6DW12Td2ZHrCcdsgn3UwxYtStMCs8Gv1mV1A5Fck929E8u+690FxmflR+cSigxkS2HcXg55oTiXS2MIUdTNx5aGsvdAaygcdjC5mQiGSWHvF39l3Ff30UrEKmwM5ULSDydS9CFqdTJR4q/zmR2LRwWyPC+rksloo3l9PLjqYQcGS4XH3TkPlj7/vrml4eRyx6GA27g7sfrG6C41wN57i+H6OmTuC2bYw62Jyb2b6gULVBnyX01zEQjDBdnAt+HjJRWz+9G/+vYYiVsZtPs3lAHa7BpP5zrFXBUSwK4if45hUdC06GCzZbaFWTOz2RkliIRjdi+4FN8aBIjhvg2ZeCabUbn/H957jWscCYknHY/OAyti9/DtOp8kUSkWQXHQwAIaiABKLDkb3Ei6BUKNQ4tycOeWsg5m6+2ubHQ90LcRiXgkmQIC15McpQQBiScdjwyDbIai6JAHelovTYQSzTC4t6TFKEOC/+eAHkwl5Jgy03eXyeexkAx0LsRAMhiNpQC5yJC2PTQJut+7lu1MDbmNFBbGQiw6GXG7oYiQUdC3ygGDIBQCxEAy55OhegKpikQsEc2vwkQugawHBDAm8vrlc/j0mCQZdCwjmpp39ztdcJBh0LSCYRQG4u1y6zgXEAoK5dzffCiRik4goIhYxTTDkIimQtJj3YOORQwQTJiD7AqkIcuzcHax8nh2xIGUH0y78W6CaVFZLxukwhBbMdxI5khgCFqQSf4zytBiZHnbZBS3IJdznkQtSdDDvdjlNEINYwo5PThbm1+8/f7ME79E7yQQ0KsmlX8ijmeOTh0j9wrEVd5cBWbuC0fmha8FpHknH/Z/kefVEZfLBbnLpNxTvFnx8IJhpLX8bsNsCosvlrsJNLLiEU2RAfLlElModY4MOZmoX8+pv+4CEAaIU8tVdQfsgF+hgvu1i2sfrH2tKCmSSS7RuhViwTQdzNiH6N///dnGXBkTu3q90KuQCHcybwf9VNyM5EL176cHzCjhFxB9a/pSM392aLBFALue+k1iggwE2pxsLdiTjDy3b4L8DIsXtXcLwWxboYF4kx+fTZJIFGeTSF+UHoIMBABAMgPjdC0AwEhDFENsgGAkLAKgkGE9RRuY4tRkCwQAAQDCA7gUgGAAAwQAAQDBAEJweAzYUjAQGAIIBABBMHvwOBlFjUHcNggEAgGAAAAQDYGvah1PU+IRXJgPz2fX6Szvwv7n2RDDbJKxgBtZL5ejfy0+CAbCo+FY7LrIhGABEufw7CIdgQgd6E6RA2u5Ld0MwAEjlW/qgzyQbggFAKl9KZuT3NaIhmJW4gwyIIZOVwiEagrk1kQQeEP9Otn5xrJ71RjAlEgW40nFnzpU+6Lv7wGNopEMwmZMYqLz56pPPGPQJx+dWaIIhEiCBUNoXY+qTv7tNnkf1pKhgnB4Dody7eWsn/37G8fbJc0E4OhggvSz6wb+7u0uJJtB2w1oRzeaCcZcIdClrhHLXmYL+EfssBdHoYABCSSKUIxvGFnjNiKagYPz2BeSSr2gflSHREMyyROwH/zegEpmFklE2NrVFOhgLDVKpcbdlD3asak9SwRztXiwwKncorfhcRDh+NWjjDsbCInJstoFx7fdgcUXjukwiweheoEMhlGiiObJhUJOSdjAu7INQMLNrfHfjiw0Eo3VF9oL3eZetYOWTjJqzqWDeXbRu4REshrG/ZL5a7/J155kwSfvJoCMaAHeIrHzdeSTdFZ69XbOTC1Ci+EfsSst2ss9AgXFl4cgD2Je2yTGUq1OROph+cfEq/wgN2L0z2aE4l6tPz4CBdHUx2uKWGRjVkeO9TeiKnG8nxmftgwpmlmyIBsi30z+atyuE3g+MuR08tjL1KMvvYK7+QI1ogPydSrYxt+r16JE4AN85L+s6DRRJ8x1lTNvXoscmgUU0ADKydR16bHQs74oGAEiGYE6Jpp9YXKLBrFiEGCgrmUeBxSUaoE4xb4HH5oeWREMyThPoYsSPeCCYue0q0SgOIHKSIRjdDABCIZh8otHNrOtenCaDuSaYsqIBkGvTAoJJs/PRzSgEdtYAwehmSIdkAILJ280AAAhmSjdDMnM6FV0Mrs5x2ywnCKZoQXBdBgAIZuquk2TG7tR0MaiaG9tsWgmGZJwyIBmQzRSe1vCtovDT9QPFA3i/qPZBuXpXYe6B54VgkoiGZHIVnIxxhPkbwkydd7pXLTtFNm+XonCYl7t2u+bj/3/m5/9kz6EUeUQwJBNpLnvReSSZ++Its3DC5wXBkAxIBnmFE7q+EAzJRJu/XngOSYZwtpIMwZCMUwLAOeHYfBCMIDCPjt24t5HNT3dThtx8EczaRKu+A29BPkOx1l2Olo05/gK/g5kXdO3NnQjM4U/Hj9ibgjZow9De+PtQeUEwCqQ5jF+0WqKxYtycpL/hxSmy+wLM7hSKt7zYGh3Mvbtw6GJmxZGbBfbO+RR1hWDu3605tUAymYqvzRIIRoE0hyAHEIwCqUDqBuN0QG3T2MjUJW6Di/zxEhzvz58duu7o6rjax2ZvldTBoMoOfMSFSe/imXvMOzzKfubndTmtg8m6C7dj0snojK+JYPa7X3Q2BKMgFJ9b8yunvoqJkXERVTShxkQw8RKi4u7IjhBZNyDfiabLJ4KBzhA1NxszRGPTRjC6GMAmYcr3rT5tFn5DRTB2cqSKarky6mnHEXI39E1DBFNvxwZUz6E+WDKz71xLW0MIBgApXSvULcDYQ3YxBBN7B+Y0GZCjG7grdkP/Lscv+WMFtgKLikS7zbcn2fR4XD+GBJEXTpkrXQPS4RQZdisqukBAB+N0gJ05kGIj1A78TYRNWrjN1a/ff/4KoRw76G6+ys8V8G4+3ZITOpg4AtHFmDdY960gmLhCqUJftIb9xdoqROIKBEMoGF5oFCKAYLaRioJml4v1+d0Df97omA6zSX4WDjiFC7CReEcc8ptglghFoAFAUcGMFAuZALlrgetxBBNGKoINOxdT2FQTzMKJlZDYBbEMgiEVDF5/6wkEqnNZBdMyTjaWJA7pADqYpWJRZOzWIC6qdfQEQyoIFGNiBuRSRDDvTJgCgVGbEXdi5S20ffONQ7sY26UFQyyIKp2v4lPsxVu3/0jG2uhgLslFACGKeBBPMtXX6/ZjjyKYJsEB2AgMq5Uhjv9pwgAAuwmGWFCFJr6xsGZ+97fLY+3X7z9/o06UxAPZAOflcpTp8bZaMLoWgHAQRzJTY26lYHQtANmgkHBWCYZcADmD3MI5HW8rBNMkCUA22EI4p+JstmDIBSAb7CeeQzE2UzDkAsQoFHINM6TzY1zNEkwUubSki60g4Eqsix+E2LzcIZi+6MArorAAWC2avlIwI+RCIiQEII9ovqwrKx8V098YNIIECgAb0xf148v3J60UDJkQEID8ojlcy0efImsbTyppvj9PyLOR8C4VXI2fKYK5u9j2ogtKOgAi1aP/zfnngi9TmGLMRwsUiNYWyF+PfqwpVzuYNmCQ0CWJBWCvmtGvdDDvFiJFJG+X1BYHqli5v3BYA1zinQ7mbKERpDofHQ5QK//f6mA8+wh3dT4ehQIk64CfbyY4qUDnAeAlD3IBAMzYRB4RDLkAAKZ1MOQCADjFT9dgDj0OAACAz/54vCEXAAB+5PGGXHQvAIAfvfAc8SF3tV+Jx+64ATmwPc8Ti9eTBdVP/75vmkxRj3vUKdcefJz9pnm5bZcqB9Ku5/S1fgY/yLbos7vjTrV77ZsUB9c55cDWeXZUMH3zpIvygqU7C1yvFvwoJZXoub8lz0A7qhYowHvRY5dkqJr/RDOBIz+07AWC667xtGDH3j7ynLZxemkfsTRxtb9gmuBaOrYWPOlJBlXXr4mtNR2Muy3qHrskgxzAVMFYuPFjbQqBIlBcLE38E4wFGz/mlrgoAOIIbwmmCbDpY8+eXK4ZgRgRtoNphQOtSTQo0sZPMP/F/eACM9PxKABiBkU7mCaxYL6tiWMhGIsiyMwBxAku80wcYD14kFc+9ruLmtO7+3NXDoivk4JpmwbW579vhZJqxbFLtJwxkX2D9U4OtITr0XaIi0eyAOtBJrwlPPZKMnBqZk+R9iDxL74CCCbiziDjgztHJkcPfqwkQ/Az41bHTTDTAyNTkPUknwlkygEkF0zbNMD6xx6nm6qcLtDF5J5zGyyCSbl76Sf/9qhUmkQgGZTYYImrAzxNQcjC3hd9x8iHeBIiKnUa4v0mwbRkCyhQanQx1lm3qDboYMoHT1/8XVp9yE0yIRi7N+hiQCgEY/FzJVoVOe4omSYnEZVH0mC3q9LBASgmGCC6gIkw9gZDp0QwAAAQDHQxuhiAYJC4aBsvAIIBdDEAwQAzuxiSAQgG0MkABAPk6mIAEAzs4qdJRhcDEAxAsgDBALm6GAAEYxcNkDwy4HH92KXAVH23zY5PhyYrHczUYLeT1zUptgDBgFwBgGBA9NBVg2BKB1kzxyRj3pGd56Qgy1K4msRQWGAjJ5bzCGZ0APQFwTUq0EbKdfbdNLt3iFXvKtup+N8R/80mqo5gVgRa5N3NrGNXeJFB7JHivxHOeR4TgyxyQWwX/l374d9HD7wWfK2rjA25N0M2aTcKJvKCtoQJFvXYMxRwksk/5y3oZ+FGwUQ8tdOSJlimYwc+gsZ/C57j2/FMHGh9YXBGCa4Ix54xwVzw30sy/c1/h80EMzOx2w/F7u6gqnzsJJNnZz9rY7Fz/OteAnUwKxK7BUywXQuMBEPV3MdJPCpGIbYegBhKLZheOLi6BIOCDIIRaLPGX1mwjgHin2As0ORxd8nlWEjG+AnGQjl2awZxJP4TCibbgvXiwbprcika5l2cbCqYDAvXJ46xSy6QjHESTM0F7MWDtxdJLgXE3IuNiTwDLWQrGFSRjr1qYnmMjNwnlo0FEyXYevFEk1gQ/9hWMHcFWy+eaBJLF1NdNHKgkGC+WvRq7zGZnWgSimSqi0YOLODX7z9/d3gHdaXXmTbJhMKI/0Rr89zkwCoFkGSB7gYp8DRlAADBAAAIBgBAMAAAEAwAgGAAAAQDAADBAAAIBgBAMAAAEAwAgGAAAMNpHwme/v1cMAln6Ym+78r390Tf2S5+9h2J0BOv6ZnvvWtNR42x3TC3Eb571BhDPw3/cePERNoJ3PE5LfGxVlnXliCWmnjZtjtpN39GaMGsDmrJAGAHsWT53JSCgS4G1tQabhAnBKPrgjVFnQ3C0vh8WCABDWuKUuu27DsfJt2xwpqiXJws+W6nyOoWk92LYLemsFb3juFpocoHed/wuLo1RbGNU8g6+JQojjVBwW/WFMW7l37w/98ixalTZPMDpW8Y7NVlZk0RNaZDxSbBYKfdno4Bu3Uv78R0mDx4JF+M6Du1bse77W6yB59Xa1q7G+8RYkUHEyeBFQTdC7AVBIOogov+ZGpriqjdS5hN1yNxkrRkAdITzzWsKZBSMD3Z585MWsXgvu5FgUflWJgyNqfItNzRkiD6C76sKbJuukt2MEcmtBVKGMUAJYsR9ouPh0mdIoAetBhE3/FG7l6urGmJ504BVQSDfDtetyTrYkAwdmJFjtGO15oC2wimB/ucnRM02o73zu6l2pqSDHQwiROjDyoEVeY8w6mxndYUOmeCsfuafqx2vNYU6lwpwfSb/72kjJtIugRkp1wMP615aRH1j3q3JL8zBmsK8nsjRx52hgKLhK0pttyo3p5nj42SowsyxdKaAnHwQ0tFYXURj3LdxZpi57oTIr4JBgDiiv8dUax4LfOhz30ENaDd1/p16MGOpVtTeYTT8RKqM9/lLjKnUvYrqm1iXFjTelLugb67X8iHPnh8UzchTpHZ8a4INgVdF4Mx69K++E9YnheMumIB2s0J1BYkcdZ5VwCsKerG+KF418FA5wDkLvBhv/shGRXGYIFvTa0pyWzynQ+Lczn5u8SX9EnWVKxZl77yex7Bg09CmPusHQNwNt96wpxuVzsYSQnYOCDv+vS71v1hIVKNoRWc492xgcN3QuiDPue2uvjr95+/RwNesQGAmBuSHnEs3gcDALm6mzTje5w4AK08AOCwD/zQEgAwhbOC0cUAgO7lK/pRwbigDwC41GS86mBciwEAHKGfFcwwiwEAanUvRwTTSQYAyOUdTxzpYEgGAMjlrB/cpgwAGC+XM4LRxQAAuRyWy9kO5ifJEA0A7C+Xw5w9RdZXDAoAcJtYfqrjh38n+c41mD5ggACAfF3LqR/hv3uRvw8aLAAgR9dy+gkvV+4i64MGDgCIKZbTXcu/XH0fTD/YrbQRgwUAXJbK6EZimmD+HUR78wAJBwBiCGVoXR75Rsv+5gG1WQcHAERyj1xGC+aqaGZNFgBgkVRmC2akaAAAycSyQjBEAwAFxbJSMN8dEOEAwCYyuVswZw6afAAggURe8T8aq+5fdqDmQAAAAABJRU5ErkJggg==";
