@@ -25072,16 +25072,21 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                   placeholder="Ej. 36938"
                   defaultValue={pisForm.id}
                   onInput={e=>{
-                    const raw = safeEventValue(e);
+                    const field = e?.currentTarget ?? e?.target ?? null;
+                    if (!field || !("value" in field)) return;
+
+                    const raw = String(field.value ?? "");
                     const normalized = raw.replace(/[^0-9]/g, "");
                     if (raw !== normalized) {
-                      const cursor = e.currentTarget.selectionStart;
-                      safeEventValue(e) = normalized;
+                      const cursor = typeof field.selectionStart === "number" ? field.selectionStart : null;
+                      try { field.value = normalized; } catch (_) { return; }
+
                       if (typeof cursor === "number") {
                         const removedBeforeCursor = raw.slice(0, cursor).replace(/[0-9]/g, "").length;
                         const nextCursor = Math.max(0, cursor - removedBeforeCursor);
                         requestAnimationFrame(() => {
-                          try { e.currentTarget.setSelectionRange(nextCursor, nextCursor); } catch {}
+                          if (!field?.isConnected || typeof field.setSelectionRange !== "function") return;
+                          try { field.setSelectionRange(nextCursor, nextCursor); } catch (_) {}
                         });
                       }
                     }
