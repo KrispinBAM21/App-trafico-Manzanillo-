@@ -49,7 +49,55 @@ class GlobalErrorBoundary extends React.Component {
   }
 }
 
+
 if (typeof window !== "undefined" && !window.L) window.L = L;
+
+// ─── LEAFLET RUNTIME GUARDS ─────────────────────────────────────────────────
+// Leaflet puede recibir nodos/capas ya desmontados durante cambios rápidos de
+// sección. Estos adaptadores conservan el comportamiento normal y evitan que
+// una referencia transitoria indefinida termine en `_leaflet_pos`.
+(function installLeafletRuntimeGuards() {
+  if (!L || L.__cmRuntimeGuardsInstalled) return;
+  L.__cmRuntimeGuardsInstalled = true;
+
+  const domUtil = L.DomUtil || {};
+  const originalGetPosition = typeof domUtil.getPosition === "function" ? domUtil.getPosition.bind(domUtil) : null;
+  const originalSetPosition = typeof domUtil.setPosition === "function" ? domUtil.setPosition.bind(domUtil) : null;
+
+  if (originalGetPosition) {
+    domUtil.getPosition = (el) => {
+      if (!el) return L.point(0, 0);
+      try { return originalGetPosition(el) || L.point(0, 0); }
+      catch (error) {
+        console.warn("[Leaflet] getPosition omitido para un nodo desmontado.", error);
+        return L.point(0, 0);
+      }
+    };
+  }
+
+  if (originalSetPosition) {
+    domUtil.setPosition = (el, point) => {
+      if (!el || !point) return el;
+      try { return originalSetPosition(el, point); }
+      catch (error) {
+        console.warn("[Leaflet] setPosition omitido para un nodo desmontado.", error);
+        return el;
+      }
+    };
+  }
+})();
+
+const isLeafletMapReady = (map) => {
+  if (!map || typeof map !== "object") return false;
+  const container = typeof map.getContainer === "function" ? map.getContainer() : map?._container;
+  return Boolean(container && container.isConnected !== false && map?._loaded !== false);
+};
+
+const safeInvalidateLeafletMap = (map, options = { pan:false }) => {
+  if (!isLeafletMapReady(map) || typeof map?.invalidateSize !== "function") return false;
+  try { map.invalidateSize(options); return true; }
+  catch (error) { console.warn("[Leaflet] invalidateSize omitido.", error); return false; }
+};
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
 const sanitize = (str) => {
@@ -13184,8 +13232,11 @@ const getMasterReferenceColor = (ref, accesos = {}) => {
 };
 
 function CommandReferenceMarker({ refItem, accesos }) {
-  const color = getMasterReferenceColor(refItem, accesos);
-  const label = refItem.name || refItem.short || refItem.id;
+  const safeRefItem = safeObject(refItem);
+  const coords = safeArray(safeRefItem.coords);
+  const hasValidCoords = coords.length >= 2 && coords.slice(0, 2).every(Number.isFinite);
+  const color = getMasterReferenceColor(safeRefItem, safeObject(accesos));
+  const label = safeRefItem.name || safeRefItem.short || safeRefItem.id || "Referencia";
   const icon = useMemo(() => L.divIcon({
     className: "cm-map-ref-icon",
     html: `<div class="cm-map-ref-dot" style="--cm-ref-color:${color}"></div>`,
@@ -13193,8 +13244,9 @@ function CommandReferenceMarker({ refItem, accesos }) {
     iconAnchor: [7, 7],
   }), [color]);
 
+  if (!hasValidCoords) return null;
   return (
-    <Marker position={refItem.coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
+    <Marker position={coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
       <Tooltip permanent direction="top" offset={[0, -10]} className="cm-tooltip-permanent">
         <b>{label}</b>
       </Tooltip>
@@ -13205,19 +13257,44 @@ function CommandReferenceMarker({ refItem, accesos }) {
 function CommandMapAutoFit({ layerConfig }) {
   const map = useMap();
   useEffect(() => {
-    const coords = layerConfig.flatMap(group => group.items.flatMap(item => flattenCommandCoords(item.coords)));
-    if (!coords.length) return;
-    const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
-    map.fitBounds(bounds, { padding:[28, 28], maxZoom:15 });
-    setTimeout(() => map.invalidateSize(), 160);
+    let cancelled = false;
+    let timerId = null;
+    let frameId = null;
+
+    const run = () => {
+      if (cancelled || !isLeafletMapReady(map)) return;
+      const coords = safeArray(layerConfig).flatMap(group =>
+        safeArray(group?.items).flatMap(item => safeArray(flattenCommandCoords(item?.coords)))
+      ).filter(pair => Array.isArray(pair) && pair.length >= 2 && pair.slice(0, 2).every(Number.isFinite));
+      if (!coords.length) return;
+      try {
+        const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
+        if (bounds?.isValid?.() && isLeafletMapReady(map) && typeof map?.fitBounds === "function") {
+          map.fitBounds(bounds, { padding:[28, 28], maxZoom:15, animate:false });
+        }
+      } catch (error) {
+        console.warn("[Leaflet] Autoajuste omitido durante transición de vista.", error);
+      }
+      timerId = window.setTimeout(() => { if (!cancelled) safeInvalidateLeafletMap(map); }, 160);
+    };
+
+    frameId = typeof requestAnimationFrame === "function" ? requestAnimationFrame(run) : window.setTimeout(run, 0);
+    return () => {
+      cancelled = true;
+      if (timerId != null) clearTimeout(timerId);
+      if (frameId != null) {
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frameId);
+        else clearTimeout(frameId);
+      }
+    };
   }, [map, layerConfig]);
   return null;
 }
 
 function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
-  const theme = React.useContext(ThemeContext);
-  const layerConfig = useMemo(() => buildLayerConfig({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
-  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords));
+  const theme = React.useContext(ThemeContext) || {};
+  const layerConfig = useMemo(() => safeArray(buildLayerConfig({ accesos:safeObject(accesos), vialidades:safeObject(vialidades), rutasFiscales:safeObject(rutasFiscales) })), [accesos, vialidades, rutasFiscales]);
+  const activeIncidents = safeArray(incidents).filter(i => i?.visible && !i?.resolved && safeArray(i?.coords).length >= 2 && safeArray(i?.coords).slice(0, 2).every(Number.isFinite));
   return (
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
@@ -21766,7 +21843,7 @@ function NoticiasTab({ isAdmin }) {
     `;
     document.head.appendChild(style);
   }, []);
-  const theme = React.useContext(ThemeContext);
+  const theme = React.useContext(ThemeContext) || {};
   const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v3";
   const COMUNICADOS_CACHE_KEY = "cm_comunicados_cache_v3";
   const noticiasCacheInicial = useMemo(() => readJsonCache(NOTICIAS_CACHE_KEY, [], "local"), []);
@@ -21868,7 +21945,8 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"noticias" }, ({ new:r }) => {
         if (!active || !r) return;
         setNoticias(prev => {
-          const next = prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150);
+          const current = safeArray(prev);
+          const next = current.some(x => x.id === r.id) ? current : [r, ...current].slice(0, 150);
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
         });
@@ -21876,7 +21954,7 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event:"UPDATE", schema:"public", table:"noticias" }, ({ new:r }) => {
         if (!active || !r) return;
         setNoticias(prev => {
-          const next = prev.map(x => x.id === r.id ? r : x);
+          const next = current.map(x => String(x?.id) === String(r?.id) ? r : x);
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
         });
@@ -21884,7 +21962,7 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event:"DELETE", schema:"public", table:"noticias" }, ({ old:r }) => {
         if (!active || !r?.id) return;
         setNoticias(prev => {
-          const next = prev.filter(x => x.id !== r.id);
+          const next = current.filter(x => String(x?.id) !== String(r?.id));
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
         });
@@ -21898,7 +21976,8 @@ function NoticiasTab({ isAdmin }) {
         });
         const n = await syncComunicadoToNoticia(r, { processMedia:true });
         if (active && n) setNoticias(prev => {
-          const next = prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150);
+          const current = safeArray(prev);
+          const next = current.some(x => String(x?.id) === String(n?.id)) ? current : [n, ...current].slice(0, 150);
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
         });
@@ -21912,7 +21991,8 @@ function NoticiasTab({ isAdmin }) {
         });
         const n = await syncComunicadoToNoticia(r, { processMedia:true });
         if (active && n) setNoticias(prev => {
-          const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? n : x) : [n, ...prev].slice(0, 150);
+          const current = safeArray(prev);
+          const next = current.some(x => String(x?.id) === String(n?.id)) ? current.map(x => String(x?.id) === String(n?.id) ? n : x) : [n, ...current].slice(0, 150);
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
         });
@@ -21966,8 +22046,26 @@ function NoticiasTab({ isAdmin }) {
     return hasContent;
   };
 
-  const noticiasVisibles = noticias.filter(isNoticiaListaParaMostrar);
-  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "admin" && String(n.origen || "").toLowerCase().includes("admin_noticias")));
+  const noticiasVisibles = useMemo(() => {
+    const seen = new Set();
+    return safeArray(noticias)
+      .filter(Boolean)
+      .filter(isNoticiaListaParaMostrar)
+      .filter((item) => {
+        const stableId = String(item?.id ?? `${item?.created_at ?? ""}:${item?.titulo ?? ""}:${item?.archivo_url ?? ""}`);
+        if (!stableId || seen.has(stableId)) return false;
+        seen.add(stableId);
+        return true;
+      });
+  }, [noticias]);
+  const filtered = useMemo(() => {
+    const selected = String(filtro || "todos");
+    if (selected === "todos") return noticiasVisibles;
+    return noticiasVisibles.filter(n =>
+      String(n?.tipo || "") === selected ||
+      (selected === "admin" && String(n?.origen || "").toLowerCase().includes("admin_noticias"))
+    );
+  }, [filtro, noticiasVisibles]);
 
   const timeAgo = (ts) => {
     const t = new Date(ts).getTime();
@@ -22016,19 +22114,25 @@ function NoticiasTab({ isAdmin }) {
   };
 
   const uniqueUrls = (values) => [...new Set(
-    values.map(normalizeNoticiasStorageUrl).filter(Boolean)
+    safeArray(values).map(normalizeNoticiasStorageUrl).filter(Boolean)
   )];
 
-  const getMedia = (n) => uniqueUrls([
-    ...parseJsonArray(n.media_urls),
-    n.imagen_url,
-    n.archivo_url,
-  ]).filter((url) => isImage(url, n.archivo_tipo) && !isPdf(url, n.archivo_tipo));
+  const getMedia = (value) => {
+    const n = safeObject(value);
+    return uniqueUrls([
+      ...safeArray(parseJsonArray(n?.media_urls)),
+      n?.imagen_url,
+      n?.archivo_url,
+    ]).filter((url) => isImage(url, n?.archivo_tipo) && !isPdf(url, n?.archivo_tipo));
+  };
 
-  const getPdfs = (n) => uniqueUrls([
-    ...parseJsonArray(n.pdf_urls),
-    n.archivo_url,
-  ]).filter((url) => isPdf(url, n.archivo_tipo));
+  const getPdfs = (value) => {
+    const n = safeObject(value);
+    return uniqueUrls([
+      ...safeArray(parseJsonArray(n?.pdf_urls)),
+      n?.archivo_url,
+    ]).filter((url) => isPdf(url, n?.archivo_tipo));
+  };
 
   const openVisor = useCallback((item, items = null, index = 0) => {
     const list = Array.isArray(items) && items.length ? items : [item].filter(Boolean);
@@ -22374,24 +22478,31 @@ function NoticiasTab({ isAdmin }) {
           {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>Sin noticias visibles para este filtro.</div>}
           {!loading && filtered.length > 0 && (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px", alignItems:"start" }}>
-              {filtered.map((n) => {
+              {filtered.map((rawNews, newsIndex) => {
+                const n = safeObject(rawNews);
                 const media = getMedia(n);
                 const pdfs = getPdfs(n);
                 const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
                 const leadVisuals = media.slice(0, 2);
                 const accent = n.color || "#38bdf8";
                 return (
-                  <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
+                  <article data-cm-news-card="true" key={String(n?.id ?? `${n?.created_at ?? "sin-fecha"}:${n?.titulo ?? "noticia"}:${newsIndex}`)} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
                     <div style={{ position:"relative", display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
                       {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img
                           src={u}
                           alt={n.titulo || "Imagen de noticia"}
                           loading="lazy"
                           referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            console.error("Imagen de Noticias no disponible:", u);
-                            const button = e.currentTarget.closest("button");
-                            if (button) button.style.display = "none";
+                          onError={(event) => {
+                            const img = event?.currentTarget;
+                            if (!img || img.dataset?.fallbackApplied === "1") return;
+                            try {
+                              img.dataset.fallbackApplied = "1";
+                              img.removeAttribute("srcset");
+                              img.src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#12304a"/></linearGradient></defs><rect width="1200" height="700" fill="url(#g)"/><g fill="none" stroke="#7dd3fc" stroke-width="18" opacity=".8"><rect x="420" y="190" width="360" height="280" rx="28"/><path d="M470 410l105-105 75 75 55-55 80 85"/><circle cx="675" cy="275" r="32"/></g><text x="600" y="565" text-anchor="middle" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="34">Vista previa no disponible</text></svg>`);
+                            } catch (error) {
+                              console.warn("No se pudo aplicar la imagen de respaldo de Noticias.", error);
+                            }
                           }}
                           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
                         /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
@@ -24816,7 +24927,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                     const normalized = raw.replace(/[^0-9]/g, "");
                     if (raw !== normalized) {
                       const cursor = e.currentTarget.selectionStart;
-                      try { if (e?.currentTarget) e.currentTarget.value = normalized; else if (e?.target) e.target.value = normalized; } catch (_) {}
+                      safeEventValue(e) = normalized;
                       if (typeof cursor === "number") {
                         const removedBeforeCursor = raw.slice(0, cursor).replace(/[0-9]/g, "").length;
                         const nextCursor = Math.max(0, cursor - removedBeforeCursor);
