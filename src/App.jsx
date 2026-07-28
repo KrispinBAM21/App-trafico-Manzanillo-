@@ -22710,48 +22710,108 @@ async function validateStaticAttachment(file, { maxBytes = 20 * 1024 * 1024 } = 
 
 
 /*
-SUPABASE — migración requerida para el helpdesk de Quejas (ejecutar una sola vez):
+SUPABASE — migración completa para la sección MIS TICKETS (ejecutar una sola vez):
 
-create table if not exists public.quejas_tickets (
+create extension if not exists pgcrypto;
+
+create table if not exists public.tickets (
   id uuid primary key default gen_random_uuid(),
-  ticket_number text unique not null default ('CM-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10))),
   user_id uuid not null references auth.users(id) on delete cascade,
-  user_email text,
-  tipo_reporte text not null check (tipo_reporte in ('vacante_postura','conducta_usuario','error_sistema','incidente_operativo','otro')),
-  comentarios text not null,
-  evidencia jsonb not null default '[]'::jsonb,
-  estatus text not null default 'pendiente' check (estatus in ('pendiente','en_revision','resuelto','rechazado','cerrado')),
-  respuesta_admin text,
-  status_history jsonb not null default '[]'::jsonb,
-  fecha_creacion timestamptz not null default now(),
-  fecha_actualizacion timestamptz not null default now()
+  report_type text not null check (report_type in ('hardware','software','red','seguridad')),
+  comment text not null check (char_length(btrim(comment)) > 0),
+  status text not null default 'pendiente' check (status in ('pendiente','en_revision','resuelto','rechazado')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
-alter table public.quejas_tickets enable row level security;
-create policy "ticket_owner_insert" on public.quejas_tickets for insert to authenticated with check (auth.uid() = user_id);
-create policy "ticket_owner_read" on public.quejas_tickets for select to authenticated using (auth.uid() = user_id);
--- Ajustar la comprobación de admin a la tabla/RPC de roles existente del proyecto:
-create policy "ticket_admin_all" on public.quejas_tickets for all to authenticated
-using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()));
 
-Storage recomendado: bucket privado `quejas-evidencias`, máximo 10 MB por objeto, solo JPEG/PNG/WEBP.
-Replicar validateStaticAttachment en una Edge Function antes de aceptar el objeto, verificar magic bytes,
-normalizar nombres, mantener approval_status=pending y entregar evidencia únicamente mediante signed URLs cortas.
-Nunca servir adjuntos con content-type text/html ni permitir SVG/ejecutables.
+create table if not exists public.ticket_images (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.tickets(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  storage_path text not null,
+  created_at timestamptz not null default now(),
+  unique (ticket_id, storage_path)
+);
+
+create index if not exists tickets_user_id_idx on public.tickets(user_id);
+create index if not exists tickets_created_at_idx on public.tickets(created_at desc);
+create index if not exists tickets_user_created_idx on public.tickets(user_id, created_at desc);
+create index if not exists ticket_images_ticket_id_idx on public.ticket_images(ticket_id);
+create index if not exists ticket_images_user_id_idx on public.ticket_images(user_id);
+
+alter table public.tickets enable row level security;
+alter table public.ticket_images enable row level security;
+
+drop policy if exists tickets_owner_select on public.tickets;
+create policy tickets_owner_select on public.tickets for select to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists tickets_owner_insert on public.tickets;
+create policy tickets_owner_insert on public.tickets for insert to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists tickets_owner_update on public.tickets;
+create policy tickets_owner_update on public.tickets for update to authenticated
+using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists ticket_images_owner_select on public.ticket_images;
+create policy ticket_images_owner_select on public.ticket_images for select to authenticated
+using (auth.uid() = user_id and exists (
+  select 1 from public.tickets t where t.id = ticket_id and t.user_id = auth.uid()
+));
+
+drop policy if exists ticket_images_owner_insert on public.ticket_images;
+create policy ticket_images_owner_insert on public.ticket_images for insert to authenticated
+with check (auth.uid() = user_id and exists (
+  select 1 from public.tickets t where t.id = ticket_id and t.user_id = auth.uid()
+));
+
+drop policy if exists ticket_images_owner_update on public.ticket_images;
+create policy ticket_images_owner_update on public.ticket_images for update to authenticated
+using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('ticket-evidence', 'ticket-evidence', false, 10485760, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists ticket_evidence_owner_insert on storage.objects;
+create policy ticket_evidence_owner_insert on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'ticket-evidence'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists ticket_evidence_owner_select on storage.objects;
+create policy ticket_evidence_owner_select on storage.objects for select to authenticated
+using (
+  bucket_id = 'ticket-evidence'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists ticket_evidence_owner_update on storage.objects;
+create policy ticket_evidence_owner_update on storage.objects for update to authenticated
+using (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text)
+with check (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists ticket_evidence_owner_delete on storage.objects;
+create policy ticket_evidence_owner_delete on storage.objects for delete to authenticated
+using (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text);
 */
-const QUEJAS_EVIDENCE_BUCKET = import.meta.env.VITE_SUPABASE_QUEJAS_BUCKET || "quejas-evidencias";
+const QUEJAS_EVIDENCE_BUCKET = import.meta.env.VITE_SUPABASE_TICKET_BUCKET || "ticket-evidence";
 const QUEJAS_TICKET_TYPES = [
-  { value:"vacante_postura", label:"Problema con vacante o postura" },
-  { value:"conducta_usuario", label:"Conducta de otro usuario" },
-  { value:"error_sistema", label:"Error del sistema" },
-  { value:"incidente_operativo", label:"Incidente operativo" },
-  { value:"otro", label:"Otro" },
+  { value:"hardware", label:"Hardware", icon:"potted_plant" },
+  { value:"software", label:"Software", icon:"terminal" },
+  { value:"red", label:"Red", icon:"hub" },
+  { value:"seguridad", label:"Seguridad", icon:"encrypted" },
 ];
 const QUEJAS_STATUS = {
-  pendiente:{ label:"Pendiente", color:"#fbbf24", bg:"rgba(251,191,36,.12)" },
-  en_revision:{ label:"En revisión", color:"#9fcaff", bg:"rgba(159,202,255,.12)" },
-  resuelto:{ label:"Resuelto", color:"#4edea3", bg:"rgba(78,222,163,.12)" },
-  rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(255,180,171,.12)" },
-  cerrado:{ label:"Cerrado", color:"#bfc7d5", bg:"rgba(191,199,213,.10)" },
+  pendiente:{ label:"Pendiente", color:"#9fcaff", bg:"rgba(159,202,255,.10)" },
+  en_revision:{ label:"En revisión", color:"#bdf4ff", bg:"rgba(189,244,255,.10)" },
+  resuelto:{ label:"Resuelto", color:"#00daf3", bg:"rgba(0,218,243,.10)" },
+  rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(147,0,10,.20)" },
 };
 
 const BUG_REPORTS_BUCKET = import.meta.env.VITE_SUPABASE_BUG_REPORTS_BUCKET || "reportes-bugs";
@@ -24036,32 +24096,54 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
   const loadTickets = useCallback(async () => {
-    if (!authUser?.id && !isAdmin) { setTickets([]); setTicketsError(""); return; }
+    const ownerId = authUser?.id ?? null;
+    if (!ownerId) {
+      setTickets([]);
+      setTicketsError("");
+      setTicketsLoading(false);
+      return;
+    }
     setTicketsLoading(true);
     setTicketsError("");
     try {
-      let query = sb.from("quejas_tickets").select("*").order("fecha_creacion", { ascending:false });
-      if (!isAdmin) query = query.eq("user_id", authUser?.id ?? "");
-      const { data, error } = await query;
+      const { data, error } = await sb
+        .from("tickets")
+        .select("id,user_id,report_type,comment,status,created_at,updated_at,ticket_images(id,storage_path,created_at)")
+        .eq("user_id", ownerId)
+        .order("created_at", { ascending:false });
       if (error) throw error;
-      setTickets(safeArray(data));
+      const normalized = safeArray(data).filter(Boolean).map((row) => ({
+        ...row,
+        tipo_reporte: row?.report_type ?? "",
+        comentarios: row?.comment ?? "",
+        estatus: row?.status ?? "pendiente",
+        fecha_creacion: row?.created_at ?? null,
+        evidencia: safeArray(row?.ticket_images).map((image) => ({
+          id:image?.id ?? null,
+          bucket:QUEJAS_EVIDENCE_BUCKET,
+          path:image?.storage_path ?? "",
+        })).filter((image) => image.path),
+      }));
+      setTickets(normalized);
     } catch (error) {
       setTickets([]);
       setTicketsError(error?.code === "42P01"
-        ? "La tabla de tickets aún no está disponible. Aplica la migración incluida en el código."
-        : safeErrorMessage(error, "No fue posible cargar los tickets."));
+        ? "La estructura de tickets todavía no está instalada en Supabase."
+        : safeErrorMessage(error, "No fue posible conectar con el núcleo de tickets."));
     } finally {
       setTicketsLoading(false);
     }
-  }, [authUser?.id, isAdmin]);
+  }, [authUser?.id]);
 
   useEffect(() => {
     let active = true;
     void loadTickets();
+    if (!authUser?.id) return () => { active = false; };
     let channel = null;
     try {
-      channel = sb.channel(`quejas-tickets-${authUser?.id || "admin"}`)
-        .on("postgres_changes", { event:"*", schema:"public", table:"quejas_tickets" }, () => { if (active) void loadTickets(); })
+      channel = sb.channel(`tickets-${authUser.id}`)
+        .on("postgres_changes", { event:"*", schema:"public", table:"tickets", filter:`user_id=eq.${authUser.id}` }, () => { if (active) void loadTickets(); })
+        .on("postgres_changes", { event:"*", schema:"public", table:"ticket_images", filter:`user_id=eq.${authUser.id}` }, () => { if (active) void loadTickets(); })
         .subscribe();
     } catch (error) {
       console.warn("No se pudo iniciar la actualización en tiempo real de tickets", error);
@@ -24072,68 +24154,135 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     };
   }, [loadTickets, authUser?.id]);
 
+  useEffect(() => () => {
+    safeArray(ticketForm?.evidencia).forEach((item) => {
+      if (item?.preview) { try { URL.revokeObjectURL(item.preview); } catch (_) {} }
+    });
+  }, []);
+
   const addTicketEvidence = async (event) => {
     const files = safeEventFiles(event);
     safelyResetFileInput(event);
     if (!files.length) return;
+    const current = safeArray(ticketForm?.evidencia);
+    if (current.length + files.length > 5) {
+      setMsg({ type:"err", text:"Solo puedes adjuntar hasta 5 imágenes por ticket." });
+      return;
+    }
     const accepted = [];
-    for (const file of files.slice(0, Math.max(0, 5-ticketForm.evidencia.length))) {
-      const validation = await validateStaticAttachment(file, { maxBytes:10*1024*1024 });
-      if (!validation.ok || !validation.detectedType.startsWith("image/")) {
-        setMsg({ type:"err", text:validation.ok ? "La evidencia debe ser una imagen JPEG, PNG o WEBP." : validation.error });
+    for (const file of files) {
+      if (!file || typeof file.size !== "number") continue;
+      if (file.size > 10 * 1024 * 1024) {
+        setMsg({ type:"err", text:`${file.name || "La imagen"} supera el límite de 10 MB.` });
         continue;
       }
-      accepted.push({ file, preview:URL.createObjectURL(file), detectedType:validation.detectedType, name:file.name || `evidencia-${Date.now()}` });
+      const validation = await validateStaticAttachment(file, { maxBytes:10*1024*1024 });
+      if (!validation?.ok || !String(validation?.detectedType ?? "").startsWith("image/")) {
+        setMsg({ type:"err", text:validation?.error || "Solo se admiten imágenes JPEG, PNG o WEBP." });
+        continue;
+      }
+      accepted.push({
+        file,
+        preview:URL.createObjectURL(file),
+        detectedType:validation.detectedType,
+        name:file.name || `evidencia-${Date.now()}`,
+      });
     }
-    setTicketForm(prev=>({...prev,evidencia:[...prev.evidencia,...accepted]}));
+    if (accepted.length) setTicketForm((prev) => ({ ...prev, evidencia:[...safeArray(prev?.evidencia), ...accepted] }));
   };
-  const removeTicketEvidence = (index) => setTicketForm(prev=>{
-    const current=prev.evidencia[index]; if (current?.preview) URL.revokeObjectURL(current.preview);
-    return {...prev,evidencia:prev.evidencia.filter((_,i)=>i!==index)};
+
+  const removeTicketEvidence = (index) => setTicketForm((prev) => {
+    const evidence = safeArray(prev?.evidencia);
+    const current = evidence[index];
+    if (current?.preview) { try { URL.revokeObjectURL(current.preview); } catch (_) {} }
+    return { ...prev, evidencia:evidence.filter((_, i) => i !== index) };
   });
+
   const createTicket = async () => {
-    if (!authUser?.id) return requireLogin();
-    if (!ticketForm.tipo_reporte) return setMsg({type:"err",text:"Selecciona el tipo de reporte."});
-    if (ticketForm.comentarios.trim().length < 10) return setMsg({type:"err",text:"Describe el problema con al menos 10 caracteres."});
+    const ownerId = authUser?.id ?? null;
+    const reportType = String(ticketForm?.tipo_reporte ?? "").trim();
+    const comment = String(ticketForm?.comentarios ?? "").trim();
+    if (!ownerId) return requireLogin();
+    if (!QUEJAS_TICKET_TYPES.some((item) => item.value === reportType)) {
+      setMsg({ type:"err", text:"Selecciona un tipo de reporte válido." });
+      return;
+    }
+    if (!comment) {
+      setMsg({ type:"err", text:"Escribe los comentarios del ticket antes de enviarlo." });
+      return;
+    }
     setTicketSubmitting(true);
     try {
-      const evidence=[];
-      for (const item of ticketForm.evidencia) {
-        const ext = item.detectedType === "image/jpeg" ? "jpg" : item.detectedType.split("/")[1];
-        const path = `${authUser.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-        const { error:uploadError } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).upload(path,item.file,{contentType:item.detectedType,upsert:false,cacheControl:"3600",metadata:{approval_status:"pending",owner_id:authUser.id}});
-        if (uploadError) throw uploadError;
-        evidence.push({ bucket:QUEJAS_EVIDENCE_BUCKET, path, name:item.name, type:item.detectedType, approval_status:"pending" });
+      const { data:ticket, error:ticketError } = await sb
+        .from("tickets")
+        .insert({ user_id:ownerId, report_type:reportType, comment })
+        .select("id")
+        .single();
+      if (ticketError) throw ticketError;
+      if (!ticket?.id) throw new Error("Supabase no devolvió el identificador del ticket.");
+
+      const imageRows = [];
+      const uploadedPaths = [];
+      try {
+        for (const [index, item] of safeArray(ticketForm?.evidencia).entries()) {
+          if (!item?.file) continue;
+          const subtype = item.detectedType === "image/jpeg" ? "jpg" : String(item.detectedType ?? "image/png").split("/")[1] || "png";
+          const safeName = String(item.name ?? `imagen-${index + 1}`).replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
+          const path = `${ownerId}/${ticket.id}/${String(index + 1).padStart(2,"0")}-${crypto.randomUUID()}-${safeName}.${subtype}`;
+          const { error:uploadError } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).upload(path, item.file, {
+            contentType:item.detectedType,
+            upsert:false,
+            cacheControl:"3600",
+          });
+          if (uploadError) throw uploadError;
+          uploadedPaths.push(path);
+          imageRows.push({ ticket_id:ticket.id, user_id:ownerId, storage_path:path });
+        }
+        if (imageRows.length) {
+          const { error:imageError } = await sb.from("ticket_images").insert(imageRows);
+          if (imageError) throw imageError;
+        }
+      } catch (imageError) {
+        await Promise.allSettled(uploadedPaths.map((path) => sb.storage.from(QUEJAS_EVIDENCE_BUCKET).remove([path])));
+        throw imageError;
       }
-      const now=new Date().toISOString();
-      const payload={ user_id:authUser.id,user_email:authUser.email||null,tipo_reporte:ticketForm.tipo_reporte,comentarios:ticketForm.comentarios.trim(),evidencia:evidence,estatus:"pendiente",status_history:[{estatus:"pendiente",fecha:now,actor:"usuario"}],fecha_creacion:now,fecha_actualizacion:now };
-      const { error }=await sb.from("quejas_tickets").insert(payload);
-      if(error) throw error;
-      ticketForm.evidencia.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));
-      setTicketForm({tipo_reporte:"",comentarios:"",evidencia:[]});
-      setMsg({type:"ok",text:"Ticket creado correctamente. Puedes seguir su estado en Mis tickets."});
+
+      safeArray(ticketForm?.evidencia).forEach((item) => {
+        if (item?.preview) { try { URL.revokeObjectURL(item.preview); } catch (_) {} }
+      });
+      setTicketForm({ tipo_reporte:"", comentarios:"", evidencia:[] });
+      setMsg({ type:"ok", text:"Ticket creado correctamente." });
       await loadTickets();
-    } catch(error) { setMsg({type:"err",text:error.message||"No fue posible crear el ticket."}); }
-    finally { setTicketSubmitting(false); }
+    } catch (error) {
+      setMsg({ type:"err", text:safeErrorMessage(error, "No fue posible crear el ticket.") });
+    } finally {
+      setTicketSubmitting(false);
+    }
   };
+
   const getTicketEvidenceUrl = async (item) => {
-    if (!item?.bucket || !item?.path) return;
-    const { data,error }=await sb.storage.from(item.bucket).createSignedUrl(item.path,120,{download:false});
-    if(error) return setMsg({type:"err",text:"No se pudo abrir la evidencia de forma segura."});
-    window.open(data.signedUrl,"_blank","noopener,noreferrer");
+    const path = item?.path ?? item?.storage_path ?? "";
+    if (!path) return;
+    try {
+      const { data, error } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).createSignedUrl(path, 120);
+      if (error) throw error;
+      const signedUrl = data?.signedUrl ?? "";
+      if (!signedUrl) throw new Error("No se recibió una URL segura.");
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (_) {
+      setMsg({ type:"err", text:"No se pudo abrir la evidencia de forma segura." });
+    }
   };
+
   const updateTicketAdmin = async (ticket) => {
-    if(!isAdmin) return;
-    const draft=ticketAdminDraft[ticket.id]||{};
-    const nextStatus=draft.estatus||ticket.estatus;
-    const nextResponse=(draft.respuesta_admin??ticket.respuesta_admin??"").trim();
-    const now=new Date().toISOString();
-    const history=Array.isArray(ticket.status_history)?ticket.status_history:[];
-    const changed=nextStatus!==ticket.estatus;
-    const payload={estatus:nextStatus,respuesta_admin:nextResponse||null,fecha_actualizacion:now,status_history:changed?[...history,{estatus:nextStatus,fecha:now,actor:"admin"}]:history};
-    const {error}=await sb.from("quejas_tickets").update(payload).eq("id",ticket.id);
-    if(error) setMsg({type:"err",text:error.message}); else {setMsg({type:"ok",text:"Ticket actualizado."});await loadTickets();}
+    if (!isAdmin || !ticket?.id) return;
+    const draft = ticketAdminDraft?.[ticket.id] ?? {};
+    const nextStatus = draft?.estatus ?? ticket?.estatus ?? "pendiente";
+    const { error } = await sb.from("tickets").update({ status:nextStatus }).eq("id", ticket.id);
+    if (error) setMsg({ type:"err", text:safeErrorMessage(error, "No fue posible actualizar el ticket.") });
+    else { setMsg({ type:"ok", text:"Ticket actualizado." }); await loadTickets(); }
   };
+
   const requestVacancyDeletion = async (row) => {
     if (!authUser && !isAdmin) return requireLogin();
     if (!isAdmin && row.user_id !== authUser?.id) return;
@@ -25820,26 +25969,40 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     return <span style={{display:"inline-flex",alignItems:"center",gap:"6px",padding:"5px 9px",borderRadius:"999px",background:meta.bg,border:`1px solid ${meta.color}55`,color:meta.color,fontSize:"11px",fontWeight:800}}><span style={{width:"6px",height:"6px",borderRadius:"50%",background:meta.color,boxShadow:`0 0 10px ${meta.color}66`}}/>{meta.label}</span>;
   };
   const TicketsHelpdesk = () => {
-    const typeLabel=(value)=>QUEJAS_TICKET_TYPES.find(x=>x.value===value)?.label||value||"Otro";
-    const filtered=isAdmin?tickets.filter(t=>{
-      const text=`${t.ticket_number||t.id} ${t.user_email||""} ${t.user_id||""}`.toLowerCase();
-      const created=new Date(t.fecha_creacion||t.created_at||0).getTime();
-      return (ticketFilters.tipo==="todos"||t.tipo_reporte===ticketFilters.tipo)&&(ticketFilters.estatus==="todos"||t.estatus===ticketFilters.estatus)&&(!ticketFilters.desde||created>=new Date(ticketFilters.desde+"T00:00:00").getTime())&&(!ticketFilters.hasta||created<=new Date(ticketFilters.hasta+"T23:59:59").getTime())&&(!ticketFilters.search||text.includes(ticketFilters.search.toLowerCase()));
-    }):tickets;
-    return <div style={{display:"grid",gap:"20px",marginTop:"14px"}}>
-      {!isAdmin&&<section style={{...card,border:"1px solid rgba(159,202,255,.24)",overflow:"hidden"}}>
-        <div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",alignItems:"center",gap:"11px"}}><MS name="confirmation_number" size={23} active/><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>Crear ticket</div><div style={{color:"#bfc7d5",fontSize:"12px"}}>Describe el problema y adjunta evidencia segura si es necesario.</div></div></div>
-        <div style={{padding:"18px",display:"grid",gap:"14px"}}>
-          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:safeEventValue(e)}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
-          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:safeEventValue(e)}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
-          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
-          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><MS name="hourglass_top" size={18}/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
+    const typeMeta = (value) => QUEJAS_TICKET_TYPES.find((item) => item.value === value) || { label:"Sin categoría", icon:"report_problem" };
+    const filtered = safeArray(tickets).filter(Boolean);
+    const evidenceInputRef = useRef(null);
+    const openFilePicker = () => {
+      const inputNode = evidenceInputRef?.current ?? null;
+      if (inputNode && typeof inputNode.click === "function") inputNode.click();
+    };
+    const formatTicketDate = (value) => {
+      const date = value ? new Date(value) : null;
+      return date && Number.isFinite(date.getTime()) ? date.toLocaleString("es-MX") : "Fecha no disponible";
+    };
+    return <div style={{display:"grid",gap:"32px",marginTop:"14px",fontFamily:"Inter, sans-serif"}}>
+      {!isAdmin&&<section className="glass-card rounded-xl" style={{overflow:"hidden",borderRadius:"8px"}}>
+        <div className="glass-header" style={{padding:"24px",display:"flex",alignItems:"flex-start",gap:"16px"}}>
+          <div style={{width:"48px",height:"48px",borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.20)",color:"#9fcaff"}}><MS name="shield" size={24} active/></div>
+          <div><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>Quejas</div><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>Describe el problema y adjunta evidencia segura si es necesario para nuestra terminal de inteligencia.</div></div>
+        </div>
+        <div style={{padding:"32px",display:"grid",gap:"32px"}}>
+          <div style={{display:"grid",gap:"12px"}}><div style={{color:"#9fcaff",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em"}}>TIPO DE REPORTE</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"16px"}}>{QUEJAS_TICKET_TYPES.map((item)=>{const active=ticketForm?.tipo_reporte===item.value;return <button key={item.value} type="button" disabled={ticketSubmitting} onClick={()=>setTicketForm((prev)=>({...prev,tipo_reporte:item.value}))} style={{padding:"16px",minHeight:"76px",borderRadius:"8px",border:`1px solid ${active?"#9fcaff":"#3f4753"}`,background:active?"rgba(159,202,255,.10)":"#191c1e",color:active?"#9fcaff":"#e0e3e5",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",transition:"all .3s ease"}}><MS name={item.icon} size={23} active={active}/><span style={{fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{item.label}</span></button>})}</div></div>
+          <label style={{display:"grid",gap:"12px"}}><span style={{color:"#9fcaff",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em"}}>COMENTARIOS</span><textarea className="cyan-glow" value={ticketForm?.comentarios ?? ""} disabled={ticketSubmitting} onChange={(event)=>setTicketForm((prev)=>({...prev,comentarios:event?.currentTarget?.value ?? ""}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas. Sé específico con los códigos de error encontrados." rows={6} style={{width:"100%",boxSizing:"border-box",border:"1px solid #3f4753",borderRadius:"8px",padding:"16px",fontFamily:"Inter, sans-serif",fontSize:"14px",lineHeight:"20px",color:"#e0e3e5",background:"#191c1e",outline:"none",resize:"vertical",transition:"all .3s ease"}}/></label>
+          <div style={{border:"2px dashed #3f4753",borderRadius:"8px",padding:"24px",background:"rgba(25,28,30,.50)",display:"grid",gap:"16px"}}>
+            <input ref={evidenceInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addTicketEvidence} style={{display:"none"}}/>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"24px",flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:"16px"}}><div style={{width:"48px",height:"48px",borderRadius:"9999px",background:"#323537",display:"flex",alignItems:"center",justifyContent:"center",color:"#bfc7d5"}}><MS name="image" size={22}/></div><div><div style={{fontSize:"16px",lineHeight:"24px",fontWeight:600,color:"#e0e3e5"}}>Evidencia en imagen</div><div style={{fontSize:"14px",lineHeight:"20px",color:"#bfc7d5"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div></div><button className="btn-gradient" type="button" disabled={ticketSubmitting} onClick={openFilePicker} style={{padding:"12px 24px",border:0,borderRadius:"9999px",color:"#003259",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",opacity:ticketSubmitting?.65:1}}><MS name="add_photo_alternate" size={20}/>ADJUNTAR IMÁGENES</button></div>
+            {!!safeArray(ticketForm?.evidencia).length&&<div style={{display:"flex",gap:"12px",flexWrap:"wrap"}}>{safeArray(ticketForm?.evidencia).map((item,index)=><div key={`${item?.name ?? "imagen"}-${index}`} style={{position:"relative",width:"88px",height:"72px",borderRadius:"4px",overflow:"hidden",border:"1px solid #3f4753",background:"#191c1e"}}><img src={item?.preview ?? ""} alt={`Evidencia ${index+1}`} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/><button type="button" disabled={ticketSubmitting} aria-label={`Quitar imagen ${index+1}`} onClick={()=>removeTicketEvidence(index)} style={{position:"absolute",top:"4px",right:"4px",width:"28px",height:"28px",padding:0,borderRadius:"9999px",border:"1px solid #ffb4ab",background:"rgba(147,0,10,.80)",color:"#ffb4ab",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}
+          </div>
+          <div style={{paddingTop:"28px",borderTop:"1px solid #3f4753",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:"8px",color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}><MS name="schedule" size={18}/>La fecha y hora se registran automáticamente en el sistema.</div><button className="btn-gradient animate-pulse-cyan" type="button" disabled={ticketSubmitting} onClick={createTicket} style={{padding:"16px 40px",border:0,borderRadius:"8px",color:"#003259",fontSize:"20px",lineHeight:"28px",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketSubmitting?"not-allowed":"pointer",opacity:ticketSubmitting?.68:1}}><MS name={ticketSubmitting?"hourglass_top":"send"} size={23}/>{ticketSubmitting?"ENVIANDO…":"ENVIAR TICKET"}</button></div>
         </div>
       </section>}
-      {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:safeEventValue(e)}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:safeEventValue(e)}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:safeEventValue(e)}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:safeEventValue(e)}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:safeEventValue(e)}))} style={input}/></section>}
-      <section style={{...card,overflow:"hidden"}}><div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><div style={{color:"#89919e",fontSize:"11px"}}>{filtered.length} ticket(s)</div></div><button onClick={loadTickets} style={btn("#9fcaff")}><MS name="refresh" size={18}/>Actualizar</button></div>
-        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"48px 20px",display:"grid",placeItems:"center",textAlign:"center",color:"#89919e"}}><div style={{display:"grid",placeItems:"center",width:"156px",height:"156px",borderRadius:"18px",border:"1px solid rgba(159,202,255,.14)",background:"rgba(11,15,16,.55)",boxShadow:"inset 0 0 0 12px rgba(159,202,255,.025)"}}><MS name="radar" size={64} active/></div><div style={{marginTop:"18px",color:"#e0e3e5",fontWeight:800,fontSize:"18px"}}>Sin registros detectados</div><div style={{marginTop:"6px",maxWidth:"460px",lineHeight:1.55}}>No se han encontrado tickets activos. Los nuevos incidentes aparecerán aquí cuando sean registrados y validados.</div></div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":open?"expand_less":"expand_more"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:safeEventValue(e)}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:safeEventValue(e)}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
+
+      <section className="glass-card rounded-xl" style={{overflow:"hidden",borderRadius:"8px"}}>
+        <div className="glass-header" style={{padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:"16px"}}><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><span style={{padding:"4px 12px",borderRadius:"9999px",background:"#323537",color:"#bfc7d5",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{filtered.length} ticket(s)</span></div><button className="rotate-hover" type="button" disabled={ticketsLoading} onClick={loadTickets} style={{padding:"8px 16px",border:"1px solid #3f4753",borderRadius:"9999px",background:"transparent",color:"#bfc7d5",fontFamily:"JetBrains Mono, monospace",fontSize:"12px",lineHeight:"16px",fontWeight:700,letterSpacing:".06em",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",cursor:ticketsLoading?"wait":"pointer"}}><span className="rotate-icon" style={{display:"inline-flex",animation:ticketsLoading?"spin 1s linear infinite":"none"}}><MS name="refresh" size={19}/></span>ACTUALIZAR</button></div>
+        {ticketsLoading?<div style={{padding:"64px 24px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:"18px"}}><div className="animate-pulse-cyan" style={{width:"112px",height:"112px",borderRadius:"9999px",border:"1px solid rgba(159,202,255,.30)",background:"#191c1e",display:"flex",alignItems:"center",justifyContent:"center",color:"#9fcaff"}}><MS name="radar" size={48} active/></div><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>Consultando el núcleo de tickets…</div></div>:ticketsError?<div style={{margin:"24px",padding:"20px",borderRadius:"8px",border:"1px solid #ffb4ab",background:"rgba(147,0,10,.20)",color:"#ffb4ab",display:"flex",alignItems:"flex-start",gap:"12px"}}><MS name="error" size={24} active/><div><div style={{fontSize:"16px",lineHeight:"24px",fontWeight:600}}>Error de conexión</div><div style={{marginTop:"4px",fontSize:"14px",lineHeight:"20px"}}>{ticketsError}</div></div></div>:!filtered.length?<div style={{padding:"64px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:"24px"}}><div style={{position:"relative",width:"192px",height:"192px",display:"flex",alignItems:"center",justifyContent:"center"}}><div className="animate-ping" style={{position:"absolute",inset:0,border:"2px solid rgba(159,202,255,.20)",borderRadius:"9999px",opacity:.2}}/><div className="animate-ping" style={{position:"absolute",inset:"16px",border:"2px solid rgba(159,202,255,.40)",borderRadius:"9999px",opacity:.1,animationDelay:".5s"}}/><div style={{width:"128px",height:"128px",borderRadius:"9999px",border:"1px solid rgba(159,202,255,.30)",display:"flex",alignItems:"center",justifyContent:"center",background:"#191c1e",boxShadow:"inset 0 2px 8px rgba(0,0,0,.35)"}}><MS name="radar" size={52} active/></div><div style={{position:"absolute",inset:0,borderRadius:"9999px",background:"linear-gradient(45deg,transparent,rgba(159,202,255,.20))",animation:"spin 4s linear infinite",pointerEvents:"none"}}/></div><div><div style={{color:"#e0e3e5",fontSize:"20px",lineHeight:"28px",fontWeight:600}}>Sin registros detectados</div><div style={{marginTop:"8px",maxWidth:"448px",color:"#bfc7d5",fontSize:"14px",lineHeight:"20px"}}>No se han encontrado tickets activos en tu terminal. Los nuevos incidentes aparecerán aquí una vez que sean validados por el núcleo central.</div></div></div>:<div className="custom-scrollbar" style={{padding:"24px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(290px,1fr))",gap:"24px"}}>{filtered.map((ticket,index)=>{const type=typeMeta(ticket?.tipo_reporte);const evidence=safeArray(ticket?.evidencia);const open=ticketExpanded===ticket?.id;return <article key={ticket?.id ?? `ticket-${index}`} className="glass-card rounded-xl" style={{borderRadius:"8px",overflow:"hidden",opacity:1,transform:"translateY(0)",animation:`cmTicketReveal .3s ease ${Math.min(index,8)*45}ms both`}}><button type="button" onClick={()=>setTicketExpanded(open?null:(ticket?.id ?? null))} style={{width:"100%",padding:0,border:0,background:"transparent",color:"inherit",textAlign:"left",cursor:"pointer"}}><div className="glass-header" style={{padding:"16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px"}}><div style={{display:"flex",alignItems:"center",gap:"10px",minWidth:0}}><div style={{width:"40px",height:"40px",borderRadius:"8px",background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.20)",color:"#9fcaff",display:"flex",alignItems:"center",justifyContent:"center"}}><MS name={type.icon} size={21}/></div><div style={{minWidth:0}}><div style={{color:"#e0e3e5",fontSize:"16px",lineHeight:"24px",fontWeight:600}}>{type.label}</div><div style={{color:"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>#{String(ticket?.id ?? "").slice(0,12).toUpperCase()}</div></div></div><TicketStatusChip value={ticket?.estatus}/></div><div style={{padding:"16px",display:"grid",gap:"14px"}}><div style={{color:"#bfc7d5",fontSize:"14px",lineHeight:"20px",display:"-webkit-box",WebkitLineClamp:open?6:3,WebkitBoxOrient:"vertical",overflow:"hidden",whiteSpace:"pre-wrap"}}>{ticket?.comentarios ?? "Sin comentarios."}</div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px",fontWeight:500}}>{formatTicketDate(ticket?.fecha_creacion)}</span><span style={{display:"flex",alignItems:"center",gap:"6px",color:evidence.length?"#bdf4ff":"#89919e",fontFamily:"JetBrains Mono, monospace",fontSize:"13px",lineHeight:"18px"}}><MS name={evidence.length?"image":"image_not_supported"} size={18}/>{evidence.length}</span></div></div></button>{!!evidence.length&&<div style={{padding:"0 16px 16px",display:"flex",gap:"8px",flexWrap:"wrap"}}>{evidence.map((image,imageIndex)=><button key={image?.id ?? `${image?.path ?? "image"}-${imageIndex}`} type="button" onClick={()=>getTicketEvidenceUrl(image)} aria-label={`Abrir evidencia ${imageIndex+1}`} style={{width:"64px",height:"52px",borderRadius:"4px",border:"1px solid #3f4753",background:"#191c1e",color:"#9fcaff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}><MS name="image" size={23}/></button>)}</div>}</article>})}</div>}
+      </section>
+      <style>{`@keyframes cmTicketReveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </div>;
   };
 
