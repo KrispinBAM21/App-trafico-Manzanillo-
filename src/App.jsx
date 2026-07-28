@@ -3367,10 +3367,6 @@ function useAdminMode() {
   const [showModal, setShowModal] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [pass, setPass] = useState("");
-  const [adminEmail, setAdminEmail] = useState(() => {
-    try { return sessionStorage.getItem(ADMIN_EMAIL_KEY) || DEFAULT_ADMIN_EMAIL; }
-    catch { return DEFAULT_ADMIN_EMAIL; }
-  });
   const [err, setErr] = useState(false);
   const [authError, setAuthError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
@@ -3416,9 +3412,9 @@ function useAdminMode() {
   const tryLogin = async () => {
     if (Date.now() < lockoutUntil || loggingIn) return;
     setAuthError("");
-    const normalizedEmail = String(adminEmail || "").trim().toLowerCase();
+    const normalizedEmail = DEFAULT_ADMIN_EMAIL;
     if (!normalizedEmail) {
-      setAuthError("Ingresa el correo del usuario administrador creado en Supabase Auth.");
+      setAuthError("La cuenta administrativa no está configurada.");
       return;
     }
 
@@ -3440,20 +3436,65 @@ function useAdminMode() {
 
     setLoggingIn(true);
     try {
-      const loginResult = await withAsyncTimeout(
-        sb.auth.signInWithPassword({ email:normalizedEmail, password:pass }),
-        15000,
-        "Tiempo agotado iniciando la sesión administrativa en Supabase Auth."
+      // En escritorio, sb.auth.signInWithPassword puede quedar bloqueado por el
+      // lock interno de almacenamiento cuando hay otra pestaña o una sesión antigua.
+      // La autenticación se hace directamente contra GoTrue y luego se entrega la
+      // sesión al cliente Supabase, conservando el mismo nivel de seguridad.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      let authPayload;
+      try {
+        const response = await fetch(
+          `${SUPA_URL.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`,
+          {
+            method: "POST",
+            signal: controller.signal,
+            cache: "no-store",
+            credentials: "omit",
+            headers: {
+              apikey: SUPA_KEY,
+              Authorization: `Bearer ${SUPA_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email:normalizedEmail, password:pass }),
+          }
+        );
+        const raw = await response.text();
+        try { authPayload = raw ? JSON.parse(raw) : {}; }
+        catch { authPayload = {}; }
+        if (!response.ok) {
+          throw new Error(
+            authPayload?.msg || authPayload?.message || authPayload?.error_description ||
+            `Supabase Auth respondió con HTTP ${response.status}.`
+          );
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          throw new Error("Tiempo agotado conectando con Supabase Auth desde este navegador.");
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const accessToken = authPayload?.access_token || null;
+      const refreshToken = authPayload?.refresh_token || null;
+      const user = authPayload?.user || null;
+      if (!accessToken || !refreshToken || !user?.id) {
+        throw new Error("Supabase Auth no devolvió una sesión administrativa válida.");
+      }
+
+      const setSessionResult = await withAsyncTimeout(
+        sb.auth.setSession({ access_token:accessToken, refresh_token:refreshToken }),
+        10000,
+        "La sesión fue validada, pero no pudo guardarse en este navegador."
       );
-      const loginError = loginResult?.error;
-      const session = loginResult?.data?.session || null;
-      if (loginError || !session?.access_token || !session?.user?.id) {
-        throw new Error(loginError?.message || "Supabase Auth no devolvió una sesión administrativa válida.");
+      if (setSessionResult?.error || !setSessionResult?.data?.session?.access_token) {
+        throw new Error(setSessionResult?.error?.message || "No se pudo activar la sesión administrativa.");
       }
 
       try {
         sessionStorage.setItem(ADMIN_KEY, "1");
-        sessionStorage.setItem(ADMIN_EMAIL_KEY, normalizedEmail);
       } catch {}
       setIsAdmin(true);
       setShowModal(false);
@@ -3473,7 +3514,6 @@ function useAdminMode() {
   const logout = () => {
     try {
       sessionStorage.removeItem(ADMIN_KEY);
-      sessionStorage.removeItem(ADMIN_EMAIL_KEY);
     } catch {}
     setIsAdmin(false);
     setPass("");
@@ -3500,7 +3540,7 @@ function useAdminMode() {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Inicia sesión con el usuario administrador de Supabase Auth.</div>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Introduce la contraseña administrativa.</div>
         {isLocked ? (
           <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
             <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
@@ -3512,14 +3552,14 @@ function useAdminMode() {
         ) : (
           <>
             <input
-              type="email"
-              value={adminEmail}
-              onChange={() => {}}
-              placeholder="Correo administrador"
-              autoComplete="username"
+              type="text"
+              name="username"
+              value={DEFAULT_ADMIN_EMAIL}
               readOnly
-              aria-readonly="true"
-              style={{ width:"100%", padding:"11px 14px", marginBottom:"8px", background:"rgba(255,255,255,0.07)", border:`1px solid ${authError ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
+              tabIndex={-1}
+              aria-hidden="true"
+              autoComplete="username"
+              style={{ position:"absolute", width:"1px", height:"1px", opacity:0, pointerEvents:"none", overflow:"hidden" }}
             />
             <div style={{ position:"relative", marginBottom:"8px" }}>
               <input
