@@ -20245,18 +20245,50 @@ ${base}`;
         setVtScanMessage(vtSummary.label);
       }
 
+      // La publicación administrativa usa HTTP directo. El cliente sb.storage puede
+      // quedar esperando el lock interno de Supabase Auth cuando la sesión admin se
+      // conserva en sessionStorage de forma independiente. En ese caso ni siquiera
+      // aparece una solicitud en Network y la interfaz queda en “PROCESANDO SUBIDA”.
+      let publicationSession = isAdmin ? readAdminAuthSession() : null;
+      if (isAdmin) {
+        if (!publicationSession?.access_token) {
+          throw new Error("No existe una sesión administrativa válida. Sal e inicia sesión nuevamente.");
+        }
+        const claims = decodeJwtPayload(publicationSession.access_token);
+        const expiresAt = Number(publicationSession.expires_at || claims?.exp || 0);
+        if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
+          publicationSession = await refreshAdminAuthSession(publicationSession);
+        }
+      }
+
+      const publicationToken = publicationSession?.access_token || null;
       const uploadedPaths = [];
+      const encodeStoragePath = (value) => String(value).split("/").map(encodeURIComponent).join("/");
       const uploadOne = async (file, prefix = "principal") => {
         const ext = String(file.name || "imagen.png").split(".").pop() || "png";
         const path = `comunicados/${prefix}_${Date.now()}_${crypto.randomUUID()}.${ext}`;
-        const { error: uploadError } = await sb.storage.from("comunicados").upload(path, file, {
-          contentType: file.type || "application/octet-stream",
-          cacheControl: "3600",
-          upsert: false,
+        const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/comunicados/${encodeStoragePath(path)}`;
+        const response = await fetch(endpoint, {
+          method:"POST",
+          cache:"no-store",
+          credentials:"omit",
+          headers:{
+            apikey:SUPA_KEY,
+            Authorization:`Bearer ${publicationToken || SUPA_KEY}`,
+            "Content-Type":file.type || "application/octet-stream",
+            "cache-control":"3600",
+            "x-upsert":"false",
+          },
+          body:file,
         });
-        if (uploadError) throw uploadError;
+        const raw = await response.text();
+        let payload = {};
+        try { payload = raw ? JSON.parse(raw) : {}; } catch {}
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || `No se pudo subir ${file.name} (HTTP ${response.status}).`);
+        }
         uploadedPaths.push(path);
-        return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
+        return `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/public/comunicados/${encodeStoragePath(path)}`;
       };
 
       // Flujo estable recuperado de la versión que publicaba correctamente:
@@ -20334,13 +20366,29 @@ ${base}`;
           "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
         ]);
         for (let attempt = 0; attempt < 5; attempt += 1) {
-          const result = await sb.from("comunicados").insert(candidate).select("*").single();
-          if (!result.error) return result;
-          const message = String(result.error?.message || "");
-          // PostgREST puede reportar columnas ausentes con variantes como:
-          // “Could not find the 'aprobado_at' column of 'comunicados' in the schema cache”.
-          // Extraemos únicamente el nombre real de la columna y reintentamos sin ese
-          // campo opcional, conservando la lógica histórica de publicación/replicación.
+          const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/comunicados?select=*`, {
+            method:"POST",
+            cache:"no-store",
+            credentials:"omit",
+            headers:{
+              apikey:SUPA_KEY,
+              Authorization:`Bearer ${publicationToken || SUPA_KEY}`,
+              "Content-Type":"application/json",
+              Prefer:"return=representation",
+            },
+            body:JSON.stringify(candidate),
+          });
+          const raw = await response.text();
+          let parsed = null;
+          try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+          if (response.ok) {
+            const row = Array.isArray(parsed) ? parsed[0] : parsed;
+            return { data:row || null, error:null };
+          }
+          const error = parsed && typeof parsed === "object"
+            ? Object.assign(new Error(parsed.message || parsed.error || `HTTP ${response.status}`), parsed)
+            : new Error(raw || `HTTP ${response.status}`);
+          const message = String(error.message || "");
           const match = message.match(/Could not find the ['"]([a-zA-Z0-9_]+)['"] column(?: of [^ ]+)?/i)
             || message.match(/column ['"]?([a-zA-Z0-9_]+)['"]? (?:does not exist|was not found)/i)
             || message.match(/(?:unknown|missing) (?:column|field) ['"]?([a-zA-Z0-9_]+)['"]?/i);
@@ -20353,7 +20401,7 @@ ${base}`;
             delete candidate.media_urls;
             continue;
           }
-          return result;
+          return { data:null, error };
         }
         return { data:null, error:new Error("No fue posible insertar el comunicado con el esquema disponible.") };
       };
@@ -20361,20 +20409,24 @@ ${base}`;
       let comunicadoInsertado = null;
       const insertResult = await insertComunicadoWithFallback(basePayload);
       if (insertResult.error) {
-        try { await sb.storage.from("comunicados").remove(uploadedPaths); } catch {}
+        // No se bloquea la interfaz intentando limpiar mediante el cliente Supabase.
+        // Los objetos huérfanos pueden depurarse posteriormente desde una tarea de mantenimiento.
         throw insertResult.error;
       }
       comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
-        try {
-          await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
-          setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
-        } catch (syncErr) {
-          console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
-          setToolNotice("Comunicado publicado. La réplica en Noticias quedó pendiente; revisa permisos INSERT/RLS de la tabla noticias.", "#fbbf24");
-        }
+        // El comunicado ya quedó guardado. La réplica no debe mantener el botón
+        // bloqueado si el cliente Supabase vuelve a esperar un lock de autenticación.
+        setToolNotice("Comunicado publicado. Replicando en Noticias…", "#22c55e");
+        Promise.resolve()
+          .then(() => syncComunicadoToNoticia(comunicadoInsertado, { processMedia:false }))
+          .then(() => setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e"))
+          .catch((syncErr) => {
+            console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
+            setToolNotice("Comunicado publicado. La réplica en Noticias quedó pendiente.", "#fbbf24");
+          });
       }
 
       setExito(true);
