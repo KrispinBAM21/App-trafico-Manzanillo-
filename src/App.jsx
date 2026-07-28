@@ -18066,6 +18066,14 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [canvasElements, setCanvasElements] = useState([]);
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
+  const [origenFormato, setOrigenFormato] = useState(false);
+  const [draftsOpen, setDraftsOpen] = useState(false);
+  const [drafts, setDrafts] = useState([]);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftMessage, setDraftMessage] = useState("");
+  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [draftToPublishId, setDraftToPublishId] = useState(null);
+  const [extractionZonesState, setExtractionZonesState] = useState([]);
   const inputRef = useRef();
   const pasteZoneRef = useRef();
   const complementaryInputRef = useRef();
@@ -18114,6 +18122,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     const file = new File([blob], `captura_${Date.now()}.${extension}`, { type: blob.type || "image/png", lastModified: Date.now() });
     setPastedCapture((current) => {
       if (current?.url) { try { URL.revokeObjectURL(current.url); } catch {} }
+      setOrigenFormato(false);
       return { file, url: URL.createObjectURL(file) };
     });
     setPasteOcrError("");
@@ -18213,6 +18222,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
     setError("");
     setArchivo(f);
+    setOrigenFormato(false);
     setGeneratedGraphicFile(null);
     setGraphicPreviewUrl("");
     if (f.type !== "application/pdf") {
@@ -19942,7 +19952,7 @@ ${base}`;
   const actualizarTamanoCuerpo = async (nextSize) => {
     const bodyElement = canvasElements.find((item) => item.id === "body");
     const currentSize = Number(bodyElement?.fontSize || autoBodyFontSize || manualBodyFontSize || 20);
-    const desired = Math.max(10, Math.round(Number(nextSize ?? currentSize)));
+    const desired = Math.min(72, Math.max(12, Math.round(Number(nextSize ?? currentSize))));
     setBodyFontMode("manual");
     setManualBodyFontSize(desired);
     try {
@@ -19996,6 +20006,7 @@ ${base}`;
 
     setGraphicBusy(true);
     setError("");
+    setOrigenFormato(true);
     setGraphicEditorText(bodyText);
 
     try {
@@ -20076,6 +20087,160 @@ ${base}`;
     };
   }, [canvasElements, canvasMetrics, inlineEditor?.elementId]);
 
+  const getDraftSession = async () => {
+    let session = readAdminAuthSession?.() || null;
+    if (!session?.access_token) {
+      const result = await Promise.race([
+        sb.auth.getSession(),
+        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 3000)),
+      ]);
+      session = result?.data?.session || null;
+    }
+    if (!session?.access_token) throw new Error("No existe una sesión autorizada para gestionar borradores.");
+    return session;
+  };
+
+  const draftRequest = async (path, options = {}) => {
+    const session = await getDraftSession();
+    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}${path}`, {
+      method:options.method || "GET",
+      cache:"no-store",
+      credentials:"omit",
+      headers:{
+        apikey:SUPA_KEY,
+        Authorization:`Bearer ${session.access_token}`,
+        ...(options.body ? { "Content-Type":"application/json" } : {}),
+        ...(options.headers || {}),
+      },
+      body:options.body,
+    });
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+    if (!response.ok) throw new Error(data?.message || data?.error || raw || `HTTP ${response.status}`);
+    return data;
+  };
+
+  const uploadDraftFile = async (file, draftId, slot) => {
+    if (!file) return null;
+    const session = await getDraftSession();
+    const safeName = String(file.name || `${slot}.bin`).replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const path = `borradores/${session.user?.id || "usuario"}/${draftId}/${slot}_${safeName}`;
+    const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/comunicados/${path.split("/").map(encodeURIComponent).join("/")}`;
+    const response = await fetch(endpoint, {
+      method:"POST",
+      headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${session.access_token}`, "Content-Type":file.type || "application/octet-stream", "x-upsert":"true" },
+      body:file,
+    });
+    const raw = await response.text();
+    if (!response.ok) throw new Error(raw || `No se pudo guardar ${file.name}.`);
+    return {
+      url:`${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/public/comunicados/${path.split("/").map(encodeURIComponent).join("/")}`,
+      path,
+      name:file.name,
+      type:file.type,
+    };
+  };
+
+  const buildDraftFingerprint = async () => {
+    const source = JSON.stringify({
+      titulo:titulo.trim(), detalle:detalle.trim(),
+      principal:(archivo || pastedCapture?.file)?.name || null,
+      complementarias:complementaryFiles.map((f) => `${f.name}:${f.size}:${f.lastModified}`),
+      fechaInicio, fechaFin, fechaFinModo, fechaFinHora, origenFormato,
+    });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2,"0")).join("");
+  };
+
+  const cargarBorradores = async () => {
+    if (!isAdmin) return;
+    setDraftBusy(true); setDraftMessage("");
+    try {
+      const rows = await draftRequest('/rest/v1/comunicado_borradores?estado=eq.borrador&select=*&order=updated_at.desc');
+      setDrafts(Array.isArray(rows) ? rows : []);
+    } catch (e) { setDraftMessage(e?.message || "No se pudieron cargar los borradores."); }
+    finally { setDraftBusy(false); }
+  };
+
+  const guardarBorrador = async () => {
+    if (!isAdmin || (!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)) return;
+    setDraftBusy(true); setDraftMessage("");
+    try {
+      const session = await getDraftSession();
+      const fingerprint = await buildDraftFingerprint();
+      let id = activeDraftId || null;
+      if (!id) {
+        const existing = await draftRequest(`/rest/v1/comunicado_borradores?creado_por=eq.${encodeURIComponent(session.user?.id || "")}&fingerprint=eq.${encodeURIComponent(fingerprint)}&estado=eq.borrador&select=id&limit=1`);
+        id = Array.isArray(existing) && existing[0]?.id ? existing[0].id : crypto.randomUUID();
+      }
+      const principal = await uploadDraftFile(archivo || pastedCapture?.file || null, id, "principal");
+      const extras = [];
+      for (let i=0;i<complementaryFiles.length;i+=1) extras.push(await uploadDraftFile(complementaryFiles[i], id, `extra_${i+1}`));
+      const payload = {
+        id, creado_por:session.user?.id || null, titulo:titulo.trim() || "Borrador sin título",
+        descripcion_breve:detalle.trim() || null, texto_extraido:detalle.trim() || null,
+        archivo_principal_url:principal?.url || null, archivo_principal_path:principal?.path || null,
+        archivo_principal_nombre:principal?.name || null, archivo_principal_tipo:principal?.type || null,
+        fotos_complementarias:extras, zonas_extraccion:extractionZonesState,
+        fecha_inicio:fechaInicio || null, fecha_fin:fechaFin || null, fecha_fin_modo:fechaFinModo,
+        fecha_fin_hora:fechaFinHora || null, origen_formato:origenFormato,
+        imagen_formato_url:origenFormato ? graphicPreviewUrl || null : null,
+        estado:"borrador", fingerprint, updated_at:new Date().toISOString(),
+      };
+      await draftRequest('/rest/v1/comunicado_borradores?on_conflict=id', {
+        method:'POST', body:JSON.stringify(payload),
+        headers:{ Prefer:'resolution=merge-duplicates,return=representation' },
+      });
+      setActiveDraftId(id); setDraftMessage("Borrador guardado.");
+      await cargarBorradores(); setDraftsOpen(true);
+    } catch (e) { setDraftMessage(e?.message || "No se pudo guardar el borrador."); }
+    finally { setDraftBusy(false); }
+  };
+
+  const fileFromRemote = async (url, name, type) => {
+    if (!url) return null;
+    const response = await fetch(url, { cache:'no-store' });
+    if (!response.ok) throw new Error(`No se pudo recuperar ${name || 'el archivo del borrador'}.`);
+    const blob = await response.blob();
+    return new File([blob], name || 'archivo', { type:type || blob.type, lastModified:Date.now() });
+  };
+
+  const cargarBorrador = async (draft) => {
+    setDraftBusy(true); setDraftMessage("");
+    try {
+      setTitulo(draft.titulo || ""); setDetalle(draft.descripcion_breve || draft.texto_extraido || "");
+      setFechaInicio(draft.fecha_inicio || ""); setFechaFin(draft.fecha_fin || "");
+      setFechaFinModo(draft.fecha_fin_modo || "fecha"); setFechaFinHora(draft.fecha_fin_hora || "");
+      setOrigenFormato(draft.origen_formato === true); setExtractionZonesState(Array.isArray(draft.zonas_extraccion) ? draft.zonas_extraccion : []);
+      const principal = await fileFromRemote(draft.archivo_principal_url, draft.archivo_principal_nombre, draft.archivo_principal_tipo);
+      if (principal) { setArchivo(principal); setPreview(principal.type.includes('pdf') ? 'pdf' : URL.createObjectURL(principal)); }
+      const extrasMeta = Array.isArray(draft.fotos_complementarias) ? draft.fotos_complementarias : [];
+      const extras = (await Promise.all(extrasMeta.map((m) => fileFromRemote(m.url,m.name,m.type).catch(()=>null)))).filter(Boolean);
+      setComplementaryFiles(extras);
+      setComplementaryPreviews(extras.map((file) => ({ id:crypto.randomUUID(), file, url:URL.createObjectURL(file) })));
+      setActiveDraftId(draft.id); setDraftsOpen(false); setDraftMessage("Borrador cargado para edición.");
+    } catch (e) { setDraftMessage(e?.message || "No se pudo cargar el borrador."); }
+    finally { setDraftBusy(false); }
+  };
+
+  const eliminarBorrador = async (draft) => {
+    if (!confirm(`¿Eliminar el borrador “${draft.titulo || 'sin título'}”?`)) return;
+    setDraftBusy(true);
+    try {
+      await draftRequest(`/rest/v1/comunicado_borradores?id=eq.${encodeURIComponent(draft.id)}`, { method:'DELETE', headers:{ Prefer:'return=minimal' } });
+      setDrafts((items) => items.filter((item) => item.id !== draft.id));
+      if (activeDraftId === draft.id) setActiveDraftId(null);
+    } catch (e) { setDraftMessage(e?.message || "No se pudo eliminar el borrador."); }
+    finally { setDraftBusy(false); }
+  };
+
+  const publicarBorrador = async (draft) => {
+    await cargarBorrador(draft);
+    setDraftToPublishId(draft.id);
+    setTimeout(() => document.getElementById('cm-publicar-comunicado')?.click(), 180);
+  };
+
   const addDaysToDateInput = (dateValue, days = 30) => {
     if (!dateValue) return "";
     const date = new Date(`${dateValue}T12:00:00`);
@@ -20121,7 +20286,9 @@ ${base}`;
       setError("Escribe un título para el comunicado");
       return;
     }
-    const archivoPrincipal = archivo || pastedCapture?.file || null;
+    const archivoPrincipal = origenFormato && generatedGraphicFile
+      ? generatedGraphicFile
+      : (archivo || pastedCapture?.file || null);
     if (!archivoPrincipal) {
       setError("Adjunta un archivo o pega una captura de pantalla");
       return;
@@ -20355,7 +20522,9 @@ ${base}`;
         virustotal_summary: bypassVirusTotal
           ? { status:"trusted_bypass", malicious:0, suspicious:0, total:0, label:"Verificación omitida para usuario autorizado" }
           : getVirusTotalSummary(securityResults),
-        security_verification_status: bypassVirusTotal ? "usuario_autorizado" : (verificationPending ? "pendiente_verificacion" : "verificado")
+        security_verification_status: bypassVirusTotal ? "usuario_autorizado" : (verificationPending ? "pendiente_verificacion" : "verificado"),
+        origen_formato: origenFormato === true,
+        borrador_id_origen: draftToPublishId || activeDraftId || null
       };
 
       const insertComunicadoWithFallback = async (payload) => {
@@ -20363,7 +20532,8 @@ ${base}`;
         const removable = new Set([
           "media_urls", "fecha_inicio_propuesta", "fecha_fin_propuesta", "estado_aprobacion",
           "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at",
-          "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
+          "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status",
+          "origen_formato", "borrador_id_origen"
         ]);
         for (let attempt = 0; attempt < 5; attempt += 1) {
           const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/comunicados?select=*`, {
@@ -20415,6 +20585,22 @@ ${base}`;
       }
       comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
 
+      if (draftToPublishId || activeDraftId) {
+        const draftId = draftToPublishId || activeDraftId;
+        try {
+          await draftRequest(`/rest/v1/comunicado_borradores?id=eq.${encodeURIComponent(draftId)}`, {
+            method:"PATCH",
+            body:JSON.stringify({ estado:"publicado", publicado_comunicado_id:comunicadoInsertado?.id || null, updated_at:new Date().toISOString() }),
+            headers:{ Prefer:"return=minimal" },
+          });
+          setDrafts((items) => items.filter((item) => item.id !== draftId));
+        } catch (draftError) {
+          console.warn("No se pudo marcar el borrador como publicado:", draftError);
+        }
+        setDraftToPublishId(null);
+        setActiveDraftId(null);
+      }
+
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
       if (isAdmin === true && comunicadoInsertado) {
         // El comunicado ya quedó guardado. La réplica no debe mantener el botón
@@ -20440,6 +20626,7 @@ ${base}`;
       setComplementaryFiles([]);
       setComplementaryPreviews([]);
       setGeneratedGraphicFile(null);
+      setOrigenFormato(false);
       setGraphicPreviewUrl("");
       setFechaInicio("");
       setFechaFin("");
@@ -20789,9 +20976,9 @@ ${base}`;
 
               <div style={{ marginTop:"8px", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", flexWrap:"wrap", padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.35)", background:"rgba(250,204,21,.08)" }}>
                 <span style={{ color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900 }}>TAMAÑO DEL CUERPO</span>
-                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) - 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"30px", height:"30px", borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>−</button>
+                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) - 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"34px", height:"34px", minWidth:"34px", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0, lineHeight:1, borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>−</button>
                 <span style={{ minWidth:"62px", textAlign:"center", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900 }}>{Math.round(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 0)) || "—"} px</span>
-                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) + 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"30px", height:"30px", borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>+</button>
+                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) + 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"34px", height:"34px", minWidth:"34px", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0, lineHeight:1, borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>+</button>
                 <button type="button" onClick={restablecerTamanoAutomatico} disabled={graphicBusy || !canvasElements.length || bodyFontMode === "auto"} style={{ padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.50)", background:bodyFontMode === "auto"?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:bodyFontMode === "auto"?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:bodyFontMode === "auto"?"default":"pointer" }}>AUTO</button>
                 <span style={{ color:"rgba(226,232,240,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"9px" }}>{bodyFontMode === "auto" ? "Ajuste automático activo" : "Ajuste manual activo"}</span>
               </div>
@@ -20885,7 +21072,25 @@ ${base}`;
         </div>
       )}
 
+      {isAdmin && (
+        <div style={{ position:"relative", marginBottom:"12px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"10px" }}>
+            <button type="button" onClick={guardarBorrador} disabled={draftBusy || (!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)} style={{ minHeight:"46px", borderRadius:"8px", border:"1px solid rgba(125,211,252,.45)", background:"rgba(56,189,248,.10)", color:"#bae6fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:draftBusy?"wait":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", opacity:(!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)?.55:1 }}><MS name="save" size={20} active />{draftBusy ? "GUARDANDO…" : activeDraftId ? "ACTUALIZAR BORRADOR" : "GUARDAR COMUNICADO"}</button>
+            <button type="button" aria-label="Abrir borradores" title="Borradores guardados" onClick={()=>{ const next=!draftsOpen; setDraftsOpen(next); if(next) cargarBorradores(); }} style={{ width:"48px", minHeight:"46px", borderRadius:"8px", border:"1px solid rgba(125,211,252,.45)", background:draftsOpen?"rgba(56,189,248,.20)":"rgba(56,189,248,.10)", color:"#bae6fd", cursor:"pointer", display:"grid", placeItems:"center" }}><MS name="inventory_2" size={21} active /></button>
+          </div>
+          {draftMessage && <div role="status" style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:draftMessage.includes("No se")?"#fca5a5":"#86efac" }}>{draftMessage}</div>}
+          {draftsOpen && <div style={{ position:"absolute", zIndex:40, left:0, right:0, top:"calc(100% + 8px)", maxHeight:"420px", overflowY:"auto", padding:"10px", borderRadius:"12px", border:"1px solid rgba(125,211,252,.30)", background:"rgba(2,12,27,.98)", boxShadow:"0 24px 60px rgba(0,0,0,.55)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}><strong style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>BORRADORES</strong><button type="button" onClick={()=>setDraftsOpen(false)} style={{ border:0, background:"transparent", color:"#94a3b8", cursor:"pointer" }}><MS name="close" size={20}/></button></div>
+            {draftBusy ? <div style={{ padding:"18px", color:"#94a3b8", textAlign:"center" }}>Cargando…</div> : drafts.length===0 ? <div style={{ padding:"18px", color:"#94a3b8", textAlign:"center", fontSize:"11px" }}>No hay borradores pendientes.</div> : drafts.map((draft)=><div key={draft.id} style={{ display:"grid", gridTemplateColumns:"64px minmax(0,1fr)", gap:"10px", padding:"9px", marginBottom:"8px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.18)", background:"rgba(15,23,42,.75)" }}>
+              <div style={{ width:"64px", height:"54px", borderRadius:"8px", overflow:"hidden", background:"#07111f", display:"grid", placeItems:"center" }}>{draft.archivo_principal_url && String(draft.archivo_principal_tipo||'').startsWith('image/')?<img src={draft.archivo_principal_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<MS name="draft" size={25}/>}</div>
+              <div><div style={{ color:"#fff", fontWeight:800, fontSize:"11px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{draft.titulo || 'Borrador sin título'}</div><div style={{ color:"#94a3b8", fontSize:"9px", margin:"3px 0 7px" }}>{new Date(draft.updated_at || draft.created_at).toLocaleString()} · borrador</div><div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}><button type="button" onClick={()=>cargarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #38bdf866",background:"#38bdf81a",color:"#7dd3fc",cursor:"pointer"}}>Editar</button><button type="button" onClick={()=>publicarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #22c55e66",background:"#22c55e1a",color:"#86efac",cursor:"pointer"}}>Publicar</button><button type="button" onClick={()=>eliminarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #ef444466",background:"#ef44441a",color:"#fca5a5",cursor:"pointer"}}>Eliminar</button></div></div>
+            </div>)}
+          </div>}
+        </div>
+      )}
+
       <button
+        id="cm-publicar-comunicado"
         onClick={handleSubir}
         disabled={subiendo}
         style={{ width: "100%", padding: "15px 18px", background: subiendo ? "rgba(44,58,76,.45)" : "linear-gradient(135deg,#f59e0b,#fbbf24)", border: "1px solid rgba(245,158,11,.55)", borderRadius: "8px", color: subiendo ? "rgba(255,255,255,0.45)" : "#010f1f", fontFamily: getFont(theme, "secondary"), fontWeight: "900", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.8px", boxShadow: subiendo ? "none" : "0 14px 32px rgba(245,158,11,.22)" }}
@@ -21178,46 +21383,29 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const eliminar = async (id) => {
     if (eliminando) return;
     setEliminando(true);
-
-    const com = vigentes.find(v => v.id === id) || comunicados.find(c => c.id === id);
-
-    // 1. Eliminar archivo de storage si existe
-    if (com?.archivo_url) {
-      try {
-        const path = com.archivo_url.split("/comunicados/")[1];
-        if (path) await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
-      } catch (err) {
-        console.error("Error al eliminar archivo:", err);
-      }
+    setProcesando({ id, accion:"Eliminando comunicado…" });
+    try {
+      const adminSession = readAdminAuthSession?.() || null;
+      const sessionResult = adminSession?.access_token ? null : await Promise.race([
+        sb.auth.getSession(),
+        new Promise((resolve)=>setTimeout(()=>resolve({data:{session:null}}),3000)),
+      ]);
+      const token = adminSession?.access_token || sessionResult?.data?.session?.access_token;
+      if (!token) throw new Error("No existe una sesión autorizada para eliminar.");
+      setProcesando({ id, accion:"Eliminando publicación en Noticias…" });
+      const response = await fetch(`${SUPA_URL.replace(/\/+$/,"")}/rest/v1/rpc/eliminar_comunicado_cascada`, {
+        method:"POST", headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${token}`, "Content-Type":"application/json" },
+        body:JSON.stringify({ p_comunicado_id:id }),
+      });
+      const raw = await response.text(); let result=null; try{result=raw?JSON.parse(raw):null}catch{}
+      if (!response.ok) throw new Error(result?.message || result?.error || raw || `HTTP ${response.status}`);
+      setConfirmId(null); onReload();
+    } catch (error) {
+      console.error("Error en eliminación en cascada:", error);
+      alert(`No se pudo completar la eliminación en cascada.\n\n${error?.message || error}`);
+    } finally {
+      setProcesando(null); setEliminando(false);
     }
-
-    // 2. Delete con .select() para confirmar que Supabase realmente eliminó la fila
-    const { data: deleted, error } = await sb
-      .from("comunicados")
-      .delete()
-      .eq("id", id)
-      .select();
-
-    if (error) {
-      console.error("Error al eliminar comunicado:", error);
-      alert("Error al eliminar el comunicado: " + error.message);
-      setEliminando(false);
-      setConfirmId(null);
-      return;
-    }
-
-    // 3. Si no se eliminó ninguna fila, probablemente hay un problema de RLS
-    if (!deleted || deleted.length === 0) {
-      alert("No se pudo eliminar el comunicado.\n\nVerifica que la política RLS de la tabla 'comunicados' en Supabase permita DELETE al rol anon o al usuario actual.");
-      setEliminando(false);
-      setConfirmId(null);
-      return;
-    }
-
-    // 4. Cerrar modal y recargar
-    setEliminando(false);
-    setConfirmId(null);
-    onReload();
   };
 
   const handleSubidoExitoso = () => {
@@ -21268,7 +21456,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
           <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
             <div style={{ fontSize: "40px", marginBottom: "12px" }}>{eliminando ? "Procesando" : "Eliminar️"}</div>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>
-              {eliminando ? "Eliminando comunicado..." : "¿Eliminar comunicado?"}
+              {eliminando ? (procesando?.accion || "Eliminando comunicado…") : "¿Eliminar comunicado?"}
             </div>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.45)", marginBottom: "22px", lineHeight: "1.5" }}>
               {eliminando 
