@@ -544,15 +544,34 @@ const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
 
 const getVirusTotalAccessToken = async () => {
   try {
-    const sessionResult = await withAsyncTimeout(
+    const current = await withAsyncTimeout(
       sb.auth.getSession(),
-      2500,
-      "No fue posible recuperar la sesión para VirusTotal."
+      8000,
+      "Tiempo agotado recuperando la sesión administrativa."
     );
-    return sessionResult?.data?.session?.access_token || null;
+
+    let session = current?.data?.session || null;
+
+    if (!session?.access_token) {
+      const refreshed = await withAsyncTimeout(
+        sb.auth.refreshSession(),
+        8000,
+        "Tiempo agotado renovando la sesión administrativa."
+      );
+      session = refreshed?.data?.session || null;
+    }
+
+    const accessToken = session?.access_token || null;
+    if (!accessToken) {
+      throw new Error(
+        "No se encontró una sesión administrativa válida. Cierra sesión, vuelve a entrar e intenta publicar nuevamente."
+      );
+    }
+
+    return accessToken;
   } catch (error) {
-    console.warn("[VirusTotal] No se pudo recuperar la sesión de Supabase.", error);
-    return null;
+    console.error("[VirusTotal] No se pudo obtener una sesión autenticada.", error);
+    throw error;
   }
 };
 
@@ -597,7 +616,7 @@ const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo 
       signal:controller.signal,
       headers:{
         apikey:SUPA_KEY,
-        Authorization:`Bearer ${accessToken || SUPA_KEY}`,
+        Authorization:`Bearer ${accessToken}`,
         ...(action === "scan_file" ? {} : { "Content-Type":"application/json" }),
       },
       body,
