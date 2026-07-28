@@ -23603,6 +23603,165 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     }
   };
 
+  const saveTrab = async () => {
+    if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
+    if (!authUser) return requireLogin();
+    if (!trabForm.nombre_completo.trim() || !trabForm.edad || !trabForm.telefono_llamadas.trim() || !trabForm.telefono_whatsapp.trim()) { setMsg({type:"err", text:"Completa nombre, edad, teléfono de llamadas y WhatsApp."}); return; }
+    if (!isAdmin) {
+      const requiredDocs = ["foto_perfil","domicilio","licencia_frontal","licencia_trasera","ine_frontal","ine_trasera","comprobante_domicilio"];
+      if (requiredDocs.some(k => !String(trabForm[k] || "").trim())) { setMsg({type:"err", text:"Completa foto de perfil, domicilio, licencia frontal/trasera, INE frontal/trasera y comprobante de domicilio."}); return; }
+    }
+    const salarioLocal = Number(trabForm.salario_local || 0);
+    const salarioForaneo = Number(trabForm.salario_foraneo || 0);
+    if (salarioLocal && salarioLocal < salarioMinPostulanteLocal) { setMsg({type:"err", text:`La expectativa económica local del postulante debe ser mínimo $${salarioMinPostulanteLocal}.`}); return; }
+    if (salarioLocal && salarioLocal > salarioMaxPostulanteLocal) { setMsg({type:"err", text:`La expectativa económica local del postulante no debe superar $${salarioMaxPostulanteLocal}.`}); return; }
+    if (salarioForaneo && salarioForaneo < salarioMinPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante debe ser mínimo $${salarioMinPostulanteForaneo}.`}); return; }
+    if (salarioForaneo && salarioForaneo > salarioMaxPostulanteForaneo) { setMsg({type:"err", text:`La expectativa económica foránea del postulante no debe superar $${salarioMaxPostulanteForaneo}.`}); return; }
+    persistPosturasUserType("postulante");
+    const nowIso = new Date().toISOString();
+    const payload = { ...trabForm, edad:Number(trabForm.edad), salario_local: salarioLocal || null, salario_foraneo: salarioForaneo || null, user_id:null, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true };
+    try {
+      await apiFetch(`/api/posturas/profile?type=trabajador`, {
+        method:editingTrabId ? "PUT" : "POST",
+        body:JSON.stringify({ type:"trabajador", id:editingTrabId || null, payload })
+      });
+      setMsg({type:"ok", text:isAdmin ? "Perfil de trabajador guardado y validado." : "Formulario enviado. En revisión por administración."});
+      setTrabForm(emptyTrab); setEditingTrabId(null); loadPosturas();
+    } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil."}); }
+  };
+  const closeVacancyModal = useCallback((force = false) => {
+    if (!force && isVacancyDirty && typeof window !== "undefined" && !window.confirm("Hay cambios sin publicar. ¿Deseas cerrar el formulario?")) return;
+    setVacancyModalOpen(false);
+    setIsVacancyDirty(false);
+    setVacancyForm(emptyVacancy);
+  }, [isVacancyDirty]);
+
+  const openVacancyModal = () => {
+    if (!isAdmin && !authUser) {
+      openAccessSelector("login");
+      setMsg({ type:"err", text:"Para publicar vacantes primero inicia sesión como Empresa." });
+      return;
+    }
+    if (!isAdmin && !isEmpresaSession) {
+      setMsg({ type:"err", text:"La publicación de vacantes está disponible únicamente para perfiles de empresa." });
+      return;
+    }
+    const existing = myLatestEmpresa;
+    if (!isAdmin && (!existing || !isProfilePublic(existing))) {
+      setSub("posturas");
+      setPosturasMode("form");
+      setCompanyFormMode("registro");
+      setEmpWizardStep(1);
+      setMsg({ type:"err", text:"Completa y valida tu perfil empresarial antes de publicar vacantes." });
+      return;
+    }
+    if (!isAdmin && existing && isProfileExpired(existing)) {
+      setSub("posturas");
+      setPosturasMode("form");
+      setCompanyFormMode("registro");
+      setEmpWizardStep(1);
+      setMsg({ type:"err", text:"Tu perfil empresarial está suspendido. Actualiza tus datos antes de publicar vacantes." });
+      return;
+    }
+    setSub("posturas");
+    setPosturasMode("list");
+    setCompanyFormMode("vacante");
+    setEmpWizardStep(1);
+    setEditingEmpId(null);
+    setVacancyForm({ ...emptyVacancy, tipo_viaje:"Local", alcance:"Local" });
+    setIsVacancyDirty(false);
+    setVacancyModalOpen(true);
+  };
+
+  const parseMoney = (value) => {
+    const normalized = String(value ?? "").replace(/[^0-9.]/g, "");
+    if (!normalized) return 0;
+    const amount = Number(normalized);
+    return Number.isFinite(amount) && amount > 0 ? amount : 0;
+  };
+
+  const saveCompanyProfile = async () => {
+    if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
+    if (!authUser) return requireLogin();
+    if (!empForm.razon_social.trim() || !empForm.rfc.trim() || !empForm.correo.includes("@") || !empForm.representante.trim()) { setMsg({type:"err", text:"Completa razón social, RFC, representante y correo obligatorio."}); return; }
+    if (!isAdmin) {
+      const requiredEmpresaDocs = ["logo_empresa","domicilio","comprobante_domicilio","contacto_principal_nombre","contacto_principal_numero","contacto_principal_foto"];
+      if (requiredEmpresaDocs.some(k => !String(empForm[k] || "").trim())) { setMsg({type:"err", text:"Completa logo, domicilio, comprobante de domicilio, nombre, teléfono y foto del contacto principal."}); return; }
+    }
+    persistPosturasUserType("empresa");
+    const nowIso = new Date().toISOString();
+    const payload = {
+      ...empForm,
+      record_type:"company_profile",
+      ubicacion: empForm.domicilio || empForm.ubicacion || "",
+      representante: empForm.contacto_principal_nombre || empForm.representante || "",
+      telefono: empForm.contacto_principal_numero || empForm.telefono || "",
+      correo: empForm.contacto_secundario_correo || empForm.correo || authUser?.email || "",
+      user_id:authUser.id, submitted_by_uid:authUser.id, device_id:myId, updated_at:nowIso, documentos_updated_at:nowIso, perfil_estado:isAdmin ? "validado" : "pendiente", activo:true
+    };
+    try {
+      await apiFetch(`/api/posturas/profile?type=empresa`, {
+        method:editingEmpId ? "PUT" : "POST",
+        body:JSON.stringify({ type:"empresa", id:editingEmpId || null, payload })
+      });
+      setMsg({type:"ok", text:isAdmin ? "Perfil de empresa guardado y validado." : "Formulario empresarial enviado. En revisión por administración."});
+      setEmpForm(emptyEmp); setEditingEmpId(null); loadPosturas();
+    } catch (error) { setMsg({type:"err", text:error?.message || "No se pudo guardar el perfil empresarial."}); }
+  };
+
+  const publishVacancy = async () => {
+    if (isPublishingVacancy) return;
+    if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
+    if (!authUser) return requireLogin();
+    const company = myLatestEmpresa;
+    if (!isAdmin && (!isEmpresaSession || !company || !isProfilePublic(company))) { setMsg({type:"err", text:"Necesitas un perfil empresarial activo y validado para publicar."}); return; }
+    const title = String(vacancyForm.titulo_vacante || "").trim();
+    const operatorCount = Number(vacancyForm.cantidad_operadores || 0);
+    if (!title) { setMsg({type:"err", text:"Escribe el título de la vacante."}); return; }
+    if (!Number.isInteger(operatorCount) || operatorCount < 1 || operatorCount > 999) { setMsg({type:"err", text:"Indica una cantidad válida de operadores entre 1 y 999."}); return; }
+    const selectedTrip = String(vacancyForm.tipo_viaje || "Local").toLowerCase();
+    const localPay = parseMoney(vacancyForm.salario_local_ofrecido);
+    const foreignPay = parseMoney(vacancyForm.salario_foraneo_ofrecido);
+    const offeredPay = selectedTrip === "local" ? localPay : foreignPay;
+    if (!offeredPay) { setMsg({type:"err", text:`Indica el pago ofrecido para viaje ${selectedTrip}.`}); return; }
+    if (selectedTrip === "local" && (localPay < salarioMinEmpresaLocal || localPay > salarioMaxEmpresaLocal)) { setMsg({type:"err", text:`El pago local debe estar entre $${salarioMinEmpresaLocal} y $${salarioMaxEmpresaLocal}.`}); return; }
+    if (selectedTrip === "foráneo" && (foreignPay < salarioMinEmpresaForaneo || foreignPay > salarioMaxEmpresaForaneo)) { setMsg({type:"err", text:`El pago foráneo debe estar entre $${salarioMinEmpresaForaneo} y $${salarioMaxEmpresaForaneo}.`}); return; }
+    const nowIso = new Date().toISOString();
+    const payload = {
+      ...vacancyForm,
+      record_type:"vacancy",
+      company_profile_id:company?.id || null,
+      company_name:company?.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || "",
+      company_logo:company?.logo_empresa || "",
+      titulo_vacante:title.toUpperCase(),
+      cantidad_operadores:operatorCount,
+      salario_local_ofrecido:selectedTrip === "local" ? localPay : null,
+      salario_foraneo_ofrecido:selectedTrip === "foráneo" ? foreignPay : null,
+      status:"published",
+      estatus:"tiene_trabajo",
+      owner_user_id:authUser.id,
+      user_id:authUser.id,
+      submitted_by_uid:authUser.id,
+      published_at:nowIso, updated_at:nowIso, activo:true, deleted_at:null
+    };
+    setIsPublishingVacancy(true);
+    try {
+      try {
+        await apiFetch(`/api/posturas/vacancies`, { method:"POST", body:JSON.stringify({ payload }) });
+      } catch (primaryError) {
+        // Compatibilidad temporal con el backend anterior. El marcador record_type evita mezclar perfiles y vacantes.
+        await apiFetch(`/api/posturas/profile?type=empresa`, { method:"POST", body:JSON.stringify({ type:"empresa", id:null, payload }) });
+      }
+      setMsg({type:"ok", text:"Vacante publicada."});
+      closeVacancyModal(true);
+      await loadPosturas();
+    } catch (error) {
+      setMsg({type:"err", text:error?.message || "No se pudo publicar la vacante."});
+    } finally {
+      setIsPublishingVacancy(false);
+    }
+  };
+
   const saveEmp = async () => vacancyModalOpen ? publishVacancy() : saveCompanyProfile();
 
   const rate = async (type, id, stars, comment="") => {
