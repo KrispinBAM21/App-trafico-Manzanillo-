@@ -3026,10 +3026,11 @@ const mkCarrilesState = () => {
 // ─── ADMIN MODE ───────────────────────────────────────────────────────────────
 function useAdminMode() {
   const theme = React.useContext(ThemeContext);
-  const [isAdmin, setIsAdmin] = useState(() => {
-    try { return sessionStorage.getItem(ADMIN_KEY) === "1"; }
-    catch { return false; }
-  });
+  // No se confía en un indicador visual persistido para decidir la identidad.
+  // La sesión real de Supabase determina si la cuenta es administradora.
+  // Esto evita que un usuario privilegiado vea fugazmente "ADMIN · Salir"
+  // mientras se restaura su perfil normal.
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [tapCount, setTapCount] = useState(0);
@@ -27966,6 +27967,12 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
     setLoginMsg(null);
     rememberAuthReturnLocation();
     setAuthLogoutGuard(false);
+    // Google siempre mantiene la sesión en este dispositivo hasta que el
+    // usuario pulse explícitamente "Cerrar sesión". El adaptador authStorage
+    // leerá y escribirá el token en localStorage antes de iniciar PKCE.
+    try {
+      localStorage.setItem(AUTH_PERSISTENCE_KEY, "local");
+    } catch {}
     const { error } = await sb.auth.signInWithOAuth({
       provider:"google",
       options:{
