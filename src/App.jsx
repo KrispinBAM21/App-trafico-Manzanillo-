@@ -6518,7 +6518,11 @@ function useSubAdminSession() {
       } catch {}
     };
     resolveLinkedAccount();
-    const { data:listener } = sb.auth.onAuthStateChange(() => resolveLinkedAccount());
+    const { data:listener } = sb.auth.onAuthStateChange(() => {
+      // No ejecutar llamadas async a Supabase dentro del callback de Auth.
+      // Se difiere al siguiente ciclo para liberar el lock interno de supabase-js.
+      setTimeout(() => { void resolveLinkedAccount(); }, 0);
+    });
     return () => { cancelled = true; listener?.subscription?.unsubscribe?.(); };
   }, []);
 
