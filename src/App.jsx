@@ -22850,13 +22850,14 @@ function NoticiasTab({ isAdmin }) {
     document.head.appendChild(style);
   }, []);
   const theme = React.useContext(ThemeContext) || {};
-  const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v3";
+  const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v4";
   const COMUNICADOS_CACHE_KEY = "cm_comunicados_cache_v3";
-  const noticiasCacheInicial = useMemo(() => readJsonCache(NOTICIAS_CACHE_KEY, [], "local"), []);
   const comunicadosCacheInicial = useMemo(() => readJsonCache(COMUNICADOS_CACHE_KEY, [], "session"), []);
-  const [noticias,      setNoticias]      = useState(() => Array.isArray(noticiasCacheInicial) ? noticiasCacheInicial : []);
+  // Noticias siempre se revalidan desde Supabase. No se pinta un contador antiguo
+  // desde localStorage, porque podía alternar entre 12 y 20 al recargar.
+  const [noticias,      setNoticias]      = useState([]);
   const [comunicados,   setComunicados]   = useState(() => Array.isArray(comunicadosCacheInicial) ? comunicadosCacheInicial : []);
-  const [loading,       setLoading]       = useState(() => !Array.isArray(noticiasCacheInicial) || noticiasCacheInicial.length === 0);
+  const [loading,       setLoading]       = useState(true);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
@@ -22871,22 +22872,35 @@ function NoticiasTab({ isAdmin }) {
     value === true || value === "true" || value === 1 || value === "1";
 
   const noticiasLoadRef = useRef(null);
+  const noticiasRequestSeqRef = useRef(0);
 
   const cargarNoticias = useCallback(({ force = false } = {}) => {
-    if (!force && noticiasLoadRef.current) return noticiasLoadRef.current;
-    if (!noticias.length) setLoading(true);
+    // Una sola solicitud en vuelo. Incluso con force se reutiliza la actual para
+    // impedir que una respuesta anterior sobrescriba una más reciente.
+    if (noticiasLoadRef.current) return noticiasLoadRef.current;
+
+    const requestSeq = ++noticiasRequestSeqRef.current;
+    setLoading(true);
 
     const task = fetchSupabaseRowsDirect("noticias", {
       select:"*",
       order:"created_at",
       ascending:false,
       limit:150,
-      timeoutMs:12000,
+      timeoutMs:15000,
     })
       .then((data) => {
-        const next = Array.isArray(data) ? data : [];
+        if (requestSeq !== noticiasRequestSeqRef.current) return null;
+        const byId = new Map();
+        for (const row of safeArray(data)) {
+          const id = String(row?.id || "");
+          if (id) byId.set(id, row);
+        }
+        const next = Array.from(byId.values()).sort((a, b) =>
+          new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+        );
         setNoticias(next);
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
         return next;
       })
       .catch(error => {
@@ -22894,7 +22908,7 @@ function NoticiasTab({ isAdmin }) {
         return null;
       })
       .finally(() => {
-        setLoading(false);
+        if (requestSeq === noticiasRequestSeqRef.current) setLoading(false);
         noticiasLoadRef.current = null;
       });
 
@@ -22912,7 +22926,7 @@ function NoticiasTab({ isAdmin }) {
       }
       setNoticias((prev) => {
         const next = [noticia, ...safeArray(prev).filter((item) => String(item?.id || "") !== id)];
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
         return next;
       });
     };
@@ -22938,24 +22952,9 @@ function NoticiasTab({ isAdmin }) {
       setComunicados(aprobados);
       writeJsonCache(COMUNICADOS_CACHE_KEY, aprobados, "session");
 
-      // La sincronización secundaria no bloquea el primer render ni la carga del feed.
-      deferWork(() => {
-        Promise.allSettled(
-          aprobados.slice(0, 8).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
-        ).then(results => {
-          const sincronizadas = results
-            .filter(result => result.status === "fulfilled" && result.value)
-            .map(result => result.value);
-          if (!sincronizadas.length) return;
-          setNoticias(prev => {
-            const merged = [...sincronizadas, ...prev]
-              .filter((row, index, rows) => rows.findIndex(x => String(x.id) === String(row.id)) === index)
-              .slice(0, 150);
-            writeJsonCache(NOTICIAS_CACHE_KEY, merged, "local");
-            return merged;
-          });
-        });
-      }, 250);
+      // La réplica a Noticias se realiza en comunicados-manager al publicar.
+      // No se vuelve a sincronizar desde el lector porque alteraba el contador
+      // durante la carga inicial y podía crear carreras con el fetch de Noticias.
       return aprobados;
     } catch (error) {
       console.error("Error cargando comunicados:", error);
@@ -22978,7 +22977,7 @@ function NoticiasTab({ isAdmin }) {
         setNoticias(prev => {
           const current = safeArray(prev);
           const next = current.some(x => x.id === r.id) ? current : [r, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
           return next;
         });
       })
@@ -22987,7 +22986,7 @@ function NoticiasTab({ isAdmin }) {
         setNoticias(prev => {
           const current = safeArray(prev);
           const next = current.map(x => String(x?.id) === String(r?.id) ? r : x);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
           return next;
         });
       })
@@ -22996,7 +22995,7 @@ function NoticiasTab({ isAdmin }) {
         setNoticias(prev => {
           const current = safeArray(prev);
           const next = current.filter(x => String(x?.id) !== String(r?.id));
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
           return next;
         });
       })
@@ -23011,7 +23010,7 @@ function NoticiasTab({ isAdmin }) {
         if (active && n) setNoticias(prev => {
           const current = safeArray(prev);
           const next = current.some(x => String(x?.id) === String(n?.id)) ? current : [n, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
           return next;
         });
       })
@@ -23026,7 +23025,7 @@ function NoticiasTab({ isAdmin }) {
         if (active && n) setNoticias(prev => {
           const current = safeArray(prev);
           const next = current.some(x => String(x?.id) === String(n?.id)) ? current.map(x => String(x?.id) === String(n?.id) ? n : x) : [n, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
           return next;
         });
       })
@@ -23068,7 +23067,7 @@ function NoticiasTab({ isAdmin }) {
       const warnings = safeArray(result.warnings).map((item) => String(item || "")).filter(Boolean);
       setNoticias((prev) => {
         const next = safeArray(prev).filter((item) => String(item?.id) !== id);
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
         return next;
       });
       setDeleteNoticiaTarget(null);
@@ -23452,7 +23451,7 @@ function NoticiasTab({ isAdmin }) {
               <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", letterSpacing:".4px" }}>Noticias del puerto</div>
               <div style={{ color:"rgba(226,232,240,.68)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary"), lineHeight:1.45 }}>Actualizaciones oficiales, comunicados y vista operativa con un diseño renovado. Se conserva intacto el reporte automático.</div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
-                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(14,165,233,.12)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{noticiasVisibles.length} noticias visibles</span>
+                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(14,165,233,.12)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{loading ? "Cargando noticias…" : `${noticiasVisibles.length} noticias visibles`}</span>
                 <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.24)", color:"#fbbf24", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{comunicados.filter(c => isComunicadoAprobado(c.aprobado)).length} comunicados</span>
               </div>
             </div>
