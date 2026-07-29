@@ -6377,8 +6377,7 @@ const invokeAdminUsersManager = async (payload) => {
       "Content-Type":"application/json",
       "apikey":SUPA_KEY,
       "Authorization":`Bearer ${accessToken}`,
-      "x-admin-session":accessToken,
-      "x-client-info":"conect-manzanillo-admin-users/2.0",
+      "x-client-info":"conect-manzanillo-admin-users/2.1",
     },
     body:JSON.stringify(payload || {}),
   });
