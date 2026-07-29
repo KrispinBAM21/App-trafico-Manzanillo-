@@ -49,6 +49,7 @@ const verifyAdminPass = async (input) => {
   return hashHex === ADMIN_HASH;
 };
 const ADMIN_KEY    = "cm_admin_session";
+const ADMIN_AUTH_EMAIL = "conectmanzanillo@gmail.com";
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
 };
@@ -3074,14 +3075,13 @@ function useAdminMode() {
 
   const tryLogin = async () => {
     if (Date.now() < lockoutUntil) return;
-    const ok = await verifyAdminPass(pass);
-    if (ok) {
-      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
-      setIsAdmin(true);
-      setShowModal(false);
-      setFailedAttempts(0);
-      setPass("");
-    } else {
+    setErr(false);
+
+    // El modo administrador debe crear una sesión real de Supabase Auth.
+    // El indicador local ADMIN_KEY solo conserva el estado visual; nunca autoriza
+    // operaciones sensibles por sí mismo.
+    const locallyValid = await verifyAdminPass(pass);
+    if (!locallyValid) {
       const newFails = failedAttempts + 1;
       setFailedAttempts(newFails);
       setErr(true);
@@ -3093,12 +3093,66 @@ function useAdminMode() {
         setLockoutRemaining(Math.ceil(lockMs / 1000));
         setFailedAttempts(0);
       }
+      return;
+    }
+
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: ADMIN_AUTH_EMAIL,
+        password: pass,
+      });
+      if (error || !data?.session?.access_token || !data?.user?.id) {
+        console.error("[Admin Auth] No se pudo crear la sesión de Supabase:", error);
+        setErr(true);
+        return;
+      }
+
+      const signedEmail = String(data.user.email || "").trim().toLowerCase();
+      if (signedEmail !== ADMIN_AUTH_EMAIL.toLowerCase()) {
+        await sb.auth.signOut().catch(() => {});
+        setErr(true);
+        return;
+      }
+
+      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+      setIsAdmin(true);
+      setShowModal(false);
+      setFailedAttempts(0);
+      setPass("");
+    } catch (error) {
+      console.error("[Admin Auth] Error inesperado:", error);
+      setErr(true);
     }
   };
 
-  const logout = () => {
+  // Si la pestaña conserva el indicador visual pero la sesión real expiró o no
+  // existe, se revoca el modo admin para impedir llamadas con la publishable key.
+  useEffect(() => {
+    let cancelled = false;
+    const validateAdminSession = async () => {
+      if (!isAdmin) return;
+      try {
+        const { data, error } = await sb.auth.getUser();
+        const email = String(data?.user?.email || "").trim().toLowerCase();
+        if (!cancelled && (error || !data?.user?.id || email !== ADMIN_AUTH_EMAIL.toLowerCase())) {
+          try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+          setIsAdmin(false);
+        }
+      } catch {
+        if (!cancelled) {
+          try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+          setIsAdmin(false);
+        }
+      }
+    };
+    validateAdminSession();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  const logout = async () => {
     try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
     setIsAdmin(false);
+    try { await sb.auth.signOut(); } catch {}
   };
 
   const isLocked = Date.now() < lockoutUntil;
@@ -6275,9 +6329,36 @@ const readEdgeFunctionError = async (error) => {
 };
 
 const invokeAdminUsersManager = async (payload) => {
-  const { data, error } = await sb.functions.invoke(ADMIN_USERS_EDGE_FUNCTION, { body:payload });
-  if (error) throw new Error(await readEdgeFunctionError(error));
-  if (!data || data.ok !== true) throw new Error(data?.error || data?.message || "Respuesta administrativa inválida.");
+  const { data:{ session }, error:sessionError } = await sb.auth.getSession();
+  const accessToken = session?.access_token || "";
+  if (sessionError || !accessToken) {
+    throw new Error("La sesión administrativa de Supabase Auth no está activa. Sal del modo admin y vuelve a ingresar para renovarla.");
+  }
+
+  // Se usa fetch explícito para garantizar que Authorization contenga el JWT del
+  // usuario y nunca la publishable key. La cabecera apikey conserva la clave pública.
+  const response = await fetch(`${SUPA_URL}/functions/v1/${ADMIN_USERS_EDGE_FUNCTION}`, {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "apikey":SUPA_KEY,
+      "Authorization":`Bearer ${accessToken}`,
+      "x-client-info":"conect-manzanillo-admin-users/1.0",
+    },
+    body:JSON.stringify(payload || {}),
+  });
+
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; }
+  catch { data = { ok:false, error:raw || `HTTP ${response.status}` }; }
+
+  if (!response.ok || data?.ok !== true) {
+    if (response.status === 401) {
+      throw new Error(data?.error || "La sesión administrativa no es válida o expiró. Sal del modo admin y vuelve a ingresar.");
+    }
+    throw new Error(data?.error || data?.message || `No se pudo completar la operación (HTTP ${response.status}).`);
+  }
   return data;
 };
 
