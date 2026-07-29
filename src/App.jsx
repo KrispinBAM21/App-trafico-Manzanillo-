@@ -5,99 +5,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 
-
-// ─── RUNTIME SAFETY HELPERS ──────────────────────────────────────────────────
-const safeEventValue = (event, fallback = "") => {
-  const value = event?.currentTarget?.value ?? event?.target?.value;
-  return value == null ? fallback : value;
-};
-const safeEventChecked = (event, fallback = false) => {
-  const value = event?.currentTarget?.checked ?? event?.target?.checked;
-  return typeof value === "boolean" ? value : fallback;
-};
-const safeEventFiles = (event) => Array.from(event?.currentTarget?.files ?? event?.target?.files ?? []);
-const safelyResetFileInput = (event) => {
-  const input = event?.currentTarget ?? event?.target ?? null;
-  if (input && "value" in input) { try { input.value = ""; } catch (_) {} }
-};
-const safeArray = (value) => Array.isArray(value) ? value : [];
-const safeObject = (value) => value && typeof value === "object" ? value : {};
-const safeErrorMessage = (error, fallback = "Ocurrió un error inesperado.") =>
-  typeof error?.message === "string" && error.message.trim() ? error.message : fallback;
-
-class GlobalErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError:false, error:null, retryKey:0 };
-  }
-  static getDerivedStateFromError(error) { return { hasError:true, error }; }
-  componentDidCatch(error, info) {
-    try { console.error("Runtime error capturado por GlobalErrorBoundary", error, info); } catch (_) {}
-  }
-  retry = () => this.setState((state) => ({ hasError:false, error:null, retryKey:state.retryKey + 1 }));
-  render() {
-    if (!this.state.hasError) return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
-    return (
-      <main style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:"24px",background:"#0a0f1a",color:"#e0e3e5",fontFamily:"Inter, sans-serif"}}>
-        <section style={{width:"min(560px,100%)",padding:"24px",borderRadius:"8px",border:"1px solid rgba(159,202,255,.24)",background:"rgba(25,28,30,.88)",backdropFilter:"blur(18px)",boxShadow:"0 18px 50px rgba(0,0,0,.38)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:"10px",fontSize:"20px",fontWeight:800}}><MS name="shield" size={24} active/>Interfaz protegida</div>
-          <p style={{color:"#bfc7d5",lineHeight:1.6}}>Se aisló un error de ejecución para evitar que la aplicación quedara en blanco. Puedes reintentar sin recargar toda la sesión.</p>
-          <button type="button" onClick={this.retry} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:"8px",border:0,borderRadius:"4px",padding:"11px 16px",background:"linear-gradient(135deg,#0099ff,#00daf3)",color:"#003259",fontWeight:800,cursor:"pointer"}}><MS name="refresh" size={19}/>Reintentar</button>
-        </section>
-      </main>
-    );
-  }
-}
-
-
 if (typeof window !== "undefined" && !window.L) window.L = L;
-
-// ─── LEAFLET RUNTIME GUARDS ─────────────────────────────────────────────────
-// Leaflet puede recibir nodos/capas ya desmontados durante cambios rápidos de
-// sección. Estos adaptadores conservan el comportamiento normal y evitan que
-// una referencia transitoria indefinida termine en `_leaflet_pos`.
-(function installLeafletRuntimeGuards() {
-  if (!L || L.__cmRuntimeGuardsInstalled) return;
-  L.__cmRuntimeGuardsInstalled = true;
-
-  const domUtil = L.DomUtil || {};
-  const originalGetPosition = typeof domUtil.getPosition === "function" ? domUtil.getPosition.bind(domUtil) : null;
-  const originalSetPosition = typeof domUtil.setPosition === "function" ? domUtil.setPosition.bind(domUtil) : null;
-
-  if (originalGetPosition) {
-    domUtil.getPosition = (el) => {
-      if (!el) return L.point(0, 0);
-      try { return originalGetPosition(el) || L.point(0, 0); }
-      catch (error) {
-        console.warn("[Leaflet] getPosition omitido para un nodo desmontado.", error);
-        return L.point(0, 0);
-      }
-    };
-  }
-
-  if (originalSetPosition) {
-    domUtil.setPosition = (el, point) => {
-      if (!el || !point) return el;
-      try { return originalSetPosition(el, point); }
-      catch (error) {
-        console.warn("[Leaflet] setPosition omitido para un nodo desmontado.", error);
-        return el;
-      }
-    };
-  }
-})();
-
-const isLeafletMapReady = (map) => {
-  if (!map || typeof map !== "object") return false;
-  const container = typeof map.getContainer === "function" ? map.getContainer() : map?._container;
-  return Boolean(container && container.isConnected !== false && map?._loaded !== false);
-};
-
-const safeInvalidateLeafletMap = (map, options = { pan:false }) => {
-  if (!isLeafletMapReady(map) || typeof map?.invalidateSize !== "function") return false;
-  try { map.invalidateSize(options); return true; }
-  catch (error) { console.warn("[Leaflet] invalidateSize omitido.", error); return false; }
-};
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
 const sanitize = (str) => {
@@ -141,9 +49,6 @@ const verifyAdminPass = async (input) => {
   return hashHex === ADMIN_HASH;
 };
 const ADMIN_KEY    = "cm_admin_session";
-const ADMIN_EMAIL_KEY = "cm_admin_email";
-const ADMIN_AUTH_SESSION_KEY = "cm_admin_supabase_session";
-const DEFAULT_ADMIN_EMAIL = String(import.meta.env.VITE_SUPABASE_ADMIN_EMAIL || "conectmanzanillo@gmail.com").trim().toLowerCase();
 const getCookieConsent = () => {
   try { return localStorage.getItem(COOKIE_KEY); } catch { return null; }
 };
@@ -355,143 +260,11 @@ const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET ||
 
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
-const VT_EDGE_FUNCTION = "super-handler";
-const VT_MAX_ATTEMPTS = 1;
-const VT_RETRY_DELAYS = [];
+const VT_EDGE_FUNCTION = "virustotal-scan";
+const VT_MAX_ATTEMPTS = 3;
+const VT_RETRY_DELAYS = [1200, 2600];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const readJsonCache = (key, fallback = null, storage = "session") => {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const source = storage === "local" ? localStorage : sessionStorage;
-    const raw = source.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed?.data ?? parsed ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const writeJsonCache = (key, data, storage = "session") => {
-  if (typeof window === "undefined") return;
-  try {
-    const target = storage === "local" ? localStorage : sessionStorage;
-    target.setItem(key, JSON.stringify({ savedAt:Date.now(), data }));
-  } catch {}
-};
-
-const withAsyncTimeout = (promise, timeoutMs, message = "timeout") => {
-  let timerId;
-  const timeout = new Promise((_, reject) => {
-    timerId = setTimeout(() => {
-      const error = new Error(message);
-      error.code = "ASYNC_TIMEOUT";
-      reject(error);
-    }, timeoutMs);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timerId));
-};
-
-const fetchSupabaseRowsDirect = async (
-  table,
-  {
-    select = "*",
-    order = "",
-    ascending = false,
-    limit = 100,
-    filters = [],
-    timeoutMs = 12000,
-  } = {}
-) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const url = new URL(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/${encodeURIComponent(table)}`);
-    url.searchParams.set("select", select);
-
-    if (order) {
-      url.searchParams.set("order", `${order}.${ascending ? "asc" : "desc"}`);
-    }
-    if (Number.isFinite(limit) && limit > 0) {
-      url.searchParams.set("limit", String(limit));
-    }
-
-    for (const filter of filters) {
-      if (!filter?.column || !filter?.operator) continue;
-      url.searchParams.append(
-        filter.column,
-        `${filter.operator}.${String(filter.value ?? "")}`
-      );
-    }
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      mode: "cors",
-      cache: "no-store",
-      credentials: "omit",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-      },
-    });
-
-    const responseText = await response.text();
-    let data = [];
-
-    try {
-      data = responseText ? JSON.parse(responseText) : [];
-    } catch {
-      const parseError = new Error(
-        `Supabase REST devolvió una respuesta no JSON (${response.status}).`
-      );
-      parseError.code = "SUPABASE_REST_INVALID_JSON";
-      parseError.status = response.status;
-      parseError.responseText = responseText;
-      throw parseError;
-    }
-
-    if (!response.ok) {
-      const error = new Error(
-        data?.message ||
-        data?.hint ||
-        `Supabase REST respondió con HTTP ${response.status}.`
-      );
-      error.code = data?.code || "SUPABASE_REST_HTTP_ERROR";
-      error.status = response.status;
-      error.details = data;
-      throw error;
-    }
-
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    if (
-      error?.name === "AbortError" ||
-      String(error?.message || "").toLowerCase().includes("aborted")
-    ) {
-      const timeoutError = new Error(
-        `Tiempo de espera agotado al consultar ${table}.`
-      );
-      timeoutError.code = "SUPABASE_REST_TIMEOUT";
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
-const deferWork = (callback, delay = 0) => {
-  if (typeof window === "undefined") return setTimeout(callback, delay);
-  if ("requestIdleCallback" in window) {
-    return window.requestIdleCallback(callback, { timeout:Math.max(1000, delay + 1000) });
-  }
-  return setTimeout(callback, delay);
-};
 
 const extractUrlsFromText = (value = "") => {
   const matches = String(value).match(/https?:\/\/[^\s<>{}\[\]"']+/gi) || [];
@@ -525,197 +298,35 @@ const normalizeVirusTotalResult = (raw, targetType, targetValue) => {
   };
 };
 
-const sha256FileHex = async (file) => {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-const scanFileWithHashFallback = async ({ file, userId, origen, titulo }) => {
-  // La propia Edge Function consulta primero el SHA-256 y solo sube el archivo
-  // cuando VirusTotal todavía no tiene un reporte. No se debe enviar una acción
-  // lookup_file_hash porque el backend no la admite.
-  const result = await invokeVirusTotalScan({
-    action:"scan_file",
-    file,
-    userId,
-    origen,
-    titulo,
-  });
-  return { ...result, target_type:"file", target:file.name };
-};
-
-const decodeJwtPayload = (token = "") => {
-  try {
-    const payload = String(token).split(".")[1] || "";
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
-    return JSON.parse(decodeURIComponent(Array.from(atob(normalized)).map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")));
-  } catch {
-    return null;
-  }
-};
-
-const readAdminAuthSession = () => {
-  try {
-    const raw = sessionStorage.getItem(ADMIN_AUTH_SESSION_KEY);
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    return session && typeof session === "object" ? session : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeAdminAuthSession = (session) => {
-  try {
-    sessionStorage.setItem(ADMIN_AUTH_SESSION_KEY, JSON.stringify(session));
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const refreshAdminAuthSession = async (session) => {
-  if (!session?.refresh_token) throw new Error("La sesión administrativa no puede renovarse. Sal e inicia sesión nuevamente.");
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
-  try {
-    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/auth/v1/token?grant_type=refresh_token`, {
-      method:"POST",
-      signal:controller.signal,
-      cache:"no-store",
-      credentials:"omit",
-      headers:{
-        apikey:SUPA_KEY,
-        "Content-Type":"application/json",
-      },
-      body:JSON.stringify({ refresh_token:session.refresh_token }),
-    });
-    const raw = await response.text();
-    let payload = {};
-    try { payload = raw ? JSON.parse(raw) : {}; } catch {}
-    if (!response.ok || !payload?.access_token) {
-      throw new Error(payload?.msg || payload?.message || payload?.error_description || `No se pudo renovar la sesión (HTTP ${response.status}).`);
-    }
-    const next = {
-      access_token:payload.access_token,
-      refresh_token:payload.refresh_token || session.refresh_token,
-      expires_at:Number(payload.expires_at || (Date.now() / 1000 + Number(payload.expires_in || 3600))),
-      user:payload.user || session.user || null,
-    };
-    if (!writeAdminAuthSession(next)) throw new Error("La sesión renovada no pudo guardarse en este navegador.");
-    return next;
-  } catch (error) {
-    if (error?.name === "AbortError") throw new Error("Tiempo agotado renovando la sesión administrativa.");
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
-const getVirusTotalAccessToken = async () => {
-  let session = readAdminAuthSession();
-  if (!session?.access_token) {
-    throw new Error("No existe una sesión administrativa válida. Sal del modo administrador e inicia sesión nuevamente.");
-  }
-
-  const claims = decodeJwtPayload(session.access_token);
-  const expiresAt = Number(session.expires_at || claims?.exp || 0);
-  if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
-    session = await refreshAdminAuthSession(session);
-  }
-
-  const nextClaims = decodeJwtPayload(session.access_token);
-  const userId = String(session?.user?.id || nextClaims?.sub || "");
-  if (!userId) throw new Error("La sesión administrativa no contiene un usuario válido.");
-  return { accessToken:session.access_token, userId };
-};
-
 const invokeVirusTotalScan = async ({ action, file, url, userId, origen, titulo }) => {
-  const { accessToken, userId:authenticatedUserId } = await getVirusTotalAccessToken();
-  const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${VT_EDGE_FUNCTION}`;
-
-  const body = action === "scan_file"
-    ? (() => {
-        const form = new FormData();
-        form.append("action", "scan_file");
-        form.append("file", file, file.name);
-        form.append("userId", String(authenticatedUserId));
-        form.append("origen", String(origen || "comunicado"));
-        form.append("titulo", String(titulo || ""));
-        return form;
-      })()
-    : JSON.stringify({
-        action:"scan_url",
-        url:String(url || ""),
-        userId:String(authenticatedUserId),
-        origen:String(origen || "comunicado"),
-        titulo:String(titulo || ""),
-      });
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-  try {
-    console.info("[VirusTotal] Invocando Edge Function", {
-      endpoint,
-      action,
-      target: action === "scan_file" ? file?.name : url,
-      authenticated:Boolean(accessToken),
-    });
-
-    const response = await fetch(endpoint, {
-      method:"POST",
-      mode:"cors",
-      cache:"no-store",
-      credentials:"omit",
-      signal:controller.signal,
-      headers:{
-        apikey:SUPA_KEY,
-        Authorization:`Bearer ${accessToken}`,
-        ...(action === "scan_file" ? {} : { "Content-Type":"application/json" }),
-      },
-      body,
-    });
-
-    const responseText = await response.text();
-    let data = null;
-    try { data = responseText ? JSON.parse(responseText) : null; }
-    catch (_) {
-      throw new Error(`super-handler devolvió una respuesta no JSON (HTTP ${response.status}).`);
+  let lastError = null;
+  for (let attempt = 0; attempt < VT_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const body = action === "scan_file"
+        ? (() => {
+            const form = new FormData();
+            form.append("action", action);
+            form.append("file", file, file.name);
+            form.append("userId", String(userId || ""));
+            form.append("origen", String(origen || ""));
+            form.append("titulo", String(titulo || ""));
+            return form;
+          })()
+        : { action, url, userId, origen, titulo };
+      const { data, error } = await sb.functions.invoke(VT_EDGE_FUNCTION, { body });
+      if (error) throw error;
+      const normalized = normalizeVirusTotalResult(data, action === "scan_file" ? "file" : "url", file || url);
+      if (normalized.status !== "pending") return normalized;
+      lastError = new Error("El análisis de VirusTotal continúa en proceso.");
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "").toLowerCase();
+      const retryable = /timeout|network|fetch|rate|limit|429|tempor|process|pending|queue/.test(message);
+      if (!retryable && attempt === 0) throw error;
     }
-
-    if (!response.ok) {
-      const error = new Error(data?.message || `super-handler respondió con HTTP ${response.status}.`);
-      error.status = response.status;
-      error.details = data;
-      throw error;
-    }
-
-    if (!data || typeof data !== "object") {
-      throw new Error("super-handler devolvió una respuesta vacía o inválida.");
-    }
-    if (String(data.status || "").toLowerCase() === "error") {
-      throw new Error(data.message || "VirusTotal devolvió un error durante el análisis.");
-    }
-
-    const normalized = normalizeVirusTotalResult(
-      data,
-      action === "scan_file" ? "file" : "url",
-      file || url
-    );
-    if (normalized.status === "pending") {
-      throw new Error(data.message || "El análisis continúa pendiente en VirusTotal.");
-    }
-    return normalized;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error("La verificación de VirusTotal excedió 30 segundos.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+    if (attempt < VT_MAX_ATTEMPTS - 1) await sleep(VT_RETRY_DELAYS[attempt] || 2600);
   }
+  throw lastError || new Error("VirusTotal no respondió después de varios intentos.");
 };
 
 const logVirusTotalSecurityEvent = async ({ user, result, file, url, title }) => {
@@ -962,8 +573,7 @@ const TABS = [
 // ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
 // Permite compartir URLs como: https://conectmanzanillo.com/#reporte
 // También acepta: ?seccion=reporte, ?tab=reporte o ?section=reporte
-// "portuario" es una tab oculta (solo admin), no aparece en TABS pero debe ser válida
-const VALID_TAB_KEYS = [...TABS.map(t => t.key), "dashboard", "portuario"];
+const VALID_TAB_KEYS = [...TABS.map(t => t.key), "dashboard"];
 const TAB_ALIASES = {
   reportar: "reporte",
   patio: "terminales",
@@ -3424,8 +3034,6 @@ function useAdminMode() {
   const [tapCount, setTapCount] = useState(0);
   const [pass, setPass] = useState("");
   const [err, setErr] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState(0);
@@ -3459,23 +3067,21 @@ function useAdminMode() {
       setTapCount(0);
       setPass("");
       setErr(false);
-      setAuthError("");
       setShowAdminPass(false);
       setShowModal(true);
     }
   }, [tapCount]);
 
   const tryLogin = async () => {
-    if (Date.now() < lockoutUntil || loggingIn) return;
-    setAuthError("");
-    const normalizedEmail = DEFAULT_ADMIN_EMAIL;
-    if (!normalizedEmail) {
-      setAuthError("La cuenta administrativa no está configurada.");
-      return;
-    }
-
+    if (Date.now() < lockoutUntil) return;
     const ok = await verifyAdminPass(pass);
-    if (!ok) {
+    if (ok) {
+      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+      setIsAdmin(true);
+      setShowModal(false);
+      setFailedAttempts(0);
+      setPass("");
+    } else {
       const newFails = failedAttempts + 1;
       setFailedAttempts(newFails);
       setErr(true);
@@ -3487,97 +3093,12 @@ function useAdminMode() {
         setLockoutRemaining(Math.ceil(lockMs / 1000));
         setFailedAttempts(0);
       }
-      return;
-    }
-
-    setLoggingIn(true);
-    try {
-      // En escritorio, sb.auth.signInWithPassword puede quedar bloqueado por el
-      // lock interno de almacenamiento cuando hay otra pestaña o una sesión antigua.
-      // La autenticación se hace directamente contra GoTrue y luego se entrega la
-      // sesión al cliente Supabase, conservando el mismo nivel de seguridad.
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
-      let authPayload;
-      try {
-        const response = await fetch(
-          `${SUPA_URL.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`,
-          {
-            method: "POST",
-            signal: controller.signal,
-            cache: "no-store",
-            credentials: "omit",
-            headers: {
-              apikey: SUPA_KEY,
-              Authorization: `Bearer ${SUPA_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ email:normalizedEmail, password:pass }),
-          }
-        );
-        const raw = await response.text();
-        try { authPayload = raw ? JSON.parse(raw) : {}; }
-        catch { authPayload = {}; }
-        if (!response.ok) {
-          throw new Error(
-            authPayload?.msg || authPayload?.message || authPayload?.error_description ||
-            `Supabase Auth respondió con HTTP ${response.status}.`
-          );
-        }
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          throw new Error("Tiempo agotado conectando con Supabase Auth desde este navegador.");
-        }
-        throw error;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      const accessToken = authPayload?.access_token || null;
-      const refreshToken = authPayload?.refresh_token || null;
-      const user = authPayload?.user || null;
-      if (!accessToken || !refreshToken || !user?.id) {
-        throw new Error("Supabase Auth no devolvió una sesión administrativa válida.");
-      }
-
-      const expiresAt = Number(authPayload?.expires_at || (Date.now() / 1000 + Number(authPayload?.expires_in || 3600)));
-      const stored = writeAdminAuthSession({
-        access_token:accessToken,
-        refresh_token:refreshToken,
-        expires_at:expiresAt,
-        user,
-      });
-      if (!stored) {
-        throw new Error("La sesión fue validada, pero este navegador bloqueó el almacenamiento de sesión.");
-      }
-
-      try {
-        sessionStorage.setItem(ADMIN_KEY, "1");
-      } catch {}
-      setIsAdmin(true);
-      setShowModal(false);
-      setFailedAttempts(0);
-      setPass("");
-      setErr(false);
-      setAuthError("");
-    } catch (error) {
-      setAuthError(safeErrorMessage(error, "No se pudo iniciar la sesión administrativa."));
-      try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
-      setIsAdmin(false);
-    } finally {
-      setLoggingIn(false);
     }
   };
 
   const logout = () => {
-    try {
-      sessionStorage.removeItem(ADMIN_KEY);
-      sessionStorage.removeItem(ADMIN_AUTH_SESSION_KEY);
-    } catch {}
+    try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
     setIsAdmin(false);
-    setPass("");
-    setAuthError("");
-    void sb.auth.signOut({ scope:"local" }).catch(() => {});
   };
 
   const isLocked = Date.now() < lockoutUntil;
@@ -3599,7 +3120,7 @@ function useAdminMode() {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Introduce la contraseña administrativa.</div>
+        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa la contraseña para activar el modo administrador.</div>
         {isLocked ? (
           <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
             <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
@@ -3610,24 +3131,14 @@ function useAdminMode() {
           </div>
         ) : (
           <>
-            <input
-              type="text"
-              name="username"
-              value={DEFAULT_ADMIN_EMAIL}
-              readOnly
-              tabIndex={-1}
-              aria-hidden="true"
-              autoComplete="username"
-              style={{ position:"absolute", width:"1px", height:"1px", opacity:0, pointerEvents:"none", overflow:"hidden" }}
-            />
             <div style={{ position:"relative", marginBottom:"8px" }}>
               <input
                 type={showAdminPass ? "text" : "password"}
                 value={pass}
-                onChange={e => { setPass(safeEventValue(e)); setErr(false); setAuthError(""); }}
+                onChange={e => { setPass(e.target.value); setErr(false); }}
                 onKeyDown={e => e.key === "Enter" && tryLogin()}
                 placeholder="Contraseña"
-                autoComplete="current-password"
+                autoFocus
                 style={{ width:"100%", padding:"11px 44px 11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${err ? "#ef4444" : "rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none" }}
               />
               <span
@@ -3642,16 +3153,11 @@ function useAdminMode() {
                 Contraseña incorrecta{failedAttempts >= 3 ? ` (${failedAttempts}/5 intentos)` : ""}
               </div>
             )}
-            {authError && (
-              <div style={{ color:"#fca5a5", fontFamily:getFont(theme, "secondary"), fontSize:"11px", lineHeight:1.45, marginBottom:"8px" }}>
-                {authError}
-              </div>
-            )}
           </>
         )}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           <button onClick={() => { setShowModal(false); setPass(""); setErr(false); }} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme, "secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
-          <button onClick={tryLogin} disabled={isLocked || loggingIn} style={{ padding:"11px", background: (isLocked || loggingIn) ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: (isLocked || loggingIn) ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700", cursor: (isLocked || loggingIn) ? "not-allowed" : "pointer" }}>{loggingIn ? "Conectando..." : "Entrar"}</button>
+          <button onClick={tryLogin} disabled={isLocked} style={{ padding:"11px", background: isLocked ? "#334155" : "#38bdf8", border:"none", borderRadius:"10px", color: isLocked ? "rgba(255,255,255,0.3)" : "#0a0f1e", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:"700", cursor: isLocked ? "not-allowed" : "pointer" }}>Entrar</button>
         </div>
       </div>
     </div>
@@ -3660,7 +3166,6 @@ function useAdminMode() {
   const openModal = () => {
     setPass("");
     setErr(false);
-    setAuthError("");
     setShowAdminPass(false);
     setShowModal(true);
   };
@@ -3770,110 +3275,9 @@ const imageUrlToCanvas = (src, maxSide = 1800) => new Promise((resolve, reject) 
   img.src = src;
 });
 
-let cmTesseractWorkerPromise = null;
-const getTesseractWorkerClient = async () => {
+const ocrCanvasClient = async (canvas) => {
   const Tesseract = await loadTesseractClient();
-  if (!cmTesseractWorkerPromise && typeof Tesseract?.createWorker === "function") {
-    cmTesseractWorkerPromise = Tesseract.createWorker("spa+eng", 1, {
-      logger: () => {},
-      cacheMethod: "readOnly",
-    }).catch((error) => {
-      cmTesseractWorkerPromise = null;
-      throw error;
-    });
-  }
-  return cmTesseractWorkerPromise ? await cmTesseractWorkerPromise : null;
-};
-
-const prepareCanvasForFastOcr = (sourceCanvas) => {
-  if (!sourceCanvas) throw new Error("No hay imagen disponible para OCR");
-  const maxPixels = 2400000;
-  const sourcePixels = Math.max(1, Number(sourceCanvas.width || 1) * Number(sourceCanvas.height || 1));
-  const ratio = sourcePixels > maxPixels ? Math.sqrt(maxPixels / sourcePixels) : 1;
-  if (ratio >= .995) return sourceCanvas;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sourceCanvas.width * ratio));
-  canvas.height = Math.max(1, Math.round(sourceCanvas.height * ratio));
-  const ctx = canvas.getContext("2d", { alpha:false });
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
-  return canvas;
-};
-
-const prepareCanvasForZoneOcr = (sourceCanvas) => {
-  if (!sourceCanvas) throw new Error("No hay recorte disponible para OCR");
-
-  // Para documentos con texto pequeño, 1.6 MP conserva legibilidad y evita enviar/procesar
-  // recortes de 8–20 MP. Nunca amplía imágenes pequeñas porque eso solo agrega bytes.
-  const maxPixels = 1600000;
-  const maxWidth = 1800;
-  const sourceWidth = Math.max(1, Number(sourceCanvas.width || 1));
-  const sourceHeight = Math.max(1, Number(sourceCanvas.height || 1));
-  const pixelRatio = Math.sqrt(maxPixels / Math.max(1, sourceWidth * sourceHeight));
-  const widthRatio = maxWidth / sourceWidth;
-  const ratio = Math.min(1, pixelRatio, widthRatio);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
-  canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
-  const ctx = canvas.getContext("2d", { alpha:false, willReadFrequently:true });
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
-
-  // Contraste ligero para texto oscuro sobre fondos claros. Se evita binarización agresiva
-  // porque puede borrar acentos y trazos finos en comunicados escaneados.
-  try {
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const gray = Math.round(data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114);
-      const adjusted = Math.max(0, Math.min(255, Math.round((gray - 128) * 1.12 + 128)));
-      data[i] = adjusted;
-      data[i + 1] = adjusted;
-      data[i + 2] = adjusted;
-      data[i + 3] = 255;
-    }
-    ctx.putImageData(imageData, 0, 0);
-  } catch (_) {}
-
-  return canvas;
-};
-
-const ocrCanvasClient = async (canvas, { timeoutMs = 45000, onProgress } = {}) => {
-  const optimizedCanvas = prepareCanvasForFastOcr(canvas);
-  const Tesseract = await loadTesseractClient();
-  const recognizeWithTimeout = (promise) => withAsyncTimeout(
-    promise,
-    timeoutMs,
-    "La extracción de texto excedió el tiempo máximo permitido."
-  );
-
-  try {
-    const worker = await getTesseractWorkerClient();
-    if (worker?.recognize) {
-      onProgress?.(35);
-      const result = await recognizeWithTimeout(worker.recognize(optimizedCanvas));
-      onProgress?.(100);
-      return String(result?.data?.text || "").trim();
-    }
-  } catch (workerError) {
-    console.warn("Worker OCR persistente no disponible; usando reconocimiento directo.", workerError?.message || workerError);
-  }
-
-  const result = await recognizeWithTimeout(Tesseract.recognize(optimizedCanvas, "spa+eng", {
-    logger:(message) => {
-      if (message?.status === "recognizing text" && Number.isFinite(message?.progress)) {
-        onProgress?.(Math.max(35, Math.min(99, Math.round(message.progress * 100))));
-      }
-    }
-  }));
-  onProgress?.(100);
+  const result = await Tesseract.recognize(canvas, "spa+eng");
   return String(result?.data?.text || "").trim();
 };
 
@@ -4105,30 +3509,13 @@ const processPdfOcrClient = async (sourceUrl, bucketPath = "noticias/pdf") => {
 };
 
 const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPath }) => {
-  const source = String(sourceUrl || "");
-  const isLocalSource = /^(blob:|data:)/i.test(source);
-  const isPdfAction = action === "pdf_to_images_ocr" || String(fileType || "").includes("pdf") || /\.pdf(\?|$)/i.test(source);
-
-  // Los archivos recién elegidos ya viven en memoria. Procesarlos localmente evita
-  // una llamada de red innecesaria y elimina la demora de esperar una Edge Function.
-  if (isLocalSource) {
-    try {
-      return isPdfAction
-        ? await processPdfOcrClient(sourceUrl, bucketPath)
-        : await processImageOcrClient(sourceUrl);
-    } catch (localError) {
-      console.warn("OCR local no disponible.", localError?.message || localError);
-      return { ok:false, text:"", image_urls:[] };
-    }
-  }
-
-  // Para URLs remotas se conserva la Edge Function, pero con tiempo límite corto.
+  // Primero intenta una Edge Function opcional llamada media-process, útil si después
+  // decides hacer OCR en servidor. Si no existe, cae automáticamente al OCR en navegador.
   try {
     if (sb?.functions?.invoke) {
-      const invokePromise = sb.functions.invoke("media-process", {
-        body: { action, source_url:sourceUrl, file_type:fileType, title, bucket_path:bucketPath, lang:"spa+eng" }
+      const { data, error } = await sb.functions.invoke("media-process", {
+        body: { action, source_url: sourceUrl, file_type: fileType, title, bucket_path: bucketPath, lang: "spa+eng" }
       });
-      const { data, error } = await withAsyncTimeout(invokePromise, 4500, "Tiempo agotado al procesar el archivo con IA.");
       if (!error && data?.ok !== false && (data?.text || data?.image_urls)) return data;
     }
   } catch (e) {
@@ -4136,12 +3523,13 @@ const callMediaProcessor = async ({ action, sourceUrl, fileType, title, bucketPa
   }
 
   try {
+    const isPdfAction = action === "pdf_to_images_ocr" || String(fileType || "").includes("pdf") || /\.pdf(\?|$)/i.test(String(sourceUrl || ""));
     return isPdfAction
       ? await processPdfOcrClient(sourceUrl, bucketPath)
       : await processImageOcrClient(sourceUrl);
   } catch (e) {
     console.warn("OCR en navegador no disponible.", e?.message || e);
-    return { ok:false, text:"", image_urls:[] };
+    return { ok: false, text: "", image_urls: [] };
   }
 };
 
@@ -4206,53 +3594,6 @@ const insertNoticiaConFallback = async (payload) => {
     console.warn("Intento de publicar en Noticias falló:", error?.message || error);
   }
   throw ultimoError || new Error("No se pudo insertar la noticia");
-};
-
-const invokeComunicadosManagerAction = async (payload, { timeoutMs = 45000 } = {}) => {
-  const adminSession = typeof readAdminAuthSession === "function" ? readAdminAuthSession() : null;
-  let accessToken = adminSession?.access_token || null;
-  if (!accessToken) {
-    try {
-      const sessionResult = await Promise.race([
-        sb.auth.getSession(),
-        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 7000)),
-      ]);
-      accessToken = sessionResult?.data?.session?.access_token || null;
-    } catch (sessionError) {
-      console.warn("No se pudo recuperar la sesión para comunicados-manager:", sessionError);
-    }
-  }
-  if (!accessToken) throw new Error("No existe una sesión autorizada para realizar esta operación.");
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/functions/v1/comunicados-manager`, {
-      method:"POST",
-      cache:"no-store",
-      credentials:"omit",
-      signal:controller.signal,
-      headers:{
-        apikey:SUPA_KEY,
-        Authorization:`Bearer ${accessToken}`,
-        "Content-Type":"application/json",
-      },
-      body:JSON.stringify(safeObject(payload)),
-    });
-    const raw = await response.text();
-    let parsed = {};
-    try { parsed = raw ? JSON.parse(raw) : {}; } catch { parsed = { message:raw }; }
-    const result = safeObject(parsed);
-    if (!response.ok || result.ok === false || result.error) {
-      throw new Error(String(result.message || result.error || raw || `HTTP ${response.status}`));
-    }
-    return result;
-  } catch (error) {
-    if (error?.name === "AbortError") throw new Error("La operación tardó demasiado y fue cancelada.");
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 };
 
 const syncComunicadoToNoticia = async (comunicado, { processMedia = false } = {}) => {
@@ -4867,7 +4208,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Estado de origen</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🟢</span>
-                <select value={originState} onChange={e => setOriginState(safeEventValue(e))} style={sx.input}>
+                <select value={originState} onChange={e => setOriginState(e.target.value)} style={sx.input}>
                   {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
                 </select>
               </div>
@@ -4876,7 +4217,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Ciudad/localidad de origen</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>📍</span>
-                <select ref={originRef} value={originCity} onChange={e => setOriginCity(safeEventValue(e))} style={sx.input}>
+                <select ref={originRef} value={originCity} onChange={e => setOriginCity(e.target.value)} style={sx.input}>
                   {(MX_STATES_CITIES[originState] || []).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -4887,7 +4228,7 @@ function RutaCostoAdmin() {
             <label style={sx.lbl}>Origen exacto opcional</label>
             <div style={sx.inputWrap}>
               <span style={sx.inputIcon}>✏️</span>
-              <input ref={originRef} type="text" value={origin} onChange={e => setOrigin(safeEventValue(e))} placeholder="Puedes ajustar colonia, calle o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && destRef.current?.focus()} />
+              <input ref={originRef} type="text" value={origin} onChange={e => setOrigin(e.target.value)} placeholder="Puedes ajustar colonia, calle o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && destRef.current?.focus()} />
             </div>
           </div>
 
@@ -4904,7 +4245,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Estado de destino</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🔴</span>
-                <select value={destState} onChange={e => setDestState(safeEventValue(e))} style={sx.input}>
+                <select value={destState} onChange={e => setDestState(e.target.value)} style={sx.input}>
                   {MX_STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
                 </select>
               </div>
@@ -4913,7 +4254,7 @@ function RutaCostoAdmin() {
               <label style={sx.lbl}>Ciudad/localidad de destino</label>
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>📍</span>
-                <select value={destCity} onChange={e => setDestCity(safeEventValue(e))} style={sx.input}>
+                <select value={destCity} onChange={e => setDestCity(e.target.value)} style={sx.input}>
                   {(MX_STATES_CITIES[destState] || []).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -4924,7 +4265,7 @@ function RutaCostoAdmin() {
             <label style={sx.lbl}>Destino exacto opcional</label>
             <div style={sx.inputWrap}>
               <span style={sx.inputIcon}>✏️</span>
-              <input ref={destRef} type="text" value={destination} onChange={e => setDestination(safeEventValue(e))} placeholder="Puedes ajustar colonia, calle, caseta o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && calcular()} />
+              <input ref={destRef} type="text" value={destination} onChange={e => setDestination(e.target.value)} placeholder="Puedes ajustar colonia, calle, caseta o referencia" style={sx.input} onKeyDown={e => e.key === "Enter" && calcular()} />
             </div>
           </div>
 
@@ -4952,7 +4293,7 @@ function RutaCostoAdmin() {
                     <input
                       type="text"
                       value={stop}
-                      onChange={e => setStops(prev => prev.map((s, i) => i === idx ? safeEventValue(e) : s))}
+                      onChange={e => setStops(prev => prev.map((s, i) => i === idx ? e.target.value : s))}
                       placeholder={`Referencia ${idx + 1}: Ej. Terminal SSA, Puerto, Pez Vela...`}
                       style={sx.input}
                     />
@@ -5011,7 +4352,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>💲</span>
                 <input type="number" value={gasPrice} min="1" step="0.5"
-                  onChange={e => setGasPrice(parseFloat(safeEventValue(e)) || 0)}
+                  onChange={e => setGasPrice(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
             </div>
@@ -5020,7 +4361,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>💲</span>
                 <input type="number" value={dieselPrice} min="1" step="0.5"
-                  onChange={e => setDieselPrice(parseFloat(safeEventValue(e)) || 0)}
+                  onChange={e => setDieselPrice(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
             </div>
@@ -5032,7 +4373,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🏙️</span>
                 <input type="number" value={cityKmPerLiter} min="1" step="0.5"
-                  onChange={e => setCityKmPerLiter(parseFloat(safeEventValue(e)) || 0)}
+                  onChange={e => setCityKmPerLiter(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Sugerido editable: 10 - 15 km/L</div>
@@ -5042,7 +4383,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>🛣️</span>
                 <input type="number" value={roadKmPerLiter} min="1" step="0.5"
-                  onChange={e => setRoadKmPerLiter(parseFloat(safeEventValue(e)) || 0)}
+                  onChange={e => setRoadKmPerLiter(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Sugerido editable: 15 - 20 km/L</div>
@@ -5055,7 +4396,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>% </span>
                 <input type="number" value={cityPercent} min="0" max="100" step="5"
-                  onChange={e => setCityPercent(Math.max(0, Math.min(100, Number(safeEventValue(e)) || 0)))}
+                  onChange={e => setCityPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Carretera calculada: {roadPercent}%</div>
@@ -5065,7 +4406,7 @@ function RutaCostoAdmin() {
               <div style={sx.inputWrap}>
                 <span style={sx.inputIcon}>⚡</span>
                 <input type="number" value={maxSpeed} min="10" max="120" step="5"
-                  onChange={e => setMaxSpeed(parseFloat(safeEventValue(e)) || 0)}
+                  onChange={e => setMaxSpeed(parseFloat(e.target.value) || 0)}
                   style={sx.input} />
               </div>
               <div style={sx.helpTxt}>Variable editable de referencia para operación.</div>
@@ -5103,7 +4444,7 @@ function RutaCostoAdmin() {
               </div>
               <div style={{ flex: 1 }}>
                 <input type="range" min="0" max="200" step="5" value={profit}
-                  onChange={e => setProfit(Number(safeEventValue(e)))}
+                  onChange={e => setProfit(Number(e.target.value))}
                   style={{ width: "100%", accentColor: "#f97316", cursor: "pointer" }} />
                 <div style={sx.sliderRange}>
                   <span>0%</span><span>100%</span><span>200%</span>
@@ -5530,17 +4871,17 @@ function AdminRegistrosPanel() {
   return <div style={{ padding:"16px", background:"rgba(34,197,94,0.045)" }}>
     <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800", marginBottom:"6px" }}>🧾 Registros y control de usuarios</div>
     <div style={{ color:"rgba(255,255,255,0.48)", fontSize:"11px", marginBottom:"12px", fontFamily:getFont(theme,"secondary") }}>Los registros se dividen por sección y subsección. Selecciona un device_id desde cualquier registro para advertir, enviar mensaje, bloquear o banear.</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}><input style={inp} placeholder="ID de cuenta Supabase Auth" value={targetUserId} onChange={e=>setTargetUserId(safeEventValue(e).trim())} /><input style={inp} placeholder="device_id / dispositivo objetivo" value={deviceId} onChange={e=>setDeviceId(safeEventValue(e).trim())} /></div>
-    <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(safeEventValue(e))} />
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}><input style={inp} placeholder="ID de cuenta Supabase Auth" value={targetUserId} onChange={e=>setTargetUserId(e.target.value.trim())} /><input style={inp} placeholder="device_id / dispositivo objetivo" value={deviceId} onChange={e=>setDeviceId(e.target.value.trim())} /></div>
+    <textarea style={{...inp,minHeight:70,resize:"vertical"}} placeholder="Mensaje o advertencia que verá en la burbuja" value={message} onChange={e=>setMessage(e.target.value)} />
     {selectedLog && <div style={{ background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.35)", borderRadius:10, color:"#fbbf24", padding:"8px 10px", fontSize:11, fontWeight:800, marginBottom:10, fontFamily:getFont(theme,"secondary"), wordBreak:"break-word" }}>Voto seleccionado para anular con advertencia: {selectedLog.action} · {selectedLog.section} · {selectedLog.entity_id || "sin elemento"}</div>}
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
       <button onClick={()=>sendMessage("mensaje")} style={{...inp,width:"auto",cursor:"pointer",color:"#38bdf8"}}>💬 Enviar mensaje</button>
       <button onClick={()=>sendMessage("warning")} style={{...inp,width:"auto",cursor:"pointer",color:"#fbbf24"}}>Advertencia</button>
     </div>
-    <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(safeEventValue(e))} />
-    <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(safeEventValue(e))} />
+    <input style={inp} placeholder="Motivo del bloqueo o baneo" value={reason} onChange={e=>setReason(e.target.value)} />
+    <input style={inp} type="number" min="1" placeholder="Horas de bloqueo temporal" value={hours} onChange={e=>setHours(e.target.value)} />
     <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:10, color:"rgba(255,255,255,.75)", fontFamily:getFont(theme,"secondary"), fontSize:12 }}>
-      {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:safeEventChecked(e)}))}/> {l}</label>)}
+      {[["web","Web"],["vote","Votar"],["report","Reportar"]].map(([k,l]) => <label key={k}><input type="checkbox" checked={actions[k]} onChange={e=>setActions(a=>({...a,[k]:e.target.checked}))}/> {l}</label>)}
     </div>
     <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
       <button onClick={()=>sanction("temp_block")} style={{...inp,width:"auto",cursor:"pointer",color:"#f97316"}}>Procesando Bloquear por tiempo + anular votos</button>
@@ -5567,7 +4908,7 @@ function AdminRegistrosPanel() {
 
     {recordsView !== "sessions" && <div style={{ background:"rgba(255,255,255,.04)", border:"1px solid rgba(255,255,255,.1)", borderRadius:14, padding:12, marginBottom:12 }}>
       <div style={{ color:"#22c55e", fontWeight:900, fontSize:13, marginBottom:10, fontFamily:getFont(theme,"secondary") }}>🔎 Búsqueda rápida de registros</div>
-      <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(safeEventValue(e))} />
+      <input style={inp} placeholder="Buscar por ID, acción, carril, terminal, tipo, ubicación..." value={query} onChange={e=>setQuery(e.target.value)} />
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
         <button onClick={()=>{setSectionFilter("all");setSubFilter("all");}} style={chipBtn(sectionFilter === "all")}>Todas las secciones</button>
         {sections.map(sec => <button key={sec} onClick={()=>{setSectionFilter(sec);setSubFilter("all");}} style={chipBtn(sectionFilter === sec)}>{sec} ({logs.filter(l => (l.section || "sin_seccion") === sec).length})</button>)}
@@ -5576,7 +4917,7 @@ function AdminRegistrosPanel() {
         <button onClick={()=>setSubFilter("all")} style={chipBtn(subFilter === "all", "#a78bfa")}>Todas las subsecciones</button>
         {subsections.map(sub => <button key={sub} onClick={()=>setSubFilter(sub)} style={chipBtn(subFilter === sub, "#a78bfa")}>{sub}</button>)}
       </div>
-      <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(safeEventChecked(e))} /> Ver solo el device_id escrito arriba</label>
+      <label style={{ color:"rgba(255,255,255,.65)", fontSize:11, fontFamily:getFont(theme,"secondary") }}><input type="checkbox" checked={onlyDevice} onChange={e=>setOnlyDevice(e.target.checked)} /> Ver solo el device_id escrito arriba</label>
     </div>}
 
     {recordsView === "history" && <>
@@ -5599,24 +4940,6 @@ function AdminRegistrosPanel() {
     </div>)}
     </>}
   </div>;
-}
-
-function AdminCalculadoraPanel() {
-  const theme = React.useContext(ThemeContext);
-  return (
-    <div style={{ padding:"16px", background:"rgba(249,115,22,0.045)" }}>
-      <div style={{ marginBottom:"12px" }}>
-        <div style={{ fontFamily:getFont(theme,"secondary"), color:"#fff", fontSize:"17px", fontWeight:"800" }}>⛽ Calculadora de costo de ruta</div>
-        <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,0.48)", fontSize:"11px", marginTop:"4px" }}>Herramienta privada del administrador principal. Calcula rutas dentro de Manzanillo usando Google Maps.</div>
-      </div>
-      {GOOGLE_MAPS_API_KEY === "TU_API_KEY_AQUI" && (
-        <div style={{ marginBottom:"12px", padding:"10px 12px", borderRadius:"10px", background:"rgba(249,115,22,0.12)", border:"1px solid rgba(249,115,22,0.35)", color:"#fb923c", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
-          Configura la variable <strong>VITE_GOOGLE_MAPS_API_KEY</strong> en Vercel para activar el mapa y las rutas.
-        </div>
-      )}
-      <RutaCostoAdmin />
-    </div>
-  );
 }
 
 // ─── DONATE BANNER ────────────────────────────────────────────────────────────
@@ -6198,7 +5521,6 @@ function AnunciosBanner({ isAdmin }) {
         {[
           { id:"anuncios", label:"📢 Anuncios", color:"#fbbf24" },
           { id:"usuarios", label:"👥 Usuarios", color:"#818cf8" },
-          { id:"calculadora", label:"⛽ Calculadora", color:"#f97316" },
           { id:"registros", label:"🧾 Registros", color:"#22c55e" },
         ].map(t => (
           <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ flex:1, padding:"12px 16px", background: adminTab===t.id ? "rgba(255,255,255,0.05)" : "transparent", border:"none", borderBottom: adminTab===t.id ? `2px solid ${t.color}` : "2px solid transparent", color: adminTab===t.id ? t.color : "rgba(255,255,255,0.4)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", marginBottom:"-1px" }}>
@@ -6210,9 +5532,6 @@ function AnunciosBanner({ isAdmin }) {
 
       {/* Tab: Usuarios */}
       {adminTab === "usuarios" && <AdminUsuariosPanel />}
-
-      {/* Tab: Calculadora — solo admin principal */}
-      {adminTab === "calculadora" && <AdminCalculadoraPanel />}
 
       {adminTab === "registros" && <AdminRegistrosPanel />}
 
@@ -6238,18 +5557,18 @@ function AnunciosBanner({ isAdmin }) {
         }));
         setMsg({ type:"ok", text:"Plantilla cargada en el formulario. Ajusta fechas y publica cuando quieras." });
       }} />
-      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} />
-      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} />
-      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:safeEventValue(e)}))} />
+      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
+      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
+      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
       <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div style={{ position:"relative", isolation:"isolate" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="whatsapp" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:safeEventValue(e).replace(/\D/g,"")}))} />
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
         </div>
         <div style={{ position:"relative" }}>
           <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="web" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:safeEventValue(e)}))} />
+          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
         </div>
       </div>
       {/* ── Imagen: subir archivo O pegar URL ── */}
@@ -6293,18 +5612,18 @@ function AnunciosBanner({ isAdmin }) {
             </label>
           </div>
         ) : (
-          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:safeEventValue(e)}))} />
+          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
         )}
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"5px" }}>📐 Recomendado: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1) · móvil se adapta automáticamente</div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
         <div>
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA INICIO *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:safeEventValue(e)}))} />
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:e.target.value}))} />
         </div>
         <div>
           <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA FIN *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:safeEventValue(e)}))} />
+          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:e.target.value}))} />
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
@@ -6561,19 +5880,19 @@ function AdminAdTemplates({ onUseTemplate }) {
       {open && (
         <div style={{ border:"1px solid rgba(255,255,255,.10)", borderRadius:"11px", padding:"10px", marginBottom:"12px", background:"rgba(0,0,0,.12)" }}>
           <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
-            <input style={inp} placeholder="Nombre interno de plantilla" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:safeEventValue(e)}))} />
-            <input style={inp} placeholder="Empresa / organización" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} />
+            <input style={inp} placeholder="Nombre interno de plantilla" value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} />
+            <input style={inp} placeholder="Empresa / organización" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
           </div>
-          <input style={inp} placeholder="Título que usará el anuncio" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} />
-          <textarea style={{...inp, minHeight:"72px", resize:"vertical"}} placeholder="Mensaje de invitación o promoción" value={form.mensaje} onChange={e=>setForm(f=>({...f,mensaje:safeEventValue(e)}))} />
+          <input style={inp} placeholder="Título que usará el anuncio" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
+          <textarea style={{...inp, minHeight:"72px", resize:"vertical"}} placeholder="Mensaje de invitación o promoción" value={form.mensaje} onChange={e=>setForm(f=>({...f,mensaje:e.target.value}))} />
           <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"8px" }}>
-            <input style={inp} placeholder="WhatsApp opcional" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:safeEventValue(e).replace(/\D/g,"")}))} />
-            <input style={inp} placeholder="Enlace opcional" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:safeEventValue(e)}))} />
+            <input style={inp} placeholder="WhatsApp opcional" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
+            <input style={inp} placeholder="Enlace opcional" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
           </div>
           <div style={{ marginBottom:"8px" }}>
             <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,.42)", marginBottom:"6px" }}>IMAGEN DE PLANTILLA</div>
             <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr auto", gap:"8px", alignItems:"stretch" }}>
-              <input style={{...inp, marginBottom:0}} placeholder="URL de imagen o sube archivo" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:safeEventValue(e),_preview:safeEventValue(e)}))} />
+              <input style={{...inp, marginBottom:0}} placeholder="URL de imagen o sube archivo" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value,_preview:e.target.value}))} />
               <label style={{ padding:"9px 12px", borderRadius:"9px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", whiteSpace:"nowrap" }}>
                 📁 Subir
                 <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
@@ -6897,7 +6216,6 @@ const PERMISOS_DISPONIBLES = [
   { id:"actualizar_patios", label:"Actualizar patios", icon:"inventory_2", desc:"Modificar patios reguladores y disponibilidad" },
   { id:"actualizar_carriles", label:"Actualizar carriles", icon:"view_week", desc:"Modificar carriles y su estado operativo" },
   { id:"moderar_reportes", label:"Moderar reportes", icon:"gavel", desc:"Revisar, resolver y eliminar reportes" },
-  { id:"ver_control_portuario", label:"Control portuario", icon:"anchor", desc:"Gestionar citas y carga portuaria" },
   { id:"gestionar_confinados", label:"Gestionar confinados", icon:"lock_clock", desc:"Administrar segundo acceso y carriles confinados" },
   { id:"gestionar_accesos", label:"Gestionar accesos", icon:"door_sliding", desc:"Actualizar y supervisar accesos operativos" },
   { id:"gestionar_posturas", label:"Gestionar Posturas", icon:"work_history", desc:"Editar vacantes, perfiles, salarios y postulaciones" },
@@ -7024,11 +6342,11 @@ function AdminUsuariosPanel() {
       <div style={{padding:16,display:"grid",gap:14}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{[["manual","person_add","Crear usuario nuevo","Nombre, contraseña y permisos"],["existing","badge","Asignar por ID","Cuenta existente, sin contraseña"]].map(([value,icon,title,subtitle])=><button key={value} type="button" onClick={()=>setFlow(value)} style={{padding:12,textAlign:"left",borderRadius:4,border:`1px solid ${form.flow===value?"#9fcaff":"#3f4753"}`,background:form.flow===value?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",color:form.flow===value?"#d2e4ff":"#bfc7d5",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}><MS name={icon} size={22} active={form.flow===value}/><span><b style={{display:"block",fontSize:13}}>{title}</b><small style={{display:"block",color:"#89919e",marginTop:2}}>{subtitle}</small></span></button>)}</div>
         {msg&&<div style={{padding:"10px 12px",borderRadius:4,background:msg.type==="ok"?"rgba(0,227,253,.08)":"rgba(147,0,10,.18)",border:`1px solid ${msg.type==="ok"?"rgba(0,227,253,.34)":"rgba(255,180,171,.38)"}`,color:msg.type==="ok"?"#bdf4ff":"#ffb4ab",fontSize:12}}>{msg.text}</div>}
-        {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(safeEventValue(e))}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:safeEventValue(e).replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:safeEventValue(e)}))}/></label></div>
-        {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:safeEventValue(e)}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
+        {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(e.target.value)}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}/></label></div>
+        {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
         {form.flow==="existing"&&form.auth_user_id&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:4,background:"rgba(0,227,253,.06)",border:"1px solid rgba(0,227,253,.20)",color:"#bdf4ff",fontSize:12}}><MS name="verified_user" size={19}/><span>Cuenta vinculada: <b>{form.email||form.auth_user_id}</b>. La autenticación original del usuario no se modifica.</span></div>}
-        <label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>VENCIMIENTO DEL ACCESO</span><input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:safeEventValue(e)}))}/></label>
+        <label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>VENCIMIENTO DEL ACCESO</span><input type="datetime-local" style={inp} value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))}/></label>
         <div><div style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em",marginBottom:9}}>PERMISOS DEL USUARIO</div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:8}}>{PERMISOS_DISPONIBLES.map(p=>{const checked=!!form.permisos[p.id];return <button type="button" key={p.id} onClick={()=>togglePermiso(p.id)} style={{display:"grid",gridTemplateColumns:"28px 1fr 22px",alignItems:"center",gap:9,padding:11,textAlign:"left",borderRadius:4,cursor:"pointer",background:checked?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",border:`1px solid ${checked?"rgba(159,202,255,.52)":"rgba(63,71,83,.55)"}`,color:checked?"#d2e4ff":"#bfc7d5",transition:"all .3s"}}><MS name={p.icon} size={23} active={checked}/><span><b style={{display:"block",fontSize:12}}>{p.label}</b><small style={{display:"block",color:"#89919e",fontSize:10,lineHeight:1.35,marginTop:2}}>{p.desc}</small></span><span style={{width:18,height:18,borderRadius:3,border:`2px solid ${checked?"#9fcaff":"#3f4753"}`,background:checked?"#0099ff":"transparent",display:"grid",placeItems:"center"}}>{checked&&<MS name="check" size={15} color="#002f54"/>}</span></button>})}</div></div>
         <button type="button" onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{display:"flex",alignItems:"center",gap:9,width:"fit-content",padding:0,border:0,background:"transparent",color:"#bfc7d5",cursor:"pointer"}}><span style={{width:20,height:20,borderRadius:3,border:`2px solid ${form.activo?"#00daf3":"#3f4753"}`,background:form.activo?"rgba(0,218,243,.18)":"transparent",display:"grid",placeItems:"center"}}>{form.activo&&<MS name="check" size={16} color="#bdf4ff"/>}</span><b>Usuario activo</b></button>
         <button onClick={handleGuardar} disabled={saving||lookupLoading} style={{width:"100%",padding:12,borderRadius:4,border:"1px solid rgba(159,202,255,.52)",background:"linear-gradient(180deg,#9fcaff 0%,#00e3fd 100%)",color:"#002f54",fontWeight:900,cursor:saving||lookupLoading?"not-allowed":"pointer",opacity:(saving||lookupLoading)?0.65:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><MS name="save" size={20}/>{saving?"GUARDANDO...":form.flow==="existing"?"ASIGNAR PERMISOS":form.id?"GUARDAR CAMBIOS":"CREAR USUARIO"}</button>
@@ -7099,8 +6417,8 @@ function useSubAdminSession() {
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
         <div style={{ fontFamily:getFont(theme,"title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Acceso Operador</div>
         <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa tus credenciales de acceso.</div>
-        <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:safeEventValue(e)}))} />
-        <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:safeEventValue(e)})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
+        <input style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Usuario" value={loginForm.username} onChange={e=>setLoginForm(f=>({...f,username:e.target.value}))} />
+        <input type="password" style={{ width:"100%", padding:"11px 14px", background:"rgba(255,255,255,0.07)", border:`1px solid ${loginErr?"#ef4444":"rgba(255,255,255,0.15)"}`, borderRadius:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"14px", boxSizing:"border-box", outline:"none", marginBottom:"8px" }} placeholder="Contraseña" value={loginForm.password} onChange={e=>{ setLoginForm(f=>({...f,password:e.target.value})); setLoginErr(false); }} onKeyDown={e=>e.key==="Enter"&&trySubLogin()} />
         {loginErr && <div style={{ color:"#ef4444", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }}>Usuario, contraseña incorrectos o acceso vencido.</div>}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
           <button onClick={()=>{setShowLogin(false);setLoginErr(false);setLoginForm({username:"",password:""});}} style={{ padding:"11px", background:"rgba(255,255,255,0.07)", border:"none", borderRadius:"10px", color:"rgba(255,255,255,0.6)", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer" }}>Cancelar</button>
@@ -7486,7 +6804,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                 <input
                   type="checkbox"
                   checked={config.uiAutoAdjust !== false}
-                  onChange={(e) => setConfig(prev => ({ ...prev, uiAutoAdjust: safeEventChecked(e) }))}
+                  onChange={(e) => setConfig(prev => ({ ...prev, uiAutoAdjust: e.target.checked }))}
                 />
                 Auto-ajustar header, tabs, ventanas e iconos cuando el fondo sea un color sólido
               </label>
@@ -7524,13 +6842,13 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     <input
                       type="color"
                       value={config.backgroundColor}
-                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: safeEventValue(e) }))}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
                       style={{ width:"60px", height:"60px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                     />
                     <input
                       type="text"
                       value={config.backgroundColor}
-                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: safeEventValue(e) }))}
+                      onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
                       placeholder="#0a1628"
                       style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"13px" }}
                     />
@@ -7590,7 +6908,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   <input
                     type="text"
                     value={config.backgroundGradient}
-                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundGradient: safeEventValue(e) }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, backgroundGradient: e.target.value }))}
                     placeholder="linear-gradient(135deg, #0a1628 0%, #1a2942 100%)"
                     style={{ width:"100%", padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"monospace", fontSize:"12px" }}
                   />
@@ -7664,7 +6982,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         max="1"
                         step="0.05"
                         value={config.backgroundImageOverlayOpacity || 0.65}
-                        onChange={(e) => setConfig(prev => ({ ...prev, backgroundImageOverlayOpacity: parseFloat(safeEventValue(e)) }))}
+                        onChange={(e) => setConfig(prev => ({ ...prev, backgroundImageOverlayOpacity: parseFloat(e.target.value) }))}
                         style={{ 
                           width:"100%", 
                           height:"6px",
@@ -7864,7 +7182,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     max="32"
                     step="1"
                     value={config.baseFontSize}
-                    onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(safeEventValue(e)) }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, baseFontSize: parseInt(e.target.value) }))}
                     style={{ 
                       width:"100%", 
                       height:"6px",
@@ -7913,7 +7231,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                     max="48"
                     step="1"
                     value={config.titleFontSize}
-                    onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(safeEventValue(e)) }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, titleFontSize: parseInt(e.target.value) }))}
                     style={{ 
                       width:"100%", 
                       height:"6px",
@@ -7967,7 +7285,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.primary || "#ffffff"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, primary: safeEventValue(e) }
+                              textColors: { ...prev.textColors, primary: e.target.value }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -7976,7 +7294,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.primary || "#ffffff"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, primary: safeEventValue(e) }
+                              textColors: { ...prev.textColors, primary: e.target.value }
                             }))}
                             placeholder="#ffffff"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -7994,7 +7312,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.secondary || "#e2e8f0"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, secondary: safeEventValue(e) }
+                              textColors: { ...prev.textColors, secondary: e.target.value }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -8003,7 +7321,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.secondary || "#e2e8f0"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, secondary: safeEventValue(e) }
+                              textColors: { ...prev.textColors, secondary: e.target.value }
                             }))}
                             placeholder="#e2e8f0"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -8023,7 +7341,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.muted || "#94a3b8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, muted: safeEventValue(e) }
+                              textColors: { ...prev.textColors, muted: e.target.value }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -8032,7 +7350,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.muted || "#94a3b8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, muted: safeEventValue(e) }
+                              textColors: { ...prev.textColors, muted: e.target.value }
                             }))}
                             placeholder="#94a3b8"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -8050,7 +7368,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.accent || "#38bdf8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, accent: safeEventValue(e) }
+                              textColors: { ...prev.textColors, accent: e.target.value }
                             }))}
                             style={{ width:"48px", height:"48px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"transparent", cursor:"pointer" }}
                           />
@@ -8059,7 +7377,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.textColors?.accent || "#38bdf8"}
                             onChange={(e) => setConfig(prev => ({ 
                               ...prev, 
-                              textColors: { ...prev.textColors, accent: safeEventValue(e) }
+                              textColors: { ...prev.textColors, accent: e.target.value }
                             }))}
                             placeholder="#38bdf8"
                             style={{ flex:1, padding:"10px 12px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -8086,7 +7404,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                   checked={config.contentBox?.autoAdjustWithSolidBackground !== false}
                   onChange={(e) => setConfig(prev => ({
                     ...prev,
-                    contentBox: { ...prev.contentBox, autoAdjustWithSolidBackground: safeEventChecked(e) }
+                    contentBox: { ...prev.contentBox, autoAdjustWithSolidBackground: e.target.checked }
                   }))}
                 />
                 Ajustar automáticamente el color de ventanas según el fondo sólido
@@ -8101,7 +7419,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                       checked={config.contentBox?.enabled ?? true}
                       onChange={(e) => setConfig(prev => ({
                         ...prev,
-                        contentBox: { ...prev.contentBox, enabled: safeEventChecked(e) }
+                        contentBox: { ...prev.contentBox, enabled: e.target.checked }
                       }))}
                       style={{ width:"18px", height:"18px", cursor:"pointer" }}
                     />
@@ -8151,7 +7469,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.background || "rgba(255, 255, 255, 0.05)"}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, background: safeEventValue(e) }
+                            contentBox: { ...prev.contentBox, background: e.target.value }
                           }))}
                           placeholder="rgba(255, 255, 255, 0.05)"
                           style={{ flex:1, padding:"12px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"12px" }}
@@ -8175,7 +7493,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                         value={config.contentBox?.backdropBlur || 12}
                         onChange={(e) => setConfig(prev => ({
                           ...prev,
-                          contentBox: { ...prev.contentBox, backdropBlur: parseInt(safeEventValue(e)) }
+                          contentBox: { ...prev.contentBox, backdropBlur: parseInt(e.target.value) }
                         }))}
                         style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                       />
@@ -8218,7 +7536,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             value={config.contentBox?.borderColor || "rgba(255, 255, 255, 0.1)"}
                             onChange={(e) => setConfig(prev => ({
                               ...prev,
-                              contentBox: { ...prev.contentBox, borderColor: safeEventValue(e) }
+                              contentBox: { ...prev.contentBox, borderColor: e.target.value }
                             }))}
                             placeholder="rgba(255,255,255,0.1)"
                             style={{ flex:1, padding:"8px", borderRadius:"6px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:"'Space Mono', monospace", fontSize:"11px" }}
@@ -8237,7 +7555,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.borderWidth || 1}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, borderWidth: parseInt(safeEventValue(e)) }
+                            contentBox: { ...prev.contentBox, borderWidth: parseInt(e.target.value) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -8258,7 +7576,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.borderRadius || 12}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, borderRadius: parseInt(safeEventValue(e)) }
+                            contentBox: { ...prev.contentBox, borderRadius: parseInt(e.target.value) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -8275,7 +7593,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.padding || 16}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, padding: parseInt(safeEventValue(e)) }
+                            contentBox: { ...prev.contentBox, padding: parseInt(e.target.value) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -8296,7 +7614,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.minHeight || 0}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, minHeight: parseInt(safeEventValue(e)) }
+                            contentBox: { ...prev.contentBox, minHeight: parseInt(e.target.value) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -8313,7 +7631,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                           value={config.contentBox?.maxWidth || 0}
                           onChange={(e) => setConfig(prev => ({
                             ...prev,
-                            contentBox: { ...prev.contentBox, maxWidth: parseInt(safeEventValue(e)) }
+                            contentBox: { ...prev.contentBox, maxWidth: parseInt(e.target.value) }
                           }))}
                           style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
                         />
@@ -8331,7 +7649,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, enabled: safeEventChecked(e) }
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, enabled: e.target.checked }
                             }
                           }))}
                           style={{ width:"18px", height:"18px", cursor:"pointer" }}
@@ -8349,7 +7667,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, gradient: safeEventValue(e) }
+                              gradientOverlay: { ...prev.contentBox?.gradientOverlay, gradient: e.target.value }
                             }
                           }))}
                           placeholder="linear-gradient(...)"
@@ -8368,7 +7686,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             contentBox: {
                               ...prev.contentBox,
-                              shadow: { ...prev.contentBox?.shadow, enabled: safeEventChecked(e) }
+                              shadow: { ...prev.contentBox?.shadow, enabled: e.target.checked }
                             }
                           }))}
                           style={{ width:"18px", height:"18px", cursor:"pointer" }}
@@ -8391,7 +7709,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                                 ...prev,
                                 contentBox: {
                                   ...prev.contentBox,
-                                  shadow: { ...prev.contentBox?.shadow, color: safeEventValue(e) }
+                                  shadow: { ...prev.contentBox?.shadow, color: e.target.value }
                                 }
                               }))}
                               style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.05)", color:"#fff", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}
@@ -8411,7 +7729,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                                 ...prev,
                                 contentBox: {
                                   ...prev.contentBox,
-                                  shadow: { ...prev.contentBox?.shadow, blur: parseInt(safeEventValue(e)) }
+                                  shadow: { ...prev.contentBox?.shadow, blur: parseInt(e.target.value) }
                                 }
                               }))}
                               style={{ width:"100%", height:"6px", borderRadius:"3px", cursor:"pointer" }}
@@ -8478,7 +7796,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             tabIcons: {
                               ...prev.tabIcons,
-                              [tab.key]: { ...prev.tabIcons[tab.key], type: "builtin", value: safeEventValue(e) }
+                              [tab.key]: { ...prev.tabIcons[tab.key], type: "builtin", value: e.target.value }
                             }
                           }))}
                           placeholder="Nombre del icono SVG"
@@ -8513,7 +7831,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             tabIcons: {
                               ...prev.tabIcons,
-                              [tab.key]: { ...prev.tabIcons[tab.key], size: parseInt(safeEventValue(e)) }
+                              [tab.key]: { ...prev.tabIcons[tab.key], size: parseInt(e.target.value) }
                             }
                           }))}
                           style={{ width:"100%" }}
@@ -8561,7 +7879,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             otherIcons: {
                               ...prev.otherIcons,
-                              [key]: { ...prev.otherIcons[key], type: "builtin", value: safeEventValue(e) }
+                              [key]: { ...prev.otherIcons[key], type: "builtin", value: e.target.value }
                             }
                           }))}
                           placeholder="Nombre del icono SVG"
@@ -8596,7 +7914,7 @@ function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCance
                             ...prev,
                             otherIcons: {
                               ...prev.otherIcons,
-                              [key]: { ...prev.otherIcons[key], size: parseInt(safeEventValue(e)) }
+                              [key]: { ...prev.otherIcons[key], size: parseInt(e.target.value) }
                             }
                           }))}
                           style={{ width:"100%" }}
@@ -12176,12 +11494,12 @@ function AdminIncidentTypesManager({ customIncidentTypes, reload }) {
   return <div style={{ background:"rgba(168,85,247,0.08)", border:"1px solid rgba(168,85,247,0.28)", borderRadius:12, padding:12, marginBottom:14 }}>
     <div style={{ color:"#d8b4fe", fontFamily:getFont(theme,"secondary"), fontSize:12, fontWeight:800, marginBottom:8 }}>⚙️ Admin · Tipos de incidentes y accidentes</div>
     <div style={{ display:"grid", gridTemplateColumns:"130px 70px 1fr auto", gap:8, alignItems:"center" }}>
-      <select value={category} onChange={e=>{ setCategory(safeEventValue(e)); setIcon(safeEventValue(e) === "accidente" ? "emergency" : "warning-triangle"); }} style={inp}>
+      <select value={category} onChange={e=>{ setCategory(e.target.value); setIcon(e.target.value === "accidente" ? "emergency" : "warning-triangle"); }} style={inp}>
         <option value="incidente">Incidente</option>
         <option value="accidente">Accidente</option>
       </select>
-      <input value={icon} onChange={e=>setIcon(safeEventValue(e))} placeholder="Icono" style={inp} />
-      <input value={label} onChange={e=>setLabel(safeEventValue(e))} placeholder="Nuevo tipo, ej. Derrame de diesel" style={inp} />
+      <input value={icon} onChange={e=>setIcon(e.target.value)} placeholder="Icono" style={inp} />
+      <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="Nuevo tipo, ej. Derrame de diesel" style={inp} />
       <button onClick={addType} style={{...inp,cursor:"pointer",color:"#22c55e",fontWeight:800}}>＋ Añadir</button>
     </div>
     <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
@@ -12384,14 +11702,14 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <div>
             <label style={labelStyle}>Texto detectado</label>
-            <textarea value={rawText} onChange={e => { const t = safeEventValue(e); setRawText(t); if (t && !draft) setDraft(parseAsiponaEventText(t, customIncidentTypes)); }} rows={5} placeholder="Aquí aparecerá el OCR. También puedes pegar el texto del comunicado." style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+            <textarea value={rawText} onChange={e => { const t = e.target.value; setRawText(t); if (t && !draft) setDraft(parseAsiponaEventText(t, customIncidentTypes)); }} rows={5} placeholder="Aquí aparecerá el OCR. También puedes pegar el texto del comunicado." style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
           </div>
 
           {draft && <>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={labelStyle}>Categoría</label>
-                <select value={draft.category || "incidente"} onChange={e => { const cat = safeEventValue(e); const known = resolveKnownEventSubtype(cat, draft.subtype_label, draft.subtype_id, customIncidentTypes); updateDraft({ category:cat, subtype_id:known?.id || `${cat}_${slugifyEventType(draft.subtype_label || "evento")}`, subtype_label:known?.label || draft.subtype_label, subtype_icon:known?.icon || draft.subtype_icon, needs_new_type:!known }); }} style={inputStyle}>
+                <select value={draft.category || "incidente"} onChange={e => { const cat = e.target.value; const known = resolveKnownEventSubtype(cat, draft.subtype_label, draft.subtype_id, customIncidentTypes); updateDraft({ category:cat, subtype_id:known?.id || `${cat}_${slugifyEventType(draft.subtype_label || "evento")}`, subtype_label:known?.label || draft.subtype_label, subtype_icon:known?.icon || draft.subtype_icon, needs_new_type:!known }); }} style={inputStyle}>
                   <option value="incidente">Incidente</option>
                   <option value="accidente">Accidente</option>
                 </select>
@@ -12405,7 +11723,7 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 110px", gap:10 }}>
               <div>
                 <label style={labelStyle}>Tipo específico</label>
-                <input value={draft.subtype_label || ""} onChange={e => { const label = safeEventValue(e); const cat = draft.category || "incidente"; const known = resolveKnownEventSubtype(cat, label, "", customIncidentTypes); updateDraft({ subtype_label: known?.label || label, subtype_id: known?.id || `${cat}_${slugifyEventType(label)}`, subtype_icon: known?.icon || draft.subtype_icon, needs_new_type: !known }); }} style={inputStyle} />
+                <input value={draft.subtype_label || ""} onChange={e => { const label = e.target.value; const cat = draft.category || "incidente"; const known = resolveKnownEventSubtype(cat, label, "", customIncidentTypes); updateDraft({ subtype_label: known?.label || label, subtype_id: known?.id || `${cat}_${slugifyEventType(label)}`, subtype_icon: known?.icon || draft.subtype_icon, needs_new_type: !known }); }} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Nuevo tipo</label>
@@ -12415,18 +11733,18 @@ function AdminAIEventReader({ customIncidentTypes = [], reloadTypes, onApproved 
 
             <div>
               <label style={labelStyle}>Ubicación / referencia sugerida</label>
-              <input value={draft.location || ""} onChange={e => updateDraft({ location:safeEventValue(e) })} style={inputStyle} />
+              <input value={draft.location || ""} onChange={e => updateDraft({ location:e.target.value })} style={inputStyle} />
             </div>
 
             <div>
               <label style={labelStyle}>Descripción operativa</label>
-              <textarea value={draft.description || ""} onChange={e => updateDraft({ description:safeEventValue(e) })} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
+              <textarea value={draft.description || ""} onChange={e => updateDraft({ description:e.target.value })} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.45 }} />
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:8, alignItems:"end" }}>
               <div>
                 <label style={labelStyle}>Coordenadas</label>
-                <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(safeEventValue(e))} placeholder="19.0927, -104.2765" style={inputStyle} />
+                <input value={draft.coords_text || (draft.coords?.length ? `${draft.coords[0]}, ${draft.coords[1]}` : "")} onChange={e => setCoordsFromText(e.target.value)} placeholder="19.0927, -104.2765" style={inputStyle} />
                 <div style={{ color:"rgba(255,255,255,.42)", fontFamily:getFont(theme,"secondary"), fontSize:9, marginTop:4 }}>{coordsBusy ? "Buscando coordenadas…" : draft.coords_source ? `Fuente: ${draft.coords_source}` : "Puedes geocodificar o colocar un pin manual; valida el punto antes de aprobar."}</div>
               </div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"flex-end" }}>
@@ -13048,14 +12366,14 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                       ))}
                     </div>
                   )}
-                  <input value={location} onChange={e => setLocation(sanitize(safeEventValue(e)))} placeholder="O escribe una referencia operativa" style={{ width:"100%", marginTop:"8px", boxSizing:"border-box", padding:"12px 13px", background:"#0a1628", border:"1px solid rgba(255,255,255,.1)", borderRadius:"11px", color:"#fff", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", outline:"none" }} />
+                  <input value={location} onChange={e => setLocation(sanitize(e.target.value))} placeholder="O escribe una referencia operativa" style={{ width:"100%", marginTop:"8px", boxSizing:"border-box", padding:"12px 13px", background:"#0a1628", border:"1px solid rgba(255,255,255,.1)", borderRadius:"11px", color:"#fff", fontSize:"12px", fontFamily:"IBM Plex Sans, sans-serif", outline:"none" }} />
                 </div>
 
                 <div>
                   <label style={{ display:"block", color:"#94a3b8", fontFamily:"JetBrains Mono, monospace", fontSize:"10px", textTransform:"uppercase", letterSpacing:"0.14em", marginBottom:"7px" }}>Coordenadas / Google Maps Link</label>
                   <div style={{ position:"relative" }}>
                     <MaterialIcon color="#64748b" size={19} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)" }}>pincode</MaterialIcon>
-                    <input value={gmapsLink} onChange={e => handleGmapsInput(safeEventValue(e))} placeholder="Pega el link o coordenadas" style={{ width:"100%", boxSizing:"border-box", padding:"12px 38px 12px 40px", background:"#0a1628", border:`1px solid ${coords ? "rgba(34,197,94,.55)" : coordsError ? "rgba(239,68,68,.55)" : "rgba(255,255,255,.1)"}`, borderRadius:"11px", color:coords ? "#22c55e" : "#00f2ea", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", outline:"none" }} />
+                    <input value={gmapsLink} onChange={e => handleGmapsInput(e.target.value)} placeholder="Pega el link o coordenadas" style={{ width:"100%", boxSizing:"border-box", padding:"12px 38px 12px 40px", background:"#0a1628", border:`1px solid ${coords ? "rgba(34,197,94,.55)" : coordsError ? "rgba(239,68,68,.55)" : "rgba(255,255,255,.1)"}`, borderRadius:"11px", color:coords ? "#22c55e" : "#00f2ea", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", outline:"none" }} />
                     <MaterialIcon color={coords ? "#22c55e" : coordsError ? "#ef4444" : "#64748b"} size={19} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)" }}>{coordsLoading ? "sync" : coords ? "verified" : coordsError ? "error" : "link"}</MaterialIcon>
                   </div>
                   <p style={{ margin:"6px 0 0", color:coords ? "#22c55e" : coordsError ? "#f97316" : "#64748b", fontFamily:"JetBrains Mono, monospace", fontSize:"9px", textTransform:"uppercase", lineHeight:1.5 }}>
@@ -13666,11 +12984,8 @@ const getMasterReferenceColor = (ref, accesos = {}) => {
 };
 
 function CommandReferenceMarker({ refItem, accesos }) {
-  const safeRefItem = safeObject(refItem);
-  const coords = safeArray(safeRefItem.coords);
-  const hasValidCoords = coords.length >= 2 && coords.slice(0, 2).every(Number.isFinite);
-  const color = getMasterReferenceColor(safeRefItem, safeObject(accesos));
-  const label = safeRefItem.name || safeRefItem.short || safeRefItem.id || "Referencia";
+  const color = getMasterReferenceColor(refItem, accesos);
+  const label = refItem.name || refItem.short || refItem.id;
   const icon = useMemo(() => L.divIcon({
     className: "cm-map-ref-icon",
     html: `<div class="cm-map-ref-dot" style="--cm-ref-color:${color}"></div>`,
@@ -13678,9 +12993,8 @@ function CommandReferenceMarker({ refItem, accesos }) {
     iconAnchor: [7, 7],
   }), [color]);
 
-  if (!hasValidCoords) return null;
   return (
-    <Marker position={coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
+    <Marker position={refItem.coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
       <Tooltip permanent direction="top" offset={[0, -10]} className="cm-tooltip-permanent">
         <b>{label}</b>
       </Tooltip>
@@ -13691,44 +13005,19 @@ function CommandReferenceMarker({ refItem, accesos }) {
 function CommandMapAutoFit({ layerConfig }) {
   const map = useMap();
   useEffect(() => {
-    let cancelled = false;
-    let timerId = null;
-    let frameId = null;
-
-    const run = () => {
-      if (cancelled || !isLeafletMapReady(map)) return;
-      const coords = safeArray(layerConfig).flatMap(group =>
-        safeArray(group?.items).flatMap(item => safeArray(flattenCommandCoords(item?.coords)))
-      ).filter(pair => Array.isArray(pair) && pair.length >= 2 && pair.slice(0, 2).every(Number.isFinite));
-      if (!coords.length) return;
-      try {
-        const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
-        if (bounds?.isValid?.() && isLeafletMapReady(map) && typeof map?.fitBounds === "function") {
-          map.fitBounds(bounds, { padding:[28, 28], maxZoom:15, animate:false });
-        }
-      } catch (error) {
-        console.warn("[Leaflet] Autoajuste omitido durante transición de vista.", error);
-      }
-      timerId = window.setTimeout(() => { if (!cancelled) safeInvalidateLeafletMap(map); }, 160);
-    };
-
-    frameId = typeof requestAnimationFrame === "function" ? requestAnimationFrame(run) : window.setTimeout(run, 0);
-    return () => {
-      cancelled = true;
-      if (timerId != null) clearTimeout(timerId);
-      if (frameId != null) {
-        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frameId);
-        else clearTimeout(frameId);
-      }
-    };
+    const coords = layerConfig.flatMap(group => group.items.flatMap(item => flattenCommandCoords(item.coords)));
+    if (!coords.length) return;
+    const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
+    map.fitBounds(bounds, { padding:[28, 28], maxZoom:15 });
+    setTimeout(() => map.invalidateSize(), 160);
   }, [map, layerConfig]);
   return null;
 }
 
 function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
-  const theme = React.useContext(ThemeContext) || {};
-  const layerConfig = useMemo(() => safeArray(buildLayerConfig({ accesos:safeObject(accesos), vialidades:safeObject(vialidades), rutasFiscales:safeObject(rutasFiscales) })), [accesos, vialidades, rutasFiscales]);
-  const activeIncidents = safeArray(incidents).filter(i => i?.visible && !i?.resolved && safeArray(i?.coords).length >= 2 && safeArray(i?.coords).slice(0, 2).every(Number.isFinite));
+  const theme = React.useContext(ThemeContext);
+  const layerConfig = useMemo(() => buildLayerConfig({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
+  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords));
   return (
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
@@ -15603,7 +14892,7 @@ function TerminalSearchBox({ value, onChange, theme }) {
       <input
         type="text"
         value={value}
-        onChange={e => onChange(safeEventValue(e))}
+        onChange={e => onChange(e.target.value)}
         placeholder="Buscar terminal (ej. CONTECON)…"
         style={{
           width:"100%", padding:"8px 10px 8px 30px", background:"#0a1628",
@@ -17161,49 +16450,9 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
     textDecoration:"none"
   };
 
-  const visor = (
-    <div
-      onClick={onClose}
-      style={{
-        position:"fixed",
-        inset:0,
-        zIndex:2147483646,
-        background:"rgba(0,0,0,0.96)",
-        display:"flex",
-        alignItems:"center",
-        justifyContent:"center",
-        paddingTop:"max(12px, env(safe-area-inset-top))",
-        paddingRight:"max(12px, env(safe-area-inset-right))",
-        paddingBottom:"max(12px, env(safe-area-inset-bottom))",
-        paddingLeft:"max(12px, env(safe-area-inset-left))",
-        overflow:"hidden",
-        boxSizing:"border-box"
-      }}
-    >
-      <button
-        type="button"
-        onClick={(event) => { event.stopPropagation(); onClose?.(); }}
-        title="Cerrar imagen"
-        aria-label="Cerrar imagen"
-        style={{
-          ...iconBtn,
-          position:"fixed",
-          top:"max(86px, calc(env(safe-area-inset-top) + 14px))",
-          right:"max(14px, env(safe-area-inset-right))",
-          width:"50px",
-          height:"50px",
-          minWidth:"50px",
-          minHeight:"50px",
-          zIndex:2147483647,
-          background:"rgba(4,12,24,.94)",
-          border:"2px solid rgba(255,255,255,.72)",
-          boxShadow:"0 10px 34px rgba(0,0,0,.72), 0 0 0 4px rgba(2,6,23,.46)",
-          touchAction:"manipulation"
-        }}
-      >
-        <MS name="close" size={28} active color="#ffffff" />
-      </button>
-      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, minHeight:0 }}>
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.96)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", overflow:"hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
         {isPdf ? (
           <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"94vh", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
         ) : (
@@ -17219,32 +16468,29 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
           />
         )}
 
+        <button onClick={onClose} title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"14px", right:"14px", fontSize:"22px" }}>×</button>
 
         {canNavigate && (
           <>
-            <button type="button" onClick={goPrev} title="Imagen anterior" aria-label="Imagen anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px" }}><MS name="chevron_left" size={30} active color="#ffffff" /></button>
-            <button type="button" onClick={goNext} title="Imagen siguiente" aria-label="Imagen siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px" }}><MS name="chevron_right" size={30} active color="#ffffff" /></button>
+            <button onClick={goPrev} title="Anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>‹</button>
+            <button onClick={goNext} title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>›</button>
             <div style={{ position:"absolute", left:"50%", bottom:"14px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.46)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.70)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
               {safeIndex + 1} / {items.length}
             </div>
           </>
         )}
 
-        <div style={{ position:"absolute", right:"max(14px, env(safe-area-inset-right))", bottom:"max(14px, env(safe-area-inset-bottom))", display:"flex", gap:"8px", alignItems:"center", zIndex:10005 }}>
-          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir imagen en otra página" aria-label="Abrir imagen en otra página" style={iconBtn}><MS name="open_in_new" size={23} active color="#ffffff" /></a>
+        <div style={{ position:"absolute", right:"14px", bottom:"14px", display:"flex", gap:"8px", alignItems:"center" }}>
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
           {onDownload ? (
-            <button type="button" onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar imagen"} aria-label={downloading ? "Preparando descarga" : "Descargar imagen"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}><MS name={downloading ? "progress_activity" : "download"} size={24} active color="#ffffff" style={downloading ? { animation:"cm-spin 1s linear infinite" } : {}} /></button>
+            <button onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "⬇"}</button>
           ) : (
-            <a href={item.archivo_url} download title="Descargar imagen" aria-label="Descargar imagen" style={iconBtn}><MS name="download" size={24} active color="#ffffff" /></a>
+            <a href={item.archivo_url} download title="Descargar" style={iconBtn}>⬇</a>
           )}
         </div>
       </div>
     </div>
   );
-
-  return typeof document !== "undefined"
-    ? createPortal(visor, document.body)
-    : visor;
 }
 
 
@@ -17402,7 +16648,7 @@ function ScreenshotCropModal({ onClose, onApply }) {
         </div>
 
         <div style={{ padding:"12px", display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", borderBottom:"1px solid rgba(255,255,255,.08)" }}>
-          <input value={url} onChange={e=>setUrl(safeEventValue(e))} placeholder="https://ejemplo.com" onKeyDown={e=>{ if(e.key === "Enter") takeScreenshot(); }} style={{ minWidth:0, background:"#061428", border:"1px solid rgba(56,189,248,.30)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), outline:"none" }} />
+          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://ejemplo.com" onKeyDown={e=>{ if(e.key === "Enter") takeScreenshot(); }} style={{ minWidth:0, background:"#061428", border:"1px solid rgba(56,189,248,.30)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), outline:"none" }} />
           <button onClick={takeScreenshot} disabled={loading} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid #2563eb", background:loading ? "#1e3a8a" : "#2563eb", color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:loading ? "wait" : "pointer" }}>{loading ? "Capturando…" : "Tomar screenshot"}</button>
         </div>
 
@@ -18150,20 +17396,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [graphicEditorOpen, setGraphicEditorOpen] = useState(false);
   const [graphicEditorText, setGraphicEditorText] = useState("");
   const [textAlignMode, setTextAlignMode] = useState("left"); // "left" | "center" | "right" | "justify"
-  const [bodyFontMode, setBodyFontMode] = useState("auto"); // "auto" | "manual"
-  const [manualBodyFontSize, setManualBodyFontSize] = useState(null);
-  const [autoBodyFontSize, setAutoBodyFontSize] = useState(null);
   const [canvasElements, setCanvasElements] = useState([]);
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
-  const [origenFormato, setOrigenFormato] = useState(false);
-  const [draftsOpen, setDraftsOpen] = useState(false);
-  const [drafts, setDrafts] = useState([]);
-  const [draftBusy, setDraftBusy] = useState(false);
-  const [draftMessage, setDraftMessage] = useState("");
-  const [activeDraftId, setActiveDraftId] = useState(null);
-  const [draftToPublishId, setDraftToPublishId] = useState(null);
-  const [extractionZonesState, setExtractionZonesState] = useState([]);
   const inputRef = useRef();
   const pasteZoneRef = useRef();
   const complementaryInputRef = useRef();
@@ -18174,9 +17409,6 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const canvasTemplateRef = useRef(null);
   const dragStateRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
   const exportDebounceRef = useRef(null);
-  const canvasRenderVersionRef = useRef(0);
-  const canvasExportVersionRef = useRef(0);
-  const canvasBuildVersionRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -18212,7 +17444,6 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     const file = new File([blob], `captura_${Date.now()}.${extension}`, { type: blob.type || "image/png", lastModified: Date.now() });
     setPastedCapture((current) => {
       if (current?.url) { try { URL.revokeObjectURL(current.url); } catch {} }
-      setOrigenFormato(false);
       return { file, url: URL.createObjectURL(file) };
     });
     setPasteOcrError("");
@@ -18312,7 +17543,6 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
     setError("");
     setArchivo(f);
-    setOrigenFormato(false);
     setGeneratedGraphicFile(null);
     setGraphicPreviewUrl("");
     if (f.type !== "application/pdf") {
@@ -18904,59 +18134,26 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     }
   };
 
-  const aplicarTextoDeZonasComunicado = ({ text }) => {
-    const rawText = String(text || "").trim();
+  const aplicarTextoDeZonasComunicado = async ({ text }) => {
+    setPasteOcrBusy(true);
     setPasteOcrError("");
+    const cleanText = await depurarTextoOCRComoComunicado(String(text || "").trim());
+    const ok = agregarTextoExtraidoADetalle(cleanText);
 
-    // El OCR ya entrega el contenido de un recorte aislado. Se agrega inmediatamente para
-    // evitar que la interfaz espere una segunda llamada de IA antes de cerrar el modal.
-    const localCleanText = rawText
-      .split("\n")
-      .map(line => line.trimEnd())
-      .filter(line => line.trim() && !/^(ver más|ver menos|me gusta|compartir|comentarios?|likes?|reacciones?|seguir|responder)$/i.test(line.trim()))
-      .filter(line => !/^https?:\/\//i.test(line.trim()))
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    const ok = agregarTextoExtraidoADetalle(localCleanText);
-    if (!ok) {
-      setToolNotice("No se detectó texto informativo legible dentro de la zona seleccionada.", "#f97316");
-      setPasteOcrError("No se encontró contenido útil en la zona. Ajusta la selección o escribe manualmente.");
-      return;
-    }
-
-    setToolNotice("Texto de la zona agregado. La optimización editorial continúa en segundo plano.", "#22c55e");
-
-    // La depuración y el título son mejoras opcionales. Se ejecutan sin bloquear el modal y
-    // con límites estrictos para impedir estados de carga indefinidos con textos extensos.
-    const backgroundStartedAt = performance.now();
-    void (async () => {
-      setPasteOcrBusy(true);
-      try {
-        const aiInput = localCleanText.slice(0, 14000);
-        const [refinedText, generatedTitle] = await Promise.all([
-          withAsyncTimeout(depurarTextoOCRComoComunicado(aiInput), 18000, "Tiempo de depuración IA agotado.")
-            .catch(() => localCleanText),
-          titulo.trim()
-            ? Promise.resolve("")
-            : withAsyncTimeout(generarTituloDesdeTextoExtraido(aiInput.slice(0, 6000)), 12000, "Tiempo de título IA agotado.")
-                .catch(() => generarTituloLocalDesdeTextoExtraido(aiInput)),
-        ]);
-
-        if (generatedTitle && !titulo.trim()) setTitulo(generatedTitle);
-        console.info("[OCR zonas] posproceso IA completado", {
-          inputCharacters: aiInput.length,
-          refinedCharacters: String(refinedText || "").length,
-          elapsedMs: Math.round(performance.now() - backgroundStartedAt),
-        });
-        setToolNotice(generatedTitle ? "Texto agregado y título generado automáticamente." : "Texto agregado en Descripción breve.", "#22c55e");
-      } catch (backgroundError) {
-        console.warn("[OCR zonas] posproceso IA omitido", backgroundError);
-      } finally {
-        setPasteOcrBusy(false);
+    if (ok) {
+      setToolNotice("Texto de la zona agregado. Generando título automático con IA...", "#2563eb");
+      const tituloGenerado = await generarTituloDesdeTextoExtraido(cleanText);
+      if (tituloGenerado) {
+        setTitulo(tituloGenerado);
+        setToolNotice("Texto de la zona agregado y título generado automáticamente.", "#22c55e");
+      } else {
+        setToolNotice("Texto de la zona agregado en Descripción breve. No se pudo generar el título automático.", "#f97316");
       }
-    })();
+    } else {
+      setToolNotice("No se detectó texto informativo legible dentro de la zona seleccionada.", "#f97316");
+      setPasteOcrError("La IA no encontró contenido útil en la zona. Ajusta la selección o escribe manualmente.");
+    }
+    setPasteOcrBusy(false);
   };
 
   const extraerRespuestaIA = (data) => {
@@ -19315,7 +18512,6 @@ ${base}`;
     titleText,
     alignMode = textAlignMode,
     preservePositions = true,
-    requestedBodyFontSize = bodyFontMode === "manual" ? manualBodyFontSize : null,
   }) => {
     const cleanBodyText = String(bodyText || "").trim();
     const cleanTitleText = String(titleText || "").trim();
@@ -19337,19 +18533,13 @@ ${base}`;
     }
 
     const template = await ensureCanvasTemplate();
-    // La medición se hace en un canvas fuera de pantalla para no borrar el canvas visible
-    // durante cada recálculo tipográfico. La salida se genera al doble de resolución cuando
-    // la plantilla original es menor a 2000 px de ancho, mejorando notablemente la nitidez.
-    const sourceWidth = template.naturalWidth || template.width || 1024;
-    const sourceHeight = template.naturalHeight || template.height || 1448;
-    const qualityScale = sourceWidth < 2000 ? 2 : 1;
-    const width = Math.round(sourceWidth * qualityScale);
-    const height = Math.round(sourceHeight * qualityScale);
-    const measurementCanvas = document.createElement("canvas");
-    measurementCanvas.width = width;
-    measurementCanvas.height = height;
+    const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
+    const width = template.naturalWidth || template.width || 1024;
+    const height = template.naturalHeight || template.height || 1448;
+    canvas.width = width;
+    canvas.height = height;
 
-    const ctx = measurementCanvas.getContext("2d", { alpha: false });
+    const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
 
     const scale = width / 1024;
@@ -19394,62 +18584,40 @@ ${base}`;
     const bodyYEnd = height - (170 * scale);
     const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
 
-    // Ajuste tipográfico: mide el bloque real y reduce fuente/interlineado hasta que todo quepa.
+    // Autoescalado más agresivo para textos cortos.
     const maxBodyFontSize = Math.round(40 * scale);
-    const minBodyFontSize = Math.round(14 * scale);
-    const defaultLineHeightFactor = 1.42;
-    const compactLineHeightFactor = 1.18;
-    const defaultParagraphSpacingFactor = 0.52;
-    const compactParagraphSpacingFactor = 0.18;
+    const minBodyFontSize = Math.round(20 * scale);
+    const paragraphSpacingFactor = 0.65;
 
-    const measureBodyAt = (fontSize, lineHeightFactor, paragraphSpacingFactor) => {
-      const lineHeight = Math.max(Math.round(fontSize * lineHeightFactor), fontSize + 2);
-      const paragraphSpacing = Math.max(0, Math.round(lineHeight * paragraphSpacingFactor));
+    let selectedBodyFontSize = maxBodyFontSize;
+    let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
+    let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
+    let selectedBodyHeight = 0;
+
+    for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
+      const testLineHeight = Math.round(testFontSize * 1.5);
+      const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
+      const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
+      const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
+
       const measured = calculateRichTextHeight({
         ctx,
         text: cleanBodyText,
         maxWidth: bodyMaxWidth,
-        lineHeight,
-        normalFont: `normal ${fontSize}px "Noto Sans"`,
-        boldFont: `bold ${fontSize}px "Noto Sans"`,
-        paragraphSpacing,
+        lineHeight: testLineHeight,
+        normalFont: testNormalFont,
+        boldFont: testBoldFont,
+        paragraphSpacing: testParagraphSpacing,
       });
-      return { fontSize, lineHeight, paragraphSpacing, height: measured.height };
-    };
 
-    let automaticFit = null;
-    for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
-      const measured = measureBodyAt(testFontSize, defaultLineHeightFactor, defaultParagraphSpacingFactor);
-      if (measured.height <= availableHeight) { automaticFit = measured; break; }
-    }
-
-    if (!automaticFit) {
-      // Antes de bajar de la fuente mínima, compacta progresivamente interlineado y párrafos.
-      for (let step = 0; step <= 12; step += 1) {
-        const ratio = step / 12;
-        const lineFactor = defaultLineHeightFactor - ((defaultLineHeightFactor - compactLineHeightFactor) * ratio);
-        const paragraphFactor = defaultParagraphSpacingFactor - ((defaultParagraphSpacingFactor - compactParagraphSpacingFactor) * ratio);
-        const measured = measureBodyAt(minBodyFontSize, lineFactor, paragraphFactor);
-        if (measured.height <= availableHeight || step === 12) { automaticFit = measured; break; }
+      if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
+        selectedBodyFontSize = testFontSize;
+        selectedBodyLineHeight = testLineHeight;
+        selectedParagraphSpacing = testParagraphSpacing;
+        selectedBodyHeight = measured.height;
+        break;
       }
     }
-
-    const requestedSize = Number(requestedBodyFontSize);
-    let selectedFit = automaticFit;
-    if (Number.isFinite(requestedSize) && requestedSize > 0) {
-      const clampedRequested = Math.max(minBodyFontSize, Math.min(maxBodyFontSize, Math.round(requestedSize)));
-      // El control manual nunca permite desbordar: compacta primero y, si no cabe, usa el mayor tamaño seguro.
-      let manualFit = measureBodyAt(clampedRequested, defaultLineHeightFactor, defaultParagraphSpacingFactor);
-      if (manualFit.height > availableHeight) {
-        manualFit = measureBodyAt(clampedRequested, compactLineHeightFactor, compactParagraphSpacingFactor);
-      }
-      selectedFit = manualFit.height <= availableHeight ? manualFit : automaticFit;
-    }
-
-    const selectedBodyFontSize = selectedFit.fontSize;
-    const selectedBodyLineHeight = selectedFit.lineHeight;
-    const selectedParagraphSpacing = selectedFit.paragraphSpacing;
-    const selectedBodyHeight = selectedFit.height;
 
     const safeAlignMode = ["left", "center", "right", "justify"].includes(alignMode)
       ? alignMode
@@ -19593,31 +18761,24 @@ ${base}`;
     metrics = canvasMetrics,
     skipElementId = inlineEditor?.elementId || null,
   } = {}) => {
-    if (!elements?.length || !metrics) return false;
+    if (!elements?.length || !metrics) return;
 
-    const renderVersion = ++canvasRenderVersionRef.current;
     const template = metrics.template || await ensureCanvasTemplate();
     const canvas = comunicadoCanvasRef.current;
-    if (!canvas || renderVersion !== canvasRenderVersionRef.current) return false;
+    if (!canvas) return;
 
-    // Renderizado con doble buffer: toda la escena se compone fuera de pantalla y se copia
-    // al canvas visible en una sola operación. Así se elimina el parpadeo causado por
-    // clearRect/cambios de width y height mientras React actualiza la vista previa.
-    const buffer = document.createElement("canvas");
-    buffer.width = metrics.width;
-    buffer.height = metrics.height;
-    const bufferCtx = buffer.getContext("2d", { alpha: false, desynchronized: true });
-    if (!bufferCtx) return false;
+    canvas.width = metrics.width;
+    canvas.height = metrics.height;
 
-    bufferCtx.imageSmoothingEnabled = true;
-    bufferCtx.imageSmoothingQuality = "high";
-    bufferCtx.fillStyle = "#ffffff";
-    bufferCtx.fillRect(0, 0, metrics.width, metrics.height);
-    bufferCtx.drawImage(template, 0, 0, metrics.width, metrics.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    bufferCtx.font = `bold ${Math.round(22 * metrics.scale)}px "Noto Sans"`;
+    ctx.clearRect(0, 0, metrics.width, metrics.height);
+    ctx.drawImage(template, 0, 0, metrics.width, metrics.height);
+
+    ctx.font = `bold ${Math.round(22 * metrics.scale)}px "Noto Sans"`;
     drawWrappedTextCanvas({
-      ctx: bufferCtx,
+      ctx,
       text: metrics.headerText,
       x: metrics.centerX,
       y: metrics.headerY,
@@ -19629,71 +18790,28 @@ ${base}`;
 
     elements.forEach((element) => {
       if (skipElementId && element.id === skipElementId) return;
-      drawCanvasElement({ ctx: bufferCtx, element });
+      drawCanvasElement({ ctx, element });
     });
-
-    if (renderVersion !== canvasRenderVersionRef.current) return false;
-    if (canvas.width !== metrics.width || canvas.height !== metrics.height) {
-      canvas.width = metrics.width;
-      canvas.height = metrics.height;
-    }
-    const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
-    if (!ctx) return false;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(buffer, 0, 0);
-    return true;
   };
 
   const exportCanvasToGraphic = async ({ silent = true } = {}) => {
     const canvas = comunicadoCanvasRef.current;
-    if (!canvas || !canvasMetrics || !canvasElements.length) return null;
-
-    // La exportación se vuelve a dibujar vectorialmente en un canvas independiente y de
-    // mayor densidad. No se amplía el bitmap de la vista previa, por lo que las letras
-    // conservan bordes nítidos incluso con tamaños manuales grandes.
-    const bodyElement = canvasElements.find((item) => item.id === "body");
-    const deviceScale = typeof window !== "undefined" ? Number(window.devicePixelRatio || 1) : 1;
-    const fontScale = Math.max(1, Number(bodyElement?.fontSize || 20) / Math.max(20, 40 * Number(canvasMetrics.scale || 1)));
-    const exportScale = Math.min(4, Math.max(2, deviceScale, 1 + fontScale));
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = Math.round(canvasMetrics.width * exportScale);
-    exportCanvas.height = Math.round(canvasMetrics.height * exportScale);
-    const exportCtx = exportCanvas.getContext("2d", { alpha:false });
-    if (!exportCtx) throw new Error("No se pudo crear el canvas de exportación.");
-
-    exportCtx.imageSmoothingEnabled = true;
-    exportCtx.imageSmoothingQuality = "high";
-    exportCtx.setTransform(exportScale, 0, 0, exportScale, 0, 0);
-    exportCtx.fillStyle = "#ffffff";
-    exportCtx.fillRect(0, 0, canvasMetrics.width, canvasMetrics.height);
-    exportCtx.drawImage(canvasMetrics.template, 0, 0, canvasMetrics.width, canvasMetrics.height);
-    exportCtx.font = `bold ${Math.round(22 * canvasMetrics.scale)}px "Noto Sans"`;
-    drawWrappedTextCanvas({
-      ctx: exportCtx,
-      text: canvasMetrics.headerText,
-      x: canvasMetrics.centerX,
-      y: canvasMetrics.headerY,
-      maxWidth: canvasMetrics.headerMaxWidth,
-      lineHeight: canvasMetrics.headerLineHeight,
-      textAlign: "center",
-      fillStyle: canvasMetrics.corporateBlue,
-    });
-    canvasElements.forEach((element) => drawCanvasElement({ ctx:exportCtx, element }));
-    exportCtx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!canvas) return null;
 
     const blob = await new Promise((resolve, reject) => {
-      exportCanvas.toBlob((result) => {
+      canvas.toBlob((result) => {
         if (result) resolve(result);
-        else reject(new Error("No se pudo exportar el canvas a imagen PNG."));
-      }, "image/png");
+        else reject(new Error("No se pudo exportar el canvas a imagen JPEG."));
+      }, "image/jpeg", 0.95);
     });
 
+    if (generatedGraphicObjectUrlRef.current) {
+      URL.revokeObjectURL(generatedGraphicObjectUrlRef.current);
+    }
+
     const objectUrl = URL.createObjectURL(blob);
-    const previousObjectUrl = generatedGraphicObjectUrlRef.current;
     generatedGraphicObjectUrlRef.current = objectUrl;
     setGraphicPreviewUrl(objectUrl);
-    if (previousObjectUrl) setTimeout(() => URL.revokeObjectURL(previousObjectUrl), 1200);
 
     const titleElement = canvasElements.find((item) => item.id === "title");
     const safeTitle = String(titleElement?.text || titulo || "comunicado")
@@ -19703,11 +18821,14 @@ ${base}`;
       .replace(/^_+|_+$/g, "")
       .toLowerCase();
 
-    const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.png`, { type:"image/png" });
+    const generatedFile = new File([blob], `${safeTitle || "comunicado"}_formato.jpg`, { type: "image/jpeg" });
     setGeneratedGraphicFile(generatedFile);
 
-    if (!silent) setToolNotice("Comunicado gráfico generado en alta resolución. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
-    return { objectUrl, file:generatedFile };
+    if (!silent) {
+      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes descargarlo o adjuntarlo.", "#22c55e");
+    }
+
+    return { objectUrl, file: generatedFile };
   };
 
   const getCanvasPointerPosition = (event) => {
@@ -19940,7 +19061,7 @@ ${base}`;
 
     const a = document.createElement("a");
     a.href = graphicPreviewUrl;
-    a.download = `${safeTitle || "comunicado"}_formato.png`;
+    a.download = `${safeTitle || "comunicado"}_formato.jpg`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -19960,25 +19081,16 @@ ${base}`;
     alignMode = textAlignMode,
     silent = false,
     preservePositions = true,
-    requestedBodyFontSize = bodyFontMode === "manual" ? manualBodyFontSize : null,
   }) => {
-    const buildVersion = ++canvasBuildVersionRef.current;
     const { elements, metrics } = await buildCanvasElementsState({
       bodyText,
       titleText,
       alignMode,
       preservePositions,
-      requestedBodyFontSize,
     });
 
-    if (buildVersion !== canvasBuildVersionRef.current) return null;
     setCanvasMetrics(metrics);
     setCanvasElements(elements);
-    const renderedBody = elements.find((item) => item.id === "body");
-    if (renderedBody?.fontSize) {
-      if (bodyFontMode === "auto") setAutoBodyFontSize(renderedBody.fontSize);
-      else setManualBodyFontSize(renderedBody.fontSize);
-    }
 
     if (!silent) {
       setToolNotice("Comunicado gráfico generado correctamente. Ya puedes arrastrar, editar o descargar.", "#22c55e");
@@ -20039,45 +19151,6 @@ ${base}`;
     }
   };
 
-  const actualizarTamanoCuerpo = async (nextSize) => {
-    const bodyElement = canvasElements.find((item) => item.id === "body");
-    const currentSize = Number(bodyElement?.fontSize || autoBodyFontSize || manualBodyFontSize || 20);
-    const desired = Math.min(72, Math.max(12, Math.round(Number(nextSize ?? currentSize))));
-    setBodyFontMode("manual");
-    setManualBodyFontSize(desired);
-    try {
-      setGraphicBusy(true);
-      await renderComunicadoCanvas({
-        bodyText: String(bodyElement?.text || graphicEditorText || detalle || "").trim(),
-        titleText: String(canvasElements.find((item) => item.id === "title")?.text || titulo || "").trim(),
-        alignMode: textAlignMode,
-        silent: true,
-        preservePositions: true,
-        requestedBodyFontSize: desired,
-      });
-    } finally {
-      setGraphicBusy(false);
-    }
-  };
-
-  const restablecerTamanoAutomatico = async () => {
-    setBodyFontMode("auto");
-    setManualBodyFontSize(null);
-    try {
-      setGraphicBusy(true);
-      await renderComunicadoCanvas({
-        bodyText: String(canvasElements.find((item) => item.id === "body")?.text || graphicEditorText || detalle || "").trim(),
-        titleText: String(canvasElements.find((item) => item.id === "title")?.text || titulo || "").trim(),
-        alignMode: textAlignMode,
-        silent: true,
-        preservePositions: true,
-        requestedBodyFontSize: null,
-      });
-    } finally {
-      setGraphicBusy(false);
-    }
-  };
-
   const crearComunicadoPorFormato = async () => {
     if (!isAdmin) return;
 
@@ -20096,7 +19169,6 @@ ${base}`;
 
     setGraphicBusy(true);
     setError("");
-    setOrigenFormato(true);
     setGraphicEditorText(bodyText);
 
     try {
@@ -20114,21 +19186,6 @@ ${base}`;
       setGraphicBusy(false);
     }
   };
-
-  useEffect(() => {
-    if (!isAdmin || graphicEditorOpen || !canvasElements.length || !detalle.trim() || !titulo.trim()) return;
-    const debounceId = setTimeout(() => {
-      renderComunicadoCanvas({
-        bodyText: detalle.trim(),
-        titleText: titulo.trim(),
-        alignMode: textAlignMode,
-        silent: true,
-        preservePositions: true,
-        requestedBodyFontSize: bodyFontMode === "manual" ? manualBodyFontSize : null,
-      }).catch((e) => console.error("Error recalculando ajuste tipográfico:", e));
-    }, 260);
-    return () => clearTimeout(debounceId);
-  }, [detalle, titulo, textAlignMode, bodyFontMode, manualBodyFontSize, graphicEditorOpen, isAdmin]);
 
   useEffect(() => {
     if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
@@ -20156,180 +19213,27 @@ ${base}`;
   useEffect(() => {
     if (!canvasElements.length || !canvasMetrics) return;
 
-    const effectVersion = ++canvasExportVersionRef.current;
     renderCanvasScene({
       elements: canvasElements,
       metrics: canvasMetrics,
       skipElementId: inlineEditor?.elementId || null,
-    }).then((painted) => {
-      if (!painted || effectVersion !== canvasExportVersionRef.current) return;
-      if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
-      exportDebounceRef.current = setTimeout(() => {
-        if (effectVersion !== canvasExportVersionRef.current) return;
-        exportCanvasToGraphic({ silent: true }).catch((e) => console.error("Error exportando la vista previa:", e));
-      }, 260);
     }).catch((e) => {
       console.error("Error redibujando el canvas:", e);
     });
+
+    if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
+    exportDebounceRef.current = setTimeout(() => {
+      exportCanvasToGraphic({ silent: true }).catch((e) => console.error("Error exportando la vista previa:", e));
+    }, 180);
 
     return () => {
       if (exportDebounceRef.current) clearTimeout(exportDebounceRef.current);
     };
   }, [canvasElements, canvasMetrics, inlineEditor?.elementId]);
 
-  const getDraftSession = async () => {
-    let session = readAdminAuthSession?.() || null;
-    if (!session?.access_token) {
-      const result = await Promise.race([
-        sb.auth.getSession(),
-        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 3000)),
-      ]);
-      session = result?.data?.session || null;
-    }
-    if (!session?.access_token) throw new Error("No existe una sesión autorizada para gestionar borradores.");
-    return session;
-  };
-
-  const draftRequest = async (path, options = {}) => {
-    const session = await getDraftSession();
-    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}${path}`, {
-      method:options.method || "GET",
-      cache:"no-store",
-      credentials:"omit",
-      headers:{
-        apikey:SUPA_KEY,
-        Authorization:`Bearer ${session.access_token}`,
-        ...(options.body ? { "Content-Type":"application/json" } : {}),
-        ...(options.headers || {}),
-      },
-      body:options.body,
-    });
-    const raw = await response.text();
-    let data = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
-    if (!response.ok) throw new Error(data?.message || data?.error || raw || `HTTP ${response.status}`);
-    return data;
-  };
-
-  const uploadDraftFile = async (file, draftId, slot) => {
-    if (!file) return null;
-    const session = await getDraftSession();
-    const safeName = String(file.name || `${slot}.bin`).replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const path = `borradores/${session.user?.id || "usuario"}/${draftId}/${slot}_${safeName}`;
-    const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/comunicados/${path.split("/").map(encodeURIComponent).join("/")}`;
-    const response = await fetch(endpoint, {
-      method:"POST",
-      headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${session.access_token}`, "Content-Type":file.type || "application/octet-stream", "x-upsert":"true" },
-      body:file,
-    });
-    const raw = await response.text();
-    if (!response.ok) throw new Error(raw || `No se pudo guardar ${file.name}.`);
-    return {
-      url:`${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/public/comunicados/${path.split("/").map(encodeURIComponent).join("/")}`,
-      path,
-      name:file.name,
-      type:file.type,
-    };
-  };
-
-  const buildDraftFingerprint = async () => {
-    const source = JSON.stringify({
-      titulo:titulo.trim(), detalle:detalle.trim(),
-      principal:(archivo || pastedCapture?.file)?.name || null,
-      complementarias:complementaryFiles.map((f) => `${f.name}:${f.size}:${f.lastModified}`),
-      fechaInicio, fechaFin, fechaFinModo, fechaFinHora, origenFormato,
-    });
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
-    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2,"0")).join("");
-  };
-
-  const cargarBorradores = async () => {
-    if (!isAdmin) return;
-    setDraftBusy(true); setDraftMessage("");
-    try {
-      const rows = await draftRequest('/rest/v1/comunicado_borradores?estado=eq.borrador&select=*&order=updated_at.desc');
-      setDrafts(Array.isArray(rows) ? rows : []);
-    } catch (e) { setDraftMessage(e?.message || "No se pudieron cargar los borradores."); }
-    finally { setDraftBusy(false); }
-  };
-
-  const guardarBorrador = async () => {
-    if (!isAdmin || (!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)) return;
-    setDraftBusy(true); setDraftMessage("");
-    try {
-      const session = await getDraftSession();
-      const fingerprint = await buildDraftFingerprint();
-      let id = activeDraftId || null;
-      if (!id) {
-        const existing = await draftRequest(`/rest/v1/comunicado_borradores?creado_por=eq.${encodeURIComponent(session.user?.id || "")}&fingerprint=eq.${encodeURIComponent(fingerprint)}&estado=eq.borrador&select=id&limit=1`);
-        id = Array.isArray(existing) && existing[0]?.id ? existing[0].id : crypto.randomUUID();
-      }
-      const principal = await uploadDraftFile(archivo || pastedCapture?.file || null, id, "principal");
-      const extras = [];
-      for (let i=0;i<complementaryFiles.length;i+=1) extras.push(await uploadDraftFile(complementaryFiles[i], id, `extra_${i+1}`));
-      const payload = {
-        id, creado_por:session.user?.id || null, titulo:titulo.trim() || "Borrador sin título",
-        descripcion_breve:detalle.trim() || null, texto_extraido:detalle.trim() || null,
-        archivo_principal_url:principal?.url || null, archivo_principal_path:principal?.path || null,
-        archivo_principal_nombre:principal?.name || null, archivo_principal_tipo:principal?.type || null,
-        fotos_complementarias:extras, zonas_extraccion:extractionZonesState,
-        fecha_inicio:fechaInicio || null, fecha_fin:fechaFin || null, fecha_fin_modo:fechaFinModo,
-        fecha_fin_hora:fechaFinHora || null, origen_formato:origenFormato,
-        imagen_formato_url:origenFormato ? graphicPreviewUrl || null : null,
-        estado:"borrador", fingerprint, updated_at:new Date().toISOString(),
-      };
-      await draftRequest('/rest/v1/comunicado_borradores?on_conflict=id', {
-        method:'POST', body:JSON.stringify(payload),
-        headers:{ Prefer:'resolution=merge-duplicates,return=representation' },
-      });
-      setActiveDraftId(id); setDraftMessage("Borrador guardado.");
-      await cargarBorradores(); setDraftsOpen(true);
-    } catch (e) { setDraftMessage(e?.message || "No se pudo guardar el borrador."); }
-    finally { setDraftBusy(false); }
-  };
-
-  const fileFromRemote = async (url, name, type) => {
-    if (!url) return null;
-    const response = await fetch(url, { cache:'no-store' });
-    if (!response.ok) throw new Error(`No se pudo recuperar ${name || 'el archivo del borrador'}.`);
-    const blob = await response.blob();
-    return new File([blob], name || 'archivo', { type:type || blob.type, lastModified:Date.now() });
-  };
-
-  const cargarBorrador = async (draft) => {
-    setDraftBusy(true); setDraftMessage("");
-    try {
-      setTitulo(draft.titulo || ""); setDetalle(draft.descripcion_breve || draft.texto_extraido || "");
-      setFechaInicio(draft.fecha_inicio || ""); setFechaFin(draft.fecha_fin || "");
-      setFechaFinModo(draft.fecha_fin_modo || "fecha"); setFechaFinHora(draft.fecha_fin_hora || "");
-      setOrigenFormato(draft.origen_formato === true); setExtractionZonesState(Array.isArray(draft.zonas_extraccion) ? draft.zonas_extraccion : []);
-      const principal = await fileFromRemote(draft.archivo_principal_url, draft.archivo_principal_nombre, draft.archivo_principal_tipo);
-      if (principal) { setArchivo(principal); setPreview(principal.type.includes('pdf') ? 'pdf' : URL.createObjectURL(principal)); }
-      const extrasMeta = Array.isArray(draft.fotos_complementarias) ? draft.fotos_complementarias : [];
-      const extras = (await Promise.all(extrasMeta.map((m) => fileFromRemote(m.url,m.name,m.type).catch(()=>null)))).filter(Boolean);
-      setComplementaryFiles(extras);
-      setComplementaryPreviews(extras.map((file) => ({ id:crypto.randomUUID(), file, url:URL.createObjectURL(file) })));
-      setActiveDraftId(draft.id); setDraftsOpen(false); setDraftMessage("Borrador cargado para edición.");
-    } catch (e) { setDraftMessage(e?.message || "No se pudo cargar el borrador."); }
-    finally { setDraftBusy(false); }
-  };
-
-  const eliminarBorrador = async (draft) => {
-    if (!confirm(`¿Eliminar el borrador “${draft.titulo || 'sin título'}”?`)) return;
-    setDraftBusy(true);
-    try {
-      await draftRequest(`/rest/v1/comunicado_borradores?id=eq.${encodeURIComponent(draft.id)}`, { method:'DELETE', headers:{ Prefer:'return=minimal' } });
-      setDrafts((items) => items.filter((item) => item.id !== draft.id));
-      if (activeDraftId === draft.id) setActiveDraftId(null);
-    } catch (e) { setDraftMessage(e?.message || "No se pudo eliminar el borrador."); }
-    finally { setDraftBusy(false); }
-  };
-
-  const publicarBorrador = async (draft) => {
-    await cargarBorrador(draft);
-    setDraftToPublishId(draft.id);
-    setTimeout(() => document.getElementById('cm-publicar-comunicado')?.click(), 180);
-  };
+  useEffect(() => {
+    syncBodyAlignment(textAlignMode);
+  }, [textAlignMode]);
 
   const addDaysToDateInput = (dateValue, days = 30) => {
     if (!dateValue) return "";
@@ -20376,9 +19280,7 @@ ${base}`;
       setError("Escribe un título para el comunicado");
       return;
     }
-    const archivoPrincipal = origenFormato && generatedGraphicFile
-      ? generatedGraphicFile
-      : (archivo || pastedCapture?.file || null);
+    const archivoPrincipal = archivo || pastedCapture?.file || null;
     if (!archivoPrincipal) {
       setError("Adjunta un archivo o pega una captura de pantalla");
       return;
@@ -20433,128 +19335,65 @@ ${base}`;
 
     setSubiendo(true);
     setError("");
-
-    // Los administradores y usuarios que ya tienen permiso de publicación directa
-    // son identidades de confianza. Para ellos no se ejecuta VirusTotal.
-    // Los usuarios comunes que solo envían propuestas conservan la verificación.
-    const bypassVirusTotal = isAdmin === true;
-    let securityResults = [];
-    let verificationPending = false;
-
-    if (bypassVirusTotal) {
-      setVtScanStatus("verified");
-      setVtScanMessage("Publicación autorizada: la verificación con VirusTotal no aplica a este usuario.");
-      setVtScanResults([]);
-    } else {
-      setVtScanStatus("scanning");
-      setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
-      setVtScanResults([]);
-    }
-
+    setVtScanStatus("scanning");
+    setVtScanMessage("Analizando archivo y enlaces con VirusTotal...");
+    setVtScanResults([]);
     try {
-      if (!bypassVirusTotal) {
-        const scanUserId = null;
-        const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
-        const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
-        const scanJobs = [
-          ...scanTargets.map((targetFile) => ({
-            type:"file",
-            target:targetFile.name,
-            run:() => scanFileWithHashFallback({ file:targetFile, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
-          })),
-          ...detectedUrls.map((detectedUrl) => ({
-            type:"url",
-            target:detectedUrl,
-            run:() => invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUserId, origen:"comunicado", titulo:titulo.trim() }),
-          })),
-        ];
+      const { data: authDataBeforeScan } = await sb.auth.getUser();
+      const scanUser = authDataBeforeScan?.user || null;
+      const scanTargets = [archivoPrincipal, ...complementaryFiles].filter(Boolean);
+      const detectedUrls = extractUrlsFromText(`${titulo}\n${detalle}`);
+      const securityResults = [];
+      let verificationPending = false;
 
-        setVtScanMessage(`Analizando ${scanTargets.length} archivo(s) y ${detectedUrls.length} enlace(s) en paralelo con VirusTotal...`);
-        const settled = await withAsyncTimeout(
-          Promise.allSettled(scanJobs.map((job) => job.run())),
-          35000,
-          "VirusTotal excedió el tiempo límite de 35 segundos. No se publicó el comunicado."
-        );
-
-        settled.forEach((entry, index) => {
-          const job = scanJobs[index];
-          if (entry.status === "fulfilled") {
-            const result = entry.value;
-            securityResults.push(result);
-            if (result?.status === "malicious" || Number(result?.malicious || 0) > 0 || Number(result?.suspicious || 0) > 0) {
-              const detections = Number(result?.malicious || 0) + Number(result?.suspicious || 0);
-              throw new Error(`VirusTotal bloqueó ${job.type === "file" ? "el archivo" : "el enlace"} “${job.target}” (${detections} detección${detections === 1 ? "" : "es"}). La publicación fue detenida.`);
-            }
-            if (result?.status !== "clean") verificationPending = true;
-            return;
+      for (const targetFile of scanTargets) {
+        setVtScanMessage(`Analizando archivo: ${targetFile.name}...`);
+        try {
+          const result = await invokeVirusTotalScan({ action:"scan_file", file:targetFile, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
+          securityResults.push(result);
+          if (["malicious", "suspicious"].includes(result.status)) {
+            setVtScanStatus("blocked");
+            throw new Error(`VirusTotal bloqueó el archivo “${targetFile.name}” (${result.malicious + result.suspicious} detecciones). La propuesta no fue enviada.`);
           }
+        } catch (scanError) {
+          if (/bloqueó el archivo/i.test(String(scanError?.message || ""))) throw scanError;
           verificationPending = true;
-          securityResults.push({ target_type:job.type, target:job.target, status:"error", error:String(entry.reason?.message || entry.reason), scanned_at:new Date().toISOString() });
-        });
-
-        if (verificationPending) {
-          throw new Error("VirusTotal no pudo completar todas las verificaciones dentro del tiempo permitido. Reintenta la publicación; no se cargó ningún archivo.");
-        }
-
-        const vtSummary = getVirusTotalSummary(securityResults);
-        setVtScanResults(securityResults);
-        setVtScanStatus("verified");
-        setVtScanMessage(vtSummary.label);
-      }
-
-      // La publicación administrativa usa HTTP directo. El cliente sb.storage puede
-      // quedar esperando el lock interno de Supabase Auth cuando la sesión admin se
-      // conserva en sessionStorage de forma independiente. En ese caso ni siquiera
-      // aparece una solicitud en Network y la interfaz queda en “PROCESANDO SUBIDA”.
-      let publicationSession = isAdmin ? readAdminAuthSession() : null;
-      if (isAdmin) {
-        if (!publicationSession?.access_token) {
-          throw new Error("No existe una sesión administrativa válida. Sal e inicia sesión nuevamente.");
-        }
-        const claims = decodeJwtPayload(publicationSession.access_token);
-        const expiresAt = Number(publicationSession.expires_at || claims?.exp || 0);
-        if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
-          publicationSession = await refreshAdminAuthSession(publicationSession);
+          securityResults.push({ target_type:"file", target:targetFile.name, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
         }
       }
 
-      const publicationToken = publicationSession?.access_token || null;
+      for (const detectedUrl of detectedUrls) {
+        setVtScanMessage(`Analizando enlace: ${detectedUrl}`);
+        try {
+          const result = await invokeVirusTotalScan({ action:"scan_url", url:detectedUrl, userId:scanUser?.id, origen:"comunicado", titulo:titulo.trim() });
+          securityResults.push(result);
+          if (["malicious", "suspicious"].includes(result.status)) {
+            setVtScanStatus("blocked");
+            throw new Error(`VirusTotal bloqueó el enlace “${detectedUrl}” por riesgo de malware o phishing. La propuesta no fue enviada.`);
+          }
+        } catch (scanError) {
+          if (/bloqueó el enlace/i.test(String(scanError?.message || ""))) throw scanError;
+          verificationPending = true;
+          securityResults.push({ target_type:"url", target:detectedUrl, status:"error", error:String(scanError?.message || scanError), scanned_at:new Date().toISOString() });
+        }
+      }
+
+      const vtSummary = getVirusTotalSummary(securityResults);
+      setVtScanResults(securityResults);
+      setVtScanStatus(verificationPending ? "pending" : "verified");
+      setVtScanMessage(verificationPending ? "VirusTotal no pudo completar todas las verificaciones. Se enviará como Pendiente de verificación para revisión administrativa." : vtSummary.label);
+
       const uploadedPaths = [];
-      const encodeStoragePath = (value) => String(value).split("/").map(encodeURIComponent).join("/");
       const uploadOne = async (file, prefix = "principal") => {
         const ext = String(file.name || "imagen.png").split(".").pop() || "png";
         const path = `comunicados/${prefix}_${Date.now()}_${crypto.randomUUID()}.${ext}`;
-        const endpoint = `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/comunicados/${encodeStoragePath(path)}`;
-        const response = await fetch(endpoint, {
-          method:"POST",
-          cache:"no-store",
-          credentials:"omit",
-          headers:{
-            apikey:SUPA_KEY,
-            Authorization:`Bearer ${publicationToken || SUPA_KEY}`,
-            "Content-Type":file.type || "application/octet-stream",
-            "cache-control":"3600",
-            "x-upsert":"false",
-          },
-          body:file,
-        });
-        const raw = await response.text();
-        let payload = {};
-        try { payload = raw ? JSON.parse(raw) : {}; } catch {}
-        if (!response.ok) {
-          throw new Error(payload?.message || payload?.error || `No se pudo subir ${file.name} (HTTP ${response.status}).`);
-        }
+        const { error: uploadError } = await sb.storage.from("comunicados").upload(path, file, { contentType: file.type, upsert: false });
+        if (uploadError) throw uploadError;
         uploadedPaths.push(path);
-        return `${SUPA_URL.replace(/\/+$/, "")}/storage/v1/object/public/comunicados/${encodeStoragePath(path)}`;
+        return sb.storage.from("comunicados").getPublicUrl(path).data.publicUrl;
       };
 
-      // Flujo estable recuperado de la versión que publicaba correctamente:
-      // primero se sube el archivo principal y luego los complementarios uno a uno.
-      // No se cancela una subida válida por un timeout artificial del navegador.
-      const publicUrl = await uploadOne(
-        archivoPrincipal,
-        pastedCapture?.file === archivoPrincipal ? "captura" : "principal"
-      );
+      const publicUrl = await uploadOne(archivoPrincipal, pastedCapture?.file === archivoPrincipal ? "captura" : "principal");
       const complementaryUrls = [];
       for (const complementaryFile of complementaryFiles) {
         complementaryUrls.push(await uploadOne(complementaryFile, "complementaria"));
@@ -20564,23 +19403,8 @@ ${base}`;
         ...complementaryUrls,
       ];
 
-      // El administrador usa la sesión propia almacenada por el acceso oculto.
-      // No se llama sb.auth.getUser(), porque ese método puede esperar el lock
-      // interno del cliente y dejar la interfaz en “PROCESANDO SUBIDA”.
-      const storedAdminSession = isAdmin ? readAdminAuthSession() : null;
-      let authUser = storedAdminSession?.user || null;
-      if (!authUser && !isAdmin) {
-        try {
-          const sessionResult = await withAsyncTimeout(
-            sb.auth.getSession(),
-            3000,
-            "Tiempo agotado consultando la sesión del usuario."
-          );
-          authUser = sessionResult?.data?.session?.user || null;
-        } catch (sessionError) {
-          console.warn("No se pudo resolver la sesión del autor; se continuará sin datos opcionales.", sessionError);
-        }
-      }
+      const { data: authData } = await sb.auth.getUser();
+      const authUser = authData?.user || null;
       const authorName = authUser?.user_metadata?.full_name
         || authUser?.user_metadata?.name
         || authUser?.user_metadata?.display_name
@@ -20607,14 +19431,10 @@ ${base}`;
         aprobado_at: isAdmin === true ? nowIso : null,
         created_at: nowIso,
         updated_at: nowIso,
-        virustotal_status: bypassVirusTotal ? "trusted_bypass" : (verificationPending ? "pending" : "verified"),
+        virustotal_status: verificationPending ? "pending" : "verified",
         virustotal_results: securityResults,
-        virustotal_summary: bypassVirusTotal
-          ? { status:"trusted_bypass", malicious:0, suspicious:0, total:0, label:"Verificación omitida para usuario autorizado" }
-          : getVirusTotalSummary(securityResults),
-        security_verification_status: bypassVirusTotal ? "usuario_autorizado" : (verificationPending ? "pendiente_verificacion" : "verificado"),
-        origen_formato: origenFormato === true,
-        borrador_id_origen: draftToPublishId || activeDraftId || null
+        virustotal_summary: getVirusTotalSummary(securityResults),
+        security_verification_status: verificationPending ? "pendiente_verificacion" : "verificado"
       };
 
       const insertComunicadoWithFallback = async (payload) => {
@@ -20622,36 +19442,14 @@ ${base}`;
         const removable = new Set([
           "media_urls", "fecha_inicio_propuesta", "fecha_fin_propuesta", "estado_aprobacion",
           "user_id", "autor_id", "autor_nombre", "autor_email", "aprobado_por", "aprobado_at", "updated_at",
-          "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status",
-          "origen_formato", "borrador_id_origen"
+          "virustotal_status", "virustotal_results", "virustotal_summary", "security_verification_status"
         ]);
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/rest/v1/comunicados?select=*`, {
-            method:"POST",
-            cache:"no-store",
-            credentials:"omit",
-            headers:{
-              apikey:SUPA_KEY,
-              Authorization:`Bearer ${publicationToken || SUPA_KEY}`,
-              "Content-Type":"application/json",
-              Prefer:"return=representation",
-            },
-            body:JSON.stringify(candidate),
-          });
-          const raw = await response.text();
-          let parsed = null;
-          try { parsed = raw ? JSON.parse(raw) : null; } catch {}
-          if (response.ok) {
-            const row = Array.isArray(parsed) ? parsed[0] : parsed;
-            return { data:row || null, error:null };
-          }
-          const error = parsed && typeof parsed === "object"
-            ? Object.assign(new Error(parsed.message || parsed.error || `HTTP ${response.status}`), parsed)
-            : new Error(raw || `HTTP ${response.status}`);
-          const message = String(error.message || "");
-          const match = message.match(/Could not find the ['"]([a-zA-Z0-9_]+)['"] column(?: of [^ ]+)?/i)
-            || message.match(/column ['"]?([a-zA-Z0-9_]+)['"]? (?:does not exist|was not found)/i)
-            || message.match(/(?:unknown|missing) (?:column|field) ['"]?([a-zA-Z0-9_]+)['"]?/i);
+        for (let attempt = 0; attempt < 14; attempt += 1) {
+          const result = await sb.from("comunicados").insert(candidate).select("*").single();
+          if (!result.error) return result;
+          const message = String(result.error?.message || "");
+          const match = message.match(/(?:column|field) ["']?([a-zA-Z0-9_]+)["']?/i)
+            || message.match(/Could not find the ['"]([^'"]+)['"] column/i);
           const missing = match?.[1];
           if (missing && removable.has(missing) && Object.prototype.hasOwnProperty.call(candidate, missing)) {
             delete candidate[missing];
@@ -20661,56 +19459,28 @@ ${base}`;
             delete candidate.media_urls;
             continue;
           }
-          return { data:null, error };
+          return result;
         }
         return { data:null, error:new Error("No fue posible insertar el comunicado con el esquema disponible.") };
       };
 
       let comunicadoInsertado = null;
-      let noticiaReplicada = null;
-      if (bypassVirusTotal) {
-        const publishResult = safeObject(await invokeComunicadosManagerAction({
-          action:"publish_comunicado",
-          comunicado:{ ...basePayload, media_urls:allImageUrls },
-        }, { timeoutMs:60000 }));
-        comunicadoInsertado = { ...safeObject(publishResult.comunicado), media_urls:allImageUrls };
-        noticiaReplicada = safeObject(publishResult.noticia);
-        if (!comunicadoInsertado?.id) throw new Error("El backend no devolvió el comunicado publicado.");
-        if (!noticiaReplicada?.id) throw new Error("El backend publicó el comunicado, pero no devolvió su réplica en Noticias.");
-      } else {
-        const insertResult = await insertComunicadoWithFallback(basePayload);
-        if (insertResult.error) throw insertResult.error;
-        comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
+      const insertResult = await insertComunicadoWithFallback(basePayload);
+      if (insertResult.error) {
+        try { await sb.storage.from("comunicados").remove(uploadedPaths); } catch {}
+        throw insertResult.error;
       }
-
-      if (draftToPublishId || activeDraftId) {
-        const draftId = draftToPublishId || activeDraftId;
-        try {
-          await draftRequest(`/rest/v1/comunicado_borradores?id=eq.${encodeURIComponent(draftId)}`, {
-            method:"PATCH",
-            body:JSON.stringify({ estado:"publicado", publicado_comunicado_id:comunicadoInsertado?.id || null, updated_at:new Date().toISOString() }),
-            headers:{ Prefer:"return=minimal" },
-          });
-          setDrafts((items) => items.filter((item) => item.id !== draftId));
-        } catch (draftError) {
-          console.warn("No se pudo marcar el borrador como publicado:", draftError);
-        }
-        setDraftToPublishId(null);
-        setActiveDraftId(null);
-      }
+      comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
-      // Se notifica al feed en memoria para que la tarjeta aparezca inmediatamente,
-      // sin depender de Realtime ni de una recarga completa del sitio.
-      if (bypassVirusTotal && comunicadoInsertado && noticiaReplicada?.id) {
+      if (isAdmin === true && comunicadoInsertado) {
         try {
-          window.dispatchEvent(new CustomEvent("cm:noticia-publicada", {
-            detail: { noticia:noticiaReplicada, comunicado:comunicadoInsertado },
-          }));
-        } catch (eventError) {
-          console.warn("No se pudo notificar la réplica local de Noticias:", eventError);
+          await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
+          setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
+        } catch (syncErr) {
+          console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
+          setToolNotice("Comunicado publicado, pero no se pudo replicar en Noticias. Revisa permisos INSERT/RLS de la tabla noticias.", "#ef4444");
         }
-        setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
       }
 
       setExito(true);
@@ -20724,7 +19494,6 @@ ${base}`;
       setComplementaryFiles([]);
       setComplementaryPreviews([]);
       setGeneratedGraphicFile(null);
-      setOrigenFormato(false);
       setGraphicPreviewUrl("");
       setFechaInicio("");
       setFechaFin("");
@@ -20790,7 +19559,7 @@ ${base}`;
           placeholder="Ingrese el título..."
           value={titulo}
           onChange={(e) => {
-            const v = safeEventValue(e);
+            const v = e.target.value;
             setTitulo(v);
             if (v.trim()) ensureFechaInicio();
           }}
@@ -20813,7 +19582,7 @@ ${base}`;
           placeholder={aiAssistOpen ? "Redacta tu texto que deseas resumir o las especificaciones para generar un texto" : "Escriba el contenido aquí..."}
           aria-label={aiAssistOpen ? "Texto para resumir o especificaciones para crear con IA" : "Descripción breve"}
           value={detalle}
-          onChange={(e) => setDetalle(safeEventValue(e))}
+          onChange={(e) => setDetalle(e.target.value)}
           rows={aiAssistOpen ? 5 : 4}
           style={comunicadoTextareaStyle(aiAssistOpen)}
         />
@@ -20847,7 +19616,7 @@ ${base}`;
           </button>
           <textarea
             value={aiOutput}
-            onChange={(e) => setAiOutput(safeEventValue(e))}
+            onChange={(e) => setAiOutput(e.target.value)}
             placeholder="Aquí aparecerá el texto final devuelto por la IA"
             rows={5}
             readOnly={aiBusy}
@@ -20874,9 +19643,9 @@ ${base}`;
             type="date"
             value={fechaInicio}
             onChange={(e) => {
-              setFechaInicio(safeEventValue(e));
-              if (!isAdmin && safeEventValue(e)) {
-                const maxDate = addDaysToDateInput(safeEventValue(e), 30);
+              setFechaInicio(e.target.value);
+              if (!isAdmin && e.target.value) {
+                const maxDate = addDaysToDateInput(e.target.value, 30);
                 if (fechaFin && fechaFin > maxDate) setFechaFin(maxDate);
                 if (fechaFinHora && fechaFinHora.slice(0, 10) > maxDate) setFechaFinHora(`${maxDate}T23:59`);
               }
@@ -20910,7 +19679,7 @@ ${base}`;
               min={fechaInicio ? `${fechaInicio}T00:00` : undefined}
               max={!isAdmin && maxFechaFinPropuesta ? `${maxFechaFinPropuesta}T23:59` : undefined}
               onChange={(e) => {
-                const raw = safeEventValue(e);
+                const raw = e.target.value;
                 const limited = applyProposalEndDateLimit(raw.slice(0, 10), raw);
                 setFechaFinHora(limited.dateTime || raw);
                 if (limited.date || raw) setFechaFin(limited.date || raw.slice(0, 10));
@@ -20924,7 +19693,7 @@ ${base}`;
               min={fechaInicio || undefined}
               max={!isAdmin && maxFechaFinPropuesta ? maxFechaFinPropuesta : undefined}
               onChange={(e) => {
-                const limited = applyProposalEndDateLimit(safeEventValue(e), fechaFinHora);
+                const limited = applyProposalEndDateLimit(e.target.value, fechaFinHora);
                 setFechaFin(limited.date);
                 if (fechaFinHora) setFechaFinHora(`${limited.date}T${fechaFinHora.slice(11, 16) || "23:59"}`);
               }}
@@ -21043,7 +19812,7 @@ ${base}`;
                     <textarea
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: safeEventValue(e) }))}
+                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
                       onBlur={commitInlineEditor}
                       style={getInlineEditorStyle()}
                     />
@@ -21051,7 +19820,7 @@ ${base}`;
                     <input
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: safeEventValue(e) }))}
+                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
                       onBlur={commitInlineEditor}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -21070,15 +19839,6 @@ ${base}`;
                 <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
                 <button type="button" onClick={abrirEditorComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Editar texto</button>
                 <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
-              </div>
-
-              <div style={{ marginTop:"8px", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", flexWrap:"wrap", padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.35)", background:"rgba(250,204,21,.08)" }}>
-                <span style={{ color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900 }}>TAMAÑO DEL CUERPO</span>
-                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) - 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"34px", height:"34px", minWidth:"34px", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0, lineHeight:1, borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>−</button>
-                <span style={{ minWidth:"62px", textAlign:"center", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900 }}>{Math.round(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 0)) || "—"} px</span>
-                <button type="button" onClick={() => actualizarTamanoCuerpo(Number(canvasElements.find((item) => item.id === "body")?.fontSize || autoBodyFontSize || 20) + 1)} disabled={graphicBusy || !canvasElements.length} style={{ width:"34px", height:"34px", minWidth:"34px", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0, lineHeight:1, borderRadius:"8px", border:"1px solid rgba(250,204,21,.50)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontWeight:900, cursor:graphicBusy?"wait":"pointer" }}>+</button>
-                <button type="button" onClick={restablecerTamanoAutomatico} disabled={graphicBusy || !canvasElements.length || bodyFontMode === "auto"} style={{ padding:"8px 10px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.50)", background:bodyFontMode === "auto"?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:bodyFontMode === "auto"?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:bodyFontMode === "auto"?"default":"pointer" }}>AUTO</button>
-                <span style={{ color:"rgba(226,232,240,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"9px" }}>{bodyFontMode === "auto" ? "Ajuste automático activo" : "Ajuste manual activo"}</span>
               </div>
 
               <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.58)", lineHeight:1.5 }}>
@@ -21130,7 +19890,7 @@ ${base}`;
                   <textarea
                     ref={graphicEditorTextareaRef}
                     value={graphicEditorText}
-                    onChange={(e) => setGraphicEditorText(safeEventValue(e))}
+                    onChange={(e) => setGraphicEditorText(e.target.value)}
                     rows={8}
                     placeholder="Edita el texto del comunicado. Usa **texto** para negritas."
                     style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.78)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, resize:"vertical", outline:"none" }}
@@ -21170,25 +19930,7 @@ ${base}`;
         </div>
       )}
 
-      {isAdmin && (
-        <div style={{ position:"relative", marginBottom:"12px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"10px" }}>
-            <button type="button" onClick={guardarBorrador} disabled={draftBusy || (!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)} style={{ minHeight:"46px", borderRadius:"8px", border:"1px solid rgba(125,211,252,.45)", background:"rgba(56,189,248,.10)", color:"#bae6fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:draftBusy?"wait":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", opacity:(!titulo.trim() && !detalle.trim() && !archivo && !pastedCapture?.file)?.55:1 }}><MS name="save" size={20} active />{draftBusy ? "GUARDANDO…" : activeDraftId ? "ACTUALIZAR BORRADOR" : "GUARDAR COMUNICADO"}</button>
-            <button type="button" aria-label="Abrir borradores" title="Borradores guardados" onClick={()=>{ const next=!draftsOpen; setDraftsOpen(next); if(next) cargarBorradores(); }} style={{ width:"48px", minHeight:"46px", borderRadius:"8px", border:"1px solid rgba(125,211,252,.45)", background:draftsOpen?"rgba(56,189,248,.20)":"rgba(56,189,248,.10)", color:"#bae6fd", cursor:"pointer", display:"grid", placeItems:"center" }}><MS name="inventory_2" size={21} active /></button>
-          </div>
-          {draftMessage && <div role="status" style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:draftMessage.includes("No se")?"#fca5a5":"#86efac" }}>{draftMessage}</div>}
-          {draftsOpen && <div style={{ position:"absolute", zIndex:40, left:0, right:0, top:"calc(100% + 8px)", maxHeight:"420px", overflowY:"auto", padding:"10px", borderRadius:"12px", border:"1px solid rgba(125,211,252,.30)", background:"rgba(2,12,27,.98)", boxShadow:"0 24px 60px rgba(0,0,0,.55)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}><strong style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>BORRADORES</strong><button type="button" onClick={()=>setDraftsOpen(false)} style={{ border:0, background:"transparent", color:"#94a3b8", cursor:"pointer" }}><MS name="close" size={20}/></button></div>
-            {draftBusy ? <div style={{ padding:"18px", color:"#94a3b8", textAlign:"center" }}>Cargando…</div> : drafts.length===0 ? <div style={{ padding:"18px", color:"#94a3b8", textAlign:"center", fontSize:"11px" }}>No hay borradores pendientes.</div> : drafts.map((draft)=><div key={draft.id} style={{ display:"grid", gridTemplateColumns:"64px minmax(0,1fr)", gap:"10px", padding:"9px", marginBottom:"8px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.18)", background:"rgba(15,23,42,.75)" }}>
-              <div style={{ width:"64px", height:"54px", borderRadius:"8px", overflow:"hidden", background:"#07111f", display:"grid", placeItems:"center" }}>{draft.archivo_principal_url && String(draft.archivo_principal_tipo||'').startsWith('image/')?<img src={draft.archivo_principal_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<MS name="draft" size={25}/>}</div>
-              <div><div style={{ color:"#fff", fontWeight:800, fontSize:"11px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{draft.titulo || 'Borrador sin título'}</div><div style={{ color:"#94a3b8", fontSize:"9px", margin:"3px 0 7px" }}>{new Date(draft.updated_at || draft.created_at).toLocaleString()} · borrador</div><div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}><button type="button" onClick={()=>cargarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #38bdf866",background:"#38bdf81a",color:"#7dd3fc",cursor:"pointer"}}>Editar</button><button type="button" onClick={()=>publicarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #22c55e66",background:"#22c55e1a",color:"#86efac",cursor:"pointer"}}>Publicar</button><button type="button" onClick={()=>eliminarBorrador(draft)} style={{padding:"6px 8px",borderRadius:"7px",border:"1px solid #ef444466",background:"#ef44441a",color:"#fca5a5",cursor:"pointer"}}>Eliminar</button></div></div>
-            </div>)}
-          </div>}
-        </div>
-      )}
-
       <button
-        id="cm-publicar-comunicado"
         onClick={handleSubir}
         disabled={subiendo}
         style={{ width: "100%", padding: "15px 18px", background: subiendo ? "rgba(44,58,76,.45)" : "linear-gradient(135deg,#f59e0b,#fbbf24)", border: "1px solid rgba(245,158,11,.55)", borderRadius: "8px", color: subiendo ? "rgba(255,255,255,0.45)" : "#010f1f", fontFamily: getFont(theme, "secondary"), fontWeight: "900", fontSize: "12px", cursor: subiendo ? "not-allowed" : "pointer", letterSpacing: "0.8px", boxShadow: subiendo ? "none" : "0 14px 32px rgba(245,158,11,.22)" }}
@@ -21481,40 +20223,46 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const eliminar = async (id) => {
     if (eliminando) return;
     setEliminando(true);
-    setProcesando({ id, accion:"Eliminando comunicado y publicación relacionada…" });
-    let warnings = [];
-    try {
-      const result = safeObject(await invokeComunicadosManagerAction({
-        action:"delete_comunicado_cascada",
-        id:String(id || ""),
-      }));
-      warnings = safeArray(result.warnings).map((item) => String(item || "")).filter(Boolean);
 
+    const com = vigentes.find(v => v.id === id) || comunicados.find(c => c.id === id);
+
+    // 1. Eliminar archivo de storage si existe
+    if (com?.archivo_url) {
       try {
-        setPendientes((prev) => safeArray(prev).filter((item) => String(item?.id) !== String(id)));
-        setConfirmId(null);
-        if (typeof onReload === "function") {
-          Promise.resolve(onReload()).catch((refreshError) => {
-            console.error("El comunicado fue eliminado, pero falló la actualización del listado:", refreshError);
-          });
-        }
-      } catch (postProcessError) {
-        console.error("Error de post-procesamiento tras eliminar el comunicado:", postProcessError);
-        setConfirmId(null);
-        setError?.("El comunicado fue eliminado, pero no se pudo actualizar completamente la vista.");
+        const path = com.archivo_url.split("/comunicados/")[1];
+        if (path) await sb.storage.from("comunicados").remove([`comunicados/${path}`]);
+      } catch (err) {
+        console.error("Error al eliminar archivo:", err);
       }
-
-      if (warnings.length > 0) {
-        setError?.(`El comunicado fue eliminado. Algunos archivos no pudieron limpiarse: ${warnings.join(" · ")}`);
-      }
-    } catch (error) {
-      console.error("Error en eliminación en cascada:", error);
-      setError?.(String(error?.message || error || "No se pudo completar la eliminación en cascada."));
-      try { setConfirmId(null); } catch (closeError) { console.error("No se pudo cerrar el diálogo de eliminación:", closeError); }
-    } finally {
-      try { setProcesando(null); } catch (modalError) { console.error("No se pudo cerrar el modal Procesando:", modalError); }
-      try { setEliminando(false); } catch (stateError) { console.error("No se pudo restablecer el estado de eliminación:", stateError); }
     }
+
+    // 2. Delete con .select() para confirmar que Supabase realmente eliminó la fila
+    const { data: deleted, error } = await sb
+      .from("comunicados")
+      .delete()
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      console.error("Error al eliminar comunicado:", error);
+      alert("Error al eliminar el comunicado: " + error.message);
+      setEliminando(false);
+      setConfirmId(null);
+      return;
+    }
+
+    // 3. Si no se eliminó ninguna fila, probablemente hay un problema de RLS
+    if (!deleted || deleted.length === 0) {
+      alert("No se pudo eliminar el comunicado.\n\nVerifica que la política RLS de la tabla 'comunicados' en Supabase permita DELETE al rol anon o al usuario actual.");
+      setEliminando(false);
+      setConfirmId(null);
+      return;
+    }
+
+    // 4. Cerrar modal y recargar
+    setEliminando(false);
+    setConfirmId(null);
+    onReload();
   };
 
   const handleSubidoExitoso = () => {
@@ -21565,7 +20313,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
           <div onClick={e => e.stopPropagation()} style={{ background: "#0d1b2e", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "16px", padding: "24px", maxWidth: "320px", width: "100%", textAlign: "center" }}>
             <div style={{ fontSize: "40px", marginBottom: "12px" }}>{eliminando ? "Procesando" : "Eliminar️"}</div>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontWeight: "700", fontSize: "14px", color: "#fff", marginBottom: "8px" }}>
-              {eliminando ? (procesando?.accion || "Eliminando comunicado…") : "¿Eliminar comunicado?"}
+              {eliminando ? "Eliminando comunicado..." : "¿Eliminar comunicado?"}
             </div>
             <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.45)", marginBottom: "22px", lineHeight: "1.5" }}>
               {eliminando 
@@ -21826,7 +20574,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                     })()}
                     <div style={{ marginBottom:"10px", padding:"10px", borderRadius:"8px", background:"rgba(2,6,23,.42)", border:"1px solid rgba(159,202,255,.22)" }}>
                       <label style={{ display:"block", color:"#9fcaff", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", marginBottom:"6px" }}>Fecha de expiración al aprobar</label>
-                      <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:safeEventValue(e) }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
+                      <input type="datetime-local" value={approvalDates[p.id] || ""} min={toDateTimeLocalValue(p.fecha_inicio || p.fecha_inicio_propuesta)} onChange={e => setApprovalDates(prev => ({ ...prev, [p.id]:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", border:"1px solid rgba(159,202,255,.35)", background:"#010f1f", color:"#e0e3e5", borderRadius:"4px", padding:"9px 10px", fontFamily:"Inter, sans-serif", fontSize:"11px" }} />
                       <div style={{ marginTop:"5px", color:"rgba(191,199,213,.62)", fontSize:"9px", lineHeight:1.4 }}>El administrador puede conservar, acortar o ampliar la vigencia más allá de 30 días.</div>
                     </div>
                     {/* Acciones: 3 botones */}
@@ -21943,8 +20691,6 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
   const [activeKey, setActiveKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressLabel, setProgressLabel] = useState("");
   const [error, setError] = useState("");
   const dragRef = useRef(null);
   // Congela los archivos al abrir el modal. Evita que un arreglo nuevo en cada render
@@ -22062,94 +20808,25 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
 
   const apply = async () => {
     setRunning(true);
-    setProgress(1);
-    setProgressLabel("Preparando recorte…");
     setError("");
-    const totalStartedAt = performance.now();
-
     try {
       let text = "";
       const results = [];
-      const selectedPages = pages.filter(page => page?.canvas && page?.zone);
-      if (!selectedPages.length) throw new Error("No hay zonas válidas para procesar.");
-
-      for (let index = 0; index < selectedPages.length; index += 1) {
-        const page = selectedPages[index];
-        const stageStartedAt = performance.now();
-        const pageBaseProgress = Math.round((index / selectedPages.length) * 90);
-        const pageProgressSpan = Math.max(1, Math.round(90 / selectedPages.length));
-
-        setProgressLabel(`Recortando zona ${index + 1} de ${selectedPages.length}…`);
+      for (const page of pages) {
         const cropped = cropCanvasByZone(page.canvas, page.zone);
-        const optimizedCrop = prepareCanvasForZoneOcr(cropped);
-        const estimatedBytes = Math.round(optimizedCrop.width * optimizedCrop.height * 4);
-
-        console.info("[OCR zonas] recorte preparado", {
-          page: page.pageNo,
-          original: `${cropped.width}x${cropped.height}`,
-          optimized: `${optimizedCrop.width}x${optimizedCrop.height}`,
-          estimatedRawBytes: estimatedBytes,
-          elapsedMs: Math.round(performance.now() - stageStartedAt),
-        });
-
-        setProgressLabel(`Extrayendo texto de la zona ${index + 1} de ${selectedPages.length}…`);
-        const pageText = await ocrCanvasClient(optimizedCrop, {
-          timeoutMs: 45000,
-          onProgress: (value) => {
-            const normalized = Math.max(0, Math.min(100, Number(value) || 0));
-            setProgress(Math.min(94, pageBaseProgress + Math.round((normalized / 100) * pageProgressSpan)));
-          }
-        });
-
-        results.push({
-          key: page.key,
-          fileName: page.fileName,
-          pageNo: page.pageNo,
-          text: pageText,
-          sourceWidth: cropped.width,
-          sourceHeight: cropped.height,
-          processedWidth: optimizedCrop.width,
-          processedHeight: optimizedCrop.height,
-          elapsedMs: Math.round(performance.now() - stageStartedAt),
-        });
-
-        if (pageText) text += `${text ? "\n\n" : ""}${pageText}`;
-        console.info("[OCR zonas] zona completada", results[results.length - 1]);
+        const pageText = await ocrCanvasClient(cropped);
+        results.push({ key: page.key, fileName: page.fileName, pageNo: page.pageNo, text: pageText });
+        if (pageText) {
+          text += `${text ? "\n\n" : ""}${pageText}`;
+        }
       }
-
-      setProgress(95);
-      setProgressLabel("Agregando texto a Descripción breve…");
       const cleanedText = stripFileNamesFromOcrText(text, sourceFilesRef.current || []);
-      if (!cleanedText.trim()) throw new Error("No se detectó texto legible dentro de la zona seleccionada.");
-
-      // onApply agrega inmediatamente el OCR al formulario. La depuración/título por IA se
-      // ejecutan en segundo plano para que el modal no permanezca bloqueado.
-      await withAsyncTimeout(
-        Promise.resolve(onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) })),
-        8000,
-        "La interfaz tardó demasiado en aplicar el texto extraído."
-      );
-
-      setProgress(100);
-      setProgressLabel("Texto extraído correctamente.");
-      console.info("[OCR zonas] proceso completo", {
-        zones: selectedPages.length,
-        characters: cleanedText.length,
-        elapsedMs: Math.round(performance.now() - totalStartedAt),
-      });
+      await onApply?.({ text: cleanedText, results, zones: pages.map(({ canvas, previewUrl, ...p }) => p) });
       onClose?.();
     } catch (e) {
-      console.error("[OCR zonas] fallo", {
-        message: e?.message,
-        elapsedMs: Math.round(performance.now() - totalStartedAt),
-      });
       setError(e?.message || "No se pudo extraer texto de las zonas seleccionadas.");
     } finally {
       setRunning(false);
-      setTimeout(() => {
-        setProgress(0);
-        setProgressLabel("");
-      }, 500);
     }
   };
 
@@ -22202,13 +20879,10 @@ function OcrZonePickerModal({ files = [], onClose, onApply }) {
         )}
 
         <div style={{ padding:"12px 15px", borderTop:"1px solid rgba(255,255,255,.10)", display:"flex", justifyContent:"space-between", gap:"10px", flexWrap:"wrap" }}>
-          <div style={{ minWidth:"220px", flex:"1 1 280px" }}>
-            <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{running ? (progressLabel || "Procesando zona seleccionada…") : (pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : "")}</div>
-            {running && <div style={{ marginTop:"7px", height:"4px", borderRadius:"999px", overflow:"hidden", background:"rgba(148,163,184,.16)", border:"1px solid rgba(148,163,184,.18)" }}><div style={{ width:`${Math.max(2, progress)}%`, height:"100%", background:"#22c55e", transition:"width .2s ease" }} /></div>}
-          </div>
+          <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px" }}>{pages.length ? `Se extraerá texto de ${pages.length} zona${pages.length === 1 ? "" : "s"}. En PDF se usa un cuadro por hoja.` : ""}</div>
           <div style={{ display:"flex", gap:"8px" }}>
             <button onClick={onClose} disabled={running} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.35)", background:"rgba(148,163,184,.12)", color:"#cbd5e1", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>Cancelar</button>
-            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? `Procesando ${Math.max(1, progress)}%` : "Procesar zona seleccionada con IA"}</button>
+            <button onClick={apply} disabled={running || loading || !pages.length} style={{ padding:"10px 13px", borderRadius:"10px", border:"1px solid #22c55e", background:"rgba(34,197,94,.18)", color:"#22c55e", cursor:running?"wait":"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:900 }}>{running ? "Procesando con IA…" : "Procesar zona seleccionada con IA"}</button>
           </div>
         </div>
       </div>
@@ -22236,7 +20910,7 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
   const setNotice = (text, color = "#2563eb") => { setMsg({ text, color }); setTimeout(() => setMsg(null), 3500); };
 
   const onFiles = (e) => {
-    const selected = Array.from(safeEventFiles(e));
+    const selected = Array.from(e.target.files || []);
     const bad = selected.find(f => !allowed.includes(f.type));
     if (bad) return setNotice("Solo se permiten JPG, PNG, WEBP y PDF.", "#ef4444");
     const tooLarge = selected.find(f => f.size > 15 * 1024 * 1024);
@@ -22382,8 +21056,8 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
       {!isAdmin && <div style={{ padding:"9px 10px", borderRadius:"9px", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.28)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", marginBottom:"10px", lineHeight:1.45 }}>Estas herramientas son para preparar tu propuesta. La publicación directa en Noticias queda reservada para administradores; los comunicados de usuarios normales pasan por aprobación.</div>}
       {isAdmin && <>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 150px", gap:"8px", marginBottom:"8px" }}>
-        <input value={titulo} onChange={e=>setTitulo(safeEventValue(e))} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
-        <select value={categoria} onChange={e=>setCategoria(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+        <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título de la noticia o comunicado" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={categoria} onChange={e=>setCategoria(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
           <option value="comunicado">Comunicado</option>
           <option value="acceso">Accesos</option>
           <option value="terminal">Terminales</option>
@@ -22393,14 +21067,14 @@ function NoticiasAdminPublisher({ onPublished, isAdmin = false }) {
           <option value="carril">Carriles</option>
         </select>
       </div>
-      <input type="date" value={fecha} onChange={e=>setFecha(safeEventValue(e))} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
+      <input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"10px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginBottom:"8px" }} />
       </>}
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple onChange={onFiles} style={{ width:"100%", color:"rgba(255,255,255,0.7)", marginBottom:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
       {(mediaUrls.length > 0 || pdfUrls.length > 0) && <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
         {mediaUrls.map((u,i)=><img key={u+i} src={u} alt="preview" style={{ width:"82px", height:"62px", objectFit:"cover", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)" }} />)}
         {pdfUrls.map((u,i)=><div key={u+i} style={{ width:"82px", height:"62px", borderRadius:"8px", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", color:"#cbd5e1", fontSize:"10px", fontFamily:getFont(theme,"secondary") }}>PDF</div>)}
       </div>}
-      <textarea value={texto} onChange={e=>setTexto(safeEventValue(e))} placeholder={isAdmin ? "Texto extraído o descripción editable antes de publicar…" : "Texto extraído. Puedes copiarlo y pegarlo en tu propuesta de comunicado…"} rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
+      <textarea value={texto} onChange={e=>setTexto(e.target.value)} placeholder={isAdmin ? "Texto extraído o descripción editable antes de publicar…" : "Texto extraído. Puedes copiarlo y pegarlo en tu propuesta de comunicado…"} rows={5} style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"10px", padding:"11px 12px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"12px", resize:"vertical", marginBottom:"10px" }} />
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:"8px" }}>
         <button onClick={procesar} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(37,99,235,.5)", background:"rgba(37,99,235,.14)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:busy?"wait":"pointer" }}>{busy ? "Procesando…" : "Convertir / extraer texto"}</button>
         <button onClick={()=>setZonePickerOpen(true)} disabled={busy || !files.length} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.55)", background:"rgba(251,191,36,.12)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:900, cursor:(busy || !files.length)?"not-allowed":"pointer" }}>Elegir zonas de extracción</button>
@@ -22488,17 +21162,17 @@ function NoticiasComunicadoMiniIcon({ size = 18, color = "#ffffff" }) {
 
 function NoticiasAutoJpegReport() {
   const theme = React.useContext(ThemeContext);
-  const reportCacheRef = useRef(getNoticiasAutoReportCache() || {});
-  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current?.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
+  const reportCacheRef = useRef(getNoticiasAutoReportCache());
+  const [jpegUrls, setJpegUrls] = useState(() => reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const [generatedAt, setGeneratedAt] = useState(() => reportCacheRef.current.generatedAt ? new Date(reportCacheRef.current.generatedAt) : null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadFormat, setDownloadFormat] = useState("jpeg");
   const [nextRunAt, setNextRunAt] = useState(null);
   const [error, setError] = useState("");
-  const objectUrlsRef = useRef(reportCacheRef.current?.jpegUrls || (reportCacheRef.current?.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
-  const canvasesRef = useRef(reportCacheRef.current?.canvases || (reportCacheRef.current?.canvas ? [reportCacheRef.current.canvas] : []));
-  if (canvasesRef.current?.length && reportCacheRef.current?.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
+  const objectUrlsRef = useRef(reportCacheRef.current.jpegUrls || (reportCacheRef.current.jpegUrl ? [reportCacheRef.current.jpegUrl] : []));
+  const canvasesRef = useRef(reportCacheRef.current.canvases || (reportCacheRef.current.canvas ? [reportCacheRef.current.canvas] : []));
+  if (canvasesRef.current?.length && reportCacheRef.current.groups) canvasesRef.current.forEach(c => { c.__reportGroups = reportCacheRef.current.groups; });
 
   const optLabel = (opts, id, fallback = "Sin dato") => (opts.find(o => o.id === id)?.label || fallback);
   const optColor = (opts, id, fallback = "#94a3b8") => (opts.find(o => o.id === id)?.color || fallback);
@@ -22835,15 +21509,15 @@ function NoticiasAdminCleanup({ onCleaned }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px", marginBottom:"8px" }}>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Fecha inicio
-              <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+              <input type="date" value={fechaInicio} onChange={e=>setFechaInicio(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Fecha fin
-              <input type="date" value={fechaFin} onChange={e=>setFechaFin(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+              <input type="date" value={fechaFin} onChange={e=>setFechaFin(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Origen
-              <select value={origen} onChange={e=>setOrigen(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+              <select value={origen} onChange={e=>setOrigen(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
                 <option value="todos">Todos</option>
                 <option value="sistema">Sistema</option>
                 <option value="admin_noticias">Admin noticias</option>
@@ -22852,7 +21526,7 @@ function NoticiasAdminCleanup({ onCleaned }) {
             </label>
             <label style={{ display:"grid", gap:"5px", color:"rgba(255,255,255,.65)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:700 }}>
               Tipo
-              <select value={tipo} onChange={e=>setTipo(safeEventValue(e))} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
+              <select value={tipo} onChange={e=>setTipo(e.target.value)} style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>
                 <option value="todos">Todos</option>
                 <option value="comunicado">Comunicado</option>
                 <option value="acceso">Acceso</option>
@@ -22868,7 +21542,7 @@ function NoticiasAdminCleanup({ onCleaned }) {
             </label>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"8px", alignItems:"center" }}>
-            <input value={confirmacion} onChange={e=>setConfirmacion(safeEventValue(e))} placeholder="Escribe LIMPIAR para confirmar" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
+            <input value={confirmacion} onChange={e=>setConfirmacion(e.target.value)} placeholder="Escribe LIMPIAR para confirmar" style={{ background:"rgba(2,6,23,0.68)", border:"1px solid rgba(148,163,184,0.28)", borderRadius:"9px", padding:"10px", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }} />
             <button onClick={limpiar} disabled={busy} style={{ padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(239,68,68,0.45)", background:busy ? "rgba(100,116,139,.18)" : "linear-gradient(135deg,#ef4444,#b91c1c)", color:"#fff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:busy ? "wait" : "pointer" }}>{busy ? "Limpiando…" : "Eliminar"}</button>
           </div>
         </div>
@@ -22892,14 +21566,9 @@ function NoticiasTab({ isAdmin }) {
     `;
     document.head.appendChild(style);
   }, []);
-  const theme = React.useContext(ThemeContext) || {};
-  const NOTICIAS_CACHE_KEY = "cm_noticias_cache_v4";
-  const COMUNICADOS_CACHE_KEY = "cm_comunicados_cache_v3";
-  const comunicadosCacheInicial = useMemo(() => readJsonCache(COMUNICADOS_CACHE_KEY, [], "session"), []);
-  // Noticias siempre se revalidan desde Supabase. No se pinta un contador antiguo
-  // desde localStorage, porque podía alternar entre 12 y 20 al recargar.
+  const theme = React.useContext(ThemeContext);
   const [noticias,      setNoticias]      = useState([]);
-  const [comunicados,   setComunicados]   = useState(() => Array.isArray(comunicadosCacheInicial) ? comunicadosCacheInicial : []);
+  const [comunicados,   setComunicados]   = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
@@ -22907,221 +21576,71 @@ function NoticiasTab({ isAdmin }) {
   const [visorIndex,    setVisorIndex]    = useState(0);
   const [downloadingItemUrl, setDownloadingItemUrl] = useState("");
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
-  const [deleteNoticiaTarget, setDeleteNoticiaTarget] = useState(null);
-  const [deleteNoticiaBusy, setDeleteNoticiaBusy] = useState(false);
-  const [deleteNoticiaNotice, setDeleteNoticiaNotice] = useState("");
 
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const noticiasLoadRef = useRef(null);
-  const noticiasRequestSeqRef = useRef(0);
-
-  const cargarNoticias = useCallback(({ force = false } = {}) => {
-    // Una sola solicitud en vuelo. Incluso con force se reutiliza la actual para
-    // impedir que una respuesta anterior sobrescriba una más reciente.
-    if (noticiasLoadRef.current) return noticiasLoadRef.current;
-
-    const requestSeq = ++noticiasRequestSeqRef.current;
+  const cargarNoticias = useCallback(() => {
     setLoading(true);
+    return sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
+      .then(({ data, error }) => {
+        if (error) console.error("Error cargando noticias:", error);
+        if (data) setNoticias(data);
+        setLoading(false);
+      });
+  }, []);
 
-    const task = fetchSupabaseRowsDirect("noticias", {
-      select:"*",
-      order:"created_at",
-      ascending:false,
-      limit:150,
-      timeoutMs:15000,
-    })
-      .then((data) => {
-        if (requestSeq !== noticiasRequestSeqRef.current) return null;
-        const byId = new Map();
-        for (const row of safeArray(data)) {
-          const id = String(row?.id || "");
-          if (id) byId.set(id, row);
+  const cargarComunicados = useCallback(() => {
+    sb.from("comunicados")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(async ({ data, error }) => {
+        if (error) console.error("Error cargando comunicados:", error);
+        if (data) {
+          const aprobados = data.filter(c => isComunicadoAprobado(c.aprobado));
+          setComunicados(aprobados);
+          // Sincronización idempotente hacia Noticias.
+          for (const c of aprobados.slice(0, 25)) {
+            const n = await syncComunicadoToNoticia(c, { processMedia: false });
+            if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
+          }
         }
-        const next = Array.from(byId.values()).sort((a, b) =>
-          new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
-        );
-        setNoticias(next);
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-        return next;
-      })
-      .catch(error => {
-        console.error("Error cargando noticias:", error);
-        return null;
-      })
-      .finally(() => {
-        if (requestSeq === noticiasRequestSeqRef.current) setLoading(false);
-        noticiasLoadRef.current = null;
       });
-
-    noticiasLoadRef.current = task;
-    return task;
   }, []);
 
   useEffect(() => {
-    const onNoticiaPublicada = (event) => {
-      const noticia = safeObject(event?.detail?.noticia);
-      const id = String(noticia.id || "");
-      if (!id) {
-        cargarNoticias({ force:true });
-        return;
-      }
-      setNoticias((prev) => {
-        const next = [noticia, ...safeArray(prev).filter((item) => String(item?.id || "") !== id)];
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-        return next;
-      });
-    };
-    window.addEventListener("cm:noticia-publicada", onNoticiaPublicada);
-    return () => window.removeEventListener("cm:noticia-publicada", onNoticiaPublicada);
-  }, [cargarNoticias]);
-
-  useEffect(() => {
-    if (seccion === "noticias") cargarNoticias({ force:true });
-  }, [seccion, cargarNoticias]);
-
-  const cargarComunicados = useCallback(async () => {
-    try {
-      const data = await fetchSupabaseRowsDirect("comunicados", {
-        select:"*",
-        order:"created_at",
-        ascending:false,
-        limit:100,
-        timeoutMs:12000,
-      });
-
-      const aprobados = (Array.isArray(data) ? data : []).filter(c => isComunicadoAprobado(c.aprobado));
-      setComunicados(aprobados);
-      writeJsonCache(COMUNICADOS_CACHE_KEY, aprobados, "session");
-
-      // La réplica a Noticias se realiza en comunicados-manager al publicar.
-      // No se vuelve a sincronizar desde el lector porque alteraba el contador
-      // durante la carga inicial y podía crear carreras con el fetch de Noticias.
-      return aprobados;
-    } catch (error) {
-      console.error("Error cargando comunicados:", error);
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    // Render inmediato desde caché; la red revalida en segundo plano.
-    Promise.allSettled([
-      cargarNoticias({ force:true }),
-      cargarComunicados(),
-    ]);
-
+    cargarNoticias();
+    cargarComunicados();
     const chan = sb.channel("noticias-comunicados-rt")
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"noticias" }, ({ new:r }) => {
-        if (!active || !r) return;
-        setNoticias(prev => {
-          const current = safeArray(prev);
-          const next = current.some(x => x.id === r.id) ? current : [r, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-          return next;
-        });
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150));
       })
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"noticias" }, ({ new:r }) => {
-        if (!active || !r) return;
-        setNoticias(prev => {
-          const current = safeArray(prev);
-          const next = current.map(x => String(x?.id) === String(r?.id) ? r : x);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-          return next;
-        });
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
+        if (r) setNoticias(prev => prev.map(x => x.id === r.id ? r : x));
       })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"noticias" }, ({ old:r }) => {
-        if (!active || !r?.id) return;
-        setNoticias(prev => {
-          const current = safeArray(prev);
-          const next = current.filter(x => String(x?.id) !== String(r?.id));
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"INSERT", schema:"public", table:"comunicados" }, async ({ new:r }) => {
-        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
-        setComunicados(prev => {
-          const next = prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 100);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-        const n = await syncComunicadoToNoticia(r, { processMedia:true });
-        if (active && n) setNoticias(prev => {
-          const current = safeArray(prev);
-          const next = current.some(x => String(x?.id) === String(n?.id)) ? current : [n, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"comunicados" }, async ({ new:r }) => {
-        if (!active || !r || !isComunicadoAprobado(r.aprobado)) return;
-        setComunicados(prev => {
-          const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 100);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-        const n = await syncComunicadoToNoticia(r, { processMedia:true });
-        if (active && n) setNoticias(prev => {
-          const current = safeArray(prev);
-          const next = current.some(x => String(x?.id) === String(n?.id)) ? current.map(x => String(x?.id) === String(n?.id) ? n : x) : [n, ...current].slice(0, 150);
-          writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-          return next;
-        });
-      })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"comunicados" }, ({ old:r }) => {
-        if (!active || !r?.id) return;
-        setComunicados(prev => {
-          const next = prev.filter(c => c.id !== r.id);
-          writeJsonCache(COMUNICADOS_CACHE_KEY, next, "session");
-          return next;
-        });
-      })
-      .subscribe(status => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.warn("[Noticias] Canal realtime no disponible; se conserva caché y actualización por visibilidad.", status);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
+        if (r && aprobado) {
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
         }
-      });
-
-    const visibilityHandler = () => {
-      if (document.visibilityState === "visible") cargarNoticias({ force:true });
-    };
-    document.addEventListener("visibilitychange", visibilityHandler);
-
-    return () => {
-      active = false;
-      document.removeEventListener("visibilitychange", visibilityHandler);
-      sb.removeChannel(chan);
-    };
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, async ({ new: r }) => {
+        const aprobado = isComunicadoAprobado(r?.aprobado);
+        if (r && aprobado) {
+          setComunicados(prev => prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 80));
+          const n = await syncComunicadoToNoticia(r, { processMedia: true });
+          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+        }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
+        if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
+      })
+      .subscribe();
+    return () => sb.removeChannel(chan);
   }, [cargarNoticias, cargarComunicados]);
-
-
-  const eliminarNoticia = useCallback(async () => {
-    const target = safeObject(deleteNoticiaTarget);
-    const id = String(target.id || "");
-    if (!id || deleteNoticiaBusy) return;
-    setDeleteNoticiaBusy(true);
-    setDeleteNoticiaNotice("");
-    try {
-      const result = safeObject(await invokeComunicadosManagerAction({ action:"delete_noticia", id }));
-      const warnings = safeArray(result.warnings).map((item) => String(item || "")).filter(Boolean);
-      setNoticias((prev) => {
-        const next = safeArray(prev).filter((item) => String(item?.id) !== id);
-        writeJsonCache(NOTICIAS_CACHE_KEY, next, "session");
-        return next;
-      });
-      setDeleteNoticiaTarget(null);
-      if (warnings.length) setDeleteNoticiaNotice(`Publicación eliminada. Avisos: ${warnings.join(" · ")}`);
-    } catch (error) {
-      console.error("No se pudo eliminar la publicación de Noticias:", error);
-      setDeleteNoticiaNotice(String(error?.message || error || "No se pudo eliminar la publicación de Noticias."));
-    } finally {
-      setDeleteNoticiaBusy(false);
-    }
-  }, [deleteNoticiaTarget, deleteNoticiaBusy]);
 
   const FILTROS = [
     { id: "todos",      label: "Todos",       icon: "news" },
@@ -23145,26 +21664,8 @@ function NoticiasTab({ isAdmin }) {
     return hasContent;
   };
 
-  const noticiasVisibles = useMemo(() => {
-    const seen = new Set();
-    return safeArray(noticias)
-      .filter(Boolean)
-      .filter(isNoticiaListaParaMostrar)
-      .filter((item) => {
-        const stableId = String(item?.id ?? `${item?.created_at ?? ""}:${item?.titulo ?? ""}:${item?.archivo_url ?? ""}`);
-        if (!stableId || seen.has(stableId)) return false;
-        seen.add(stableId);
-        return true;
-      });
-  }, [noticias]);
-  const filtered = useMemo(() => {
-    const selected = String(filtro || "todos");
-    if (selected === "todos") return noticiasVisibles;
-    return noticiasVisibles.filter(n =>
-      String(n?.tipo || "") === selected ||
-      (selected === "admin" && String(n?.origen || "").toLowerCase().includes("admin_noticias"))
-    );
-  }, [filtro, noticiasVisibles]);
+  const noticiasVisibles = noticias.filter(isNoticiaListaParaMostrar);
+  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "admin" && String(n.origen || "").toLowerCase().includes("admin_noticias")));
 
   const timeAgo = (ts) => {
     const t = new Date(ts).getTime();
@@ -23213,25 +21714,19 @@ function NoticiasTab({ isAdmin }) {
   };
 
   const uniqueUrls = (values) => [...new Set(
-    safeArray(values).map(normalizeNoticiasStorageUrl).filter(Boolean)
+    values.map(normalizeNoticiasStorageUrl).filter(Boolean)
   )];
 
-  const getMedia = (value) => {
-    const n = safeObject(value);
-    return uniqueUrls([
-      ...safeArray(parseJsonArray(n?.media_urls)),
-      n?.imagen_url,
-      n?.archivo_url,
-    ]).filter((url) => isImage(url, n?.archivo_tipo) && !isPdf(url, n?.archivo_tipo));
-  };
+  const getMedia = (n) => uniqueUrls([
+    ...parseJsonArray(n.media_urls),
+    n.imagen_url,
+    n.archivo_url,
+  ]).filter((url) => isImage(url, n.archivo_tipo) && !isPdf(url, n.archivo_tipo));
 
-  const getPdfs = (value) => {
-    const n = safeObject(value);
-    return uniqueUrls([
-      ...safeArray(parseJsonArray(n?.pdf_urls)),
-      n?.archivo_url,
-    ]).filter((url) => isPdf(url, n?.archivo_tipo));
-  };
+  const getPdfs = (n) => uniqueUrls([
+    ...parseJsonArray(n.pdf_urls),
+    n.archivo_url,
+  ]).filter((url) => isPdf(url, n.archivo_tipo));
 
   const openVisor = useCallback((item, items = null, index = 0) => {
     const list = Array.isArray(items) && items.length ? items : [item].filter(Boolean);
@@ -23494,7 +21989,7 @@ function NoticiasTab({ isAdmin }) {
               <div style={{ color:"rgba(255,255,255,0.96)", fontFamily:getFont(theme, "secondary"), fontWeight:"900", fontSize:"17px", letterSpacing:".4px" }}>Noticias del puerto</div>
               <div style={{ color:"rgba(226,232,240,.68)", fontSize:"11px", marginTop:"4px", fontFamily:getFont(theme, "secondary"), lineHeight:1.45 }}>Actualizaciones oficiales, comunicados y vista operativa con un diseño renovado. Se conserva intacto el reporte automático.</div>
               <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
-                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(14,165,233,.12)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{loading ? "Cargando noticias…" : `${noticiasVisibles.length} noticias visibles`}</span>
+                <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(14,165,233,.12)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{noticiasVisibles.length} noticias visibles</span>
                 <span style={{ padding:"5px 10px", borderRadius:"999px", background:"rgba(251,191,36,.10)", border:"1px solid rgba(251,191,36,.24)", color:"#fbbf24", fontSize:"10px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}>{comunicados.filter(c => isComunicadoAprobado(c.aprobado)).length} comunicados</span>
               </div>
             </div>
@@ -23577,35 +22072,27 @@ function NoticiasTab({ isAdmin }) {
           {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>Sin noticias visibles para este filtro.</div>}
           {!loading && filtered.length > 0 && (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px", alignItems:"start" }}>
-              {filtered.map((rawNews, newsIndex) => {
-                const n = safeObject(rawNews);
+              {filtered.map((n) => {
                 const media = getMedia(n);
                 const pdfs = getPdfs(n);
                 const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
                 const leadVisuals = media.slice(0, 2);
                 const accent = n.color || "#38bdf8";
                 return (
-                  <article data-cm-news-card="true" key={String(n?.id ?? `${n?.created_at ?? "sin-fecha"}:${n?.titulo ?? "noticia"}:${newsIndex}`)} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
+                  <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
                     <div style={{ position:"relative", display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
                       {leadVisuals.length > 0 ? leadVisuals.map((u,i)=>(<button key={u+i} onClick={()=>openVisor({ ...n, archivo_url:u, archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), i)} style={{ flex:1, padding:0, border:"none", background:"transparent", cursor:"pointer", overflow:"hidden" }}><img
                           src={u}
                           alt={n.titulo || "Imagen de noticia"}
                           loading="lazy"
                           referrerPolicy="no-referrer"
-                          onError={(event) => {
-                            const img = event?.currentTarget;
-                            if (!img || img.dataset?.fallbackApplied === "1") return;
-                            try {
-                              img.dataset.fallbackApplied = "1";
-                              img.removeAttribute("srcset");
-                              img.src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#12304a"/></linearGradient></defs><rect width="1200" height="700" fill="url(#g)"/><g fill="none" stroke="#7dd3fc" stroke-width="18" opacity=".8"><rect x="420" y="190" width="360" height="280" rx="28"/><path d="M470 410l105-105 75 75 55-55 80 85"/><circle cx="675" cy="275" r="32"/></g><text x="600" y="565" text-anchor="middle" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="34">Vista previa no disponible</text></svg>`);
-                            } catch (error) {
-                              console.warn("No se pudo aplicar la imagen de respaldo de Noticias.", error);
-                            }
+                          onError={(e) => {
+                            console.error("Imagen de Noticias no disponible:", u);
+                            const button = e.currentTarget.closest("button");
+                            if (button) button.style.display = "none";
                           }}
                           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
                         /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
-                      {Boolean(isAdmin) && <button type="button" aria-label="Eliminar publicación de Noticias" title="Eliminar publicación" onClick={(event)=>{ event.stopPropagation(); setDeleteNoticiaTarget(n); }} style={{ position:"absolute", top:"10px", left:"10px", width:"36px", height:"36px", padding:0, borderRadius:"12px", border:"1px solid rgba(248,113,113,.48)", background:"rgba(69,10,10,.82)", color:"#fecaca", display:"inline-flex", alignItems:"center", justifyContent:"center", cursor:"pointer", zIndex:4, boxShadow:"0 10px 24px rgba(2,6,23,.32)" }}><MS name="delete" size={20} active /></button>}
                       {origen === "comunicados" && <div style={{ position:"absolute", top:"10px", right:"10px", width:"34px", height:"34px", borderRadius:"12px", background:"rgba(7,16,30,.72)", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", boxShadow:"0 10px 24px rgba(2,6,23,.28)" }}><NoticiasComunicadoMiniIcon size={18} color="#ffffff" /></div>}
                     </div>
 
@@ -23647,22 +22134,6 @@ function NoticiasTab({ isAdmin }) {
         </>
       )}
 
-      {deleteNoticiaNotice && <div role="status" style={{ margin:"12px 0", padding:"11px 13px", borderRadius:"10px", background:"rgba(251,191,36,.09)", border:"1px solid rgba(251,191,36,.28)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{deleteNoticiaNotice}</div>}
-
-      {deleteNoticiaTarget && createPortal(
-        <div onClick={()=>!deleteNoticiaBusy && setDeleteNoticiaTarget(null)} style={{ position:"fixed", inset:0, zIndex:100000, background:"rgba(0,0,0,.78)", display:"grid", placeItems:"center", padding:"20px" }}>
-          <section onClick={(event)=>event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cm-delete-news-title" style={{ width:"min(430px,100%)", padding:"22px", borderRadius:"16px", background:"#0d1b2e", border:"1px solid rgba(248,113,113,.42)", boxShadow:"0 24px 70px rgba(0,0,0,.48)" }}>
-            <div id="cm-delete-news-title" style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"17px" }}>¿Eliminar esta publicación de Noticias?</div>
-            <p style={{ color:"rgba(226,232,240,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>Esta acción no se puede deshacer. El comunicado original permanecerá y solo se desvinculará de Noticias.</p>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:"9px" }}>
-              <button type="button" disabled={deleteNoticiaBusy} onClick={()=>setDeleteNoticiaTarget(null)} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.28)", background:"rgba(15,23,42,.72)", color:"#cbd5e1", fontWeight:800, cursor:deleteNoticiaBusy?"not-allowed":"pointer" }}>Cancelar</button>
-              <button type="button" disabled={deleteNoticiaBusy} onClick={eliminarNoticia} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid rgba(248,113,113,.52)", background:"linear-gradient(135deg,#dc2626,#991b1b)", color:"#fff", fontWeight:900, cursor:deleteNoticiaBusy?"wait":"pointer" }}>{deleteNoticiaBusy ? "Eliminando…" : "Eliminar"}</button>
-            </div>
-          </section>
-        </div>,
-        document.body
-      )}
-
       {seccion === "comunicados" && (
         <ComunicadosSection 
           isAdmin={isAdmin}
@@ -23695,85 +22166,6 @@ const PIS_ASIPONAS = [
   "PUERTO VALLARTA", "SALINA CRUZ", "TAMPICO", "TOPOLOBAMPO", "TUXPAN", "VERACRUZ"
 ];
 const PIS_EDGE_FUNCTION = "smooth-service";
-const PIS_FRONTEND_TIMEOUT_MS = 13000;
-
-const invokePisEdgeFunction = async (payload) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), PIS_FRONTEND_TIMEOUT_MS);
-  const functionUrl = `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/${PIS_EDGE_FUNCTION}`;
-
-  try {
-    console.log("[PIS FRONTEND] Enviando consulta directa", {
-      functionUrl,
-      payload,
-    });
-
-    const response = await fetch(functionUrl, {
-      method: "POST",
-      mode: "cors",
-      cache: "no-store",
-      credentials: "omit",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${SUPA_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const responseText = await response.text();
-
-    console.log("[PIS FRONTEND] Respuesta HTTP", {
-      status: response.status,
-      ok: response.ok,
-      responseText,
-    });
-
-    let data = null;
-    try {
-      data = responseText ? JSON.parse(responseText) : null;
-    } catch {
-      const parseError = new Error(
-        `smooth-service devolvió una respuesta no JSON (${response.status}).`
-      );
-      parseError.code = "PIS_INVALID_JSON";
-      parseError.status = response.status;
-      parseError.responseText = responseText;
-      throw parseError;
-    }
-
-    if (!response.ok) {
-      const httpError = new Error(
-        data?.mensaje ||
-        data?.message ||
-        `smooth-service respondió con HTTP ${response.status}.`
-      );
-      httpError.code = data?.errorCode || "PIS_HTTP_ERROR";
-      httpError.status = response.status;
-      httpError.data = data;
-      throw httpError;
-    }
-
-    return { data, error:null };
-  } catch (error) {
-    if (
-      error?.name === "AbortError" ||
-      String(error?.message || "").toLowerCase().includes("aborted")
-    ) {
-      const timeoutError = new Error("timeout");
-      timeoutError.code = "PIS_TIMEOUT";
-      throw timeoutError;
-    }
-
-    console.error("[PIS FRONTEND] Error al invocar smooth-service", error);
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
 const PIS_ASIPONA_WHATSAPP_URL = "https://wa.me/+523141215154";
 const PIS_ASIPONA_EMAIL = "boletinados@puertomanzanillo.com.mx";
 const PIS_ASIPONA_MAIN_PHONE = "314 3311 400";
@@ -23826,108 +22218,48 @@ async function validateStaticAttachment(file, { maxBytes = 20 * 1024 * 1024 } = 
 
 
 /*
-SUPABASE — migración completa para la sección MIS TICKETS (ejecutar una sola vez):
+SUPABASE — migración requerida para el helpdesk de Quejas (ejecutar una sola vez):
 
-create extension if not exists pgcrypto;
-
-create table if not exists public.tickets (
+create table if not exists public.quejas_tickets (
   id uuid primary key default gen_random_uuid(),
+  ticket_number text unique not null default ('CM-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10))),
   user_id uuid not null references auth.users(id) on delete cascade,
-  report_type text not null check (report_type in ('hardware','software','red','seguridad')),
-  comment text not null check (char_length(btrim(comment)) > 0),
-  status text not null default 'pendiente' check (status in ('pendiente','en_revision','resuelto','rechazado')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  user_email text,
+  tipo_reporte text not null check (tipo_reporte in ('vacante_postura','conducta_usuario','error_sistema','incidente_operativo','otro')),
+  comentarios text not null,
+  evidencia jsonb not null default '[]'::jsonb,
+  estatus text not null default 'pendiente' check (estatus in ('pendiente','en_revision','resuelto','rechazado','cerrado')),
+  respuesta_admin text,
+  status_history jsonb not null default '[]'::jsonb,
+  fecha_creacion timestamptz not null default now(),
+  fecha_actualizacion timestamptz not null default now()
 );
+alter table public.quejas_tickets enable row level security;
+create policy "ticket_owner_insert" on public.quejas_tickets for insert to authenticated with check (auth.uid() = user_id);
+create policy "ticket_owner_read" on public.quejas_tickets for select to authenticated using (auth.uid() = user_id);
+-- Ajustar la comprobación de admin a la tabla/RPC de roles existente del proyecto:
+create policy "ticket_admin_all" on public.quejas_tickets for all to authenticated
+using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()));
 
-create table if not exists public.ticket_images (
-  id uuid primary key default gen_random_uuid(),
-  ticket_id uuid not null references public.tickets(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  storage_path text not null,
-  created_at timestamptz not null default now(),
-  unique (ticket_id, storage_path)
-);
-
-create index if not exists tickets_user_id_idx on public.tickets(user_id);
-create index if not exists tickets_created_at_idx on public.tickets(created_at desc);
-create index if not exists tickets_user_created_idx on public.tickets(user_id, created_at desc);
-create index if not exists ticket_images_ticket_id_idx on public.ticket_images(ticket_id);
-create index if not exists ticket_images_user_id_idx on public.ticket_images(user_id);
-
-alter table public.tickets enable row level security;
-alter table public.ticket_images enable row level security;
-
-drop policy if exists tickets_owner_select on public.tickets;
-create policy tickets_owner_select on public.tickets for select to authenticated
-using (auth.uid() = user_id);
-
-drop policy if exists tickets_owner_insert on public.tickets;
-create policy tickets_owner_insert on public.tickets for insert to authenticated
-with check (auth.uid() = user_id);
-
-drop policy if exists tickets_owner_update on public.tickets;
-create policy tickets_owner_update on public.tickets for update to authenticated
-using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
-drop policy if exists ticket_images_owner_select on public.ticket_images;
-create policy ticket_images_owner_select on public.ticket_images for select to authenticated
-using (auth.uid() = user_id and exists (
-  select 1 from public.tickets t where t.id = ticket_id and t.user_id = auth.uid()
-));
-
-drop policy if exists ticket_images_owner_insert on public.ticket_images;
-create policy ticket_images_owner_insert on public.ticket_images for insert to authenticated
-with check (auth.uid() = user_id and exists (
-  select 1 from public.tickets t where t.id = ticket_id and t.user_id = auth.uid()
-));
-
-drop policy if exists ticket_images_owner_update on public.ticket_images;
-create policy ticket_images_owner_update on public.ticket_images for update to authenticated
-using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('ticket-evidence', 'ticket-evidence', false, 10485760, array['image/jpeg','image/png','image/webp'])
-on conflict (id) do update set
-  public = excluded.public,
-  file_size_limit = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
-
-drop policy if exists ticket_evidence_owner_insert on storage.objects;
-create policy ticket_evidence_owner_insert on storage.objects for insert to authenticated
-with check (
-  bucket_id = 'ticket-evidence'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-drop policy if exists ticket_evidence_owner_select on storage.objects;
-create policy ticket_evidence_owner_select on storage.objects for select to authenticated
-using (
-  bucket_id = 'ticket-evidence'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-drop policy if exists ticket_evidence_owner_update on storage.objects;
-create policy ticket_evidence_owner_update on storage.objects for update to authenticated
-using (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text)
-with check (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text);
-
-drop policy if exists ticket_evidence_owner_delete on storage.objects;
-create policy ticket_evidence_owner_delete on storage.objects for delete to authenticated
-using (bucket_id = 'ticket-evidence' and (storage.foldername(name))[1] = auth.uid()::text);
+Storage recomendado: bucket privado `quejas-evidencias`, máximo 10 MB por objeto, solo JPEG/PNG/WEBP.
+Replicar validateStaticAttachment en una Edge Function antes de aceptar el objeto, verificar magic bytes,
+normalizar nombres, mantener approval_status=pending y entregar evidencia únicamente mediante signed URLs cortas.
+Nunca servir adjuntos con content-type text/html ni permitir SVG/ejecutables.
 */
-const QUEJAS_EVIDENCE_BUCKET = import.meta.env.VITE_SUPABASE_TICKET_BUCKET || "ticket-evidence";
+const QUEJAS_EVIDENCE_BUCKET = import.meta.env.VITE_SUPABASE_QUEJAS_BUCKET || "quejas-evidencias";
 const QUEJAS_TICKET_TYPES = [
-  { value:"hardware", label:"Hardware", icon:"potted_plant" },
-  { value:"software", label:"Software", icon:"terminal" },
-  { value:"red", label:"Red", icon:"hub" },
-  { value:"seguridad", label:"Seguridad", icon:"encrypted" },
+  { value:"vacante_postura", label:"Problema con vacante o postura" },
+  { value:"conducta_usuario", label:"Conducta de otro usuario" },
+  { value:"error_sistema", label:"Error del sistema" },
+  { value:"incidente_operativo", label:"Incidente operativo" },
+  { value:"otro", label:"Otro" },
 ];
 const QUEJAS_STATUS = {
-  pendiente:{ label:"Pendiente", color:"#9fcaff", bg:"rgba(159,202,255,.10)" },
-  en_revision:{ label:"En revisión", color:"#bdf4ff", bg:"rgba(189,244,255,.10)" },
-  resuelto:{ label:"Resuelto", color:"#00daf3", bg:"rgba(0,218,243,.10)" },
-  rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(147,0,10,.20)" },
+  pendiente:{ label:"Pendiente", color:"#fbbf24", bg:"rgba(251,191,36,.12)" },
+  en_revision:{ label:"En revisión", color:"#9fcaff", bg:"rgba(159,202,255,.12)" },
+  resuelto:{ label:"Resuelto", color:"#4edea3", bg:"rgba(78,222,163,.12)" },
+  rechazado:{ label:"Rechazado", color:"#ffb4ab", bg:"rgba(255,180,171,.12)" },
+  cerrado:{ label:"Cerrado", color:"#bfc7d5", bg:"rgba(191,199,213,.10)" },
 };
 
 const BUG_REPORTS_BUCKET = import.meta.env.VITE_SUPABASE_BUG_REPORTS_BUCKET || "reportes-bugs";
@@ -23975,14 +22307,9 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [selectedVacancyPreview, setSelectedVacancyPreview] = useState(null);
   const [selectedVacancyApplicants, setSelectedVacancyApplicants] = useState(null);
   const [talentView, setTalentView] = useState("todos");
-  const POSTURAS_DASHBOARD_CACHE_KEY = "cm_posturas_dashboard_cache_v3";
-  const posturasDashboardCache = useMemo(
-    () => readJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, { trabajadores:[], empresas:[], ratings:[] }, "session"),
-    []
-  );
-  const [trabajadores, setTrabajadores] = useState(() => Array.isArray(posturasDashboardCache?.trabajadores) ? posturasDashboardCache.trabajadores : []);
-  const [empresas, setEmpresas] = useState(() => Array.isArray(posturasDashboardCache?.empresas) ? posturasDashboardCache.empresas : []);
-  const [ratings, setRatings] = useState(() => Array.isArray(posturasDashboardCache?.ratings) ? posturasDashboardCache.ratings : []);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [empresas, setEmpresas] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [quejas, setQuejas] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
@@ -24021,12 +22348,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const [msg, setMsg] = useState(null);
   const [showReminder, setShowReminder] = useState(false);
   const [pisForm, setPisForm] = useState({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
-  const pisIdInputRef = useRef(null);
   const [pisLoading, setPisLoading] = useState(false);
-  const [pisTakingLong, setPisTakingLong] = useState(false);
   const [pisResult, setPisResult] = useState(null);
-  const pisRequestRef = useRef(0);
-  const pisSlowTimerRef = useRef(null);
   const [pisEmailCopied, setPisEmailCopied] = useState(false);
   const [pisCopiedField, setPisCopiedField] = useState("");
   const [pisContactMessage, setPisContactMessage] = useState("");
@@ -24037,26 +22360,6 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     try { return JSON.parse(localStorage.getItem("cm_pis_verificaciones") || "[]"); } catch { return []; }
   });
   const [pisDonateOpen, setPisDonateOpen] = useState(false);
-
-  const clearPisSlowTimer = useCallback(() => {
-    if (pisSlowTimerRef.current) {
-      clearTimeout(pisSlowTimerRef.current);
-      pisSlowTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (sub === "boletinados") return;
-    pisRequestRef.current += 1;
-    clearPisSlowTimer();
-    setPisTakingLong(false);
-    setPisLoading(false);
-  }, [sub, clearPisSlowTimer]);
-
-  useEffect(() => () => {
-    pisRequestRef.current += 1;
-    clearPisSlowTimer();
-  }, [clearPisSlowTimer]);
 
   const clearPosturasSearchTimer = useCallback(() => {
     if (posturasSearchTimerRef.current) {
@@ -24295,25 +22598,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const card = { background:"rgba(18,33,49,0.88)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(63,71,83,0.55)", borderRadius:"18px", padding:"18px", boxShadow:"0 18px 42px rgba(1,15,31,0.28), inset 0 1px 0 rgba(255,255,255,0.04)" };
   const input = { width:"100%", boxSizing:"border-box", background:"rgba(1,15,31,0.82)", border:"1px solid rgba(63,71,83,0.72)", borderRadius:"12px", padding:"12px 13px", color:"rgba(255,255,255,0.94)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" };
   const label = { fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(191,199,213,0.62)", fontWeight:"900", letterSpacing:"1.15px", textTransform:"uppercase", marginBottom:"6px" };
-  const btn = (color="#a1c9ff") => ({
-    border:`1px solid ${color}55`,
-    background:`${color}14`,
-    color,
-    borderRadius:"12px",
-    padding:"10px 14px",
-    fontFamily:getFont(theme,"secondary"),
-    fontSize:"11px",
-    fontWeight:"900",
-    cursor:"pointer",
-    letterSpacing:".04em",
-    textTransform:"uppercase",
-    transition:"all .18s ease",
-    display:"inline-flex",
-    alignItems:"center",
-    justifyContent:"center",
-    gap:"8px",
-    lineHeight:1.2,
-  });
+  const btn = (color="#a1c9ff") => ({ border:`1px solid ${color}55`, background:`${color}14`, color, borderRadius:"12px", padding:"10px 14px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", cursor:"pointer", letterSpacing:".04em", textTransform:"uppercase", transition:"all .18s ease" });
   const POSTURAS_PAGO = ["Efectivo", "Transferencia", "Criptomonedas"];
   const sessionPosturasType = authUser?.user_metadata?.posturas_user_type || authUser?.user_metadata?.userType || posturasUserType || "";
   const isPosturasLoggedIn = !!authUser;
@@ -24881,142 +23166,72 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const loadPosturas = async ({ force = false } = {}) => {
     if (!force && posturasLoadPromiseRef.current) return posturasLoadPromiseRef.current;
     const requestId = ++posturasLoadRequestRef.current;
-    const hasHydratedDashboard = trabajadores.length > 0 || empresas.length > 0 || ratings.length > 0;
-
     const task = (async () => {
-      if (!hasHydratedDashboard) setLoading(true);
-      setPosturasLoadError("");
-
+      setLoading(true);
       try {
-        // Los datos públicos y las valoraciones se solicitan en paralelo. Las quejas y
-        // notificaciones son secundarias y no bloquean la hidratación del TABLERO.
-        const publicRequest = withAsyncTimeout(
-          fetch("/api/posturas/public", { cache:"no-store" }).then(async response => {
-            const body = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
-            return body;
-          }),
-          9000,
-          "Tiempo de espera agotado al cargar el tablero."
-        );
+        setPosturasLoadError("");
+        const publicPayload = await fetch("/api/posturas/public").then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body?.error || "No se pudieron cargar las posturas.");
+          return body;
+        });
 
-        const ratingsRequest = withAsyncTimeout(
-          runWithSupabaseLockRetry(
-            () => sb.from("posturas_ratings").select("*").order("created_at", { ascending:false }),
-            { attempts:3, baseDelay:120 }
-          ),
-          8500,
-          "Tiempo de espera agotado al cargar valoraciones."
+        // Las consultas que pueden depender de Supabase Auth se ejecutan de forma
+        // serializada y con reintento acotado para no competir por el Web Lock de sesión.
+        const ratingsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_ratings").select("*").order("created_at", { ascending:false })
         );
-
-        const [publicSettled, ratingsSettled] = await Promise.allSettled([
-          publicRequest,
-          ratingsRequest,
-        ]);
+        const complaintsResult = await runWithSupabaseLockRetry(() =>
+          sb.from("posturas_quejas").select("*").order("created_at", { ascending:false })
+        );
 
         if (requestId !== posturasLoadRequestRef.current) return;
-
-        const cached = readJsonCache(
-          POSTURAS_DASHBOARD_CACHE_KEY,
-          { trabajadores, empresas, ratings },
-          "session"
-        );
-        const publicPayload = publicSettled.status === "fulfilled"
-          ? publicSettled.value
-          : { trabajadores:cached?.trabajadores || trabajadores, empresas:cached?.empresas || empresas };
-        const ratingRows = ratingsSettled.status === "fulfilled"
-          ? (ratingsSettled.value?.data || [])
-          : (cached?.ratings || ratings);
-
-        if (publicSettled.status === "rejected") {
-          console.error("Error cargando perfiles para TABLERO:", publicSettled.reason);
-        }
-        if (ratingsSettled.status === "rejected") {
-          console.error("Error cargando valoraciones para TABLERO:", ratingsSettled.reason);
-        }
-
-        const t = Array.isArray(publicPayload?.trabajadores) ? publicPayload.trabajadores : [];
-        const e = Array.isArray(publicPayload?.empresas) ? publicPayload.empresas : [];
+        const t = publicPayload.trabajadores || [];
+        const e = publicPayload.empresas || [];
+        const r = ratingsResult.data || [];
+        const qj = complaintsResult.data || [];
         const now = Date.now();
         const empresasVisibles = e.filter(row => {
           const requestedAt = row.delete_requested_at || row.deletion_requested_at;
           if (!requestedAt) return true;
           return new Date(requestedAt).getTime() + 7*24*60*60*1000 > now || isAdmin;
         });
-        const nextTrabajadores = t.filter(row => !isProfileBanned(row));
-        const nextEmpresas = empresasVisibles.filter(row => !isProfileBanned(row));
+        setTrabajadores(t.filter(row => !isProfileBanned(row)));
+        setEmpresas(empresasVisibles.filter(row => !isProfileBanned(row)));
+        setRatings(r);
+        setQuejas(qj);
 
-        setTrabajadores(nextTrabajadores);
-        setEmpresas(nextEmpresas);
-        setRatings(ratingRows);
-        writeJsonCache(POSTURAS_DASHBOARD_CACHE_KEY, {
-          trabajadores:nextTrabajadores,
-          empresas:nextEmpresas,
-          ratings:ratingRows,
-        }, "session");
+        try {
+          const notifResult = await runWithSupabaseLockRetry(() =>
+            sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false })
+          );
+          if (requestId !== posturasLoadRequestRef.current) return;
+          const visibleNotifications = (notifResult.data || []).filter(n => {
+            if (isAdmin) return true;
+            if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
+            if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
+            return false;
+          });
+          setNotificaciones(visibleNotifications);
+        } catch (notificationError) {
+          if (!isSupabaseLockAbort(notificationError)) setNotificaciones([]);
+        }
 
         const myProfiles = [...t, ...e].filter(x =>
           (authUser?.id && (x.user_id === authUser.id || x.submitted_by_uid === authUser.id)) || x.device_id === myId
         );
-        const stale = myProfiles.some(x =>
-          Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000
-        );
+        const stale = myProfiles.some(x => Date.now() - new Date(x.updated_at || x.created_at || Date.now()).getTime() > 90*24*60*60*1000);
         setShowReminder(!!authUser && stale);
         setMsg(current => current?.text === "No se pudieron cargar los datos del Centro de Talento." ? null : current);
-
-        // Carga diferida de módulos secundarios.
-        deferWork(async () => {
-          try {
-            const complaintsResult = await withAsyncTimeout(
-              runWithSupabaseLockRetry(
-                () => sb.from("posturas_quejas").select("*").order("created_at", { ascending:false }),
-                { attempts:2, baseDelay:160 }
-              ),
-              7000,
-              "timeout"
-            );
-            if (requestId === posturasLoadRequestRef.current) setQuejas(complaintsResult.data || []);
-          } catch (error) {
-            if (!isSupabaseLockAbort(error)) console.error("Error cargando reportes secundarios:", error);
-          }
-
-          try {
-            const notifResult = await withAsyncTimeout(
-              runWithSupabaseLockRetry(
-                () => sb.from("posturas_notificaciones").select("*").order("created_at", { ascending:false }),
-                { attempts:2, baseDelay:160 }
-              ),
-              7000,
-              "timeout"
-            );
-            if (requestId !== posturasLoadRequestRef.current) return;
-            const visibleNotifications = (notifResult.data || []).filter(n => {
-              if (isAdmin) return true;
-              if (authUser?.id && (n.user_id === authUser.id || n.destinatario_id === authUser.id)) return true;
-              if (myId && (n.device_id === myId || n.destinatario_device_id === myId)) return true;
-              return false;
-            });
-            setNotificaciones(visibleNotifications);
-          } catch (error) {
-            if (!isSupabaseLockAbort(error)) console.error("Error cargando notificaciones secundarias:", error);
-          }
-        }, 120);
-
-        if (publicSettled.status === "rejected" && ratingsSettled.status === "rejected" && !hasHydratedDashboard) {
-          throw publicSettled.reason || ratingsSettled.reason;
-        }
       } catch (error) {
         if (requestId !== posturasLoadRequestRef.current) return;
         const errorMessage = error?.message || "No se pudieron cargar los datos de Supabase.";
         setPosturasLoadError(errorMessage);
-        if (!hasHydratedDashboard) {
-          setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
-        }
+        setMsg({ type:"err", text:"No se pudieron cargar los datos del Centro de Talento." });
       } finally {
         if (requestId === posturasLoadRequestRef.current) setLoading(false);
       }
     })();
-
     posturasLoadPromiseRef.current = task;
     try {
       return await task;
@@ -25024,6 +23239,59 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       if (posturasLoadPromiseRef.current === task) posturasLoadPromiseRef.current = null;
     }
   };
+  useEffect(() => { loadPosturas(); }, [authUser?.id, myId]);
+  useEffect(() => {
+    const refreshLinkedProfile = () => loadPosturas();
+    window.addEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+    return () => window.removeEventListener("cm:posturas-profile-linked", refreshLinkedProfile);
+  }, [authUser?.id, myId]);
+
+  useEffect(() => {
+    if (!pisResult) return undefined;
+    const resetTimer = setTimeout(() => {
+      setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" });
+      setPisResult(null);
+      setPisContactMessage("");
+      setPisEmailCopied(false);
+      setPisCopiedField("");
+      setPisContactUnlocked(hasPisContactUnlock());
+      setPisUnlockRequested(false);
+      setPisUnlockSeconds(0);
+    }, 120000);
+    return () => clearTimeout(resetTimer);
+  }, [pisResult?.checked_at, pisResult?.status, hasPisContactUnlock]);
+
+  useEffect(() => {
+    if (!pisResult || !pisUnlockRequested || pisContactUnlocked) return undefined;
+    setPisUnlockSeconds(30);
+    const unlockStartedAt = Date.now();
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, 30 - Math.floor((Date.now() - unlockStartedAt) / 1000));
+      setPisUnlockSeconds(remaining);
+      if (remaining <= 0) {
+        markPisContactUnlocked();
+        clearInterval(interval);
+      }
+    }, 500);
+    const unlockTimer = setTimeout(() => {
+      markPisContactUnlocked();
+    }, 30000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(unlockTimer);
+    };
+  }, [pisResult?.checked_at, pisResult?.status, pisUnlockRequested, pisContactUnlocked, markPisContactUnlocked]);
+
+  const canEdit = (row) => !!authUser && row.user_id === authUser.id;
+  const requireLogin = () => { requestProtectedProfileAccess("login"); setMsg({ type:"err", text:"Inicia sesión o crea una cuenta antes de configurar un perfil." }); return false; };
+  const deletionDaysLeft = (row) => {
+    if (!row?.delete_requested_at && !row?.deletion_requested_at) return null;
+    const start = new Date(row.delete_requested_at || row.deletion_requested_at).getTime();
+    if (!Number.isFinite(start)) return null;
+    return Math.max(0, Math.ceil((start + 7*24*60*60*1000 - Date.now()) / (24*60*60*1000)));
+  };
+  const isDeletionPending = (row) => deletionDaysLeft(row) !== null && deletionDaysLeft(row) > 0;
+  const isProfileBanned = (row) => String(row?.perfil_estado || row?.estado || "").toLowerCase() === "baneado" || row?.banned === true || row?.banneado === true;
 
   const saveTrab = async () => {
     if (Object.values(encryptedUploadFields).some(Boolean)) { setMsg({type:"err", text:"Espera a que termine el cifrado de los archivos."}); return; }
@@ -25212,193 +23480,82 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
   const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
   const loadTickets = useCallback(async () => {
-    const ownerId = authUser?.id ?? null;
-    if (!ownerId) {
+    if (!authUser?.id && !isAdmin) { setTickets([]); return; }
+    setTicketsLoading(true); setTicketsError("");
+    let query = sb.from("quejas_tickets").select("*").order("fecha_creacion", { ascending:false });
+    if (!isAdmin) query = query.eq("user_id", authUser.id);
+    const { data, error } = await query;
+    if (error) {
+      setTicketsError(error.code === "42P01" ? "La tabla de tickets aún no está disponible. Aplica la migración incluida en el código." : error.message);
       setTickets([]);
-      setTicketsError("");
-      setTicketsLoading(false);
-      return;
-    }
-    setTicketsLoading(true);
-    setTicketsError("");
-    try {
-      const { data, error } = await sb
-        .from("tickets")
-        .select("id,user_id,report_type,comment,status,created_at,updated_at,ticket_images(id,storage_path,created_at)")
-        .eq("user_id", ownerId)
-        .order("created_at", { ascending:false });
-      if (error) throw error;
-      const normalized = safeArray(data).filter(Boolean).map((row) => ({
-        ...row,
-        tipo_reporte: row?.report_type ?? "",
-        comentarios: row?.comment ?? "",
-        estatus: row?.status ?? "pendiente",
-        fecha_creacion: row?.created_at ?? null,
-        evidencia: safeArray(row?.ticket_images).map((image) => ({
-          id:image?.id ?? null,
-          bucket:QUEJAS_EVIDENCE_BUCKET,
-          path:image?.storage_path ?? "",
-        })).filter((image) => image.path),
-      }));
-      setTickets(normalized);
-    } catch (error) {
-      setTickets([]);
-      setTicketsError(error?.code === "42P01"
-        ? "La estructura de tickets todavía no está instalada en Supabase."
-        : safeErrorMessage(error, "No fue posible conectar con el núcleo de tickets."));
-    } finally {
-      setTicketsLoading(false);
-    }
-  }, [authUser?.id]);
+    } else setTickets(data || []);
+    setTicketsLoading(false);
+  }, [authUser?.id, isAdmin]);
 
-  useEffect(() => {
-    let active = true;
-    void loadTickets();
-    if (!authUser?.id) return () => { active = false; };
-    let channel = null;
-    try {
-      channel = sb.channel(`tickets-${authUser.id}`)
-        .on("postgres_changes", { event:"*", schema:"public", table:"tickets", filter:`user_id=eq.${authUser.id}` }, () => { if (active) void loadTickets(); })
-        .on("postgres_changes", { event:"*", schema:"public", table:"ticket_images", filter:`user_id=eq.${authUser.id}` }, () => { if (active) void loadTickets(); })
-        .subscribe();
-    } catch (error) {
-      console.warn("No se pudo iniciar la actualización en tiempo real de tickets", error);
-    }
-    return () => {
-      active = false;
-      if (channel) { try { void sb.removeChannel(channel); } catch (_) {} }
-    };
-  }, [loadTickets, authUser?.id]);
-
-  useEffect(() => () => {
-    safeArray(ticketForm?.evidencia).forEach((item) => {
-      if (item?.preview) { try { URL.revokeObjectURL(item.preview); } catch (_) {} }
-    });
-  }, []);
+  useEffect(() => { loadTickets(); }, [loadTickets]);
 
   const addTicketEvidence = async (event) => {
-    const files = safeEventFiles(event);
-    safelyResetFileInput(event);
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
     if (!files.length) return;
-    const current = safeArray(ticketForm?.evidencia);
-    if (current.length + files.length > 5) {
-      setMsg({ type:"err", text:"Solo puedes adjuntar hasta 5 imágenes por ticket." });
-      return;
-    }
     const accepted = [];
-    for (const file of files) {
-      if (!file || typeof file.size !== "number") continue;
-      if (file.size > 10 * 1024 * 1024) {
-        setMsg({ type:"err", text:`${file.name || "La imagen"} supera el límite de 10 MB.` });
-        continue;
-      }
+    for (const file of files.slice(0, Math.max(0, 5-ticketForm.evidencia.length))) {
       const validation = await validateStaticAttachment(file, { maxBytes:10*1024*1024 });
-      if (!validation?.ok || !String(validation?.detectedType ?? "").startsWith("image/")) {
-        setMsg({ type:"err", text:validation?.error || "Solo se admiten imágenes JPEG, PNG o WEBP." });
+      if (!validation.ok || !validation.detectedType.startsWith("image/")) {
+        setMsg({ type:"err", text:validation.ok ? "La evidencia debe ser una imagen JPEG, PNG o WEBP." : validation.error });
         continue;
       }
-      accepted.push({
-        file,
-        preview:URL.createObjectURL(file),
-        detectedType:validation.detectedType,
-        name:file.name || `evidencia-${Date.now()}`,
-      });
+      accepted.push({ file, preview:URL.createObjectURL(file), detectedType:validation.detectedType, name:file.name || `evidencia-${Date.now()}` });
     }
-    if (accepted.length) setTicketForm((prev) => ({ ...prev, evidencia:[...safeArray(prev?.evidencia), ...accepted] }));
+    setTicketForm(prev=>({...prev,evidencia:[...prev.evidencia,...accepted]}));
   };
-
-  const removeTicketEvidence = (index) => setTicketForm((prev) => {
-    const evidence = safeArray(prev?.evidencia);
-    const current = evidence[index];
-    if (current?.preview) { try { URL.revokeObjectURL(current.preview); } catch (_) {} }
-    return { ...prev, evidencia:evidence.filter((_, i) => i !== index) };
+  const removeTicketEvidence = (index) => setTicketForm(prev=>{
+    const current=prev.evidencia[index]; if (current?.preview) URL.revokeObjectURL(current.preview);
+    return {...prev,evidencia:prev.evidencia.filter((_,i)=>i!==index)};
   });
-
   const createTicket = async () => {
-    const ownerId = authUser?.id ?? null;
-    const reportType = String(ticketForm?.tipo_reporte ?? "").trim();
-    const comment = String(ticketForm?.comentarios ?? "").trim();
-    if (!ownerId) return requireLogin();
-    if (!QUEJAS_TICKET_TYPES.some((item) => item.value === reportType)) {
-      setMsg({ type:"err", text:"Selecciona un tipo de reporte válido." });
-      return;
-    }
-    if (!comment) {
-      setMsg({ type:"err", text:"Escribe los comentarios del ticket antes de enviarlo." });
-      return;
-    }
+    if (!authUser?.id) return requireLogin();
+    if (!ticketForm.tipo_reporte) return setMsg({type:"err",text:"Selecciona el tipo de reporte."});
+    if (ticketForm.comentarios.trim().length < 10) return setMsg({type:"err",text:"Describe el problema con al menos 10 caracteres."});
     setTicketSubmitting(true);
     try {
-      const { data:ticket, error:ticketError } = await sb
-        .from("tickets")
-        .insert({ user_id:ownerId, report_type:reportType, comment })
-        .select("id")
-        .single();
-      if (ticketError) throw ticketError;
-      if (!ticket?.id) throw new Error("Supabase no devolvió el identificador del ticket.");
-
-      const imageRows = [];
-      const uploadedPaths = [];
-      try {
-        for (const [index, item] of safeArray(ticketForm?.evidencia).entries()) {
-          if (!item?.file) continue;
-          const subtype = item.detectedType === "image/jpeg" ? "jpg" : String(item.detectedType ?? "image/png").split("/")[1] || "png";
-          const safeName = String(item.name ?? `imagen-${index + 1}`).replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
-          const path = `${ownerId}/${ticket.id}/${String(index + 1).padStart(2,"0")}-${crypto.randomUUID()}-${safeName}.${subtype}`;
-          const { error:uploadError } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).upload(path, item.file, {
-            contentType:item.detectedType,
-            upsert:false,
-            cacheControl:"3600",
-          });
-          if (uploadError) throw uploadError;
-          uploadedPaths.push(path);
-          imageRows.push({ ticket_id:ticket.id, user_id:ownerId, storage_path:path });
-        }
-        if (imageRows.length) {
-          const { error:imageError } = await sb.from("ticket_images").insert(imageRows);
-          if (imageError) throw imageError;
-        }
-      } catch (imageError) {
-        await Promise.allSettled(uploadedPaths.map((path) => sb.storage.from(QUEJAS_EVIDENCE_BUCKET).remove([path])));
-        throw imageError;
+      const evidence=[];
+      for (const item of ticketForm.evidencia) {
+        const ext = item.detectedType === "image/jpeg" ? "jpg" : item.detectedType.split("/")[1];
+        const path = `${authUser.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+        const { error:uploadError } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).upload(path,item.file,{contentType:item.detectedType,upsert:false,cacheControl:"3600",metadata:{approval_status:"pending",owner_id:authUser.id}});
+        if (uploadError) throw uploadError;
+        evidence.push({ bucket:QUEJAS_EVIDENCE_BUCKET, path, name:item.name, type:item.detectedType, approval_status:"pending" });
       }
-
-      safeArray(ticketForm?.evidencia).forEach((item) => {
-        if (item?.preview) { try { URL.revokeObjectURL(item.preview); } catch (_) {} }
-      });
-      setTicketForm({ tipo_reporte:"", comentarios:"", evidencia:[] });
-      setMsg({ type:"ok", text:"Ticket creado correctamente." });
+      const now=new Date().toISOString();
+      const payload={ user_id:authUser.id,user_email:authUser.email||null,tipo_reporte:ticketForm.tipo_reporte,comentarios:ticketForm.comentarios.trim(),evidencia:evidence,estatus:"pendiente",status_history:[{estatus:"pendiente",fecha:now,actor:"usuario"}],fecha_creacion:now,fecha_actualizacion:now };
+      const { error }=await sb.from("quejas_tickets").insert(payload);
+      if(error) throw error;
+      ticketForm.evidencia.forEach(x=>x.preview&&URL.revokeObjectURL(x.preview));
+      setTicketForm({tipo_reporte:"",comentarios:"",evidencia:[]});
+      setMsg({type:"ok",text:"Ticket creado correctamente. Puedes seguir su estado en Mis tickets."});
       await loadTickets();
-    } catch (error) {
-      setMsg({ type:"err", text:safeErrorMessage(error, "No fue posible crear el ticket.") });
-    } finally {
-      setTicketSubmitting(false);
-    }
+    } catch(error) { setMsg({type:"err",text:error.message||"No fue posible crear el ticket."}); }
+    finally { setTicketSubmitting(false); }
   };
-
   const getTicketEvidenceUrl = async (item) => {
-    const path = item?.path ?? item?.storage_path ?? "";
-    if (!path) return;
-    try {
-      const { data, error } = await sb.storage.from(QUEJAS_EVIDENCE_BUCKET).createSignedUrl(path, 120);
-      if (error) throw error;
-      const signedUrl = data?.signedUrl ?? "";
-      if (!signedUrl) throw new Error("No se recibió una URL segura.");
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
-    } catch (_) {
-      setMsg({ type:"err", text:"No se pudo abrir la evidencia de forma segura." });
-    }
+    if (!item?.bucket || !item?.path) return;
+    const { data,error }=await sb.storage.from(item.bucket).createSignedUrl(item.path,120,{download:false});
+    if(error) return setMsg({type:"err",text:"No se pudo abrir la evidencia de forma segura."});
+    window.open(data.signedUrl,"_blank","noopener,noreferrer");
   };
-
   const updateTicketAdmin = async (ticket) => {
-    if (!isAdmin || !ticket?.id) return;
-    const draft = ticketAdminDraft?.[ticket.id] ?? {};
-    const nextStatus = draft?.estatus ?? ticket?.estatus ?? "pendiente";
-    const { error } = await sb.from("tickets").update({ status:nextStatus }).eq("id", ticket.id);
-    if (error) setMsg({ type:"err", text:safeErrorMessage(error, "No fue posible actualizar el ticket.") });
-    else { setMsg({ type:"ok", text:"Ticket actualizado." }); await loadTickets(); }
+    if(!isAdmin) return;
+    const draft=ticketAdminDraft[ticket.id]||{};
+    const nextStatus=draft.estatus||ticket.estatus;
+    const nextResponse=(draft.respuesta_admin??ticket.respuesta_admin??"").trim();
+    const now=new Date().toISOString();
+    const history=Array.isArray(ticket.status_history)?ticket.status_history:[];
+    const changed=nextStatus!==ticket.estatus;
+    const payload={estatus:nextStatus,respuesta_admin:nextResponse||null,fecha_actualizacion:now,status_history:changed?[...history,{estatus:nextStatus,fecha:now,actor:"admin"}]:history};
+    const {error}=await sb.from("quejas_tickets").update(payload).eq("id",ticket.id);
+    if(error) setMsg({type:"err",text:error.message}); else {setMsg({type:"ok",text:"Ticket actualizado."});await loadTickets();}
   };
-
   const requestVacancyDeletion = async (row) => {
     if (!authUser && !isAdmin) return requireLogin();
     if (!isAdmin && row.user_id !== authUser?.id) return;
@@ -25599,14 +23756,14 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:"10px", alignItems:"center", marginBottom:"10px" }}>
       <div style={{ position:"relative" }}>
         <span style={{ position:"absolute", left:"13px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><AppIcon name="search" size={17} /></span>
-        <input value={q} onChange={e=>{setQ(safeEventValue(e)); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"42px"}} />
+        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"42px"}} />
       </div>
       <div style={{ ...btn("#a1c9ff"), display:"inline-flex", alignItems:"center", gap:"7px", padding:"12px 14px", whiteSpace:"nowrap" }}><AppIcon name="filter-list" size={16} active /> Filtros</div>
     </div>
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px" }}>
-      <select value={filtroEstatus} onChange={e=>setFiltroEstatus(safeEventValue(e))} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
-      <select value={filtroAlcance} onChange={e=>setFiltroAlcance(safeEventValue(e))} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
-      <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(safeEventValue(e))} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+      <select value={filtroEstatus} onChange={e=>setFiltroEstatus(e.target.value)} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+      <select value={filtroAlcance} onChange={e=>setFiltroAlcance(e.target.value)} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+      <select value={filtroEstrellas} onChange={e=>setFiltroEstrellas(e.target.value)} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
     </div>
   </div>;
 
@@ -25658,7 +23815,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <div style={{ marginTop:"16px", padding:"13px", border:"1px solid rgba(251,191,36,.22)", background:"rgba(251,191,36,.06)", borderRadius:"14px" }}>
           <div style={{ color:"rgba(255,255,255,0.62)", fontSize:"10px", fontWeight:"900", marginBottom:"7px", fontFamily:getFont(theme,"secondary"), textTransform:"uppercase", letterSpacing:".08em" }}>Calificar trabajo</div>
           <StarRating value={myStars} onRate={setMyStars} />
-          <textarea value={comment} onChange={e=>setComment(safeEventValue(e))} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"8px", minHeight:"58px"}} />
+          <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Comentario opcional sobre su trabajo" style={{...input, marginTop:"8px", minHeight:"58px"}} />
           <button disabled={!myStars} onClick={()=>rate("trabajador", row.id, myStars, comment)} style={{...btn("#fbbf24"), opacity:myStars?1:.45, marginTop:"8px"}}>Guardar calificación</button>
         </div>
         {commentsFor(row.id).slice(0,3).map(c => <div key={c.id} style={{ marginTop:"8px", color:"rgba(255,255,255,0.62)", fontSize:"10px", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"10px", padding:"9px" }}>★ {c.stars} · {c.comment}</div>)}
@@ -25713,7 +23870,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         autoComplete="off"
         style={input}
         value={posturasSalaryRules[field] ?? ""}
-        onChange={e=>updatePosturasSalaryRule(field, safeEventValue(e))}
+        onChange={e=>updatePosturasSalaryRule(field, e.target.value)}
         placeholder="Escribe la cantidad"
       />
     </div>
@@ -25794,19 +23951,19 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       </div>
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil suspendido por vigencia mayor a 90 días. Conservas tu histórico, pero debes actualizar datos y documentos para volver a postularte.</div>}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:safeEventValue(e)}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:safeEventValue(e)}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:safeEventValue(e)}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:safeEventValue(e)==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
-        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:safeEventValue(e)}))}/></div>
-        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:safeEventValue(e)}))}/></div>
-        <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:safeEventValue(e)}))} placeholder="Domicilio actual para vigencia documental" /></div>
-        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:safeEventValue(e)}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
-        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:safeEventValue(e)}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
-        <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:safeEventValue(e)}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Nombre completo</div><input style={input} value={trabForm.nombre_completo} onChange={e=>setTrabForm(f=>({...f,nombre_completo:e.target.value}))}/></div>
+        <div><div style={label}>Edad</div><input type="number" style={input} value={trabForm.edad} onChange={e=>setTrabForm(f=>({...f,edad:e.target.value}))}/></div>
+        <div><div style={label}>Tipo de licencia</div><select style={input} value={trabForm.licencia} onChange={e=>setTrabForm(f=>({...f,licencia:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Tipo de maniobra</div><select style={input} value={trabForm.maniobra} onChange={e=>setTrabForm(f=>({...f,maniobra:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Disponibilidad / labora</div><select style={input} value={trabForm.alcance} onChange={e=>setTrabForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Estatus</div><select style={input} value={String(trabForm.disponible)} onChange={e=>setTrabForm(f=>({...f,disponible:e.target.value==="true"}))}><option value="true">Disponible para laborar</option><option value="false">No disponible</option></select></div>
+        <div><div style={label}>Teléfono llamadas</div><input style={input} value={trabForm.telefono_llamadas} onChange={e=>setTrabForm(f=>({...f,telefono_llamadas:e.target.value}))}/></div>
+        <div><div style={label}>WhatsApp</div><input style={input} value={trabForm.telefono_whatsapp} onChange={e=>setTrabForm(f=>({...f,telefono_whatsapp:e.target.value}))}/></div>
+        <div><div style={label}>Correo opcional</div><input style={input} value={trabForm.correo||""} onChange={e=>setTrabForm(f=>({...f,correo:e.target.value}))}/></div>
+        <div style={{ gridColumn:posturasMobile ? "auto" : "span 2" }}><div style={label}>Domicilio</div><input style={input} value={trabForm.domicilio||""} onChange={e=>setTrabForm(f=>({...f,domicilio:e.target.value}))} placeholder="Domicilio actual para vigencia documental" /></div>
+        <div><div style={label}>Salario deseado viaje local</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_local||""} onChange={e=>setTrabForm(f=>({...f,salario_local:e.target.value}))} placeholder={`Rango local ${salarioMinPostulanteLocal} - ${salarioMaxPostulanteLocal}`} /></div>
+        <div><div style={label}>Salario deseado viaje foráneo</div><input type="text" inputMode="numeric" style={input} value={trabForm.salario_foraneo||""} onChange={e=>setTrabForm(f=>({...f,salario_foraneo:e.target.value}))} placeholder={`Rango foráneo ${salarioMinPostulanteForaneo} - ${salarioMaxPostulanteForaneo}`} /></div>
+        <div><div style={label}>Preferencia de pago</div><select style={input} value={trabForm.preferencia_pago||"Transferencia"} onChange={e=>setTrabForm(f=>({...f,preferencia_pago:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></div>
         {docFields.map(([field, textLabel]) => <div key={field}><div style={label}>{textLabel}</div><input type="file" accept="image/*,.pdf" style={input} onChange={e=>handleFileMeta(setTrabForm, field, e.target.files)} /><div style={{ color:"rgba(212,228,250,.48)", fontSize:"10px", marginTop:"5px", fontFamily:getFont(theme,"secondary") }}>{encryptedUploadFields[field] ? "Cifrando y almacenando…" : encryptedFileLabel(trabForm[field])}</div></div>)}
       </div>
       <div style={{ display:"flex", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}><button onClick={saveTrab} style={btn(actionButtonColorForProfile(existing, "#22c55e"))}>{profileActionLabel(existing, "Crear perfil")}</button>{editingTrabId && <button onClick={()=>{setEditingTrabId(null); setTrabForm(emptyTrab);}} style={btn("#94a3b8")}>Cancelar edición</button>}</div>
@@ -25830,20 +23987,20 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       {expired && <div style={{ margin:"10px 0", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(245,158,11,.42)", background:"rgba(245,158,11,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Conservas el histórico, pero debes actualizar documentos para publicar vacantes.</div>}
       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"14px" }}><StepBadge id={1} text="Empresa" /><StepBadge id={2} text="Contactos" /></div>
       {step === 1 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:safeEventValue(e)}))} placeholder="Se autocompleta con la sesión activa" /></div>
-        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:safeEventValue(e).toUpperCase()}))}/></div>
-        <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:safeEventValue(e)}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
-        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:safeEventValue(e), ubicacion:safeEventValue(e)}))} placeholder="Domicilio fiscal u operativo" /></div>
+        <div><div style={label}>Nombre de la empresa</div><input style={input} value={empForm.razon_social || authUser?.user_metadata?.empresa || authUser?.user_metadata?.company || ""} onChange={e=>setEmpForm(f=>({...f,razon_social:e.target.value}))} placeholder="Se autocompleta con la sesión activa" /></div>
+        <div><div style={label}>RFC</div><input style={input} value={empForm.rfc} onChange={e=>setEmpForm(f=>({...f,rfc:e.target.value.toUpperCase()}))}/></div>
+        <div><div style={label}>Tipo de empresa</div><select style={input} value={empForm.tipo_empresa} onChange={e=>setEmpForm(f=>({...f,tipo_empresa:e.target.value}))}>{POSTURAS_TIPO_EMPRESA.map(x=><option key={x}>{x}</option>)}</select></div>
+        <div><div style={label}>Domicilio</div><input style={input} value={empForm.domicilio || empForm.ubicacion || ""} onChange={e=>setEmpForm(f=>({...f,domicilio:e.target.value, ubicacion:e.target.value}))} placeholder="Domicilio fiscal u operativo" /></div>
         <FileInput field="logo_empresa" textLabel="Logo de la empresa" />
         <FileInput field="comprobante_domicilio" textLabel="Comprobante de domicilio" />
       </div>}
       {step === 2 && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:"10px" }}>
-        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:safeEventValue(e), representante:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:safeEventValue(e), telefono:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Nombre de contacto principal</div><input style={input} value={empForm.contacto_principal_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_nombre:e.target.value, representante:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_principal_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_principal_numero:e.target.value, telefono:e.target.value}))}/></div>
         <FileInput field="contacto_principal_foto" textLabel="Foto de contacto principal" />
-        <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:safeEventValue(e)}))}/></div>
-        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:safeEventValue(e), correo:safeEventValue(e)}))}/></div>
+        <div><div style={label}>Nombre de contacto secundario</div><input style={input} value={empForm.contacto_secundario_nombre||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_nombre:e.target.value}))}/></div>
+        <div><div style={label}>Teléfono</div><input style={input} value={empForm.contacto_secundario_numero||""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_numero:e.target.value}))}/></div>
+        <div><div style={label}>Correo</div><input style={input} type="email" value={empForm.contacto_secundario_correo || empForm.correo || ""} onChange={e=>setEmpForm(f=>({...f,contacto_secundario_correo:e.target.value, correo:e.target.value}))}/></div>
       </div>}
       <div style={{ display:"flex", justifyContent:"space-between", gap:"8px", marginTop:"14px", flexWrap:"wrap" }}>
         <div style={{ display:"flex", gap:"8px" }}>
@@ -25904,26 +24061,26 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         {existing && <div style={{ marginBottom:"16px", display:"inline-flex", alignItems:"center", gap:"7px", padding:"7px 10px", borderRadius:"8px", border:`1px solid ${expired ? "rgba(245,158,11,.38)" : "rgba(34,197,94,.30)"}`, background:expired ? "rgba(245,158,11,.09)" : "rgba(34,197,94,.08)", color:expired ? "#fbbf24" : "#86efac", fontSize:"9px", fontWeight:800, textTransform:"uppercase", letterSpacing:".08em" }}><VacancyLineIcon name="shield" size={14}/>{profileStatusLabel(existing)} · {profileDaysSinceUpdate(existing)} días</div>}
         {expired && <div style={{ margin:"0 0 18px", padding:"10px 12px", borderRadius:"9px", border:"1px solid rgba(245,158,11,.38)", background:"rgba(245,158,11,.09)", color:"#fbbf24", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:700, lineHeight:1.55 }}>Perfil empresarial suspendido por vigencia mayor a 90 días. Actualiza el registro empresarial antes de publicar nuevas vacantes.</div>}
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "minmax(0,3fr) minmax(180px,1fr)", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Título de la vacante</div><input className="cm-vacancy-input" style={{...fieldInput,textTransform:"uppercase"}} value={vacancyForm.titulo_vacante||""} onInput={e=>updateVacancyForm(f=>({...f,titulo_vacante:safeEventValue(e).toUpperCase()}))} placeholder="OPERADOR DE TRÁILER RUTA LOCAL" /></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Cantidad de operadores requerida</div><input className="cm-vacancy-input" type="number" min="1" step="1" style={fieldInput} value={vacancyForm.cantidad_operadores||""} onChange={e=>updateVacancyForm(f=>({...f,cantidad_operadores:safeEventValue(e)}))} placeholder="5" /></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Título de la vacante</div><input className="cm-vacancy-input" style={{...fieldInput,textTransform:"uppercase"}} value={vacancyForm.titulo_vacante||""} onInput={e=>updateVacancyForm(f=>({...f,titulo_vacante:e.currentTarget.value.toUpperCase()}))} placeholder="OPERADOR DE TRÁILER RUTA LOCAL" /></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Cantidad de operadores requerida</div><input className="cm-vacancy-input" type="number" min="1" step="1" style={fieldInput} value={vacancyForm.cantidad_operadores||""} onChange={e=>updateVacancyForm(f=>({...f,cantidad_operadores:e.target.value}))} placeholder="5" /></FocusWrap>
         </div>
         <FocusWrap style={{ marginBottom:"16px" }}><div style={fieldLabel}>Empresa de la vacante</div><div style={{position:"relative"}}><input className="cm-vacancy-input" style={{...fieldInput,width:"100%",paddingRight:"46px",opacity:.72,cursor:"not-allowed"}} value={companyName} readOnly /><span style={{position:"absolute",right:"14px",top:"50%",transform:"translateY(-50%)",color:"rgba(0,153,255,.65)",display:"grid",placeItems:"center"}}><VacancyLineIcon name="shield" size={18}/></span></div></FocusWrap>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(3,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Trabajo</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.estatus} onChange={e=>updateVacancyForm(f=>({...f,estatus:safeEventValue(e)}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Alcance</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.alcance} onChange={e=>updateVacancyForm(f=>({...f,alcance:safeEventValue(e)}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Tipo de viaje</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.tipo_viaje||"Local"} onChange={e=>updateVacancyForm(f=>({...f,tipo_viaje:safeEventValue(e)}))}><option>Local</option><option>Foráneo</option></select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Trabajo</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.estatus} onChange={e=>updateVacancyForm(f=>({...f,estatus:e.target.value}))}><option value="tiene_trabajo">Tiene trabajo</option><option value="lleno">Se encuentra lleno</option></select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Alcance</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.alcance} onChange={e=>updateVacancyForm(f=>({...f,alcance:e.target.value}))}>{POSTURAS_ALCANCE.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Tipo de viaje</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.tipo_viaje||"Local"} onChange={e=>updateVacancyForm(f=>({...f,tipo_viaje:e.target.value}))}><option>Local</option><option>Foráneo</option></select></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Tipo de maniobra requerida</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.maniobra_requerida||"Full"} onChange={e=>updateVacancyForm(f=>({...f,maniobra_requerida:safeEventValue(e)}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
-          <FocusWrap><div style={fieldLabel}>Licencia solicitada</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>updateVacancyForm(f=>({...f,licencia_solicitada:safeEventValue(e)}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Tipo de maniobra requerida</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.maniobra_requerida||"Full"} onChange={e=>updateVacancyForm(f=>({...f,maniobra_requerida:e.target.value}))}>{POSTURAS_MANIOBRAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Licencia solicitada</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.licencia_solicitada||"Federal tipo B - Carga general"} onChange={e=>updateVacancyForm(f=>({...f,licencia_solicitada:e.target.value}))}>{POSTURAS_LICENCIAS.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"16px", marginBottom:"16px" }}>
-          <FocusWrap><div style={fieldLabel}>Método de pago ofrecido</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>updateVacancyForm(f=>({...f,metodo_pago_ofrecido:safeEventValue(e)}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
+          <FocusWrap><div style={fieldLabel}>Método de pago ofrecido</div><select className="cm-vacancy-input" style={fieldInput} value={vacancyForm.metodo_pago_ofrecido||"Transferencia"} onChange={e=>updateVacancyForm(f=>({...f,metodo_pago_ofrecido:e.target.value}))}>{POSTURAS_PAGO.map(x=><option key={x}>{x}</option>)}</select></FocusWrap>
           <FocusWrap><div style={fieldLabel}>Imagen para ofrecer la vacante</div><input className="cm-vacancy-input" type="file" accept="image/*" style={{...fieldInput,padding:"9px 12px"}} onChange={e=>{ setIsVacancyDirty(true); handleFileMeta(setVacancyForm,"imagen_vacante",e.target.files); }} /><div style={{ color:"rgba(191,199,213,.48)", fontSize:"9px", marginTop:"5px", fontFamily:"'Inter', sans-serif" }}>{encryptedUploadFields.imagen_vacante ? "Cifrando y almacenando" : encryptedFileLabel(vacancyForm.imagen_vacante)}</div></FocusWrap>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px", paddingBottom:"24px", borderBottom:"1px solid rgba(63,71,83,.30)" }}>
-          <FocusWrap style={{display:tripIsLocal ? "block" : "none"}}><div style={fieldLabel}>Pago ofrecido viaje local</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#9fcaff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_local_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_local_ofrecido:safeEventValue(e)}))} placeholder={`Rango local ${salarioMinEmpresaLocal} a ${salarioMaxEmpresaLocal}`} /></div></FocusWrap>
-          <FocusWrap style={{display:tripIsLocal ? "none" : "block"}}><div style={fieldLabel}>Pago ofrecido viaje foráneo</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#bdf4ff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_foraneo_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_foraneo_ofrecido:safeEventValue(e)}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} a ${salarioMaxEmpresaForaneo}`} /></div></FocusWrap>
+          <FocusWrap style={{display:tripIsLocal ? "block" : "none"}}><div style={fieldLabel}>Pago ofrecido viaje local</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#9fcaff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_local_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_local_ofrecido:e.target.value}))} placeholder={`Rango local ${salarioMinEmpresaLocal} a ${salarioMaxEmpresaLocal}`} /></div></FocusWrap>
+          <FocusWrap style={{display:tripIsLocal ? "none" : "block"}}><div style={fieldLabel}>Pago ofrecido viaje foráneo</div><div style={{position:"relative"}}><span style={{position:"absolute",left:"14px",top:"50%",transform:"translateY(-50%)",color:"#bdf4ff",display:"grid",placeItems:"center"}}><VacancyLineIcon name="money" size={18}/></span><input className="cm-vacancy-input" type="text" inputMode="numeric" style={{...fieldInput,width:"100%",paddingLeft:"44px"}} value={vacancyForm.salario_foraneo_ofrecido||""} onChange={e=>updateVacancyForm(f=>({...f,salario_foraneo_ofrecido:e.target.value}))} placeholder={`Rango foráneo ${salarioMinEmpresaForaneo} a ${salarioMaxEmpresaForaneo}`} /></div></FocusWrap>
         </div>
         <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"12px", marginTop:"22px", flexWrap:"wrap" }}>
           <button type="button" className="cm-vacancy-secondary" onClick={()=>{closeVacancyModal();setCompanyFormMode("registro");setEmpWizardStep(1);}} style={{ minHeight:"44px", padding:"0 20px", borderRadius:"8px", border:"1px solid #3f4753", background:"transparent", color:"#bfc7d5", fontFamily:"'Inter', sans-serif", fontSize:"10px", fontWeight:800, letterSpacing:".08em", textTransform:"uppercase", cursor:"pointer", transition:"all .25s ease" }}>Cerrar o editar registro empresarial</button>
@@ -25945,7 +24102,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setPisResult({ ok:false, status:"sesion_requerida", message:"Inicia sesión en Conect Manzanillo para realizar consultas de Boletinados." });
       return;
     }
-    const id = String(pisIdInputRef.current?.value ?? pisForm.id ?? "").trim();
+    const id = String(pisForm.id || "").trim();
     if (!pisForm.asipona || !pisForm.tipo || !id) {
       setPisResult({ ok:false, status:"incompleto", message:"Selecciona ASIPONA, tipo de documento y escribe el ID." });
       return;
@@ -25955,16 +24112,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       return;
     }
 
-    const requestId = ++pisRequestRef.current;
-    const isCurrentRequest = () => pisRequestRef.current === requestId;
-    clearPisSlowTimer();
-    setPisTakingLong(false);
     setPisLoading(true);
     setPisResult(null);
-    pisSlowTimerRef.current = setTimeout(() => {
-      if (isCurrentRequest()) setPisTakingLong(true);
-    }, 7000);
-
     const contactAlreadyUnlocked = hasPisContactUnlock();
 
     const payload = {
@@ -25978,10 +24127,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     ).trim();
 
     try {
-      const invokeResponse = await invokePisEdgeFunction(payload);
-
-      if (!isCurrentRequest()) return;
-      const { data, error } = invokeResponse || {};
+      const { data, error } = await sb.functions.invoke(PIS_EDGE_FUNCTION, { body: payload });
       if (error) throw error;
 
       const result = data || {};
@@ -26031,16 +24177,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       savePisHistory(normalized);
       auditLog({ action:"pis_verificacion_documento", section:"posturas_boletinados", entityId:`${payload.asipona}-${payload.tipo}-${payload.id}`, after:{ summary:`Consulta PIS ${payload.asipona} ${payload.tipo} ${payload.id}`, valid:normalized.valid, message:normalized.message }, actor:authUser?.email || myId || "Usuario" });
     } catch (e) {
-      if (!isCurrentRequest()) return;
-      const isTimeout = e?.code === "PIS_TIMEOUT" || String(e?.message || "").toLowerCase() === "timeout";
       const fallback = {
         ok:false,
         valid:false,
-        status:isTimeout ? "timeout_pis" : "backend_no_configurado",
-        message:isTimeout
-          ? "La consulta a PIS/SEMAR está tardando demasiado. Puedes reintentar o verificar directamente en el portal oficial."
-          : "No se pudo consultar PIS/SEMAR desde la app. Revisa que la Edge Function smooth-service esté desplegada, pública y con el código correcto.",
-        detail:isTimeout ? "timeout" : (e?.message || String(e)),
+        status:"backend_no_configurado",
+        message:"No se pudo consultar PIS/SEMAR desde la app. Revisa que la Edge Function smooth-service esté desplegada, pública y con el código correcto.",
+        detail:e?.message || String(e),
         query:payload,
         checked_at:new Date().toISOString(),
       };
@@ -26050,11 +24192,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       setPisResult(fallback);
       setPisContactMessage(`Hola, solicito información específica sobre boletinaje. Consulta realizada: ${payload.asipona} · ${payload.tipo}-${payload.id}. No fue posible validar desde Conect Manzanillo.`);
     } finally {
-      if (isCurrentRequest()) {
-        clearPisSlowTimer();
-        setPisTakingLong(false);
-        setPisLoading(false);
-      }
+      setPisLoading(false);
     }
   };
 
@@ -26165,62 +24303,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
             <div style={{ display:"grid", gridTemplateColumns:posturasMobile ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px", minWidth:0 }}>
               <div>
                 <div style={label}>ASIPONA</div>
-                <select style={{ ...input, background:"rgba(39,54,71,.96)" }} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:safeEventValue(e)}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
+                <select style={{ ...input, background:"rgba(39,54,71,.96)" }} value={pisForm.asipona} onChange={e=>setPisForm(f=>({...f, asipona:e.target.value}))}>{PIS_ASIPONAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
               </div>
               <div>
                 <div style={label}>Tipo</div>
-                <select style={{ ...input, border:"1px solid rgba(161,201,255,.88)", background:"rgba(51,68,91,.95)" }} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:safeEventValue(e)}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select>
+                <select style={{ ...input, border:"1px solid rgba(161,201,255,.88)", background:"rgba(51,68,91,.95)" }} value={pisForm.tipo} onChange={e=>setPisForm(f=>({...f, tipo:e.target.value}))}>{PIS_DOC_TYPES.map(x=><option key={x} value={x}>{x}</option>)}</select>
               </div>
               <div style={{ gridColumn:"1 / -1" }}>
                 <div style={label}>ID</div>
-                <input
-                  ref={pisIdInputRef}
-                  id="pis-document-id"
-                  name="pis_document_id"
-                  style={{ ...input, background:"rgba(39,54,71,.96)", WebkitUserSelect:"text", userSelect:"text", touchAction:"manipulation" }}
-                  type="text"
-                  inputMode="numeric"
-                  enterKeyHint="search"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="Ej. 36938"
-                  defaultValue={pisForm.id}
-                  onInput={e=>{
-                    const field = e?.currentTarget ?? e?.target ?? null;
-                    if (!field || !("value" in field)) return;
-
-                    const raw = String(field.value ?? "");
-                    const normalized = raw.replace(/[^0-9]/g, "");
-                    if (raw !== normalized) {
-                      const cursor = typeof field.selectionStart === "number" ? field.selectionStart : null;
-                      try { field.value = normalized; } catch (_) { return; }
-
-                      if (typeof cursor === "number") {
-                        const removedBeforeCursor = raw.slice(0, cursor).replace(/[0-9]/g, "").length;
-                        const nextCursor = Math.max(0, cursor - removedBeforeCursor);
-                        requestAnimationFrame(() => {
-                          if (!field?.isConnected || typeof field.setSelectionRange !== "function") return;
-                          try { field.setSelectionRange(nextCursor, nextCursor); } catch (_) {}
-                        });
-                      }
-                    }
-                  }}
-                  onBlur={e=>setPisForm(f=>({...f, id:safeEventValue(e)}))}
-                  onPaste={e=>{
-                    const pasted = e.clipboardData?.getData("text") || "";
-                    if (!pasted) return;
-                    e.preventDefault();
-                    const digits = pasted.replace(/[^0-9]/g, "");
-                    const field = e.currentTarget;
-                    const start = field.selectionStart ?? field.value.length;
-                    const end = field.selectionEnd ?? start;
-                    field.setRangeText(digits, start, end, "end");
-                    field.dispatchEvent(new Event("input", { bubbles:true }));
-                  }}
-                  onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }}
-                />
+                <input style={{ ...input, background:"rgba(39,54,71,.96)" }} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Ej. 36938" value={pisForm.id} onChange={e=>{ const nextId = e.currentTarget.value.replace(/[^0-9]/g, ""); setPisForm(f=>({...f, id:nextId})); }} onKeyDown={e=>{ if(e.key === "Enter") verifyPisDocument(); }} />
               </div>
             </div>
 
@@ -26229,18 +24320,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                 {pisDocumentCheckIcon({ size: 18, color: "#ffffff" })}
                 {pisLoading ? "Consultando…" : ((!authUser && !isAdmin) ? "Inicia sesión para consultar" : "Verificar documento")}
               </button>
-              <button onClick={()=>{ if (pisIdInputRef.current) pisIdInputRef.current.value = ""; setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
+              <button onClick={()=>{ setPisForm({ asipona:"MANZANILLO", tipo:"Sin especificar", id:"" }); setPisResult(null); setPisContactMessage(""); setPisEmailCopied(false); setPisCopiedField(""); setPisContactUnlocked(hasPisContactUnlock()); setPisUnlockRequested(false); setPisUnlockSeconds(0); setPisDonateOpen(false); }} style={{ ...pisActionBtn, background:"rgba(148,163,184,.28)", color:"#d4e4fa", border:"1px solid rgba(148,163,184,.30)", flex:posturasMobile ? "1 1 calc(50% - 6px)" : "0 1 160px" }}>Limpiar</button>
               <a href="https://pis.semar.gob.mx/#/login" target="_blank" rel="noopener noreferrer" style={{ ...pisActionBtn, background:"transparent", color:"#d4e4fa", border:"1px solid rgba(161,201,255,.38)", flex:posturasMobile ? "1 1 100%" : "0 1 220px" }}>
                 {pisShieldIcon({ size: 18 })}
                 Abrir PIS oficial
               </a>
             </div>
-            {pisLoading && pisTakingLong && (
-              <div role="status" aria-live="polite" style={{ marginTop:"12px", display:"flex", alignItems:"flex-start", gap:"9px", padding:"11px 13px", borderRadius:"12px", border:"1px solid rgba(161,201,255,.22)", background:"rgba(8,24,42,.58)", color:"rgba(212,228,250,.78)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, backdropFilter:"blur(12px)" }}>
-                <MS name="schedule" size={18} active color="#9fcaff" style={{ marginTop:"1px" }} />
-                <span>Esto está tardando más de lo normal, seguimos esperando respuesta de PIS/SEMAR…</span>
-              </div>
-            )}
           </section>
 
           {pisResult && (
@@ -26248,16 +24333,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", marginBottom:"8px" }}>
                 <div style={{ minWidth:0, flex:1 }}>
                   <div style={{ fontFamily:getFont(theme,"title"), fontSize:posturasMobile ? "clamp(26px, 9vw, 40px)" : "clamp(40px, 4vw, 54px)", lineHeight:1.02, color:resultTone.title, fontWeight:"900", letterSpacing:"-.03em", overflowWrap:"anywhere" }}>
-                    {pisResult.status === "timeout_pis" ? "Tiempo de espera agotado" : (pisResult.status === "backend_no_configurado" ? "Servicio no disponible" : (pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")))}
+                    {pisResult.status === "sin_respuesta_pis" ? "Sin confirmación PIS" : (pisResult.ok ? (pisResult.valid ? `${pisForm.tipo} válido.` : `${pisForm.tipo} no válido.`) : "Consulta pendiente")}
                   </div>
                   <div style={{ marginTop:"6px", fontFamily:getFont(theme,"secondary"), fontSize:"clamp(13px, 3.7vw, 15px)", color:resultTone.title, lineHeight:1.55, fontWeight:"500", overflowWrap:"break-word" }}>{pisResult.message}</div>
                   {pisResult.detail && <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"rgba(255,255,255,.46)", wordBreak:"break-word" }}>{pisResult.detail}</div>}
-                  {["timeout_pis", "backend_no_configurado"].includes(pisResult.status) && (
-                    <button type="button" onClick={verifyPisDocument} disabled={pisLoading} style={{ marginTop:"14px", minHeight:"42px", padding:"0 16px", borderRadius:"11px", border:"1px solid rgba(161,201,255,.46)", background:"linear-gradient(135deg, rgba(18,149,240,.96), rgba(37,137,232,.92))", color:"#041d35", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"9px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".05em", textTransform:"uppercase", cursor:pisLoading ? "wait" : "pointer", opacity:pisLoading ? .58 : 1, boxShadow:"0 10px 24px rgba(0,150,255,.18)" }}>
-                      <MS name="refresh" size={18} active color="#041d35" />
-                      {pisLoading ? "Reintentando…" : "Reintentar consulta"}
-                    </button>
-                  )}
                 </div>
                 <div style={{ width:posturasMobile ? "52px" : "64px", height:posturasMobile ? "52px" : "64px", flexShrink:0, borderRadius:"999px", display:"grid", placeItems:"center", background: pisResult.ok ? (pisResult.valid ? "rgba(52,211,153,.16)" : "rgba(248,113,113,.16)") : "rgba(251,191,36,.14)", border:`1px solid ${resultTone.border}` }}>
                   <AppIcon name={resultTone.icon} size={posturasMobile ? 24 : 28} active />
@@ -26317,7 +24396,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                     </div>
                     <textarea
                       value={pisContactMessage}
-                      onChange={e=>setPisContactMessage(safeEventValue(e))}
+                      onChange={e=>setPisContactMessage(e.target.value)}
                       placeholder="Escribe aquí tu consulta específica para ASIPONA..."
                       rows={3}
                       style={{ ...input, resize:"vertical", minHeight:"78px", marginBottom:"10px" }}
@@ -27038,7 +25117,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend={talentAvgTrend} spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
         <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend={companyAvgTrend} spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
       </div>
-      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(safeEventValue(e));setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
+      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
       <section className="cm-talent-ranking">
         <div className="cm-talent-ranking-head"><h2>Ranking de Reputación</h2><div className="cm-talent-tabs"><button className={`cm-talent-tab ${dashboardTarget === "perfiles" ? "active" : ""}`} onClick={()=>{setDashboardTarget("perfiles");setDashboardPage(1);}}>TALENTO</button><button className={`cm-talent-tab ${dashboardTarget === "empresas" ? "active" : ""}`} onClick={()=>{setDashboardTarget("empresas");setDashboardPage(1);}}>EMPRESAS</button></div></div>
         <div className="cm-talent-table-wrap"><table className="cm-talent-table"><thead><tr><th>Ranking</th><th>Usuario / Empresa</th><th>Reputación</th><th>Estado</th><th style={{textAlign:"right"}}>Acciones</th></tr></thead><tbody>
@@ -27085,520 +25164,32 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     </section>;
   };
 
-  const TicketSymbol = ({ name, size = 24, filled = false, color = "currentColor", className = "", style = {}, title = "" }) => {
-    const common = {
-      width:size,
-      height:size,
-      viewBox:"0 0 24 24",
-      fill:"none",
-      xmlns:"http://www.w3.org/2000/svg",
-      "aria-hidden":title ? undefined : "true",
-      role:title ? "img" : undefined,
-      className,
-      style:{display:"block",flex:"0 0 auto",color,...style},
-    };
-    const p = { stroke:"currentColor", strokeWidth:2, strokeLinecap:"round", strokeLinejoin:"round" };
-    let body;
-    switch (name) {
-      case "shield": body=<><path d="M12 3 5.5 5.6v5.3c0 4.4 2.7 8.4 6.5 10.1 3.8-1.7 6.5-5.7 6.5-10.1V5.6L12 3Z" {...p} fill={filled?"currentColor":"none"}/>{!filled&&<path d="M9.4 12.1 11 13.7l3.8-4" {...p}/>}</>; break;
-      case "potted_plant": body=<><path d="M8 13h8l-1 7H9l-1-7Z" {...p}/><path d="M12 13V8M12 8c-2.8 0-4.5-1.6-4.5-4 2.8 0 4.5 1.6 4.5 4ZM12 10c2.8 0 4.5-1.6 4.5-4-2.8 0-4.5 1.6-4.5 4ZM7 20h10" {...p}/></>; break;
-      case "terminal": body=<><rect x="3" y="5" width="18" height="14" rx="2" {...p}/><path d="m7 9 3 3-3 3M12.5 15H17" {...p}/></>; break;
-      case "hub": body=<><circle cx="12" cy="12" r="2.5" {...p}/><circle cx="5" cy="5" r="2" {...p}/><circle cx="19" cy="5" r="2" {...p}/><circle cx="5" cy="19" r="2" {...p}/><circle cx="19" cy="19" r="2" {...p}/><path d="m10.3 10.3-3.9-3.9m7.3 3.9 3.9-3.9m-7.3 7.3-3.9 3.9m7.3-3.9 3.9 3.9" {...p}/></>; break;
-      case "encrypted": body=<><path d="M12 3 5.5 5.6v5.3c0 4.4 2.7 8.4 6.5 10.1 3.8-1.7 6.5-5.7 6.5-10.1V5.6L12 3Z" {...p}/><rect x="9" y="10.5" width="6" height="5" rx="1" {...p}/><path d="M10.5 10.5V9a1.5 1.5 0 0 1 3 0v1.5" {...p}/></>; break;
-      case "image": body=<><rect x="3" y="4" width="18" height="16" rx="2" {...p}/><circle cx="9" cy="9" r="1.5" {...p}/><path d="m5 17 4.5-4.5 3 3 2-2L19 18" {...p}/></>; break;
-      case "add_photo_alternate": body=<><rect x="3" y="5" width="14" height="14" rx="2" {...p}/><circle cx="8" cy="10" r="1.4" {...p}/><path d="m5 17 3.8-3.8 2.7 2.7 1.8-1.8L16 17M20 4v6M17 7h6" {...p}/></>; break;
-      case "schedule": body=<><circle cx="12" cy="12" r="9" {...p}/><path d="M12 7v5l3.5 2" {...p}/></>; break;
-      case "send": body=<><path d="m3 4 18 8-18 8 3-8-3-8Z" {...p} fill={filled?"currentColor":"none"}/><path d="M6 12h15" {...p}/></>; break;
-      case "hourglass_top": body=<><path d="M7 3h10M7 21h10M8 3c0 4 1.5 6 4 8-2.5 2-4 4-4 10M16 3c0 4-1.5 6-4 8 2.5 2 4 4 4 10" {...p}/></>; break;
-      case "refresh": body=<><path d="M20 6v5h-5M4 18v-5h5" {...p}/><path d="M18.2 9A7 7 0 0 0 6 6.8L4 9m2 6a7 7 0 0 0 12 2.2L20 15" {...p}/></>; break;
-      case "radar": body=<><circle cx="12" cy="12" r="9" {...p} fill={filled?"currentColor":"none"} fillOpacity={filled?.08:0}/><circle cx="12" cy="12" r="5" {...p}/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 12 18.5 5.5" {...p}/></>; break;
-      case "error": body=<><circle cx="12" cy="12" r="9" {...p} fill={filled?"currentColor":"none"}/>{filled?<><path d="M12 7.5v6" stroke="#690005" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="17" r="1" fill="#690005"/></>:<><path d="M12 7.5v6" {...p}/><circle cx="12" cy="17" r="1" fill="currentColor"/></>}</>; break;
-      case "image_not_supported": body=<><rect x="3" y="4" width="18" height="16" rx="2" {...p}/><path d="m4 4 16 16M7 16l3-3 2 2" {...p}/></>; break;
-      case "close": body=<path d="M6 6l12 12M18 6 6 18" {...p}/>; break;
-      default: body=<circle cx="12" cy="12" r="9" {...p}/>;
-    }
-    return <svg {...common}>{title&&<title>{title}</title>}{body}</svg>;
-  };
-
   const TicketStatusChip = ({ value }) => {
     const meta=QUEJAS_STATUS[value]||QUEJAS_STATUS.pendiente;
     return <span style={{display:"inline-flex",alignItems:"center",gap:"6px",padding:"5px 9px",borderRadius:"999px",background:meta.bg,border:`1px solid ${meta.color}55`,color:meta.color,fontSize:"11px",fontWeight:800}}><span style={{width:"6px",height:"6px",borderRadius:"50%",background:meta.color,boxShadow:`0 0 10px ${meta.color}66`}}/>{meta.label}</span>;
   };
   const TicketsHelpdesk = () => {
-    const typeMeta = (value) =>
-      QUEJAS_TICKET_TYPES.find((item) => item.value === value) ||
-      { label:"Sin categoría", icon:"report_problem" };
-
-    const filtered = safeArray(tickets).filter(Boolean);
-    const evidenceInputRef = useRef(null);
-
-    const MaterialTicketIcon = ({
-      name,
-      className = "",
-      filled = false,
-      style = {},
-      title = "",
-    }) => (
-      <span
-        className={`material-symbols-outlined ${className}`.trim()}
-        aria-hidden={title ? undefined : "true"}
-        role={title ? "img" : undefined}
-        title={title || undefined}
-        style={{
-          fontVariationSettings:`'FILL' ${filled ? 1 : 0}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
-          ...style,
-        }}
-      >
-        {name}
-      </span>
-    );
-
-    const openFilePicker = () => {
-      const inputNode = evidenceInputRef?.current ?? null;
-      if (inputNode && typeof inputNode.click === "function") inputNode.click();
-    };
-
-    const formatTicketDate = (value) => {
-      const date = value ? new Date(value) : null;
-      return date && Number.isFinite(date.getTime())
-        ? date.toLocaleString("es-MX")
-        : "Fecha no disponible";
-    };
-
-    return (
-      <div className="cm-ticket-portal max-w-container-max mx-auto p-gutter space-y-8">
-        {!isAdmin && (
-          <section className="glass-card rounded-xl overflow-hidden">
-            <div className="glass-header p-6 flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary">
-                <MaterialTicketIcon name="shield" filled />
-              </div>
-              <div>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface">Quejas</h2>
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  Describe el problema y adjunta evidencia segura si es necesario para nuestra terminal de inteligencia.
-                </p>
-              </div>
-            </div>
-
-            <form
-              className="p-8 space-y-8"
-              onSubmit={(event) => {
-                event?.preventDefault?.();
-                if (!ticketSubmitting) createTicket();
-              }}
-            >
-              <div className="space-y-3">
-                <label className="font-label-caps text-label-caps text-primary block">
-                  TIPO DE REPORTE
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {QUEJAS_TICKET_TYPES.map((item) => (
-                    <label key={item.value} className="relative group cursor-pointer">
-                      <input
-                        className="peer sr-only"
-                        name="category"
-                        type="radio"
-                        value={item.value}
-                        checked={(ticketForm?.tipo_reporte ?? "") === item.value}
-                        disabled={ticketSubmitting}
-                        onChange={(event) => {
-                          const nextValue = event?.currentTarget?.value ?? "";
-                          setTicketForm((previous) => ({
-                            ...(previous ?? {}),
-                            tipo_reporte:nextValue,
-                          }));
-                        }}
-                      />
-                      <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-outline-variant bg-surface-container-low peer-checked:bg-primary/10 peer-checked:border-primary transition-all duration-300 group-hover:bg-surface-container">
-                        <MaterialTicketIcon name={item.icon} className="text-primary mb-2" />
-                        <span className="font-mono-label text-mono-label">{item.label}</span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label
-                  htmlFor="ticket-comments"
-                  className="font-label-caps text-label-caps text-primary block"
-                >
-                  COMENTARIOS
-                </label>
-                <textarea
-                  id="ticket-comments"
-                  className="w-full border border-outline-variant rounded-xl p-4 font-body-md text-body-md focus:ring-0 outline-none cyan-glow transition-all duration-300 placeholder:text-on-surface-variant/30 bg-surface-container-low text-on-surface"
-                  value={ticketForm?.comentarios ?? ""}
-                  disabled={ticketSubmitting}
-                  onChange={(event) => {
-                    const nextValue = event?.currentTarget?.value ?? "";
-                    setTicketForm((previous) => ({
-                      ...(previous ?? {}),
-                      comentarios:nextValue,
-                    }));
-                  }}
-                  placeholder="Explica qué ocurrió, dónde y qué resultado esperabas. Sé específico con los códigos de error encontrados."
-                  rows={6}
-                />
-              </div>
-
-              <div className="border-2 border-dashed border-outline-variant rounded-xl p-8 bg-surface-container-low/50 transition-all duration-300 hover:border-secondary-container flex flex-col gap-6">
-                <input
-                  ref={evidenceInputRef}
-                  className="hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  onChange={addTicketEvidence}
-                />
-
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center">
-                      <MaterialTicketIcon name="image" className="text-on-surface-variant" />
-                    </div>
-                    <div>
-                      <h4 className="font-headline-sm text-[16px] text-on-surface">
-                        Evidencia en imagen
-                      </h4>
-                      <p className="font-body-md text-body-md text-on-surface-variant">
-                        Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn-gradient px-6 py-3 rounded-full font-label-caps text-label-caps text-on-primary flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                    type="button"
-                    disabled={ticketSubmitting}
-                    onClick={openFilePicker}
-                  >
-                    <MaterialTicketIcon name="add_photo_alternate" />
-                    ADJUNTAR IMÁGENES
-                  </button>
-                </div>
-
-                {!!safeArray(ticketForm?.evidencia).length && (
-                  <div className="flex flex-wrap gap-3">
-                    {safeArray(ticketForm?.evidencia).map((item, index) => (
-                      <div
-                        key={`${item?.name ?? "imagen"}-${index}`}
-                        className="relative w-24 h-20 rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low"
-                      >
-                        <img
-                          src={item?.preview ?? ""}
-                          alt={`Evidencia ${index + 1}`}
-                          className="w-full h-full object-cover block"
-                        />
-                        <button
-                          type="button"
-                          disabled={ticketSubmitting}
-                          aria-label={`Quitar imagen ${index + 1}`}
-                          onClick={() => removeTicketEvidence(index)}
-                          className="absolute top-1 right-1 w-7 h-7 p-0 rounded-full border border-error bg-error-container/80 text-error flex items-center justify-center disabled:opacity-60"
-                        >
-                          <MaterialTicketIcon name="close" className="text-[17px]" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col md:flex-row items-center justify-between border-t border-outline-variant pt-8 gap-4">
-                <div className="flex items-center gap-2 text-on-surface-variant">
-                  <MaterialTicketIcon name="schedule" className="text-[18px]" />
-                  <p className="font-body-md text-body-md">
-                    La fecha y hora se registran automáticamente en el sistema.
-                  </p>
-                </div>
-
-                <button
-                  className="animate-pulse-cyan w-full md:w-auto px-10 py-4 bg-primary text-on-primary font-headline-sm text-headline-sm rounded-xl flex items-center justify-center gap-3 hover:shadow-[0_0_25px_rgba(159,202,255,0.4)] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
-                  type="submit"
-                  disabled={ticketSubmitting}
-                >
-                  <MaterialTicketIcon name={ticketSubmitting ? "hourglass_top" : "send"} />
-                  {ticketSubmitting ? "ENVIANDO..." : "ENVIAR TICKET"}
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        <section className="glass-card rounded-xl">
-          <div className="glass-header p-6 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <h2 className="font-headline-sm text-headline-sm text-on-surface">
-                {isAdmin ? "Todos los tickets" : "Mis tickets"}
-              </h2>
-              <span className="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full font-mono-label text-mono-label">
-                {filtered.length} ticket(s)
-              </span>
-            </div>
-
-            <button
-              className="rotate-hover flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-full text-on-surface-variant hover:text-primary transition-colors disabled:opacity-60 disabled:cursor-wait"
-              type="button"
-              disabled={ticketsLoading}
-              onClick={loadTickets}
-            >
-              <MaterialTicketIcon
-                name="refresh"
-                className={`rotate-icon ${ticketsLoading ? "cm-ticket-refresh-active" : ""}`}
-              />
-              <span className="font-label-caps text-label-caps">ACTUALIZAR</span>
-            </button>
-          </div>
-
-          {ticketsLoading ? (
-            <div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
-              <div className="relative w-48 h-48 flex items-center justify-center animate-pulse-cyan">
-                <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping opacity-20" />
-                <div
-                  className="absolute inset-4 border-2 border-primary/40 rounded-full animate-ping opacity-10"
-                  style={{ animationDelay:"0.5s" }}
-                />
-                <div className="w-32 h-32 rounded-full border border-primary/30 flex items-center justify-center bg-surface-container-low shadow-inner">
-                  <MaterialTicketIcon
-                    name="radar"
-                    filled
-                    className="text-primary text-5xl"
-                  />
-                </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none">
-                  <div className="w-full h-full bg-gradient-to-tr from-transparent to-primary/20 rounded-full animate-[spin_4s_linear_infinite]" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-headline-sm text-headline-sm text-on-surface">
-                  Consultando el núcleo de tickets
-                </h3>
-                <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
-                  Sincronizando registros seguros con el núcleo central.
-                </p>
-              </div>
-            </div>
-          ) : ticketsError ? (
-            <div className="m-6 p-5 rounded-xl border border-error bg-error-container/20 text-error flex items-start gap-3">
-              <MaterialTicketIcon name="error" filled />
-              <div>
-                <h3 className="font-headline-sm text-[16px]">Error de conexión</h3>
-                <p className="font-body-md text-body-md mt-1">{ticketsError}</p>
-              </div>
-            </div>
-          ) : !filtered.length ? (
-            <div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
-              <div className="relative w-48 h-48 flex items-center justify-center">
-                <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping opacity-20" />
-                <div
-                  className="absolute inset-4 border-2 border-primary/40 rounded-full animate-ping opacity-10"
-                  style={{ animationDelay:"0.5s" }}
-                />
-                <div className="w-32 h-32 rounded-full border border-primary/30 flex items-center justify-center bg-surface-container-low shadow-inner">
-                  <MaterialTicketIcon
-                    name="radar"
-                    filled
-                    className="text-primary text-5xl"
-                  />
-                </div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none">
-                  <div className="w-full h-full bg-gradient-to-tr from-transparent to-primary/20 rounded-full animate-[spin_4s_linear_infinite]" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-headline-sm text-headline-sm text-on-surface">
-                  Sin registros detectados
-                </h3>
-                <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
-                  No se han encontrado tickets activos en tu terminal. Los nuevos incidentes aparecerán aquí una vez que sean validados por el núcleo central.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="custom-scrollbar p-gutter grid grid-cols-1 lg:grid-cols-2 gap-gutter">
-              {filtered.map((ticket, index) => {
-                const type = typeMeta(ticket?.tipo_reporte);
-                const evidence = safeArray(ticket?.evidencia);
-                const open = ticketExpanded === ticket?.id;
-
-                return (
-                  <article
-                    key={ticket?.id ?? `ticket-${index}`}
-                    className="glass-card rounded-xl overflow-hidden cm-ticket-reveal"
-                    style={{ animationDelay:`${Math.min(index, 8) * 45}ms` }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setTicketExpanded(open ? null : (ticket?.id ?? null))}
-                      className="w-full p-0 border-0 bg-transparent text-left text-on-surface cursor-pointer"
-                    >
-                      <div className="glass-header p-4 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
-                            <MaterialTicketIcon name={type.icon} />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-headline-sm text-[16px] text-on-surface truncate">
-                              {type.label}
-                            </h3>
-                            <p className="font-mono-label text-mono-label text-outline truncate">
-                              #{String(ticket?.id ?? "").slice(0, 12).toUpperCase()}
-                            </p>
-                          </div>
-                        </div>
-                        <TicketStatusChip value={ticket?.estatus} />
-                      </div>
-
-                      <div className="p-4 space-y-4">
-                        <p
-                          className={`font-body-md text-body-md text-on-surface-variant whitespace-pre-wrap ${
-                            open ? "" : "line-clamp-3"
-                          }`}
-                        >
-                          {ticket?.comentarios ?? "Sin comentarios."}
-                        </p>
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
-                          <span className="font-mono-label text-mono-label text-outline">
-                            {formatTicketDate(ticket?.fecha_creacion)}
-                          </span>
-                          <span
-                            className={`font-mono-label text-mono-label flex items-center gap-2 ${
-                              evidence.length ? "text-secondary" : "text-outline"
-                            }`}
-                          >
-                            <MaterialTicketIcon
-                              name={evidence.length ? "image" : "image_not_supported"}
-                              className="text-[18px]"
-                            />
-                            {evidence.length}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-
-                    {!!evidence.length && (
-                      <div className="px-4 pb-4 flex flex-wrap gap-2">
-                        {evidence.map((image, imageIndex) => (
-                          <button
-                            key={image?.id ?? `${image?.path ?? "image"}-${imageIndex}`}
-                            type="button"
-                            onClick={() => getTicketEvidenceUrl(image)}
-                            aria-label={`Abrir evidencia ${imageIndex + 1}`}
-                            className="w-16 h-14 rounded-lg border border-outline-variant bg-surface-container-low text-primary flex items-center justify-center hover:border-secondary-container transition-colors duration-300"
-                          >
-                            <MaterialTicketIcon name="image" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <style>{`
-          @keyframes cmTicketReveal {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes cmTicketRefreshSpin {
-            to { transform: rotate(360deg); }
-          }
-          .cm-ticket-reveal {
-            opacity: 0;
-            animation: cmTicketReveal 300ms ease forwards;
-          }
-          .cm-ticket-refresh-active {
-            animation: cmTicketRefreshSpin 1s linear infinite;
-          }
-          .cm-ticket-portal {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px;
-            box-sizing: border-box;
-            color: #e0e3e5;
-            font-family: Inter, sans-serif;
-          }
-          .cm-ticket-portal .glass-card {
-            background: rgba(25, 28, 30, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(137, 145, 158, 0.15);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-          }
-          .cm-ticket-portal .glass-header {
-            background: rgba(255, 255, 255, 0.03);
-            border-bottom: 1px solid rgba(137, 145, 158, 0.1);
-          }
-          .cm-ticket-portal .btn-gradient {
-            background: linear-gradient(135deg, #0099ff 0%, #00daf3 100%) !important;
-            color: #003259 !important;
-            border: 0;
-            opacity: 1;
-            box-shadow: none;
-          }
-          .cm-ticket-portal .btn-gradient:hover:not(:disabled) {
-            box-shadow: 0 0 20px rgba(0, 218, 243, 0.6);
-            transform: translateY(-1px);
-          }
-          .cm-ticket-portal button.bg-primary {
-            background: #9fcaff !important;
-            color: #003259 !important;
-            border-color: transparent !important;
-          }
-          .cm-ticket-portal button:disabled {
-            opacity: .60;
-          }
-          .cm-ticket-portal .text-on-surface { color:#e0e3e5 !important; }
-          .cm-ticket-portal .text-on-surface-variant { color:#bfc7d5 !important; }
-          .cm-ticket-portal .text-on-primary { color:#003259 !important; }
-          .cm-ticket-portal .text-primary { color:#9fcaff !important; }
-          .cm-ticket-portal .bg-surface-container-low { background-color:#191c1e !important; }
-          .cm-ticket-portal .bg-surface-container-highest { background-color:#323537 !important; }
-          .cm-ticket-portal .border-outline-variant { border-color:#3f4753 !important; }
-          .cm-ticket-portal .border-primary { border-color:#9fcaff !important; }
-          .cm-ticket-portal .rounded-xl { border-radius:.5rem; }
-          .cm-ticket-portal .rounded-lg { border-radius:.25rem; }
-          .cm-ticket-portal .rounded-full { border-radius:9999px; }
-          .cm-ticket-portal .font-headline-sm,
-          .cm-ticket-portal .font-body-md { font-family:Inter, sans-serif; }
-          .cm-ticket-portal .font-label-caps,
-          .cm-ticket-portal .font-mono-label { font-family:"JetBrains Mono", monospace; }
-          .cm-ticket-portal .text-headline-sm { font-size:20px; line-height:28px; font-weight:600; }
-          .cm-ticket-portal .text-body-md { font-size:14px; line-height:20px; font-weight:400; }
-          .cm-ticket-portal .text-label-caps { font-size:12px; line-height:16px; letter-spacing:.06em; font-weight:700; }
-          .cm-ticket-portal .text-mono-label { font-size:13px; line-height:18px; letter-spacing:.02em; font-weight:500; }
-          .cm-ticket-portal textarea { color:#e0e3e5; }
-          .cm-ticket-portal textarea::placeholder { color:rgba(191,199,213,.30); }
-          @media (max-width: 767px) {
-            .cm-ticket-portal { padding:16px; }
-          }
-          .cm-ticket-portal .material-symbols-outlined {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 auto;
-            font-family: "Material Symbols Outlined";
-            font-style: normal;
-            font-weight: 400;
-            line-height: 1;
-            letter-spacing: normal;
-            text-transform: none;
-            white-space: nowrap;
-            word-wrap: normal;
-            direction: ltr;
-            font-feature-settings: "liga";
-            -webkit-font-feature-settings: "liga";
-            -webkit-font-smoothing: antialiased;
-          }
-        `}</style>
-      </div>
-    );
+    const typeLabel=(value)=>QUEJAS_TICKET_TYPES.find(x=>x.value===value)?.label||value||"Otro";
+    const filtered=isAdmin?tickets.filter(t=>{
+      const text=`${t.ticket_number||t.id} ${t.user_email||""} ${t.user_id||""}`.toLowerCase();
+      const created=new Date(t.fecha_creacion||t.created_at||0).getTime();
+      return (ticketFilters.tipo==="todos"||t.tipo_reporte===ticketFilters.tipo)&&(ticketFilters.estatus==="todos"||t.estatus===ticketFilters.estatus)&&(!ticketFilters.desde||created>=new Date(ticketFilters.desde+"T00:00:00").getTime())&&(!ticketFilters.hasta||created<=new Date(ticketFilters.hasta+"T23:59:59").getTime())&&(!ticketFilters.search||text.includes(ticketFilters.search.toLowerCase()));
+    }):tickets;
+    return <div style={{display:"grid",gap:"20px",marginTop:"14px"}}>
+      {!isAdmin&&<section style={{...card,border:"1px solid rgba(159,202,255,.24)",overflow:"hidden"}}>
+        <div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",alignItems:"center",gap:"11px"}}><MS name="confirmation_number" size={23} active/><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>Crear ticket</div><div style={{color:"#bfc7d5",fontSize:"12px"}}>Describe el problema y adjunta evidencia segura si es necesario.</div></div></div>
+        <div style={{padding:"18px",display:"grid",gap:"14px"}}>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Tipo de reporte<select value={ticketForm.tipo_reporte} onChange={e=>setTicketForm(p=>({...p,tipo_reporte:e.target.value}))} style={input}><option value="">Selecciona una categoría</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select></label>
+          <label style={{display:"grid",gap:"7px",color:"#89919e",fontSize:"11px",fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}}>Comentarios<textarea value={ticketForm.comentarios} onChange={e=>setTicketForm(p=>({...p,comentarios:e.target.value}))} placeholder="Explica qué ocurrió, dónde y qué resultado esperabas." style={{...input,minHeight:"120px",resize:"vertical"}}/></label>
+          <div style={{padding:"14px",border:"1px dashed rgba(159,202,255,.36)",borderRadius:"8px",background:"rgba(11,15,16,.45)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#e0e3e5",fontWeight:800}}>Evidencia en imagen</div><div style={{color:"#89919e",fontSize:"11px",marginTop:"3px"}}>Hasta 5 imágenes JPEG, PNG o WEBP; máximo 10 MB cada una.</div></div><label style={{...btn("#9fcaff"),display:"inline-flex",alignItems:"center",gap:"7px",cursor:"pointer"}}><MS name="add_photo_alternate" size={18}/>Adjuntar imágenes<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addTicketEvidence}/></label></div>
+          {!!ticketForm.evidencia.length&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:"10px",marginTop:"12px"}}>{ticketForm.evidencia.map((item,index)=><div key={`${item.name}-${index}`} style={{position:"relative",border:"1px solid rgba(63,71,83,.65)",borderRadius:"8px",overflow:"hidden",background:"#0b0f10"}}><img src={item.preview} alt="Evidencia seleccionada" style={{width:"100%",height:"100px",objectFit:"cover",display:"block"}}/><button type="button" onClick={()=>removeTicketEvidence(index)} aria-label="Quitar evidencia" style={{position:"absolute",top:"6px",right:"6px",width:"28px",height:"28px",display:"grid",placeItems:"center",borderRadius:"4px",border:"1px solid rgba(255,180,171,.5)",background:"rgba(16,20,21,.88)",color:"#ffb4ab",cursor:"pointer"}}><MS name="close" size={17}/></button></div>)}</div>}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap"}}><span style={{color:"#89919e",fontSize:"11px"}}>La fecha y hora se registran automáticamente.</span><button type="button" disabled={ticketSubmitting} onClick={createTicket} style={{...btn("#9fcaff"),padding:"11px 18px",opacity:ticketSubmitting ? .65 : 1}}>{ticketSubmitting?<><span className="cm-cyan-pulse"/>Creando ticket…</>:<><MS name="send" size={18}/>Enviar ticket</>}</button></div>
+        </div>
+      </section>}
+      {isAdmin&&<section style={{...card,padding:"16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:"10px"}}><input value={ticketFilters.search} onChange={e=>setTicketFilters(p=>({...p,search:e.target.value}))} placeholder="Buscar ticket, usuario o ID" style={input}/><select value={ticketFilters.tipo} onChange={e=>setTicketFilters(p=>({...p,tipo:e.target.value}))} style={input}><option value="todos">Todos los tipos</option>{QUEJAS_TICKET_TYPES.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</select><select value={ticketFilters.estatus} onChange={e=>setTicketFilters(p=>({...p,estatus:e.target.value}))} style={input}><option value="todos">Todos los estados</option>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><input type="date" value={ticketFilters.desde} onChange={e=>setTicketFilters(p=>({...p,desde:e.target.value}))} style={input}/><input type="date" value={ticketFilters.hasta} onChange={e=>setTicketFilters(p=>({...p,hasta:e.target.value}))} style={input}/></section>}
+      <section style={{...card,overflow:"hidden"}}><div style={{padding:"16px 18px",background:"rgba(50,53,55,.42)",borderBottom:"1px solid rgba(63,71,83,.45)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}><div><div style={{color:"#e0e3e5",fontWeight:900,fontSize:"18px"}}>{isAdmin?"Todos los tickets":"Mis tickets"}</div><div style={{color:"#89919e",fontSize:"11px"}}>{filtered.length} ticket(s)</div></div><button onClick={loadTickets} style={btn("#9fcaff")}><MS name="refresh" size={18}/>Actualizar</button></div>
+        <div style={{padding:"14px",display:"grid",gap:"10px"}}>{ticketsLoading?<div style={{padding:"42px",display:"grid",placeItems:"center",color:"#bdf4ff"}}><span className="cm-cyan-pulse"/></div>:ticketsError?<div style={{padding:"18px",border:"1px solid rgba(255,180,171,.35)",borderRadius:"8px",color:"#ffb4ab"}}>{ticketsError}</div>:!filtered.length?<div style={{padding:"38px",textAlign:"center",color:"#89919e"}}>No hay tickets para mostrar.</div>:filtered.map(ticket=>{const open=ticketExpanded===ticket.id;const evidence=Array.isArray(ticket.evidencia)?ticket.evidencia:[];return <article key={ticket.id} style={{border:"1px solid rgba(63,71,83,.55)",borderRadius:"8px",background:"rgba(11,15,16,.42)",overflow:"hidden"}}><button type="button" onClick={()=>setTicketExpanded(open?null:ticket.id)} style={{width:"100%",padding:"14px",border:0,background:"transparent",color:"inherit",cursor:"pointer",display:"grid",gridTemplateColumns:"minmax(140px,1.1fr) minmax(160px,1.4fr) auto auto",gap:"12px",alignItems:"center",textAlign:"left"}}><div><div style={{color:"#9fcaff",fontWeight:900}}>{ticket.ticket_number||String(ticket.id).slice(0,12)}</div><div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{new Date(ticket.fecha_creacion||ticket.created_at).toLocaleString("es-MX")}</div></div><div><div style={{color:"#e0e3e5",fontWeight:800}}>{typeLabel(ticket.tipo_reporte)}</div>{isAdmin&&<div style={{color:"#89919e",fontSize:"10px",marginTop:"3px"}}>{ticket.user_email||ticket.user_id||"Usuario"}</div>}</div><TicketStatusChip value={ticket.estatus}/><span style={{display:"inline-flex",alignItems:"center",gap:"5px",color:evidence.length?"#bdf4ff":"#89919e",fontSize:"11px"}}><MS name={evidence.length?"attach_file":"chevron_right"} size={18}/>{evidence.length||""}</span></button>{open&&<div style={{padding:"0 14px 16px",borderTop:"1px solid rgba(63,71,83,.4)"}}><div style={{paddingTop:"14px",color:"#bfc7d5",whiteSpace:"pre-wrap",lineHeight:1.6}}>{ticket.comentarios}</div>{!!evidence.length&&<div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"13px"}}>{evidence.map((item,i)=><button key={`${item.path}-${i}`} onClick={()=>getTicketEvidenceUrl(item)} style={btn("#bdf4ff")}><MS name="image" size={17}/>Evidencia {i+1}</button>)}</div>}{ticket.respuesta_admin&&<div style={{marginTop:"14px",padding:"13px",borderRadius:"8px",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.22)"}}><div style={{color:"#9fcaff",fontWeight:900,fontSize:"11px",textTransform:"uppercase",letterSpacing:".06em"}}>Respuesta del administrador</div><div style={{color:"#e0e3e5",marginTop:"7px",whiteSpace:"pre-wrap"}}>{ticket.respuesta_admin}</div></div>}{Array.isArray(ticket.status_history)&&ticket.status_history.length>0&&<div style={{marginTop:"14px"}}><div style={{color:"#89919e",fontSize:"11px",fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",marginBottom:"8px"}}>Historial</div>{ticket.status_history.map((h,i)=><div key={i} style={{display:"flex",gap:"9px",alignItems:"center",color:"#bfc7d5",fontSize:"11px",marginTop:"5px"}}><TicketStatusChip value={h.estatus}/><span>{h.fecha?new Date(h.fecha).toLocaleString("es-MX"):""}</span></div>)}</div>}{isAdmin&&<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:"rgba(29,32,34,.75)",display:"grid",gap:"10px"}}><select value={ticketAdminDraft[ticket.id]?.estatus||ticket.estatus} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],estatus:e.target.value}}))} style={input}>{Object.entries(QUEJAS_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><textarea value={ticketAdminDraft[ticket.id]?.respuesta_admin??ticket.respuesta_admin??""} onChange={e=>setTicketAdminDraft(p=>({...p,[ticket.id]:{...p[ticket.id],respuesta_admin:e.target.value}}))} placeholder="Respuesta visible para el usuario" style={{...input,minHeight:"90px",resize:"vertical"}}/><button onClick={()=>updateTicketAdmin(ticket)} style={btn("#4edea3")}><MS name="save" size={18}/>Guardar seguimiento</button></div>}</div>}</article>})}</div></section>
+    </div>;
   };
 
   const AdminQuejas = ({ mode = "complaints" } = {}) => {
@@ -27608,7 +25199,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       ...trabajadores.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"trabajador"})),
       ...empresas.filter(row=>normalizeProfileValidation(row)!=="validado").map(row=>({row,type:"empresa"})),
     ];
-    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}><section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}><div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div><div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>{pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:safeEventValue(e)}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}</section></div>;
+    return <div style={{display:"grid",gap:"18px",marginTop:"14px"}}><section style={{...card,border:"1px solid rgba(78,222,163,.22)"}}><div style={{color:"#fff",fontWeight:900,fontSize:"19px",marginBottom:"4px"}}>Aprobación de Perfiles</div><div style={{color:"rgba(255,255,255,.52)",fontSize:"11px",marginBottom:"12px",lineHeight:1.5}}>Los perfiles nuevos comienzan pendientes. Solo los validados se muestran públicamente.</div>{pendingProfiles.length===0?<div style={{color:"rgba(255,255,255,.45)",fontSize:"11px"}}>No hay perfiles pendientes de aprobación.</div>:<div style={{display:"grid",gap:"12px"}}>{pendingProfiles.map(({row,type})=>{const key=approvalKey(type,row.id);const meta=profileValidationMeta(row);const name=type==="trabajador"?(row.nombre_completo||"Postulante"):(row.razon_social||"Empresa");return <article key={key} style={{padding:"14px",borderRadius:"14px",background:"rgba(1,15,31,.52)",border:"1px solid rgba(255,255,255,.06)"}}><div style={{display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"center",flexWrap:"wrap"}}><div><div style={{color:"#d4e4fa",fontWeight:900}}>{name}</div><div style={{color:"#86948a",fontSize:"11px",marginTop:"3px"}}>{type==="trabajador"?"Postulante":"Empresa"} · <span style={{color:meta.color}}>{meta.label}</span></div></div><button onClick={()=>setProfileDetailTarget({row,type,mock:false})} style={btn("#a4c9ff")}>Ver perfil</button></div><textarea value={profileApprovalComment[key]||""} onChange={e=>setProfileApprovalComment(prev=>({...prev,[key]:e.target.value}))} placeholder="Comentario para el usuario en caso de rechazo o corrección necesaria" style={{...input,minHeight:"76px",marginTop:"10px",resize:"vertical"}}/><div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}><button onClick={()=>approveProfile(row,type,"validado")} style={btn("#4edea3")}>Validar y publicar</button><button onClick={()=>approveProfile(row,type,"no_validado")} style={btn("#ffb4ab")}>Solicitar corrección</button><button onClick={()=>approveProfile(row,type,"pendiente")} style={btn("#fbbf24")}>Dejar pendiente</button></div></article>})}</div>}</section></div>;
   };
 
   const trabajadoresPage = paginate(trabFiltrados, pageTrab);
@@ -27761,7 +25352,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"14px", marginBottom:"22px", padding:"16px", background:"rgba(13,28,45,.52)", border:"1px solid rgba(63,71,83,.32)", borderRadius:"16px" }}>
       <div style={{ flex:1, minWidth:"260px", position:"relative" }}>
         <span style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", color:"#89919e" }}><MS name="search" size={20} /></span>
-        <input value={q} onChange={e=>{setQ(safeEventValue(e)); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
+        <input value={q} onChange={e=>{setQ(e.target.value); setPageTrab(1); setPageEmp(1);}} placeholder="Buscar por nombre, cargo o palabra clave..." style={{...input, paddingLeft:"48px", paddingTop:"14px", paddingBottom:"14px", background:"rgba(18,33,49,.72)", borderColor:"rgba(63,71,83,.45)"}} />
       </div>
       <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
         <button type="button" onClick={()=>setTalentView("perfiles")} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 16px", borderRadius:"12px", border:`1px solid ${talentView === "perfiles" ? "rgba(161,201,255,.55)" : "rgba(63,71,83,.45)"}`, background:talentView === "perfiles" ? "rgba(161,201,255,.14)" : "rgba(18,33,49,.72)", color:talentView === "perfiles" ? "#a1c9ff" : "#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer" }}><MS name="groups" size={18} active={talentView === "perfiles"} /> Ver perfiles</button>
@@ -28037,8 +25628,8 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           <button onClick={()=>setPosturasReportTarget(null)} style={{ ...btn("#94a3b8"), padding:"8px 10px" }}>Cerrar</button>
         </div>
         <div style={{ display:"grid", gap:"10px" }}>
-          <div><div style={label}>Tipo de queja</div><select required style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:safeEventValue(e)}))}><option value="">Selecciona un tipo de reporte</option><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
-          <div><div style={label}>Comentarios</div><textarea required style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:safeEventValue(e)}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
+          <div><div style={label}>Tipo de queja</div><select required style={input} value={posturasReportForm.tipo} onChange={e=>setPosturasReportForm(f=>({...f,tipo:e.target.value}))}><option value="">Selecciona un tipo de reporte</option><option value="perfil_falso">Perfil o empresa falsa</option><option value="fraude_estafa">Fraude / estafa</option><option value="documentos_falsos">Documentos falsos</option><option value="informacion_incorrecta">Información incorrecta</option><option value="conducta_inapropiada">Conducta inapropiada</option><option value="otro">Otro</option></select></div>
+          <div><div style={label}>Comentarios</div><textarea required style={{...input, minHeight:"112px", resize:"vertical"}} value={posturasReportForm.comentario} onChange={e=>setPosturasReportForm(f=>({...f,comentario:e.target.value}))} placeholder="Describe qué ocurrió y agrega detalles para la revisión del admin." /></div>
           <button onClick={sendPosturasReport} style={{ ...btn("#ef4444"), width:"100%" }}>Enviar reporte al admin</button>
         </div>
       </div>
@@ -28241,7 +25832,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
                             onKeyDown={registerPosturasSearchActivity}
                             onMouseMove={registerPosturasSearchActivity}
                             onDoubleClick={()=>{clearPosturasSearchTimer();setPosturasSearchOpen(false)}}
-                            onChange={e=>{setQ(safeEventValue(e));setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
+                            onChange={e=>{setQ(e.target.value);setPageTrab(1);setPageEmp(1);registerPosturasSearchActivity()}}
                             placeholder="Nombre, edad, empresa, calificación, licencia o maniobra..."
                             aria-label="Buscar perfiles, empresas o vacantes"
                           />
@@ -28263,12 +25854,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
 
                   {posturasFilterOpen && (
                     <div className="cm-posturas-filter-panel">
-                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:safeEventValue(e)}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
-                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:safeEventValue(e)}))} placeholder="18"/></label>
-                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:safeEventValue(e)}))} placeholder="Nombre"/></label>
-                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:safeEventValue(e)}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
-                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:safeEventValue(e)}))} placeholder="Tipo de licencia"/></label>
-                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:safeEventValue(e)}))} placeholder="Tipo de maniobra"/></label>
+                      <label>Tipo<select value={posturasAdvancedFilter.tipo} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,tipo:e.target.value}))}><option value="todos">Todos</option><option value="trabajador">Postulante</option><option value="empresa">Empresa</option></select></label>
+                      <label>Edad mínima<input type="number" min="18" value={posturasAdvancedFilter.edadMin} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,edadMin:e.target.value}))} placeholder="18"/></label>
+                      <label>Empresa<input value={posturasAdvancedFilter.empresa} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,empresa:e.target.value}))} placeholder="Nombre"/></label>
+                      <label>Calificación<select value={posturasAdvancedFilter.estrellas} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,estrellas:e.target.value}))}><option value="todos">Todas</option><option value="5">5 estrellas</option><option value="4">4 o más</option><option value="3">3 o más</option></select></label>
+                      <label>Licencia<input value={posturasAdvancedFilter.licencia} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,licencia:e.target.value}))} placeholder="Tipo de licencia"/></label>
+                      <label>Maniobra<input value={posturasAdvancedFilter.maniobra} onChange={e=>setPosturasAdvancedFilter(prev=>({...prev,maniobra:e.target.value}))} placeholder="Tipo de maniobra"/></label>
                       <button type="button" onClick={()=>setPosturasAdvancedFilter({tipo:"todos",edadMin:"",empresa:"",estrellas:"todos",licencia:"",maniobra:""})}>Limpiar</button>
                     </div>
                   )}
@@ -29850,7 +27441,7 @@ function PatioIdentificaMap({ myId }) {
         <button onClick={focusAll} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(0,229,255,.35)", background:"rgba(0,229,255,.10)", color:"#00e5ff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🧭 Ver todos</button>
         <button onClick={renameSelected} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.35)", background:"rgba(56,189,248,.10)", color:"#38bdf8", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✏️ Renombrar</button>
         <label style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.35)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer", textAlign:"center" }}>🎨 Color
-          <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(safeEventValue(e))} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
+          <input type="color" value={(features.find(f => f.id === selectedId && f.type === "polygon")?.color) || DEFAULT_USER_POLYGON_COLOR} onChange={e => changeSelectedColor(e.target.value)} style={{ position:"absolute", opacity:0, width:0, height:0 }} />
         </label>
         <button onClick={() => fetchGlobalPatios(false)} style={{ padding:"9px 10px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.35)", background:"rgba(34,197,94,.10)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>🔄 Sincronizar</button>
       </div>
@@ -29864,8 +27455,8 @@ function PatioIdentificaMap({ myId }) {
       {(!L || !drawReady) && <div style={{ textAlign:"center", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontSize:"12px", marginTop:"8px" }}>Cargando mapa y herramientas de dibujo…</div>}
 
       <div className="patio-identifica-search" style={{ display:"grid", gridTemplateColumns:"1.15fr .85fr", gap:"8px", marginTop:"12px" }}>
-        <input value={query} onChange={e => setQuery(safeEventValue(e))} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
-        <select value={selectedId || ""} onChange={e => selectFeature(safeEventValue(e))} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar patio por nombre..." style={{ width:"100%", boxSizing:"border-box", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }} />
+        <select value={selectedId || ""} onChange={e => selectFeature(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:"#0a1628", border:"1px solid rgba(251,146,60,0.32)", borderRadius:"11px", padding:"11px 13px", color:"#fff", outline:"none", fontFamily:getFont(theme,"secondary"), fontSize:"12px" }}>
           <option value="">Selecciona un patio para centrar el mapa</option>
           {filteredFeatures.map(f => <option key={f.id} value={f.id}>{f.type === "marker" ? `${f.name} · Pin` : f.name}</option>)}
         </select>
@@ -30562,7 +28153,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type="email"
                     autoComplete="email"
                     value={loginUser}
-                    onChange={e => setLoginUser(safeEventValue(e))}
+                    onChange={e => setLoginUser(e.target.value)}
                     placeholder="tu@correo.com"
                     style={cleanInput}
                     onFocus={e => { e.currentTarget.style.borderColor = red; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(197,34,34,.10)"; }}
@@ -30588,7 +28179,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                     type={showLoginPass ? "text" : "password"}
                     autoComplete="current-password"
                     value={loginPass}
-                    onChange={e => setLoginPass(safeEventValue(e))}
+                    onChange={e => setLoginPass(e.target.value)}
                     placeholder="Ingresa tu contraseña"
                     style={cleanInput}
                     onKeyDown={e => e.key === "Enter" && handleLogin()}
@@ -30705,25 +28296,25 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 1 && (
                   <>
                     <label style={formLabel}>Nombre(s)</label>
-                    <input value={regNombre} onChange={e => setRegNombre(safeEventValue(e))} placeholder="Ej. Juan Carlos" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regNombre} onChange={e => setRegNombre(e.target.value)} placeholder="Ej. Juan Carlos" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Apellidos</label>
-                    <input value={regApellidos} onChange={e => setRegApellidos(safeEventValue(e))} placeholder="Ej. Pérez López" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regApellidos} onChange={e => setRegApellidos(e.target.value)} placeholder="Ej. Pérez López" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Nombre de usuario</label>
-                    <input value={regUsername} onChange={e => setRegUsername(safeEventValue(e).toLowerCase().replace(/\s/g, ""))} placeholder="usuario_sin_espacios" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regUsername} onChange={e => setRegUsername(e.target.value.toLowerCase().replace(/\s/g, ""))} placeholder="usuario_sin_espacios" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Fecha de nacimiento</label>
-                    <input type="date" value={regFecha} onChange={e => setRegFecha(safeEventValue(e))} style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input type="date" value={regFecha} onChange={e => setRegFecha(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       <div>
                         <label style={formLabel}>País</label>
-                        <input value={regPais} onChange={e => setRegPais(safeEventValue(e))} placeholder="México" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regPais} onChange={e => setRegPais(e.target.value)} placeholder="México" style={{ ...plainInput, marginBottom: "12px" }} />
                       </div>
                       <div>
                         <label style={formLabel}>Ciudad</label>
-                        <input value={regCiudad} onChange={e => setRegCiudad(safeEventValue(e))} placeholder="Manzanillo" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regCiudad} onChange={e => setRegCiudad(e.target.value)} placeholder="Manzanillo" style={{ ...plainInput, marginBottom: "12px" }} />
                       </div>
                     </div>
                     <label style={formLabel}>Tipo de usuario</label>
-                    <select value={regTipoUsuario} onChange={e => setRegTipoUsuario(safeEventValue(e))} style={{ ...plainInput, marginBottom: "12px" }}>
+                    <select value={regTipoUsuario} onChange={e => setRegTipoUsuario(e.target.value)} style={{ ...plainInput, marginBottom: "12px" }}>
                       <option value="visualizador_votante">Visualizador / votante</option>
                       <option value="operador">Operador</option>
                       <option value="empresa">Empresa</option>
@@ -30735,14 +28326,14 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 2 && (
                   <>
                     <label style={formLabel}>Teléfono</label>
-                    <input value={regTel} onChange={e => setRegTel(safeEventValue(e))} placeholder="+5213140000000" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regTel} onChange={e => setRegTel(e.target.value)} placeholder="+5213140000000" style={{ ...plainInput, marginBottom: "12px" }} />
                     <button type="button" onClick={handleEnviarOtp} disabled={loading} style={primaryAuthBtn}>
                       {otpEnviado ? "REENVIAR SMS" : "ENVIAR SMS"}
                     </button>
                     {otpEnviado && (
                       <>
                         <label style={{ ...formLabel, marginTop: "14px" }}>Código de verificación</label>
-                        <input value={regOtp} onChange={e => setRegOtp(safeEventValue(e).replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" style={{ ...plainInput, marginBottom: "12px" }} />
+                        <input value={regOtp} onChange={e => setRegOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" style={{ ...plainInput, marginBottom: "12px" }} />
                         <button type="button" onClick={handleVerificarOtp} disabled={loading} style={outlineAuthBtn}>VERIFICAR TELÉFONO</button>
                       </>
                     )}
@@ -30752,9 +28343,9 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 {regStep === 3 && (
                   <>
                     <label style={formLabel}>Correo electrónico</label>
-                    <input value={regCorreo} onChange={e => setRegCorreo(safeEventValue(e))} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regCorreo} onChange={e => setRegCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "12px" }} />
                     <label style={formLabel}>Confirmar correo</label>
-                    <input value={regCorreo2} onChange={e => setRegCorreo2(safeEventValue(e))} placeholder="Repite tu correo" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regCorreo2} onChange={e => setRegCorreo2(e.target.value)} placeholder="Repite tu correo" style={{ ...plainInput, marginBottom: "12px" }} />
                   </>
                 )}
 
@@ -30762,17 +28353,17 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                   <>
                     <label style={formLabel}>Contraseña segura</label>
                     <div style={fieldWrap}>
-                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(safeEventValue(e))} placeholder="Mín. 12 caracteres, mayúscula, minúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <input type={showRegPass ? "text" : "password"} value={regPass} onChange={e => setRegPass(e.target.value)} placeholder="Mín. 12 caracteres, mayúscula, minúscula, número y símbolo" style={{ ...cleanInput, paddingLeft: "12px" }} />
                       <button type="button" onClick={() => setShowRegPass(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass ? "🙈" : "👁️"}</button>
                     </div>
                     <PasswordStrengthChecklist password={regPass} />
                     <label style={formLabel}>Confirmar contraseña</label>
                     <div style={fieldWrap}>
-                      <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(safeEventValue(e))} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
+                      <input type={showRegPass2 ? "text" : "password"} value={regPass2} onChange={e => setRegPass2(e.target.value)} placeholder="Repite la contraseña" style={{ ...cleanInput, paddingLeft: "12px" }} />
                       <button type="button" onClick={() => setShowRegPass2(v => !v)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer" }}>{showRegPass2 ? "🙈" : "👁️"}</button>
                     </div>
                     <label style={formLabel}>Verificación humana</label>
-                    <input value={regAntibot} onChange={e => setRegAntibot(safeEventValue(e))} placeholder="¿Cuánto es 3 + 5?" style={{ ...plainInput, marginBottom: "12px" }} />
+                    <input value={regAntibot} onChange={e => setRegAntibot(e.target.value)} placeholder="¿Cuánto es 3 + 5?" style={{ ...plainInput, marginBottom: "12px" }} />
                     <div style={{ display: "grid", gap: "9px", marginBottom: "12px" }}>
                       <AuthCheckbox checked={regTerminos} onToggle={() => setRegTerminos(v => !v)} label="Acepto términos y condiciones" />
                       <AuthCheckbox checked={regPrivacidad} onToggle={() => setRegPrivacidad(v => !v)} label="Acepto política de privacidad" />
@@ -30812,7 +28403,7 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
                 <AuthMsgBox msg={forgotMsg} />
 
                 <label style={formLabel}>Correo electrónico</label>
-                <input value={forgotCorreo} onChange={e => setForgotCorreo(safeEventValue(e))} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "16px" }} />
+                <input value={forgotCorreo} onChange={e => setForgotCorreo(e.target.value)} placeholder="tu@correo.com" style={{ ...plainInput, marginBottom: "16px" }} />
                 <button type="button" onClick={handleForgot} disabled={loading} style={primaryAuthBtn}>
                   {loading ? "ENVIANDO..." : "ENVIAR ENLACE DE RECUPERACIÓN"}
                 </button>
@@ -31205,8 +28796,8 @@ function EncuestaSatisfaccion({ isAdmin }) {
 
               {/* Datos opcionales */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>DATOS DE CONTACTO (OPCIONALES)</div>
-              <input value={nombre} onChange={e=>setNombre(safeEventValue(e))} placeholder="Tu nombre (opcional)" style={inputStyle} maxLength={80} />
-              <input type="email" value={correo} onChange={e=>setCorreo(safeEventValue(e))} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
+              <input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Tu nombre (opcional)" style={inputStyle} maxLength={80} />
+              <input type="email" value={correo} onChange={e=>setCorreo(e.target.value)} placeholder="Tu correo (opcional)" style={inputStyle} maxLength={120} />
 
               {/* Dispositivo — múltiple choice */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px", marginTop:"4px" }}>¿EN QUÉ DISPOSITIVO USAS MÁS LA APP? <span style={{color:"#ef4444"}}>*</span></div>
@@ -31242,13 +28833,13 @@ function EncuestaSatisfaccion({ isAdmin }) {
 
               {/* Preguntas abiertas */}
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE AÑADIERA?</div>
-              <textarea value={agregarDesc} onChange={e=>setAgregarDesc(safeEventValue(e))} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+              <textarea value={agregarDesc} onChange={e=>setAgregarDesc(e.target.value)} placeholder="Escribe aquí tus sugerencias..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>¿QUÉ TE GUSTARÍA QUE SE QUITARA O MEJORARA?</div>
-              <textarea value={quitarDesc} onChange={e=>setQuitarDesc(safeEventValue(e))} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
+              <textarea value={quitarDesc} onChange={e=>setQuitarDesc(e.target.value)} placeholder="Algo que consideres innecesario o molesto..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={400} />
 
               <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", letterSpacing:"1px", marginBottom:"6px" }}>COMENTARIO LIBRE</div>
-              <textarea value={comentario} onChange={e=>setComentario(safeEventValue(e))} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
+              <textarea value={comentario} onChange={e=>setComentario(e.target.value)} placeholder="Lo que quieras compartir con el equipo..." style={{...inputStyle, resize:"vertical", minHeight:"64px", lineHeight:"1.6"}} maxLength={600} />
 
               {/* Aviso privacidad + botón enviar */}
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:"4px", gap:"12px", flexWrap:"wrap" }}>
@@ -31531,7 +29122,6 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
             <div className="cm-admin-strip">
               <span>⚡ ADMIN</span>
               <button type="button" onClick={onOpenThemeConfig}>🎨 TEMA</button>
-              <button type="button" onClick={() => onSetActive?.("portuario")}>CONTROL PORTUARIO</button>
               <button type="button" onClick={logout}>✕ Salir</button>
             </div>
           )}
@@ -31886,7 +29476,7 @@ function SliderField({ label, value, min, max, step, unit, color, onChange, getF
         <div style={{ position: "absolute", left: 0, top: 0, height: "6px", width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, borderRadius: "3px", transition: "width 0.1s" }} />
         <input
           type="range" min={min} max={max} step={step} value={value}
-          onChange={e => onChange(Number(safeEventValue(e)))}
+          onChange={e => onChange(Number(e.target.value))}
           style={{ position: "absolute", top: "-5px", left: 0, width: "100%", opacity: 0, cursor: "pointer", height: "16px" }}
         />
         <div style={{
@@ -31999,13 +29589,13 @@ function CalculadoraFlete({ theme, getFont }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <div>
                 <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>ORIGEN</div>
-                <select value={origen} onChange={e => setOrigen(safeEventValue(e))} style={selectStyle}>
+                <select value={origen} onChange={e => setOrigen(e.target.value)} style={selectStyle}>
                   {ORIGENES_FLETE.map(o => <option key={o} value={o} style={{ background: "#0a1628" }}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginBottom: "5px", letterSpacing: "0.5px" }}>DESTINO</div>
-                <select value={destino} onChange={e => setDestino(safeEventValue(e))} style={selectStyle}>
+                <select value={destino} onChange={e => setDestino(e.target.value)} style={selectStyle}>
                   {destinosDisp.map(d => <option key={d} value={d} style={{ background: "#0a1628" }}>{d}</option>)}
                 </select>
               </div>
@@ -32089,7 +29679,7 @@ function CalculadoraFlete({ theme, getFont }) {
               </div>
               <input
                 type="number" value={valorDeclarado} min={0} step={10000}
-                onChange={e => setValorDeclarado(Number(safeEventValue(e)))}
+                onChange={e => setValorDeclarado(Number(e.target.value))}
                 style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", padding: "9px 12px", color: "#fff", fontFamily: "monospace", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
               />
               <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "8px", color: "rgba(255,255,255,0.25)", marginTop: "4px" }}>Necesario para calcular seguro de carga (1%)</div>
@@ -32300,406 +29890,6 @@ function EstadoCita({ estatus }) {
     </span>
   );
 }
-
-function SistemaControlPortuario() {
-  const theme = React.useContext(ThemeContext);
-  const [citas, setCitas]         = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [filtro, setFiltro]       = useState("TODOS");
-  const [vista, setVista]         = useState("dashboard"); // "dashboard" | "citas" | "operadores"
-  const [error, setError]         = useState(null);
-
-  // ── Stats derivadas ──────────────────────────────────────────────────────────
-  const stats = React.useMemo(() => {
-    const hoy = new Date().toDateString();
-    const deHoy     = citas.filter(c => new Date(c.fecha_cita).toDateString() === hoy);
-    const validados = citas.filter(c => c.estatus === "VALIDADO").length;
-    const enTransito= citas.filter(c => c.estatus === "EN_TRANSITO").length;
-    const eficiencia= citas.length ? Math.round((validados / citas.length) * 100) : 0;
-    return { deHoy: deHoy.length, validados, enTransito, eficiencia, total: citas.length };
-  }, [citas]);
-
-  // Conteo por patio
-  const patioData = React.useMemo(() => {
-    const buckets = {};
-    citas.forEach(c => {
-      const p = c.patio_destino || "Sin asignar";
-      buckets[p] = (buckets[p] || 0) + 1;
-    });
-    return Object.entries(buckets).map(([patio, total]) => ({ patio, total }));
-  }, [citas]);
-
-  const citasFiltradas = filtro === "TODOS" ? citas : citas.filter(c => c.estatus === filtro);
-
-  // ── Carga en tiempo real ─────────────────────────────────────────────────────
-  useEffect(() => {
-    let chan;
-    const cargar = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error: err } = await sb
-          .from("citas")
-          .select("*")
-          .order("fecha_cita", { ascending: false })
-          .limit(200);
-        if (err) { setError(err.message); } else { setCitas(data || []); }
-      } catch (e) { setError(e.message); }
-      setLoading(false);
-    };
-
-    cargar();
-
-    try {
-      chan = sb.channel("citas-control-portuario")
-        .on("postgres_changes", { event: "*", schema: "public", table: "citas" }, cargar)
-        .subscribe();
-    } catch (_) { /* tabla aún no existe */ }
-
-    return () => { if (chan) sb.removeChannel(chan); };
-  }, []);
-
-  // ── Estilos base ─────────────────────────────────────────────────────────────
-  const cardStyle = {
-    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: "12px", padding: "14px 16px"
-  };
-  const labelStyle = {
-    fontFamily: getFont(theme, "secondary"), fontSize: "9px",
-    color: "rgba(255,255,255,0.4)", letterSpacing: "1px", fontWeight: "700", marginBottom: "4px"
-  };
-  const valueStyle = {
-    fontFamily: getFont(theme, "title"), fontSize: "28px",
-    fontWeight: "800", color: "#fff"
-  };
-
-  // ── Vista de datos no disponibles ────────────────────────────────────────────
-  if (error) return (
-    <div style={{ padding: "24px", textAlign: "center" }}>
-      <div style={{ display:"flex", justifyContent:"center", marginBottom:"10px" }}><AppIcon name="anchor-port" size={36} active={true} /></div>
-      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", color: "#f87171", marginBottom: "8px" }}>
-        Tabla <code>citas</code> no encontrada en Supabase.
-      </div>
-      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.35)" }}>
-        Ejecuta el schema SQL del Sistema de Control Portuario en el SQL Editor de tu proyecto Supabase.
-      </div>
-    </div>
-  );
-
-  return (
-    <div style={{ padding: "16px", maxWidth: "900px", margin: "0 auto" }}>
-
-      {/* Cabecera */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.35)", letterSpacing: "1.5px", marginBottom: "4px" }}>
-          MÓDULO RESTRINGIDO · SOLO ADMINISTRADORES
-        </div>
-        <h2 style={{ fontFamily: getFont(theme, "title"), fontSize: "20px", fontWeight: "800", color: "#fff", margin: 0 }}>
-          ⚓ Sistema de Control Portuario
-        </h2>
-        <p style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "rgba(255,255,255,0.45)", margin: "4px 0 0" }}>
-          Gestión de citas, operadores y movimientos de carga — Puerto Lázaro Cárdenas / Manzanillo
-        </p>
-      </div>
-
-      {/* Sub-navegación */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
-        {[
-          { id: "dashboard",   label: "📊 Dashboard",   color: "#38bdf8" },
-          { id: "citas",       label: "📋 Citas",       color: "#fbbf24" },
-          { id: "operadores",  label: "🚛 Operadores",  color: "#4ade80" },
-          { id: "flete",       label: "🧮 Calculadora",  color: "#fb923c" },
-        ].map(v => (
-          <button key={v.id} onClick={() => setVista(v.id)} style={{
-            background: vista === v.id ? `${v.color}22` : "rgba(255,255,255,0.05)",
-            border: `1px solid ${vista === v.id ? v.color + "88" : "rgba(255,255,255,0.12)"}`,
-            borderRadius: "8px", padding: "7px 14px",
-            color: vista === v.id ? v.color : "rgba(255,255,255,0.55)",
-            fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700",
-            cursor: "pointer", transition: "all 0.18s", letterSpacing: "0.5px"
-          }}>
-            {v.label}
-          </button>
-        ))}
-      </div>
-
-      {loading && (
-        <div style={{ textAlign: "center", padding: "40px", color: "rgba(255,255,255,0.35)",
-          fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
-          Cargando datos portuarios…
-        </div>
-      )}
-
-      {!loading && (
-        <>
-          {/* ── DASHBOARD ─────────────────────────────────────────────────────── */}
-          {vista === "dashboard" && (
-            <div>
-              {/* KPIs mejorados */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-                {[
-                  { label: "CITAS HOY",    value: stats.deHoy,      icon: "freight-truck", color: "#fbbf24", sub: "programadas" },
-                  { label: "VALIDADOS",    value: stats.validados,  icon: "check", color: "#4ade80", sub: "confirmados" },
-                  { label: "EN TRÁNSITO",  value: stats.enTransito, icon: "turnover", color: "#38bdf8", sub: "en movimiento" },
-                  { label: "EFICIENCIA",   value: `${stats.eficiencia}%`, icon: "stats", color: "#a78bfa", sub: "tasa validación" },
-                  { label: "TOTAL",        value: stats.total,      icon: "container", color: "#fb923c", sub: "en sistema" },
-                ].map(k => (
-                  <div key={k.label} style={{
-                    background: `linear-gradient(135deg, ${k.color}10 0%, rgba(255,255,255,0.03) 100%)`,
-                    border: `1px solid ${k.color}33`,
-                    borderRadius: "14px", padding: "16px",
-                    position: "relative", overflow: "hidden"
-                  }}>
-                    <div style={{
-                      position: "absolute", top: "10px", right: "12px",
-                      fontSize: "22px", opacity: 0.25
-                    }}>{k.icon}</div>
-                    <div style={{
-                      fontFamily: getFont(theme, "secondary"), fontSize: "8px",
-                      color: k.color, letterSpacing: "1.5px", fontWeight: "800", marginBottom: "8px"
-                    }}>{k.label}</div>
-                    <div style={{
-                      fontFamily: getFont(theme, "title"), fontSize: "30px",
-                      fontWeight: "900", color: k.color, lineHeight: 1
-                    }}>{k.value}</div>
-                    <div style={{
-                      fontFamily: getFont(theme, "secondary"), fontSize: "9px",
-                      color: "rgba(255,255,255,0.3)", marginTop: "6px"
-                    }}>{k.sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Fila: distribución por estatus + por patio */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                {/* Estatus breakdown */}
-                <div style={{ ...cardStyle }}>
-                  <div style={{ ...labelStyle, marginBottom: "10px" }}>⚡ ESTADO ACTUAL</div>
-                  {Object.entries(ESTATUS_COLOR).map(([est, col]) => {
-                    const cnt = citas.filter(c => c.estatus === est).length;
-                    const pct = stats.total ? Math.round((cnt / stats.total) * 100) : 0;
-                    return (
-                      <div key={est} style={{ marginBottom: "8px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
-                          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: col.text, fontWeight: "700" }}>{est}</span>
-                          <span style={{ fontFamily: "monospace", fontSize: "9px", color: "rgba(255,255,255,0.4)" }}>{cnt} · {pct}%</span>
-                        </div>
-                        <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px" }}>
-                          <div style={{ height: "3px", width: `${pct}%`, background: col.text, borderRadius: "2px", transition: "width 0.5s ease", opacity: cnt === 0 ? 0.2 : 1 }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {stats.total === 0 && (
-                    <div style={{ textAlign: "center", padding: "12px 0", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.2)" }}>
-                      Sin datos aún
-                    </div>
-                  )}
-                </div>
-
-                {/* Patios */}
-                <div style={{ ...cardStyle }}>
-                  <div style={{ ...labelStyle, marginBottom: "10px" }}>PATIOS DESTINO</div>
-                  {patioData.length > 0 ? patioData.sort((a,b) => b.total - a.total).map(({ patio, total }, i) => {
-                    const pct = stats.total ? Math.round((total / stats.total) * 100) : 0;
-                    const colors = ["#38bdf8","#a78bfa","#4ade80","#fbbf24","#fb923c","#f87171"];
-                    const c = colors[i % colors.length];
-                    return (
-                      <div key={patio} style={{ marginBottom: "8px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
-                          <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.65)", maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{patio}</span>
-                          <span style={{ fontFamily: "monospace", fontSize: "9px", color: "rgba(255,255,255,0.4)" }}>{total} · {pct}%</span>
-                        </div>
-                        <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px" }}>
-                          <div style={{ height: "3px", width: `${pct}%`, background: c, borderRadius: "2px", transition: "width 0.5s ease" }} />
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div style={{ textAlign: "center", padding: "12px 0", fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.2)" }}>
-                      Sin datos aún
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Últimas citas — tabla más compacta y visual */}
-              <div style={cardStyle}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                  <div style={labelStyle}>🕐 ÚLTIMOS 5 MOVIMIENTOS</div>
-                  <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.25)" }}>
-                    {new Date().toLocaleDateString("es-MX", { weekday:"short", day:"numeric", month:"short" })}
-                  </span>
-                </div>
-                {citas.slice(0, 5).map((c, i) => (
-                  <div key={c.id} style={{
-                    display: "flex", alignItems: "center", gap: "10px",
-                    padding: "9px 10px", marginBottom: "4px",
-                    background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
-                    borderRadius: "8px", border: "1px solid rgba(255,255,255,0.04)"
-                  }}>
-                    <div style={{
-                      width: "28px", height: "28px", borderRadius: "8px",
-                      background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontFamily: "monospace", fontSize: "9px", color: "#38bdf8", fontWeight: "700", flexShrink: 0
-                    }}>{i+1}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "#38bdf8", fontWeight: "700" }}>{c.folio || "—"}</div>
-                      <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        🚛 {c.placas || "—"} &nbsp;·&nbsp; 🏭 {c.patio_destino || "—"} &nbsp;·&nbsp; 📅 {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
-                      </div>
-                    </div>
-                    <EstadoCita estatus={c.estatus} />
-                  </div>
-                ))}
-                {citas.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "28px", color: "rgba(255,255,255,0.2)",
-                    fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
-                    🚛 No hay movimientos registrados aún.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── CITAS ─────────────────────────────────────────────────────────── */}
-          {vista === "citas" && (
-            <div>
-              {/* Filtro de estatus */}
-              <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.4)", letterSpacing: "1px" }}>FILTRAR:</span>
-                {["TODOS","VALIDADO","NO_VALIDADO","EN_TRANSITO","INGRESO","RETORNO","NO_INGRESO"].map(s => (
-                  <button key={s} onClick={() => setFiltro(s)} style={{
-                    background: filtro === s ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.05)",
-                    border: `1px solid ${filtro === s ? "rgba(56,189,248,0.5)" : "rgba(255,255,255,0.1)"}`,
-                    borderRadius: "6px", padding: "4px 10px",
-                    color: filtro === s ? "#38bdf8" : "rgba(255,255,255,0.45)",
-                    fontFamily: getFont(theme, "secondary"), fontSize: "9px", fontWeight: "700",
-                    cursor: "pointer", transition: "all 0.15s", letterSpacing: "0.5px"
-                  }}>
-                    {s === "TODOS" ? "Todos" : s}
-                  </button>
-                ))}
-                <span style={{ marginLeft: "auto", fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)" }}>
-                  {citasFiltradas.length} registros
-                </span>
-              </div>
-
-              {/* Tabla */}
-              <div style={{ ...cardStyle, overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                  <thead>
-                    <tr>
-                      {["FOLIO","PLACAS","PATIO","MOVIMIENTO","FECHA","ESTATUS"].map(h => (
-                        <th key={h} style={{
-                          textAlign: "left", padding: "8px 10px 10px",
-                          fontFamily: getFont(theme, "secondary"), fontSize: "9px",
-                          color: "rgba(255,255,255,0.35)", fontWeight: "700", letterSpacing: "1px",
-                          borderBottom: "1px solid rgba(255,255,255,0.08)"
-                        }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {citasFiltradas.map(c => (
-                      <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "9px 10px", fontFamily: "monospace", color: "#38bdf8" }}>{c.folio}</td>
-                        <td style={{ padding: "9px 10px", fontFamily: "monospace", color: "rgba(255,255,255,0.7)" }}>{c.placas}</td>
-                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.6)", fontFamily: getFont(theme, "secondary") }}>{c.patio_destino}</td>
-                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.6)", fontFamily: getFont(theme, "secondary") }}>{c.tipo_movimiento}</td>
-                        <td style={{ padding: "9px 10px", color: "rgba(255,255,255,0.35)", fontFamily: getFont(theme, "secondary") }}>
-                          {new Date(c.fecha_cita).toLocaleDateString("es-MX")}
-                        </td>
-                        <td style={{ padding: "9px 10px" }}><EstadoCita estatus={c.estatus} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {citasFiltradas.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "24px", color: "rgba(255,255,255,0.3)",
-                    fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
-                    No hay citas con el estatus seleccionado.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── CALCULADORA DE FLETE ─────────────────────────────────────────── */}
-          {vista === "flete" && <CalculadoraFlete theme={theme} getFont={getFont} />}
-
-          {/* ── OPERADORES ────────────────────────────────────────────────────── */}
-          {vista === "operadores" && (
-            <div>
-              <div style={cardStyle}>
-                <div style={{ ...labelStyle, marginBottom: "12px" }}>OPERADORES CON CITAS ACTIVAS</div>
-                {(() => {
-                  // Agrupar citas por operador_id
-                  const ops = {};
-                  citas.forEach(c => {
-                    if (!c.operador_id) return;
-                    if (!ops[c.operador_id]) ops[c.operador_id] = { id: c.operador_id, total: 0, activas: 0 };
-                    ops[c.operador_id].total++;
-                    if (["EN_TRANSITO","INGRESO"].includes(c.estatus)) ops[c.operador_id].activas++;
-                  });
-                  const lista = Object.values(ops);
-                  if (lista.length === 0) return (
-                    <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.3)",
-                      fontFamily: getFont(theme, "secondary"), fontSize: "11px" }}>
-                      No hay operadores con citas asignadas.
-                    </div>
-                  );
-                  return lista.sort((a,b) => b.activas - a.activas).map(op => (
-                    <div key={op.id} style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)"
-                    }}>
-                      <div>
-                        <div style={{ fontFamily: "monospace", fontSize: "10px", color: "rgba(255,255,255,0.5)" }}>
-                          {op.id.slice(0,8)}…
-                        </div>
-                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", marginTop: "2px" }}>
-                          {op.total} cita(s) total
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "18px", fontWeight: "800",
-                          color: op.activas > 0 ? "#4ade80" : "rgba(255,255,255,0.3)" }}>
-                          {op.activas}
-                        </div>
-                        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "9px", color: "rgba(255,255,255,0.3)", letterSpacing: "0.5px" }}>
-                          ACTIVAS
-                        </div>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-
-              {/* Aviso de limitación */}
-              <div style={{ ...cardStyle, marginTop: "12px", background: "rgba(251,191,36,0.05)", borderColor: "rgba(251,191,36,0.2)" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                  <span style={{ fontSize: "18px" }}>Info</span>
-                  <div>
-                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "#fbbf24", fontWeight: "700", marginBottom: "3px" }}>
-                      PERFILES DE OPERADOR
-                    </div>
-                    <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(255,255,255,0.4)", lineHeight: "1.5" }}>
-                      Los nombres completos se obtienen de la tabla <code style={{ color: "#fbbf24" }}>profiles</code> de Supabase Auth.
-                      Asegúrate de que el trigger <code style={{ color: "#fbbf24" }}>on_auth_user_created</code> esté activo en tu proyecto.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 
 function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged = false, activeSection = "inicio", isSectionPanelOpen = false }) {
   const theme = React.useContext(ThemeContext);
@@ -33253,7 +30443,7 @@ function GlobalIdentityProfileModal({
               <span className="cm-profile-modal__input-icon"><MS name="badge" size={21} active /></span>
               <input
                 value={globalProfileDisplayName}
-                onChange={(event) => setGlobalProfileDisplayName(safeEventValue(event).slice(0, 80))}
+                onChange={(event) => setGlobalProfileDisplayName(event.target.value.slice(0, 80))}
                 autoComplete="name"
                 maxLength={80}
                 placeholder="Tu nombre visible"
@@ -33269,7 +30459,7 @@ function GlobalIdentityProfileModal({
               <span className="cm-profile-modal__input-icon"><MS name="alternate_email" size={21} active /></span>
               <input
                 value={cleanUsername}
-                onChange={(event) => setGlobalProfileUsername(safeEventValue(event).replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
+                onChange={(event) => setGlobalProfileUsername(event.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 30))}
                 autoComplete="username"
                 maxLength={30}
                 placeholder="usuario"
@@ -33747,7 +30937,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
         {adminCard && <div className="cm-feed-review">
           <div className="cm-feed-review__identity"><span><MS name="badge" size={17} />Autor</span><code>{item.user_id || "AnunciosBanner"}</code></div>
           {!item._legacy && item.estatus === "pendiente" && <>
-            <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:safeEventValue(e)}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:safeEventValue(e)}}))} /></label></div>
+            <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:e.target.value}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:e.target.value}}))} /></label></div>
             <div className="cm-feed-admin-actions"><button type="button" className="approve" onClick={() => moderate(item,"aprobado")}><MS name="verified" size={18} />Aprobar</button><button type="button" className="reject" onClick={() => moderate(item,"rechazado")}><MS name="block" size={18} />Rechazar</button></div>
           </>}
           {item._legacy && <div className="cm-feed-legacy-note"><MS name="view_carousel" size={17} />Administrado por AnunciosBanner</div>}
@@ -33776,7 +30966,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       {loading ? <div className="cm-feed-loading"><span className="cm-feed-pulse"/><span>Cargando Feed</span></div> : filteredPublic.length ? <div className="cm-feed-grid">{filteredPublic.map(item=>renderFeedCard(item))}</div> : <div className="cm-feed-empty"><MS name="dynamic_feed" size={40}/><strong>No hay anuncios vigentes</strong><span>Los anuncios aprobados aparecerán aquí respetando su formato original.</span></div>}
     </>}
 
-    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label={isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"} onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:safeEventValue(e)}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:safeEventValue(e)}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:safeEventValue(e)}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(safeEventValue(e))} required/></label><label><span>Fin de vigencia * {isAdmin && adminMode ? "· sin límite administrativo" : "· máximo 1 mes"}</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(safeEventValue(e))} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:safeEventValue(e).replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Guardando</>:<><MS name="send" size={19}/>{isAdmin && adminMode ? "Publicar ahora" : "Enviar a aprobación"}</>}</button></div></form></div>}
+    {showComposer && <div className="cm-feed-composer-backdrop" role="dialog" aria-modal="true" aria-label={isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"} onMouseDown={e=>{if(e.target===e.currentTarget)setShowComposer(false)}}><form className="cm-feed-form" onSubmit={submit}><div className="cm-feed-form-head"><h3>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</h3><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}><MS name="close" size={20}/></button></div><div className="cm-feed-form-grid"><label className="is-wide"><span>Título del banner *</span><input value={form.titulo} maxLength={120} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Título principal del anuncio" required/></label><label className="is-wide"><span>Empresa (opcional)</span><input value={form.empresa} maxLength={120} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} placeholder="Empresa u organización"/></label><label className="is-wide"><span>Descripción *</span><textarea value={form.descripcion} maxLength={1200} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} placeholder="Contenido informativo del anuncio" required/></label><div className="cm-feed-drop"><label><span>Imagen JPEG o PNG *</span><input type="file" accept="image/jpeg,image/png" onChange={e=>pickImage(e.target.files?.[0]||null)}/></label>{preview&&<div className="cm-feed-preview"><img src={preview} alt="Vista previa del anuncio"/><div className="cm-feed-preview__meta"><span><MS name={formatIcon(detectedFormat)} size={17}/> Formato detectado: {formatLabel(detectedFormat)}</span><button type="button" className="cm-feed-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setImage(null)}}><MS name="delete" size={18}/>Descartar</button></div></div>}</div><label><span>Inicio de vigencia *</span><input type="datetime-local" value={form.fecha_inicio} onChange={e=>updateStart(e.target.value)} required/></label><label><span>Fin de vigencia * {isAdmin && adminMode ? "· sin límite administrativo" : "· máximo 1 mes"}</span><input type="datetime-local" value={form.fecha_fin} min={form.fecha_inicio||undefined} max={!isAdmin&&form.fecha_inicio?maxOneMonth(form.fecha_inicio):undefined} onChange={e=>updateEnd(e.target.value)} required/></label><label className="is-wide"><span>WhatsApp (opcional)</span><input inputMode="tel" value={form.contacto_whatsapp} onChange={e=>setForm(f=>({...f,contacto_whatsapp:e.target.value.replace(/\D/g,"")}))} placeholder="521..."/></label></div><div className="cm-feed-form-actions"><button type="button" className="cm-feed-btn" onClick={()=>setShowComposer(false)}>Cancelar</button><button type="submit" className="cm-feed-btn cm-feed-btn--primary" disabled={saving}>{saving?<><span className="cm-feed-pulse"/>Guardando</>:<><MS name="send" size={19}/>{isAdmin && adminMode ? "Publicar ahora" : "Enviar a aprobación"}</>}</button></div></form></div>}
   </div>;
 }
 
@@ -33877,12 +31067,12 @@ function SecurityAlertsPanel({ onOpenRecords }) {
       <article className="csa-card csa-card--wide"><div className="csa-card__head"><span className="csa-card__icon"><MS name="leaderboard" size={24} active /></span><span className="csa-trend">Top 5</span></div><h3>Usuarios con más alertas</h3><div className="csa-ranking">{ranking.length?ranking.map(([id,count],idx)=><div className="csa-rank" key={id}><span>{idx+1}</span><code>{id}</code><b>{count}</b></div>):<div style={{color:"#89919e",fontSize:12}}>Sin reincidencias registradas.</div>}</div></article>
     </div>
     <div className="csa-toolbar">
-      <input className="csa-input" placeholder="Buscar ID, usuario, archivo, URL o resultado" value={filters.q} onChange={e=>setFilters(f=>({...f,q:safeEventValue(e)}))}/>
-      <select className="csa-input" value={filters.origen} onChange={e=>setFilters(f=>({...f,origen:safeEventValue(e)}))}><option value="all">Todos los orígenes</option><option value="comunicado">Comunicado</option><option value="anuncio">Anuncio</option></select>
-      <select className="csa-input" value={filters.tipo} onChange={e=>setFilters(f=>({...f,tipo:safeEventValue(e)}))}><option value="all">Archivo y URL</option><option value="file">Archivo</option><option value="url">URL</option></select>
-      <input className="csa-input" type="date" value={filters.desde} onChange={e=>setFilters(f=>({...f,desde:safeEventValue(e)}))}/>
-      <input className="csa-input" type="date" value={filters.hasta} onChange={e=>setFilters(f=>({...f,hasta:safeEventValue(e)}))}/>
-      <input className="csa-input" placeholder="ID exacto de usuario" value={filters.usuario} onChange={e=>setFilters(f=>({...f,usuario:safeEventValue(e)}))}/>
+      <input className="csa-input" placeholder="Buscar ID, usuario, archivo, URL o resultado" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/>
+      <select className="csa-input" value={filters.origen} onChange={e=>setFilters(f=>({...f,origen:e.target.value}))}><option value="all">Todos los orígenes</option><option value="comunicado">Comunicado</option><option value="anuncio">Anuncio</option></select>
+      <select className="csa-input" value={filters.tipo} onChange={e=>setFilters(f=>({...f,tipo:e.target.value}))}><option value="all">Archivo y URL</option><option value="file">Archivo</option><option value="url">URL</option></select>
+      <input className="csa-input" type="date" value={filters.desde} onChange={e=>setFilters(f=>({...f,desde:e.target.value}))}/>
+      <input className="csa-input" type="date" value={filters.hasta} onChange={e=>setFilters(f=>({...f,hasta:e.target.value}))}/>
+      <input className="csa-input" placeholder="ID exacto de usuario" value={filters.usuario} onChange={e=>setFilters(f=>({...f,usuario:e.target.value}))}/>
     </div>
     {error && <div className="csa-empty" style={{color:"#ffb4ab"}}>{error}</div>}
     {!error && loading && <div className="csa-empty">Consultando alertas de seguridad…</div>}
@@ -33974,7 +31164,7 @@ function BugReportModal({ open, onClose, authUser, section }) {
       <header className="cm-bug-head"><div style={{display:"flex",alignItems:"center",gap:12}}><span style={{width:42,height:42,borderRadius:12,display:"grid",placeItems:"center",background:"rgba(56,189,248,.12)",color:"#7dd3fc"}}><MS name="bug_report" size={25} active /></span><div><h2 id="cm-bug-title">Reportar bug</h2><div style={{fontSize:11,color:"#8298af",marginTop:3}}>Ayúdanos a detectar y resolver problemas técnicos.</div></div></div><CloseButton onClick={onClose} disabled={saving}/></header>
       <div className="cm-bug-tabs"><button type="button" className={`cm-bug-tab ${view==="new"?"is-active":""}`} onClick={()=>setView("new")}><MS name="add_comment" size={19} active={view==="new"}/>Nuevo reporte</button>{authUser&&<button type="button" className={`cm-bug-tab ${view==="mine"?"is-active":""}`} onClick={()=>setView("mine")}><MS name="fact_check" size={19} active={view==="mine"}/>Mis reportes</button>}</div>
       <div className="cm-bug-body">{error&&<div className="cm-bug-msg" style={{background:"rgba(255,180,171,.10)",border:"1px solid rgba(255,180,171,.26)",color:"#ffb4ab"}}>{error}</div>}{success&&<div className="cm-bug-msg" style={{background:"rgba(78,222,163,.10)",border:"1px solid rgba(78,222,163,.26)",color:"#7ef0bd"}}>{success}</div>}
-      {view==="new"?<form onSubmit={submit}><div className="cm-bug-grid"><label className="cm-bug-field is-wide"><span>Descripción del problema</span><textarea className="cm-bug-input" value={comments} onChange={e=>setComments(safeEventValue(e))} maxLength={2000} placeholder="Describe qué ocurrió, qué esperabas que sucediera y cómo reproducir el problema." required/></label><div className="cm-bug-field is-wide"><span>Captura de pantalla</span><div className="cm-bug-drop"><button className="cm-bug-btn" type="button" onClick={()=>inputRef.current?.click()}><MS name="add_photo_alternate" size={20} active />Adjuntar imagen</button><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseFile(e.target.files?.[0]||null)}/><div style={{fontSize:11,color:"#8298af",marginTop:9}}>JPG, PNG o WEBP; máximo 10 MB. Se valida el contenido binario real.</div>{preview&&<div className="cm-bug-preview"><img src={preview} alt="Vista previa de la captura"/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:10,gap:10}}><span style={{fontSize:11,color:"#a9bed3",overflow:"hidden",textOverflow:"ellipsis"}}>{file?.name}</span><button type="button" className="cm-bug-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setFile(null);if(inputRef.current)inputRef.current.value=""}}><MS name="delete" size={18}/>Quitar</button></div></div>}</div></div><label className="cm-bug-field"><span>Sección de origen</span><input className="cm-bug-input" value={origin} readOnly/></label><label className="cm-bug-field"><span>Fecha y hora</span><input className="cm-bug-input" value={new Date().toLocaleString("es-MX")} readOnly/></label><label className="cm-bug-field is-wide"><span>ID de usuario</span><input className="cm-bug-input" value={authUser?.id||"No autenticado"} readOnly/></label></div><div className="cm-bug-actions"><button type="button" className="cm-bug-btn" onClick={onClose}>Cancelar</button><button type="submit" className="cm-bug-btn cm-bug-btn--primary" disabled={saving||!authUser}>{saving?<><MS name="progress_activity" size={19}/>Enviando</>:<><MS name="send" size={19}/>Enviar reporte</>}</button></div>{!authUser&&<div style={{marginTop:12,color:"#fbbf24",fontSize:12}}>Debes iniciar sesión para registrar y dar seguimiento al reporte.</div>}</form>:<div className="cm-bug-list">{loadingReports?<div className="cm-bug-empty">Consultando tus reportes…</div>:reports.length?reports.map(report=><article className="cm-bug-report" key={report.id}><div className="cm-bug-report__top"><div><strong style={{fontSize:14}}>Reporte {String(report.id).slice(0,8).toUpperCase()}</strong><div className="cm-bug-meta" style={{marginTop:7}}><span><MS name="schedule" size={14}/> {new Date(report.fecha_creacion).toLocaleString("es-MX")}</span><span><MS name="view_quilt" size={14}/> {report.seccion_origen}</span></div></div><BugReportStatusChip status={report.estatus}/></div><p>{report.comentarios}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{report.captura&&<button type="button" className="cm-bug-btn" onClick={()=>signedCapture(report)}><MS name="image" size={18}/>Ver captura</button>}</div>{report.respuesta_admin&&<div className="cm-bug-answer"><strong>Respuesta de soporte</strong><div style={{marginTop:6,whiteSpace:"pre-wrap"}}>{report.respuesta_admin}</div></div>}</article>):<div className="cm-bug-empty"><MS name="inbox" size={32} active/><div style={{marginTop:8}}>Aún no has enviado reportes.</div></div>}</div>}</div>
+      {view==="new"?<form onSubmit={submit}><div className="cm-bug-grid"><label className="cm-bug-field is-wide"><span>Descripción del problema</span><textarea className="cm-bug-input" value={comments} onChange={e=>setComments(e.target.value)} maxLength={2000} placeholder="Describe qué ocurrió, qué esperabas que sucediera y cómo reproducir el problema." required/></label><div className="cm-bug-field is-wide"><span>Captura de pantalla</span><div className="cm-bug-drop"><button className="cm-bug-btn" type="button" onClick={()=>inputRef.current?.click()}><MS name="add_photo_alternate" size={20} active />Adjuntar imagen</button><input ref={inputRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>chooseFile(e.target.files?.[0]||null)}/><div style={{fontSize:11,color:"#8298af",marginTop:9}}>JPG, PNG o WEBP; máximo 10 MB. Se valida el contenido binario real.</div>{preview&&<div className="cm-bug-preview"><img src={preview} alt="Vista previa de la captura"/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:10,gap:10}}><span style={{fontSize:11,color:"#a9bed3",overflow:"hidden",textOverflow:"ellipsis"}}>{file?.name}</span><button type="button" className="cm-bug-btn" onClick={()=>{if(preview)URL.revokeObjectURL(preview);setPreview("");setFile(null);if(inputRef.current)inputRef.current.value=""}}><MS name="delete" size={18}/>Quitar</button></div></div>}</div></div><label className="cm-bug-field"><span>Sección de origen</span><input className="cm-bug-input" value={origin} readOnly/></label><label className="cm-bug-field"><span>Fecha y hora</span><input className="cm-bug-input" value={new Date().toLocaleString("es-MX")} readOnly/></label><label className="cm-bug-field is-wide"><span>ID de usuario</span><input className="cm-bug-input" value={authUser?.id||"No autenticado"} readOnly/></label></div><div className="cm-bug-actions"><button type="button" className="cm-bug-btn" onClick={onClose}>Cancelar</button><button type="submit" className="cm-bug-btn cm-bug-btn--primary" disabled={saving||!authUser}>{saving?<><MS name="progress_activity" size={19}/>Enviando</>:<><MS name="send" size={19}/>Enviar reporte</>}</button></div>{!authUser&&<div style={{marginTop:12,color:"#fbbf24",fontSize:12}}>Debes iniciar sesión para registrar y dar seguimiento al reporte.</div>}</form>:<div className="cm-bug-list">{loadingReports?<div className="cm-bug-empty">Consultando tus reportes…</div>:reports.length?reports.map(report=><article className="cm-bug-report" key={report.id}><div className="cm-bug-report__top"><div><strong style={{fontSize:14}}>Reporte {String(report.id).slice(0,8).toUpperCase()}</strong><div className="cm-bug-meta" style={{marginTop:7}}><span><MS name="schedule" size={14}/> {new Date(report.fecha_creacion).toLocaleString("es-MX")}</span><span><MS name="view_quilt" size={14}/> {report.seccion_origen}</span></div></div><BugReportStatusChip status={report.estatus}/></div><p>{report.comentarios}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{report.captura&&<button type="button" className="cm-bug-btn" onClick={()=>signedCapture(report)}><MS name="image" size={18}/>Ver captura</button>}</div>{report.respuesta_admin&&<div className="cm-bug-answer"><strong>Respuesta de soporte</strong><div style={{marginTop:6,whiteSpace:"pre-wrap"}}>{report.respuesta_admin}</div></div>}</article>):<div className="cm-bug-empty"><MS name="inbox" size={32} active/><div style={{marginTop:8}}>Aún no has enviado reportes.</div></div>}</div>}</div>
     </section></div>,document.body);
 }
 
@@ -33989,7 +31179,247 @@ function AdminBugReportsPanel() {
   const openItem=x=>{setSelected(x);setReply(x.respuesta_admin||"");setStatus(x.estatus||"pendiente")};
   const save=async()=>{if(!selected)return;setSaving(true);const {error:e}=await sb.from("reportes_bugs").update({estatus:status,respuesta_admin:reply.trim()||null,fecha_actualizacion:new Date().toISOString()}).eq("id",selected.id);if(e)setError(e.message);else{await load();setSelected(null)}setSaving(false)};
   const openCapture=async x=>{const {data,error:e}=await sb.storage.from(BUG_REPORTS_BUCKET).createSignedUrl(x.captura,180);if(e)setError(e.message);else window.open(data.signedUrl,"_blank","noopener,noreferrer")};
-  return <div className="cm-admin-bugs"><style>{`.cm-admin-bugs{font-family:Inter,sans-serif}.cab-toolbar{display:grid;grid-template-columns:1.4fr repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:16px}.cab-control{width:100%;min-height:42px;border:1px solid rgba(159,202,255,.2);border-radius:8px;background:#101415;color:#e0e3e5;padding:9px 11px;outline:none}.cab-control:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.cab-list{display:grid;gap:10px}.cab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.84),rgba(16,20,21,.9));transition:.25s}.cab-row:hover{border-color:rgba(159,202,255,.46);box-shadow:0 0 24px rgba(159,202,255,.09);transform:translateY(-1px)}.cab-meta{display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px;margin-top:8px}.cab-btn{min-height:38px;border:1px solid rgba(159,202,255,.32);border-radius:6px;background:rgba(159,202,255,.08);color:#9fcaff;padding:8px 11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}.cab-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22),0 0 20px rgba(159,202,255,.1)}.cab-empty{padding:38px;text-align:center;color:#89919e;border:1px dashed rgba(63,71,83,.7);border-radius:8px}.cab-modal{position:fixed;inset:0;z-index:130000;background:rgba(0,0,0,.74);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px}.cab-dialog{width:min(760px,100%);max-height:calc(100vh - 30px);overflow:auto;border:1px solid rgba(159,202,255,.3);border-radius:16px;background:#101415;color:#e0e3e5;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.cab-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cab-box{padding:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:#191c1e}.cab-box.is-wide{grid-column:1/-1}.cab-box small{display:block;color:#89919e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}@media(max-width:900px){.cab-toolbar{grid-template-columns:1fr 1fr}.cab-row{grid-template-columns:1fr}}@media(max-width:600px){.cab-toolbar,.cab-detail{grid-template-columns:1fr}.cab-box.is-wide{grid-column:auto}}`}</style><div className="cab-toolbar"><input className="cab-control" placeholder="Buscar ID, usuario o comentario" value={filters.q} onChange={e=>setFilters(f=>({...f,q:safeEventValue(e)}))}/><select className="cab-control" value={filters.status} onChange={e=>setFilters(f=>({...f,status:safeEventValue(e)}))}><option value="all">Todos los estatus</option>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><select className="cab-control" value={filters.section} onChange={e=>setFilters(f=>({...f,section:safeEventValue(e)}))}><option value="all">Todas las secciones</option>{sections.map(x=><option key={x}>{x}</option>)}</select><input className="cab-control" type="date" value={filters.from} onChange={e=>setFilters(f=>({...f,from:safeEventValue(e)}))}/><input className="cab-control" type="date" value={filters.to} onChange={e=>setFilters(f=>({...f,to:safeEventValue(e)}))}/></div>{error&&<div className="cab-empty" style={{color:"#ffb4ab"}}>{error}</div>}{!error&&loading&&<div className="cab-empty">Cargando reportes…</div>}{!error&&!loading&&<div className="cab-list">{visible.length?visible.map(x=><article className="cab-row" key={x.id}><div><div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><strong>{String(x.id).slice(0,8).toUpperCase()}</strong><BugReportStatusChip status={x.estatus}/></div><p style={{color:"#bfc7d5",lineHeight:1.55,margin:"10px 0 0"}}>{x.comentarios}</p><div className="cab-meta"><span>Sección: {x.seccion_origen}</span><span>Usuario: {x.user_id}</span><span>{new Date(x.fecha_creacion).toLocaleString("es-MX")}</span></div></div><div style={{display:"flex",alignItems:"center"}}><button className="cab-btn" onClick={()=>openItem(x)}><MS name="open_in_new" size={18}/>Atender</button></div></article>):<div className="cab-empty"><MS name="bug_report" size={34} active/><div style={{marginTop:8}}>No hay reportes que coincidan con los filtros.</div></div>}</div>}{selected&&<div className="cab-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setSelected(null)}}><section className="cab-dialog"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><div><h3 style={{margin:0,fontSize:22}}>Detalle del reporte</h3><div style={{color:"#89919e",fontSize:11,marginTop:4}}>{selected.id}</div></div><CloseButton onClick={()=>setSelected(null)} disabled={saving}/></div><div className="cab-detail"><div className="cab-box"><small>Usuario</small><code style={{wordBreak:"break-all"}}>{selected.user_id}</code></div><div className="cab-box"><small>Fecha</small>{new Date(selected.fecha_creacion).toLocaleString("es-MX")}</div><div className="cab-box"><small>Sección</small>{selected.seccion_origen}</div><div className="cab-box"><small>Estatus actual</small><BugReportStatusChip status={selected.estatus}/></div><div className="cab-box is-wide"><small>Comentarios</small><div style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{selected.comentarios}</div></div>{selected.captura&&<div className="cab-box is-wide"><small>Captura</small><button className="cab-btn" onClick={()=>openCapture(selected)}><MS name="image" size={18}/>Abrir captura segura</button></div>}<label className="cab-box"><small>Nuevo estatus</small><select className="cab-control" value={status} onChange={e=>setStatus(safeEventValue(e))}>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></label><label className="cab-box"><small>ID / perfil del usuario</small><div style={{display:"flex",gap:8}}><input className="cab-control" readOnly value={selected.user_id}/><button className="cab-btn" type="button" onClick={()=>navigator.clipboard?.writeText(selected.user_id)} aria-label="Copiar ID"><MS name="content_copy" size={18}/></button></div></label><label className="cab-box is-wide"><small>Respuesta visible para el usuario</small><textarea className="cab-control" style={{minHeight:130,resize:"vertical"}} value={reply} onChange={e=>setReply(safeEventValue(e))} maxLength={3000}/></label></div><div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}><button className="cab-btn" onClick={()=>setSelected(null)}>Cancelar</button><button className="cab-btn" style={{background:"linear-gradient(135deg,#9fcaff,#00e3fd)",color:"#002f54"}} onClick={save} disabled={saving}><MS name="save" size={18}/>{saving?"Guardando":"Guardar cambios"}</button></div></section></div>}</div>;
+  return <div className="cm-admin-bugs"><style>{`.cm-admin-bugs{font-family:Inter,sans-serif}.cab-toolbar{display:grid;grid-template-columns:1.4fr repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:16px}.cab-control{width:100%;min-height:42px;border:1px solid rgba(159,202,255,.2);border-radius:8px;background:#101415;color:#e0e3e5;padding:9px 11px;outline:none}.cab-control:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.cab-list{display:grid;gap:10px}.cab-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:linear-gradient(145deg,rgba(39,42,44,.84),rgba(16,20,21,.9));transition:.25s}.cab-row:hover{border-color:rgba(159,202,255,.46);box-shadow:0 0 24px rgba(159,202,255,.09);transform:translateY(-1px)}.cab-meta{display:flex;gap:12px;flex-wrap:wrap;color:#89919e;font-size:11px;margin-top:8px}.cab-btn{min-height:38px;border:1px solid rgba(159,202,255,.32);border-radius:6px;background:rgba(159,202,255,.08);color:#9fcaff;padding:8px 11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.2s}.cab-btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22),0 0 20px rgba(159,202,255,.1)}.cab-empty{padding:38px;text-align:center;color:#89919e;border:1px dashed rgba(63,71,83,.7);border-radius:8px}.cab-modal{position:fixed;inset:0;z-index:130000;background:rgba(0,0,0,.74);backdrop-filter:blur(12px);display:grid;place-items:center;padding:18px}.cab-dialog{width:min(760px,100%);max-height:calc(100vh - 30px);overflow:auto;border:1px solid rgba(159,202,255,.3);border-radius:16px;background:#101415;color:#e0e3e5;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.cab-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cab-box{padding:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;background:#191c1e}.cab-box.is-wide{grid-column:1/-1}.cab-box small{display:block;color:#89919e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}@media(max-width:900px){.cab-toolbar{grid-template-columns:1fr 1fr}.cab-row{grid-template-columns:1fr}}@media(max-width:600px){.cab-toolbar,.cab-detail{grid-template-columns:1fr}.cab-box.is-wide{grid-column:auto}}`}</style><div className="cab-toolbar"><input className="cab-control" placeholder="Buscar ID, usuario o comentario" value={filters.q} onChange={e=>setFilters(f=>({...f,q:e.target.value}))}/><select className="cab-control" value={filters.status} onChange={e=>setFilters(f=>({...f,status:e.target.value}))}><option value="all">Todos los estatus</option>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select><select className="cab-control" value={filters.section} onChange={e=>setFilters(f=>({...f,section:e.target.value}))}><option value="all">Todas las secciones</option>{sections.map(x=><option key={x}>{x}</option>)}</select><input className="cab-control" type="date" value={filters.from} onChange={e=>setFilters(f=>({...f,from:e.target.value}))}/><input className="cab-control" type="date" value={filters.to} onChange={e=>setFilters(f=>({...f,to:e.target.value}))}/></div>{error&&<div className="cab-empty" style={{color:"#ffb4ab"}}>{error}</div>}{!error&&loading&&<div className="cab-empty">Cargando reportes…</div>}{!error&&!loading&&<div className="cab-list">{visible.length?visible.map(x=><article className="cab-row" key={x.id}><div><div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><strong>{String(x.id).slice(0,8).toUpperCase()}</strong><BugReportStatusChip status={x.estatus}/></div><p style={{color:"#bfc7d5",lineHeight:1.55,margin:"10px 0 0"}}>{x.comentarios}</p><div className="cab-meta"><span>Sección: {x.seccion_origen}</span><span>Usuario: {x.user_id}</span><span>{new Date(x.fecha_creacion).toLocaleString("es-MX")}</span></div></div><div style={{display:"flex",alignItems:"center"}}><button className="cab-btn" onClick={()=>openItem(x)}><MS name="open_in_new" size={18}/>Atender</button></div></article>):<div className="cab-empty"><MS name="bug_report" size={34} active/><div style={{marginTop:8}}>No hay reportes que coincidan con los filtros.</div></div>}</div>}{selected&&<div className="cab-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setSelected(null)}}><section className="cab-dialog"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:18}}><div><h3 style={{margin:0,fontSize:22}}>Detalle del reporte</h3><div style={{color:"#89919e",fontSize:11,marginTop:4}}>{selected.id}</div></div><CloseButton onClick={()=>setSelected(null)} disabled={saving}/></div><div className="cab-detail"><div className="cab-box"><small>Usuario</small><code style={{wordBreak:"break-all"}}>{selected.user_id}</code></div><div className="cab-box"><small>Fecha</small>{new Date(selected.fecha_creacion).toLocaleString("es-MX")}</div><div className="cab-box"><small>Sección</small>{selected.seccion_origen}</div><div className="cab-box"><small>Estatus actual</small><BugReportStatusChip status={selected.estatus}/></div><div className="cab-box is-wide"><small>Comentarios</small><div style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{selected.comentarios}</div></div>{selected.captura&&<div className="cab-box is-wide"><small>Captura</small><button className="cab-btn" onClick={()=>openCapture(selected)}><MS name="image" size={18}/>Abrir captura segura</button></div>}<label className="cab-box"><small>Nuevo estatus</small><select className="cab-control" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(BUG_REPORT_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></label><label className="cab-box"><small>ID / perfil del usuario</small><div style={{display:"flex",gap:8}}><input className="cab-control" readOnly value={selected.user_id}/><button className="cab-btn" type="button" onClick={()=>navigator.clipboard?.writeText(selected.user_id)} aria-label="Copiar ID"><MS name="content_copy" size={18}/></button></div></label><label className="cab-box is-wide"><small>Respuesta visible para el usuario</small><textarea className="cab-control" style={{minHeight:130,resize:"vertical"}} value={reply} onChange={e=>setReply(e.target.value)} maxLength={3000}/></label></div><div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}><button className="cab-btn" onClick={()=>setSelected(null)}>Cancelar</button><button className="cab-btn" style={{background:"linear-gradient(135deg,#9fcaff,#00e3fd)",color:"#002f54"}} onClick={save} disabled={saving}><MS name="save" size={18}/>{saving?"Guardando":"Guardar cambios"}</button></div></section></div>}</div>;
+}
+
+
+const PDF_CONVERTER_SCRIPT_URLS = {
+  pdfLib: "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
+  jsZip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+};
+
+const loadAdminToolScript = (src, globalName) => new Promise((resolve, reject) => {
+  if (typeof window === "undefined") return reject(new Error("El navegador no está disponible."));
+  if (window[globalName]) return resolve(window[globalName]);
+  const existing = document.querySelector(`script[data-cm-admin-tool="${globalName}"]`);
+  if (existing) {
+    existing.addEventListener("load", () => resolve(window[globalName]), { once:true });
+    existing.addEventListener("error", () => reject(new Error(`No se pudo cargar ${globalName}.`)), { once:true });
+    return;
+  }
+  const script = document.createElement("script");
+  script.src = src;
+  script.async = true;
+  script.crossOrigin = "anonymous";
+  script.dataset.cmAdminTool = globalName;
+  script.onload = () => window[globalName] ? resolve(window[globalName]) : reject(new Error(`La biblioteca ${globalName} no quedó disponible.`));
+  script.onerror = () => reject(new Error(`No se pudo cargar ${globalName}.`));
+  document.head.appendChild(script);
+});
+
+const formatPdfToolBytes = (bytes = 0) => {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const makePdfToolId = (file) => `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+
+function AdminPdfConverter({ onBack }) {
+  const [items, setItems] = useState([]);
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("");
+  const [failures, setFailures] = useState([]);
+  const [generatedFileName, setGeneratedFileName] = useState("");
+  const [whatsAppNumber, setWhatsAppNumber] = useState("");
+  const fileInputRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const safeSet = useCallback((setter, value) => {
+    if (mountedRef.current) setter(value);
+  }, []);
+
+  const addFiles = useCallback((fileList) => {
+    const incoming = Array.from(fileList || []);
+    const rejected = incoming.filter(file => !(file?.type === "application/pdf" || String(file?.name || "").toLowerCase().endsWith(".pdf")));
+    const accepted = incoming.filter(file => file?.type === "application/pdf" || String(file?.name || "").toLowerCase().endsWith(".pdf"));
+    setItems(current => {
+      const known = new Set(current.map(item => `${item.file.name}|${item.file.size}|${item.file.lastModified}`));
+      const unique = accepted.filter(file => !known.has(`${file.name}|${file.size}|${file.lastModified}`));
+      return [...current, ...unique.map(file => ({ id:makePdfToolId(file), file }))];
+    });
+    setFailures(rejected.map(file => `${file.name || "Archivo sin nombre"}: no es un PDF válido.`));
+    setStatus(rejected.length ? "Algunos archivos fueron rechazados por su formato." : "");
+    setGeneratedFileName("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const moveItem = useCallback((index, direction) => {
+    setItems(current => {
+      const next = [...current];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
+  const removeItem = useCallback((id) => {
+    setItems(current => current.filter(item => item.id !== id));
+    setGeneratedFileName("");
+  }, []);
+
+  const clearAll = useCallback(() => {
+    if (busy) return;
+    setItems([]);
+    setProgress(0);
+    setStatus("");
+    setFailures([]);
+    setGeneratedFileName("");
+  }, [busy]);
+
+  const downloadBlob = useCallback((blob, name) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = name;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }, []);
+
+  const beginProcessing = useCallback(() => {
+    setBusy(true);
+    setProgress(0);
+    setStatus("");
+    setFailures([]);
+    setGeneratedFileName("");
+  }, []);
+
+  const finishProcessing = useCallback(() => setBusy(false), []);
+
+  const mergePdfs = useCallback(async () => {
+    if (items.length < 2 || busy) return;
+    beginProcessing();
+    const failed = [];
+    try {
+      const PDFLibApi = await loadAdminToolScript(PDF_CONVERTER_SCRIPT_URLS.pdfLib, "PDFLib");
+      const merged = await PDFLibApi.PDFDocument.create();
+      let acceptedCount = 0;
+      for (let index = 0; index < items.length; index += 1) {
+        const current = items[index].file;
+        safeSet(setStatus, `Procesando ${index + 1} de ${items.length}: ${current.name}`);
+        safeSet(setProgress, Math.round((index / Math.max(1, items.length)) * 90));
+        try {
+          const bytes = await current.arrayBuffer();
+          const source = await PDFLibApi.PDFDocument.load(bytes, { ignoreEncryption:false, updateMetadata:false });
+          const pages = await merged.copyPages(source, source.getPageIndices());
+          pages.forEach(page => merged.addPage(page));
+          acceptedCount += 1;
+        } catch (error) {
+          failed.push(`${current.name}: ${error?.message || "archivo corrupto, protegido o ilegible"}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      if (acceptedCount < 1 || merged.getPageCount() < 1) throw new Error("Ningún PDF pudo procesarse correctamente.");
+      safeSet(setStatus, "Generando el PDF unido...");
+      const output = await merged.save({ useObjectStreams:true, addDefaultPage:false });
+      safeSet(setProgress, 100);
+      const fileName = "documentos_unidos.pdf";
+      downloadBlob(new Blob([output], { type:"application/pdf" }), fileName);
+      safeSet(setGeneratedFileName, fileName);
+      safeSet(setFailures, failed);
+      safeSet(setStatus, failed.length ? `PDF generado con ${acceptedCount} archivo(s); ${failed.length} fueron excluidos.` : `PDF generado correctamente con ${acceptedCount} archivo(s) y ${merged.getPageCount()} página(s).`);
+    } catch (error) {
+      safeSet(setFailures, failed);
+      safeSet(setStatus, error?.message || "No se pudo generar el PDF unido.");
+    } finally {
+      finishProcessing();
+    }
+  }, [items, busy, beginProcessing, downloadBlob, finishProcessing, safeSet]);
+
+  const downloadZip = useCallback(async () => {
+    if (!items.length || busy) return;
+    beginProcessing();
+    const failed = [];
+    try {
+      const [PDFLibApi, JSZipApi] = await Promise.all([
+        loadAdminToolScript(PDF_CONVERTER_SCRIPT_URLS.pdfLib, "PDFLib"),
+        loadAdminToolScript(PDF_CONVERTER_SCRIPT_URLS.jsZip, "JSZip"),
+      ]);
+      const zip = new JSZipApi();
+      const names = new Map();
+      let acceptedCount = 0;
+      for (let index = 0; index < items.length; index += 1) {
+        const current = items[index].file;
+        safeSet(setStatus, `Validando ${index + 1} de ${items.length}: ${current.name}`);
+        safeSet(setProgress, Math.round((index / Math.max(1, items.length)) * 70));
+        try {
+          const bytes = await current.arrayBuffer();
+          await PDFLibApi.PDFDocument.load(bytes, { ignoreEncryption:false, updateMetadata:false });
+          const originalName = current.name || `documento-${index + 1}.pdf`;
+          const count = names.get(originalName) || 0;
+          names.set(originalName, count + 1);
+          const dot = originalName.lastIndexOf(".");
+          const name = count === 0 ? originalName : dot > 0 ? `${originalName.slice(0, dot)} (${count + 1})${originalName.slice(dot)}` : `${originalName} (${count + 1})`;
+          zip.file(name, bytes, { binary:true, compression:"DEFLATE" });
+          acceptedCount += 1;
+        } catch (error) {
+          failed.push(`${current.name}: ${error?.message || "archivo corrupto, protegido o ilegible"}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      if (!acceptedCount) throw new Error("Ningún PDF pudo validarse para crear el ZIP.");
+      safeSet(setStatus, "Comprimiendo los archivos...");
+      const blob = await zip.generateAsync({ type:"blob", compression:"DEFLATE", compressionOptions:{ level:6 } }, metadata => {
+        safeSet(setProgress, Math.min(100, 70 + Math.round((metadata.percent / 100) * 30)));
+      });
+      const fileName = "documentos_pdf.zip";
+      downloadBlob(blob, fileName);
+      safeSet(setGeneratedFileName, fileName);
+      safeSet(setFailures, failed);
+      safeSet(setStatus, failed.length ? `ZIP generado con ${acceptedCount} archivo(s); ${failed.length} fueron excluidos.` : `ZIP generado correctamente con ${acceptedCount} archivo(s).`);
+    } catch (error) {
+      safeSet(setFailures, failed);
+      safeSet(setStatus, error?.message || "No se pudo generar el archivo ZIP.");
+    } finally {
+      finishProcessing();
+    }
+  }, [items, busy, beginProcessing, downloadBlob, finishProcessing, safeSet]);
+
+  const openWhatsApp = useCallback(() => {
+    const digits = String(whatsAppNumber || "").replace(/\D/g, "");
+    if (!digits || !generatedFileName) return;
+    const message = encodeURIComponent(`Te comparto el archivo ${generatedFileName}. El archivo debe adjuntarse manualmente desde la carpeta de descargas.`);
+    window.open(`https://wa.me/${digits}?text=${message}`, "_blank", "noopener,noreferrer");
+  }, [whatsAppNumber, generatedFileName]);
+
+  return (
+    <section className="cm-pdf-tool" aria-label="Conversor de archivos PDF">
+      <style>{`
+        .cm-pdf-tool{color:#e0e3e5;font-family:Inter,sans-serif;display:grid;gap:18px}.cm-pdf-tool *{box-sizing:border-box}
+        .cm-pdf-tool__head{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid rgba(159,202,255,.14)}.cm-pdf-tool__back{width:44px;height:44px;border-radius:10px;border:1px solid rgba(159,202,255,.26);background:rgba(159,202,255,.08);color:#9fcaff;display:grid;place-items:center;cursor:pointer}.cm-pdf-tool__back:hover{background:rgba(159,202,255,.16);transform:translateY(-1px)}.cm-pdf-tool__head h3{margin:0;font-size:22px}.cm-pdf-tool__head p{margin:4px 0 0;color:#89919e;font-size:13px;line-height:1.5}
+        .cm-pdf-tool__drop{min-height:170px;border:1.5px dashed rgba(159,202,255,.32);border-radius:14px;background:rgba(16,20,21,.72);display:grid;place-items:center;text-align:center;padding:24px;cursor:pointer;transition:.2s ease}.cm-pdf-tool__drop:hover,.cm-pdf-tool__drop.is-dragging{border-color:#9fcaff;background:rgba(159,202,255,.08)}.cm-pdf-tool__drop strong{display:block;margin-top:10px;font-size:16px}.cm-pdf-tool__drop small{display:block;margin-top:5px;color:#89919e}.cm-pdf-tool__drop input{display:none}
+        .cm-pdf-tool__toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.cm-pdf-tool__toolbar span{color:#bfc7d5;font-size:13px;font-weight:700}.cm-pdf-tool__button{min-height:42px;border:1px solid rgba(159,202,255,.28);border-radius:9px;background:rgba(159,202,255,.08);color:#cfe5ff;padding:9px 14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}.cm-pdf-tool__button:hover:not(:disabled){background:rgba(159,202,255,.16);transform:translateY(-1px)}.cm-pdf-tool__button:disabled{opacity:.42;cursor:not-allowed}.cm-pdf-tool__button.is-primary{background:linear-gradient(135deg,#9fcaff,#00e3fd);color:#002f54;border-color:transparent}.cm-pdf-tool__button.is-danger{color:#ffb4ab;border-color:rgba(255,180,171,.28);background:rgba(255,180,171,.06)}
+        .cm-pdf-tool__list{display:grid;border:1px solid rgba(63,71,83,.6);border-radius:12px;overflow:hidden;background:rgba(16,20,21,.55)}.cm-pdf-tool__row{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid rgba(63,71,83,.36)}.cm-pdf-tool__row:last-child{border-bottom:0}.cm-pdf-tool__index{color:#89919e;text-align:center;font-variant-numeric:tabular-nums}.cm-pdf-tool__file{min-width:0}.cm-pdf-tool__file strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}.cm-pdf-tool__file small{display:block;color:#89919e;margin-top:3px}.cm-pdf-tool__row-actions{display:flex;gap:5px}.cm-pdf-tool__icon-button{width:36px;height:36px;border-radius:8px;border:1px solid rgba(159,202,255,.18);background:rgba(159,202,255,.05);color:#bfc7d5;display:grid;place-items:center;cursor:pointer}.cm-pdf-tool__icon-button:hover:not(:disabled){color:#9fcaff;background:rgba(159,202,255,.13)}.cm-pdf-tool__icon-button:disabled{opacity:.28;cursor:not-allowed}.cm-pdf-tool__icon-button.is-remove:hover{color:#ffb4ab;border-color:rgba(255,180,171,.35)}
+        .cm-pdf-tool__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cm-pdf-tool__progress{height:8px;border-radius:999px;background:rgba(63,71,83,.55);overflow:hidden}.cm-pdf-tool__progress span{display:block;height:100%;background:linear-gradient(90deg,#9fcaff,#00e3fd);transition:width .15s ease}.cm-pdf-tool__status{padding:13px 14px;border-radius:10px;border:1px solid rgba(159,202,255,.15);background:rgba(159,202,255,.05);color:#bfc7d5;font-size:13px;line-height:1.55}.cm-pdf-tool__errors{margin:0;padding:12px 12px 12px 30px;border-radius:10px;border:1px solid rgba(255,180,171,.24);background:rgba(255,180,171,.06);color:#ffb4ab;font-size:12px;line-height:1.5;max-height:160px;overflow:auto}.cm-pdf-tool__wa{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:14px;border:1px solid rgba(37,211,102,.25);border-radius:12px;background:rgba(37,211,102,.06)}.cm-pdf-tool__wa input{min-height:44px;border:1px solid rgba(159,202,255,.24);border-radius:9px;background:#101415;color:#e0e3e5;padding:10px 12px;outline:none}.cm-pdf-tool__wa p{grid-column:1/-1;margin:0;color:#89919e;font-size:12px;line-height:1.5}.cm-pdf-tool__privacy{display:flex;align-items:flex-start;gap:10px;color:#89919e;font-size:12px;line-height:1.55;padding-top:4px}
+        @media(max-width:720px){.cm-pdf-tool__actions{grid-template-columns:1fr}.cm-pdf-tool__row{grid-template-columns:34px minmax(0,1fr) auto}.cm-pdf-tool__row>small{display:none}.cm-pdf-tool__row-actions{grid-column:2/-1;justify-content:flex-end}.cm-pdf-tool__wa{grid-template-columns:1fr}.cm-pdf-tool__wa p{grid-column:1}.cm-pdf-tool__button{width:100%}}
+      `}</style>
+      <header className="cm-pdf-tool__head">
+        <button type="button" className="cm-pdf-tool__back" onClick={onBack} aria-label="Regresar a Herramientas administrativas" disabled={busy}><MS name="arrow_back" size={23} active /></button>
+        <div><h3>Conversor PDF&apos;s</h3><p>Une documentos o descarga los archivos originales en ZIP. Todo se procesa únicamente en la memoria del navegador.</p></div>
+      </header>
+      <div className={`cm-pdf-tool__drop ${dragging ? "is-dragging" : ""}`} role="button" tabIndex={0} onClick={() => !busy && fileInputRef.current?.click()} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && !busy) fileInputRef.current?.click(); }} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy) addFiles(event.dataTransfer.files); }}>
+        <div><MS name="upload_file" size={42} active /><strong>Arrastra tus archivos PDF aquí</strong><small>También puedes pulsar para seleccionarlos. Se admiten lotes de 100 archivos o más.</small></div>
+        <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" multiple onChange={event => addFiles(event.target.files)} />
+      </div>
+      <div className="cm-pdf-tool__toolbar"><span>{items.length} {items.length === 1 ? "archivo" : "archivos"}</span><button type="button" className="cm-pdf-tool__button is-danger" onClick={clearAll} disabled={!items.length || busy}><MS name="delete_sweep" size={19} />Vaciar lista</button></div>
+      {!!items.length && <div className="cm-pdf-tool__list">{items.map((item, index) => <div className="cm-pdf-tool__row" key={item.id}><span className="cm-pdf-tool__index">{index + 1}</span><div className="cm-pdf-tool__file"><strong title={item.file.name}>{item.file.name}</strong><small>{formatPdfToolBytes(item.file.size)}</small></div><small>{formatPdfToolBytes(item.file.size)}</small><div className="cm-pdf-tool__row-actions"><button type="button" className="cm-pdf-tool__icon-button" onClick={() => moveItem(index, -1)} disabled={busy || index === 0} aria-label={`Subir ${item.file.name}`}><MS name="arrow_upward" size={18} /></button><button type="button" className="cm-pdf-tool__icon-button" onClick={() => moveItem(index, 1)} disabled={busy || index === items.length - 1} aria-label={`Bajar ${item.file.name}`}><MS name="arrow_downward" size={18} /></button><button type="button" className="cm-pdf-tool__icon-button is-remove" onClick={() => removeItem(item.id)} disabled={busy} aria-label={`Eliminar ${item.file.name}`}><MS name="delete" size={18} /></button></div></div>)}</div>}
+      <div className="cm-pdf-tool__actions"><button type="button" className="cm-pdf-tool__button is-primary" onClick={mergePdfs} disabled={busy || items.length < 2}><MS name="picture_as_pdf" size={20} />Unir en un solo PDF</button><button type="button" className="cm-pdf-tool__button" onClick={downloadZip} disabled={busy || items.length < 1}><MS name="folder_zip" size={20} />Descargar todos en ZIP</button></div>
+      {busy && <div className="cm-pdf-tool__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><span style={{ width:`${progress}%` }} /></div>}
+      {!!status && <div className="cm-pdf-tool__status" aria-live="polite">{busy && <MS name="progress_activity" size={18} style={{marginRight:8}} />}{status}{busy ? ` ${progress}%` : ""}</div>}
+      {!!failures.length && <ul className="cm-pdf-tool__errors">{failures.map((failure, index) => <li key={`${failure}-${index}`}>{failure}</li>)}</ul>}
+      {!!generatedFileName && <div className="cm-pdf-tool__wa"><input type="tel" inputMode="numeric" autoComplete="tel" placeholder="Número de WhatsApp con código de país" value={whatsAppNumber} onChange={event => setWhatsAppNumber(event.target.value)} /><button type="button" className="cm-pdf-tool__button" onClick={openWhatsApp} disabled={!String(whatsAppNumber).replace(/\D/g, "")}><MS name="send" size={19} />Abrir WhatsApp</button><p>El chat se abrirá con un mensaje preparado. WhatsApp no permite adjuntar archivos automáticamente desde una página web; debes seleccionar manualmente {generatedFileName} desde la carpeta de descargas.</p></div>}
+      <div className="cm-pdf-tool__privacy"><MS name="privacy_tip" size={20} active /><span>Los archivos no se suben a Supabase, no se guardan en base de datos y no se escriben en localStorage, sessionStorage ni IndexedDB. Al salir de esta vista, los objetos File quedan liberados por el navegador.</span></div>
+    </section>
+  );
 }
 
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
@@ -34011,6 +31441,7 @@ function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, childre
 function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser, onLogin, onRegister, onOpenThemeConfig, isAdmin = false, subAdmin = null }) {
   const [activeDashboardSection, setActiveDashboardSection] = useState("dashboard");
   const [newsTool, setNewsTool] = useState("publish");
+  const [adminToolsView, setAdminToolsView] = useState("list");
   const [adminMobileNavOpen, setAdminMobileNavOpen] = useState(false);
   const live = useAdminDashboardLiveData(incidents);
 
@@ -34033,7 +31464,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"bug_reports", permission:["gestionar_soporte","gestionar_quejas"], title:"Reportes de bugs", subtitle:"Recepción, diagnóstico, respuesta y resolución de problemas técnicos", icon:"bug_report" },
     { id:"security", permission:["ver_alertas_seguridad"], title:"Alertas de seguridad", subtitle:"Intentos bloqueados por VirusTotal, revisión y seguimiento", icon:"security" },
     { id:"records", permission:["gestionar_registros"], title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
-    { id:"tools", permission:["herramientas_admin","ver_control_portuario"], title:"Herramientas administrativas", subtitle:"Calculadora operativa, tema global y control portuario", icon:"construction" },
+    { id:"tools", permission:["herramientas_admin"], title:"Herramientas administrativas", subtitle:"Conversión de documentos y configuración global", icon:"construction" },
   ];
   const cards = allCards.filter(card => hasPermission(...card.permission));
   const adminNavigationGroups = useMemo(() => ([
@@ -34066,6 +31497,10 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
       setActiveDashboardSection("dashboard");
     }
   }, [activeDashboardSection, cards]);
+
+  useEffect(() => {
+    if (activeDashboardSection !== "tools" && adminToolsView !== "list") setAdminToolsView("list");
+  }, [activeDashboardSection, adminToolsView]);
 
   useEffect(() => {
     if (!adminMobileNavOpen || typeof document === "undefined") return undefined;
@@ -34310,11 +31745,12 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "bug_reports" && <AdminBugReportsPanel />}
                 {activeDashboardSection === "security" && <SecurityAlertsPanel onOpenRecords={() => openSection("records")} />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
-                {activeDashboardSection === "tools" && <div className="csp-tool-grid">
-                  <button type="button" className="csp-tool" onClick={() => setActiveTab("portuario")}><MS name="anchor" size={28} active /><strong>Control portuario</strong><small>Abrir el sistema de control de citas y carga.</small></button>
-                  <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>
-                  <div className="csp-tool" style={{cursor:"default"}}><MS name="calculate" size={28} active /><strong>Calculadora operativa</strong><small>Herramientas de cálculo y costos de ruta.</small><div style={{marginTop:16}}><AdminCalculadoraPanel /></div></div>
-                </div>}
+                {activeDashboardSection === "tools" && (adminToolsView === "pdf-converter"
+                  ? <AdminPdfConverter onBack={() => setAdminToolsView("list")} />
+                  : <div className="csp-tool-grid">
+                      <button type="button" className="csp-tool" onClick={() => setAdminToolsView("pdf-converter")}><MS name="picture_as_pdf" size={28} active /><strong>Conversor PDF&apos;s</strong><small>Unir documentos PDF o descargar los originales en un archivo ZIP, sin almacenar archivos.</small></button>
+                      {isAdmin && <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>}
+                    </div>)}
               </div>
             </section>
           ) : null}
@@ -34694,12 +32130,12 @@ function App() {
     const allowed = ["image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
       setGlobalProfileError("La foto debe estar en formato JPG, PNG o WEBP.");
-      safelyResetFileInput(event);
+      event.target.value = "";
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       setGlobalProfileError("La foto no puede superar 5 MB.");
-      safelyResetFileInput(event);
+      event.target.value = "";
       return;
     }
     setGlobalProfilePhotoFile(file);
@@ -35323,22 +32759,6 @@ function App() {
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
         {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} onReportBug={openBugReport} />}
 
-        {/* CONTROL PORTUARIO PORTUARIO — Solo admin principal o sub-admin con permiso ver_control_portuario */}
-        {active === "portuario" && (
-          isAdmin || subAdmin?.permisos?.ver_control_portuario
-            ? <SistemaControlPortuario />
-            : (
-              <div style={{ padding: "40px 20px", textAlign: "center" }}>
-                <div style={{ fontSize: "48px", marginBottom: "12px" }}>🔒</div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "14px", color: "rgba(255,255,255,0.5)", marginBottom: "6px" }}>
-                  Acceso restringido
-                </div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>
-                  Necesitas el permiso <strong style={{ color: "rgba(255,255,255,0.5)" }}>Control portuario</strong> para ver esta sección.
-                </div>
-              </div>
-            )
-        )}
         </main>
 
         {/* Validado FIX: Banner solo aparece cuando consent es null (no ha decidido aún) */}
@@ -35715,7 +33135,7 @@ function App() {
             <div style={{ display:"flex", gap:"8px", marginTop:"12px" }}>
               <textarea
                 value={geminiInput}
-                onChange={e=>setGeminiInput(safeEventValue(e))}
+                onChange={e=>setGeminiInput(e.target.value)}
                 onKeyDown={e=>{ if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendGeminiMessage(); } }}
                 placeholder="Escribe tu mensaje…"
                 style={{ flex:1, minHeight:"42px", maxHeight:"90px", resize:"vertical", borderRadius:"12px", border:"1px solid rgba(96,165,250,.35)", background:"rgba(2,12,27,.75)", color:"#fff", padding:"10px", fontFamily:getFont(theme,"secondary"), fontSize:"12px", outline:"none" }}
@@ -36201,6 +33621,5 @@ function App() {
   );
 }
 
-function StableApp() { return <GlobalErrorBoundary><App /></GlobalErrorBoundary>; }
-export default StableApp;
+export default App;
 const CM_REPORT_WATERMARK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZgAAAG3CAYAAACJwUO2AAAYvklEQVR42u3dQZLjMI5A0SyH97WsPZd1//PwLLPq6ZqcTKdkkRRAvB/REdM9WTZFAviEJEu/fv/5+wEMon36792UAHV5mgJMEMvn/51ogII8TAEWCaiZBoBggBHdy9W/BUAwwDQhASAYgGQAEAzmi6Jf+LcACAZ4CckABAPc3gURDUAwwJDORTcDEAywvJsBQDAgA5IBQDAgLwAEg8T0gZIgGYBgoMPQyQAgGJAZAIJBsoLfb/hOAAQDEiIZgGCAWuICQDAIXOB7gDEAIBjoMkgGIBggVvfyeTxEAxAMinQlLfDYABAMEtGDjINkAIKB7oVkAIIBXhftnmy8AAgGCeXSkowbAMEgUZFuyccPgGAQpDj3TY4DAMFgYUE+K5eW4JgAEAwCiyWjXEgGIBgEF0tmuZAMcCNPU7CtPEaRXS4AdDBY3JVUkwsxAjoY6FqmzlEXKgDBYL1cKpwOIxmAYLCQatdZSAYgGCwSSgWpkAxAMBgokfaiuIJkgKm4i2yPIvlKMl0RfXv+ABAMTnQ1IBmAYDBcJE1HQzIAwWBmISUakgEIBtMK4r+iqd7ZkQxAMJgkqSo3AxwVKskABIODu/QjBbOd2OWTDACC2bxQziq6FU6buf4ETMYPLfGdsPrGO/kzXQwRAToY3cvFYthf/N994znsb841AIIho5O7+v5CQLvu5kkGIBgskNFPxbQXnhsABFOy0I18QvJPoukbzqlrLQDBIAi7nDJrJySjiwEIRveysBjudG2GZACCIZegHU32bqyTDEAwWNO9tJOf1TeYv37wWEgGIBjdy+KuJNsps5ZwXQCCwfQCOPvay5W7qzJI5icZurMMIBgkLeAZuhenygCC0b1MKnYjPjN7J0AyAMGQS+IiTTIAwSCgXLKIIdopsz7470kGIJi0ctmlsPUbv/ff25AJASAYcnlRmNvNY8okmc+/6+kTxk1aAMGEE0tEuezYyYw4TUcyAMFs0bXsKpeRBf+sGFbcGUcyKM+v33/+moW4Yokolx5gTiKNv9JrDQAdDLmklMuqgtwCrjNAMBhScI6eEqsml5+OPSpOlQEEk0IsrwpWC3AMOwitJxorQDAYIpaPF11LhF1wv2Esu3QyuhgQDG4VS/Q7xdrH/30pV0bJ9JvnDyAYXJLK2UIS9ZTYV+NrNxXqHuQzrn4HyaAUT1Nw2440uliiii7DQz1b0HVxrQgEs6FMMoplhwIe8XljR1/idterF0gIw/BDy3XFfSex9GRr1oONryeLAdIBwQSUy653FvUka9c3ji0xgPBUP0XWFiee02Dj57oZX4jcIRwQzKRi77rK/Tvpq4/hx/h8sg7FqXyK7Erx3/npxkd34j3omvbNYm3nTQF0MPhip1ytYLRvhNMDrlFUyYwoxrvcGq/b1MGUbuntOO0+K3UxVR+sCh1MuWTPMHcKwPvdVaZ8uOt2atdzCAbFC6WE338z0z6OXX+788kF4pBgyhTeCh2S7q/WHL16/ty/D0C9aw6Ih2BKFpVdhSNxa8r3q/juJ+KkBcpHEEz6wrmjcCSpru6rYz7yW6RowhHTBLNlQmZ498t3iejaS22pfBcTH2/ERsRbpslnMBVvUz6yk2kLEjNTASOX4zFU4fljq2OhBZ0HEEwowbxbqJvkChU/391ZVaGryfKgU3lBMGEC867zwz1ZYlVOovZR507BMxulSJ1txLfAlsY1mPw7SNcC7pn3Ck996C86tozd1cpbp0mmYAcT6RfLfeHx2Z3V2DmPFst3stmtiDa5ooPZrVjMSNAZu2pCObaOmXb6Z9e7fyGZXR8o6swAwWyzy5j1VNnR1wq0/HU6mfaDRKvEw4jbqMvnzVPylxJouzBvES/qRpvnCk9s6B9ucFBfDvIwBSECti/+rv5mUpHLPgX36AXxSk82bh/vve+JXL6hykX+aI8j/wiUtC3RWHXK8+T4WZRf/XecW+vyc6aDybGbvKur6ZJm6x1se3EMbZNjtOY34iJ/nF1kDzKWf5OnkcrpDULmaxT9izVvN8ZpxCcitzdioiwVTpE5PXZ97lzcfy/eosrm6DW12Td2ZHrCcdsgn3UwxYtStMCs8Gv1mV1A5Fck929E8u+690FxmflR+cSigxkS2HcXg55oTiXS2MIUdTNx5aGsvdAaygcdjC5mQiGSWHvF39l3Ff30UrEKmwM5ULSDydS9CFqdTJR4q/zmR2LRwWyPC+rksloo3l9PLjqYQcGS4XH3TkPlj7/vrml4eRyx6GA27g7sfrG6C41wN57i+H6OmTuC2bYw62Jyb2b6gULVBnyX01zEQjDBdnAt+HjJRWz+9G/+vYYiVsZtPs3lAHa7BpP5zrFXBUSwK4if45hUdC06GCzZbaFWTOz2RkliIRjdi+4FN8aBIjhvg2ZeCabUbn/H957jWscCYknHY/OAyti9/DtOp8kUSkWQXHQwAIaiABKLDkb3Ei6BUKNQ4tycOeWsg5m6+2ubHQ90LcRiXgkmQIC15McpQQBiScdjwyDbIai6JAHelovTYQSzTC4t6TFKEOC/+eAHkwl5Jgy03eXyeexkAx0LsRAMhiNpQC5yJC2PTQJut+7lu1MDbmNFBbGQiw6GXG7oYiQUdC3ygGDIBQCxEAy55OhegKpikQsEc2vwkQugawHBDAm8vrlc/j0mCQZdCwjmpp39ztdcJBh0LSCYRQG4u1y6zgXEAoK5dzffCiRik4goIhYxTTDkIimQtJj3YOORQwQTJiD7AqkIcuzcHax8nh2xIGUH0y78W6CaVFZLxukwhBbMdxI5khgCFqQSf4zytBiZHnbZBS3IJdznkQtSdDDvdjlNEINYwo5PThbm1+8/f7ME79E7yQQ0KsmlX8ijmeOTh0j9wrEVd5cBWbuC0fmha8FpHknH/Z/kefVEZfLBbnLpNxTvFnx8IJhpLX8bsNsCosvlrsJNLLiEU2RAfLlElModY4MOZmoX8+pv+4CEAaIU8tVdQfsgF+hgvu1i2sfrH2tKCmSSS7RuhViwTQdzNiH6N///dnGXBkTu3q90KuQCHcybwf9VNyM5EL176cHzCjhFxB9a/pSM392aLBFALue+k1iggwE2pxsLdiTjDy3b4L8DIsXtXcLwWxboYF4kx+fTZJIFGeTSF+UHoIMBABAMgPjdC0AwEhDFENsgGAkLAKgkGE9RRuY4tRkCwQAAQDCA7gUgGAAAwQAAQDBAEJweAzYUjAQGAIIBABBMHvwOBlFjUHcNggEAgGAAAAQDYGvah1PU+IRXJgPz2fX6Szvwv7n2RDDbJKxgBtZL5ejfy0+CAbCo+FY7LrIhGABEufw7CIdgQgd6E6RA2u5Ld0MwAEjlW/qgzyQbggFAKl9KZuT3NaIhmJW4gwyIIZOVwiEagrk1kQQeEP9Otn5xrJ71RjAlEgW40nFnzpU+6Lv7wGNopEMwmZMYqLz56pPPGPQJx+dWaIIhEiCBUNoXY+qTv7tNnkf1pKhgnB4Dody7eWsn/37G8fbJc0E4OhggvSz6wb+7u0uJJtB2w1oRzeaCcZcIdClrhHLXmYL+EfssBdHoYABCSSKUIxvGFnjNiKagYPz2BeSSr2gflSHREMyyROwH/zegEpmFklE2NrVFOhgLDVKpcbdlD3asak9SwRztXiwwKncorfhcRDh+NWjjDsbCInJstoFx7fdgcUXjukwiweheoEMhlGiiObJhUJOSdjAu7INQMLNrfHfjiw0Eo3VF9oL3eZetYOWTjJqzqWDeXbRu4REshrG/ZL5a7/J155kwSfvJoCMaAHeIrHzdeSTdFZ69XbOTC1Ci+EfsSst2ss9AgXFl4cgD2Je2yTGUq1OROph+cfEq/wgN2L0z2aE4l6tPz4CBdHUx2uKWGRjVkeO9TeiKnG8nxmftgwpmlmyIBsi30z+atyuE3g+MuR08tjL1KMvvYK7+QI1ogPydSrYxt+r16JE4AN85L+s6DRRJ8x1lTNvXoscmgUU0ADKydR16bHQs74oGAEiGYE6Jpp9YXKLBrFiEGCgrmUeBxSUaoE4xb4HH5oeWREMyThPoYsSPeCCYue0q0SgOIHKSIRjdDABCIZh8otHNrOtenCaDuSaYsqIBkGvTAoJJs/PRzSgEdtYAwehmSIdkAILJ280AAAhmSjdDMnM6FV0Mrs5x2ywnCKZoQXBdBgAIZuquk2TG7tR0MaiaG9tsWgmGZJwyIBmQzRSe1vCtovDT9QPFA3i/qPZBuXpXYe6B54VgkoiGZHIVnIxxhPkbwkydd7pXLTtFNm+XonCYl7t2u+bj/3/m5/9kz6EUeUQwJBNpLnvReSSZ++Its3DC5wXBkAxIBnmFE7q+EAzJRJu/XngOSYZwtpIMwZCMUwLAOeHYfBCMIDCPjt24t5HNT3dThtx8EczaRKu+A29BPkOx1l2Olo05/gK/g5kXdO3NnQjM4U/Hj9ibgjZow9De+PtQeUEwCqQ5jF+0WqKxYtycpL/hxSmy+wLM7hSKt7zYGh3Mvbtw6GJmxZGbBfbO+RR1hWDu3605tUAymYqvzRIIRoE0hyAHEIwCqUDqBuN0QG3T2MjUJW6Di/zxEhzvz58duu7o6rjax2ZvldTBoMoOfMSFSe/imXvMOzzKfubndTmtg8m6C7dj0snojK+JYPa7X3Q2BKMgFJ9b8yunvoqJkXERVTShxkQw8RKi4u7IjhBZNyDfiabLJ4KBzhA1NxszRGPTRjC6GMAmYcr3rT5tFn5DRTB2cqSKarky6mnHEXI39E1DBFNvxwZUz6E+WDKz71xLW0MIBgApXSvULcDYQ3YxBBN7B+Y0GZCjG7grdkP/Lscv+WMFtgKLikS7zbcn2fR4XD+GBJEXTpkrXQPS4RQZdisqukBAB+N0gJ05kGIj1A78TYRNWrjN1a/ff/4KoRw76G6+ys8V8G4+3ZITOpg4AtHFmDdY960gmLhCqUJftIb9xdoqROIKBEMoGF5oFCKAYLaRioJml4v1+d0Df97omA6zSX4WDjiFC7CReEcc8ptglghFoAFAUcGMFAuZALlrgetxBBNGKoINOxdT2FQTzMKJlZDYBbEMgiEVDF5/6wkEqnNZBdMyTjaWJA7pADqYpWJRZOzWIC6qdfQEQyoIFGNiBuRSRDDvTJgCgVGbEXdi5S20ffONQ7sY26UFQyyIKp2v4lPsxVu3/0jG2uhgLslFACGKeBBPMtXX6/ZjjyKYJsEB2AgMq5Uhjv9pwgAAuwmGWFCFJr6xsGZ+97fLY+3X7z9/o06UxAPZAOflcpTp8bZaMLoWgHAQRzJTY26lYHQtANmgkHBWCYZcADmD3MI5HW8rBNMkCUA22EI4p+JstmDIBSAb7CeeQzE2UzDkAsQoFHINM6TzY1zNEkwUubSki60g4Eqsix+E2LzcIZi+6MArorAAWC2avlIwI+RCIiQEII9ovqwrKx8V098YNIIECgAb0xf148v3J60UDJkQEID8ojlcy0efImsbTyppvj9PyLOR8C4VXI2fKYK5u9j2ogtKOgAi1aP/zfnngi9TmGLMRwsUiNYWyF+PfqwpVzuYNmCQ0CWJBWCvmtGvdDDvFiJFJG+X1BYHqli5v3BYA1zinQ7mbKERpDofHQ5QK//f6mA8+wh3dT4ehQIk64CfbyY4qUDnAeAlD3IBAMzYRB4RDLkAAKZ1MOQCADjFT9dgDj0OAACAz/54vCEXAAB+5PGGXHQvAIAfvfAc8SF3tV+Jx+64ATmwPc8Ti9eTBdVP/75vmkxRj3vUKdcefJz9pnm5bZcqB9Ku5/S1fgY/yLbos7vjTrV77ZsUB9c55cDWeXZUMH3zpIvygqU7C1yvFvwoJZXoub8lz0A7qhYowHvRY5dkqJr/RDOBIz+07AWC667xtGDH3j7ynLZxemkfsTRxtb9gmuBaOrYWPOlJBlXXr4mtNR2Muy3qHrskgxzAVMFYuPFjbQqBIlBcLE38E4wFGz/mlrgoAOIIbwmmCbDpY8+eXK4ZgRgRtoNphQOtSTQo0sZPMP/F/eACM9PxKABiBkU7mCaxYL6tiWMhGIsiyMwBxAku80wcYD14kFc+9ruLmtO7+3NXDoivk4JpmwbW579vhZJqxbFLtJwxkX2D9U4OtITr0XaIi0eyAOtBJrwlPPZKMnBqZk+R9iDxL74CCCbiziDjgztHJkcPfqwkQ/Az41bHTTDTAyNTkPUknwlkygEkF0zbNMD6xx6nm6qcLtDF5J5zGyyCSbl76Sf/9qhUmkQgGZTYYImrAzxNQcjC3hd9x8iHeBIiKnUa4v0mwbRkCyhQanQx1lm3qDboYMoHT1/8XVp9yE0yIRi7N+hiQCgEY/FzJVoVOe4omSYnEZVH0mC3q9LBASgmGCC6gIkw9gZDp0QwAAAQDHQxuhiAYJC4aBsvAIIBdDEAwQAzuxiSAQgG0MkABAPk6mIAEAzs4qdJRhcDEAxAsgDBALm6GAAEYxcNkDwy4HH92KXAVH23zY5PhyYrHczUYLeT1zUptgDBgFwBgGBA9NBVg2BKB1kzxyRj3pGd56Qgy1K4msRQWGAjJ5bzCGZ0APQFwTUq0EbKdfbdNLt3iFXvKtup+N8R/80mqo5gVgRa5N3NrGNXeJFB7JHivxHOeR4TgyxyQWwX/l374d9HD7wWfK2rjA25N0M2aTcKJvKCtoQJFvXYMxRwksk/5y3oZ+FGwUQ8tdOSJlimYwc+gsZ/C57j2/FMHGh9YXBGCa4Ix54xwVzw30sy/c1/h80EMzOx2w/F7u6gqnzsJJNnZz9rY7Fz/OteAnUwKxK7BUywXQuMBEPV3MdJPCpGIbYegBhKLZheOLi6BIOCDIIRaLPGX1mwjgHin2As0ORxd8nlWEjG+AnGQjl2awZxJP4TCibbgvXiwbprcika5l2cbCqYDAvXJ46xSy6QjHESTM0F7MWDtxdJLgXE3IuNiTwDLWQrGFSRjr1qYnmMjNwnlo0FEyXYevFEk1gQ/9hWMHcFWy+eaBJLF1NdNHKgkGC+WvRq7zGZnWgSimSqi0YOLODX7z9/d3gHdaXXmTbJhMKI/0Rr89zkwCoFkGSB7gYp8DRlAADBAAAIBgBAMAAAEAwAgGAAAAQDAADBAAAIBgBAMAAAEAwAgGAAAMNpHwme/v1cMAln6Ym+78r390Tf2S5+9h2J0BOv6ZnvvWtNR42x3TC3Eb571BhDPw3/cePERNoJ3PE5LfGxVlnXliCWmnjZtjtpN39GaMGsDmrJAGAHsWT53JSCgS4G1tQabhAnBKPrgjVFnQ3C0vh8WCABDWuKUuu27DsfJt2xwpqiXJws+W6nyOoWk92LYLemsFb3juFpocoHed/wuLo1RbGNU8g6+JQojjVBwW/WFMW7l37w/98ixalTZPMDpW8Y7NVlZk0RNaZDxSbBYKfdno4Bu3Uv78R0mDx4JF+M6Du1bse77W6yB59Xa1q7G+8RYkUHEyeBFQTdC7AVBIOogov+ZGpriqjdS5hN1yNxkrRkAdITzzWsKZBSMD3Z585MWsXgvu5FgUflWJgyNqfItNzRkiD6C76sKbJuukt2MEcmtBVKGMUAJYsR9ouPh0mdIoAetBhE3/FG7l6urGmJ504BVQSDfDtetyTrYkAwdmJFjtGO15oC2wimB/ucnRM02o73zu6l2pqSDHQwiROjDyoEVeY8w6mxndYUOmeCsfuafqx2vNYU6lwpwfSb/72kjJtIugRkp1wMP615aRH1j3q3JL8zBmsK8nsjRx52hgKLhK0pttyo3p5nj42SowsyxdKaAnHwQ0tFYXURj3LdxZpi57oTIr4JBgDiiv8dUax4LfOhz30ENaDd1/p16MGOpVtTeYTT8RKqM9/lLjKnUvYrqm1iXFjTelLugb67X8iHPnh8UzchTpHZ8a4INgVdF4Mx69K++E9YnheMumIB2s0J1BYkcdZ5VwCsKerG+KF418FA5wDkLvBhv/shGRXGYIFvTa0pyWzynQ+Lczn5u8SX9EnWVKxZl77yex7Bg09CmPusHQNwNt96wpxuVzsYSQnYOCDv+vS71v1hIVKNoRWc492xgcN3QuiDPue2uvjr95+/RwNesQGAmBuSHnEs3gcDALm6mzTje5w4AK08AOCwD/zQEgAwhbOC0cUAgO7lK/pRwbigDwC41GS86mBciwEAHKGfFcwwiwEAanUvRwTTSQYAyOUdTxzpYEgGAMjlrB/cpgwAGC+XM4LRxQAAuRyWy9kO5ifJEA0A7C+Xw5w9RdZXDAoAcJtYfqrjh38n+c41mD5ggACAfF3LqR/hv3uRvw8aLAAgR9dy+gkvV+4i64MGDgCIKZbTXcu/XH0fTD/YrbQRgwUAXJbK6EZimmD+HUR78wAJBwBiCGVoXR75Rsv+5gG1WQcHAERyj1xGC+aqaGZNFgBgkVRmC2akaAAAycSyQjBEAwAFxbJSMN8dEOEAwCYyuVswZw6afAAggURe8T8aq+5fdqDmQAAAAABJRU5ErkJggg==";
