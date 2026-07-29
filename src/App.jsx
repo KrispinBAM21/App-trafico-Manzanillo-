@@ -31260,10 +31260,23 @@ function buildPdfSuiteToolSrcDoc(toolId) {
   const bridge = `<script>(function(){
     function boot(){
       try {
-        var tool = Array.isArray(window.TOOLS) ? window.TOOLS.find(function(item){ return item && item.id === ${safeToolId}; }) : null;
+        var toolsCatalog = (typeof TOOLS !== 'undefined' && Array.isArray(TOOLS)) ? TOOLS : [];
+        var tool = toolsCatalog.find(function(item){ return item && item.id === ${safeToolId}; }) || null;
         var header = document.querySelector('header.top');
         if (header) header.style.display = 'none';
-        if (tool && typeof window.openTool === 'function') window.openTool(tool);
+        var gridViewNode = document.getElementById('gridView');
+        var toolViewNode = document.getElementById('toolView');
+        if (gridViewNode) gridViewNode.classList.remove('show');
+        if (tool && typeof openTool === 'function') {
+          openTool(tool);
+        } else {
+          if (toolViewNode) toolViewNode.classList.add('show');
+          var titleNode = document.getElementById('panelTitle');
+          var descNode = document.getElementById('panelDesc');
+          if (titleNode) titleNode.textContent = tool ? tool.name : 'Herramienta PDF';
+          if (descNode) descNode.textContent = tool ? tool.desc : 'No se pudo cargar la herramienta seleccionada.';
+          console.error('[Suite PDF] Herramienta no disponible:', ${safeToolId});
+        }
         var back = document.getElementById('backBtn');
         if (back) back.addEventListener('click', function(event){
           event.preventDefault();
