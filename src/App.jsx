@@ -31235,24 +31235,24 @@ const ADMIN_PDF_SUITE_SRC_DOC = "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n<m
 
 
 const PDF_SUITE_GLOBAL_TOOLS = [
-  { id:"merge", title:"Unir PDF", description:"Une varios PDFs en el orden que prefieras.", icon:"merge_type" },
-  { id:"split", title:"Dividir PDF", description:"Extrae cada página en un archivo independiente.", icon:"call_split" },
-  { id:"compress", title:"Comprimir PDF", description:"Reduce el peso reestructurando el archivo localmente.", icon:"compress" },
-  { id:"pdf2word", title:"PDF a Word", description:"Extrae el texto del PDF a un documento DOCX editable.", icon:"description" },
-  { id:"pdf2ppt", title:"PDF a PowerPoint", description:"Convierte cada página en una diapositiva.", icon:"slideshow" },
-  { id:"pdf2excel", title:"PDF a Excel", description:"Extrae el texto del PDF a una hoja de cálculo.", icon:"table_view" },
-  { id:"word2pdf", title:"Word a PDF", description:"Convierte documentos DOCX a PDF en el navegador.", icon:"picture_as_pdf" },
-  { id:"ppt2pdf", title:"PowerPoint a PDF", description:"Convierte presentaciones PPTX a PDF localmente.", icon:"picture_as_pdf" },
-  { id:"excel2pdf", title:"Excel a PDF", description:"Convierte una hoja XLSX a documento PDF.", icon:"picture_as_pdf" },
-  { id:"edit", title:"Editar PDF", description:"Añade texto sobre la primera página del documento.", icon:"edit_document" },
-  { id:"pdf2jpg", title:"PDF a JPG", description:"Convierte cada página del PDF en una imagen JPG.", icon:"image" },
-  { id:"jpg2pdf", title:"JPG a PDF", description:"Une varias imágenes en un solo documento PDF.", icon:"imagesmode" },
-  { id:"sign", title:"Firmar PDF", description:"Dibuja una firma y colócala dentro del documento.", icon:"draw" },
-  { id:"watermark", title:"Marca de agua", description:"Añade texto diagonal semitransparente a cada página.", icon:"branding_watermark" },
-  { id:"rotate", title:"Rotar PDF", description:"Rota todas las páginas del documento seleccionado.", icon:"rotate_right" },
-  { id:"html2pdf", title:"HTML a PDF", description:"Convierte HTML o texto pegado en un documento PDF.", icon:"html" },
-  { id:"unlock", title:"Desbloquear PDF", description:"Elimina restricciones de permisos compatibles.", icon:"lock_open" },
-  { id:"protect", title:"Proteger PDF", description:"Consulta la compatibilidad de protección segura del archivo.", icon:"shield_lock" }
+  { id:"merge", title:"Unir PDF", description:"Une varios PDFs en el orden que prefieras.", icon:"merge_type", accent:"#00daf3", accent2:"#0099ff", rgb:"0,218,243" },
+  { id:"split", title:"Dividir PDF", description:"Extrae cada página en un archivo independiente.", icon:"call_split", accent:"#a78bfa", accent2:"#7c3aed", rgb:"167,139,250" },
+  { id:"compress", title:"Comprimir PDF", description:"Reduce el peso reestructurando el archivo localmente.", icon:"compress", accent:"#ffaa00", accent2:"#f3c000", rgb:"255,170,0" },
+  { id:"pdf2word", title:"PDF a Word", description:"Extrae el texto del PDF a un documento DOCX editable.", icon:"description", accent:"#7fb2ff", accent2:"#2b74d8", rgb:"127,178,255" },
+  { id:"pdf2ppt", title:"PDF a PowerPoint", description:"Convierte cada página en una diapositiva.", icon:"slideshow", accent:"#ff8a65", accent2:"#e64a19", rgb:"255,138,101" },
+  { id:"pdf2excel", title:"PDF a Excel", description:"Extrae el texto del PDF a una hoja de cálculo.", icon:"table_view", accent:"#69db8b", accent2:"#168a45", rgb:"105,219,139" },
+  { id:"word2pdf", title:"Word a PDF", description:"Convierte documentos DOCX a PDF en el navegador.", icon:"picture_as_pdf", accent:"#60a5fa", accent2:"#2563eb", rgb:"96,165,250" },
+  { id:"ppt2pdf", title:"PowerPoint a PDF", description:"Convierte presentaciones PPTX a PDF localmente.", icon:"picture_as_pdf", accent:"#fb7185", accent2:"#e11d48", rgb:"251,113,133" },
+  { id:"excel2pdf", title:"Excel a PDF", description:"Convierte una hoja XLSX a documento PDF.", icon:"picture_as_pdf", accent:"#34d399", accent2:"#059669", rgb:"52,211,153" },
+  { id:"edit", title:"Editar PDF", description:"Añade texto sobre la primera página del documento.", icon:"edit_document", accent:"#f472b6", accent2:"#db2777", rgb:"244,114,182" },
+  { id:"pdf2jpg", title:"PDF a JPG", description:"Convierte cada página del PDF en una imagen JPG.", icon:"image", accent:"#38bdf8", accent2:"#0284c7", rgb:"56,189,248" },
+  { id:"jpg2pdf", title:"JPG a PDF", description:"Une varias imágenes en un solo documento PDF.", icon:"imagesmode", accent:"#2dd4bf", accent2:"#0f766e", rgb:"45,212,191" },
+  { id:"sign", title:"Firmar PDF", description:"Dibuja una firma y colócala dentro del documento.", icon:"draw", accent:"#c084fc", accent2:"#9333ea", rgb:"192,132,252" },
+  { id:"watermark", title:"Marca de agua", description:"Añade texto diagonal semitransparente a cada página.", icon:"branding_watermark", accent:"#facc15", accent2:"#ca8a04", rgb:"250,204,21" },
+  { id:"rotate", title:"Rotar PDF", description:"Rota todas las páginas del documento seleccionado.", icon:"rotate_right", accent:"#22d3ee", accent2:"#0891b2", rgb:"34,211,238" },
+  { id:"html2pdf", title:"HTML a PDF", description:"Convierte HTML o texto pegado en un documento PDF.", icon:"html", accent:"#fb923c", accent2:"#ea580c", rgb:"251,146,60" },
+  { id:"unlock", title:"Desbloquear PDF", description:"Elimina restricciones de permisos compatibles.", icon:"lock_open", accent:"#4ade80", accent2:"#16a34a", rgb:"74,222,128" },
+  { id:"protect", title:"Proteger PDF", description:"Consulta la compatibilidad de protección segura del archivo.", icon:"shield_lock", accent:"#f87171", accent2:"#dc2626", rgb:"248,113,113" }
 ];
 
 function buildPdfSuiteToolSrcDoc(toolId) {
@@ -31262,6 +31262,49 @@ function buildPdfSuiteToolSrcDoc(toolId) {
       try {
         var toolsCatalog = (typeof TOOLS !== 'undefined' && Array.isArray(TOOLS)) ? TOOLS : [];
         var tool = toolsCatalog.find(function(item){ return item && item.id === ${safeToolId}; }) || null;
+        var themeCatalog = {
+          merge:{a:'#00daf3',b:'#0099ff',rgb:'0,218,243'}, split:{a:'#a78bfa',b:'#7c3aed',rgb:'167,139,250'}, compress:{a:'#ffaa00',b:'#f3c000',rgb:'255,170,0'},
+          pdf2word:{a:'#7fb2ff',b:'#2b74d8',rgb:'127,178,255'}, pdf2ppt:{a:'#ff8a65',b:'#e64a19',rgb:'255,138,101'}, pdf2excel:{a:'#69db8b',b:'#168a45',rgb:'105,219,139'},
+          word2pdf:{a:'#60a5fa',b:'#2563eb',rgb:'96,165,250'}, ppt2pdf:{a:'#fb7185',b:'#e11d48',rgb:'251,113,133'}, excel2pdf:{a:'#34d399',b:'#059669',rgb:'52,211,153'},
+          edit:{a:'#f472b6',b:'#db2777',rgb:'244,114,182'}, pdf2jpg:{a:'#38bdf8',b:'#0284c7',rgb:'56,189,248'}, jpg2pdf:{a:'#2dd4bf',b:'#0f766e',rgb:'45,212,191'},
+          sign:{a:'#c084fc',b:'#9333ea',rgb:'192,132,252'}, watermark:{a:'#facc15',b:'#ca8a04',rgb:'250,204,21'}, rotate:{a:'#22d3ee',b:'#0891b2',rgb:'34,211,238'},
+          html2pdf:{a:'#fb923c',b:'#ea580c',rgb:'251,146,60'}, unlock:{a:'#4ade80',b:'#16a34a',rgb:'74,222,128'}, protect:{a:'#f87171',b:'#dc2626',rgb:'248,113,113'}
+        };
+        var theme = themeCatalog[${safeToolId}] || themeCatalog.merge;
+        document.documentElement.style.setProperty('--tool-accent', theme.a);
+        document.documentElement.style.setProperty('--tool-accent-2', theme.b);
+        document.documentElement.style.setProperty('--tool-rgb', theme.rgb);
+        document.body.classList.add('cm-tool-theme-' + ${safeToolId});
+        var dynamicStyle = document.createElement('style');
+        dynamicStyle.textContent = `
+          :root{--primary:var(--tool-accent)!important;--primary-container:var(--tool-accent-2)!important;--secondary:color-mix(in srgb,var(--tool-accent) 72%,white)!important;--secondary-container:var(--tool-accent)!important}
+          body{padding:28px 22px 80px;background:
+            radial-gradient(circle at 12% 15%,rgba(var(--tool-rgb),.10),transparent 34%),
+            radial-gradient(circle at 88% 82%,rgba(var(--tool-rgb),.07),transparent 38%),#0d1011;min-height:100vh}
+          .wrap{max-width:1040px}
+          #toolView{position:relative;display:block!important;padding:30px;border:1px solid rgba(var(--tool-rgb),.22);border-radius:15px;background:linear-gradient(145deg,rgba(29,32,34,.86),rgba(14,17,18,.94));backdrop-filter:blur(24px);box-shadow:0 28px 70px rgba(0,0,0,.38),inset 0 1px 0 rgba(var(--tool-rgb),.12);overflow:hidden}
+          #toolView:before{content:'';position:absolute;inset:-2px;z-index:-2;border-radius:16px;background:conic-gradient(from var(--tool-angle,0deg),transparent 0 18%,var(--tool-accent) 26%,transparent 36% 64%,var(--tool-accent-2) 74%,transparent 82%);animation:cmToolBorder 5s linear infinite;opacity:.42}
+          #toolView:after{content:'';position:absolute;inset:1px;z-index:-1;border-radius:14px;background:linear-gradient(145deg,#1d2022f2,#0e1112fa)}
+          @property --tool-angle{syntax:'<angle>';initial-value:0deg;inherits:false}@keyframes cmToolBorder{to{--tool-angle:360deg}}
+          .backbar{height:42px;padding:0 13px;border:1px solid rgba(var(--tool-rgb),.22);border-radius:8px;background:rgba(var(--tool-rgb),.055);color:color-mix(in srgb,var(--tool-accent) 72%,#d8e3ee);transition:all .3s ease}
+          .backbar:hover{color:var(--tool-accent);border-color:rgba(var(--tool-rgb),.58);transform:translateX(-3px);box-shadow:0 0 18px rgba(var(--tool-rgb),.16)}
+          .panel-head{position:relative;align-items:flex-start;margin:8px 0 4px;padding-right:130px}.panel-head:after{content:'LOCAL MODE';position:absolute;right:0;top:2px;padding:7px 11px;border:1px solid rgba(var(--tool-rgb),.3);border-radius:999px;background:rgba(var(--tool-rgb),.08);color:var(--tool-accent);font-size:10px;font-weight:800;letter-spacing:.08em;box-shadow:0 0 14px rgba(var(--tool-rgb),.1)}
+          .action-icon{width:54px!important;height:54px!important;border-radius:12px!important;background:rgba(var(--tool-rgb),.13)!important;color:var(--tool-accent)!important;border:1px solid rgba(var(--tool-rgb),.32)!important;box-shadow:0 0 24px rgba(var(--tool-rgb),.12);transition:all .3s ease}.action-icon:hover{transform:translateY(-2px) rotate(-2deg);box-shadow:0 0 30px rgba(var(--tool-rgb),.25)}
+          .panel-head h2{font-size:30px;line-height:38px;font-weight:800;letter-spacing:-.025em;text-shadow:0 0 24px rgba(var(--tool-rgb),.18)}
+          .panel-desc{max-width:760px;margin-left:68px;margin-bottom:26px;font-size:14px;line-height:1.65}
+          .note-limit{max-width:none;margin:0 0 28px;padding:15px 17px;border-color:rgba(var(--tool-rgb),.28);background:rgba(var(--tool-rgb),.085);color:color-mix(in srgb,var(--tool-accent) 62%,white);box-shadow:inset 3px 0 0 var(--tool-accent)}
+          .dropzone{position:relative;isolation:isolate;max-width:none;min-height:260px;padding:48px 24px;border:1px solid rgba(var(--tool-rgb),.34);border-radius:16px;background:linear-gradient(145deg,rgba(25,28,30,.9),rgba(12,15,16,.94));display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;box-shadow:inset 0 0 55px rgba(var(--tool-rgb),.025);transition:all .3s ease}
+          .dropzone:before{content:'';position:absolute;inset:-110%;z-index:-2;background:conic-gradient(transparent 0 35%,var(--tool-accent) 43%,transparent 50% 78%,var(--tool-accent-2) 86%,transparent 92%);animation:cmToolSpin 5.5s linear infinite;opacity:.32}.dropzone:after{content:'';position:absolute;inset:2px;z-index:-1;border-radius:14px;background:linear-gradient(145deg,#191c1ef5,#101415f8)}@keyframes cmToolSpin{to{transform:rotate(360deg)}}
+          .dropzone:hover,.dropzone.drag{transform:translateY(-2px) scale(1.004);border-color:var(--tool-accent);box-shadow:0 0 34px rgba(var(--tool-rgb),.23),inset 0 0 58px rgba(var(--tool-rgb),.04)}
+          .dropzone .dz-title{font-size:20px;font-weight:750;text-shadow:0 0 18px rgba(var(--tool-rgb),.18)}.dropzone .dz-hint{margin-top:9px;font-size:13px}.dropzone .dz-hint:before{content:'upload_file';font-family:'Material Symbols Outlined';display:block;margin:0 auto 18px;color:var(--tool-accent);font-size:48px;line-height:1;font-variation-settings:'FILL' 0,'wght' 350,'GRAD' 0,'opsz' 48;filter:drop-shadow(0 0 14px rgba(var(--tool-rgb),.32));animation:cmToolFloat 2.8s ease-in-out infinite}@keyframes cmToolFloat{50%{transform:translateY(-7px)}}
+          ul.filelist{max-width:none;margin-top:16px;border-color:rgba(var(--tool-rgb),.22);border-radius:10px}ul.filelist li{padding:12px 14px;background:rgba(29,32,34,.72);border-color:rgba(var(--tool-rgb),.12);transition:all .25s ease}ul.filelist li:hover{background:rgba(var(--tool-rgb),.07);box-shadow:inset 3px 0 0 var(--tool-accent)}ul.filelist li button.iconbtn:hover{color:var(--tool-accent);background:rgba(var(--tool-rgb),.11);box-shadow:0 0 12px rgba(var(--tool-rgb),.15)}
+          .fields{max-width:none;margin-top:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.field-row .field{min-width:0}.field input[type=text],.field input[type=password],.field input[type=number],.field select,.field textarea{border-radius:8px;background:rgba(11,15,16,.58);border-color:rgba(var(--tool-rgb),.22);padding:12px 13px}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--tool-accent);box-shadow:0 0 0 4px rgba(var(--tool-rgb),.10),0 0 20px rgba(var(--tool-rgb),.12)}
+          .actions{max-width:none;margin-top:27px;justify-content:flex-end}.btn{min-height:50px;padding:12px 24px;border-radius:9px;justify-content:center;transition:all .3s ease}.btn:hover:not(:disabled){transform:translateY(-2px)}.btn.primary{position:relative;overflow:hidden;background:linear-gradient(135deg,var(--tool-accent),var(--tool-accent-2));color:#071012;box-shadow:0 0 22px rgba(var(--tool-rgb),.25);border:1px solid color-mix(in srgb,var(--tool-accent) 70%,white)}.btn.primary:before{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 20%,rgba(255,255,255,.28) 44%,transparent 68%);transform:translateX(-130%);transition:transform .55s ease}.btn.primary:hover:before{transform:translateX(130%)}.btn.primary:hover{box-shadow:0 0 36px rgba(var(--tool-rgb),.44);border-color:white}.btn.primary svg{position:relative}.btn.primary:hover svg{transform:translate(3px,-2px)}
+          .status{max-width:none;margin-top:18px;padding:11px 13px;border-radius:8px;border:1px solid rgba(var(--tool-rgb),.14);background:rgba(var(--tool-rgb),.045);min-height:42px}.status:empty{display:none}.bar{max-width:none;height:7px;background:rgba(var(--tool-rgb),.10)}.bar>div{background:linear-gradient(90deg,var(--tool-accent-2),var(--tool-accent));box-shadow:0 0 13px rgba(var(--tool-rgb),.52)}
+          canvas.sig-pad,canvas.edit-canvas{border:2px solid rgba(var(--tool-rgb),.32);box-shadow:0 0 28px rgba(var(--tool-rgb),.1)}.canvas-wrap{max-width:none;margin-top:18px}
+          @media(max-width:720px){body{padding:12px 8px 48px}#toolView{padding:19px 14px}.panel-head{padding-right:0}.panel-head:after{position:static;display:inline-flex;margin-left:auto}.panel-head h2{font-size:24px}.panel-desc{margin-left:0}.dropzone{min-height:225px;padding:34px 16px}.actions{flex-direction:column}.btn{width:100%}}
+        `;
+        document.head.appendChild(dynamicStyle);
         var header = document.querySelector('header.top');
         if (header) header.style.display = 'none';
         var gridViewNode = document.getElementById('gridView');
@@ -31299,6 +31342,8 @@ function AdminPdfSuiteTool({ toolId, onBack }) {
   const tool = PDF_SUITE_GLOBAL_TOOLS.find(item => item.id === toolId) || PDF_SUITE_GLOBAL_TOOLS[0];
   const srcDoc = useMemo(() => buildPdfSuiteToolSrcDoc(tool.id), [tool.id]);
 
+  useEffect(() => { setFrameReady(false); }, [tool.id]);
+
   useEffect(() => {
     const receive = event => {
       if (event?.data?.type === 'cm-pdf-suite-back') onBack?.();
@@ -31308,18 +31353,18 @@ function AdminPdfSuiteTool({ toolId, onBack }) {
   }, [onBack]);
 
   return (
-    <section className="cm-suite-pdf-integrated" aria-label={tool.title}>
+    <section className="cm-suite-pdf-integrated" aria-label={tool.title} style={{ "--suite-accent":tool.accent, "--suite-accent-2":tool.accent2, "--suite-rgb":tool.rgb }}>
       <style>{`
         .cm-suite-pdf-integrated{display:grid;gap:18px;min-width:0;color:#e0e3e5;font-family:Inter,sans-serif}
         .cm-suite-pdf-integrated__bar{display:flex;align-items:center;gap:14px;padding:2px 0 4px}
-        .cm-suite-pdf-integrated__back{width:48px;height:48px;flex:0 0 48px;border-radius:10px;border:1px solid rgba(159,202,255,.24);background:rgba(29,32,34,.76);backdrop-filter:blur(12px);color:#9fcaff;display:grid;place-items:center;cursor:pointer;transition:all .3s ease}
-        .cm-suite-pdf-integrated__back:hover{transform:translateY(-2px);border-color:rgba(159,202,255,.58);box-shadow:0 0 20px rgba(0,153,255,.18)}
+        .cm-suite-pdf-integrated__back{width:48px;height:48px;flex:0 0 48px;border-radius:10px;border:1px solid rgba(var(--suite-rgb),.26);background:rgba(29,32,34,.76);backdrop-filter:blur(12px);color:var(--suite-accent);display:grid;place-items:center;cursor:pointer;transition:all .3s ease}
+        .cm-suite-pdf-integrated__back:hover{transform:translateY(-2px);border-color:var(--suite-accent);box-shadow:0 0 20px rgba(var(--suite-rgb),.22)}
         .cm-suite-pdf-integrated__copy{min-width:0}.cm-suite-pdf-integrated__copy h3{margin:0;font-size:22px;line-height:30px;font-weight:700}.cm-suite-pdf-integrated__copy p{margin:3px 0 0;color:#bfc7d5;font-size:13px;line-height:20px}
-        .cm-suite-pdf-integrated__frame-shell{position:relative;min-height:720px;border:1px solid rgba(63,71,83,.55);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(16,20,21,.96),rgba(11,15,16,.98));box-shadow:0 24px 65px rgba(0,0,0,.32),inset 0 1px 0 rgba(159,202,255,.08)}
+        .cm-suite-pdf-integrated__frame-shell{position:relative;min-height:720px;border:1px solid rgba(var(--suite-rgb),.28);border-radius:12px;overflow:hidden;background:radial-gradient(circle at 80% 10%,rgba(var(--suite-rgb),.08),transparent 28%),linear-gradient(180deg,rgba(16,20,21,.96),rgba(11,15,16,.98));box-shadow:0 24px 65px rgba(0,0,0,.32),inset 0 1px 0 rgba(var(--suite-rgb),.12),0 0 28px rgba(var(--suite-rgb),.07)}
         .cm-suite-pdf-integrated__frame{display:block;width:100%;height:max(720px,calc(100vh - 220px));min-height:720px;border:0;background:transparent}
-        .cm-suite-pdf-integrated__loading{position:absolute;inset:0;display:grid;place-items:center;background:#0b0f10;color:#9fcaff;z-index:2;transition:opacity .3s ease}.cm-suite-pdf-integrated__loading.is-ready{opacity:0;pointer-events:none}
-        .cm-suite-pdf-integrated__pulse{width:48px;height:48px;border-radius:12px;border:1px solid rgba(159,202,255,.38);display:grid;place-items:center;background:rgba(159,202,255,.08);animation:cmSuitePdfPulse 1.5s ease-in-out infinite}
-        @keyframes cmSuitePdfPulse{0%,100%{box-shadow:0 0 0 rgba(0,153,255,0);transform:scale(.96)}50%{box-shadow:0 0 28px rgba(0,153,255,.35);transform:scale(1.04)}}
+        .cm-suite-pdf-integrated__loading{position:absolute;inset:0;display:grid;place-items:center;background:#0b0f10;color:var(--suite-accent);z-index:2;transition:opacity .3s ease}.cm-suite-pdf-integrated__loading.is-ready{opacity:0;pointer-events:none}
+        .cm-suite-pdf-integrated__pulse{width:48px;height:48px;border-radius:12px;border:1px solid rgba(var(--suite-rgb),.42);display:grid;place-items:center;background:rgba(var(--suite-rgb),.10);animation:cmSuitePdfPulse 1.5s ease-in-out infinite}
+        @keyframes cmSuitePdfPulse{0%,100%{box-shadow:0 0 0 rgba(0,153,255,0);transform:scale(.96)}50%{box-shadow:0 0 28px rgba(var(--suite-rgb),.38);transform:scale(1.04)}}
         @media(max-width:760px){.cm-suite-pdf-integrated__copy h3{font-size:19px}.cm-suite-pdf-integrated__frame-shell{margin:0 -8px;border-radius:9px}.cm-suite-pdf-integrated__frame{height:calc(100dvh - 160px);min-height:680px}}
       `}</style>
       <header className="cm-suite-pdf-integrated__bar">
