@@ -31276,7 +31276,7 @@ function buildPdfSuiteToolSrcDoc(toolId) {
         document.documentElement.style.setProperty('--tool-rgb', theme.rgb);
         document.body.classList.add('cm-tool-theme-' + ${safeToolId});
         var dynamicStyle = document.createElement('style');
-        dynamicStyle.textContent = `
+        dynamicStyle.textContent = \`
           :root{--primary:var(--tool-accent)!important;--primary-container:var(--tool-accent-2)!important;--secondary:color-mix(in srgb,var(--tool-accent) 72%,white)!important;--secondary-container:var(--tool-accent)!important}
           body{padding:28px 22px 80px;background:
             radial-gradient(circle at 12% 15%,rgba(var(--tool-rgb),.10),transparent 34%),
@@ -31303,7 +31303,7 @@ function buildPdfSuiteToolSrcDoc(toolId) {
           .status{max-width:none;margin-top:18px;padding:11px 13px;border-radius:8px;border:1px solid rgba(var(--tool-rgb),.14);background:rgba(var(--tool-rgb),.045);min-height:42px}.status:empty{display:none}.bar{max-width:none;height:7px;background:rgba(var(--tool-rgb),.10)}.bar>div{background:linear-gradient(90deg,var(--tool-accent-2),var(--tool-accent));box-shadow:0 0 13px rgba(var(--tool-rgb),.52)}
           canvas.sig-pad,canvas.edit-canvas{border:2px solid rgba(var(--tool-rgb),.32);box-shadow:0 0 28px rgba(var(--tool-rgb),.1)}.canvas-wrap{max-width:none;margin-top:18px}
           @media(max-width:720px){body{padding:12px 8px 48px}#toolView{padding:19px 14px}.panel-head{padding-right:0}.panel-head:after{position:static;display:inline-flex;margin-left:auto}.panel-head h2{font-size:24px}.panel-desc{margin-left:0}.dropzone{min-height:225px;padding:34px 16px}.actions{flex-direction:column}.btn{width:100%}}
-        `;
+        \`;
         document.head.appendChild(dynamicStyle);
         var header = document.querySelector('header.top');
         if (header) header.style.display = 'none';
