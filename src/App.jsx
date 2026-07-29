@@ -17162,8 +17162,48 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.96)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", overflow:"hidden" }}>
-      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div
+      onClick={onClose}
+      style={{
+        position:"fixed",
+        inset:0,
+        zIndex:9999,
+        background:"rgba(0,0,0,0.96)",
+        display:"flex",
+        alignItems:"center",
+        justifyContent:"center",
+        paddingTop:"max(12px, env(safe-area-inset-top))",
+        paddingRight:"max(12px, env(safe-area-inset-right))",
+        paddingBottom:"max(12px, env(safe-area-inset-bottom))",
+        paddingLeft:"max(12px, env(safe-area-inset-left))",
+        overflow:"hidden",
+        boxSizing:"border-box"
+      }}
+    >
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); onClose?.(); }}
+        title="Cerrar imagen"
+        aria-label="Cerrar imagen"
+        style={{
+          ...iconBtn,
+          position:"fixed",
+          top:"max(14px, env(safe-area-inset-top))",
+          right:"max(14px, env(safe-area-inset-right))",
+          width:"50px",
+          height:"50px",
+          minWidth:"50px",
+          minHeight:"50px",
+          zIndex:10020,
+          background:"rgba(4,12,24,.94)",
+          border:"2px solid rgba(255,255,255,.72)",
+          boxShadow:"0 10px 34px rgba(0,0,0,.72), 0 0 0 4px rgba(2,6,23,.46)",
+          touchAction:"manipulation"
+        }}
+      >
+        <MS name="close" size={28} active color="#ffffff" />
+      </button>
+      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", minWidth:0, minHeight:0 }}>
         {isPdf ? (
           <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"94vh", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
         ) : (
@@ -17179,7 +17219,6 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
           />
         )}
 
-        <button onClick={onClose} title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"14px", right:"14px", fontSize:"22px" }}>×</button>
 
         {canNavigate && (
           <>
@@ -17191,7 +17230,7 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
           </>
         )}
 
-        <div style={{ position:"absolute", right:"14px", bottom:"14px", display:"flex", gap:"8px", alignItems:"center" }}>
+        <div style={{ position:"absolute", right:"max(14px, env(safe-area-inset-right))", bottom:"max(14px, env(safe-area-inset-bottom))", display:"flex", gap:"8px", alignItems:"center", zIndex:10005 }}>
           <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
           {onDownload ? (
             <button onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "⬇"}</button>
