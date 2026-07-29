@@ -4208,6 +4208,53 @@ const insertNoticiaConFallback = async (payload) => {
   throw ultimoError || new Error("No se pudo insertar la noticia");
 };
 
+const invokeComunicadosManagerAction = async (payload, { timeoutMs = 45000 } = {}) => {
+  const adminSession = typeof readAdminAuthSession === "function" ? readAdminAuthSession() : null;
+  let accessToken = adminSession?.access_token || null;
+  if (!accessToken) {
+    try {
+      const sessionResult = await Promise.race([
+        sb.auth.getSession(),
+        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 7000)),
+      ]);
+      accessToken = sessionResult?.data?.session?.access_token || null;
+    } catch (sessionError) {
+      console.warn("No se pudo recuperar la sesión para comunicados-manager:", sessionError);
+    }
+  }
+  if (!accessToken) throw new Error("No existe una sesión autorizada para realizar esta operación.");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${SUPA_URL.replace(/\/+$/, "")}/functions/v1/comunicados-manager`, {
+      method:"POST",
+      cache:"no-store",
+      credentials:"omit",
+      signal:controller.signal,
+      headers:{
+        apikey:SUPA_KEY,
+        Authorization:`Bearer ${accessToken}`,
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify(safeObject(payload)),
+    });
+    const raw = await response.text();
+    let parsed = {};
+    try { parsed = raw ? JSON.parse(raw) : {}; } catch { parsed = { message:raw }; }
+    const result = safeObject(parsed);
+    if (!response.ok || result.ok === false || result.error) {
+      throw new Error(String(result.message || result.error || raw || `HTTP ${response.status}`));
+    }
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("La operación tardó demasiado y fue cancelada.");
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const syncComunicadoToNoticia = async (comunicado, { processMedia = false } = {}) => {
   if (!comunicado) return null;
   const aprobado = comunicado.aprobado === true || comunicado.aprobado === "true" || comunicado.aprobado === 1 || comunicado.aprobado === "1";
@@ -20577,13 +20624,18 @@ ${base}`;
       };
 
       let comunicadoInsertado = null;
-      const insertResult = await insertComunicadoWithFallback(basePayload);
-      if (insertResult.error) {
-        // No se bloquea la interfaz intentando limpiar mediante el cliente Supabase.
-        // Los objetos huérfanos pueden depurarse posteriormente desde una tarea de mantenimiento.
-        throw insertResult.error;
+      if (bypassVirusTotal) {
+        const publishResult = safeObject(await invokeComunicadosManagerAction({
+          action:"publish_comunicado",
+          comunicado:{ ...basePayload, media_urls:allImageUrls },
+        }, { timeoutMs:60000 }));
+        comunicadoInsertado = { ...safeObject(publishResult.comunicado), media_urls:allImageUrls };
+        if (!comunicadoInsertado?.id) throw new Error("El backend no devolvió el comunicado publicado.");
+      } else {
+        const insertResult = await insertComunicadoWithFallback(basePayload);
+        if (insertResult.error) throw insertResult.error;
+        comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
       }
-      comunicadoInsertado = { ...insertResult.data, media_urls: allImageUrls };
 
       if (draftToPublishId || activeDraftId) {
         const draftId = draftToPublishId || activeDraftId;
@@ -20602,17 +20654,8 @@ ${base}`;
       }
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
-      if (isAdmin === true && comunicadoInsertado) {
-        // El comunicado ya quedó guardado. La réplica no debe mantener el botón
-        // bloqueado si el cliente Supabase vuelve a esperar un lock de autenticación.
-        setToolNotice("Comunicado publicado. Replicando en Noticias…", "#22c55e");
-        Promise.resolve()
-          .then(() => syncComunicadoToNoticia(comunicadoInsertado, { processMedia:false }))
-          .then(() => setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e"))
-          .catch((syncErr) => {
-            console.error("No se pudo replicar el comunicado en Noticias:", syncErr);
-            setToolNotice("Comunicado publicado. La réplica en Noticias quedó pendiente.", "#fbbf24");
-          });
+      if (bypassVirusTotal && comunicadoInsertado) {
+        setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
       }
 
       setExito(true);
@@ -21384,49 +21427,38 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
     if (eliminando) return;
     setEliminando(true);
     setProcesando({ id, accion:"Eliminando comunicado y publicación relacionada…" });
+    let warnings = [];
     try {
-      const adminSession = readAdminAuthSession?.() || null;
-      const sessionResult = adminSession?.access_token ? null : await Promise.race([
-        sb.auth.getSession(),
-        new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null } }), 5000)),
-      ]);
-      const token = adminSession?.access_token || sessionResult?.data?.session?.access_token;
-      if (!token) throw new Error("No existe una sesión autorizada para eliminar.");
+      const result = safeObject(await invokeComunicadosManagerAction({
+        action:"delete_comunicado_cascada",
+        id:String(id || ""),
+      }));
+      warnings = safeArray(result.warnings).map((item) => String(item || "")).filter(Boolean);
 
-      const response = await fetch(
-        `${SUPA_URL.replace(/\/+$/, "")}/functions/v1/comunicados-manager`,
-        {
-          method:"POST",
-          cache:"no-store",
-          credentials:"omit",
-          headers:{
-            apikey:SUPA_KEY,
-            Authorization:`Bearer ${token}`,
-            "Content-Type":"application/json",
-          },
-          body:JSON.stringify({ action:"delete_comunicado_cascada", id }),
+      try {
+        setPendientes((prev) => safeArray(prev).filter((item) => String(item?.id) !== String(id)));
+        setConfirmId(null);
+        if (typeof onReload === "function") {
+          Promise.resolve(onReload()).catch((refreshError) => {
+            console.error("El comunicado fue eliminado, pero falló la actualización del listado:", refreshError);
+          });
         }
-      );
-
-      const raw = await response.text();
-      let result = null;
-      try { result = raw ? JSON.parse(raw) : null; } catch {}
-      if (!response.ok || result?.ok !== true) {
-        throw new Error(result?.message || result?.error || raw || `HTTP ${response.status}`);
+      } catch (postProcessError) {
+        console.error("Error de post-procesamiento tras eliminar el comunicado:", postProcessError);
+        setConfirmId(null);
+        setError?.("El comunicado fue eliminado, pero no se pudo actualizar completamente la vista.");
       }
 
-      setConfirmId(null);
-      onReload?.();
-
-      if (Array.isArray(result?.warnings) && result.warnings.length > 0) {
-        alert(`El comunicado y su publicación fueron eliminados.\n\nAvisos de limpieza de archivos:\n${result.warnings.join("\n")}`);
+      if (warnings.length > 0) {
+        setError?.(`El comunicado fue eliminado. Algunos archivos no pudieron limpiarse: ${warnings.join(" · ")}`);
       }
     } catch (error) {
       console.error("Error en eliminación en cascada:", error);
-      alert(`No se pudo completar la eliminación en cascada.\n\n${error?.message || error}`);
+      setError?.(String(error?.message || error || "No se pudo completar la eliminación en cascada."));
+      try { setConfirmId(null); } catch (closeError) { console.error("No se pudo cerrar el diálogo de eliminación:", closeError); }
     } finally {
-      setProcesando(null);
-      setEliminando(false);
+      try { setProcesando(null); } catch (modalError) { console.error("No se pudo cerrar el modal Procesando:", modalError); }
+      try { setEliminando(false); } catch (stateError) { console.error("No se pudo restablecer el estado de eliminación:", stateError); }
     }
   };
 
@@ -22819,6 +22851,9 @@ function NoticiasTab({ isAdmin }) {
   const [visorIndex,    setVisorIndex]    = useState(0);
   const [downloadingItemUrl, setDownloadingItemUrl] = useState("");
   const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
+  const [deleteNoticiaTarget, setDeleteNoticiaTarget] = useState(null);
+  const [deleteNoticiaBusy, setDeleteNoticiaBusy] = useState(false);
+  const [deleteNoticiaNotice, setDeleteNoticiaNotice] = useState("");
 
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
@@ -22916,6 +22951,7 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event:"UPDATE", schema:"public", table:"noticias" }, ({ new:r }) => {
         if (!active || !r) return;
         setNoticias(prev => {
+          const current = safeArray(prev);
           const next = current.map(x => String(x?.id) === String(r?.id) ? r : x);
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
@@ -22924,6 +22960,7 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event:"DELETE", schema:"public", table:"noticias" }, ({ old:r }) => {
         if (!active || !r?.id) return;
         setNoticias(prev => {
+          const current = safeArray(prev);
           const next = current.filter(x => String(x?.id) !== String(r?.id));
           writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
           return next;
@@ -22985,6 +23022,30 @@ function NoticiasTab({ isAdmin }) {
     };
   }, [cargarNoticias, cargarComunicados]);
 
+
+  const eliminarNoticia = useCallback(async () => {
+    const target = safeObject(deleteNoticiaTarget);
+    const id = String(target.id || "");
+    if (!id || deleteNoticiaBusy) return;
+    setDeleteNoticiaBusy(true);
+    setDeleteNoticiaNotice("");
+    try {
+      const result = safeObject(await invokeComunicadosManagerAction({ action:"delete_noticia", id }));
+      const warnings = safeArray(result.warnings).map((item) => String(item || "")).filter(Boolean);
+      setNoticias((prev) => {
+        const next = safeArray(prev).filter((item) => String(item?.id) !== id);
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        return next;
+      });
+      setDeleteNoticiaTarget(null);
+      if (warnings.length) setDeleteNoticiaNotice(`Publicación eliminada. Avisos: ${warnings.join(" · ")}`);
+    } catch (error) {
+      console.error("No se pudo eliminar la publicación de Noticias:", error);
+      setDeleteNoticiaNotice(String(error?.message || error || "No se pudo eliminar la publicación de Noticias."));
+    } finally {
+      setDeleteNoticiaBusy(false);
+    }
+  }, [deleteNoticiaTarget, deleteNoticiaBusy]);
 
   const FILTROS = [
     { id: "todos",      label: "Todos",       icon: "news" },
@@ -23468,6 +23529,7 @@ function NoticiasTab({ isAdmin }) {
                           }}
                           style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
                         /></button>)) : (<div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", textAlign:"center" }}><div><div style={{ width:"66px", height:"66px", margin:"0 auto 12px", borderRadius:"18px", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", display:"flex", alignItems:"center", justifyContent:"center" }}>{origen === "comunicados" ? <NoticiasComunicadoMiniIcon size={32} color="#ffffff" /> : <NoticiasBoletinIcon size={28} color="#ffffff" />}</div><div style={{ color:"rgba(226,232,240,.78)", fontFamily:getFont(theme,"secondary"), fontWeight:800, fontSize:"12px" }}>{pdfs.length ? `Documento PDF ${pdfs.length > 1 ? `· ${pdfs.length}` : ""}` : "Sin vista previa"}</div><div style={{ color:"rgba(148,163,184,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"4px" }}>{pdfs.length ? "Haz clic para visualizar el archivo" : "El contenido aparecerá aquí cuando tenga imagen"}</div></div></div>)}
+                      {(isAdmin || hasStoredAdminSession?.()) && <button type="button" aria-label="Eliminar publicación de Noticias" title="Eliminar publicación" onClick={(event)=>{ event.stopPropagation(); setDeleteNoticiaTarget(n); }} style={{ position:"absolute", top:"10px", left:"10px", width:"36px", height:"36px", padding:0, borderRadius:"12px", border:"1px solid rgba(248,113,113,.48)", background:"rgba(69,10,10,.82)", color:"#fecaca", display:"inline-flex", alignItems:"center", justifyContent:"center", cursor:"pointer", zIndex:4, boxShadow:"0 10px 24px rgba(2,6,23,.32)" }}><MS name="delete" size={20} active /></button>}
                       {origen === "comunicados" && <div style={{ position:"absolute", top:"10px", right:"10px", width:"34px", height:"34px", borderRadius:"12px", background:"rgba(7,16,30,.72)", border:"1px solid rgba(255,255,255,.14)", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)", boxShadow:"0 10px 24px rgba(2,6,23,.28)" }}><NoticiasComunicadoMiniIcon size={18} color="#ffffff" /></div>}
                     </div>
 
@@ -23507,6 +23569,22 @@ function NoticiasTab({ isAdmin }) {
           )}
           {filtered.length > 0 && <div style={{ textAlign:"center", padding:"18px 12px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"10px" }}>— Mostrando {filtered.length} noticias —</div>}
         </>
+      )}
+
+      {deleteNoticiaNotice && <div role="status" style={{ margin:"12px 0", padding:"11px 13px", borderRadius:"10px", background:"rgba(251,191,36,.09)", border:"1px solid rgba(251,191,36,.28)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{deleteNoticiaNotice}</div>}
+
+      {deleteNoticiaTarget && createPortal(
+        <div onClick={()=>!deleteNoticiaBusy && setDeleteNoticiaTarget(null)} style={{ position:"fixed", inset:0, zIndex:100000, background:"rgba(0,0,0,.78)", display:"grid", placeItems:"center", padding:"20px" }}>
+          <section onClick={(event)=>event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cm-delete-news-title" style={{ width:"min(430px,100%)", padding:"22px", borderRadius:"16px", background:"#0d1b2e", border:"1px solid rgba(248,113,113,.42)", boxShadow:"0 24px 70px rgba(0,0,0,.48)" }}>
+            <div id="cm-delete-news-title" style={{ color:"#fff", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"17px" }}>¿Eliminar esta publicación de Noticias?</div>
+            <p style={{ color:"rgba(226,232,240,.72)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.6 }}>Esta acción no se puede deshacer. El comunicado original permanecerá y solo se desvinculará de Noticias.</p>
+            <div style={{ display:"flex", justifyContent:"flex-end", gap:"9px" }}>
+              <button type="button" disabled={deleteNoticiaBusy} onClick={()=>setDeleteNoticiaTarget(null)} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid rgba(148,163,184,.28)", background:"rgba(15,23,42,.72)", color:"#cbd5e1", fontWeight:800, cursor:deleteNoticiaBusy?"not-allowed":"pointer" }}>Cancelar</button>
+              <button type="button" disabled={deleteNoticiaBusy} onClick={eliminarNoticia} style={{ padding:"10px 14px", borderRadius:"10px", border:"1px solid rgba(248,113,113,.52)", background:"linear-gradient(135deg,#dc2626,#991b1b)", color:"#fff", fontWeight:900, cursor:deleteNoticiaBusy?"wait":"pointer" }}>{deleteNoticiaBusy ? "Eliminando…" : "Eliminar"}</button>
+            </div>
+          </section>
+        </div>,
+        document.body
       )}
 
       {seccion === "comunicados" && (
