@@ -6353,21 +6353,32 @@ const readEdgeFunctionError = async (error) => {
 };
 
 const invokeAdminUsersManager = async (payload) => {
-  const { data:{ session }, error:sessionError } = await sb.auth.getSession();
-  const accessToken = session?.access_token || "";
-  if (sessionError || !accessToken) {
-    throw new Error("La sesión administrativa de Supabase Auth no está activa. Sal del modo admin y vuelve a ingresar para renovarla.");
+  // Reutiliza automáticamente la sesión del administrador ya autenticado.
+  // No solicita una segunda contraseña ni abre otro flujo de autenticación.
+  let { data:{ session }, error:sessionError } = await sb.auth.getSession();
+
+  if (sessionError) throw new Error(sessionError.message || "No se pudo leer la sesión actual.");
+
+  // Si el token está cerca de vencer, se renueva en segundo plano antes de invocar.
+  const expiresAtMs = Number(session?.expires_at || 0) * 1000;
+  if (session?.refresh_token && (!expiresAtMs || expiresAtMs - Date.now() < 60000)) {
+    const refreshed = await sb.auth.refreshSession();
+    if (!refreshed?.error && refreshed?.data?.session) session = refreshed.data.session;
   }
 
-  // Se usa fetch explícito para garantizar que Authorization contenga el JWT del
-  // usuario y nunca la publishable key. La cabecera apikey conserva la clave pública.
+  const accessToken = session?.access_token || "";
+  if (!accessToken) {
+    throw new Error("La cuenta administradora no tiene una sesión activa. Inicia sesión con la cuenta admin y vuelve a intentarlo.");
+  }
+
   const response = await fetch(`${SUPA_URL}/functions/v1/${ADMIN_USERS_EDGE_FUNCTION}`, {
     method:"POST",
     headers:{
       "Content-Type":"application/json",
       "apikey":SUPA_KEY,
       "Authorization":`Bearer ${accessToken}`,
-      "x-client-info":"conect-manzanillo-admin-users/1.0",
+      "x-admin-session":accessToken,
+      "x-client-info":"conect-manzanillo-admin-users/2.0",
     },
     body:JSON.stringify(payload || {}),
   });
@@ -6378,9 +6389,6 @@ const invokeAdminUsersManager = async (payload) => {
   catch { data = { ok:false, error:raw || `HTTP ${response.status}` }; }
 
   if (!response.ok || data?.ok !== true) {
-    if (response.status === 401) {
-      throw new Error(data?.error || "La sesión administrativa no es válida o expiró. Sal del modo admin y vuelve a ingresar.");
-    }
     throw new Error(data?.error || data?.message || `No se pudo completar la operación (HTTP ${response.status}).`);
   }
   return data;
