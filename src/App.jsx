@@ -8189,7 +8189,7 @@ function GlobalIdentityAvatar({ user, size = 28 }) {
   );
 }
 
-function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap, onMobileMenuChange }) {
+function NavBar({ active, set, isAdmin, hasDashboardAccess = false, logout, authUser, onLogin, onRegister, onAccountClick, showSessionMenu, onLogoTap, onMobileMenuChange }) {
   const theme = React.useContext(ThemeContext);
   const ui = getAutoUIColors(theme);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -8234,7 +8234,7 @@ function NavBar({ active, set, isAdmin, logout, authUser, onLogin, onRegister, o
     };
   }, [mobileOpen]);
 
-  const navTabs = isAdmin ? [{ key: "dashboard", label: "Dashboard" }, ...TABS] : TABS;
+  const navTabs = hasDashboardAccess ? [{ key: "dashboard", label: "Dashboard" }, ...TABS] : TABS;
 
   const handleSelect = (id) => {
     set(id);
@@ -33281,7 +33281,8 @@ function App() {
         <NavBar
           active={active}
           set={setActive}
-          isAdmin={canAccessDashboard}
+          isAdmin={isAdmin}
+          hasDashboardAccess={canAccessDashboard}
           logout={logout}
           authUser={authUser}
           onLogin={() => setAuthQuickMode("login")}
