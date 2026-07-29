@@ -6408,19 +6408,33 @@ async function lookupExistingAuthUser(userId) {
 function AdminUsuariosPanel() {
   const theme = React.useContext(ThemeContext);
   const emptyForm = { id:null, auth_user_id:"", flow:"manual", username:"", password:"", nombre:"", email:"", activo:true, expires_at:"", permisos:{} };
-  const [usuarios,setUsuarios]=useState([]), [showForm,setShowForm]=useState(false), [form,setForm]=useState(emptyForm);
+  const [usuarios,setUsuarios]=useState(() => {
+    try {
+      const cached = sessionStorage.getItem("cm_admin_users_cache");
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }), [showForm,setShowForm]=useState(false), [form,setForm]=useState(emptyForm);
+  const [usuariosLoading,setUsuariosLoading]=useState(true);
+  const [usuariosLoaded,setUsuariosLoaded]=useState(false);
   const [saving,setSaving]=useState(false), [msg,setMsg]=useState(null), [showPass,setShowPass]=useState(false), [confirmDelete,setConfirmDelete]=useState(null);
   const [lookupLoading,setLookupLoading]=useState(false);
   const [linkedUser,setLinkedUser]=useState(null);
   const lookupTimer=useRef(null);
   const font=getFont(theme,"secondary");
-  const cargar=async()=>{
+  const cargar=async({silent=false}={})=>{
+    if(!silent) setUsuariosLoading(true);
     try {
       const result=await invokeAdminUsersManager({action:"list_sub_admins"});
-      setUsuarios(Array.isArray(result?.users)?result.users:[]);
+      const nextUsers=Array.isArray(result?.users)?result.users:[];
+      setUsuarios(nextUsers);
+      try { sessionStorage.setItem("cm_admin_users_cache",JSON.stringify(nextUsers)); } catch {}
+      setUsuariosLoaded(true);
     } catch (error) {
       setMsg({type:"err",text:error?.message||"No se pudieron cargar los usuarios con permisos."});
-      setUsuarios([]);
+      setUsuariosLoaded(true);
+    } finally {
+      setUsuariosLoading(false);
     }
   };
   useEffect(()=>{cargar(); return()=>clearTimeout(lookupTimer.current);},[]);
@@ -6517,7 +6531,14 @@ function AdminUsuariosPanel() {
         <button type="button" onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{display:"flex",alignItems:"center",gap:9,width:"fit-content",padding:0,border:0,background:"transparent",color:"#bfc7d5",cursor:"pointer"}}><span style={{width:20,height:20,borderRadius:3,border:`2px solid ${form.activo?"#00daf3":"#3f4753"}`,background:form.activo?"rgba(0,218,243,.18)":"transparent",display:"grid",placeItems:"center"}}>{form.activo&&<MS name="check" size={16} color="#bdf4ff"/>}</span><b>Usuario activo</b></button>
         <button onClick={handleGuardar} disabled={saving||lookupLoading||(form.flow==="existing"&&!linkedUser?.id)} style={{width:"100%",padding:12,borderRadius:4,border:"1px solid rgba(159,202,255,.52)",background:"linear-gradient(180deg,#9fcaff 0%,#00e3fd 100%)",color:"#002f54",fontWeight:900,cursor:saving||lookupLoading||(form.flow==="existing"&&!linkedUser?.id)?"not-allowed":"pointer",opacity:(saving||lookupLoading||(form.flow==="existing"&&!linkedUser?.id))?0.65:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><MS name="save" size={20}/>{saving?"GUARDANDO...":form.flow==="existing"?"ASIGNAR PERMISOS":form.id?"GUARDAR CAMBIOS":"CREAR USUARIO"}</button>
       </div></div>}
-    {usuarios.length===0?<div style={{textAlign:"center",padding:28,color:"#89919e"}}>No hay usuarios con permisos asignados.</div>:<div style={{display:"grid",gap:8}}>{usuarios.map(u=>{const authId=u.auth_user_id||u.permisos?.__auth_user_id;const activePermissions=PERMISOS_DISPONIBLES.filter(p=>u.permisos?.[p.id]);return <article key={u.id} style={{padding:14,background:"rgba(11,15,16,.52)",border:"1px solid rgba(63,71,83,.55)",borderRadius:8,display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}><div style={{minWidth:0}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><span style={{width:8,height:8,borderRadius:999,background:u.activo?"#00daf3":"#89919e"}}/><strong style={{color:"#e0e3e5"}}>{u.nombre||u.username}</strong><span style={{fontSize:10,color:"#89919e"}}>@{u.username}</span>{authId&&<span style={{fontSize:9,fontWeight:900,padding:"3px 7px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.25)",color:"#bdf4ff"}}>CUENTA VINCULADA</span>}</div>{authId&&<div style={{marginTop:5,fontSize:10,color:"#89919e",wordBreak:"break-all"}}>ID: {authId}</div>}<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{activePermissions.length?activePermissions.map(p=><span key={p.id} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,color:"#d2e4ff",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.20)",borderRadius:3,padding:"3px 6px"}}><MS name={p.icon} size={13}/>{p.label}</span>):<span style={{fontSize:10,color:"#89919e"}}>Sin permisos</span>}</div></div><div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}><button onClick={()=>handleEditar(u)} style={{...iconButton,background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.30)",color:"#9fcaff"}}><MS name="edit" size={18}/></button><button onClick={()=>handleToggle(u.id,u.activo)} style={{...iconButton,background:u.activo?"rgba(0,227,253,.08)":"rgba(63,71,83,.18)",border:`1px solid ${u.activo?"rgba(0,227,253,.28)":"#3f4753"}`,color:u.activo?"#bdf4ff":"#89919e"}}><MS name={u.activo?"toggle_on":"toggle_off"} size={22}/></button>{confirmDelete===u.id?<><button onClick={()=>handleEliminar(u.id)} style={{...iconButton,width:"auto",padding:"0 9px",background:"rgba(147,0,10,.2)",border:"1px solid rgba(255,180,171,.4)",color:"#ffb4ab"}}><MS name="check" size={18}/>Confirmar</button><button onClick={()=>setConfirmDelete(null)} style={{...iconButton,background:"transparent",border:"1px solid #3f4753",color:"#89919e"}}><MS name="close" size={18}/></button></>:<button onClick={()=>setConfirmDelete(u.id)} style={{...iconButton,background:"rgba(147,0,10,.12)",border:"1px solid rgba(255,180,171,.25)",color:"#ffb4ab"}}><MS name="delete" size={18}/></button>}</div></article>})}</div>}
+    {usuariosLoading&&usuarios.length===0?
+      <div style={{display:"grid",gap:8,paddingTop:2}} aria-live="polite" aria-busy="true">
+        {[0,1,2].map(i=><div key={i} style={{height:82,borderRadius:8,border:"1px solid rgba(63,71,83,.42)",background:"linear-gradient(90deg,rgba(29,32,34,.56) 20%,rgba(63,71,83,.32) 50%,rgba(29,32,34,.56) 80%)",backgroundSize:"220% 100%",animation:"cm-admin-users-loading 1.15s ease-in-out infinite",animationDelay:`${i*90}ms`}}/>)}
+        <style>{`@keyframes cm-admin-users-loading{0%{background-position:200% 0}100%{background-position:-20% 0}}`}</style>
+      </div>
+      :usuariosLoaded&&usuarios.length===0?
+        <div style={{textAlign:"center",padding:28,color:"#89919e"}}>No hay usuarios con permisos asignados.</div>
+      :<div style={{display:"grid",gap:8,opacity:usuariosLoading?.82:1,transition:"opacity .2s ease"}}>{usuarios.map(u=>{const authId=u.auth_user_id||u.permisos?.__auth_user_id;const activePermissions=PERMISOS_DISPONIBLES.filter(p=>u.permisos?.[p.id]);return <article key={u.id} style={{padding:14,background:"rgba(11,15,16,.52)",border:"1px solid rgba(63,71,83,.55)",borderRadius:8,display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start"}}><div style={{minWidth:0}}><div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><span style={{width:8,height:8,borderRadius:999,background:u.activo?"#00daf3":"#89919e"}}/><strong style={{color:"#e0e3e5"}}>{u.nombre||u.username}</strong><span style={{fontSize:10,color:"#89919e"}}>@{u.username}</span>{authId&&<span style={{fontSize:9,fontWeight:900,padding:"3px 7px",borderRadius:999,background:"rgba(0,227,253,.10)",border:"1px solid rgba(0,227,253,.25)",color:"#bdf4ff"}}>CUENTA VINCULADA</span>}</div>{authId&&<div style={{marginTop:5,fontSize:10,color:"#89919e",wordBreak:"break-all"}}>ID: {authId}</div>}<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{activePermissions.length?activePermissions.map(p=><span key={p.id} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,color:"#d2e4ff",background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.20)",borderRadius:3,padding:"3px 6px"}}><MS name={p.icon} size={13}/>{p.label}</span>):<span style={{fontSize:10,color:"#89919e"}}>Sin permisos</span>}</div></div><div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}><button onClick={()=>handleEditar(u)} style={{...iconButton,background:"rgba(159,202,255,.08)",border:"1px solid rgba(159,202,255,.30)",color:"#9fcaff"}}><MS name="edit" size={18}/></button><button onClick={()=>handleToggle(u.id,u.activo)} style={{...iconButton,background:u.activo?"rgba(0,227,253,.08)":"rgba(63,71,83,.18)",border:`1px solid ${u.activo?"rgba(0,227,253,.28)":"#3f4753"}`,color:u.activo?"#bdf4ff":"#89919e"}}><MS name={u.activo?"toggle_on":"toggle_off"} size={22}/></button>{confirmDelete===u.id?<><button onClick={()=>handleEliminar(u.id)} style={{...iconButton,width:"auto",padding:"0 9px",background:"rgba(147,0,10,.2)",border:"1px solid rgba(255,180,171,.4)",color:"#ffb4ab"}}><MS name="check" size={18}/>Confirmar</button><button onClick={()=>setConfirmDelete(null)} style={{...iconButton,background:"transparent",border:"1px solid #3f4753",color:"#89919e"}}><MS name="close" size={18}/></button></>:<button onClick={()=>setConfirmDelete(u.id)} style={{...iconButton,background:"rgba(147,0,10,.12)",border:"1px solid rgba(255,180,171,.25)",color:"#ffb4ab"}}><MS name="delete" size={18}/></button>}</div></article>})}</div>}
   </div>;
 }
 
