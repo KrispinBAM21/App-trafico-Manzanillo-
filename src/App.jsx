@@ -31225,6 +31225,9 @@ function AdminPdfConverter({ onBack }) {
   const [failures, setFailures] = useState([]);
   const [generatedFileName, setGeneratedFileName] = useState("");
   const [whatsAppNumber, setWhatsAppNumber] = useState("");
+  const [mergedFilename, setMergedFilename] = useState("");
+  const [draggedItemId, setDraggedItemId] = useState(null);
+  const [dragOverItemId, setDragOverItemId] = useState(null);
   const fileInputRef = useRef(null);
   const shaderCanvasRef = useRef(null);
   const mountedRef = useRef(true);
@@ -31260,6 +31263,19 @@ function AdminPdfConverter({ onBack }) {
     });
   }, []);
 
+  const moveDraggedItem = useCallback((sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    setItems(current => {
+      const sourceIndex = current.findIndex(item => item.id === sourceId);
+      const targetIndex = current.findIndex(item => item.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
   const removeItem = useCallback((id) => {
     setItems(current => current.filter(item => item.id !== id));
     setGeneratedFileName("");
@@ -31272,6 +31288,9 @@ function AdminPdfConverter({ onBack }) {
     setStatus("");
     setFailures([]);
     setGeneratedFileName("");
+    setMergedFilename("");
+    setDraggedItemId(null);
+    setDragOverItemId(null);
   }, [busy]);
 
   const downloadBlob = useCallback((blob, name) => {
@@ -31296,8 +31315,25 @@ function AdminPdfConverter({ onBack }) {
 
   const finishProcessing = useCallback(() => setBusy(false), []);
 
+  const getAssignedBaseName = useCallback(() => {
+    const cleaned = String(mergedFilename || "")
+      .trim()
+      .replace(/\.(pdf|zip)$/i, "")
+      .replace(/[\\/:*?"<>|\u0000-\u001F]/g, "-")
+      .replace(/\s+/g, " ")
+      .replace(/[. ]+$/g, "")
+      .slice(0, 120);
+    if (!cleaned) {
+      setStatus("Asigna un nombre al archivo final antes de continuar.");
+      return "";
+    }
+    return cleaned;
+  }, [mergedFilename]);
+
   const mergePdfs = useCallback(async () => {
     if (items.length < 2 || busy) return;
+    const baseName = getAssignedBaseName();
+    if (!baseName) return;
     beginProcessing();
     const failed = [];
     try {
@@ -31323,7 +31359,7 @@ function AdminPdfConverter({ onBack }) {
       safeSet(setStatus, "Generando el PDF unido...");
       const output = await merged.save({ useObjectStreams:true, addDefaultPage:false });
       safeSet(setProgress, 100);
-      const fileName = "documentos_unidos.pdf";
+      const fileName = `${baseName}.pdf`;
       downloadBlob(new Blob([output], { type:"application/pdf" }), fileName);
       safeSet(setGeneratedFileName, fileName);
       safeSet(setFailures, failed);
@@ -31334,10 +31370,12 @@ function AdminPdfConverter({ onBack }) {
     } finally {
       finishProcessing();
     }
-  }, [items, busy, beginProcessing, downloadBlob, finishProcessing, safeSet]);
+  }, [items, busy, getAssignedBaseName, beginProcessing, downloadBlob, finishProcessing, safeSet]);
 
   const downloadZip = useCallback(async () => {
     if (!items.length || busy) return;
+    const baseName = getAssignedBaseName();
+    if (!baseName) return;
     beginProcessing();
     const failed = [];
     try {
@@ -31372,7 +31410,7 @@ function AdminPdfConverter({ onBack }) {
       const blob = await zip.generateAsync({ type:"blob", compression:"DEFLATE", compressionOptions:{ level:6 } }, metadata => {
         safeSet(setProgress, Math.min(100, 70 + Math.round((metadata.percent / 100) * 30)));
       });
-      const fileName = "documentos_pdf.zip";
+      const fileName = `${baseName}.zip`;
       downloadBlob(blob, fileName);
       safeSet(setGeneratedFileName, fileName);
       safeSet(setFailures, failed);
@@ -31383,7 +31421,12 @@ function AdminPdfConverter({ onBack }) {
     } finally {
       finishProcessing();
     }
-  }, [items, busy, beginProcessing, downloadBlob, finishProcessing, safeSet]);
+  }, [items, busy, getAssignedBaseName, beginProcessing, downloadBlob, finishProcessing, safeSet]);
+
+  const downloadOriginal = useCallback((item) => {
+    if (!item?.file || busy) return;
+    downloadBlob(item.file, item.file.name || "documento.pdf");
+  }, [busy, downloadBlob]);
 
   const openWhatsApp = useCallback(() => {
     const digits = String(whatsAppNumber || "").replace(/\D/g, "");
@@ -31414,49 +31457,13 @@ function AdminPdfConverter({ onBack }) {
     }
     const gl = canvas.getContext("webgl", { alpha:true, antialias:false, powerPreference:"low-power" }) || canvas.getContext("experimental-webgl");
     if (!gl) return () => resizeObserver?.disconnect();
-    const vertexSource = `attribute vec2 a_position;
-varying vec2 v_texCoord;
-void main(){v_texCoord=a_position*.5+.5;gl_Position=vec4(a_position,0.,1.);}`;
-    const fragmentSource = `precision highp float;
-uniform float u_time;
-uniform vec2 u_resolution;
-void main(){
-  vec2 uv=gl_FragCoord.xy/u_resolution.xy;
-  vec3 color=vec3(.035,.052,.072);
-  float scanline=sin(uv.y*230.0+u_time*2.2)*.018;
-  color+=scanline;
-  float wave=sin(uv.x*5.0+u_time*.8)*cos(uv.y*4.0-u_time*.7)*.035;
-  color+=vec3(0.0,.60,1.0)*wave;
-  float gridX=smoothstep(.985,1.0,cos(uv.x*56.0));
-  float gridY=smoothstep(.988,1.0,cos(uv.y*34.0));
-  color+=vec3(0.0,.35,.62)*(gridX+gridY)*.035;
-  float edgeX=smoothstep(.37,.5,abs(uv.x-.5));
-  float edgeY=smoothstep(.37,.5,abs(uv.y-.5));
-  float pulse=(sin(u_time*1.65)*.5+.5);
-  color+=vec3(0.0,.60,1.0)*(edgeX+edgeY)*(.025+pulse*.04);
-  gl_FragColor=vec4(color,.94);
-}`;
-    const compile = (type, source) => {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        gl.deleteShader(shader);
-        return null;
-      }
-      return shader;
-    };
-    const vertex = compile(gl.VERTEX_SHADER, vertexSource);
-    const fragment = compile(gl.FRAGMENT_SHADER, fragmentSource);
-    if (!vertex || !fragment) return () => resizeObserver?.disconnect();
+    const vertexSource = `attribute vec2 a_position; varying vec2 v_texCoord; void main(){v_texCoord=a_position*.5+.5;gl_Position=vec4(a_position,0.,1.);}`;
+    const fragmentSource = `precision highp float; uniform float u_time; uniform vec2 u_resolution; void main(){vec2 uv=gl_FragCoord.xy/u_resolution.xy;vec3 color=vec3(.035,.052,.072);float scanline=sin(uv.y*230.0+u_time*2.2)*.018;color+=scanline;float wave=sin(uv.x*5.0+u_time*.8)*cos(uv.y*4.0-u_time*.7)*.035;color+=vec3(0.0,.60,1.0)*wave;float gridX=smoothstep(.985,1.0,cos(uv.x*56.0));float gridY=smoothstep(.988,1.0,cos(uv.y*34.0));color+=vec3(0.0,.35,.62)*(gridX+gridY)*.035;float edgeX=smoothstep(.37,.5,abs(uv.x-.5));float edgeY=smoothstep(.37,.5,abs(uv.y-.5));float pulse=(sin(u_time*1.65)*.5+.5)*.05;color+=vec3(0.0,.6,1.0)*(edgeX+edgeY)*pulse;gl_FragColor=vec4(color,1.0);}`;
+    const compile = (type, source) => { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); return shader; };
     const program = gl.createProgram();
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, fragment);
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
     gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      gl.deleteProgram(program);
-      return () => resizeObserver?.disconnect();
-    }
     gl.useProgram(program);
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -31466,91 +31473,103 @@ void main(){
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
     const timeLocation = gl.getUniformLocation(program, "u_time");
     const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const render = timestamp => {
+    const renderFrame = time => {
       if (disposed) return;
       syncSize();
       gl.viewport(0, 0, canvas.width, canvas.height);
-      if (timeLocation) gl.uniform1f(timeLocation, timestamp * .001);
+      if (timeLocation) gl.uniform1f(timeLocation, time * 0.001);
       if (resolutionLocation) gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      frameId = requestAnimationFrame(render);
+      frameId = requestAnimationFrame(renderFrame);
     };
-    frameId = requestAnimationFrame(render);
+    frameId = requestAnimationFrame(renderFrame);
     return () => {
       disposed = true;
       cancelAnimationFrame(frameId);
       resizeObserver?.disconnect();
-      try {
-        gl.deleteBuffer(buffer);
-        gl.deleteProgram(program);
-        gl.deleteShader(vertex);
-        gl.deleteShader(fragment);
-      } catch (_) {}
+      try { gl.deleteBuffer(buffer); gl.deleteProgram(program); } catch {}
     };
   }, []);
 
-  const totalBytes = items.reduce((sum, item) => sum + Number(item?.file?.size || 0), 0);
+  const totalBytes = useMemo(() => items.reduce((sum, item) => sum + Number(item.file?.size || 0), 0), [items]);
+  const hasAssignedName = Boolean(String(mergedFilename || "").trim());
 
   return (
-    <section className="cm-pdf-tool" aria-label="Conversor de archivos PDF">
+    <section className={`cm-pdf-tool ${items.length ? "has-files" : "is-empty"}`} aria-label="Conversor de archivos PDF">
       <style>{`
-        @keyframes cmPdfBorderPulse{0%,100%{border-color:rgba(63,71,83,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}50%{border-color:rgba(0,153,255,.68);box-shadow:0 0 30px rgba(0,153,255,.12),inset 0 1px 0 rgba(255,255,255,.04)}}
-        @keyframes cmPdfFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-        @keyframes cmPdfStatusPulse{0%,100%{opacity:.65;box-shadow:0 0 0 0 rgba(0,153,255,.35)}50%{opacity:1;box-shadow:0 0 0 6px rgba(0,153,255,0)}}
-        @keyframes cmPdfProgressPulse{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.35)}}
-        .cm-pdf-tool{--pdf-bg:#101415;--pdf-lowest:#0b0f10;--pdf-low:#191c1e;--pdf-panel:#1d2022;--pdf-high:#272a2c;--pdf-highest:#323537;--pdf-text:#e0e3e5;--pdf-muted:#bfc7d5;--pdf-outline:#3f4753;--pdf-primary:#9fcaff;--pdf-blue:#0099ff;--pdf-cyan:#00daf3;--pdf-error:#ffb4ab;color:var(--pdf-text);font-family:Inter,sans-serif;display:grid;gap:26px;position:relative;isolation:isolate;max-width:1200px;margin:0 auto;padding:4px 0 34px}.cm-pdf-tool *{box-sizing:border-box}
-        .cm-pdf-tool::before,.cm-pdf-tool::after{content:"";position:absolute;z-index:-1;border-radius:50%;pointer-events:none;filter:blur(90px)}.cm-pdf-tool::before{width:340px;height:340px;right:-80px;top:40px;background:rgba(0,153,255,.07)}.cm-pdf-tool::after{width:250px;height:250px;left:-80px;bottom:30px;background:rgba(0,218,243,.045)}
-        .cm-pdf-tool__head{display:flex;align-items:center;gap:16px}.cm-pdf-tool__back{width:52px;height:52px;flex:0 0 52px;border-radius:10px;border:1px solid rgba(159,202,255,.22);background:rgba(29,32,34,.82);backdrop-filter:blur(12px);color:var(--pdf-muted);display:grid;place-items:center;cursor:pointer;transition:all .3s ease}.cm-pdf-tool__back:hover:not(:disabled){color:var(--pdf-primary);border-color:rgba(159,202,255,.55);transform:translateY(-2px);box-shadow:0 0 18px rgba(159,202,255,.18)}.cm-pdf-tool__back:disabled{opacity:.45;cursor:not-allowed}.cm-pdf-tool__head-copy{min-width:0}.cm-pdf-tool__head-title{display:flex;align-items:center;gap:9px}.cm-pdf-tool__head h3{margin:0;font-size:22px;line-height:30px;font-weight:700}.cm-pdf-tool__head p{margin:3px 0 0;color:var(--pdf-muted);opacity:.72;font-size:13px;line-height:20px}
+        .cm-pdf-tool{--pdf-bg:#101415;--pdf-lowest:#0b0f10;--pdf-low:#191c1e;--pdf-panel:#1d2022;--pdf-high:#272a2c;--pdf-highest:#323537;--pdf-text:#e0e3e5;--pdf-muted:#bfc7d5;--pdf-outline:#3f4753;--pdf-primary:#9fcaff;--pdf-blue:#0099ff;--pdf-cyan:#00daf3;--pdf-error:#ffb4ab;color:var(--pdf-text);font-family:Inter,sans-serif;display:grid;gap:26px;position:relative;isolation:isolate;max-width:1200px;margin:0 auto;padding:4px 0 34px}.cm-pdf-tool *{box-sizing:border-box}.cm-pdf-tool::before,.cm-pdf-tool::after{content:"";position:absolute;z-index:-1;border-radius:50%;pointer-events:none;filter:blur(90px)}.cm-pdf-tool::before{width:340px;height:340px;right:-80px;top:40px;background:rgba(0,153,255,.07)}.cm-pdf-tool::after{width:250px;height:250px;left:-80px;bottom:30px;background:rgba(0,218,243,.045)}
+        .glass-panel{backdrop-filter:blur(12px)}.cm-pdf-tool__head{display:flex;align-items:center;gap:16px}.cm-pdf-tool__back{width:52px;height:52px;flex:0 0 52px;border-radius:10px;border:1px solid rgba(159,202,255,.22);background:rgba(29,32,34,.82);backdrop-filter:blur(12px);color:var(--pdf-muted);display:grid;place-items:center;cursor:pointer;transition:all .3s ease}.cm-pdf-tool__back:hover:not(:disabled){color:var(--pdf-primary);border-color:rgba(159,202,255,.55);transform:translateY(-2px);box-shadow:0 0 18px rgba(159,202,255,.18)}.cm-pdf-tool__back:disabled{opacity:.45;cursor:not-allowed}.cm-pdf-tool__head-copy{min-width:0}.cm-pdf-tool__head-title{display:flex;align-items:center;gap:9px}.cm-pdf-tool__head h3{margin:0;font-size:22px;line-height:30px;font-weight:700}.cm-pdf-tool__head p{margin:3px 0 0;color:var(--pdf-muted);opacity:.72;font-size:13px;line-height:20px}
         .cm-pdf-tool__intro{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}.cm-pdf-tool__intro h2{margin:0;color:var(--pdf-text);font-size:clamp(27px,4vw,36px);line-height:1.18;font-weight:800;letter-spacing:-.025em;text-shadow:0 0 15px rgba(0,218,243,.38)}.cm-pdf-tool__intro p{max-width:690px;margin:7px 0 0;color:var(--pdf-muted);font-size:15px;line-height:23px}.cm-pdf-tool__intro p span{color:rgba(159,202,255,.9)}.cm-pdf-tool__security-chip{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;padding:8px 13px;border-radius:999px;border:1px solid rgba(159,202,255,.28);background:rgba(159,202,255,.08);color:var(--pdf-primary);font-size:12px;font-weight:700;letter-spacing:.06em}.cm-pdf-tool__security-dot{width:8px;height:8px;border-radius:50%;background:var(--pdf-primary);animation:cmPdfStatusPulse 1.7s ease-in-out infinite}
         .cm-pdf-tool__drop-shell{position:relative}.cm-pdf-tool__drop{position:relative;min-height:330px;border:2px dashed rgba(63,71,83,.55);border-radius:17px;background:rgba(29,32,34,.78);backdrop-filter:blur(12px);display:grid;place-items:center;text-align:center;padding:42px 24px;cursor:pointer;overflow:hidden;transition:all .3s ease;animation:cmPdfBorderPulse 4s ease-in-out infinite}.cm-pdf-tool__drop:hover,.cm-pdf-tool__drop.is-dragging{border-color:var(--pdf-blue);background:rgba(0,153,255,.055);box-shadow:0 0 30px rgba(0,153,255,.2);transform:scale(.997)}.cm-pdf-tool__drop:focus-visible{outline:2px solid var(--pdf-primary);outline-offset:4px}.cm-pdf-tool__shader{position:absolute;inset:0;z-index:0;opacity:.38;pointer-events:none}.cm-pdf-tool__shader canvas{display:block;width:100%;height:100%}.cm-pdf-tool__drop-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;max-width:620px}.cm-pdf-tool__upload-icon{width:84px;height:84px;border-radius:17px;display:grid;place-items:center;margin-bottom:23px;border:1px solid rgba(159,202,255,.22);background:rgba(50,53,55,.82);color:var(--pdf-primary);box-shadow:0 16px 34px rgba(0,0,0,.32);animation:cmPdfFloat 3s ease-in-out infinite;transition:all .3s ease}.cm-pdf-tool__drop:hover .cm-pdf-tool__upload-icon{transform:scale(1.08);border-color:rgba(159,202,255,.5);box-shadow:0 0 28px rgba(0,153,255,.18)}.cm-pdf-tool__drop strong{font-size:23px;line-height:31px;font-weight:700}.cm-pdf-tool__drop small{display:block;margin-top:8px;color:var(--pdf-muted);font-size:14px;line-height:21px}.cm-pdf-tool__drop small span{display:block;margin-top:7px;opacity:.52;font-size:12px}.cm-pdf-tool__drop input{display:none}.cm-pdf-tool__corner{position:absolute;z-index:2;width:34px;height:34px;pointer-events:none}.cm-pdf-tool__corner.is-tl{top:0;left:0;border-top:2px solid rgba(159,202,255,.32);border-left:2px solid rgba(159,202,255,.32);border-radius:16px 0 0}.cm-pdf-tool__corner.is-tr{top:0;right:0;border-top:2px solid rgba(159,202,255,.32);border-right:2px solid rgba(159,202,255,.32);border-radius:0 16px 0 0}.cm-pdf-tool__corner.is-bl{bottom:0;left:0;border-bottom:2px solid rgba(159,202,255,.32);border-left:2px solid rgba(159,202,255,.32);border-radius:0 0 0 16px}.cm-pdf-tool__corner.is-br{bottom:0;right:0;border-bottom:2px solid rgba(159,202,255,.32);border-right:2px solid rgba(159,202,255,.32);border-radius:0 0 16px}
         .cm-pdf-tool__toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid rgba(63,71,83,.28);flex-wrap:wrap}.cm-pdf-tool__metrics{display:flex;align-items:center;gap:16px}.cm-pdf-tool__count{font-size:20px;font-weight:700}.cm-pdf-tool__divider{width:1px;height:18px;background:rgba(63,71,83,.58)}.cm-pdf-tool__space{font-size:12px;color:var(--pdf-muted);font-weight:600;letter-spacing:.025em}.cm-pdf-tool__clear{min-height:40px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--pdf-muted);padding:8px 12px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .3s ease}.cm-pdf-tool__clear:hover:not(:disabled){color:var(--pdf-error);background:rgba(255,180,171,.08);border-color:rgba(255,180,171,.18);box-shadow:0 0 17px rgba(255,180,171,.1)}.cm-pdf-tool__clear:disabled{opacity:.32;cursor:not-allowed}
-        .cm-pdf-tool__empty{min-height:124px;display:grid;place-items:center;text-align:center;padding:34px;border:1px dashed rgba(63,71,83,.26);border-radius:12px;background:rgba(11,15,16,.12);color:rgba(191,199,213,.32);font-size:14px;font-style:italic}.cm-pdf-tool__list{display:grid;border:1px solid rgba(63,71,83,.6);border-radius:12px;overflow:hidden;background:rgba(16,20,21,.55);backdrop-filter:blur(12px)}.cm-pdf-tool__row{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid rgba(63,71,83,.36);transition:background .2s ease}.cm-pdf-tool__row:hover{background:rgba(159,202,255,.045)}.cm-pdf-tool__row:last-child{border-bottom:0}.cm-pdf-tool__index{color:#89919e;text-align:center;font-variant-numeric:tabular-nums}.cm-pdf-tool__file{min-width:0}.cm-pdf-tool__file strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}.cm-pdf-tool__file small{display:block;color:#89919e;margin-top:3px}.cm-pdf-tool__row-actions{display:flex;gap:5px}.cm-pdf-tool__icon-button{width:36px;height:36px;border-radius:8px;border:1px solid rgba(159,202,255,.18);background:rgba(159,202,255,.05);color:#bfc7d5;display:grid;place-items:center;cursor:pointer;transition:all .3s ease}.cm-pdf-tool__icon-button:hover:not(:disabled){color:#00daf3;border-color:rgba(0,218,243,.42);background:rgba(0,218,243,.08);transform:translateY(-1px)}.cm-pdf-tool__icon-button:disabled{opacity:.28;cursor:not-allowed}.cm-pdf-tool__icon-button.is-remove:hover{color:#ffb4ab;border-color:rgba(255,180,171,.35);background:rgba(255,180,171,.07)}
-        .cm-pdf-tool__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding-top:4px}.cm-pdf-tool__button{min-height:56px;border:1px solid var(--pdf-outline);border-radius:10px;background:rgba(25,28,30,.62);color:var(--pdf-text);padding:11px 18px;font-size:17px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:11px;position:relative;overflow:hidden;transition:all .3s ease}.cm-pdf-tool__button::after{content:"";position:absolute;top:0;left:-70%;width:42%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);transform:skewX(-18deg);transition:left .55s ease}.cm-pdf-tool__button:hover:not(:disabled)::after{left:130%}.cm-pdf-tool__button:hover:not(:disabled){transform:translateY(-2px);border-color:var(--pdf-cyan);color:var(--pdf-cyan);background:rgba(0,218,243,.05);box-shadow:0 5px 19px rgba(0,218,243,.18)}.cm-pdf-tool__button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}.cm-pdf-tool__button.is-primary{background:linear-gradient(180deg,#0099ff 0%,#0061a5 100%);color:white;border-color:#0099ff}.cm-pdf-tool__button.is-primary:hover:not(:disabled){color:white;border-color:#9fcaff;box-shadow:0 5px 22px rgba(0,153,255,.46)}
-        .cm-pdf-tool__progress-wrap{display:grid;gap:7px}.cm-pdf-tool__progress-meta{display:flex;justify-content:space-between;color:var(--pdf-muted);font-size:12px}.cm-pdf-tool__progress{height:8px;border-radius:999px;background:rgba(63,71,83,.55);overflow:hidden}.cm-pdf-tool__progress span{display:block;height:100%;background:linear-gradient(90deg,#0099ff,#00daf3);transition:width .15s ease;animation:cmPdfProgressPulse 1.4s ease-in-out infinite}.cm-pdf-tool__status{padding:13px 14px;border-radius:10px;border:1px solid rgba(159,202,255,.15);background:rgba(159,202,255,.05);color:#bfc7d5;font-size:13px;line-height:1.55}.cm-pdf-tool__errors{margin:0;padding:12px 12px 12px 30px;border-radius:10px;border:1px solid rgba(255,180,171,.24);background:rgba(255,180,171,.06);color:#ffb4ab;font-size:12px;line-height:1.5;max-height:160px;overflow:auto}.cm-pdf-tool__wa{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:15px;border:1px solid rgba(37,211,102,.25);border-radius:12px;background:rgba(37,211,102,.06);backdrop-filter:blur(12px)}.cm-pdf-tool__wa input{min-height:44px;border:1px solid rgba(159,202,255,.24);border-radius:9px;background:#101415;color:#e0e3e5;padding:10px 12px;outline:none}.cm-pdf-tool__wa input:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1)}.cm-pdf-tool__wa p{grid-column:1/-1;margin:0;color:#89919e;font-size:12px;line-height:1.5}
-        .cm-pdf-tool__privacy{display:flex;align-items:flex-start;gap:16px;padding:20px 22px;border:1px solid rgba(159,202,255,.2);border-radius:15px;background:rgba(29,32,34,.8);backdrop-filter:blur(12px);transition:all .3s ease}.cm-pdf-tool__privacy:hover{box-shadow:0 0 22px rgba(0,153,255,.09);border-color:rgba(159,202,255,.34)}.cm-pdf-tool__privacy-icon{width:50px;height:50px;flex:0 0 50px;border-radius:12px;display:grid;place-items:center;background:rgba(159,202,255,.1);color:var(--pdf-primary)}.cm-pdf-tool__privacy h4{margin:0 0 6px;color:var(--pdf-primary);font-size:12px;line-height:16px;font-weight:800;letter-spacing:.1em}.cm-pdf-tool__privacy p{margin:0;color:var(--pdf-muted);font-size:13px;line-height:20px}.cm-pdf-tool__privacy code{padding:2px 5px;border-radius:4px;background:var(--pdf-highest);color:var(--pdf-primary);font-family:Inter,sans-serif}
-        @media(max-width:760px){.cm-pdf-tool{gap:20px}.cm-pdf-tool__intro{align-items:flex-start;flex-direction:column}.cm-pdf-tool__drop{min-height:285px;padding:32px 18px}.cm-pdf-tool__actions{grid-template-columns:1fr;gap:13px}.cm-pdf-tool__row{grid-template-columns:34px minmax(0,1fr) auto}.cm-pdf-tool__row>small{display:none}.cm-pdf-tool__row-actions{grid-column:2/-1;justify-content:flex-end}.cm-pdf-tool__wa{grid-template-columns:1fr}.cm-pdf-tool__wa p{grid-column:1}.cm-pdf-tool__button{width:100%;font-size:15px}.cm-pdf-tool__privacy{padding:17px}.cm-pdf-tool__metrics{gap:10px}.cm-pdf-tool__count{font-size:17px}}
-        @media(max-width:470px){.cm-pdf-tool__head{align-items:flex-start}.cm-pdf-tool__head h3{font-size:18px}.cm-pdf-tool__head p{font-size:12px}.cm-pdf-tool__security-chip{font-size:10px}.cm-pdf-tool__drop strong{font-size:19px}.cm-pdf-tool__upload-icon{width:72px;height:72px}.cm-pdf-tool__toolbar{align-items:flex-start}.cm-pdf-tool__clear{padding-left:7px;padding-right:7px}}
+        .cm-pdf-tool__empty{min-height:124px;display:grid;place-items:center;text-align:center;padding:34px;border:1px dashed rgba(63,71,83,.26);border-radius:12px;background:rgba(11,15,16,.12);color:rgba(191,199,213,.32);font-size:14px;font-style:italic}.cm-pdf-tool__list{display:grid;gap:12px;padding-bottom:132px}.cm-pdf-tool__row{display:grid;grid-template-columns:30px 42px minmax(0,1fr) 92px 144px;align-items:center;gap:10px;padding:15px 16px;border:1px solid rgba(63,71,83,.58);border-radius:11px;background:rgba(29,32,34,.72);backdrop-filter:blur(12px);transition:all .3s ease}.cm-pdf-tool__row:hover{background:rgba(0,153,255,.07);border-color:rgba(159,202,255,.38);box-shadow:0 0 18px rgba(0,153,255,.08)}.cm-pdf-tool__row.dragging{opacity:.48;transform:scale(.985);box-shadow:0 0 28px rgba(0,218,243,.35);border-color:#00daf3}.cm-pdf-tool__row.drag-over{border-top:2px solid #00daf3;box-shadow:0 -5px 18px rgba(0,218,243,.16)}.cm-pdf-tool__drag{cursor:grab;color:rgba(191,199,213,.38);display:grid;place-items:center}.cm-pdf-tool__drag:active{cursor:grabbing}.cm-pdf-tool__index{color:#bfc7d5;text-align:center;font-variant-numeric:tabular-nums;font-size:16px}.cm-pdf-tool__file{min-width:0}.cm-pdf-tool__file strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;letter-spacing:.02em}.cm-pdf-tool__file small{display:block;color:#89919e;margin-top:4px;font-size:10px;text-transform:uppercase;letter-spacing:.025em}.cm-pdf-tool__size{color:#bfc7d5;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}.cm-pdf-tool__row-actions{display:flex;justify-content:flex-end;gap:4px}.cm-pdf-tool__icon-button{width:40px;height:40px;border-radius:8px;border:1px solid transparent;background:transparent;color:#bfc7d5;display:grid;place-items:center;cursor:pointer;transition:all .3s ease}.cm-pdf-tool__icon-button:hover:not(:disabled){color:#9fcaff;background:rgba(159,202,255,.1);box-shadow:0 0 15px rgba(159,202,255,.22);transform:translateY(-2px)}.cm-pdf-tool__icon-button:disabled{opacity:.25;cursor:not-allowed}.cm-pdf-tool__icon-button.is-remove:hover{color:#ffb4ab;background:rgba(255,180,171,.08);box-shadow:0 0 15px rgba(255,180,171,.14)}
+        .cm-pdf-tool__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding-top:4px}.cm-pdf-tool__button{min-height:56px;border:1px solid var(--pdf-outline);border-radius:10px;background:rgba(25,28,30,.62);color:var(--pdf-text);padding:11px 18px;font-size:17px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:11px;position:relative;overflow:hidden;transition:all .3s ease}.cm-pdf-tool__button:hover:not(:disabled){transform:translateY(-2px);border-color:var(--pdf-cyan);color:var(--pdf-cyan);background:rgba(0,218,243,.05);box-shadow:0 5px 19px rgba(0,218,243,.18)}.cm-pdf-tool__button:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}.cm-pdf-tool__button.is-primary{background:#0099ff;color:#003259;border-color:#0099ff;box-shadow:0 0 20px rgba(0,153,255,.38)}.cm-pdf-tool__button.is-primary:hover:not(:disabled){color:#002f54;border-color:#9fcaff;box-shadow:0 0 34px rgba(0,153,255,.58);transform:scale(1.015)}
+        .cm-pdf-tool__sticky-actions{position:sticky;bottom:0;z-index:28;margin:0 calc(50% - 50vw) -34px;padding:18px max(24px,calc((100vw - 1200px)/2));display:grid;grid-template-columns:minmax(220px,320px) minmax(280px,1fr) minmax(280px,1fr);gap:16px;background:rgba(16,20,21,.95);backdrop-filter:blur(16px);border-top:1px solid rgba(63,71,83,.42);box-shadow:0 -18px 40px rgba(0,0,0,.28)}.cm-pdf-tool__filename{position:relative;min-width:0}.cm-pdf-tool__filename .material-symbols-outlined{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:rgba(159,202,255,.65);pointer-events:none}.cm-pdf-tool__filename input{width:100%;height:56px;border-radius:10px;border:1px solid rgba(63,71,83,.62);background:rgba(50,53,55,.48);color:#e0e3e5;padding:0 14px 0 48px;font:500 14px/1 Inter,sans-serif;outline:none;transition:all .3s ease}.cm-pdf-tool__filename input:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1),0 0 20px rgba(0,153,255,.12)}.cm-pdf-tool__filename input::placeholder{color:rgba(191,199,213,.42)}
+        .cm-pdf-tool__progress-wrap{display:grid;gap:7px}.cm-pdf-tool__progress-meta{display:flex;justify-content:space-between;color:var(--pdf-muted);font-size:12px}.cm-pdf-tool__progress{height:8px;border-radius:999px;background:rgba(63,71,83,.55);overflow:hidden}.cm-pdf-tool__progress span{display:block;height:100%;background:linear-gradient(90deg,#0099ff,#00daf3);transition:width .15s ease;animation:cmPdfProgressPulse 1.4s ease-in-out infinite}.cm-pdf-tool__status{padding:13px 14px;border-radius:10px;border:1px solid rgba(159,202,255,.15);background:rgba(159,202,255,.05);color:#bfc7d5;font-size:13px;line-height:1.55}.cm-pdf-tool__errors{margin:0;padding:12px 12px 12px 30px;border-radius:10px;border:1px solid rgba(255,180,171,.24);background:rgba(255,180,171,.06);color:#ffb4ab;font-size:12px;line-height:1.5;max-height:160px;overflow:auto}.cm-pdf-tool__wa{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:15px;border:1px solid rgba(37,211,102,.25);border-radius:12px;background:rgba(37,211,102,.06);backdrop-filter:blur(12px)}.cm-pdf-tool__wa input{min-height:44px;border:1px solid rgba(159,202,255,.24);border-radius:9px;background:#101415;color:#e0e3e5;padding:10px 12px;outline:none}.cm-pdf-tool__wa input:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1)}.cm-pdf-tool__wa p{grid-column:1/-1;margin:0;color:#89919e;font-size:12px;line-height:1.5}.cm-pdf-tool__privacy{display:flex;align-items:flex-start;gap:16px;padding:20px 22px;border:1px solid rgba(159,202,255,.2);border-radius:15px;background:rgba(29,32,34,.8);backdrop-filter:blur(12px);transition:all .3s ease}.cm-pdf-tool__privacy:hover{box-shadow:0 0 22px rgba(0,153,255,.09);border-color:rgba(159,202,255,.34)}.cm-pdf-tool__privacy-icon{width:50px;height:50px;flex:0 0 50px;border-radius:12px;display:grid;place-items:center;background:rgba(159,202,255,.1);color:var(--pdf-primary)}.cm-pdf-tool__privacy h4{margin:0 0 6px;color:var(--pdf-primary);font-size:12px;line-height:16px;font-weight:800;letter-spacing:.1em}.cm-pdf-tool__privacy p{margin:0;color:var(--pdf-muted);font-size:13px;line-height:20px}.cm-pdf-tool__privacy code{padding:2px 5px;border-radius:4px;background:var(--pdf-highest);color:var(--pdf-primary);font-family:Inter,sans-serif}
+        .cm-pdf-tool.has-files .cm-pdf-tool__drop-shell,.cm-pdf-tool.has-files .cm-pdf-tool__intro{display:none}.cm-pdf-tool.has-files{padding-bottom:130px}.cm-pdf-tool.has-files .cm-pdf-tool__head{margin-bottom:2px}.cm-pdf-tool__manager-head{display:flex;justify-content:space-between;align-items:end;gap:18px}.cm-pdf-tool__manager-head h2{margin:0;font-size:32px;line-height:40px;letter-spacing:-.02em}.cm-pdf-tool__manager-head p{margin:3px 0 0;color:#bfc7d5}.cm-pdf-tool__manager-head .cm-pdf-tool__clear{border-color:rgba(147,0,10,.9);color:#ffb4ab;padding:9px 20px}
+        @keyframes cmPdfBorderPulse{0%,100%{border-color:rgba(63,71,83,.45)}50%{border-color:rgba(0,153,255,.58)}}@keyframes cmPdfFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}@keyframes cmPdfStatusPulse{0%,100%{opacity:.45;box-shadow:0 0 0 rgba(159,202,255,0)}50%{opacity:1;box-shadow:0 0 13px rgba(159,202,255,.7)}}@keyframes cmPdfProgressPulse{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.25)}}
+        @media(max-width:900px){.cm-pdf-tool__sticky-actions{grid-template-columns:1fr 1fr}.cm-pdf-tool__filename{grid-column:1/-1}.cm-pdf-tool__row{grid-template-columns:28px 38px minmax(0,1fr) auto}.cm-pdf-tool__size{display:none}.cm-pdf-tool__row-actions{grid-column:auto}}
+        @media(max-width:760px){.cm-pdf-tool{gap:20px}.cm-pdf-tool__intro{align-items:flex-start;flex-direction:column}.cm-pdf-tool__drop{min-height:285px;padding:32px 18px}.cm-pdf-tool__actions{grid-template-columns:1fr;gap:13px}.cm-pdf-tool__wa{grid-template-columns:1fr}.cm-pdf-tool__wa p{grid-column:1}.cm-pdf-tool__button{width:100%;font-size:14px}.cm-pdf-tool__privacy{padding:17px}.cm-pdf-tool__metrics{gap:10px}.cm-pdf-tool__count{font-size:17px}.cm-pdf-tool__manager-head{align-items:flex-start;flex-direction:column}.cm-pdf-tool__manager-head h2{font-size:27px}.cm-pdf-tool__row{grid-template-columns:26px 34px minmax(0,1fr);padding:12px}.cm-pdf-tool__row-actions{grid-column:2/-1;justify-content:flex-end}.cm-pdf-tool__sticky-actions{position:sticky;grid-template-columns:1fr;margin-left:-16px;margin-right:-16px;padding:14px 16px calc(14px + env(safe-area-inset-bottom));}.cm-pdf-tool.has-files{padding-bottom:210px}}
+        @media(max-width:470px){.cm-pdf-tool__head{align-items:flex-start}.cm-pdf-tool__head h3{font-size:18px}.cm-pdf-tool__head p{font-size:12px}.cm-pdf-tool__security-chip{font-size:10px}.cm-pdf-tool__drop strong{font-size:19px}.cm-pdf-tool__upload-icon{width:72px;height:72px}.cm-pdf-tool__toolbar{align-items:flex-start}.cm-pdf-tool__clear{padding-left:7px;padding-right:7px}.cm-pdf-tool__file strong{font-size:13px}}
       `}</style>
+
       <header className="cm-pdf-tool__head">
         <button type="button" className="cm-pdf-tool__back transition-all duration-300" onClick={onBack} aria-label="Regresar a Herramientas administrativas" disabled={busy}><MS name="arrow_back" size={24} active /></button>
         <div className="cm-pdf-tool__head-copy"><div className="cm-pdf-tool__head-title"><MS name="settings_applications" size={23} active /><h3>Herramientas administrativas</h3></div><p>Configuración global de procesamiento y conversión de activos</p></div>
       </header>
 
-      <div className="cm-pdf-tool__intro">
-        <div><h2>Conversor PDF&apos;s</h2><p>Une documentos o descarga los archivos originales en ZIP. <span>Todo se procesa únicamente en la memoria local del navegador.</span></p></div>
-        <div className="cm-pdf-tool__security-chip"><span className="cm-pdf-tool__security-dot" />ENCRIPTACIÓN ACTIVA</div>
-      </div>
-
-      <div className="cm-pdf-tool__drop-shell">
-        <div className={`cm-pdf-tool__drop glass-panel backdrop-blur-md procedural-pulse transition-all duration-300 ${dragging ? "is-dragging" : ""}`} role="button" tabIndex={0} onClick={() => !busy && fileInputRef.current?.click()} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && !busy) fileInputRef.current?.click(); }} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy) addFiles(event.dataTransfer.files); }}>
-          <div className="cm-pdf-tool__shader"><canvas ref={shaderCanvasRef} id="shader-canvas-ANIMATION_32" aria-hidden="true" /></div>
-          <div className="cm-pdf-tool__drop-content">
-            <div className="cm-pdf-tool__upload-icon animate-float transition-all duration-300"><MS name="upload_file" size={48} active /></div>
-            <strong>Arrastra tus archivos PDF aquí</strong>
-            <small>También puedes pulsar para seleccionarlos.<span>Se admiten lotes de 100 archivos o más, sin almacenamiento persistente.</span></small>
-          </div>
-          <span className="cm-pdf-tool__corner is-tl"/><span className="cm-pdf-tool__corner is-tr"/><span className="cm-pdf-tool__corner is-bl"/><span className="cm-pdf-tool__corner is-br"/>
-          <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" multiple onChange={event => addFiles(event.target.files)} />
+      {!items.length ? <>
+        <div className="cm-pdf-tool__intro">
+          <div><h2>Conversor PDF&apos;s</h2><p>Une documentos o descarga los archivos originales en ZIP. <span>Todo se procesa únicamente en la memoria local del navegador.</span></p></div>
+          <div className="cm-pdf-tool__security-chip"><span className="cm-pdf-tool__security-dot" />ENCRIPTACIÓN ACTIVA</div>
         </div>
-      </div>
+        <div className="cm-pdf-tool__drop-shell">
+          <div className={`cm-pdf-tool__drop glass-panel backdrop-blur-md procedural-pulse transition-all duration-300 ${dragging ? "is-dragging" : ""}`} role="button" tabIndex={0} onClick={() => !busy && fileInputRef.current?.click()} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && !busy) fileInputRef.current?.click(); }} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy) addFiles(event.dataTransfer.files); }}>
+            <div className="cm-pdf-tool__shader"><canvas ref={shaderCanvasRef} id="shader-canvas-ANIMATION_32" aria-hidden="true" /></div>
+            <div className="cm-pdf-tool__drop-content"><div className="cm-pdf-tool__upload-icon animate-float transition-all duration-300"><MS name="upload_file" size={48} active /></div><strong>Arrastra tus archivos PDF aquí</strong><small>También puedes pulsar para seleccionarlos.<span>Se admiten lotes de 100 archivos o más, sin almacenamiento persistente.</span></small></div>
+            <span className="cm-pdf-tool__corner is-tl"/><span className="cm-pdf-tool__corner is-tr"/><span className="cm-pdf-tool__corner is-bl"/><span className="cm-pdf-tool__corner is-br"/>
+            <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" multiple onChange={event => addFiles(event.target.files)} />
+          </div>
+        </div>
+        <div className="cm-pdf-tool__toolbar"><div className="cm-pdf-tool__metrics"><span className="cm-pdf-tool__count">0 archivos</span><span className="cm-pdf-tool__divider"/><span className="cm-pdf-tool__space">ESPACIO: 0 B</span></div><button type="button" className="cm-pdf-tool__clear transition-all duration-300" disabled><MS name="delete_sweep" size={18} />Vaciar lista</button></div>
+        <div className="cm-pdf-tool__empty glass-panel backdrop-blur-md">No hay documentos en la cola de procesamiento.</div>
+        <div className="cm-pdf-tool__actions"><button type="button" className="cm-pdf-tool__button is-primary cyan-glow-btn transition-all duration-300" disabled><MS name="picture_as_pdf" size={23} active />Unir en un solo PDF</button><button type="button" className="cm-pdf-tool__button dark-glass-btn transition-all duration-300" disabled><MS name="folder_zip" size={23} />Descargar todos en ZIP</button></div>
+      </> : <>
+        <div className="cm-pdf-tool__manager-head"><div><h2>Gestor de Archivos</h2><p>{items.length} {items.length === 1 ? "archivo registrado" : "archivos registrados"} en la sesión actual</p></div><button type="button" className="cm-pdf-tool__clear transition-all duration-300" onClick={clearAll} disabled={busy}><MS name="delete_sweep" size={18} />Vaciar lista</button></div>
+        <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" multiple style={{display:"none"}} onChange={event => addFiles(event.target.files)} />
+        <div id="file-list" className="cm-pdf-tool__list">
+          {items.map((item, index) => {
+            const isDragging = draggedItemId === item.id;
+            const isDragOver = dragOverItemId === item.id && draggedItemId !== item.id;
+            return <div key={item.id} className={`cm-pdf-tool__row file-row transition-all duration-300 ${isDragging ? "dragging" : ""} ${isDragOver ? "drag-over" : ""}`} draggable={!busy} onDragStart={event => { if (busy) return; setDraggedItemId(item.id); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", item.id); }} onDragOver={event => { event.preventDefault(); if (!busy && draggedItemId && draggedItemId !== item.id) setDragOverItemId(item.id); }} onDragLeave={() => { if (dragOverItemId === item.id) setDragOverItemId(null); }} onDrop={event => { event.preventDefault(); const sourceId = draggedItemId || event.dataTransfer.getData("text/plain"); moveDraggedItem(sourceId, item.id); setDraggedItemId(null); setDragOverItemId(null); }} onDragEnd={() => { setDraggedItemId(null); setDragOverItemId(null); }}>
+              <span className="cm-pdf-tool__drag drag-handle" aria-label="Arrastrar para reordenar"><MS name="drag_indicator" size={22} /></span>
+              <span className="cm-pdf-tool__index font-mono-label">{String(index + 1).padStart(2, "0")}</span>
+              <div className="cm-pdf-tool__file"><strong title={item.file.name}>{item.file.name}</strong><small>Procesamiento local · PDF verificado por tipo</small></div>
+              <span className="cm-pdf-tool__size">{formatPdfToolBytes(item.file.size)}</span>
+              <div className="cm-pdf-tool__row-actions">
+                <button type="button" className="cm-pdf-tool__icon-button action-btn-hover transition-all duration-300" onClick={() => moveItem(index, -1)} disabled={busy || index === 0} aria-label={`Subir ${item.file.name}`}><MS name="upload" size={20} /></button>
+                <button type="button" className="cm-pdf-tool__icon-button action-btn-hover transition-all duration-300" onClick={() => downloadOriginal(item)} disabled={busy} aria-label={`Descargar ${item.file.name}`}><MS name="download" size={20} /></button>
+                <button type="button" className="cm-pdf-tool__icon-button is-remove action-btn-hover transition-all duration-300" onClick={() => removeItem(item.id)} disabled={busy} aria-label={`Eliminar ${item.file.name}`}><MS name="delete" size={20} /></button>
+              </div>
+            </div>;
+          })}
+        </div>
+      </>}
 
-      <div className="cm-pdf-tool__toolbar">
-        <div className="cm-pdf-tool__metrics"><span className="cm-pdf-tool__count">{items.length} {items.length === 1 ? "archivo" : "archivos"}</span><span className="cm-pdf-tool__divider"/><span className="cm-pdf-tool__space">ESPACIO: {formatPdfToolBytes(totalBytes)}</span></div>
-        <button type="button" className="cm-pdf-tool__clear transition-all duration-300" onClick={clearAll} disabled={!items.length || busy}><MS name="delete_sweep" size={18} />Vaciar lista</button>
-      </div>
-
-      {!items.length ? <div className="cm-pdf-tool__empty glass-panel backdrop-blur-md">No hay documentos en la cola de procesamiento.</div> : <div className="cm-pdf-tool__list glass-panel backdrop-blur-md">{items.map((item, index) => <div className="cm-pdf-tool__row" key={item.id}><span className="cm-pdf-tool__index">{index + 1}</span><div className="cm-pdf-tool__file"><strong title={item.file.name}>{item.file.name}</strong><small>{formatPdfToolBytes(item.file.size)}</small></div><small>{formatPdfToolBytes(item.file.size)}</small><div className="cm-pdf-tool__row-actions"><button type="button" className="cm-pdf-tool__icon-button transition-all duration-300" onClick={() => moveItem(index, -1)} disabled={busy || index === 0} aria-label={`Subir ${item.file.name}`}><MS name="arrow_upward" size={18} /></button><button type="button" className="cm-pdf-tool__icon-button transition-all duration-300" onClick={() => moveItem(index, 1)} disabled={busy || index === items.length - 1} aria-label={`Bajar ${item.file.name}`}><MS name="arrow_downward" size={18} /></button><button type="button" className="cm-pdf-tool__icon-button is-remove transition-all duration-300" onClick={() => removeItem(item.id)} disabled={busy} aria-label={`Eliminar ${item.file.name}`}><MS name="delete" size={18} /></button></div></div>)}</div>}
-
-      <div className="cm-pdf-tool__actions"><button type="button" className="cm-pdf-tool__button is-primary transition-all duration-300" onClick={mergePdfs} disabled={busy || items.length < 2}><MS name="picture_as_pdf" size={23} active />Unir en un solo PDF</button><button type="button" className="cm-pdf-tool__button transition-all duration-300" onClick={downloadZip} disabled={busy || items.length < 1}><MS name="folder_zip" size={23} />Descargar todos en ZIP</button></div>
       {busy && <div className="cm-pdf-tool__progress-wrap"><div className="cm-pdf-tool__progress-meta"><span>Procesando lote</span><strong>{progress}%</strong></div><div className="cm-pdf-tool__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><span style={{ width:`${progress}%` }} /></div></div>}
       {!!status && <div className="cm-pdf-tool__status" aria-live="polite">{busy && <MS name="progress_activity" size={18} style={{marginRight:8}} />}{status}{busy ? ` ${progress}%` : ""}</div>}
       {!!failures.length && <ul className="cm-pdf-tool__errors">{failures.map((failure, index) => <li key={`${failure}-${index}`}>{failure}</li>)}</ul>}
       {!!generatedFileName && <div className="cm-pdf-tool__wa glass-panel backdrop-blur-md"><input type="tel" inputMode="numeric" autoComplete="tel" placeholder="Número de WhatsApp con código de país" value={whatsAppNumber} onChange={event => setWhatsAppNumber(event.target.value)} /><button type="button" className="cm-pdf-tool__button" onClick={openWhatsApp} disabled={!String(whatsAppNumber).replace(/\D/g, "")}><MS name="send" size={19} />Abrir WhatsApp</button><p>El chat se abrirá con un mensaje preparado. WhatsApp no permite adjuntar archivos automáticamente desde una página web; debes seleccionar manualmente {generatedFileName} desde la carpeta de descargas.</p></div>}
-      <div className="cm-pdf-tool__privacy glass-panel backdrop-blur-md transition-all duration-300"><div className="cm-pdf-tool__privacy-icon"><MS name="shield_with_heart" size={26} active /></div><div><h4>COMPROMISO DE SEGURIDAD</h4><p>Los archivos no se suben a Supabase, no se guardan en base de datos y no se escriben en localStorage, sessionStorage ni IndexedDB. Al salir de esta vista, los objetos <code>File</code> quedan liberados por el navegador de forma permanente.</p></div></div>
+      {!items.length && <div className="cm-pdf-tool__privacy glass-panel backdrop-blur-md transition-all duration-300"><div className="cm-pdf-tool__privacy-icon"><MS name="shield_with_heart" size={26} active /></div><div><h4>COMPROMISO DE SEGURIDAD</h4><p>Los archivos no se suben a Supabase, no se guardan en base de datos y no se escriben en localStorage, sessionStorage ni IndexedDB. Al salir de esta vista, los objetos <code>File</code> quedan liberados por el navegador de forma permanente.</p></div></div>}
+
+      {!!items.length && <footer className="cm-pdf-tool__sticky-actions">
+        <label className="cm-pdf-tool__filename" htmlFor="merged-filename-input"><MS name="edit_note" size={21} /><input id="merged-filename-input" type="text" value={mergedFilename} onChange={event => setMergedFilename(event.target.value)} placeholder="Nombre del archivo final..." disabled={busy} maxLength={120} autoComplete="off" /></label>
+        <button type="button" className="cm-pdf-tool__button is-primary cyan-glow-btn transition-all duration-300" onClick={mergePdfs} disabled={busy || items.length < 2 || !hasAssignedName}><MS name="picture_as_pdf" size={23} active />UNIR CON NOMBRE ASIGNADO</button>
+        <button type="button" className="cm-pdf-tool__button dark-glass-btn transition-all duration-300" onClick={downloadZip} disabled={busy || items.length < 1 || !hasAssignedName}><MS name="folder_zip" size={23} />DESCARGAR TODOS EN ZIP</button>
+      </footer>}
     </section>
   );
 }
-
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
