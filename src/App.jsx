@@ -3073,88 +3073,105 @@ function useAdminMode() {
     }
   }, [tapCount]);
 
-  const tryLogin = async () => {
-    if (Date.now() < lockoutUntil) return;
+  const activateAdminSession = useCallback((user) => {
+    const email = String(user?.email || "").trim().toLowerCase();
+    if (!user?.id || email !== ADMIN_AUTH_EMAIL.toLowerCase()) return false;
+    try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+    setIsAdmin(true);
+    setShowModal(false);
+    setFailedAttempts(0);
+    setPass("");
     setErr(false);
+    setTimeout(() => {
+      try { window.dispatchEvent(new CustomEvent("cm:admin-activated")); } catch {}
+    }, 0);
+    return true;
+  }, []);
 
-    // El modo administrador debe crear una sesión real de Supabase Auth.
-    // El indicador local ADMIN_KEY solo conserva el estado visual; nunca autoriza
-    // operaciones sensibles por sí mismo.
-    const locallyValid = await verifyAdminPass(pass);
-    if (!locallyValid) {
-      const newFails = failedAttempts + 1;
-      setFailedAttempts(newFails);
-      setErr(true);
-      if (newFails >= 5) {
-        const delays = [30000, 60000, 300000];
-        const delayIdx = Math.min(Math.floor((newFails - 5) / 3), delays.length - 1);
-        const lockMs = delays[delayIdx];
-        setLockoutUntil(Date.now() + lockMs);
-        setLockoutRemaining(Math.ceil(lockMs / 1000));
-        setFailedAttempts(0);
-      }
-      return;
+  const registerFailedAttempt = () => {
+    const newFails = failedAttempts + 1;
+    setFailedAttempts(newFails);
+    setErr(true);
+    if (newFails >= 5) {
+      const delays = [30000, 60000, 300000];
+      const delayIdx = Math.min(Math.floor((newFails - 5) / 3), delays.length - 1);
+      const lockMs = delays[delayIdx];
+      setLockoutUntil(Date.now() + lockMs);
+      setLockoutRemaining(Math.ceil(lockMs / 1000));
+      setFailedAttempts(0);
     }
+  };
 
+  const tryLogin = async () => {
+    if (Date.now() < lockoutUntil || !pass) return;
+    setErr(false);
     try {
+      // Si la cuenta administrativa ya inició sesión mediante el formulario normal,
+      // las cinco pulsaciones solo activan el panel; no vuelven a autenticarla.
+      const { data: currentData } = await sb.auth.getSession();
+      if (activateAdminSession(currentData?.session?.user)) return;
+
+      // La contraseña administrativa es la contraseña real de Supabase Auth.
+      // No se compara contra un hash local separado, evitando que ambos accesos
+      // queden desincronizados.
       const { data, error } = await sb.auth.signInWithPassword({
         email: ADMIN_AUTH_EMAIL,
         password: pass,
       });
-      if (error || !data?.session?.access_token || !data?.user?.id) {
-        console.error("[Admin Auth] No se pudo crear la sesión de Supabase:", error);
-        setErr(true);
-        return;
+      if (error || !data?.session?.access_token || !activateAdminSession(data?.user)) {
+        console.error("[Admin Auth] Inicio administrativo rechazado:", error);
+        registerFailedAttempt();
       }
-
-      const signedEmail = String(data.user.email || "").trim().toLowerCase();
-      if (signedEmail !== ADMIN_AUTH_EMAIL.toLowerCase()) {
-        await sb.auth.signOut().catch(() => {});
-        setErr(true);
-        return;
-      }
-
-      try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
-      setIsAdmin(true);
-      setShowModal(false);
-      setFailedAttempts(0);
-      setPass("");
-
-      // Abre inmediatamente el Panel de Control cuando la autenticación
-      // administrativa terminó correctamente. El hook no recibe setActive,
-      // por lo que comunica el cambio de vista mediante un evento interno.
-      try {
-        window.dispatchEvent(new CustomEvent("cm:admin-activated"));
-      } catch {}
     } catch (error) {
       console.error("[Admin Auth] Error inesperado:", error);
-      setErr(true);
+      registerFailedAttempt();
     }
   };
 
-  // Si la pestaña conserva el indicador visual pero la sesión real expiró o no
-  // existe, se revoca el modo admin para impedir llamadas con la publishable key.
+  // Una sesión normal de la cuenta administrativa activa automáticamente el
+  // panel. El listener no realiza llamadas Supabase dentro de su callback para
+  // evitar bloqueos del cliente Auth.
   useEffect(() => {
     let cancelled = false;
-    const validateAdminSession = async () => {
-      if (!isAdmin) return;
-      try {
-        const { data, error } = await sb.auth.getUser();
-        const email = String(data?.user?.email || "").trim().toLowerCase();
-        if (!cancelled && (error || !data?.user?.id || email !== ADMIN_AUTH_EMAIL.toLowerCase())) {
-          try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
-          setIsAdmin(false);
-        }
-      } catch {
-        if (!cancelled) {
-          try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
-          setIsAdmin(false);
-        }
+
+    const syncAdminFromSession = (session, navigate = false) => {
+      if (cancelled) return;
+      const user = session?.user || null;
+      const email = String(user?.email || "").trim().toLowerCase();
+      const valid = Boolean(user?.id && email === ADMIN_AUTH_EMAIL.toLowerCase());
+      if (valid) {
+        try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+        setIsAdmin(true);
+        setErr(false);
+        if (navigate) setTimeout(() => {
+          try { window.dispatchEvent(new CustomEvent("cm:admin-activated")); } catch {}
+        }, 0);
+      } else {
+        try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+        setIsAdmin(false);
       }
     };
-    validateAdminSession();
-    return () => { cancelled = true; };
-  }, [isAdmin]);
+
+    setTimeout(async () => {
+      try {
+        const { data } = await sb.auth.getSession();
+        syncAdminFromSession(data?.session || null, false);
+      } catch {
+        syncAdminFromSession(null, false);
+      }
+    }, 0);
+
+    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
+      setTimeout(() => {
+        syncAdminFromSession(session, event === "SIGNED_IN");
+      }, 0);
+    });
+
+    return () => {
+      cancelled = true;
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
 
   const logout = async () => {
     try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
