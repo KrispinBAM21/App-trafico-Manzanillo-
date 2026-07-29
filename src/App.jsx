@@ -17222,8 +17222,8 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
 
         {canNavigate && (
           <>
-            <button onClick={goPrev} title="Anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>‹</button>
-            <button onClick={goNext} title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>›</button>
+            <button type="button" onClick={goPrev} title="Imagen anterior" aria-label="Imagen anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px" }}><MS name="chevron_left" size={30} active color="#ffffff" /></button>
+            <button type="button" onClick={goNext} title="Imagen siguiente" aria-label="Imagen siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px" }}><MS name="chevron_right" size={30} active color="#ffffff" /></button>
             <div style={{ position:"absolute", left:"50%", bottom:"14px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.46)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.70)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
               {safeIndex + 1} / {items.length}
             </div>
@@ -17231,11 +17231,11 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
         )}
 
         <div style={{ position:"absolute", right:"max(14px, env(safe-area-inset-right))", bottom:"max(14px, env(safe-area-inset-bottom))", display:"flex", gap:"8px", alignItems:"center", zIndex:10005 }}>
-          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir imagen en otra página" aria-label="Abrir imagen en otra página" style={iconBtn}><MS name="open_in_new" size={23} active color="#ffffff" /></a>
           {onDownload ? (
-            <button onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "⬇"}</button>
+            <button type="button" onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar imagen"} aria-label={downloading ? "Preparando descarga" : "Descargar imagen"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}><MS name={downloading ? "progress_activity" : "download"} size={24} active color="#ffffff" style={downloading ? { animation:"cm-spin 1s linear infinite" } : {}} /></button>
           ) : (
-            <a href={item.archivo_url} download title="Descargar" style={iconBtn}>⬇</a>
+            <a href={item.archivo_url} download title="Descargar imagen" aria-label="Descargar imagen" style={iconBtn}><MS name="download" size={24} active color="#ffffff" /></a>
           )}
         </div>
       </div>
