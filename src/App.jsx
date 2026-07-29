@@ -3119,6 +3119,13 @@ function useAdminMode() {
       setShowModal(false);
       setFailedAttempts(0);
       setPass("");
+
+      // Abre inmediatamente el Panel de Control cuando la autenticación
+      // administrativa terminó correctamente. El hook no recibe setActive,
+      // por lo que comunica el cambio de vista mediante un evento interno.
+      try {
+        window.dispatchEvent(new CustomEvent("cm:admin-activated"));
+      } catch {}
     } catch (error) {
       console.error("[Admin Auth] Error inesperado:", error);
       setErr(true);
@@ -32294,6 +32301,17 @@ function App() {
     setActiveRaw(safeTab);
     updateUrlForTab(safeTab, !!opts.replace);
   };
+
+  // El acceso mediante cinco pulsaciones valida la sesión dentro de useAdminMode.
+  // Al concluir, este listener abre el dashboard sin recargar la aplicación.
+  useEffect(() => {
+    const openAdminDashboard = () => {
+      setActive("dashboard", { replace:true });
+      try { window.scrollTo({ top:0, behavior:"smooth" }); } catch {}
+    };
+    window.addEventListener("cm:admin-activated", openAdminDashboard);
+    return () => window.removeEventListener("cm:admin-activated", openAdminDashboard);
+  }, []);
 
   // Sincroniza la sección con URLs compartidas y con botones atrás/adelante del navegador.
   useEffect(() => {
