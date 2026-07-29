@@ -20624,13 +20624,16 @@ ${base}`;
       };
 
       let comunicadoInsertado = null;
+      let noticiaReplicada = null;
       if (bypassVirusTotal) {
         const publishResult = safeObject(await invokeComunicadosManagerAction({
           action:"publish_comunicado",
           comunicado:{ ...basePayload, media_urls:allImageUrls },
         }, { timeoutMs:60000 }));
         comunicadoInsertado = { ...safeObject(publishResult.comunicado), media_urls:allImageUrls };
+        noticiaReplicada = safeObject(publishResult.noticia);
         if (!comunicadoInsertado?.id) throw new Error("El backend no devolvió el comunicado publicado.");
+        if (!noticiaReplicada?.id) throw new Error("El backend publicó el comunicado, pero no devolvió su réplica en Noticias.");
       } else {
         const insertResult = await insertComunicadoWithFallback(basePayload);
         if (insertResult.error) throw insertResult.error;
@@ -20654,7 +20657,16 @@ ${base}`;
       }
 
       // Si lo publica un admin, ya está aprobado y se replica automáticamente a Noticias.
-      if (bypassVirusTotal && comunicadoInsertado) {
+      // Se notifica al feed en memoria para que la tarjeta aparezca inmediatamente,
+      // sin depender de Realtime ni de una recarga completa del sitio.
+      if (bypassVirusTotal && comunicadoInsertado && noticiaReplicada?.id) {
+        try {
+          window.dispatchEvent(new CustomEvent("cm:noticia-publicada", {
+            detail: { noticia:noticiaReplicada, comunicado:comunicadoInsertado },
+          }));
+        } catch (eventError) {
+          console.warn("No se pudo notificar la réplica local de Noticias:", eventError);
+        }
         setToolNotice("Comunicado publicado y replicado en Noticias.", "#22c55e");
       }
 
@@ -22889,6 +22901,28 @@ function NoticiasTab({ isAdmin }) {
     noticiasLoadRef.current = task;
     return task;
   }, []);
+
+  useEffect(() => {
+    const onNoticiaPublicada = (event) => {
+      const noticia = safeObject(event?.detail?.noticia);
+      const id = String(noticia.id || "");
+      if (!id) {
+        cargarNoticias({ force:true });
+        return;
+      }
+      setNoticias((prev) => {
+        const next = [noticia, ...safeArray(prev).filter((item) => String(item?.id || "") !== id)];
+        writeJsonCache(NOTICIAS_CACHE_KEY, next, "local");
+        return next;
+      });
+    };
+    window.addEventListener("cm:noticia-publicada", onNoticiaPublicada);
+    return () => window.removeEventListener("cm:noticia-publicada", onNoticiaPublicada);
+  }, [cargarNoticias]);
+
+  useEffect(() => {
+    if (seccion === "noticias") cargarNoticias({ force:true });
+  }, [seccion, cargarNoticias]);
 
   const cargarComunicados = useCallback(async () => {
     try {
