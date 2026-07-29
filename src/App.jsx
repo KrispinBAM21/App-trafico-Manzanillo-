@@ -17161,13 +17161,13 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
     textDecoration:"none"
   };
 
-  return (
+  const visor = (
     <div
       onClick={onClose}
       style={{
         position:"fixed",
         inset:0,
-        zIndex:9999,
+        zIndex:2147483646,
         background:"rgba(0,0,0,0.96)",
         display:"flex",
         alignItems:"center",
@@ -17188,13 +17188,13 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
         style={{
           ...iconBtn,
           position:"fixed",
-          top:"max(14px, env(safe-area-inset-top))",
+          top:"max(86px, calc(env(safe-area-inset-top) + 14px))",
           right:"max(14px, env(safe-area-inset-right))",
           width:"50px",
           height:"50px",
           minWidth:"50px",
           minHeight:"50px",
-          zIndex:10020,
+          zIndex:2147483647,
           background:"rgba(4,12,24,.94)",
           border:"2px solid rgba(255,255,255,.72)",
           boxShadow:"0 10px 34px rgba(0,0,0,.72), 0 0 0 4px rgba(2,6,23,.46)",
@@ -17241,6 +17241,10 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(visor, document.body)
+    : visor;
 }
 
 
