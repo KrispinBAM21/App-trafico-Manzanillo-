@@ -27663,7 +27663,7 @@ function PatioIdentificaMap({ myId }) {
 }
 
 
-function PatioReguladorTab({ myId, isAdmin = false }) {
+function PatioReguladorOperativoTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
   const modoAutomaticoGlobal = useModoAutomaticoTrafico();
   const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
@@ -27853,6 +27853,568 @@ function PatioReguladorTab({ myId, isAdmin = false }) {
   );
 }
 
+
+
+// ─── DIRECTORIO DE PATIOS INTEGRADO ──────────────────────────────────────────
+// Módulo aislado para evitar colisiones de constantes/estilos con la App global.
+const GestionPatiosDirectorio = (() => {
+
+const TOKENS = {
+  bg: "#0A0F1C",
+  panel: "rgba(22,30,48,0.72)",
+  panelSolid: "#121A2C",
+  panelElevated: "#172033",
+  border: "rgba(148,163,184,0.14)",
+  borderStrong: "rgba(148,163,184,0.28)",
+  blue: "#2563EB",
+  blueSoft: "rgba(37,99,235,0.14)",
+  blueGlow: "rgba(37,99,235,0.35)",
+  coral: "#F14A47",
+  coralSoft: "rgba(241,74,71,0.14)",
+  text: "#E7ECF5",
+  textDim: "#8B96AC",
+  textFaint: "#5B6680",
+  green: "#22C55E",
+  amber: "#F5A524",
+};
+
+const ICON_LINK_ID = "cm-patios-material-symbols";
+const FONT_LINK_ID = "cm-patios-inter-font";
+const LEAFLET_CSS_ID = "cm-patios-leaflet-css";
+const LEAFLET_JS_ID = "cm-patios-leaflet-js";
+const DIAS_ORDEN = ["L", "M", "X", "J", "V", "S", "D"];
+const DIAS_LABEL = { L: "Lunes", M: "Martes", X: "Miércoles", J: "Jueves", V: "Viernes", S: "Sábado", D: "Domingo" };
+const DIA_JS_A_KEY = ["D", "L", "M", "X", "J", "V", "S"];
+const ESTADOS = ["activo", "saturado", "cerrado"];
+const ESTADO_MAP = {
+  activo: { label: "Activo", color: TOKENS.green },
+  saturado: { label: "Saturado", color: TOKENS.amber },
+  cerrado: { label: "Cerrado", color: TOKENS.coral },
+};
+
+function Icon({ name, size = 20, style, className = "" }) {
+  return (
+    <span
+      className={`material-symbols-outlined ${className}`}
+      aria-hidden="true"
+      style={{ fontSize: size, width: size, height: size, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", ...style }}
+    >
+      {name}
+    </span>
+  );
+}
+
+function useExternalAssets() {
+  useEffect(() => {
+    if (!document.getElementById(ICON_LINK_ID)) {
+      const link = document.createElement("link");
+      link.id = ICON_LINK_ID;
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..500,0,0";
+      document.head.appendChild(link);
+    }
+    if (!document.getElementById(FONT_LINK_ID)) {
+      const link = document.createElement("link");
+      link.id = FONT_LINK_ID;
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+      document.head.appendChild(link);
+    }
+  }, []);
+}
+
+function useLeaflet() {
+  const [ready, setReady] = useState(() => typeof window !== "undefined" && Boolean(window.L));
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (window.L) {
+      setReady(true);
+      return undefined;
+    }
+    if (!document.getElementById(LEAFLET_CSS_ID)) {
+      const css = document.createElement("link");
+      css.id = LEAFLET_CSS_ID;
+      css.rel = "stylesheet";
+      css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(css);
+    }
+    let script = document.getElementById(LEAFLET_JS_ID);
+    if (!script) {
+      script = document.createElement("script");
+      script.id = LEAFLET_JS_ID;
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+    const onLoad = () => setReady(Boolean(window.L));
+    const onError = () => setReady(false);
+    script.addEventListener("load", onLoad);
+    script.addEventListener("error", onError);
+    return () => {
+      script.removeEventListener("load", onLoad);
+      script.removeEventListener("error", onError);
+    };
+  }, []);
+  return ready;
+}
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  background: "rgba(8,12,22,0.78)",
+  border: `1px solid ${TOKENS.border}`,
+  borderRadius: 10,
+  padding: "10px 12px",
+  fontSize: 13,
+  color: TOKENS.text,
+  outline: "none",
+  fontFamily: "inherit",
+};
+const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: TOKENS.textFaint, letterSpacing: 0.35, textTransform: "uppercase", marginBottom: 6 };
+
+function normalizeHorario(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  return {
+    dias: Array.isArray(raw.dias) ? raw.dias.filter((d) => DIAS_ORDEN.includes(d)) : ["L", "M", "X", "J", "V"],
+    apertura: typeof raw.apertura === "string" ? raw.apertura.slice(0, 5) : "07:00",
+    cierre: typeof raw.cierre === "string" ? raw.cierre.slice(0, 5) : "19:00",
+    h24: Boolean(raw.h24),
+  };
+}
+
+function mapPatioRow(row) {
+  return {
+    id: row.id,
+    nombre: row.nombre || "Patio sin nombre",
+    empresa: row.empresa || "Empresa no registrada",
+    zona: row.zona || "Ubicación no registrada",
+    mapsUrl: row.maps_url || row.mapsUrl || "",
+    lat: Number(row.lat ?? 19.049),
+    lng: Number(row.lng ?? -104.32),
+    estado: ESTADOS.includes(row.estado) ? row.estado : "activo",
+    horario: normalizeHorario(row.horario),
+    notas: row.notas || "",
+    contactos: Array.isArray(row.contactos_patios)
+      ? row.contactos_patios.map((c) => ({ id: c.id, nombre: c.nombre || "Contacto", rol: c.rol || "Contacto", tel: c.telefono || c.tel || "", correo: c.correo || "" }))
+      : Array.isArray(row.contactos)
+        ? row.contactos
+        : [],
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+function formatDias(dias) {
+  if (!Array.isArray(dias) || dias.length === 0) return "Sin días asignados";
+  if (dias.length === 7) return "Todos los días";
+  return dias.slice().sort((a, b) => DIAS_ORDEN.indexOf(a) - DIAS_ORDEN.indexOf(b)).join(", ");
+}
+function formatHorario(horario) {
+  if (!horario) return "Horario no registrado";
+  if (horario.h24) return "Abierto 24 horas";
+  return `${formatDias(horario.dias)} · ${horario.apertura}–${horario.cierre}`;
+}
+function estaAbiertoAhora(horario) {
+  if (!horario) return false;
+  if (horario.h24) return true;
+  const ahora = new Date();
+  const key = DIA_JS_A_KEY[ahora.getDay()];
+  if (!horario.dias?.includes(key)) return false;
+  const mins = ahora.getHours() * 60 + ahora.getMinutes();
+  const [ah, am] = horario.apertura.split(":").map(Number);
+  const [ch, cm] = horario.cierre.split(":").map(Number);
+  const abre = ah * 60 + am;
+  const cierra = ch * 60 + cm;
+  return cierra <= abre ? mins >= abre || mins < cierra : mins >= abre && mins < cierra;
+}
+
+function StatusBadge({ estado }) {
+  const meta = ESTADO_MAP[estado] || ESTADO_MAP.activo;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11.5, color: TOKENS.textDim, padding: "5px 8px", borderRadius: 999, background: "rgba(8,12,22,.5)", border: `1px solid ${TOKENS.border}` }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color, boxShadow: `0 0 9px ${meta.color}` }} />
+      {meta.label}
+    </span>
+  );
+}
+
+function PatioCard({ patio, onOpen, canManage, onEdit }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <article
+      style={{ borderRadius: 16, padding: 18, background: TOKENS.panel, backdropFilter: "blur(14px)", border: `1px solid ${hover ? "rgba(37,99,235,.48)" : TOKENS.border}`, boxShadow: hover ? "0 18px 42px -18px rgba(37,99,235,.55)" : "0 10px 28px -18px rgba(0,0,0,.7)", transform: hover ? "translateY(-2px)" : "none", transition: "all .22s ease", minWidth: 0 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, display: "grid", placeItems: "center", background: TOKENS.blueSoft, border: "1px solid rgba(37,99,235,.32)" }}><Icon name="warehouse" size={23} style={{ color: "#6FA0FF" }} /></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          {canManage && <button type="button" onClick={() => onEdit(patio)} title="Editar patio" style={iconButtonStyle}><Icon name="edit" size={17} /></button>}
+          <StatusBadge estado={patio.estado} />
+        </div>
+      </div>
+      <button type="button" onClick={() => onOpen(patio)} style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", color: "inherit", padding: "14px 0 0", cursor: "pointer", fontFamily: "inherit" }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: TOKENS.text, marginBottom: 4 }}>{patio.nombre}</div>
+        <div style={{ fontSize: 12.5, color: "#6FA0FF", fontWeight: 700, marginBottom: 13 }}>{patio.empresa}</div>
+        <div style={metaRowStyle}><Icon name="location_on" size={16} /> <span>{patio.zona}</span></div>
+        <div style={{ ...metaRowStyle, marginTop: 9 }}><Icon name="schedule" size={16} /> <span>{formatHorario(patio.horario)}</span></div>
+        <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${TOKENS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", color: TOKENS.textDim, fontSize: 12 }}>
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><Icon name="contact_page" size={16} />{patio.contactos.length} contacto{patio.contactos.length === 1 ? "" : "s"}</span>
+          <span style={{ display: "inline-flex", gap: 4, alignItems: "center", color: hover ? "#8DB0FF" : TOKENS.textFaint, fontWeight: 700 }}>Ver tarjeta <Icon name="chevron_right" size={16} /></span>
+        </div>
+      </button>
+    </article>
+  );
+}
+const metaRowStyle = { display: "flex", alignItems: "flex-start", gap: 7, fontSize: 12.5, color: TOKENS.textDim, lineHeight: 1.45 };
+const iconButtonStyle = { width: 31, height: 31, borderRadius: 9, border: `1px solid ${TOKENS.border}`, background: "rgba(8,12,22,.55)", color: TOKENS.textDim, display: "grid", placeItems: "center", cursor: "pointer" };
+
+function ModalShell({ children, onClose, maxWidth = 520 }) {
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 9999, padding: 16, display: "grid", placeItems: "center", background: "rgba(4,7,15,.78)", backdropFilter: "blur(6px)" }}>
+      <div onMouseDown={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth, maxHeight: "90vh", overflowY: "auto", borderRadius: 20, background: TOKENS.panelSolid, border: `1px solid ${TOKENS.borderStrong}`, boxShadow: "0 30px 80px rgba(0,0,0,.58), 0 0 0 1px rgba(37,99,235,.08)" }}>{children}</div>
+    </div>
+  );
+}
+
+function ContactRow({ contacto, canManage, onDelete }) {
+  const initials = String(contacto.nombre || "C").split(/\s+/).slice(0, 2).map((s) => s[0]).join("").toUpperCase();
+  return (
+    <div style={{ display: "flex", gap: 12, padding: "13px 0", borderBottom: `1px solid ${TOKENS.border}` }}>
+      <div style={{ width: 39, height: 39, flex: "0 0 39px", display: "grid", placeItems: "center", borderRadius: 11, color: "#93B4FF", fontWeight: 800, fontSize: 12, background: TOKENS.blueSoft, border: `1px solid ${TOKENS.border}` }}>{initials}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, color: TOKENS.text, fontSize: 13.5 }}>{contacto.nombre}</div>
+        <div style={{ color: TOKENS.textFaint, fontSize: 11.5, marginTop: 2 }}>{contacto.rol}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+          {contacto.tel && <a href={`tel:${contacto.tel.replace(/\s/g, "")}`} style={pillLinkStyle}><Icon name="call" size={14} />{contacto.tel}</a>}
+          {contacto.correo && <a href={`mailto:${contacto.correo}`} style={pillLinkStyle}><Icon name="mail" size={14} />{contacto.correo}</a>}
+        </div>
+      </div>
+      {canManage && <button type="button" onClick={() => onDelete(contacto)} title="Eliminar contacto" style={{ ...iconButtonStyle, color: "#FF8986" }}><Icon name="delete" size={17} /></button>}
+    </div>
+  );
+}
+const pillLinkStyle = { display: "inline-flex", alignItems: "center", gap: 5, textDecoration: "none", color: "#A7C0FF", fontSize: 11.5, padding: "5px 8px", borderRadius: 8, background: "rgba(37,99,235,.08)", border: "1px solid rgba(37,99,235,.2)" };
+
+function PatioDetailModal({ patio, onClose, canManage, onAddContact, onDeleteContact, onEdit }) {
+  const [showContact, setShowContact] = useState(false);
+  const [form, setForm] = useState({ nombre: "", rol: "", tel: "", correo: "" });
+  if (!patio) return null;
+  const submit = async () => {
+    if (!form.nombre.trim() || !form.tel.trim()) return;
+    const ok = await onAddContact(patio.id, form);
+    if (ok) {
+      setForm({ nombre: "", rol: "", tel: "", correo: "" });
+      setShowContact(false);
+    }
+  };
+  return (
+    <ModalShell onClose={onClose} maxWidth={500}>
+      <header style={{ position: "relative", padding: "22px 24px", borderBottom: `1px solid ${TOKENS.border}`, background: "linear-gradient(180deg,rgba(37,99,235,.1),transparent)" }}>
+        <button type="button" onClick={onClose} title="Cerrar" style={{ ...iconButtonStyle, position: "absolute", right: 16, top: 16 }}><Icon name="close" size={18} /></button>
+        <div style={{ width: 47, height: 47, borderRadius: 13, display: "grid", placeItems: "center", background: TOKENS.blueSoft, border: "1px solid rgba(37,99,235,.3)", marginBottom: 12 }}><Icon name="warehouse" size={25} style={{ color: "#6FA0FF" }} /></div>
+        <div style={{ fontSize: 20, fontWeight: 800, paddingRight: 42 }}>{patio.nombre}</div>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 9, marginTop: 7 }}><span style={{ color: "#6FA0FF", fontSize: 12.5, fontWeight: 700 }}>{patio.empresa}</span><StatusBadge estado={patio.estado} /></div>
+      </header>
+      <div style={{ padding: "18px 24px", borderBottom: `1px solid ${TOKENS.border}` }}>
+        <SectionLabel>Ubicación</SectionLabel>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 8, color: TOKENS.text, fontSize: 13 }}><Icon name="location_on" size={18} style={{ color: TOKENS.coral }} />{patio.zona}</div>
+          <a href={patio.mapsUrl || `https://maps.google.com/?q=${patio.lat},${patio.lng}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0, textDecoration: "none", color: "#fff", background: TOKENS.blue, padding: "8px 10px", borderRadius: 9, fontSize: 11.5, fontWeight: 700 }}><Icon name="open_in_new" size={15} />Mapa</a>
+        </div>
+      </div>
+      <div style={{ padding: "18px 24px", borderBottom: `1px solid ${TOKENS.border}` }}>
+        <SectionLabel>Horario de atención</SectionLabel>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>{DIAS_ORDEN.map((d) => <span key={d} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 8, fontSize: 11, fontWeight: 700, color: patio.horario.dias.includes(d) ? "#fff" : TOKENS.textFaint, background: patio.horario.dias.includes(d) ? TOKENS.blue : "rgba(148,163,184,.06)", border: `1px solid ${patio.horario.dias.includes(d) ? "rgba(37,99,235,.4)" : TOKENS.border}` }}>{d}</span>)}</div>
+        <div style={{ ...metaRowStyle, color: TOKENS.text }}><Icon name="schedule" size={18} style={{ color: "#6FA0FF" }} />{formatHorario(patio.horario)}<span style={{ marginLeft: "auto", color: estaAbiertoAhora(patio.horario) ? TOKENS.green : TOKENS.textFaint, fontWeight: 700, fontSize: 11.5 }}>{estaAbiertoAhora(patio.horario) ? "Abierto ahora" : "Cerrado ahora"}</span></div>
+      </div>
+      <div style={{ padding: "18px 24px 22px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <SectionLabel>Contactos ({patio.contactos.length})</SectionLabel>
+          {canManage && <button type="button" onClick={() => setShowContact((v) => !v)} style={ghostButtonStyle}><Icon name={showContact ? "remove" : "add"} size={16} />{showContact ? "Cancelar" : "Agregar contacto"}</button>}
+        </div>
+        {showContact && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: 12, margin: "8px 0", borderRadius: 12, background: "rgba(37,99,235,.05)", border: "1px dashed rgba(37,99,235,.3)" }}>
+          <input value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} placeholder="Nombre completo" style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+          <input value={form.rol} onChange={(e) => setForm((p) => ({ ...p, rol: e.target.value }))} placeholder="Cargo o rol" style={inputStyle} />
+          <input value={form.tel} onChange={(e) => setForm((p) => ({ ...p, tel: e.target.value }))} placeholder="Teléfono" style={inputStyle} />
+          <input value={form.correo} onChange={(e) => setForm((p) => ({ ...p, correo: e.target.value }))} placeholder="Correo" type="email" style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+          <button type="button" onClick={submit} style={{ ...primaryButtonStyle, gridColumn: "1 / -1", justifyContent: "center" }}><Icon name="save" size={17} />Guardar contacto</button>
+        </div>}
+        {patio.contactos.length === 0 ? <div style={{ color: TOKENS.textFaint, fontSize: 12.5, padding: "18px 0" }}>Este patio aún no tiene contactos registrados.</div> : patio.contactos.map((c) => <ContactRow key={c.id || `${c.nombre}-${c.tel}`} contacto={c} canManage={canManage} onDelete={(contacto) => onDeleteContact(patio.id, contacto)} />)}
+        {canManage && <button type="button" onClick={() => onEdit(patio)} style={{ ...ghostButtonStyle, marginTop: 15 }}><Icon name="edit" size={17} />Editar datos del patio</button>}
+      </div>
+    </ModalShell>
+  );
+}
+function SectionLabel({ children }) { return <div style={{ fontSize: 11, fontWeight: 800, color: TOKENS.textFaint, letterSpacing: .7, textTransform: "uppercase", marginBottom: 9 }}>{children}</div>; }
+const ghostButtonStyle = { display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${TOKENS.border}`, borderRadius: 9, background: "rgba(148,163,184,.05)", color: "#8DB0FF", padding: "7px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700 };
+const primaryButtonStyle = { display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 10, background: TOKENS.blue, color: "#fff", padding: "10px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 800, boxShadow: `0 0 18px ${TOKENS.blueGlow}` };
+
+function PatioFormModal({ patio, onClose, onSave, onDelete }) {
+  const editing = Boolean(patio?.id);
+  const [form, setForm] = useState(() => ({
+    nombre: patio?.nombre || "",
+    empresa: patio?.empresa || "",
+    zona: patio?.zona || "",
+    mapsUrl: patio?.mapsUrl || "",
+    lat: String(patio?.lat ?? 19.049),
+    lng: String(patio?.lng ?? -104.32),
+    estado: patio?.estado || "activo",
+    horario: normalizeHorario(patio?.horario),
+    notas: patio?.notas || "",
+  }));
+  const setField = (key, value) => setForm((p) => ({ ...p, [key]: value }));
+  const toggleDay = (day) => setForm((p) => ({ ...p, horario: { ...p.horario, dias: p.horario.dias.includes(day) ? p.horario.dias.filter((d) => d !== day) : [...p.horario.dias, day] } }));
+  const submit = async () => {
+    if (!form.nombre.trim() || !form.empresa.trim() || !form.zona.trim()) return;
+    await onSave({ ...patio, ...form, lat: Number(form.lat), lng: Number(form.lng) });
+  };
+  return (
+    <ModalShell onClose={onClose} maxWidth={560}>
+      <header style={{ padding: "20px 22px", borderBottom: `1px solid ${TOKENS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 17, fontWeight: 800 }}><Icon name={editing ? "edit_location_alt" : "add_business"} size={22} style={{ color: editing ? "#6FA0FF" : TOKENS.coral }} />{editing ? "Editar patio" : "Registrar patio"}</div>
+        <button type="button" onClick={onClose} title="Cerrar" style={iconButtonStyle}><Icon name="close" size={18} /></button>
+      </header>
+      <div style={{ padding: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Nombre del patio" full><input value={form.nombre} onChange={(e) => setField("nombre", e.target.value)} style={inputStyle} placeholder="Ej. Patio Norte TIMSA" /></Field>
+        <Field label="Empresa"><input value={form.empresa} onChange={(e) => setField("empresa", e.target.value)} style={inputStyle} /></Field>
+        <Field label="Estado"><select value={form.estado} onChange={(e) => setField("estado", e.target.value)} style={inputStyle}>{ESTADOS.map((e) => <option key={e} value={e}>{ESTADO_MAP[e].label}</option>)}</select></Field>
+        <Field label="Ubicación" full><input value={form.zona} onChange={(e) => setField("zona", e.target.value)} style={inputStyle} /></Field>
+        <Field label="Google Maps" full><input value={form.mapsUrl} onChange={(e) => setField("mapsUrl", e.target.value)} style={inputStyle} placeholder="https://maps.google.com/?q=..." /></Field>
+        <Field label="Latitud"><input value={form.lat} onChange={(e) => setField("lat", e.target.value)} style={inputStyle} inputMode="decimal" /></Field>
+        <Field label="Longitud"><input value={form.lng} onChange={(e) => setField("lng", e.target.value)} style={inputStyle} inputMode="decimal" /></Field>
+        <Field label="Días de operación" full><div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{DIAS_ORDEN.map((d) => <button key={d} type="button" title={DIAS_LABEL[d]} onClick={() => toggleDay(d)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${form.horario.dias.includes(d) ? "rgba(37,99,235,.5)" : TOKENS.border}`, background: form.horario.dias.includes(d) ? TOKENS.blue : "rgba(148,163,184,.05)", color: form.horario.dias.includes(d) ? "#fff" : TOKENS.textDim, cursor: "pointer", fontWeight: 800 }}>{d}</button>)}</div></Field>
+        <Field label="Apertura"><input type="time" disabled={form.horario.h24} value={form.horario.apertura} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, apertura: e.target.value } }))} style={inputStyle} /></Field>
+        <Field label="Cierre"><input type="time" disabled={form.horario.h24} value={form.horario.cierre} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, cierre: e.target.value } }))} style={inputStyle} /></Field>
+        <label style={{ gridColumn: "1 / -1", display: "inline-flex", gap: 9, alignItems: "center", color: TOKENS.textDim, fontSize: 12.5, cursor: "pointer" }}><input type="checkbox" checked={form.horario.h24} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, h24: e.target.checked } }))} />Atención las 24 horas</label>
+        <Field label="Notas operativas" full><textarea value={form.notas} onChange={(e) => setField("notas", e.target.value)} style={{ ...inputStyle, minHeight: 78, resize: "vertical" }} /></Field>
+        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: editing ? "space-between" : "flex-end", gap: 10, marginTop: 4 }}>
+          {editing && <button type="button" onClick={() => onDelete(patio)} style={{ ...ghostButtonStyle, color: "#FF8986", borderColor: "rgba(241,74,71,.35)" }}><Icon name="delete" size={17} />Eliminar patio</button>}
+          <button type="button" onClick={submit} style={primaryButtonStyle}><Icon name="save" size={17} />{editing ? "Guardar cambios" : "Guardar patio"}</button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+function Field({ label, full, children }) { return <label style={{ gridColumn: full ? "1 / -1" : "auto", minWidth: 0 }}><span style={labelStyle}>{label}</span>{children}</label>; }
+
+function pinSvg(color) {
+  return `<svg width="34" height="42" viewBox="0 0 34 42" xmlns="http://www.w3.org/2000/svg"><path d="M17 0C7.6 0 0 7.6 0 17c0 12.5 17 25 17 25s17-12.5 17-25C34 7.6 26.4 0 17 0z" fill="${color}" stroke="rgba(10,15,28,.7)"/><circle cx="17" cy="17" r="7.5" fill="#0A0F1C"/></svg>`;
+}
+function MapView({ patios, onOpen }) {
+  const ready = useLeaflet();
+  const rootRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  useEffect(() => {
+    if (!ready || !rootRef.current || mapRef.current) return undefined;
+    const L = window.L;
+    const map = L.map(rootRef.current, { zoomControl: true, attributionControl: true }).setView([19.049, -104.32], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
+    mapRef.current = map;
+    setTimeout(() => map.invalidateSize(), 0);
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [ready]);
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const L = window.L;
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = patios.map((p) => {
+      const color = p.estado === "cerrado" ? TOKENS.coral : p.estado === "saturado" ? TOKENS.amber : TOKENS.blue;
+      const icon = L.divIcon({ className: "", html: pinSvg(color), iconSize: [34, 42], iconAnchor: [17, 40] });
+      const marker = L.marker([p.lat, p.lng], { icon }).addTo(mapRef.current);
+      const el = document.createElement("div");
+      el.style.fontFamily = "Inter, sans-serif";
+      el.innerHTML = `<div style="min-width:170px"><strong style="color:#0A0F1C">${p.nombre.replace(/[<>]/g, "")}</strong><div style="color:#2563EB;font-size:12px;margin-top:3px">${p.empresa.replace(/[<>]/g, "")}</div></div>`;
+      const btn = document.createElement("button");
+      btn.textContent = "Ver tarjeta";
+      btn.style.cssText = "width:100%;margin-top:8px;padding:7px;border:0;border-radius:7px;background:#2563EB;color:white;font-weight:700;cursor:pointer";
+      btn.onclick = () => onOpen(p);
+      el.appendChild(btn);
+      marker.bindPopup(el);
+      return marker;
+    });
+    if (patios.length) {
+      const bounds = L.latLngBounds(patios.map((p) => [p.lat, p.lng]));
+      mapRef.current.fitBounds(bounds, { padding: [38, 38], maxZoom: 14 });
+    }
+  }, [ready, patios, onOpen]);
+  return <div style={{ position: "relative", height: 500, overflow: "hidden", borderRadius: 16, background: TOKENS.panelSolid, border: `1px solid ${TOKENS.border}` }}>{!ready && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "grid", placeItems: "center", color: TOKENS.textDim }}><span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Icon name="map" size={20} />Cargando mapa...</span></div>}<div ref={rootRef} style={{ width: "100%", height: "100%" }} /></div>;
+}
+
+function GestionPatiosDirectorio({
+  supabase,
+  isAdmin = false,
+  permissions = [],
+  canManage: canManageProp,
+  onBack,
+  title = "Directorio de Patios",
+}) {
+  useExternalAssets();
+  const canManage = typeof canManageProp === "boolean" ? canManageProp : Boolean(isAdmin || permissions.includes("actualizar_patios") || permissions.includes("gestionar_patios"));
+  const [patios, setPatios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [empresa, setEmpresa] = useState("todas");
+  const [estado, setEstado] = useState("todos");
+  const [vista, setVista] = useState("lista");
+  const [selectedId, setSelectedId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const selected = useMemo(() => patios.find((p) => p.id === selectedId) || null, [patios, selectedId]);
+  const empresas = useMemo(() => [...new Set(patios.map((p) => p.empresa).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")), [patios]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return patios.filter((p) => {
+      const matchesText = !q || [p.nombre, p.empresa, p.zona, p.notas, ...p.contactos.flatMap((c) => [c.nombre, c.rol, c.tel, c.correo])].some((v) => String(v || "").toLowerCase().includes(q));
+      return matchesText && (empresa === "todas" || p.empresa === empresa) && (estado === "todos" || p.estado === estado);
+    });
+  }, [patios, query, empresa, estado]);
+
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
+    setError("");
+    if (!supabase) {
+      setPatios([]);
+      setError("No se recibió el cliente de Supabase para cargar el directorio.");
+      setLoading(false);
+      return;
+    }
+    const { data, error: fetchError } = await supabase.from("patios_directorio").select("*, contactos_patios(*)").order("nombre", { ascending: true });
+    if (fetchError) setError(fetchError.message || "No se pudo cargar el directorio de patios.");
+    else setPatios((data || []).map(mapPatioRow));
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!supabase?.channel) return undefined;
+    const channel = supabase.channel("patios-directorio-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "patios_directorio" }, () => void load({ quiet: true }))
+      .on("postgres_changes", { event: "*", schema: "public", table: "contactos_patios" }, () => void load({ quiet: true }))
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [supabase, load]);
+
+  const savePatio = async (value) => {
+    if (!supabase || !canManage) return false;
+    const payload = { nombre: value.nombre.trim(), empresa: value.empresa.trim(), zona: value.zona.trim(), maps_url: value.mapsUrl?.trim() || null, lat: Number(value.lat), lng: Number(value.lng), estado: value.estado, horario: normalizeHorario(value.horario), notas: value.notas?.trim() || null };
+    const result = value.id ? await supabase.from("patios_directorio").update(payload).eq("id", value.id).select("id").single() : await supabase.from("patios_directorio").insert(payload).select("id").single();
+    if (result.error) { setError(result.error.message); return false; }
+    setNotice(value.id ? "Patio actualizado correctamente." : "Patio registrado correctamente.");
+    setEditing(null); setShowNew(false); await load({ quiet: true });
+    return true;
+  };
+  const deletePatio = async (patio) => {
+    if (!supabase || !canManage || !window.confirm(`¿Eliminar ${patio.nombre}? Esta acción no se puede deshacer.`)) return;
+    const { error: deleteError } = await supabase.from("patios_directorio").delete().eq("id", patio.id);
+    if (deleteError) setError(deleteError.message); else { setNotice("Patio eliminado correctamente."); setEditing(null); setSelectedId(null); await load({ quiet: true }); }
+  };
+  const addContact = async (patioId, form) => {
+    if (!supabase || !canManage) return false;
+    const { error: insertError } = await supabase.from("contactos_patios").insert({ patio_id: patioId, nombre: form.nombre.trim(), rol: form.rol.trim() || "Contacto", telefono: form.tel.trim(), correo: form.correo.trim() || null });
+    if (insertError) { setError(insertError.message); return false; }
+    setNotice("Contacto agregado correctamente."); await load({ quiet: true }); return true;
+  };
+  const deleteContact = async (_patioId, contacto) => {
+    if (!supabase || !canManage || !contacto.id || !window.confirm(`¿Eliminar el contacto ${contacto.nombre}?`)) return;
+    const { error: deleteError } = await supabase.from("contactos_patios").delete().eq("id", contacto.id);
+    if (deleteError) setError(deleteError.message); else { setNotice("Contacto eliminado correctamente."); await load({ quiet: true }); }
+  };
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(""), 3500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  return (
+    <section style={{ minHeight: "100%", padding: "28px 20px 70px", background: `radial-gradient(1000px 460px at 12% -10%,rgba(37,99,235,.16),transparent 60%),radial-gradient(850px 430px at 100% 0%,rgba(241,74,71,.08),transparent 58%),${TOKENS.bg}`, color: TOKENS.text, fontFamily: "Inter,system-ui,sans-serif" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 22 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            {onBack && <button type="button" onClick={onBack} title="Regresar a Gestión de Patios" style={{ ...iconButtonStyle, width: 40, height: 40 }}><Icon name="arrow_back" size={21} /></button>}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}><div style={{ width: 38, height: 38, borderRadius: 11, display: "grid", placeItems: "center", background: TOKENS.blueSoft, border: "1px solid rgba(37,99,235,.3)" }}><Icon name="dns" size={20} style={{ color: "#6FA0FF" }} /></div><span style={{ color: TOKENS.textFaint, fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>GESTIÓN DE PATIOS</span></div>
+              <h2 style={{ margin: 0, fontSize: "clamp(24px,3vw,34px)", lineHeight: 1.12 }}>{title}</h2>
+              <p style={{ margin: "7px 0 0", color: TOKENS.textDim, fontSize: 13.5 }}>Ubicación, horarios, estado operativo y contactos por patio.</p>
+            </div>
+          </div>
+          {canManage && <button type="button" onClick={() => setShowNew(true)} style={{ ...primaryButtonStyle, background: TOKENS.coral, boxShadow: "0 0 20px rgba(241,74,71,.3)" }}><Icon name="add_business" size={19} />Registrar patio</button>}
+        </header>
+        {error && <div role="alert" style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 11, background: "rgba(87,18,25,.52)", border: "1px solid rgba(241,74,71,.38)", color: "#FFAAA7", fontSize: 12.5 }}>{error}</div>}
+        {notice && <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 11, background: "rgba(12,75,53,.42)", border: "1px solid rgba(34,197,94,.3)", color: "#8AF0B2", fontSize: 12.5 }}>{notice}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(240px,1fr) minmax(150px,220px) minmax(145px,190px) auto", gap: 10, marginBottom: 16 }} className="cm-patios-toolbar">
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 13px", background: TOKENS.panel, border: `1px solid ${TOKENS.border}`, borderRadius: 12, backdropFilter: "blur(10px)" }}><Icon name="search" size={19} style={{ color: TOKENS.textFaint }} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar patio, empresa, zona o contacto..." style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", color: TOKENS.text, font: "inherit", fontSize: 13 }} />{query && <button type="button" onClick={() => setQuery("")} style={{ ...iconButtonStyle, width: 27, height: 27 }}><Icon name="close" size={15} /></button>}</div>
+          <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} style={inputStyle}><option value="todas">Todas las empresas</option>{empresas.map((v) => <option key={v}>{v}</option>)}</select>
+          <select value={estado} onChange={(e) => setEstado(e.target.value)} style={inputStyle}><option value="todos">Todos los estados</option>{ESTADOS.map((v) => <option key={v} value={v}>{ESTADO_MAP[v].label}</option>)}</select>
+          <div style={{ display: "flex", gap: 3, padding: 5, background: TOKENS.panel, border: `1px solid ${TOKENS.border}`, borderRadius: 12 }}>{[{ key: "lista", icon: "view_agenda", label: "Lista" }, { key: "mapa", icon: "map", label: "Mapa" }].map((item) => <button key={item.key} type="button" onClick={() => setVista(item.key)} title={item.label} style={{ display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "center", border: 0, borderRadius: 8, padding: "8px 10px", cursor: "pointer", background: vista === item.key ? TOKENS.blue : "transparent", color: vista === item.key ? "#fff" : TOKENS.textDim }}><Icon name={item.icon} size={17} /><span>{item.label}</span></button>)}</div>
+        </div>
+        <div style={{ color: TOKENS.textFaint, fontSize: 12, marginBottom: 11 }}>{loading ? "Actualizando directorio..." : `${filtered.length} patio${filtered.length === 1 ? "" : "s"} encontrado${filtered.length === 1 ? "" : "s"}`}</div>
+        {loading && patios.length === 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 14 }}>{Array.from({ length: 6 }).map((_, i) => <div key={i} style={{ height: 230, borderRadius: 16, background: "linear-gradient(100deg,rgba(148,163,184,.04),rgba(148,163,184,.1),rgba(148,163,184,.04))", border: `1px solid ${TOKENS.border}`, animation: "cmPatiosPulse 1.3s ease-in-out infinite" }} />)}</div> : null}
+        {!loading && filtered.length === 0 ? <div style={{ padding: "52px 20px", textAlign: "center", borderRadius: 16, border: `1px dashed ${TOKENS.border}`, color: TOKENS.textFaint }}><Icon name="search_off" size={32} /><div style={{ marginTop: 9 }}>No hay patios que coincidan con los filtros.</div></div> : null}
+        {vista === "lista" && filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))", gap: 14 }}>{filtered.map((p) => <PatioCard key={p.id} patio={p} onOpen={(v) => setSelectedId(v.id)} canManage={canManage} onEdit={setEditing} />)}</div>}
+        {vista === "mapa" && filtered.length > 0 && <MapView patios={filtered} onOpen={(v) => setSelectedId(v.id)} />}
+      </div>
+      {selected && <PatioDetailModal patio={selected} onClose={() => setSelectedId(null)} canManage={canManage} onAddContact={addContact} onDeleteContact={deleteContact} onEdit={(p) => { setSelectedId(null); setEditing(p); }} />}
+      {(showNew || editing) && <PatioFormModal patio={editing} onClose={() => { setShowNew(false); setEditing(null); }} onSave={savePatio} onDelete={deletePatio} />}
+      <style>{`@keyframes cmPatiosPulse{0%,100%{opacity:.55}50%{opacity:1}} @media(max-width:800px){.cm-patios-toolbar{grid-template-columns:1fr!important}.cm-patios-toolbar>div:last-child{justify-content:stretch}.cm-patios-toolbar>div:last-child button{flex:1}} .leaflet-container{font-family:Inter,sans-serif;background:#121A2C}`}</style>
+    </section>
+  );
+}
+
+  return GestionPatiosDirectorio;
+})();
+
+function PatioReguladorTab({ myId, isAdmin = false }) {
+  const [activePatioSubtab, setActivePatioSubtab] = useState(() => {
+    try { return sessionStorage.getItem("gestion_patios_subtab") || "operacion"; }
+    catch { return "operacion"; }
+  });
+
+  const setPatioSubtab = useCallback((id) => {
+    try { sessionStorage.setItem("gestion_patios_subtab", id); } catch {}
+    setActivePatioSubtab(id);
+  }, []);
+
+  const tabs = [
+    {
+      id: "operacion",
+      label: "Estado operativo",
+      icon: "monitoring",
+      render: () => <PatioReguladorOperativoTab myId={myId} isAdmin={isAdmin} />,
+    },
+    {
+      id: "directorio",
+      label: "Directorio de Patios",
+      icon: "contact_page",
+      render: () => (
+        <GestionPatiosDirectorio
+          supabase={sb}
+          canManage={isAdmin}
+          currentUserId={myId}
+          title="Directorio de Patios"
+        />
+      ),
+    },
+  ];
+
+  return (
+    <SectionSubTabs
+      title="Gestión de Patios"
+      subtitle="Consulta el estado operativo o administra el directorio, ubicación, horarios y contactos de cada patio."
+      tabs={tabs}
+      active={activePatioSubtab}
+      onChange={setPatioSubtab}
+    />
+  );
+}
 
 const WORLD_COUNTRIES = [
   "Afganistán", "Albania", "Alemania", "Andorra", "Angola", "Antigua y Barbuda", "Arabia Saudita", "Argelia", "Argentina", "Armenia", "Australia", "Austria", "Azerbaiyán",
