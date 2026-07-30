@@ -5334,33 +5334,37 @@ function AdSenseUnit({
 
   const isFilled = adStatus === "filled";
   const isHidden = adStatus === "unfilled";
-  const isLoading = adStatus === "loading";
+  const reservedHeight = variant === "fluid" ? 250 : 100;
+
+  if (isHidden) return null;
 
   return (
     <div
       ref={wrapRef}
-      className={`cm-adsense-wrap cm-adsense-${variant} ${isFilled ? "cm-ad-filled" : ""} ${isHidden ? "cm-ad-hidden" : ""} ${isLoading ? "cm-ad-loading" : ""}`}
+      className={`cm-adsense-wrap cm-adsense-${variant} ${isFilled ? "cm-ad-filled" : "cm-ad-loading"}`}
       style={{
         width: "100%",
-        maxWidth: "980px",
-        margin: isHidden || isLoading ? 0 : "10px auto 12px",
-        padding: isHidden || isLoading ? 0 : "0 10px",
+        maxWidth: variant === "fluid" ? "760px" : "980px",
+        margin: "0 auto",
+        padding: "0 12px",
         position: "relative",
         zIndex: 2,
         overflow: "hidden",
-        height: isHidden || isLoading ? 0 : "auto",
-        minHeight: 0,
-        opacity: isHidden || isLoading ? 0 : 1,
-        pointerEvents: isHidden || isLoading ? "none" : "auto",
+        minHeight: reservedHeight,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: isFilled ? 1 : 0,
+        pointerEvents: isFilled ? "auto" : "none",
         transition: "opacity .25s ease",
       }}
-      aria-hidden={isHidden || isLoading ? "true" : undefined}
+      aria-hidden={isFilled ? undefined : "true"}
     >
       <ins
         key={`${variant}-${sectionKey}-${slot}`}
         ref={adRef}
         className="adsbygoogle"
-        style={{ display: "block", width: "100%" }}
+        style={{ display: "block", width: "100%", minHeight: reservedHeight }}
         data-ad-client="ca-pub-6574016310382297"
         data-ad-slot={slot}
         data-ad-format={format}
@@ -34130,8 +34134,31 @@ function App() {
            .adsbygoogle{max-width:100vw!important;background:transparent!important;border:0!important;outline:0!important;}
           .adsbygoogle[data-ad-status="unfilled"]{display:none!important;height:0!important;min-height:0!important;}
           .cm-adsense-wrap{background:transparent!important;border:0!important;box-shadow:none!important;}
-          .cm-adsense-wrap.cm-ad-loading{height:0!important;max-height:0!important;min-height:0!important;overflow:hidden!important;opacity:0!important;margin:0!important;padding:0!important;}
           .cm-adsense-wrap.cm-ad-hidden{display:none!important;}
+          .cm-monetization-zone{
+            width:min(100%,1040px);
+            margin:32px auto 120px;
+            padding:28px 12px;
+            display:grid;
+            gap:28px;
+            position:relative;
+            isolation:isolate;
+          }
+          .cm-monetization-zone::before{
+            content:"";
+            position:absolute;
+            inset:0 12px;
+            border-top:1px solid rgba(148,163,184,.12);
+            border-bottom:1px solid rgba(148,163,184,.08);
+            pointer-events:none;
+          }
+          .cm-monetization-zone button,
+          .cm-monetization-zone [role="button"]{margin-top:12px;}
+          @media(max-width:640px){
+            .cm-monetization-zone{margin:24px auto 104px;padding:22px 0;gap:24px;}
+            .cm-adsense-horizontal{min-height:100px!important;}
+            .cm-adsense-fluid{min-height:250px!important;}
+          }
           iframe[id^="google_ads_iframe"], iframe[src*="googlesyndication"], iframe[src*="doubleclick"]{max-width:100vw!important;}
           .cm-compact-text{white-space:pre-wrap;word-break:normal;overflow-wrap:break-word;line-height:1.45;}
           @media(max-width:640px){.cm-compact-text{max-height:120px;overflow-y:auto;}}
@@ -34172,10 +34199,6 @@ function App() {
         }} />}
 
         <main className={`cm-section-shell ${active === "inicio" ? "cm-section-shell--home" : ""}`}>
-        {active !== "inicio" && <AnunciosBanner isAdmin={isAdmin} />}
-        {active !== "inicio" && <HorizontalAdSenseSection sectionKey={active} />}
-        {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
-
         {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} authIntent={authIntent} onReportBug={openBugReport} />}
         {active === "dashboard"   && canAccessDashboard && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
@@ -34186,6 +34209,16 @@ function App() {
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
         {active === "tutorial"   && <ServiciosTab authUser={authUser} isAdmin={isAdmin} />}
+
+        {active !== "inicio" && (
+          <section className="cm-monetization-zone" aria-label="Contenido patrocinado">
+            <HorizontalAdSenseSection sectionKey={`high-value-${active}`} />
+            <AnunciosBanner isAdmin={isAdmin} />
+            {["noticias", "donativos", "tutorial"].includes(active) && (
+              <FluidAdSenseSection sectionKey={`high-value-fluid-${active}`} />
+            )}
+          </section>
+        )}
 
         </main>
 
