@@ -568,7 +568,7 @@ const TABS = [
   { key: "accesos",     label: "Accesos",     icon: TAB_PUBLIC_ICONS.accesos || TAB_PUBLIC_ICONS.carriles },
   { key: "noticias",    label: "Noticias",    icon: TAB_PUBLIC_ICONS.noticias },
   { key: "donativos",   label: "Posturas",    icon: TAB_PUBLIC_ICONS.donativos },
-  { key: "tutorial",    label: "Más Info",    icon: TAB_PUBLIC_ICONS.tutorial }
+  { key: "tutorial",    label: "Servicios",    icon: TAB_PUBLIC_ICONS.tutorial }
 ];
 
 // ─── ENLACES DIRECTOS POR SECCIÓN ───────────────────────────────────────────
@@ -29217,7 +29217,126 @@ function AuthQuickModal({ initialMode = "login", onClose }) {
 
 }
 
-function TutorialTab({ setActive, isAdmin, authIntent, onReportBug }) {
+
+
+const SERVICIOS_CATEGORIAS = [
+  { key:"gruas", label:"Grúas" },
+  { key:"mecanicos", label:"Mecánicos" },
+  { key:"limpia_contenedores", label:"Limpia contenedores" },
+];
+
+const SERVICIOS_FILTROS = {
+  gruas:["Todos","Pluma","Plataforma","Arrastre / Pesadas","Servicio 24/7","Carretera / Foráneo"],
+  mecanicos:["Todos","Talachero / Llantero","Eléctrico","Mecánico General","Atiende Tractocamiones","Atiende Motos","Rescate Vial / A domicilio"],
+  limpia_contenedores:["Todos","Cobro por Hora","Cobro por Trabajo","Lavado a Presión","Sanitización / Desinfección"],
+};
+
+const SERVICIOS_MOCK = [
+  {id:"mock-g-1",categoria:"gruas",nombre_comercial:"Grúas del Pacífico",contacto_principal:"Central operativa",telefono:"3141002001",whatsapp:"3141002001",correo:"contacto@gruas-pacifico.mx",ubicacion_cobertura:"Manzanillo y carretera federal",dias_texto:"Lunes a Domingo",horario_24h:true,hora_inicio:null,hora_cierre:null,etiquetas:["Plataforma","Servicio 24/7","Carretera / Foráneo"],detalles:{tipo_grua:["Plataforma","Pesada/Tractos"],capacidad:"20T",tiempo_respuesta_min:30}},
+  {id:"mock-m-1",categoria:"mecanicos",nombre_comercial:"Taller Puerto Motor",contacto_principal:"Coordinación de servicio",telefono:"3141002002",whatsapp:"3141002002",correo:"servicio@puertomotor.mx",ubicacion_cobertura:"Zona industrial y recinto portuario",dias_texto:"Lunes a Sábado",horario_24h:false,hora_inicio:"07:00",hora_cierre:"20:00",etiquetas:["Mecánico General","Atiende Tractocamiones","Rescate Vial / A domicilio"],detalles:{especialidad:["Mecánico General","Frenos/Aire"],vehiculos:["Tractocamiones","Maquinaria"],rescate_vial:true}},
+  {id:"mock-l-1",categoria:"limpia_contenedores",nombre_comercial:"Container Clean MZO",contacto_principal:"Operaciones",telefono:"3141002003",whatsapp:"3141002003",correo:"operaciones@containerclean.mx",ubicacion_cobertura:"Patios y terminales de Manzanillo",dias_texto:"Lunes a Domingo",horario_24h:false,hora_inicio:"06:00",hora_cierre:"22:00",etiquetas:["Cobro por Trabajo","Lavado a Presión","Sanitización / Desinfección"],tarifa_base:850,detalles:{esquema_cobro:"Por Trabajo",tipos_limpieza:["Lavado Presión","Sanitización"],capacidad_diaria:18}},
+];
+
+const serviceCategoryLabel = (key) => SERVICIOS_CATEGORIAS.find(item => item.key === key)?.label || key;
+const normalizeServicePhone = value => String(value || "").replace(/[^0-9]/g, "");
+
+function ServiciosTab({ authUser, isAdmin }) {
+  const [categoria,setCategoria] = useState("gruas");
+  const [query,setQuery] = useState("");
+  const [filtro,setFiltro] = useState("Todos");
+  const [servicios,setServicios] = useState(SERVICIOS_MOCK);
+  const [loading,setLoading] = useState(true);
+  const [error,setError] = useState("");
+  const [showModal,setShowModal] = useState(false);
+
+  const cargarServicios = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const { data, error:rpcError } = await sb.rpc("buscar_servicios", { p_categoria:null, p_busqueda:null, p_etiqueta:null });
+      if (rpcError) throw rpcError;
+      if (Array.isArray(data) && data.length) setServicios([...data, ...SERVICIOS_MOCK.filter(m => !data.some(d => d.id === m.id))]);
+    } catch (e) {
+      const msg=String(e?.message||"");
+      if (!/does not exist|schema cache|function/i.test(msg)) setError(msg || "No fue posible actualizar los servicios.");
+    } finally { setLoading(false); }
+  },[]);
+  useEffect(()=>{ cargarServicios(); },[cargarServicios]);
+  useEffect(()=>{ setFiltro("Todos"); setQuery(""); },[categoria]);
+
+  const visibles = useMemo(() => {
+    const q=query.trim().toLowerCase();
+    return servicios.filter(s => s.categoria===categoria).filter(s => {
+      const hayTexto=!q || [s.nombre_comercial,s.contacto_principal,s.ubicacion_cobertura,...(s.etiquetas||[])].join(" ").toLowerCase().includes(q);
+      const hayFiltro=filtro==="Todos" || (s.etiquetas||[]).some(tag => String(tag).toLowerCase()===filtro.toLowerCase());
+      return hayTexto && hayFiltro;
+    });
+  },[servicios,categoria,query,filtro]);
+
+  const guardarServicio = async payload => {
+    const { data:{ user }={} } = await sb.auth.getUser();
+    const finalPayload={...payload, propietario_id:user?.id||null};
+    let row=null;
+    const { data:rpcData,error:rpcError }=await sb.rpc("registrar_servicio",{p_servicio:finalPayload});
+    if (!rpcError) row=Array.isArray(rpcData)?rpcData[0]:rpcData;
+    else {
+      const { data:insertData,error:insertError }=await sb.from("servicios_directorio").insert(finalPayload).select("*").single();
+      if (insertError) throw insertError;
+      row=insertData;
+    }
+    setServicios(prev=>[row||{...finalPayload,id:`local-${Date.now()}`},...prev]);
+    setShowModal(false);
+  };
+
+  return <div className="cm-services-root">
+    <style>{`
+      .cm-services-root{max-width:1280px;margin:0 auto;width:100%;padding:32px 18px 90px;font-family:Inter,system-ui,sans-serif;color:#e7ecf5;display:flex;flex-direction:column;align-items:center}
+      .cm-services-head{text-align:center;max-width:760px;margin-bottom:24px}.cm-services-head h1{margin:0;font-size:clamp(30px,5vw,48px);letter-spacing:-.035em}.cm-services-head p{color:#8b96ac;line-height:1.65;margin:10px 0 0}
+      .cm-services-tabs{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:6px;border:1px solid rgba(148,163,184,.16);border-radius:15px;background:rgba(15,23,42,.72);backdrop-filter:blur(18px);margin-bottom:24px}
+      .cm-services-tabs button{height:42px;min-width:150px;border:0;border-radius:10px;padding:0 18px;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:800;color:#94a3b8;background:transparent;cursor:pointer;transition:.22s}.cm-services-tabs button.active{background:#116b94;color:white;box-shadow:0 10px 28px rgba(17,107,148,.28)}
+      .cm-services-panel{width:100%;animation:cmServiceIn .28s ease both}.cm-services-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;width:100%;align-items:center}.cm-service-search{height:50px;display:flex;align-items:center;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(15,23,42,.76);overflow:hidden}.cm-service-search input{flex:1;height:100%;border:0;background:transparent;color:#e7ecf5;padding:0 16px;outline:none;font:600 13px Inter}.cm-service-clear{width:50px;height:50px;border:0;background:transparent;color:#94a3b8;display:flex;align-items:center;justify-content:center;line-height:1;font-size:18px;font-weight:800;cursor:pointer}.cm-service-register{height:50px;border:0;border-radius:12px;background:#e5473f;color:white;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:9px;line-height:1;font-weight:900;cursor:pointer;box-shadow:0 12px 28px rgba(229,71,63,.25)}.cm-service-plus{width:20px;height:20px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:22px}
+      .cm-service-pills{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;margin:18px 0 22px}.cm-service-pill{min-height:34px;border-radius:999px;padding:0 13px;border:1px solid rgba(148,163,184,.18);background:rgba(30,41,59,.64);color:#9ba8bd;display:flex;align-items:center;justify-content:center;line-height:1;font:800 11px Inter;cursor:pointer}.cm-service-pill.active{background:rgba(37,99,235,.2);border-color:rgba(96,165,250,.55);color:#bfdbfe}
+      .cm-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;width:100%}.cm-service-card{min-height:330px;border-radius:18px;border:1px solid rgba(148,163,184,.15);background:linear-gradient(145deg,rgba(24,34,53,.9),rgba(10,15,28,.88));box-shadow:0 18px 42px rgba(0,0,0,.24);padding:20px;display:flex;flex-direction:column}.cm-service-category{min-height:28px;align-self:center;border-radius:999px;padding:0 12px;display:flex;align-items:center;justify-content:center;line-height:1;background:rgba(37,99,235,.15);border:1px solid rgba(96,165,250,.3);color:#93c5fd;font-size:10px;font-weight:900;letter-spacing:.08em}.cm-service-card h3{font-size:19px;margin:18px 0 8px;text-align:center}.cm-service-meta{text-align:center;color:#94a3b8;font-size:12px;line-height:1.55}.cm-service-schedule{margin:16px 0;padding:12px;border-radius:11px;background:rgba(2,6,23,.38);border:1px solid rgba(148,163,184,.12);font-size:12px;color:#cbd5e1;display:grid;gap:7px}.cm-service-tags{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:7px}.cm-service-tag{min-height:26px;padding:0 9px;border-radius:999px;background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.14);display:flex;align-items:center;justify-content:center;line-height:1;color:#b9c5d8;font-size:10px;font-weight:800}.cm-service-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:auto;padding-top:18px}.cm-service-actions a{height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;line-height:1;text-decoration:none;font-size:12px;font-weight:900}.cm-service-wa{background:#128c56;color:white}.cm-service-call{background:#116b94;color:white}.cm-service-empty{grid-column:1/-1;text-align:center;padding:50px 20px;border:1px dashed rgba(148,163,184,.2);border-radius:16px;color:#64748b}
+      .cm-service-overlay{position:fixed;inset:0;z-index:10020;background:rgba(2,6,15,.78);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px}.cm-service-modal{width:min(760px,100%);max-height:92vh;overflow:auto;border-radius:20px;background:#111a2b;border:1px solid rgba(148,163,184,.22);box-shadow:0 30px 80px rgba(0,0,0,.55);padding:24px}.cm-service-modal-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.cm-service-modal-head h2{margin:0;font-size:21px}.cm-service-x{width:40px;height:40px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(148,163,184,.07);color:#cbd5e1;display:flex;align-items:center;justify-content:center;line-height:1;font-size:18px;cursor:pointer}.cm-service-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-service-field{display:grid;gap:7px}.cm-service-field.full{grid-column:1/-1}.cm-service-field label{font-size:11px;font-weight:800;color:#94a3b8}.cm-service-field input,.cm-service-field select{height:44px;border-radius:10px;border:1px solid rgba(148,163,184,.18);background:rgba(2,6,23,.42);color:#e7ecf5;padding:0 12px;outline:none;font:600 12px Inter}.cm-service-options{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.cm-service-option{min-height:34px;border-radius:9px;border:1px solid rgba(148,163,184,.18);background:rgba(148,163,184,.06);color:#aab6c9;padding:0 11px;display:flex;align-items:center;justify-content:center;line-height:1;font-size:11px;font-weight:800;cursor:pointer}.cm-service-option.active{background:rgba(37,99,235,.22);border-color:#3b82f6;color:#dbeafe}.cm-service-submit{grid-column:1/-1;height:48px;border:0;border-radius:11px;background:#116b94;color:white;font-weight:900;cursor:pointer;margin-top:8px}.cm-service-error{width:100%;border:1px solid rgba(239,68,68,.35);background:rgba(127,29,29,.24);color:#fecaca;border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12px}
+      @keyframes cmServiceIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(max-width:980px){.cm-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.cm-services-controls{grid-template-columns:1fr}.cm-service-register{width:100%}.cm-service-grid{grid-template-columns:1fr}.cm-service-form{grid-template-columns:1fr}.cm-service-field.full,.cm-service-submit{grid-column:1}.cm-services-tabs{width:100%}.cm-services-tabs button{flex:1;min-width:0}.cm-service-modal{padding:18px}}
+    `}</style>
+    <header className="cm-services-head"><div style={{fontSize:11,fontWeight:900,letterSpacing:".16em",color:"#6ea8c5",marginBottom:8}}>CONECT MANZANILLO</div><h1>Servicios</h1><p>Directorio operativo de proveedores para transporte, patios, terminales y atención en carretera.</p></header>
+    <div className="cm-services-tabs">{SERVICIOS_CATEGORIAS.map(c=><button type="button" key={c.key} className={categoria===c.key?"active":""} onClick={()=>setCategoria(c.key)}>{c.label}</button>)}</div>
+    <section className="cm-services-panel" key={categoria}>
+      {error&&<div className="cm-service-error">{error}</div>}
+      <div className="cm-services-controls"><div className="cm-service-search"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nombre, especialidad o zona..."/><button type="button" className="cm-service-clear" onClick={()=>setQuery("")} aria-label="Limpiar búsqueda">X</button></div><button type="button" className="cm-service-register" onClick={()=>setShowModal(true)}><span className="cm-service-plus">+</span><span>Registrar Servicio</span></button></div>
+      <div className="cm-service-pills">{SERVICIOS_FILTROS[categoria].map(p=><button type="button" key={p} className={`cm-service-pill ${filtro===p?"active":""}`} onClick={()=>setFiltro(p)}>{p}</button>)}</div>
+      <div className="cm-service-grid">{loading&&servicios.length===0?<div className="cm-service-empty">Cargando servicios...</div>:visibles.length===0?<div className="cm-service-empty">No hay servicios que coincidan con los filtros.</div>:visibles.map(s=><ServicioCard key={s.id} servicio={s}/>)}</div>
+    </section>
+    {showModal&&<ServicioRegistroModal categoria={categoria} onClose={()=>setShowModal(false)} onSave={guardarServicio}/>} 
+  </div>;
+}
+
+function ServicioCard({ servicio:s }) {
+  const phone=normalizeServicePhone(s.telefono); const wa=normalizeServicePhone(s.whatsapp||s.telefono);
+  const horario=s.horario_24h?"24 Horas":`${String(s.hora_inicio||"--:--").slice(0,5)} - ${String(s.hora_cierre||"--:--").slice(0,5)} hrs`;
+  return <article className="cm-service-card"><div className="cm-service-category">CATEGORÍA: {serviceCategoryLabel(s.categoria).toUpperCase()}</div><h3>{s.nombre_comercial}</h3><div className="cm-service-meta"><strong>{s.contacto_principal}</strong><br/>{s.ubicacion_cobertura}</div><div className="cm-service-schedule"><div><strong>Días:</strong> {s.dias_texto||"No especificados"}</div><div><strong>Horario:</strong> {horario}</div>{s.tarifa_base!=null&&<div><strong>Tarifa base:</strong> ${Number(s.tarifa_base).toLocaleString("es-MX")} MXN</div>}</div><div className="cm-service-tags">{(s.etiquetas||[]).map(tag=><span className="cm-service-tag" key={tag}>{tag}</span>)}</div><div className="cm-service-actions"><a className="cm-service-wa" href={`https://wa.me/52${wa}`} target="_blank" rel="noreferrer">WhatsApp</a><a className="cm-service-call" href={`tel:${phone}`}>Llamar</a></div></article>;
+}
+
+function ServicioRegistroModal({ categoria,onClose,onSave }) {
+  const [form,setForm]=useState({nombre_comercial:"",contacto_principal:"",telefono:"",whatsapp:"",correo:"",ubicacion_cobertura:"",dias_texto:"Lunes a Viernes",dias:["L","M","Mi","J","V"],horario_24h:true,hora_inicio:"08:00",hora_cierre:"18:00",tipo_grua:"Plataforma",capacidad:"10T",tiempo_respuesta_min:"30",especialidad:"Mecánico General",vehiculos:"Tractocamiones",rescate_vial:false,esquema_cobro:"Por Trabajo",tarifa_base:"",tipo_limpieza:"Lavado Presión",capacidad_diaria:"10"});
+  const [saving,setSaving]=useState(false); const [error,setError]=useState("");
+  const set=(key,value)=>setForm(prev=>({...prev,[key]:value}));
+  const diaOptions=["L","M","Mi","J","V","S","D"];
+  const toggleDia=d=>set("dias",form.dias.includes(d)?form.dias.filter(x=>x!==d):[...form.dias,d]);
+  const submit=async e=>{e.preventDefault();if(!form.nombre_comercial.trim()||!form.contacto_principal.trim()||!form.telefono.trim()||!form.ubicacion_cobertura.trim()){setError("Completa los campos obligatorios.");return;}setSaving(true);setError("");try{let etiquetas=[],detalles={};if(categoria==="gruas"){etiquetas=[form.tipo_grua,form.horario_24h?"Servicio 24/7":"",/pesada|tracto/i.test(form.tipo_grua)?"Arrastre / Pesadas":""].filter(Boolean);detalles={tipo_grua:[form.tipo_grua],capacidad:form.capacidad,tiempo_respuesta_min:Number(form.tiempo_respuesta_min||0)}}else if(categoria==="mecanicos"){etiquetas=[form.especialidad,`Atiende ${form.vehiculos}`,form.rescate_vial?"Rescate Vial / A domicilio":""].filter(Boolean);detalles={especialidad:[form.especialidad],vehiculos:[form.vehiculos],rescate_vial:form.rescate_vial}}else{etiquetas=[`Cobro ${form.esquema_cobro.replace("Por ","por ")}`,form.tipo_limpieza].filter(Boolean);detalles={esquema_cobro:form.esquema_cobro,tipos_limpieza:[form.tipo_limpieza],capacidad_diaria:Number(form.capacidad_diaria||0)}}await onSave({categoria,nombre_comercial:form.nombre_comercial.trim(),contacto_principal:form.contacto_principal.trim(),telefono:form.telefono.trim(),whatsapp:(form.whatsapp||form.telefono).trim(),correo:form.correo.trim()||null,ubicacion_cobertura:form.ubicacion_cobertura.trim(),dias:form.dias,dias_texto:form.dias_texto,horario_24h:form.horario_24h,hora_inicio:form.horario_24h?null:form.hora_inicio,hora_cierre:form.horario_24h?null:form.hora_cierre,etiquetas,tarifa_base:categoria==="limpia_contenedores"&&form.tarifa_base?Number(form.tarifa_base):null,detalles,activo:true});}catch(err){setError(err?.message||"No fue posible guardar el servicio.");}finally{setSaving(false)}};
+  return <div className="cm-service-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="cm-service-modal"><div className="cm-service-modal-head"><div><div style={{fontSize:10,fontWeight:900,color:"#6ea8c5",letterSpacing:".12em"}}>REGISTRO DE SERVICIO</div><h2>{serviceCategoryLabel(categoria)}</h2></div><button type="button" className="cm-service-x" onClick={onClose}>X</button></div>{error&&<div className="cm-service-error">{error}</div>}<form className="cm-service-form" onSubmit={submit}>
+    <ServiceField label="Nombre Comercial / Empresa" value={form.nombre_comercial} onChange={v=>set("nombre_comercial",v)} required/><ServiceField label="Nombre del Contacto Principal" value={form.contacto_principal} onChange={v=>set("contacto_principal",v)} required/><ServiceField label="Teléfono" value={form.telefono} onChange={v=>set("telefono",v)} required/><ServiceField label="WhatsApp" value={form.whatsapp} onChange={v=>set("whatsapp",v)}/><ServiceField label="Correo Electrónico" value={form.correo} onChange={v=>set("correo",v)} type="email"/><ServiceField label="Ubicación Base / Cobertura" value={form.ubicacion_cobertura} onChange={v=>set("ubicacion_cobertura",v)} required/>
+    <div className="cm-service-field full"><label>Días que Labora</label><select value={form.dias_texto} onChange={e=>set("dias_texto",e.target.value)}><option>Lunes a Viernes</option><option>Lunes a Sábado</option><option>Lunes a Domingo</option><option>Selección individual</option></select>{form.dias_texto==="Selección individual"&&<div className="cm-service-options">{diaOptions.map(d=><button type="button" key={d} className={`cm-service-option ${form.dias.includes(d)?"active":""}`} onClick={()=>toggleDia(d)}>{d}</button>)}</div>}</div>
+    <div className="cm-service-field full"><label>Horario de Atención</label><div className="cm-service-options"><button type="button" className={`cm-service-option ${form.horario_24h?"active":""}`} onClick={()=>set("horario_24h",true)}>Servicio 24 Horas</button><button type="button" className={`cm-service-option ${!form.horario_24h?"active":""}`} onClick={()=>set("horario_24h",false)}>Horario Específico</button></div></div>{!form.horario_24h&&<><ServiceField label="Hora Inicio" value={form.hora_inicio} onChange={v=>set("hora_inicio",v)} type="time"/><ServiceField label="Hora Cierre" value={form.hora_cierre} onChange={v=>set("hora_cierre",v)} type="time"/></>}
+    {categoria==="gruas"&&<><ServiceSelect label="Tipo de grúa" value={form.tipo_grua} onChange={v=>set("tipo_grua",v)} options={["Pluma","Plataforma","Arrastre","Pesada/Tractos"]}/><ServiceSelect label="Capacidad" value={form.capacidad} onChange={v=>set("capacidad",v)} options={["3.5T","10T","20T","+40T"]}/><ServiceField label="Tiempo de respuesta (min)" value={form.tiempo_respuesta_min} onChange={v=>set("tiempo_respuesta_min",v)} type="number"/></>}
+    {categoria==="mecanicos"&&<><ServiceSelect label="Especialidad" value={form.especialidad} onChange={v=>set("especialidad",v)} options={["Talachero / Llantero","Eléctrico","Mecánico General","Frenos/Aire","Escáner","Climas"]}/><ServiceSelect label="Vehículos que atiende" value={form.vehiculos} onChange={v=>set("vehiculos",v)} options={["Motos","Ligeros","Tractocamiones","Maquinaria","Todos"]}/><div className="cm-service-field"><label>Rescate Vial</label><select value={form.rescate_vial?"Sí":"No"} onChange={e=>set("rescate_vial",e.target.value==="Sí")}><option>No</option><option>Sí</option></select></div></>}
+    {categoria==="limpia_contenedores"&&<><ServiceSelect label="Esquema de cobro" value={form.esquema_cobro} onChange={v=>set("esquema_cobro",v)} options={["Por Hora","Por Trabajo","Ambos"]}/><ServiceField label="Tarifa Base ($ MXN)" value={form.tarifa_base} onChange={v=>set("tarifa_base",v)} type="number"/><ServiceSelect label="Tipos de limpieza" value={form.tipo_limpieza} onChange={v=>set("tipo_limpieza",v)} options={["Barrido","Lavado a Presión","Sanitización / Desinfección","Residuos Especiales"]}/><ServiceField label="Capacidad diaria (Contenedores/día)" value={form.capacidad_diaria} onChange={v=>set("capacidad_diaria",v)} type="number"/></>}
+    <button className="cm-service-submit" type="submit" disabled={saving}>{saving?"Guardando...":"Finalizar Registro"}</button></form></div></div>;
+}
+function ServiceField({label,value,onChange,type="text",required=false}){return <div className="cm-service-field"><label>{label}{required?" *":""}</label><input type={type} value={value} onChange={e=>onChange(e.target.value)} required={required}/></div>}
+function ServiceSelect({label,value,onChange,options}){return <div className="cm-service-field"><label>{label}</label><select value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o}>{o}</option>)}</select></div>}
+
+function GuiaConectManzanillo({ setActive, isAdmin, authIntent, onReportBug }) {
   const [open, setOpen] = useState("inicio");
   const sections = [
     { id:"inicio", icon:"home", title:"Inicio", audience:"Todos", summary:"Resumen operativo y accesos principales.", details:[
@@ -29312,7 +29431,7 @@ function TutorialTab({ setActive, isAdmin, authIntent, onReportBug }) {
         @media(max-width:760px){.cm-info-grid{grid-template-columns:1fr}.cm-info-hero{padding:22px}.cm-info-hero h1{font-size:26px;line-height:32px}.cm-info-chip{display:none}}
       `}</style>
       <header className="cm-info-hero">
-        <div style={{display:"flex",alignItems:"center",gap:12}}><span className="cm-info-icon"><MS name="info" size={24} active /></span><div><h1>Más Info</h1><p>Guía actualizada de CONECT MANZANILLO. Consulta qué hace cada módulo, cómo usarlo y cuáles funciones requieren una cuenta o privilegios administrativos.</p></div></div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}><span className="cm-info-icon"><MS name="info" size={24} active /></span><div><h1>Guía Conect Manzanillo</h1><p>Guía actualizada de CONECT MANZANILLO. Consulta qué hace cada módulo, cómo usarlo y cuáles funciones requieren una cuenta o privilegios administrativos.</p></div></div>
       </header>
       <div style={{display:"flex",justifyContent:"flex-end",margin:"-8px 0 20px"}}><button type="button" className="cm-info-go" onClick={onReportBug}><MS name="bug_report" size={19} active /> Reportar bug</button></div>
       <section className="cm-info-grid">
@@ -29638,7 +29757,7 @@ function EncuestaSatisfaccion({ isAdmin }) {
 }
 
 // ─── TAB: REDES SOCIALES ──────────────────────────────────────────────────────
-function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSetActive }) {
+function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSetActive, authIntent, onReportBug }) {
   const theme = React.useContext(ThemeContext);
   const canvasRef = useRef(null);
   const [qrVisible, setQrVisible] = useState(false);
@@ -29912,6 +30031,9 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
             <div style={{ textAlign:"center", fontFamily:getFont(theme,"secondary"), color:colors.muted, fontSize:12, fontWeight:700 }}>Escanea para unirte al canal de WhatsApp</div>
           </div>
         </aside>
+        <div style={{width:"100%",marginTop:18,textAlign:"left"}}>
+          <GuiaConectManzanillo setActive={onSetActive} isAdmin={isAdmin} authIntent={authIntent} onReportBug={onReportBug} />
+        </div>
       </section>
     </div>
   );
@@ -33897,7 +34019,7 @@ function App() {
         {active !== "inicio" && <HorizontalAdSenseSection sectionKey={active} />}
         {["donativos", "tutorial"].includes(active) && <FluidAdSenseSection sectionKey={`fluid-${active}`} />}
 
-        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} />}
+        {active === "inicio"      && <InicioTab isAdmin={isAdmin} logout={logout} onOpenAdminModal={openModal} onOpenThemeConfig={() => setShowThemeConfig(true)} onSetActive={setActive} authIntent={authIntent} onReportBug={openBugReport} />}
         {active === "dashboard"   && canAccessDashboard && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
@@ -33906,7 +34028,7 @@ function App() {
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
-        {active === "tutorial"   && <TutorialTab setActive={setActive} isAdmin={isAdmin} authIntent={authIntent} onReportBug={openBugReport} />}
+        {active === "tutorial"   && <ServiciosTab authUser={authUser} isAdmin={isAdmin} />}
 
         </main>
 
