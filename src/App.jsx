@@ -28372,7 +28372,7 @@ function GestionPatiosDirectorio({
   return GestionPatiosDirectorio;
 })();
 
-function PatioReguladorTab({ myId, isAdmin = false }) {
+function PatioReguladorTab({ myId, isAdmin = false, subAdmin = null }) {
   const [activePatioSubtab, setActivePatioSubtab] = useState(() => {
     try { return sessionStorage.getItem("gestion_patios_subtab") || "operacion"; }
     catch { return "operacion"; }
@@ -28397,7 +28397,8 @@ function PatioReguladorTab({ myId, isAdmin = false }) {
       render: () => (
         <GestionPatiosDirectorio
           supabase={sb}
-          canManage={isAdmin}
+          canManage={Boolean(isAdmin || subAdmin?.permisos?.actualizar_patios || subAdmin?.permisos?.gestionar_patios)}
+          permissions={Object.entries(subAdmin?.permisos || {}).filter(([key,value]) => !key.startsWith("__") && value === true).map(([key]) => key)}
           currentUserId={myId}
           title="Directorio de Patios"
         />
@@ -30973,7 +30974,7 @@ function AccesosTab({ myId, incidents, setIncidents, isAdmin }) {
   );
 }
 
-function TerminalesPatiosTab({ myId, isAdmin = false }) {
+function TerminalesPatiosTab({ myId, isAdmin = false, subAdmin = null }) {
   const [activeSubtab, setActiveSubtab] = useState(() => {
     try { return sessionStorage.getItem("terminales_patios_subtab") || "terminales"; } catch { return "terminales"; }
   });
@@ -30983,7 +30984,7 @@ function TerminalesPatiosTab({ myId, isAdmin = false }) {
   };
   const tabs = [
     { id: "terminales", label: "Terminales Portuarias", icon: TAB_PUBLIC_ICONS.terminales || "port-terminal", render: () => <TerminalesTab myId={myId} isAdmin={isAdmin} /> },
-    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} isAdmin={isAdmin} /> },
+    { id: "patios", label: "Gestión de Patios", icon: TAB_PUBLIC_ICONS.patio || "container-yard", render: () => <PatioReguladorTab myId={myId} isAdmin={isAdmin} subAdmin={subAdmin} /> },
   ];
   return (
     <SectionSubTabs
@@ -33900,7 +33901,7 @@ function App() {
         {active === "dashboard"   && canAccessDashboard && <AdminDashboard myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} authUser={authUser} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} onOpenThemeConfig={() => setShowThemeConfig(true)} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
-        {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} />}
+        {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} subAdmin={subAdmin} />}
         {active === "segundo"    && <SegundoAccesoTab myId={myId} isAdmin={isAdmin} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
