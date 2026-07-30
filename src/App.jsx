@@ -28413,6 +28413,8 @@ function PatioReguladorTab({ myId, isAdmin = false, subAdmin = null }) {
       tabs={tabs}
       active={activePatioSubtab}
       onChange={setPatioSubtab}
+      variant="segmented"
+      showHeader={false}
     />
   );
 }
@@ -29276,8 +29278,28 @@ function ServiciosTab({authUser,isAdmin}){
 
 function ServicioLocationPicker({value,onChange,onClose}){
  const mapEl=useRef(null),mapRef=useRef(null),markerRef=useRef(null);
- useEffect(()=>{if(!mapEl.current||mapRef.current)return;const lat=Number(value?.latitud)||19.049;const lng=Number(value?.longitud)||-104.32;const map=L.map(mapEl.current,{zoomControl:true}).setView([lat,lng],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(map);const marker=L.marker([lat,lng],{draggable:true}).addTo(map);const apply=async ll=>{marker.setLatLng(ll);let label=`${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${ll.lat}&lon=${ll.lng}`,{headers:{Accept:"application/json"}});if(r.ok){const j=await r.json();label=j.display_name||label}}catch{}onChange({latitud:Number(ll.lat.toFixed(7)),longitud:Number(ll.lng.toFixed(7)),ubicacion_cobertura:label})};map.on("click",e=>apply(e.latlng));marker.on("dragend",()=>apply(marker.getLatLng()));mapRef.current=map;markerRef.current=marker;setTimeout(()=>map.invalidateSize(),80);return()=>{map.remove();mapRef.current=null}},[]);
- return <div className="svc-map-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="svc-map-dialog"><div className="svc-map-head"><div><MS name="pin_drop" size={23} active/><strong>Seleccionar ubicación</strong></div><button type="button" onClick={onClose}><MS name="close" size={21}/></button></div><div ref={mapEl} className="svc-map-canvas"/><div className="svc-map-foot"><span>{value?.latitud&&value?.longitud?`${Number(value.latitud).toFixed(6)}, ${Number(value.longitud).toFixed(6)}`:"Haz clic en el mapa o arrastra el marcador."}</span><button type="button" onClick={onClose}>Usar ubicación</button></div></div></div>
+ useEffect(()=>{
+   if(!mapEl.current||mapRef.current)return;
+   const lat=Number(value?.latitud)||19.049;
+   const lng=Number(value?.longitud)||-104.32;
+   const map=L.map(mapEl.current,{zoomControl:true}).setView([lat,lng],13);
+   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(map);
+   const servicePin=L.divIcon({
+     className:"svc-location-marker-wrap",
+     html:`<div class="svc-location-marker"><span class="material-symbols-outlined">location_on</span></div>`,
+     iconSize:[46,54],
+     iconAnchor:[23,50],
+     popupAnchor:[0,-48]
+   });
+   const marker=L.marker([lat,lng],{draggable:true,icon:servicePin}).addTo(map);
+   const apply=async ll=>{marker.setLatLng(ll);let label=`${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${ll.lat}&lon=${ll.lng}`,{headers:{Accept:"application/json"}});if(r.ok){const j=await r.json();label=j.display_name||label}}catch{}onChange({latitud:Number(ll.lat.toFixed(7)),longitud:Number(ll.lng.toFixed(7)),ubicacion_cobertura:label})};
+   map.on("click",e=>apply(e.latlng));
+   marker.on("dragend",()=>apply(marker.getLatLng()));
+   mapRef.current=map;markerRef.current=marker;
+   setTimeout(()=>map.invalidateSize(),80);
+   return()=>{map.remove();mapRef.current=null};
+ },[]);
+ return <div className="svc-map-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="svc-map-dialog"><style>{`.svc-location-marker-wrap{background:transparent!important;border:0!important}.svc-location-marker{width:46px;height:46px;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#0099ff,#0061a5);border:2px solid #bdf4ff;box-shadow:0 0 0 6px rgba(0,153,255,.18),0 0 26px rgba(0,153,255,.72),0 12px 24px rgba(0,0,0,.5)}.svc-location-marker .material-symbols-outlined{transform:rotate(45deg);font-size:25px;line-height:1;color:#fff;font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24}`}</style><div className="svc-map-head"><div><MS name="pin_drop" size={23} active/><strong>Seleccionar ubicación</strong></div><button type="button" onClick={onClose}><MS name="close" size={21}/></button></div><div ref={mapEl} className="svc-map-canvas"/><div className="svc-map-foot"><span>{value?.latitud&&value?.longitud?`${Number(value.latitud).toFixed(6)}, ${Number(value.longitud).toFixed(6)}`:"Haz clic en el mapa o arrastra el marcador."}</span><button type="button" onClick={onClose}>Usar ubicación</button></div></div></div>
 }
 function ServicioRegistroModal({authUser,categoria,onClose,onSave}){
  const base={nombre_comercial:"",contacto_principal:"",lada_telefono:"+52",telefono:"",lada_whatsapp:"+52",whatsapp:"",correo:"",ubicacion_cobertura:"",latitud:19.049,longitud:-104.32,dias_laborales:["L","M","Mi","J","V"],modalidad_horario:"24_horas",hora_inicio:"08:00",hora_fin:"18:00",logo_url:"",tipo_grua:"Plataforma",capacidad:"10T",tiempo_respuesta_min:"30",especialidad:"Mecánico General",vehiculos:"Tractocamiones",rescate_vial:"No",esquema_cobro:"Por Trabajo",tarifa_base:"",tipos_limpieza:"Lavado Presión",capacidad_diaria:""};
@@ -30814,13 +30836,15 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
       rel="noopener noreferrer"
       aria-label={label}
       style={{
-        width: "34px",
-        height: "34px",
+        width: "40px",
+        height: "40px",
         borderRadius: "999px",
         border: `1px solid ${accent}55`,
         background: `${accent}18`,
-        display: "grid",
-        placeItems: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
         textDecoration: "none",
         boxShadow: `0 8px 18px ${accent}18`,
         transition: "transform .18s ease, opacity .18s ease, background .18s ease",
@@ -30899,18 +30923,21 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
           position: "absolute",
           top: "10px",
           right: "10px",
-          width: "24px",
-          height: "24px",
+          width: "32px",
+          height: "32px",
           borderRadius: "999px",
           border: "1px solid rgba(255,255,255,.12)",
           background: "rgba(255,255,255,.06)",
           color: "rgba(255,255,255,.76)",
           cursor: "pointer",
-          fontWeight: 900,
-          lineHeight: 1
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+          lineHeight: 0
         }}
       >
-        ×
+        <MS name="close" size={18} />
       </button>
 
       <div style={{ display:"flex", gap:"11px", alignItems:"flex-start", paddingRight:"26px" }}>
@@ -30954,19 +30981,20 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
           textDecoration:"none",
           textTransform:"uppercase",
           letterSpacing:".04em",
+          lineHeight:1,
           boxShadow:"0 10px 24px rgba(37,211,102,.14)",
           transition:"transform .18s ease, opacity .18s ease, filter .18s ease"
         }}
         onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.filter = "brightness(1.08)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.filter = "brightness(1)"; }}
       >
-        <AppIcon name="whatsapp" size={18} active />
-        Unirme al canal
+        <span style={{ width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:0, flex:"0 0 auto" }}><AppIcon name="whatsapp" size={18} active /></span>
+        <span style={{ display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>Unirme al canal</span>
       </a>
 
       <div style={{ marginTop:"13px", paddingTop:"12px", borderTop:"1px solid rgba(255,255,255,.08)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px" }}>
         <span style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(255,255,255,.48)", fontSize:"10px", fontWeight:900, letterSpacing:".12em", textTransform:"uppercase" }}>Redes sociales</span>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", lineHeight:0 }}>
           <SocialCircle href={socialUrls.facebook} label="Facebook de Conect Manzanillo" accent="#1877F2"><SvgFacebookLocal size={17} /></SocialCircle>
           <SocialCircle href={socialUrls.instagram} label="Instagram de Conect Manzanillo" accent="#d62976"><SvgInstagramLocal size={17} /></SocialCircle>
           <SocialCircle href={socialUrls.tiktok} label="TikTok de Conect Manzanillo" accent="#00f2ea"><SvgTikTokLocal size={17} /></SocialCircle>
@@ -30980,7 +31008,7 @@ function WhatsAppInviteBubble({ userName = "", isAiActive = false, isPrivileged 
 // Validado FIX PRINCIPAL: hooks declarados DENTRO del cuerpo de la función, no en los parámetros
 
 
-function SectionSubTabs({ tabs, active, onChange, title, subtitle }) {
+function SectionSubTabs({ tabs, active, onChange, title, subtitle, variant = "primary", showHeader = true }) {
   const theme = React.useContext(ThemeContext);
   return (
     <div style={{ padding: "16px", paddingBottom: "100px" }}>
@@ -30993,16 +31021,20 @@ function SectionSubTabs({ tabs, active, onChange, title, subtitle }) {
         .cm-subtab-btn:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateY(-1px)}
         .cm-subtab-btn.is-active{background:linear-gradient(135deg,rgba(0,98,140,.92),rgba(14,165,233,.30));color:#fff;box-shadow:inset 0 0 0 1px rgba(136,206,255,.20),0 10px 22px rgba(0,98,140,.18)}
         .cm-subtab-btn.is-active:after{content:'';position:absolute;left:18px;right:18px;bottom:5px;height:2px;border-radius:999px;background:#88ceff;box-shadow:0 0 10px rgba(136,206,255,.7)}
+        .cm-subtab-control.is-segmented{position:relative;top:auto;z-index:2;width:min(100%,560px);margin:0 auto 18px;padding:5px;border-radius:999px;background:rgba(8,14,24,.72);border-color:rgba(136,206,255,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+        .cm-subtab-control.is-segmented .cm-subtab-btn{min-height:42px;flex:1 1 0;min-width:0;border-radius:999px;font-size:12px;padding:0 18px}
+        .cm-subtab-control.is-segmented .cm-subtab-btn.is-active{background:linear-gradient(135deg,rgba(0,122,177,.94),rgba(14,165,233,.38));box-shadow:inset 0 0 0 1px rgba(136,206,255,.24),0 8px 18px rgba(0,98,140,.16)}
+        .cm-subtab-control.is-segmented .cm-subtab-btn.is-active:after{display:none}
         .cm-subtab-panel{animation:cmSubtabIn .22s ease both}
         @keyframes cmSubtabIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @media(max-width:640px){.cm-subtab-control{top:68px}.cm-subtab-btn{flex:1 0 170px;min-height:54px;font-size:12px}.cm-subtab-header{padding:14px}.cm-subtab-shell{max-width:none}}
       `}</style>
       <div className="cm-subtab-shell">
-        <div className="cm-subtab-header">
+        {showHeader && <div className="cm-subtab-header">
           <div style={{ fontFamily:getFont(theme,"title"), color:"#fff", fontSize:"clamp(22px,4vw,34px)", fontWeight:900, lineHeight:1.1 }}>{title}</div>
           {subtitle && <div style={{ fontFamily:getFont(theme,"secondary"), color:"rgba(226,232,240,.62)", fontSize:13, marginTop:6, lineHeight:1.6 }}>{subtitle}</div>}
-        </div>
-        <div className="cm-subtab-control" role="tablist" aria-label={title}>
+        </div>}
+        <div className={`cm-subtab-control ${variant === "segmented" ? "is-segmented" : ""}`} role="tablist" aria-label={title}>
           {tabs.map(tab => (
             <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} className={`cm-subtab-btn ${active === tab.id ? "is-active" : ""}`} onClick={() => onChange(tab.id)}>
               <AppIcon name={tab.icon} size={20} active={active === tab.id} />
