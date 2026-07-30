@@ -30025,54 +30025,200 @@ function InicioTab({ isAdmin, logout, onOpenAdminModal, onOpenThemeConfig, onSet
 // ─── COOKIE BANNER ────────────────────────────────────────────────────────────
 // Validado FIX: Botones con estilos completos y handlers correctos
 function CookieBanner({ onAccept, onReject }) {
-  const theme = React.useContext(ThemeContext);
+  const [closing, setClosing] = React.useState(false);
+
+  const dismissBanner = React.useCallback((handler) => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(() => handler?.(), 520);
+  }, [closing]);
+
   return (
-    <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998,
-      background: "rgba(10,15,30,0.97)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-      borderTop: "1px solid rgba(255,255,255,0.15)", padding: "16px 20px",
-    }}>
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
-          <span style={{ fontSize: "22px" }}>🍪</span>
-          <div>
-            <div style={{ fontFamily: getFont(theme, "title"), color: "#fff", fontSize: "14px", fontWeight: "700", marginBottom: "4px" }}>Cookies y privacidad</div>
-            <div style={{ fontFamily: getFont(theme, "secondary"), color: "rgba(255,255,255,0.6)", fontSize: "11px", lineHeight: "1.6" }}>
-              Conect Manzanillo usa <strong style={{ color: "rgba(255,255,255,0.85)" }}>cookies esenciales</strong> para recordar tu ID de dispositivo y preferencias de votación. Usamos cookies esenciales y podemos mostrar anuncios de Google AdSense. Tu participación es anónima.
-            </div>
+    <>
+      <style>{`
+        @keyframes cmCookieSlideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .cm-cookie-banner-shell {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 9998;
+          padding: 16px;
+          display: flex;
+          justify-content: center;
+          pointer-events: none;
+          animation: cmCookieSlideUp .6s cubic-bezier(.16,1,.3,1) forwards;
+          transition: transform .5s cubic-bezier(.16,1,.3,1), opacity .5s ease;
+        }
+        .cm-cookie-banner-shell.is-closing {
+          transform: translateY(120%);
+          opacity: 0;
+        }
+        .cm-cookie-banner-card {
+          width: 100%;
+          max-width: 1000px;
+          padding: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          pointer-events: auto;
+          border-radius: 16px;
+          border: 1px solid rgba(63,71,83,.52);
+          background: rgba(25,28,30,.90);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          box-shadow: 0 0 30px rgba(0,102,255,.15), inset 0 1px 0 rgba(159,202,255,.07);
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .cm-cookie-visual {
+          width: 72px;
+          height: 72px;
+          min-width: 72px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+          color: #9fcaff;
+          background: #1d2022;
+          border: 1px solid rgba(63,71,83,.8);
+          box-shadow: 0 0 20px rgba(0,153,255,.28), inset 0 0 20px rgba(159,202,255,.035);
+        }
+        .cm-cookie-copy { flex: 1 1 auto; min-width: 0; }
+        .cm-cookie-title {
+          margin: 0 0 8px;
+          color: #e0e3e5;
+          font-size: 24px;
+          line-height: 32px;
+          letter-spacing: -.01em;
+          font-weight: 700;
+        }
+        .cm-cookie-description {
+          margin: 0;
+          max-width: 650px;
+          color: #bfc7d5;
+          font-size: 15px;
+          line-height: 1.65;
+          font-weight: 400;
+        }
+        .cm-cookie-note {
+          margin: 14px 0 0;
+          color: #89919e;
+          font-size: 10px;
+          line-height: 16px;
+          letter-spacing: .1em;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .cm-cookie-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 12px;
+          flex: 0 0 auto;
+        }
+        .cm-cookie-btn {
+          min-height: 48px;
+          padding: 0 24px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          line-height: 1;
+          white-space: nowrap;
+          cursor: pointer;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          transition: transform .3s ease, background .3s ease, border-color .3s ease, box-shadow .3s ease, color .3s ease;
+        }
+        .cm-cookie-btn:active { transform: scale(.95); }
+        .cm-cookie-btn-secondary {
+          color: #bfc7d5;
+          background: transparent;
+          border: 1px solid #3f4753;
+        }
+        .cm-cookie-btn-secondary:hover {
+          color: #e0e3e5;
+          background: rgba(50,53,55,.45);
+          border-color: rgba(159,202,255,.5);
+        }
+        .cm-cookie-btn-primary {
+          color: #002f54;
+          background: #0099ff;
+          border: 1px solid rgba(159,202,255,.45);
+          box-shadow: 0 0 15px rgba(0,153,255,.4);
+        }
+        .cm-cookie-btn-primary:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 25px rgba(0,153,255,.7);
+        }
+        @media (max-width: 820px) {
+          .cm-cookie-banner-card { align-items: flex-start; flex-wrap: wrap; }
+          .cm-cookie-actions { width: 100%; justify-content: flex-end; }
+        }
+        @media (max-width: 600px) {
+          .cm-cookie-banner-shell { padding: 12px; }
+          .cm-cookie-banner-card { padding: 20px; gap: 16px; border-radius: 16px; }
+          .cm-cookie-visual { width: 60px; height: 60px; min-width: 60px; }
+          .cm-cookie-title { font-size: 20px; line-height: 28px; }
+          .cm-cookie-description { font-size: 13px; line-height: 1.55; }
+          .cm-cookie-note { font-size: 9px; }
+          .cm-cookie-actions { flex-direction: column; align-items: stretch; }
+          .cm-cookie-btn { width: 100%; }
+        }
+      `}</style>
+      <div
+        className={`cm-cookie-banner-shell${closing ? " is-closing" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cm-cookie-title"
+        aria-describedby="cm-cookie-description"
+      >
+        <div className="cm-cookie-banner-card">
+          <div className="cm-cookie-visual" aria-hidden="true">
+            <MS name="cookie" size={48} active color="#9fcaff" style={{ lineHeight:1 }} />
+          </div>
+
+          <div className="cm-cookie-copy">
+            <h2 id="cm-cookie-title" className="cm-cookie-title">Cookies y privacidad</h2>
+            <p id="cm-cookie-description" className="cm-cookie-description">
+              Conect Manzanillo usa <strong style={{ color:"#e0e3e5", fontWeight:700 }}>cookies esenciales</strong> para recordar tu ID de dispositivo y preferencias de votación. Usamos cookies esenciales y podemos mostrar anuncios de Google AdSense. Tu participación es anónima.
+            </p>
+            <p className="cm-cookie-note">
+              Al continuar aceptas nuestra política de privacidad · Datos procesados en servidores de Supabase (UE/EUA)
+            </p>
+          </div>
+
+          <div className="cm-cookie-actions">
+            <button
+              type="button"
+              className="cm-cookie-btn cm-cookie-btn-secondary"
+              onClick={() => dismissBanner(onReject)}
+              disabled={closing}
+            >
+              Solo esenciales
+            </button>
+            <button
+              type="button"
+              className="cm-cookie-btn cm-cookie-btn-primary"
+              onClick={() => dismissBanner(onAccept)}
+              disabled={closing}
+            >
+              <MS name="check" size={20} active color="#002f54" style={{ lineHeight:1 }} />
+              <span>Aceptar y continuar</span>
+            </button>
           </div>
         </div>
-        <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", fontFamily: getFont(theme, "secondary"), marginBottom: "12px", paddingLeft: "34px" }}>
-          Al continuar aceptas nuestra política de privacidad · Datos procesados en servidores de Supabase (UE/EUA)
-        </div>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button
-            onClick={onReject}
-            style={{
-              padding: "10px 18px", background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.2)", borderRadius: "8px",
-              color: "rgba(255,255,255,0.7)", fontFamily: getFont(theme, "secondary"), fontSize: "12px",
-              fontWeight: "600", cursor: "pointer", transition: "all 0.2s",
-            }}
-          >
-            Solo esenciales
-          </button>
-          <button
-            onClick={onAccept}
-            style={{
-              padding: "10px 20px",
-              background: "linear-gradient(135deg, #0369a1, #0ea5e9)",
-              border: "none", borderRadius: "8px",
-              color: "#fff", fontFamily: getFont(theme, "secondary"), fontSize: "12px",
-              fontWeight: "700", cursor: "pointer", transition: "all 0.2s",
-              letterSpacing: "0.5px",
-            }}
-          >
-            ✓ Aceptar y continuar
-          </button>
-        </div>
       </div>
-    </div>
+    </>
   );
 }
 
