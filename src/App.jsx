@@ -8306,6 +8306,7 @@ function NavBar({ active, set, isAdmin, hasDashboardAccess = false, logout, auth
         .cm-menu-btn:hover .cm-menu-symbol{color:#a4c9ff;transform:scale(1.06)}
         .cm-menu-btn[aria-expanded='true'] .cm-menu-symbol{transform:rotate(90deg)}
         .cm-mobile-nav{display:none;position:fixed;inset:0;z-index:2147483001;height:100vh;height:100dvh;min-height:100vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#0d1c2d;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:0;border-radius:0;padding:82px 16px max(24px,env(safe-area-inset-bottom));grid-template-columns:1fr;align-content:start;gap:10px;box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.05)}
+        .cm-mobile-nav-icon{width:30px;height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;line-height:1;border-radius:9px;background:rgba(159,202,255,.07);color:#9fcaff}.cm-mobile-nav-btn>span:nth-child(2){flex:1;min-width:0}.cm-mobile-nav-btn.is-dashboard{order:-100;background:linear-gradient(135deg,rgba(0,153,255,.22),rgba(0,97,165,.16));border-color:rgba(159,202,255,.62);color:#fff;box-shadow:0 0 0 1px rgba(159,202,255,.12),0 0 24px rgba(0,153,255,.24),inset 0 1px 0 rgba(255,255,255,.08)}.cm-mobile-nav-btn.is-dashboard .cm-mobile-nav-icon{background:linear-gradient(145deg,#0099ff,#0061a5);color:#fff;box-shadow:0 0 16px rgba(0,153,255,.42)}.cm-mobile-admin-badge{margin-left:auto;flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-height:24px;padding:0 8px;border-radius:999px;border:1px solid rgba(189,244,255,.35);background:rgba(0,227,253,.09);color:#bdf4ff;font:800 9px/1 'Inter',sans-serif;letter-spacing:.11em}.cm-mobile-nav-btn{gap:12px!important;padding:10px 14px!important;min-height:58px!important}.cm-mobile-nav{z-index:2147483001!important;padding-top:max(82px,calc(env(safe-area-inset-top) + 72px))!important;padding-bottom:max(24px,env(safe-area-inset-bottom))!important}
         .cm-section-panel-open .leaflet-container,
         .cm-section-panel-open .leaflet-pane,
         .cm-section-panel-open .leaflet-control-container,
@@ -8394,16 +8395,24 @@ function NavBar({ active, set, isAdmin, hasDashboardAccess = false, logout, auth
         </div>
 
         <nav className={`cm-mobile-nav ${mobileOpen ? "is-open" : ""}`} aria-label="Menú móvil">
-          {TABS.map(tab => {
+          {navTabs.map(tab => {
             const isActive = active === tab.key;
+            const isDashboard = tab.key === "dashboard";
+            const iconName = isDashboard ? "dashboard" : ({
+              inicio:"home", trafico:"traffic", reporte:"report_problem", terminales:"warehouse",
+              segundo:"lock_clock", accesos:"door_sliding", noticias:"newspaper",
+              donativos:"business_center", tutorial:"design_services"
+            }[tab.key] || "arrow_forward");
             return (
               <button
                 key={tab.key}
                 type="button"
-                className={`cm-mobile-nav-btn ${isActive ? "is-active" : ""}`}
+                className={`cm-mobile-nav-btn ${isActive ? "is-active" : ""} ${isDashboard ? "is-dashboard" : ""}`}
                 onClick={() => handleSelect(tab.key)}
               >
-                {tab.label}
+                <span className="cm-mobile-nav-icon"><MS name={iconName} size={22} active={isActive || isDashboard} /></span>
+                <span>{tab.label}</span>
+                {isDashboard && <span className="cm-mobile-admin-badge">ADMIN</span>}
               </button>
             );
           })}
@@ -29334,9 +29343,16 @@ function GuiaConectManzanillo({ setActive, isAdmin, authIntent, onReportBug }) {
       "Selecciona el tipo de incidente, confirma ubicación y agrega una descripción verificable.",
       "Los reportes quedan sujetos a revisión y moderación administrativa."
     ]},
-    { id:"terminales", icon:"warehouse", title:"Terminales y Patios", audience:"Todos / permisos operativos", summary:"Consulta de terminales, patios y disponibilidad.", details:[
-      "Muestra estados, horarios y condiciones reportadas para terminales y patios.",
-      "Modificar estados requiere los permisos administrativos correspondientes."
+    { id:"terminales", icon:"warehouse", title:"Terminales y Patios", audience:"Todos / permiso para actualizar", summary:"Terminales Portuarias y Gestión de Patios en una navegación unificada.", details:[
+      "Terminales Portuarias permite consultar el estado operativo, horarios y condiciones reportadas de cada terminal.",
+      "Gestión de Patios integra Estado operativo y Directorio de Patios para consultar disponibilidad, ubicación, horarios y contactos.",
+      "Modificar estados o administrar registros requiere el permiso operativo correspondiente."
+    ]},
+    { id:"tutorial", icon:"design_services", title:"Servicios", audience:"Todos / cuenta para registrar", summary:"Directorio operativo y de auxilio vial para la comunidad portuaria y de transporte.", details:[
+      "Incluye las categorías Grúas, Mecánicos y Limpia Contenedores.",
+      "Permite búsqueda en tiempo real, filtros por especialidad y consulta de proveedores por categoría.",
+      "El registro incorpora geolocalización en mapa Leaflet, LADA internacional y contacto directo mediante WhatsApp.",
+      "Las tarjetas admiten valoraciones por estrellas y cada proveedor registrado queda vinculado al ID de la cuenta autenticada."
     ]},
     { id:"segundo", icon:"lock_clock", title:"Confinados", audience:"Todos / permiso especial", summary:"Segundo acceso, carriles confinados y fases.", details:[
       "Consulta terminal asignada, saturación, retornos y flujo de importación o exportación.",
@@ -29379,9 +29395,11 @@ function GuiaConectManzanillo({ setActive, isAdmin, authIntent, onReportBug }) {
       "El admin puede publicar anuncios directamente, ajustar fechas sin límite de 30 días y revisar el ID del autor.",
       "Los anuncios aprobados alimentan el Feed disponible dentro de Posturas."
     ]},
-    { id:"dashboard", icon:"dashboard", title:"Dashboard administrativo", audience:"Según permisos", summary:"Panel central filtrado por roles.", details:[
-      "Las acciones rápidas, métricas y actividad reciente usan datos reales de Supabase.",
-      "Cada cuenta con privilegios solo ve las secciones que tiene asignadas; Quejas, Soporte o Verificación no aparecen sin permiso."
+    { id:"dashboard", icon:"dashboard", title:"Administración y permisos", audience:"Permiso ADMIN", summary:"Dashboard y herramientas de gestión según el rol asignado.", details:[
+      "El rol ADMIN o super_admin_servicios habilita el acceso al Dashboard de control de acuerdo con los permisos de la cuenta.",
+      "Desde el panel se gestionan anuncios, usuarios, moderación, actividad reciente y módulos operativos autorizados.",
+      "Los administradores de Servicios pueden moderar y eliminar directamente registros o tarjetas publicadas.",
+      "Cada cuenta privilegiada solo visualiza las secciones y acciones expresamente asignadas."
     ]},
   ];
 
