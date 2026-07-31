@@ -33186,6 +33186,172 @@ function AdminPdfConverter({ onBack }) {
     </section>
   );
 }
+
+function AdminImageToolsModule({ onBack }) {
+  const [activeTool, setActiveTool] = useState("menu");
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [outputUrl, setOutputUrl] = useState("");
+  const [outputBlob, setOutputBlob] = useState(null);
+  const [ocrText, setOcrText] = useState("");
+  const [ocrLanguage, setOcrLanguage] = useState("spa");
+  const [quality, setQuality] = useState(0.78);
+  const [resizeMode, setResizeMode] = useState("pixels");
+  const [width, setWidth] = useState(1280);
+  const [height, setHeight] = useState(720);
+  const [percentage, setPercentage] = useState(75);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("");
+  const inputRef = useRef(null);
+
+  const tools = [
+    { id:"image-to-text", title:"Extraer texto de imagen", description:"OCR local para JPG, PNG, WEBP y HEIC.", icon:"image_search", available:true },
+    { id:"compress", title:"Comprimir imagen", description:"Reduce el peso mediante Canvas API.", icon:"compress", available:true },
+    { id:"convert", title:"Convertir a JPG", description:"Convierte PNG, WEBP y HEIC a JPG.", icon:"sync_alt", available:true },
+    { id:"pdf-to-jpg", title:"PDF a JPG", description:"Extrae páginas de un PDF como imágenes.", icon:"picture_as_pdf", available:true },
+    { id:"resize", title:"Redimensionar imagen", description:"Ajusta dimensiones por píxeles o porcentaje.", icon:"crop_free", available:true },
+    { id:"remove-background", title:"Eliminar fondo", description:"Interfaz preparada para segmentación avanzada.", icon:"background_replace", available:false },
+    { id:"ai-generator", title:"Generador de imagen", description:"Interfaz preparada para generación asistida.", icon:"auto_awesome", available:false },
+    { id:"remove-watermark", title:"Eliminar marca de agua", description:"Interfaz preparada para limpieza avanzada.", icon:"branding_watermark", available:false },
+    { id:"upscale", title:"Mejorar resolución", description:"Interfaz preparada para escalado inteligente.", icon:"high_res", available:false },
+    { id:"cleanup", title:"Limpiar fotografía", description:"Interfaz preparada para corrección de objetos.", icon:"cleaning_services", available:false },
+    { id:"profile-photo", title:"Foto de perfil", description:"Interfaz preparada para encuadre profesional.", icon:"account_box", available:false },
+  ];
+
+  const revoke = useCallback((url) => { if (url) try { URL.revokeObjectURL(url); } catch {} }, []);
+  useEffect(() => () => { revoke(previewUrl); revoke(outputUrl); }, [previewUrl, outputUrl, revoke]);
+
+  const resetWorkspace = useCallback(() => {
+    revoke(previewUrl); revoke(outputUrl);
+    setFile(null); setPreviewUrl(""); setOutputUrl(""); setOutputBlob(null); setOcrText(""); setProgress(0); setStatus("");
+    if (inputRef.current) inputRef.current.value = "";
+  }, [previewUrl, outputUrl, revoke]);
+
+  const chooseTool = (id) => { resetWorkspace(); setActiveTool(id); };
+  const goBack = () => { if (activeTool === "menu") onBack(); else { resetWorkspace(); setActiveTool("menu"); } };
+
+  const getAccept = () => activeTool === "pdf-to-jpg" ? "application/pdf,.pdf" : "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif";
+  const loadHeicClient = async () => {
+    if (window.heic2any) return window.heic2any;
+    await loadScriptOnce("https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js", () => window.heic2any);
+    return window.heic2any;
+  };
+  const normalizeImageFile = async (selected) => {
+    if (!selected) throw new Error("Selecciona una imagen válida.");
+    if (/\.heic$|\.heif$/i.test(selected.name) || /image\/hei[cf]/i.test(selected.type)) {
+      const heic2any = await loadHeicClient();
+      const converted = await heic2any({ blob:selected, toType:"image/jpeg", quality:0.94 });
+      const blob = Array.isArray(converted) ? converted[0] : converted;
+      return new File([blob], selected.name.replace(/\.(heic|heif)$/i, ".jpg"), { type:"image/jpeg" });
+    }
+    if (!/^image\//i.test(selected.type) && !/\.(jpe?g|png|webp)$/i.test(selected.name)) throw new Error("El formato de imagen no es compatible.");
+    return selected;
+  };
+  const loadImage = (url) => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error("No fue posible leer la imagen.")); img.src = url; });
+  const canvasToBlob = (canvas, type="image/jpeg", q=0.9) => new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("No fue posible generar la imagen.")), type, q));
+  const downloadBlob = (blob, filename) => { const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1200); };
+  const safeStem = (name="imagen") => String(name).replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,"-").replace(/^-+|-+$/g,"") || "imagen";
+
+  const loadSelectedFile = async (selected) => {
+    if (!selected || busy) return;
+    resetWorkspace(); setBusy(true); setStatus("Preparando archivo local...");
+    try {
+      if (activeTool === "pdf-to-jpg") {
+        if (!/\.pdf$/i.test(selected.name) && selected.type !== "application/pdf") throw new Error("Selecciona un documento PDF.");
+        setFile(selected); setStatus("PDF listo para convertir.");
+      } else {
+        const normalized = await normalizeImageFile(selected);
+        const url = URL.createObjectURL(normalized);
+        const img = await loadImage(url);
+        setFile(normalized); setPreviewUrl(url); setWidth(img.naturalWidth || img.width); setHeight(img.naturalHeight || img.height);
+        setStatus("Imagen lista para procesamiento local.");
+      }
+    } catch (error) { setStatus(error?.message || "No fue posible cargar el archivo."); }
+    finally { setBusy(false); }
+  };
+
+  const renderProcessedImage = async ({ targetWidth, targetHeight, mime="image/jpeg", q=quality }) => {
+    if (!previewUrl) throw new Error("Selecciona una imagen.");
+    const img = await loadImage(previewUrl);
+    const canvas=document.createElement("canvas"); canvas.width=Math.max(1,Math.round(targetWidth || img.naturalWidth)); canvas.height=Math.max(1,Math.round(targetHeight || img.naturalHeight));
+    const ctx=canvas.getContext("2d", { alpha:mime !== "image/jpeg" }); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+    if (mime === "image/jpeg") { ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    return canvasToBlob(canvas,mime,q);
+  };
+  const showOutput = (blob) => { revoke(outputUrl); const url=URL.createObjectURL(blob); setOutputBlob(blob); setOutputUrl(url); };
+
+  const runOcr = async () => {
+    if (!previewUrl) return; setBusy(true); setProgress(1); setStatus("Inicializando reconocimiento local...");
+    try { const Tesseract=await loadTesseractClient(); const result=await Tesseract.recognize(previewUrl,ocrLanguage,{logger:m=>{if(m.status==="recognizing text") setProgress(Math.round(Number(m.progress||0)*100));}}); setOcrText(result?.data?.text || ""); setProgress(100); setStatus("Reconocimiento finalizado."); }
+    catch(error){ setStatus(error?.message || "No fue posible extraer el texto."); }
+    finally{ setBusy(false); }
+  };
+  const processImage = async () => {
+    setBusy(true); setStatus("Procesando imagen en el navegador...");
+    try {
+      let blob;
+      if (activeTool === "compress") { const img=await loadImage(previewUrl); blob=await renderProcessedImage({targetWidth:img.naturalWidth,targetHeight:img.naturalHeight,mime:"image/jpeg",q:quality}); }
+      else if (activeTool === "convert") { const img=await loadImage(previewUrl); blob=await renderProcessedImage({targetWidth:img.naturalWidth,targetHeight:img.naturalHeight,mime:"image/jpeg",q:0.94}); }
+      else if (activeTool === "resize") { const img=await loadImage(previewUrl); const tw=resizeMode==="percentage" ? img.naturalWidth*(percentage/100) : width; const th=resizeMode==="percentage" ? img.naturalHeight*(percentage/100) : height; blob=await renderProcessedImage({targetWidth:tw,targetHeight:th,mime:"image/jpeg",q:0.92}); }
+      showOutput(blob); setStatus("Imagen procesada correctamente.");
+    } catch(error){ setStatus(error?.message || "No fue posible procesar la imagen."); }
+    finally{ setBusy(false); }
+  };
+  const pdfToJpg = async () => {
+    if (!file) return; setBusy(true); setProgress(2); setStatus("Renderizando páginas del PDF...");
+    try {
+      const pdfjs=await loadPdfJsClient(); const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise; const blobs=[];
+      for(let n=1;n<=pdf.numPages;n++){ const page=await pdf.getPage(n); const viewport=page.getViewport({scale:1.7}); const canvas=document.createElement("canvas"); canvas.width=Math.ceil(viewport.width); canvas.height=Math.ceil(viewport.height); await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise; blobs.push(await canvasToBlob(canvas,"image/jpeg",0.92)); setProgress(Math.round(n/pdf.numPages*100)); }
+      if(blobs.length===1){ showOutput(blobs[0]); setStatus("Página convertida correctamente."); }
+      else { const JSZip=await (async()=>{if(window.JSZip)return window.JSZip; await loadScriptOnce("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",()=>window.JSZip); return window.JSZip;})(); const zip=new JSZip(); blobs.forEach((b,i)=>zip.file(`${safeStem(file.name)}-pagina-${String(i+1).padStart(2,"0")}.jpg`,b)); const archive=await zip.generateAsync({type:"blob"}); setOutputBlob(archive); revoke(outputUrl); setOutputUrl(""); setStatus(`${blobs.length} páginas listas en archivo ZIP.`); }
+    } catch(error){ setStatus(error?.message || "No fue posible convertir el PDF."); }
+    finally{ setBusy(false); }
+  };
+  const copyText = async () => { try { await navigator.clipboard.writeText(ocrText); setStatus("Texto copiado al portapapeles."); } catch { setStatus("No fue posible copiar el texto."); } };
+  const downloadText = () => downloadBlob(new Blob([ocrText],{type:"text/plain;charset=utf-8"}),`${safeStem(file?.name)}-texto.txt`);
+  const downloadOutput = () => { if(!outputBlob)return; const ext=activeTool==="pdf-to-jpg" && !outputUrl ? "zip" : "jpg"; downloadBlob(outputBlob,`${safeStem(file?.name)}-${activeTool}.${ext}`); };
+  const current = tools.find(item=>item.id===activeTool);
+
+  return (
+    <section className="cm-image-tools" aria-label="Herramientas de imagen">
+      <style>{`
+        .cm-image-tools{--it-primary:#39b9ff;--it-cyan:#48e5ff;color:#e8eef5;width:100%;max-width:100%;overflow:hidden;background:radial-gradient(circle at 12% 8%,rgba(0,153,255,.12),transparent 32%),linear-gradient(145deg,#101415,#080c10);border:1px solid rgba(137,145,158,.28);border-radius:20px;padding:18px;box-shadow:0 28px 70px rgba(0,0,0,.34)}
+        .cm-image-tools *{box-sizing:border-box}.cm-it__back,.cm-it__button,.cm-it__card,.cm-it__drop{display:flex;align-items:center;justify-content:center;line-height:1}.cm-it__back{width:max-content;gap:9px;border:0;background:transparent;color:#9fb0c1;padding:8px 4px;cursor:pointer;font-weight:800}.cm-it__back:hover{color:var(--it-primary)}
+        .cm-it__hero{margin-top:8px;padding:22px;border:1px solid rgba(137,145,158,.22);border-radius:18px;background:rgba(22,28,32,.72);backdrop-filter:blur(22px);box-shadow:inset 0 1px rgba(255,255,255,.04)}.cm-it__heading{display:flex;align-items:center;gap:15px}.cm-it__heading-icon{width:56px;height:56px;display:flex;align-items:center;justify-content:center;line-height:1;border-radius:16px;background:rgba(0,153,255,.13);border:1px solid rgba(72,196,255,.4);box-shadow:0 0 26px rgba(0,153,255,.24)}.cm-it__heading h2{margin:0;font-size:28px}.cm-it__heading p{margin:6px 0 0;color:#9caaba;line-height:1.55}
+        .cm-it__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:22px}.cm-it__card{min-height:162px;flex-direction:column;align-items:flex-start;text-align:left;gap:11px;padding:19px;border:1px solid rgba(137,145,158,.25);border-radius:16px;background:linear-gradient(145deg,rgba(31,38,43,.9),rgba(17,22,26,.92));color:#e7edf5;cursor:pointer;transition:.25s;overflow:hidden}.cm-it__card:hover:not(:disabled){transform:translateY(-3px);border-color:rgba(66,191,255,.66);box-shadow:0 0 24px rgba(0,153,255,.18)}.cm-it__card:disabled{opacity:.56;cursor:not-allowed}.cm-it__card-icon{width:46px;height:46px;display:flex;align-items:center;justify-content:center;line-height:1;border-radius:13px;color:#67ceff;background:rgba(0,153,255,.11);border:1px solid rgba(66,191,255,.28)}.cm-it__card strong{font-size:15px}.cm-it__card small{color:#98a6b5;line-height:1.5}.cm-it__badge{margin-top:auto;font-size:10px;font-weight:900;letter-spacing:.08em;color:#8fdcff}
+        .cm-it__workspace{display:grid;grid-template-columns:minmax(280px,.8fr) minmax(0,1.2fr);gap:16px;margin-top:20px}.cm-it__panel{min-width:0;padding:17px;border:1px solid rgba(137,145,158,.22);border-radius:17px;background:rgba(13,18,22,.76)}.cm-it__drop{width:100%;min-height:210px;flex-direction:column;gap:12px;padding:24px;text-align:center;border:2px dashed rgba(137,145,158,.34);border-radius:16px;background:rgba(5,8,15,.44);color:#e5edf6;cursor:pointer;transition:.25s}.cm-it__drop:hover{border-color:var(--it-primary);box-shadow:0 0 24px rgba(0,153,255,.14)}.cm-it__drop input{display:none}.cm-it__drop small{max-width:430px;color:#94a3b3;line-height:1.55}.cm-it__preview{margin-top:14px;min-height:260px;display:flex;align-items:center;justify-content:center;overflow:auto;border:1px solid rgba(137,145,158,.18);border-radius:14px;background:repeating-conic-gradient(#11171b 0 25%,#0b1014 0 50%) 50%/18px 18px}.cm-it__preview img{display:block;max-width:100%;max-height:520px;object-fit:contain}.cm-it__empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#7f8d9c}.cm-it__controls{display:grid;gap:13px;margin-top:15px}.cm-it__field{display:grid;gap:7px;color:#aeb9c7;font-size:12px;font-weight:800}.cm-it__field input,.cm-it__field select,.cm-it__textarea{width:100%;border:1px solid rgba(137,145,158,.32);border-radius:12px;background:#080d11;color:#e7edf5;padding:12px 13px;outline:none}.cm-it__field input:focus,.cm-it__field select:focus,.cm-it__textarea:focus{border-color:var(--it-primary);box-shadow:0 0 0 3px rgba(0,153,255,.12)}.cm-it__fields-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cm-it__actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:15px}.cm-it__button{min-height:46px;gap:9px;padding:0 17px;border-radius:12px;border:1px solid rgba(137,145,158,.32);background:rgba(29,36,42,.82);color:#e8eef5;font-weight:900;white-space:nowrap;cursor:pointer;transition:.25s}.cm-it__button.is-primary{border-color:rgba(71,200,255,.7);background:linear-gradient(135deg,#19b9ff,#087bdc);color:#031827;box-shadow:0 0 18px rgba(0,153,255,.34)}.cm-it__button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 0 22px rgba(0,153,255,.22)}.cm-it__button:disabled{opacity:.42;cursor:not-allowed}.cm-it__textarea{min-height:300px;resize:vertical;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.cm-it__status{margin:14px 0 0;padding:12px 14px;border-left:3px solid var(--it-primary);border-radius:9px;background:rgba(0,153,255,.07);color:#aab8c7;line-height:1.5}.cm-it__progress{height:8px;margin-top:13px;border-radius:999px;background:rgba(137,145,158,.15);overflow:hidden}.cm-it__progress span{display:block;height:100%;background:linear-gradient(90deg,#45e5ff,#1189ff);transition:width .2s}
+        @media(max-width:920px){.cm-it__workspace{grid-template-columns:1fr}}@media(max-width:640px){.cm-image-tools{padding:12px}.cm-it__hero{padding:15px}.cm-it__heading{align-items:flex-start}.cm-it__heading h2{font-size:22px}.cm-it__grid{grid-template-columns:1fr}.cm-it__actions{flex-direction:column}.cm-it__button{width:100%}.cm-it__fields-row{grid-template-columns:1fr}.cm-it__panel{padding:13px}}
+      `}</style>
+      <button type="button" className="cm-it__back" onClick={goBack}><MS name="arrow_back" size={20} /><span>{activeTool === "menu" ? "Herramientas administrativas" : "Herramientas de imagen"}</span></button>
+      <div className="cm-it__hero">
+        <header className="cm-it__heading"><span className="cm-it__heading-icon"><MS name="photo_library" size={34} active /></span><div><h2>{activeTool === "menu" ? "Image Tools" : current?.title}</h2><p>{activeTool === "menu" ? "Edición, conversión y reconocimiento de imágenes con procesamiento local en el navegador." : current?.description}</p></div></header>
+        {activeTool === "menu" ? <div className="cm-it__grid">{tools.map(tool=><button key={tool.id} type="button" className="cm-it__card" disabled={!tool.available} onClick={()=>tool.available && chooseTool(tool.id)}><span className="cm-it__card-icon"><MS name={tool.icon} size={27} active={tool.available} /></span><strong>{tool.title}</strong><small>{tool.description}</small><span className="cm-it__badge">{tool.available ? "PROCESAMIENTO LOCAL" : "PRÓXIMAMENTE"}</span></button>)}</div> : <div className="cm-it__workspace">
+          <section className="cm-it__panel">
+            <button type="button" className="cm-it__drop" onClick={()=>inputRef.current?.click()} disabled={busy}><MS name={activeTool === "pdf-to-jpg" ? "upload_file" : "add_photo_alternate"} size={38} active /><strong>{file ? file.name : activeTool === "pdf-to-jpg" ? "Seleccionar documento PDF" : "Seleccionar imagen"}</strong><small>{activeTool === "pdf-to-jpg" ? "PDF de una o varias páginas." : "JPG, PNG, WEBP o HEIC. El archivo permanece en la memoria local."}</small><input ref={inputRef} type="file" accept={getAccept()} onChange={event=>loadSelectedFile(event.target.files?.[0])} /></button>
+            <div className="cm-it__controls">
+              {activeTool === "image-to-text" && <label className="cm-it__field"><span>Idioma OCR</span><select value={ocrLanguage} onChange={e=>setOcrLanguage(e.target.value)}><option value="spa">Español</option><option value="eng">Inglés</option><option value="spa+eng">Español e Inglés</option></select></label>}
+              {activeTool === "compress" && <label className="cm-it__field"><span>Calidad de salida {Math.round(quality*100)}%</span><input type="range" min="0.25" max="0.95" step="0.01" value={quality} onChange={e=>setQuality(Number(e.target.value))} /></label>}
+              {activeTool === "resize" && <><label className="cm-it__field"><span>Método de redimensionado</span><select value={resizeMode} onChange={e=>setResizeMode(e.target.value)}><option value="pixels">Píxeles</option><option value="percentage">Porcentaje</option></select></label>{resizeMode === "pixels" ? <div className="cm-it__fields-row"><label className="cm-it__field"><span>Ancho</span><input type="number" min="1" max="12000" value={width} onChange={e=>setWidth(Number(e.target.value))} /></label><label className="cm-it__field"><span>Alto</span><input type="number" min="1" max="12000" value={height} onChange={e=>setHeight(Number(e.target.value))} /></label></div> : <label className="cm-it__field"><span>Escala {percentage}%</span><input type="range" min="10" max="200" value={percentage} onChange={e=>setPercentage(Number(e.target.value))} /></label>}</>}
+            </div>
+            <div className="cm-it__actions">
+              {activeTool === "image-to-text" && <button type="button" className="cm-it__button is-primary" disabled={!file || busy} onClick={runOcr}><MS name="font_download" size={21} active /><span>{busy ? "Reconociendo texto" : "Extraer texto"}</span></button>}
+              {["compress","convert","resize"].includes(activeTool) && <button type="button" className="cm-it__button is-primary" disabled={!file || busy} onClick={processImage}><MS name={activeTool === "compress" ? "compress" : activeTool === "resize" ? "crop_free" : "sync_alt"} size={21} active /><span>{busy ? "Procesando" : "Procesar imagen"}</span></button>}
+              {activeTool === "pdf-to-jpg" && <button type="button" className="cm-it__button is-primary" disabled={!file || busy} onClick={pdfToJpg}><MS name="image" size={21} active /><span>{busy ? "Convirtiendo" : "Convertir páginas"}</span></button>}
+            </div>
+            {(busy || progress>0) && <div className="cm-it__progress"><span style={{width:`${progress}%`}} /></div>}
+            {status && <p className="cm-it__status" role="status">{status}</p>}
+          </section>
+          <section className="cm-it__panel">
+            {activeTool === "image-to-text" ? <><textarea className="cm-it__textarea" value={ocrText} onChange={e=>setOcrText(e.target.value)} placeholder="El texto reconocido aparecerá aquí..." /><div className="cm-it__actions"><button type="button" className="cm-it__button" disabled={!ocrText.trim()} onClick={copyText}><MS name="content_copy" size={20} /><span>Copiar al portapapeles</span></button><button type="button" className="cm-it__button is-primary" disabled={!ocrText.trim()} onClick={downloadText}><MS name="download" size={20} active /><span>Descargar TXT</span></button></div></> : <><div className="cm-it__preview">{outputUrl ? <img src={outputUrl} alt="Resultado procesado" /> : previewUrl ? <img src={previewUrl} alt="Vista previa de imagen" /> : <div className="cm-it__empty"><MS name={activeTool === "pdf-to-jpg" ? "picture_as_pdf" : "image"} size={46} /><span>La vista previa aparecerá aquí.</span></div>}</div><div className="cm-it__actions"><button type="button" className="cm-it__button is-primary" disabled={!outputBlob} onClick={downloadOutput}><MS name="download" size={21} active /><span>{activeTool === "pdf-to-jpg" && !outputUrl ? "Descargar ZIP" : "Descargar imagen"}</span></button></div></>}
+          </section>
+        </div>}
+      </div>
+    </section>
+  );
+}
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -33510,22 +33676,27 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "security" && <SecurityAlertsPanel onOpenRecords={() => openSection("records")} />}
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && (adminToolsView === "pdf-converter"
-                  ? <AdminPdfConverter onBack={() => setAdminToolsView("list")} />
+                  ? <AdminPdfConverter onBack={() => setAdminToolsView("pdf-category")} />
                   : adminToolsView === "scans"
                     ? <AdminScansModule onBack={() => setAdminToolsView("list")} />
+                  : adminToolsView === "image-tools"
+                    ? <AdminImageToolsModule onBack={() => setAdminToolsView("list")} />
                   : String(adminToolsView).startsWith("pdf-tool:")
-                    ? <AdminPdfSuiteTool toolId={String(adminToolsView).slice("pdf-tool:".length)} onBack={() => setAdminToolsView("list")} />
+                    ? <AdminPdfSuiteTool toolId={String(adminToolsView).slice("pdf-tool:".length)} onBack={() => setAdminToolsView("pdf-category")} />
+                  : adminToolsView === "pdf-category"
+                    ? <div className="csp-tool-category-view">
+                        <button type="button" className="cm-it__back" onClick={() => setAdminToolsView("list")}><MS name="arrow_back" size={20} /><span>Herramientas administrativas</span></button>
+                        <div className="csp-section-view__header"><span className="csp-section-view__icon"><MS name="picture_as_pdf" size={28} active /></span><div><h2>PDF Tools</h2><p>Conversión, unión, división, compresión y transformación de documentos PDF.</p></div></div>
+                        <div className="csp-tool-grid">
+                          <button type="button" className="csp-tool" onClick={() => setAdminToolsView("pdf-converter")}><MS name="description" size={28} active /><strong>Conversor PDF&apos;s</strong><small>Unir documentos PDF o descargar los originales en un archivo ZIP.</small></button>
+                          {PDF_SUITE_GLOBAL_TOOLS.map(tool => <button key={tool.id} type="button" className="csp-tool" onClick={() => setAdminToolsView(`pdf-tool:${tool.id}`)}><MS name={tool.icon} size={28} active /><strong>{tool.title}</strong><small>{tool.description}</small></button>)}
+                        </div>
+                      </div>
                     : <div className="csp-tool-grid">
-                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("pdf-converter")}><MS name="picture_as_pdf" size={28} active /><strong>Conversor PDF&apos;s</strong><small>Unir documentos PDF o descargar los originales en un archivo ZIP, sin almacenar archivos.</small></button>
-                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("scans")}><MS name="document_scanner" size={28} active /><strong>Escaneos</strong><small>Enderezar documentos escaneados y extraer texto mediante OCR local en el navegador.</small></button>
-                        {PDF_SUITE_GLOBAL_TOOLS.map(tool => (
-                          <button key={tool.id} type="button" className="csp-tool" onClick={() => setAdminToolsView(`pdf-tool:${tool.id}`)}>
-                            <MS name={tool.icon} size={28} active />
-                            <strong>{tool.title}</strong>
-                            <small>{tool.description}</small>
-                          </button>
-                        ))}
-                        {isAdmin && <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={28} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>}
+                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("pdf-category")}><MS name="picture_as_pdf" size={30} active /><strong>PDF Tools</strong><small>Conversor, unión, división, compresión y conversiones entre PDF, Word, PowerPoint y Excel.</small></button>
+                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("image-tools")}><MS name="photo_library" size={30} active /><strong>Image Tools</strong><small>OCR, compresión, conversión, redimensionado y utilidades avanzadas de imagen.</small></button>
+                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("scans")}><MS name="document_scanner" size={30} active /><strong>Escaneos y documentos</strong><small>Enderezar documentos escaneados y ejecutar reconocimiento OCR local.</small></button>
+                        {isAdmin && <button type="button" className="csp-tool" onClick={onOpenThemeConfig}><MS name="palette" size={30} active /><strong>Tema global</strong><small>Configurar la identidad visual compartida de la aplicación.</small></button>}
                       </div>)}
               </div>
             </section>
