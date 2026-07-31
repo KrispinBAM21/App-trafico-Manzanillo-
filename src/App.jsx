@@ -3,95 +3,9 @@ import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 
 if (typeof window !== "undefined" && !window.L) window.L = L;
-
-const CM_OSM_ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>';
-const CM_MAPLIBRE_DEFAULT_CENTER = [-104.292, 19.081];
-
-const cmMapLibreTileUrl = (url = "") => String(url).replace("{s}", "a").replace("{r}", "");
-const cmToLngLat = (coords) => Array.isArray(coords) && coords.length >= 2 ? [Number(coords[1]), Number(coords[0])] : [...CM_MAPLIBRE_DEFAULT_CENTER];
-const cmToGeoJsonCoords = (coords = []) => (coords || []).map(c => Array.isArray(c?.[0]) ? cmToGeoJsonCoords(c) : cmToLngLat(c));
-
-class MapLibreAdapter {
-  constructor(map) {
-    this.map = map;
-    this.markers = new Map();
-    this.layerIds = new Set();
-    this.sourceIds = new Set();
-    this.destroyed = false;
-  }
-  assertReady() {
-    if (this.destroyed || !this.map) throw new Error("El mapa MapLibre no está disponible.");
-  }
-  centerMap(coords, zoom) {
-    this.assertReady();
-    this.map.easeTo({ center: cmToLngLat(coords), ...(Number.isFinite(zoom) ? { zoom } : {}), duration: 450 });
-  }
-  changeZoom(zoom) {
-    this.assertReady();
-    this.map.easeTo({ zoom: Math.max(0, Math.min(22, Number(zoom) || 0)), duration: 250 });
-  }
-  zoomIn() { this.assertReady(); this.map.zoomIn({ duration: 220 }); }
-  zoomOut() { this.assertReady(); this.map.zoomOut({ duration: 220 }); }
-  addMarker({ id, coords, element, draggable = false, popupHtml = "", onDragEnd, onClick }) {
-    this.assertReady();
-    this.removeMarker(id);
-    const marker = new maplibregl.Marker({ element, draggable }).setLngLat(cmToLngLat(coords));
-    if (popupHtml) marker.setPopup(new maplibregl.Popup({ offset: 18, closeButton: true }).setHTML(popupHtml));
-    if (onDragEnd) marker.on("dragend", () => { const p = marker.getLngLat(); onDragEnd([p.lat, p.lng], marker); });
-    if (onClick && element) element.addEventListener("click", onClick);
-    marker.addTo(this.map);
-    this.markers.set(id, marker);
-    return marker;
-  }
-  removeMarker(id) {
-    const marker = this.markers.get(id);
-    if (marker) marker.remove();
-    this.markers.delete(id);
-  }
-  clearMarkers() { this.markers.forEach(marker => marker.remove()); this.markers.clear(); }
-  addGeoJsonLayer({ sourceId, data, layers }) {
-    this.assertReady();
-    this.removeGeoJsonLayer(sourceId);
-    this.map.addSource(sourceId, { type: "geojson", data });
-    this.sourceIds.add(sourceId);
-    (layers || []).forEach(layer => { this.map.addLayer({ ...layer, source: sourceId }); this.layerIds.add(layer.id); });
-  }
-  updateGeoJson(sourceId, data) {
-    this.assertReady();
-    const source = this.map.getSource(sourceId);
-    if (source?.setData) source.setData(data);
-  }
-  removeGeoJsonLayer(sourceId) {
-    if (!this.map) return;
-    [...this.layerIds].forEach(id => {
-      const layer = this.map.getLayer(id);
-      if (layer?.source === sourceId) { this.map.removeLayer(id); this.layerIds.delete(id); }
-    });
-    if (this.map.getSource(sourceId)) this.map.removeSource(sourceId);
-    this.sourceIds.delete(sourceId);
-  }
-  clearLayers() {
-    if (!this.map) return;
-    [...this.layerIds].reverse().forEach(id => { if (this.map.getLayer(id)) this.map.removeLayer(id); });
-    [...this.sourceIds].forEach(id => { if (this.map.getSource(id)) this.map.removeSource(id); });
-    this.layerIds.clear(); this.sourceIds.clear();
-  }
-  clearAll() { this.clearMarkers(); this.clearLayers(); }
-  dispose() { this.clearAll(); this.destroyed = true; this.map = null; }
-}
-
-const cmRasterStyle = (tileUrl, attribution = CM_OSM_ATTRIBUTION) => ({
-  version: 8,
-  sources: { "cm-raster": { type: "raster", tiles: [cmMapLibreTileUrl(tileUrl)], tileSize: 256, attribution } },
-  layers: [
-    { id: "cm-background", type: "background", paint: { "background-color": "#06111f" } },
-    { id: "cm-raster-layer", type: "raster", source: "cm-raster", minzoom: 0, maxzoom: 22 }
-  ]
-});
 
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
 const sanitize = (str) => {
@@ -11410,72 +11324,39 @@ function ManualEventPinPicker({ initialCoords, locationLabel = "", category = "i
     ? [Number(initialCoords[0]), Number(initialCoords[1])]
     : [19.081, -104.292];
   const [pin, setPin] = useState(Number.isFinite(safeInitial[0]) && Number.isFinite(safeInitial[1]) ? safeInitial : [19.081, -104.292]);
-  const mapNodeRef = useRef(null);
-  const mapRef = useRef(null);
-  const adapterRef = useRef(null);
   const markerRef = useRef(null);
-
-  const markerColor = category === "accidente" ? "#ef4444" : "#f97316";
-
-  useEffect(() => {
-    if (!mapNodeRef.current || mapRef.current) return undefined;
-    const map = new maplibregl.Map({
-      container: mapNodeRef.current,
-      style: cmRasterStyle("https://tile.openstreetmap.org/{z}/{x}/{y}.png"),
-      center: cmToLngLat(pin),
-      zoom: 15,
-      attributionControl: true,
-      cooperativeGestures: false,
+  const markerIcon = useMemo(() => L.divIcon({
+    className: "cm-manual-event-pin",
+    html: `<div style="width:34px;height:34px;border-radius:50%;background:${category === "accidente" ? "#ef4444" : "#f97316"};border:3px solid white;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:900;transform:translate(-1px,-1px)">${category === "accidente" ? "✚" : "!"}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  }), [category]);
+  const MiniMapFix = () => {
+    const map = useMap();
+    useEffect(() => {
+      const t = setTimeout(() => {
+        try {
+          map.invalidateSize();
+          map.setView(pin, map.getZoom() || 15, { animate:false });
+        } catch {}
+      }, 120);
+      return () => clearTimeout(t);
+    }, [map]);
+    return null;
+  };
+  const ManualPinMapClick = () => {
+    useMapEvents({
+      click: (e) => {
+        if (!e?.latlng) return;
+        setPin([e.latlng.lat, e.latlng.lng]);
+      },
+      tap: (e) => {
+        if (!e?.latlng) return;
+        setPin([e.latlng.lat, e.latlng.lng]);
+      },
     });
-    mapRef.current = map;
-    const adapter = new MapLibreAdapter(map);
-    adapterRef.current = adapter;
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-
-    const placeMarker = (coords) => {
-      const el = document.createElement("button");
-      el.type = "button";
-      el.className = "cm-maplibre-manual-pin";
-      el.setAttribute("aria-label", locationLabel || "Punto manual del evento");
-      el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${markerColor};border:3px solid white;box-shadow:0 8px 24px rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:900;cursor:grab;padding:0;`;
-      el.textContent = category === "accidente" ? "✚" : "!";
-      markerRef.current = adapter.addMarker({
-        id: "manual-event-pin",
-        coords,
-        element: el,
-        draggable: true,
-        popupHtml: `<strong>${sanitize(locationLabel || "Punto manual del evento")}</strong>`,
-        onDragEnd: next => setPin(next),
-      });
-    };
-
-    map.on("load", () => placeMarker(pin));
-    map.on("click", e => {
-      const next = [e.lngLat.lat, e.lngLat.lng];
-      setPin(next);
-      if (markerRef.current) markerRef.current.setLngLat(e.lngLat);
-      else placeMarker(next);
-    });
-
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => map.resize()) : null;
-    resizeObserver?.observe(mapNodeRef.current);
-    const resizeTimer = setTimeout(() => map.resize(), 120);
-
-    return () => {
-      clearTimeout(resizeTimer);
-      resizeObserver?.disconnect();
-      adapter.dispose();
-      map.remove();
-      markerRef.current = null;
-      adapterRef.current = null;
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (markerRef.current) markerRef.current.setLngLat(cmToLngLat(pin));
-  }, [pin]);
-
+    return null;
+  };
   return (
     <div style={{ marginTop:10, background:"rgba(2,6,23,.55)", border:"1px solid rgba(125,211,252,.25)", borderRadius:14, padding:10 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
@@ -11486,7 +11367,27 @@ function ManualEventPinPicker({ initialCoords, locationLabel = "", category = "i
         <div style={{ color:"rgba(255,255,255,.62)", fontFamily:getFont(theme,"secondary"), fontSize:10, fontWeight:800 }}>{pin[0].toFixed(6)}, {pin[1].toFixed(6)}</div>
       </div>
       <div style={{ height:300, borderRadius:12, overflow:"hidden", border:"1px solid rgba(255,255,255,.14)", position:"relative" }}>
-        <div ref={mapNodeRef} style={{ height:"100%", width:"100%" }} />
+        <MapContainer center={pin} zoom={15} scrollWheelZoom={true} attributionControl={false} style={{ height:"100%", width:"100%" }}>
+          <MiniMapFix />
+          <ManualPinMapClick />
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <Marker
+            position={pin}
+            draggable={true}
+            icon={markerIcon}
+            ref={markerRef}
+            eventHandlers={{
+              dragend: () => {
+                const marker = markerRef.current;
+                if (!marker) return;
+                const next = marker.getLatLng();
+                setPin([next.lat, next.lng]);
+              }
+            }}
+          >
+            <Popup>{locationLabel || "Punto manual del evento"}</Popup>
+          </Marker>
+        </MapContainer>
       </div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginTop:10, flexWrap:"wrap" }}>
         <button onClick={onCancel} style={{ padding:"9px 12px", borderRadius:10, border:"1px solid rgba(255,255,255,.16)", background:"rgba(255,255,255,.05)", color:"rgba(255,255,255,.72)", fontFamily:getFont(theme,"secondary"), fontSize:11, fontWeight:900, cursor:"pointer" }}>Cancelar pin</button>
@@ -13286,158 +13187,115 @@ const getMasterReferenceColor = (ref, accesos = {}) => {
   return cmVividMapColor(getTerminalCommandColor(terminalId) || "#38bdf8", ref.id);
 };
 
+function CommandReferenceMarker({ refItem, accesos }) {
+  const color = getMasterReferenceColor(refItem, accesos);
+  const label = refItem.name || refItem.short || refItem.id;
+  const icon = useMemo(() => L.divIcon({
+    className: "cm-map-ref-icon",
+    html: `<div class="cm-map-ref-dot" style="--cm-ref-color:${color}"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  }), [color]);
+
+  return (
+    <Marker position={refItem.coords} icon={icon} interactive={false} keyboard={false} zIndexOffset={650}>
+      <Tooltip permanent direction="top" offset={[0, -10]} className="cm-tooltip-permanent">
+        <b>{label}</b>
+      </Tooltip>
+    </Marker>
+  );
+}
+
+function CommandMapAutoFit({ layerConfig }) {
+  const map = useMap();
+  useEffect(() => {
+    const coords = layerConfig.flatMap(group => group.items.flatMap(item => flattenCommandCoords(item.coords)));
+    if (!coords.length) return;
+    const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
+    map.fitBounds(bounds, { padding:[28, 28], maxZoom:15 });
+    setTimeout(() => map.invalidateSize(), 160);
+  }, [map, layerConfig]);
+  return null;
+}
+
 function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
+  const theme = React.useContext(ThemeContext);
   const layerConfig = useMemo(() => buildLayerConfig({ accesos, vialidades, rutasFiscales }), [accesos, vialidades, rutasFiscales]);
-  const activeIncidents = useMemo(() => (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords)), [incidents]);
-  const mapNodeRef = useRef(null);
-  const mapRef = useRef(null);
-  const adapterRef = useRef(null);
-  const popupRef = useRef(null);
-  const [baseLayerId, setBaseLayerId] = useState(COMMAND_BASE_LAYERS[0]?.id || "dark");
-  const [visibleGroups, setVisibleGroups] = useState(() => Object.fromEntries(layerConfig.map(g => [g.id, g.checked !== false])));
-  const [showReferences, setShowReferences] = useState(true);
-  const [showIncidents, setShowIncidents] = useState(true);
-  const [controlsOpen, setControlsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!mapNodeRef.current || mapRef.current) return undefined;
-    const selectedBase = COMMAND_BASE_LAYERS.find(base => base.id === baseLayerId) || COMMAND_BASE_LAYERS[0];
-    const map = new maplibregl.Map({
-      container: mapNodeRef.current,
-      style: cmRasterStyle(selectedBase.url),
-      center: CM_MAPLIBRE_DEFAULT_CENTER,
-      zoom: 14,
-      attributionControl: true,
-      cooperativeGestures: false,
-    });
-    mapRef.current = map;
-    adapterRef.current = new MapLibreAdapter(map);
-    popupRef.current = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 10 });
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-    map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 110 }), "bottom-left");
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => map.resize()) : null;
-    observer?.observe(mapNodeRef.current);
-    return () => {
-      observer?.disconnect();
-      popupRef.current?.remove();
-      adapterRef.current?.dispose();
-      map.remove();
-      popupRef.current = null;
-      adapterRef.current = null;
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const selectedBase = COMMAND_BASE_LAYERS.find(base => base.id === baseLayerId) || COMMAND_BASE_LAYERS[0];
-    const apply = () => {
-      const source = map.getSource("cm-raster");
-      if (source?.setTiles) source.setTiles([cmMapLibreTileUrl(selectedBase.url)]);
-      else map.setStyle(cmRasterStyle(selectedBase.url));
-    };
-    if (map.loaded()) apply(); else map.once("load", apply);
-  }, [baseLayerId]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    const adapter = adapterRef.current;
-    if (!map || !adapter) return;
-    const renderOperationalData = () => {
-      adapter.clearAll();
-      layerConfig.forEach(group => {
-        const features = group.items.map(item => {
-          const vivid = cmVividMapColor(item.color, `${group.id}:${item.id}`);
-          return {
-            type:"Feature",
-            id:`${group.id}-${item.id}`,
-            properties:{ name:item.name || item.label || item.id, statusLabel:item.statusLabel || "", color:vivid, weight:item.weight || 7 },
-            geometry:{ type:group.type === "polyline" ? "LineString" : "Polygon", coordinates:group.type === "polyline" ? cmToGeoJsonCoords(item.coords) : [cmToGeoJsonCoords(item.coords)] }
-          };
-        });
-        const sourceId = `command-${group.id}`;
-        const polygonId = `${sourceId}-polygons`;
-        const outlineId = `${sourceId}-outline`;
-        const shadowId = `${sourceId}-shadow`;
-        const lineId = `${sourceId}-lines`;
-        adapter.addGeoJsonLayer({
-          sourceId,
-          data:{ type:"FeatureCollection", features },
-          layers:[
-            { id:polygonId, type:"fill", filter:["==",["geometry-type"],"Polygon"], paint:{ "fill-color":["get","color"], "fill-opacity":0.5 } },
-            { id:outlineId, type:"line", filter:["==",["geometry-type"],"Polygon"], paint:{ "line-color":["get","color"], "line-width":3.4, "line-opacity":0.96 } },
-            { id:shadowId, type:"line", filter:["==",["geometry-type"],"LineString"], paint:{ "line-color":"#020617", "line-width":["+",["get","weight"],5], "line-opacity":0.35 } },
-            { id:lineId, type:"line", filter:["==",["geometry-type"],"LineString"], layout:{ "line-cap":"round", "line-join":"round" }, paint:{ "line-color":["get","color"], "line-width":["get","weight"], "line-opacity":0.96 } },
-          ]
-        });
-        [polygonId, outlineId, lineId].forEach(layerId => {
-          map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
-          map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
-          map.on("click", layerId, e => {
-            const f = e.features?.[0]; if (!f) return;
-            popupRef.current?.setLngLat(e.lngLat).setHTML(`<strong>${sanitize(f.properties?.name || "Elemento")}</strong><br>${sanitize(f.properties?.statusLabel || "")}`).addTo(map);
-          });
-        });
-      });
-      RUTA_FISCAL_REFERENCIAS.filter(ref => ref.tipo === "terminal" || ref.tipo === "acceso").forEach(ref => {
-        const color = getMasterReferenceColor(ref, accesos);
-        const label = ref.name || ref.short || ref.id;
-        const el = document.createElement("div");
-        el.className = "cm-maplibre-reference-marker";
-        el.style.cssText = `display:flex;flex-direction:column;align-items:center;pointer-events:none;transform:translateY(-8px);`;
-        el.innerHTML = `<span style="font:800 10px 'DM Sans',sans-serif;color:#fff;background:rgba(2,6,23,.82);border:1px solid ${color};border-radius:7px;padding:3px 6px;white-space:nowrap;box-shadow:0 6px 15px rgba(0,0,0,.35)">${sanitize(label)}</span><i style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 4px ${color}33"></i>`;
-        adapter.addMarker({ id:`reference-${ref.id}`, coords:ref.coords, element:el });
-      });
-      activeIncidents.forEach(inc => {
-        const cfg = INCIDENT_TYPES.find(t => t.id === inc.type) || INCIDENT_TYPES[0];
-        const el = document.createElement("button");
-        el.type = "button"; el.className = "cm-maplibre-incident-marker";
-        el.style.cssText = `width:20px;height:20px;border-radius:50%;background:${cfg.color};border:2px solid rgba(255,255,255,.95);box-shadow:0 0 0 6px ${cfg.color}33,0 8px 20px rgba(0,0,0,.45);padding:0;cursor:pointer;`;
-        adapter.addMarker({ id:`incident-${inc.id}`, coords:inc.coords, element:el, popupHtml:`<strong>${sanitize(cfg.label)}</strong><br>${sanitize(inc.location || "Evento activo")}` });
-      });
-      const coords = layerConfig.flatMap(group => group.items.flatMap(item => flattenCommandCoords(item.coords)));
-      if (coords.length) {
-        const bounds = coords.reduce((b,c) => b.extend(cmToLngLat(c)), new maplibregl.LngLatBounds(cmToLngLat(coords[0]), cmToLngLat(coords[0])));
-        map.fitBounds(bounds, { padding:28, maxZoom:15, duration:0 });
-      }
-    };
-    if (map.loaded()) renderOperationalData(); else map.once("load", renderOperationalData);
-  }, [layerConfig, activeIncidents, accesos]);
-
-  useEffect(() => {
-    const map = mapRef.current; if (!map) return;
-    layerConfig.forEach(group => {
-      const visibility = visibleGroups[group.id] === false ? "none" : "visible";
-      [`command-${group.id}-polygons`,`command-${group.id}-outline`,`command-${group.id}-shadow`,`command-${group.id}-lines`].forEach(id => {
-        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
-      });
-    });
-    adapterRef.current?.markers.forEach((marker,id) => {
-      const el = marker.getElement();
-      if (id.startsWith("reference-")) el.style.display = showReferences ? "flex" : "none";
-      if (id.startsWith("incident-")) el.style.display = showIncidents ? "block" : "none";
-    });
-  }, [visibleGroups, showReferences, showIncidents, layerConfig]);
-
+  const activeIncidents = (incidents || []).filter(i => i.visible && !i.resolved && Array.isArray(i.coords));
   return (
     <div className="cm-unified-map-card">
       <div className="cm-unified-map-toolbar">
-        <div><div className="cm-panel-kicker">MAPA UNIFICADO</div><div className="cm-panel-title">Capas operativas sincronizadas</div></div>
-        <button type="button" className="cm-maplibre-layers-button" onClick={() => setControlsOpen(v => !v)}>Capas</button>
+        <div>
+          <div className="cm-panel-kicker">MAPA UNIFICADO</div>
+          <div className="cm-panel-title">Capas operativas sincronizadas</div>
+        </div>
+        <div className="cm-map-hint">Zoom · Paneo · Control de capas</div>
       </div>
-      <div style={{ position:"relative" }}>
-        <div ref={mapNodeRef} className="cm-unified-map" />
-        {controlsOpen && <div className="cm-maplibre-layer-panel">
-          <strong>Mapa base</strong>
-          {COMMAND_BASE_LAYERS.map(base => <label key={base.id}><input type="radio" name="cm-base-layer" checked={baseLayerId === base.id} onChange={() => setBaseLayerId(base.id)} /> {base.label}</label>)}
-          <strong>Capas operativas</strong>
-          {layerConfig.map(group => <label key={group.id}><input type="checkbox" checked={visibleGroups[group.id] !== false} onChange={e => setVisibleGroups(v => ({...v,[group.id]:e.target.checked}))} /> {group.label}</label>)}
-          <label><input type="checkbox" checked={showReferences} onChange={e => setShowReferences(e.target.checked)} /> Etiquetas terminales / accesos</label>
-          <label><input type="checkbox" checked={showIncidents} onChange={e => setShowIncidents(e.target.checked)} /> Eventos activos</label>
-        </div>}
+      <MapContainer center={[19.081, -104.292]} zoom={14} scrollWheelZoom zoomControl attributionControl={false} className="cm-unified-map">
+        <CommandMapAutoFit layerConfig={layerConfig} />
+        <LayersControl position="topright" collapsed>
+          {COMMAND_BASE_LAYERS.map((base, index) => (
+            <LayersControl.BaseLayer key={base.id} checked={index === 0} name={base.label}>
+              <TileLayer url={base.url} maxZoom={20} subdomains={base.subdomains || "abc"} />
+            </LayersControl.BaseLayer>
+          ))}
+          {layerConfig.map(group => (
+            <LayersControl.Overlay key={group.id} checked={group.checked} name={group.label}>
+              <LayerGroup>
+                {group.items.map(item => {
+                  const vivid = cmVividMapColor(item.color, `${group.id}:${item.id}`);
+                  const tooltip = `${item.name || item.label || item.id} · ${item.statusLabel}`;
+                  if (group.type === "polyline") {
+                    return (
+                      <React.Fragment key={`${group.id}-${item.id}`}>
+                        <Polyline positions={item.coords} pathOptions={{ color:"#020617", weight:(item.weight || 7) + 5, opacity:0.35, lineCap:"round", lineJoin:"round" }} />
+                        <Polyline positions={item.coords} pathOptions={{ color:vivid, weight:item.weight || 7, opacity:0.96, lineCap:"round", lineJoin:"round" }}>
+                          <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                        </Polyline>
+                      </React.Fragment>
+                    );
+                  }
+                  return (
+                    <Polygon key={`${group.id}-${item.id}`} positions={item.coords} pathOptions={cmMapPolygonStyle(vivid, { key:item.id, weight:3.4, fillOpacity:0.5 })}>
+                      <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                    </Polygon>
+                  );
+                })}
+              </LayerGroup>
+            </LayersControl.Overlay>
+          ))}
+          <LayersControl.Overlay checked name="Etiquetas terminales / accesos">
+            <LayerGroup>
+              {RUTA_FISCAL_REFERENCIAS.filter(ref => ref.tipo === "terminal" || ref.tipo === "acceso").map(ref => (
+                <CommandReferenceMarker key={ref.id} refItem={ref} accesos={accesos} />
+              ))}
+            </LayerGroup>
+          </LayersControl.Overlay>
+          <LayersControl.Overlay checked={activeIncidents.length > 0} name="Eventos activos">
+            <LayerGroup>
+              {activeIncidents.map(inc => {
+                const cfg = INCIDENT_TYPES.find(t => t.id === inc.type) || INCIDENT_TYPES[0];
+                const icon = L.divIcon({
+                  className:"cm-incident-marker",
+                  html:`<div style="width:18px;height:18px;border-radius:999px;background:${cfg.color};border:2px solid rgba(255,255,255,.9);box-shadow:0 0 0 6px ${cfg.color}33,0 8px 20px rgba(0,0,0,.45)"></div>`,
+                  iconSize:[18,18],
+                  iconAnchor:[9,9],
+                });
+                return (
+                  <Marker key={inc.id} position={inc.coords} icon={icon}>
+                    <Popup className="cm-popup"><strong>{cfg.label}</strong><br />{inc.location || "Evento activo"}</Popup>
+                  </Marker>
+                );
+              })}
+            </LayerGroup>
+          </LayersControl.Overlay>
+        </LayersControl>
+      </MapContainer>
+      <div className="cm-map-legend">
+        {[...VIALIDAD_STATUS_OPTIONS, ...RUTA_FISCAL_STATUS_OPTIONS.filter(o => o.id !== "libre")].filter((o, i, arr) => arr.findIndex(x => x.id === o.id && x.label === o.label) === i).map(o => (
+          <span key={`${o.id}-${o.label}`}><i style={{ background:o.color }} />{o.label}</span>
+        ))}
       </div>
-      <div className="cm-map-legend">{[...VIALIDAD_STATUS_OPTIONS, ...RUTA_FISCAL_STATUS_OPTIONS.filter(o => o.id !== "libre")].filter((o, i, arr) => arr.findIndex(x => x.id === o.id && x.label === o.label) === i).map(o => <span key={`${o.id}-${o.label}`}><i style={{ background:o.color }} />{o.label}</span>)}</div>
     </div>
   );
 }
@@ -13454,15 +13312,6 @@ function CommandCenterStyles() {
     .cm-unified-map-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(148,163,184,.14);background:linear-gradient(135deg,rgba(15,23,42,.94),rgba(8,47,73,.38));}
     .cm-map-hint{font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.56);text-transform:uppercase;letter-spacing:.8px;}
     .cm-unified-map{width:100%;height:clamp(360px,48vh,560px);background:#020617;}
-    .cm-maplibre-layers-button{border:1px solid rgba(56,189,248,.42);border-radius:10px;background:rgba(14,116,144,.18);color:#e0f2fe;padding:8px 12px;font:900 10px 'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:.8px;cursor:pointer;}
-    .cm-maplibre-layer-panel{position:absolute;z-index:5;top:12px;right:12px;width:min(260px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;padding:12px;border:1px solid rgba(125,211,252,.32);border-radius:14px;background:rgba(2,6,23,.94);box-shadow:0 20px 50px rgba(0,0,0,.48);backdrop-filter:blur(16px);display:grid;gap:7px;color:#e2e8f0;font:700 11px 'DM Sans',sans-serif;}
-    .cm-maplibre-layer-panel strong{color:#7dd3fc;text-transform:uppercase;letter-spacing:.8px;font-size:10px;margin-top:5px;}
-    .cm-maplibre-layer-panel label{display:flex;align-items:center;gap:7px;cursor:pointer;}
-    .cm-maplibre-layer-panel input{accent-color:#38bdf8;}
-    .maplibregl-popup-content{background:rgba(2,6,23,.96)!important;color:#f8fafc!important;border:1px solid rgba(125,211,252,.3);border-radius:12px!important;font-family:'DM Sans',sans-serif;box-shadow:0 16px 40px rgba(0,0,0,.5)!important;}
-    .maplibregl-popup-tip{border-top-color:rgba(2,6,23,.96)!important;}
-    .maplibregl-ctrl-group{background:rgba(2,6,23,.88)!important;border:1px solid rgba(148,163,184,.2);box-shadow:0 8px 24px rgba(0,0,0,.35)!important;}
-    .maplibregl-ctrl-group button .maplibregl-ctrl-icon{filter:invert(1);}
     .cm-map-legend{display:flex;gap:8px;flex-wrap:wrap;padding:9px 12px;border-top:1px solid rgba(148,163,184,.14);background:rgba(2,6,23,.8);}
     .cm-map-legend span{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono','DM Sans',monospace;font-size:10px;color:rgba(226,232,240,.75);}
     .cm-map-legend i{width:18px;height:4px;border-radius:99px;box-shadow:0 0 10px currentColor;}
