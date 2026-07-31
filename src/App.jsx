@@ -32486,6 +32486,292 @@ function AdminPdfSuiteTool({ toolId, onBack }) {
   );
 }
 
+function AdminScansModule({ onBack }) {
+  const [activeTool, setActiveTool] = useState("deskew");
+  const [sourceFile, setSourceFile] = useState(null);
+  const [pages, setPages] = useState([]);
+  const [angle, setAngle] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [status, setStatus] = useState("");
+  const [ocrLanguage, setOcrLanguage] = useState("spa");
+  const [ocrText, setOcrText] = useState("");
+  const [progress, setProgress] = useState(0);
+  const fileInputRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+
+  const resetDocument = useCallback(() => {
+    setSourceFile(null);
+    setPages([]);
+    setAngle(0);
+    setOcrText("");
+    setProgress(0);
+    setStatus("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const renderRotatedCanvas = useCallback((sourceCanvas, degrees = 0, maxSide = 1800) => {
+    const radians = Number(degrees || 0) * Math.PI / 180;
+    const ratio = Math.min(1, maxSide / Math.max(sourceCanvas.width, sourceCanvas.height));
+    const sw = Math.max(1, Math.round(sourceCanvas.width * ratio));
+    const sh = Math.max(1, Math.round(sourceCanvas.height * ratio));
+    const sin = Math.abs(Math.sin(radians));
+    const cos = Math.abs(Math.cos(radians));
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.ceil(sw * cos + sh * sin));
+    out.height = Math.max(1, Math.ceil(sw * sin + sh * cos));
+    const ctx = out.getContext("2d", { alpha:false });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.translate(out.width / 2, out.height / 2);
+    ctx.rotate(radians);
+    ctx.drawImage(sourceCanvas, -sw / 2, -sh / 2, sw, sh);
+    return out;
+  }, []);
+
+  useEffect(() => {
+    const source = pages[0]?.canvas;
+    const target = previewCanvasRef.current;
+    if (!source || !target) return;
+    const rotated = renderRotatedCanvas(source, activeTool === "deskew" ? angle : 0, 1200);
+    target.width = rotated.width;
+    target.height = rotated.height;
+    const ctx = target.getContext("2d", { alpha:false });
+    ctx.drawImage(rotated, 0, 0);
+  }, [pages, angle, activeTool, renderRotatedCanvas]);
+
+  const loadDocument = async (file) => {
+    if (!file) return;
+    const valid = file.type === "application/pdf" || file.type?.startsWith("image/") || /\.(pdf|jpe?g|png|webp)$/i.test(file.name || "");
+    if (!valid) {
+      setStatus("Selecciona un archivo PDF, JPG, PNG o WEBP válido.");
+      return;
+    }
+    setBusy(true);
+    setStatus("Preparando documento en memoria local...");
+    setOcrText("");
+    setProgress(0);
+    try {
+      const loadedPages = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "")
+        ? await renderPdfFileToCanvases(file, 30)
+        : [{ pageNo:1, ...(await fileToImageCanvas(file)) }];
+      setSourceFile(file);
+      setPages(loadedPages);
+      setAngle(0);
+      setStatus(`${loadedPages.length} página${loadedPages.length === 1 ? "" : "s"} preparada${loadedPages.length === 1 ? "" : "s"}. Procesamiento local activo.`);
+    } catch (error) {
+      setStatus(error?.message || "No fue posible abrir el documento.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const estimateDeskewAngle = useCallback((sourceCanvas) => {
+    const sample = document.createElement("canvas");
+    const scale = Math.min(1, 640 / Math.max(sourceCanvas.width, sourceCanvas.height));
+    sample.width = Math.max(80, Math.round(sourceCanvas.width * scale));
+    sample.height = Math.max(80, Math.round(sourceCanvas.height * scale));
+    const sctx = sample.getContext("2d", { willReadFrequently:true });
+    sctx.fillStyle = "#fff";
+    sctx.fillRect(0, 0, sample.width, sample.height);
+    sctx.drawImage(sourceCanvas, 0, 0, sample.width, sample.height);
+    let bestAngle = 0;
+    let bestScore = -Infinity;
+    for (let candidate = -12; candidate <= 12; candidate += 0.5) {
+      const rotated = renderRotatedCanvas(sample, candidate, 700);
+      const ctx = rotated.getContext("2d", { willReadFrequently:true });
+      const data = ctx.getImageData(0, 0, rotated.width, rotated.height).data;
+      const rows = new Float64Array(rotated.height);
+      for (let y = 0; y < rotated.height; y += 2) {
+        let ink = 0;
+        for (let x = 0; x < rotated.width; x += 2) {
+          const i = (y * rotated.width + x) * 4;
+          const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+          if (gray < 205) ink += (205 - gray);
+        }
+        rows[y] = ink;
+      }
+      let score = 0;
+      for (let y = 2; y < rows.length; y += 2) {
+        const d = rows[y] - rows[y - 2];
+        score += d * d;
+      }
+      if (score > bestScore) { bestScore = score; bestAngle = candidate; }
+    }
+    return Math.max(-45, Math.min(45, Number(bestAngle.toFixed(1))));
+  }, [renderRotatedCanvas]);
+
+  const autoDeskew = async () => {
+    if (!pages[0]?.canvas) return;
+    setBusy(true);
+    setStatus("Analizando líneas y orientación del documento...");
+    try {
+      await new Promise(resolve => setTimeout(resolve, 60));
+      const detected = estimateDeskewAngle(pages[0].canvas);
+      setAngle(detected);
+      setStatus(`Corrección automática estimada: ${detected > 0 ? "+" : ""}${detected.toFixed(1)}°.`);
+    } catch (error) {
+      setStatus(error?.message || "No fue posible detectar el ángulo automáticamente.");
+    } finally { setBusy(false); }
+  };
+
+  const downloadDeskewed = async (format) => {
+    if (!pages.length || !sourceFile) return;
+    setBusy(true);
+    setStatus("Generando versión corregida...");
+    try {
+      const base = sanitizeStorageName(sourceFile.name.replace(/\.[^.]+$/, "")) || "documento-enderezado";
+      if (format === "image" && pages.length === 1) {
+        const corrected = renderRotatedCanvas(pages[0].canvas, angle, 3200);
+        const blob = await canvasToClientBlob(corrected, "image/jpeg", 0.95);
+        downloadClientBlob(blob, `${base}-enderezado.jpg`);
+      } else {
+        const jsPDF = await loadJsPdfClient();
+        let doc = null;
+        for (const page of pages) {
+          const corrected = renderRotatedCanvas(page.canvas, angle, 2600);
+          const orientation = corrected.width > corrected.height ? "landscape" : "portrait";
+          if (!doc) doc = new jsPDF({ orientation, unit:"mm", format:"letter", compress:true });
+          else doc.addPage("letter", orientation);
+          const pageW = doc.internal.pageSize.getWidth();
+          const pageH = doc.internal.pageSize.getHeight();
+          const ratio = Math.min(pageW / corrected.width, pageH / corrected.height);
+          const w = corrected.width * ratio;
+          const h = corrected.height * ratio;
+          doc.addImage(corrected.toDataURL("image/jpeg", 0.94), "JPEG", (pageW - w) / 2, (pageH - h) / 2, w, h, undefined, "FAST");
+        }
+        savePdfDocumentClient(doc, `${base}-enderezado.pdf`);
+      }
+      setStatus("Archivo corregido generado correctamente.");
+    } catch (error) {
+      setStatus(error?.message || "No fue posible generar el archivo corregido.");
+    } finally { setBusy(false); }
+  };
+
+  const runOcr = async () => {
+    if (!pages.length) return;
+    setBusy(true);
+    setProgress(1);
+    setStatus("Inicializando motor OCR local...");
+    setOcrText("");
+    try {
+      const Tesseract = await loadTesseractClient();
+      const blocks = [];
+      for (let index = 0; index < pages.length; index++) {
+        const result = await Tesseract.recognize(pages[index].canvas, ocrLanguage, {
+          logger: message => {
+            if (message.status === "recognizing text") {
+              const pageProgress = Number(message.progress || 0);
+              setProgress(Math.round(((index + pageProgress) / pages.length) * 100));
+            }
+          }
+        });
+        blocks.push(pages.length > 1 ? `PÁGINA ${index + 1}\n${String(result?.data?.text || "").trim()}` : String(result?.data?.text || "").trim());
+      }
+      setOcrText(blocks.join("\n\n").trim());
+      setProgress(100);
+      setStatus("Reconocimiento completado. El texto puede editarse antes de descargarlo.");
+    } catch (error) {
+      setStatus(error?.message || "El reconocimiento OCR no pudo completarse.");
+    } finally { setBusy(false); }
+  };
+
+  const copyOcrText = async () => {
+    if (!ocrText.trim()) return;
+    try { await navigator.clipboard.writeText(ocrText); setStatus("Texto copiado al portapapeles."); }
+    catch { setStatus("No fue posible copiar automáticamente. Selecciona el texto manualmente."); }
+  };
+
+  const downloadText = () => {
+    if (!ocrText.trim()) return;
+    const base = sanitizeStorageName((sourceFile?.name || "ocr").replace(/\.[^.]+$/, ""));
+    downloadClientBlob(new Blob([ocrText], { type:"text/plain;charset=utf-8" }), `${base}-ocr.txt`);
+  };
+
+  const downloadSearchablePdf = async () => {
+    if (!ocrText.trim() || !pages.length) return;
+    setBusy(true);
+    setStatus("Construyendo PDF buscable en memoria local...");
+    try {
+      const jsPDF = await loadJsPdfClient();
+      let doc = null;
+      for (let index = 0; index < pages.length; index++) {
+        const canvas = pages[index].canvas;
+        const orientation = canvas.width > canvas.height ? "landscape" : "portrait";
+        if (!doc) doc = new jsPDF({ orientation, unit:"mm", format:"letter", compress:true });
+        else doc.addPage("letter", orientation);
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+        const w = canvas.width * ratio;
+        const h = canvas.height * ratio;
+        doc.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", (pageW - w) / 2, (pageH - h) / 2, w, h, undefined, "FAST");
+        doc.setFontSize(1);
+        doc.setTextColor(255, 255, 255);
+        const pageText = pages.length > 1 ? (ocrText.split(/PÁGINA \d+/i)[index + 1] || ocrText) : ocrText;
+        doc.text(String(pageText).slice(0, 12000), 1, pageH - 1, { maxWidth:pageW - 2 });
+      }
+      const base = sanitizeStorageName((sourceFile?.name || "documento").replace(/\.[^.]+$/, ""));
+      savePdfDocumentClient(doc, `${base}-buscable.pdf`);
+      setStatus("PDF buscable generado correctamente.");
+    } catch (error) { setStatus(error?.message || "No fue posible crear el PDF buscable."); }
+    finally { setBusy(false); }
+  };
+
+  const accept = "application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp";
+  return (
+    <section className="cm-scans" aria-label="Escaneos">
+      <style>{`
+        .cm-scans{width:100%;max-width:100%;overflow:hidden;color:#e7edf5;font-family:Inter,'DM Sans',sans-serif}
+        .cm-scans *{box-sizing:border-box}.cm-scans button,.cm-scans .material-symbols-outlined{display:inline-flex;align-items:center;justify-content:center;line-height:1}
+        .cm-scans__back{height:42px;padding:0 14px;gap:9px;border:1px solid rgba(159,202,255,.24);border-radius:11px;background:rgba(18,25,31,.72);color:#c8d4e3;font-weight:800;cursor:pointer}
+        .cm-scans__hero{margin-top:16px;padding:24px;border:1px solid rgba(159,202,255,.22);border-radius:20px;background:radial-gradient(circle at 10% 0%,rgba(0,153,255,.14),transparent 36%),linear-gradient(145deg,rgba(25,31,36,.94),rgba(7,11,15,.96));box-shadow:0 24px 70px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04)}
+        .cm-scans__title{display:flex;align-items:center;gap:15px}.cm-scans__title-icon{width:58px;height:58px;border-radius:16px;border:1px solid rgba(77,190,255,.45);background:rgba(0,153,255,.13);box-shadow:0 0 28px rgba(0,153,255,.2)}
+        .cm-scans__title h2{margin:0;font-size:27px}.cm-scans__title p{margin:6px 0 0;color:#9eabba;line-height:1.55}
+        .cm-scans__tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0}.cm-scans__tab{min-width:0;min-height:94px;padding:17px;border:1px solid rgba(145,163,184,.22);border-radius:16px;background:rgba(19,25,30,.76);color:#dce6f2;justify-content:flex-start!important;text-align:left;gap:14px;cursor:pointer;transition:.25s}.cm-scans__tab:hover,.cm-scans__tab.is-active{border-color:rgba(57,189,248,.7);background:rgba(0,153,255,.11);box-shadow:0 0 24px rgba(0,153,255,.13)}.cm-scans__tab-icon{width:46px;height:46px;flex:0 0 auto;border-radius:13px;background:rgba(159,202,255,.1)}.cm-scans__tab strong{display:block;font-size:15px}.cm-scans__tab small{display:block;margin-top:5px;color:#98a6b7;line-height:1.4}
+        .cm-scans__workspace{display:grid;grid-template-columns:minmax(280px,.82fr) minmax(0,1.18fr);gap:18px}.cm-scans__panel{min-width:0;padding:20px;border:1px solid rgba(145,163,184,.2);border-radius:18px;background:rgba(13,18,22,.72);backdrop-filter:blur(18px)}
+        .cm-scans__drop{width:100%;min-height:220px;padding:28px;border:2px dashed rgba(145,163,184,.35);border-radius:16px;background:rgba(5,8,15,.5);color:#dce6f2;flex-direction:column;gap:10px;cursor:pointer;transition:.25s}.cm-scans__drop:hover,.cm-scans__drop.is-dragging{border-color:#35b9ff;background:rgba(0,153,255,.08);box-shadow:inset 0 0 35px rgba(0,153,255,.06)}.cm-scans__drop-icon{width:64px;height:64px;border-radius:18px;background:rgba(0,153,255,.12);color:#7fc9ff;box-shadow:0 0 26px rgba(0,153,255,.15)}.cm-scans__drop strong{font-size:17px}.cm-scans__drop small{max-width:340px;color:#94a2b3;line-height:1.5}.cm-scans__drop input{display:none}
+        .cm-scans__file{margin-top:14px;padding:13px 14px;border:1px solid rgba(145,163,184,.22);border-radius:13px;background:rgba(27,34,40,.74);display:flex;align-items:center;gap:11px}.cm-scans__file-copy{min-width:0;flex:1}.cm-scans__file-copy strong,.cm-scans__file-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cm-scans__file-copy small{margin-top:3px;color:#93a1b2}.cm-scans__remove{width:38px;height:38px;border:0;border-radius:10px;background:rgba(255,110,110,.08);color:#ffaaa3;cursor:pointer}
+        .cm-scans__controls{display:grid;gap:14px;margin-top:17px}.cm-scans__label{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#aeb9c8;font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.cm-scans__range{width:100%;accent-color:#21a9ff}.cm-scans__select,.cm-scans__textarea{width:100%;border:1px solid rgba(145,163,184,.3);border-radius:12px;background:#0b1014;color:#e7edf5;padding:13px 14px;outline:none}.cm-scans__select:focus,.cm-scans__textarea:focus{border-color:#36baff;box-shadow:0 0 0 3px rgba(0,153,255,.12)}
+        .cm-scans__actions{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin-top:17px}.cm-scans__btn{min-height:46px;padding:0 17px;border-radius:12px;border:1px solid rgba(145,163,184,.3);background:rgba(29,36,42,.8);color:#e5edf6;font-weight:900;gap:9px;cursor:pointer;transition:.25s;white-space:nowrap}.cm-scans__btn.is-primary{border-color:rgba(61,191,255,.68);background:linear-gradient(135deg,#10a9ff,#0077e6);color:#021627;box-shadow:0 0 18px rgba(0,153,255,.32)}.cm-scans__btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 0 22px rgba(0,153,255,.22)}.cm-scans__btn:disabled{opacity:.42;cursor:not-allowed}
+        .cm-scans__preview{min-height:430px;display:flex;flex-direction:column}.cm-scans__preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.cm-scans__preview-head h3{margin:0;font-size:15px}.cm-scans__preview-head span{color:#8f9cad;font-size:12px}.cm-scans__canvas-wrap{flex:1;min-height:340px;padding:18px;border:1px solid rgba(145,163,184,.18);border-radius:15px;background:repeating-conic-gradient(#11171b 0 25%,#0d1216 0 50%) 50%/18px 18px;display:flex;align-items:center;justify-content:center;overflow:auto}.cm-scans__canvas-wrap canvas{display:block;max-width:100%;max-height:560px;width:auto;height:auto;box-shadow:0 18px 45px rgba(0,0,0,.48);background:#fff}.cm-scans__empty{color:#7f8c9c;text-align:center;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+        .cm-scans__textarea{min-height:300px;resize:vertical;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.cm-scans__progress{height:8px;margin-top:14px;border-radius:999px;background:rgba(145,163,184,.15);overflow:hidden}.cm-scans__progress span{display:block;height:100%;background:linear-gradient(90deg,#00d7ff,#1688ff);transition:width .25s}.cm-scans__status{margin:14px 0 0;padding:12px 14px;border-left:3px solid #26b5ff;border-radius:9px;background:rgba(0,153,255,.07);color:#aab7c7;font-size:12.5px;line-height:1.5}
+        @media(max-width:900px){.cm-scans__workspace{grid-template-columns:1fr}.cm-scans__preview{min-height:360px}}@media(max-width:640px){.cm-scans__hero{padding:16px}.cm-scans__title{align-items:flex-start}.cm-scans__title h2{font-size:22px}.cm-scans__tabs{grid-template-columns:1fr}.cm-scans__tab{min-height:78px}.cm-scans__actions{flex-direction:column}.cm-scans__btn{width:100%}.cm-scans__panel{padding:14px}.cm-scans__drop{min-height:190px;padding:20px}.cm-scans__canvas-wrap{min-height:280px;padding:10px}}
+      `}</style>
+      <button type="button" className="cm-scans__back" onClick={onBack}><MS name="arrow_back" size={20} /><span>Herramientas administrativas</span></button>
+      <div className="cm-scans__hero">
+        <header className="cm-scans__title"><span className="cm-scans__title-icon"><MS name="document_scanner" size={34} active /></span><div><h2>Escaneos</h2><p>Endereza documentos y extrae texto con procesamiento local en el navegador.</p></div></header>
+        <nav className="cm-scans__tabs" aria-label="Herramientas de escaneo">
+          <button type="button" className={`cm-scans__tab ${activeTool === "deskew" ? "is-active" : ""}`} onClick={() => setActiveTool("deskew")}><span className="cm-scans__tab-icon"><MS name="crop_rotate" size={27} active={activeTool === "deskew"} /></span><span><strong>Enderezar PDF / Imágenes</strong><small>Corrección automática o manual de inclinación entre -45° y +45°.</small></span></button>
+          <button type="button" className={`cm-scans__tab ${activeTool === "ocr" ? "is-active" : ""}`} onClick={() => setActiveTool("ocr")}><span className="cm-scans__tab-icon"><MS name="find_in_page" size={27} active={activeTool === "ocr"} /></span><span><strong>OCR - Reconocimiento de Texto</strong><small>Digitalización editable en español o inglés mediante Tesseract.js.</small></span></button>
+        </nav>
+        <div className="cm-scans__workspace">
+          <section className="cm-scans__panel">
+            <button type="button" className={`cm-scans__drop ${dragging ? "is-dragging" : ""}`} onClick={() => fileInputRef.current?.click()} onDragEnter={event => { event.preventDefault(); setDragging(true); }} onDragOver={event => event.preventDefault()} onDragLeave={event => { event.preventDefault(); setDragging(false); }} onDrop={event => { event.preventDefault(); setDragging(false); loadDocument(event.dataTransfer.files?.[0]); }} disabled={busy}>
+              <span className="cm-scans__drop-icon"><MS name="upload_file" size={36} active /></span><strong>Arrastra un documento escaneado</strong><small>PDF, JPG, PNG o WEBP. Los archivos permanecen exclusivamente en la memoria local del navegador.</small><input ref={fileInputRef} type="file" accept={accept} onChange={event => loadDocument(event.target.files?.[0])} />
+            </button>
+            {sourceFile && <div className="cm-scans__file"><MS name={/\.pdf$/i.test(sourceFile.name) ? "picture_as_pdf" : "image"} size={25} active /><span className="cm-scans__file-copy"><strong>{sourceFile.name}</strong><small>{(sourceFile.size / 1024 / 1024).toFixed(2)} MB · {pages.length} página{pages.length === 1 ? "" : "s"}</small></span><button type="button" className="cm-scans__remove" onClick={resetDocument} aria-label="Quitar documento"><MS name="delete" size={21} /></button></div>}
+            {activeTool === "deskew" ? <div className="cm-scans__controls">
+              <label><span className="cm-scans__label"><span>Ángulo de corrección</span><strong>{angle > 0 ? "+" : ""}{Number(angle).toFixed(1)}°</strong></span><input className="cm-scans__range" type="range" min="-45" max="45" step="0.1" value={angle} onChange={event => setAngle(Number(event.target.value))} disabled={!pages.length || busy} /></label>
+              <div className="cm-scans__actions"><button type="button" className="cm-scans__btn" onClick={autoDeskew} disabled={!pages.length || busy}><MS name="auto_fix_high" size={20} /><span>Detectar ángulo</span></button><button type="button" className="cm-scans__btn" onClick={() => setAngle(0)} disabled={!pages.length || busy}><MS name="restart_alt" size={20} /><span>Restablecer</span></button></div>
+              <div className="cm-scans__actions"><button type="button" className="cm-scans__btn is-primary" onClick={() => downloadDeskewed("pdf")} disabled={!pages.length || busy}><MS name="picture_as_pdf" size={21} /><span>Descargar PDF</span></button><button type="button" className="cm-scans__btn" onClick={() => downloadDeskewed("image")} disabled={!pages.length || pages.length !== 1 || busy}><MS name="image" size={21} /><span>Descargar imagen</span></button></div>
+            </div> : <div className="cm-scans__controls">
+              <label><span className="cm-scans__label"><span>Idioma de reconocimiento</span></span><select className="cm-scans__select" value={ocrLanguage} onChange={event => setOcrLanguage(event.target.value)} disabled={busy}><option value="spa">Español</option><option value="eng">Inglés</option><option value="spa+eng">Español + Inglés</option></select></label>
+              <button type="button" className="cm-scans__btn is-primary" onClick={runOcr} disabled={!pages.length || busy}><MS name="document_scanner" size={21} /><span>{busy ? "Digitalizando..." : "Iniciar OCR"}</span></button>
+              {(busy || progress > 0) && <div className="cm-scans__progress" aria-label={`Progreso ${progress}%`}><span style={{width:`${progress}%`}} /></div>}
+            </div>}
+            {status && <p className="cm-scans__status" role="status">{status}</p>}
+          </section>
+          <section className="cm-scans__panel cm-scans__preview">
+            <div className="cm-scans__preview-head"><h3>{activeTool === "deskew" ? "Vista previa corregida" : "Texto reconocido"}</h3><span>{sourceFile ? "Procesamiento local" : "Sin documento"}</span></div>
+            {activeTool === "deskew" ? <div className="cm-scans__canvas-wrap">{pages.length ? <canvas ref={previewCanvasRef} /> : <div className="cm-scans__empty"><MS name="scan" size={45} /><span>La vista previa aparecerá aquí.</span></div>}</div> : <><textarea className="cm-scans__textarea" value={ocrText} onChange={event => setOcrText(event.target.value)} placeholder="El texto reconocido aparecerá aquí y podrá editarse..." disabled={busy} /><div className="cm-scans__actions"><button type="button" className="cm-scans__btn" onClick={copyOcrText} disabled={!ocrText.trim()}><MS name="content_copy" size={20} /><span>Copiar texto</span></button><button type="button" className="cm-scans__btn" onClick={downloadText} disabled={!ocrText.trim()}><MS name="text_snippet" size={20} /><span>Descargar TXT</span></button><button type="button" className="cm-scans__btn is-primary" onClick={downloadSearchablePdf} disabled={!ocrText.trim() || busy}><MS name="find_in_page" size={20} /><span>PDF buscable</span></button></div></>}
+          </section>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AdminPdfConverter({ onBack }) {
   const [items, setItems] = useState([]);
   const [dragging, setDragging] = useState(false);
@@ -33225,10 +33511,13 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "records" && <AdminRegistrosPanel />}
                 {activeDashboardSection === "tools" && (adminToolsView === "pdf-converter"
                   ? <AdminPdfConverter onBack={() => setAdminToolsView("list")} />
+                  : adminToolsView === "scans"
+                    ? <AdminScansModule onBack={() => setAdminToolsView("list")} />
                   : String(adminToolsView).startsWith("pdf-tool:")
                     ? <AdminPdfSuiteTool toolId={String(adminToolsView).slice("pdf-tool:".length)} onBack={() => setAdminToolsView("list")} />
                     : <div className="csp-tool-grid">
                         <button type="button" className="csp-tool" onClick={() => setAdminToolsView("pdf-converter")}><MS name="picture_as_pdf" size={28} active /><strong>Conversor PDF&apos;s</strong><small>Unir documentos PDF o descargar los originales en un archivo ZIP, sin almacenar archivos.</small></button>
+                        <button type="button" className="csp-tool" onClick={() => setAdminToolsView("scans")}><MS name="document_scanner" size={28} active /><strong>Escaneos</strong><small>Enderezar documentos escaneados y extraer texto mediante OCR local en el navegador.</small></button>
                         {PDF_SUITE_GLOBAL_TOOLS.map(tool => (
                           <button key={tool.id} type="button" className="csp-tool" onClick={() => setAdminToolsView(`pdf-tool:${tool.id}`)}>
                             <MS name={tool.icon} size={28} active />
