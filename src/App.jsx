@@ -3077,7 +3077,7 @@ function useAdminMode() {
   const activateAdminSession = useCallback((user) => {
     const email = String(user?.email || "").trim().toLowerCase();
     if (!user?.id || email !== ADMIN_AUTH_EMAIL.toLowerCase()) return false;
-    try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+    try { localStorage.setItem(ADMIN_KEY, "1"); } catch {}
     setIsAdmin(true);
     setShowModal(false);
     setFailedAttempts(0);
@@ -3109,8 +3109,20 @@ function useAdminMode() {
     try {
       // Si la cuenta administrativa ya inició sesión mediante el formulario normal,
       // las cinco pulsaciones solo activan el panel; no vuelven a autenticarla.
+      // El acceso rápido siempre persiste la sesión real en localStorage para
+      // conservar access_token y refresh_token entre recargas y pestañas.
+      try { localStorage.setItem(AUTH_PERSISTENCE_KEY, "local"); } catch {}
+      setAuthLogoutGuard(false);
+
       const { data: currentData } = await sb.auth.getSession();
-      if (activateAdminSession(currentData?.session?.user)) return;
+      if (currentData?.session?.access_token && currentData?.session?.refresh_token && activateAdminSession(currentData.session.user)) {
+        // Reescribe la sesión usando el storage persistente seleccionado.
+        await sb.auth.setSession({
+          access_token: currentData.session.access_token,
+          refresh_token: currentData.session.refresh_token,
+        });
+        return;
+      }
 
       // La contraseña administrativa es la contraseña real de Supabase Auth.
       // No se compara contra un hash local separado, evitando que ambos accesos
@@ -3141,14 +3153,14 @@ function useAdminMode() {
       const email = String(user?.email || "").trim().toLowerCase();
       const valid = Boolean(user?.id && email === ADMIN_AUTH_EMAIL.toLowerCase());
       if (valid) {
-        try { sessionStorage.setItem(ADMIN_KEY, "1"); } catch {}
+        try { localStorage.setItem(ADMIN_KEY, "1"); } catch {}
         setIsAdmin(true);
         setErr(false);
         if (navigate) setTimeout(() => {
           try { window.dispatchEvent(new CustomEvent("cm:admin-activated")); } catch {}
         }, 0);
       } else {
-        try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+        try { localStorage.removeItem(ADMIN_KEY); } catch {}
         setIsAdmin(false);
       }
     };
@@ -3175,7 +3187,7 @@ function useAdminMode() {
   }, []);
 
   const logout = async () => {
-    try { sessionStorage.removeItem(ADMIN_KEY); } catch {}
+    try { localStorage.removeItem(ADMIN_KEY); } catch {}
     setIsAdmin(false);
     try { await sb.auth.signOut(); } catch {}
   };
@@ -3198,11 +3210,11 @@ function useAdminMode() {
   const Modal = showModal ? (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:"20px" }}>
       <div style={{ background:"#0d1b2e", border:"1px solid rgba(56,189,248,0.3)", borderRadius:"16px", padding:"24px", width:"100%", maxWidth:"300px" }}>
-        <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}>🔐 Modo Admin</div>
+        <div style={{ fontFamily:getFont(theme, "title"), fontSize:"18px", color:"#fff", marginBottom:"6px" }}><MS name="admin_panel_settings" size={22} active /> Modo Admin</div>
         <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"rgba(255,255,255,0.4)", marginBottom:"18px" }}>Ingresa la contraseña para activar el modo administrador.</div>
         {isLocked ? (
           <div style={{ textAlign:"center", padding:"16px", background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"10px", marginBottom:"12px" }}>
-            <div style={{ fontSize:"28px", marginBottom:"6px" }}>🔒</div>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"6px" }}><MS name="lock" size={30} color="#ef4444" /></div>
             <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"12px", color:"#ef4444", fontWeight:"700" }}>Demasiados intentos fallidos</div>
             <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"4px" }}>
               Bloqueado por <span style={{ color:"#f97316", fontWeight:"700" }}>{lockoutRemaining}s</span>
@@ -6357,24 +6369,54 @@ const readEdgeFunctionError = async (error) => {
   }
 };
 
-const invokeAdminUsersManager = async (payload) => {
-  // Reutiliza automáticamente la sesión del administrador ya autenticado.
-  // No solicita una segunda contraseña ni abre otro flujo de autenticación.
-  let { data:{ session }, error:sessionError } = await sb.auth.getSession();
+const createAdminSessionError = (message = "La sesión administrativa no está vinculada.") => {
+  const error = new Error(message);
+  error.code = "ADMIN_SESSION_REQUIRED";
+  return error;
+};
 
-  if (sessionError) throw new Error(sessionError.message || "No se pudo leer la sesión actual.");
+const ensureActiveAdminAuthSession = async () => {
+  let { data:{ session }, error } = await sb.auth.getSession();
+  if (error) throw createAdminSessionError(error.message || "No se pudo leer la sesión administrativa.");
 
-  // Si el token está cerca de vencer, se renueva en segundo plano antes de invocar.
   const expiresAtMs = Number(session?.expires_at || 0) * 1000;
-  if (session?.refresh_token && (!expiresAtMs || expiresAtMs - Date.now() < 60000)) {
+  const shouldRefresh = Boolean(session?.refresh_token && (!expiresAtMs || expiresAtMs - Date.now() < 90000));
+  if (shouldRefresh) {
     const refreshed = await sb.auth.refreshSession();
     if (!refreshed?.error && refreshed?.data?.session) session = refreshed.data.session;
   }
 
-  const accessToken = session?.access_token || "";
-  if (!accessToken) {
-    throw new Error("La cuenta administradora no tiene una sesión activa. Inicia sesión con la cuenta admin y vuelve a intentarlo.");
+  const email = String(session?.user?.email || "").trim().toLowerCase();
+  if (!session?.access_token || !session?.user?.id || email !== ADMIN_AUTH_EMAIL.toLowerCase()) {
+    throw createAdminSessionError("Modo Admin activado localmente. Para asignar o editar roles de usuarios por ID, asegúrate de vincular tu sesión activa.");
   }
+
+  // Garantiza persistencia local incluso si la sesión se originó en otra pestaña.
+  try { localStorage.setItem(AUTH_PERSISTENCE_KEY, "local"); } catch {}
+  if (session.refresh_token) {
+    const persisted = await sb.auth.setSession({ access_token:session.access_token, refresh_token:session.refresh_token });
+    if (!persisted?.error && persisted?.data?.session) session = persisted.data.session;
+  }
+  return session;
+};
+
+const linkAdminAuthSession = async (password) => {
+  const secret = String(password || "");
+  if (!secret) throw createAdminSessionError("Ingresa la contraseña de la cuenta administradora.");
+  try { localStorage.setItem(AUTH_PERSISTENCE_KEY, "local"); } catch {}
+  setAuthLogoutGuard(false);
+  const { data, error } = await sb.auth.signInWithPassword({ email:ADMIN_AUTH_EMAIL, password:secret });
+  if (error || !data?.session?.access_token || !data?.session?.refresh_token) {
+    throw createAdminSessionError(error?.message || "No se pudo vincular la sesión administrativa.");
+  }
+  try { localStorage.setItem(ADMIN_KEY, "1"); } catch {}
+  try { window.dispatchEvent(new CustomEvent("cm:admin-session-linked", { detail:{ userId:data.user?.id || null } })); } catch {}
+  return data.session;
+};
+
+const invokeAdminUsersManager = async (payload) => {
+  const session = await ensureActiveAdminAuthSession();
+  const accessToken = session.access_token;
 
   const response = await fetch(`${SUPA_URL}/functions/v1/${ADMIN_USERS_EDGE_FUNCTION}`, {
     method:"POST",
@@ -6424,6 +6466,10 @@ function AdminUsuariosPanel() {
   const [saving,setSaving]=useState(false), [msg,setMsg]=useState(null), [showPass,setShowPass]=useState(false), [confirmDelete,setConfirmDelete]=useState(null);
   const [lookupLoading,setLookupLoading]=useState(false);
   const [linkedUser,setLinkedUser]=useState(null);
+  const [sessionLinkOpen,setSessionLinkOpen]=useState(false);
+  const [sessionLinkPassword,setSessionLinkPassword]=useState("");
+  const [sessionLinkLoading,setSessionLinkLoading]=useState(false);
+  const [sessionLinkError,setSessionLinkError]=useState("");
   const lookupTimer=useRef(null);
   const font=getFont(theme,"secondary");
   const cargar=async({silent=false}={})=>{
@@ -6435,13 +6481,30 @@ function AdminUsuariosPanel() {
       try { sessionStorage.setItem("cm_admin_users_cache",JSON.stringify(nextUsers)); } catch {}
       setUsuariosLoaded(true);
     } catch (error) {
-      setMsg({type:"err",text:error?.message||"No se pudieron cargar los usuarios con permisos."});
+      const requiresSession = error?.code === "ADMIN_SESSION_REQUIRED";
+      setMsg({type:"err",sessionRequired:requiresSession,text:error?.message||"No se pudieron cargar los usuarios con permisos."});
+      if (requiresSession) setSessionLinkOpen(true);
       setUsuariosLoaded(true);
     } finally {
       setUsuariosLoading(false);
     }
   };
-  useEffect(()=>{cargar(); return()=>clearTimeout(lookupTimer.current);},[]);
+  useEffect(()=>{
+    cargar();
+    const linked=()=>{ setSessionLinkOpen(false); setSessionLinkPassword(""); setSessionLinkError(""); void cargar(); };
+    window.addEventListener("cm:admin-session-linked",linked);
+    return()=>{clearTimeout(lookupTimer.current);window.removeEventListener("cm:admin-session-linked",linked);};
+  },[]);
+  const handleLinkSession=async()=>{
+    if(!sessionLinkPassword||sessionLinkLoading)return;
+    setSessionLinkLoading(true);setSessionLinkError("");
+    try{
+      await linkAdminAuthSession(sessionLinkPassword);
+      setSessionLinkOpen(false);setSessionLinkPassword("");setMsg({type:"ok",text:"Sesión administrativa vinculada correctamente."});
+      await cargar();
+    }catch(error){setSessionLinkError(error?.message||"No se pudo vincular la sesión administrativa.");}
+    finally{setSessionLinkLoading(false);}
+  };
   const resetForm=()=>{setLinkedUser(null);setForm({...emptyForm,permisos:{}});};
   const setFlow=(flow)=>{ setMsg(null); setLinkedUser(null); setForm(f=>({...emptyForm,flow,permisos:f.permisos||{}})); };
   const resolveUserId=async(raw)=>{
@@ -6520,12 +6583,13 @@ function AdminUsuariosPanel() {
   const inp={width:"100%",background:"#0b0f10",border:"1px solid #3f4753",borderRadius:4,padding:"11px 12px",color:"#e0e3e5",fontFamily:"Inter, sans-serif",fontSize:13,boxSizing:"border-box",outline:"none"};
   const iconButton={display:"inline-flex",alignItems:"center",justifyContent:"center",width:34,height:34,borderRadius:4,cursor:"pointer"};
   return <div style={{padding:20,background:"rgba(29,32,34,.72)",borderTop:"1px solid rgba(63,71,83,.45)",fontFamily:"Inter, sans-serif"}}>
+    {sessionLinkOpen&&createPortal(<div role="dialog" aria-modal="true" aria-labelledby="cm-link-session-title" style={{position:"fixed",inset:0,zIndex:12000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,background:"rgba(0,0,0,.78)",backdropFilter:"blur(8px)"}}><div style={{width:"100%",maxWidth:430,borderRadius:12,border:"1px solid rgba(159,202,255,.34)",background:"linear-gradient(180deg,rgba(18,35,56,.98),rgba(5,20,36,.99))",boxShadow:"0 28px 80px rgba(0,0,0,.52)",overflow:"hidden"}}><div style={{padding:"16px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,borderBottom:"1px solid rgba(159,202,255,.14)"}}><div id="cm-link-session-title" style={{display:"inline-flex",alignItems:"center",gap:9,color:"#d4e4fa",fontWeight:900}}><MS name="link" size={22} active/>VINCULAR SESIÓN</div><CloseButton onClick={()=>{if(!sessionLinkLoading){setSessionLinkOpen(false);setSessionLinkPassword("");setSessionLinkError("");}}} disabled={sessionLinkLoading} size={36}/></div><div style={{padding:18,display:"grid",gap:14}}><div style={{padding:"12px 13px",borderRadius:8,border:"1px solid rgba(255,180,171,.28)",background:"rgba(147,0,10,.12)",color:"#ffd9d5",fontSize:12,lineHeight:1.55}}>Modo Admin activado localmente. Para asignar o editar roles de usuarios por ID, asegúrate de vincular tu sesión activa.</div><label style={{display:"grid",gap:7}}><span style={{fontSize:11,fontWeight:900,color:"#9fcaff",letterSpacing:".06em"}}>CONTRASEÑA DE LA CUENTA ADMIN</span><input autoFocus type="password" value={sessionLinkPassword} onChange={e=>{setSessionLinkPassword(e.target.value);setSessionLinkError("");}} onKeyDown={e=>e.key==="Enter"&&handleLinkSession()} placeholder="Contraseña" style={{...inp,borderColor:sessionLinkError?"rgba(255,180,171,.62)":"rgba(159,202,255,.28)",borderRadius:8}}/></label>{sessionLinkError&&<div role="alert" style={{color:"#ffb4ab",fontSize:12}}>{sessionLinkError}</div>}<button type="button" onClick={handleLinkSession} disabled={sessionLinkLoading||!sessionLinkPassword} style={{minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,borderRadius:6,border:"1px solid rgba(159,202,255,.55)",background:"linear-gradient(180deg,#9fcaff,#00e3fd)",color:"#002f54",fontWeight:950,cursor:sessionLinkLoading||!sessionLinkPassword?"not-allowed":"pointer",opacity:(sessionLinkLoading||!sessionLinkPassword)?0.65:1}}><MS name={sessionLinkLoading?"sync":"link"} size={20} className={sessionLinkLoading?"cm-cyan-pulse":""}/>{sessionLinkLoading?"VINCULANDO...":"VINCULAR SESIÓN"}</button></div></div></div>,document.body)}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,gap:12}}><div><div style={{fontSize:12,fontWeight:800,color:"#9fcaff",letterSpacing:".06em"}}>GESTIÓN DE USUARIOS</div><div style={{fontSize:12,color:"#89919e",marginTop:4}}>Crea operadores o asigna permisos a una cuenta existente mediante su ID.</div></div>{!showForm&&<button onClick={()=>{resetForm();setShowForm(true);setMsg(null);}} style={{display:"inline-flex",alignItems:"center",gap:7,background:"rgba(159,202,255,.10)",border:"1px solid rgba(159,202,255,.4)",borderRadius:4,padding:"9px 13px",color:"#9fcaff",fontWeight:800,cursor:"pointer"}}><MS name="person_add" size={19}/>NUEVO USUARIO</button>}</div>
     {showForm&&<div style={{background:"rgba(11,15,16,.72)",border:"1px solid rgba(63,71,83,.65)",borderRadius:8,overflow:"hidden",marginBottom:18}}>
       <div style={{padding:"14px 16px",background:"rgba(50,53,55,.58)",borderBottom:"1px solid rgba(63,71,83,.55)",display:"flex",justifyContent:"space-between",alignItems:"center"}}><strong style={{display:"inline-flex",alignItems:"center",gap:8,color:"#e0e3e5",fontSize:14}}><MS name={form.flow==="existing"?"manage_accounts":"person_add"} size={21}/>{form.id?"EDITAR USUARIO":form.flow==="existing"?"ASIGNAR PERMISOS":"NUEVO USUARIO"}</strong><button onClick={()=>{setShowForm(false);resetForm();setMsg(null);}} style={{...iconButton,background:"transparent",border:0,color:"#bfc7d5"}}><MS name="close" size={21}/></button></div>
       <div style={{padding:16,display:"grid",gap:14}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>{[["manual","person_add","Crear usuario nuevo","Nombre, contraseña y permisos"],["existing","badge","Asignar por ID","Cuenta existente, sin contraseña"]].map(([value,icon,title,subtitle])=><button key={value} type="button" onClick={()=>setFlow(value)} style={{padding:12,textAlign:"left",borderRadius:4,border:`1px solid ${form.flow===value?"#9fcaff":"#3f4753"}`,background:form.flow===value?"rgba(159,202,255,.10)":"rgba(29,32,34,.55)",color:form.flow===value?"#d2e4ff":"#bfc7d5",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}><MS name={icon} size={22} active={form.flow===value}/><span><b style={{display:"block",fontSize:13}}>{title}</b><small style={{display:"block",color:"#89919e",marginTop:2}}>{subtitle}</small></span></button>)}</div>
-        {msg&&<div style={{padding:"10px 12px",borderRadius:4,background:msg.type==="ok"?"rgba(0,227,253,.08)":"rgba(147,0,10,.18)",border:`1px solid ${msg.type==="ok"?"rgba(0,227,253,.34)":"rgba(255,180,171,.38)"}`,color:msg.type==="ok"?"#bdf4ff":"#ffb4ab",fontSize:12}}>{msg.text}</div>}
+        {msg&&<div style={{padding:"10px 12px",borderRadius:4,background:msg.type==="ok"?"rgba(0,227,253,.08)":"rgba(147,0,10,.18)",border:`1px solid ${msg.type==="ok"?"rgba(0,227,253,.34)":"rgba(255,180,171,.38)"}`,color:msg.type==="ok"?"#bdf4ff":"#ffb4ab",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}><span>{msg.text}</span>{msg.sessionRequired&&<button type="button" onClick={()=>{setSessionLinkError("");setSessionLinkOpen(true);}} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minHeight:34,padding:"7px 11px",borderRadius:4,border:"1px solid rgba(159,202,255,.48)",background:"rgba(159,202,255,.10)",color:"#d2e4ff",fontWeight:900,cursor:"pointer"}}><MS name="link" size={18} active/>VINCULAR SESIÓN</button>}</div>}
         {form.flow==="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e",letterSpacing:".06em"}}>ID DE USUARIO</span><div style={{position:"relative"}}><input autoFocus style={{...inp,paddingRight:44}} placeholder="Pega el UUID copiado desde el perfil" value={form.auth_user_id} onPaste={e=>{const value=e.clipboardData.getData("text");if(value){e.preventDefault();resolveUserId(value);}}} onChange={e=>resolveUserId(e.target.value)}/><span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:lookupLoading?"#00e3fd":"#89919e",display:"inline-flex"}}><MS name={lookupLoading?"sync":"content_paste"} size={20} className={lookupLoading?"cm-cyan-pulse":""}/></span></div><small style={{color:"#89919e"}}>Al localizar la cuenta se completan automáticamente sus datos. No se solicita contraseña.</small></label>}
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE DE USUARIO *</span><input style={inp} value={form.username} disabled={form.flow==="existing"&&lookupLoading} onChange={e=>setForm(f=>({...f,username:e.target.value.replace(/\s/g,"").toLowerCase()}))}/></label><label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>NOMBRE VISIBLE</span><input style={inp} value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}/></label></div>
         {form.flow!=="existing"&&<label style={{display:"grid",gap:6}}><span style={{fontSize:11,fontWeight:800,color:"#89919e"}}>CONTRASEÑA {form.id?"":"*"}</span><div style={{position:"relative"}}><input type={showPass?"text":"password"} style={{...inp,paddingRight:44}} placeholder={form.id?"Dejar vacío para conservarla":"Mínimo 6 caracteres"} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",...iconButton,width:32,height:32,background:"transparent",border:0,color:"#89919e"}}><MS name={showPass?"visibility_off":"visibility"} size={19}/></button></div></label>}
