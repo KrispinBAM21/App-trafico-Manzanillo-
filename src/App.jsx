@@ -10,7 +10,7 @@ import mapboxgl, {
   cmToLngLat,
   cmToGeoJsonCoords,
   cmRasterStyle,
-} from "./lib/mapboxClient";
+} from "./lib/mapbox-Client.js";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 if (typeof window !== "undefined" && !window.L) window.L = L;
