@@ -7,6 +7,7 @@ import mapboxgl, {
   MapboxAdapter,
   CM_MAPBOX_DEFAULT_CENTER,
   cmMapboxTileUrl,
+  cmMapboxStyleTileUrl,
   cmToLngLat,
   cmToGeoJsonCoords,
   cmRasterStyle,
@@ -11350,6 +11351,9 @@ function ManualEventPinPicker({ initialCoords, locationLabel = "", category = "i
       cooperativeGestures: false,
     });
     mapRef.current = map;
+    map.on("error", (event) => {
+      console.error("Error al cargar Mapbox:", event?.error || event);
+    });
     const adapter = new MapboxAdapter(map);
     adapterRef.current = adapter;
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
@@ -13124,10 +13128,10 @@ const COMMAND_VIALIDAD_LINES = [
 ];
 
 const COMMAND_BASE_LAYERS = [
-  { id:"dark", label:"Nocturno", url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
-  { id:"streets", label:"Calles", url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains:"abc" },
-  { id:"light", label:"Claro", url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
-  { id:"satellite", label:"Satélite", url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains:"" },
+  { id:"dark", label:"Nocturno", url:cmMapboxStyleTileUrl("mapbox/dark-v11") },
+  { id:"streets", label:"Calles", url:cmMapboxStyleTileUrl("mapbox/streets-v12") },
+  { id:"light", label:"Claro", url:cmMapboxStyleTileUrl("mapbox/light-v11") },
+  { id:"satellite", label:"Satélite", url:cmMapboxStyleTileUrl("mapbox/satellite-streets-v12") },
 ];
 
 const getCommandOption = (options, status, fallbackIndex = 0) => options.find(o => o.id === status) || options[fallbackIndex];
@@ -13233,6 +13237,9 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
       cooperativeGestures: false,
     });
     mapRef.current = map;
+    map.on("error", (event) => {
+      console.error("Error al cargar Mapbox:", event?.error || event);
+    });
     adapterRef.current = new MapboxAdapter(map);
     popupRef.current = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, offset: 10 });
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
