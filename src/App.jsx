@@ -29454,11 +29454,249 @@ const SERVICIOS_CATEGORIAS = [
   { key:"gruas", label:"Grúas", icon:"construction" },
   { key:"mecanicos", label:"Mecánicos", icon:"home_repair_service" },
   { key:"limpia_contenedores", label:"Limpia contenedores", icon:"cleaning_services" },
+  { key:"generales", label:"Generales", icon:"handyman" },
+];
+const SERVICIOS_GENERALES_CATALOGO = [
+  {
+    "id": 1,
+    "title": "Maniobras Y Manejo De Carga",
+    "services": [
+      "Carga y descarga de pallets",
+      "Estiba y desestiba de mercancías",
+      "Consolidación y desconsolidación de contenedores",
+      "Trincado, destrincado y aseguramiento de carga",
+      "Emplayado, flejado y etiquetado",
+      "Reacomodo y clasificación de mercancías",
+      "Armado y reparación de pallets",
+      "Traslado interno de carga",
+      "Maniobras con montacargas, grúas y plataformas",
+      "Apoyo en recepción y despacho de mercancías",
+      "Pesaje, conteo e inspección física de carga",
+      "Limpieza de bodegas y contenedores"
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Aire Acondicionado Y Refrigeración",
+    "services": [
+      "Instalación de equipos de aire acondicionado",
+      "Mantenimiento preventivo y correctivo",
+      "Limpieza de filtros, serpentines y ductos",
+      "Recarga de gas refrigerante",
+      "Reparación de cámaras frigoríficas",
+      "Mantenimiento de sistemas de ventilación",
+      "Atención a contenedores refrigerados o reefers",
+      "Revisión de conexiones eléctricas para reefers",
+      "Monitoreo y registro de temperaturas"
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Electricidad E Iluminación",
+    "services": [
+      "Instalaciones eléctricas industriales",
+      "Reparación de tableros y centros de carga",
+      "Instalación y mantenimiento de luminarias",
+      "Alumbrado de patios, bodegas y oficinas",
+      "Mantenimiento de plantas de emergencia",
+      "Instalación de contactos y cableado",
+      "Sistemas de tierra física",
+      "Mantenimiento de subestaciones",
+      "Instalación de reflectores y torres de iluminación"
+    ]
+  },
+  {
+    "id": 4,
+    "title": "Mantenimiento Mecánico",
+    "services": [
+      "Reparación de motores, bombas y reductores",
+      "Mantenimiento de bandas transportadoras",
+      "Reparación de rampas y plataformas",
+      "Mantenimiento de puertas industriales",
+      "Reparación de equipos hidráulicos y neumáticos",
+      "Lubricación de maquinaria",
+      "Mantenimiento de generadores y compresores",
+      "Fabricación y reemplazo de piezas metálicas",
+      "Mantenimiento de montacargas y equipos de patio"
+    ]
+  },
+  {
+    "id": 5,
+    "title": "Soldadura Y Estructuras Metálicas",
+    "services": [
+      "Soldadura eléctrica, MIG y TIG",
+      "Reparación de contenedores",
+      "Fabricación de barandales, escaleras y plataformas",
+      "Reparación de estructuras metálicas",
+      "Instalación de protecciones y defensas",
+      "Corte y habilitado de acero",
+      "Fabricación de soportes y racks",
+      "Reparación de puertas, rejas y cercos"
+    ]
+  },
+  {
+    "id": 6,
+    "title": "Obra Civil Y Mantenimiento De Instalaciones",
+    "services": [
+      "Albañilería y reparaciones generales",
+      "Construcción y reparación de pisos",
+      "Bacheo y mantenimiento de vialidades",
+      "Pintura de oficinas, bodegas y estructuras",
+      "Impermeabilización de techos",
+      "Reparación de banquetas y guarniciones",
+      "Instalación de señalización horizontal y vertical",
+      "Mantenimiento de drenajes y registros",
+      "Aplicación de recubrimientos anticorrosivos",
+      "Reparación de cercas perimetrales"
+    ]
+  },
+  {
+    "id": 7,
+    "title": "Plomería Y Sistemas Hidráulicos",
+    "services": [
+      "Reparación de fugas",
+      "Instalación de tuberías",
+      "Mantenimiento de bombas de agua",
+      "Limpieza de cisternas y tinacos",
+      "Destape y limpieza de drenajes",
+      "Instalación y reparación de sanitarios",
+      "Mantenimiento de redes hidráulicas",
+      "Reparación de sistemas contra incendios",
+      "Pruebas de presión en tuberías"
+    ]
+  },
+  {
+    "id": 8,
+    "title": "Limpieza Y Saneamiento",
+    "services": [
+      "Limpieza de patios y áreas operativas",
+      "Limpieza de bodegas y almacenes",
+      "Limpieza de oficinas y sanitarios",
+      "Recolección de residuos",
+      "Limpieza de derrames",
+      "Lavado a presión de pisos y equipos",
+      "Desinfección y sanitización",
+      "Control de plagas y fumigación",
+      "Limpieza de tanques y espacios confinados",
+      "Separación y manejo de residuos reciclables"
+    ]
+  },
+  {
+    "id": 9,
+    "title": "Servicios Para Embarcaciones",
+    "services": [
+      "Suministro de agua potable",
+      "Retiro de residuos y basura",
+      "Limpieza de cubiertas y áreas internas",
+      "Pintura y mantenimiento anticorrosivo",
+      "Reparaciones eléctricas y mecánicas menores",
+      "Suministro de víveres y materiales",
+      "Lavandería para tripulación",
+      "Apoyo en amarre y desamarre",
+      "Inspección y reparación de cabos",
+      "Traslado de personal y provisiones"
+    ]
+  },
+  {
+    "id": 10,
+    "title": "Seguridad Industrial Y Señalización",
+    "services": [
+      "Suministro de equipo de protección personal",
+      "Colocación de barreras y conos",
+      "Señalización de áreas de riesgo",
+      "Instalación y revisión de extintores",
+      "Mantenimiento de alarmas contra incendios",
+      "Elaboración de análisis de riesgo",
+      "Supervisión de trabajos en altura",
+      "Supervisión de espacios confinados",
+      "Brigadas de emergencia",
+      "Capacitación básica de seguridad",
+      "Instalación de líneas de vida y puntos de anclaje"
+    ]
+  },
+  {
+    "id": 11,
+    "title": "Vigilancia Y Control De Accesos",
+    "services": [
+      "Guardias de seguridad",
+      "Control de entrada y salida de personal",
+      "Inspección de vehículos y mercancías",
+      "Monitoreo mediante cámaras",
+      "Instalación y mantenimiento de CCTV",
+      "Control de visitantes y proveedores",
+      "Rondines en patios y bodegas",
+      "Instalación de alarmas y controles de acceso"
+    ]
+  },
+  {
+    "id": 12,
+    "title": "Logística Y Apoyo Operativo",
+    "services": [
+      "Control de inventarios",
+      "Captura y revisión de documentación",
+      "Elaboración de reportes de carga",
+      "Coordinación de transportistas",
+      "Programación de maniobras",
+      "Seguimiento de entradas y salidas",
+      "Administración de patios",
+      "Etiquetado y control por códigos de barras",
+      "Evidencia fotográfica de operaciones",
+      "Personal de apoyo temporal"
+    ]
+  },
+  {
+    "id": 13,
+    "title": "Transporte Y Renta De Equipo",
+    "services": [
+      "Transporte local de mercancías",
+      "Renta de montacargas",
+      "Renta de grúas y plataformas",
+      "Renta de tractocamiones y remolques",
+      "Renta de generadores eléctricos",
+      "Renta de torres de iluminación",
+      "Renta de sanitarios portátiles",
+      "Renta de contenedores y oficinas móviles",
+      "Renta de bombas, compresores y herramientas",
+      "Traslado de personal dentro del recinto"
+    ]
+  },
+  {
+    "id": 14,
+    "title": "Servicios Ambientales",
+    "services": [
+      "Manejo de residuos peligrosos",
+      "Recolección de aceites usados",
+      "Atención y contención de derrames",
+      "Limpieza de hidrocarburos",
+      "Muestreo de agua, suelo y emisiones",
+      "Suministro de materiales absorbentes",
+      "Clasificación y almacenamiento temporal de residuos",
+      "Elaboración de bitácoras ambientales",
+      "Mantenimiento de trampas de grasa",
+      "Servicios de reciclaje"
+    ]
+  },
+  {
+    "id": 15,
+    "title": "Servicios Administrativos Y De Personal",
+    "services": [
+      "Reclutamiento de personal operativo",
+      "Suministro de cuadrillas",
+      "Personal para carga y descarga",
+      "Supervisores de maniobras",
+      "Capturistas y auxiliares administrativos",
+      "Mensajería y traslado de documentos",
+      "Control de asistencia",
+      "Capacitación operativa",
+      "Elaboración de credenciales y gafetes"
+    ]
+  }
 ];
 const SERVICIOS_FILTROS = {
   gruas:["Todos","Pluma","Plataforma","Arrastre / Pesadas","Servicio 24/7","Carretera / Foráneo"],
   mecanicos:["Todos","Talachero / Llantero","Eléctrico","Mecánico General","Atiende Tractocamiones","Atiende Motos","Rescate Vial / A domicilio"],
   limpia_contenedores:["Todos","Cobro por Hora","Cobro por Trabajo","Lavado a Presión","Sanitización / Desinfección"],
+  generales:["Todos",...SERVICIOS_GENERALES_CATALOGO.map(item=>item.title)],
 };
 const SERVICIOS_DIAS=[{k:"L",t:"L"},{k:"M",t:"M"},{k:"Mi",t:"M"},{k:"J",t:"J"},{k:"V",t:"V"},{k:"S",t:"S"},{k:"D",t:"D"}];
 const SERVICIOS_LOGOS_BUCKET="servicios-logos";
@@ -29471,7 +29709,8 @@ const buildInternationalPhone=(lada,number)=>`${normalizeLada(lada)}${normalizeS
 const SERVICIOS_MOCK = [
   {id:"mock-g-1",categoria:"gruas",nombre_comercial:"Grúas del Pacífico",contacto_principal:"Central operativa",telefono:"3141002001",whatsapp:"3141002001",correo:"contacto@gruas-pacifico.mx",ubicacion_cobertura:"Manzanillo y carretera federal",dias_laborales:["L","M","Mi","J","V","S","D"],modalidad_horario:"24_horas",horario_24h:true,etiquetas:["Plataforma","Servicio 24/7","Carretera / Foráneo"],detalles:{tipo_grua:["Plataforma","Pesada/Tractos"],capacidad:"20T",tiempo_respuesta_min:30},promedio_calificacion:4.8,total_votos:12},
   {id:"mock-m-1",categoria:"mecanicos",nombre_comercial:"Taller Puerto Motor",contacto_principal:"Coordinación de servicio",telefono:"3141002002",whatsapp:"3141002002",correo:"servicio@puertomotor.mx",ubicacion_cobertura:"Zona industrial y recinto portuario",dias_laborales:["L","M","Mi","J","V","S"],modalidad_horario:"especifico",hora_inicio:"07:00",hora_fin:"20:00",etiquetas:["Mecánico General","Atiende Tractocamiones","Rescate Vial / A domicilio"],detalles:{especialidad:["Mecánico General","Frenos/Aire"],vehiculos:["Tractocamiones","Maquinaria"],rescate_vial:true},promedio_calificacion:4.5,total_votos:8},
-  {id:"mock-l-1",categoria:"limpia_contenedores",nombre_comercial:"Container Clean MZO",contacto_principal:"Operaciones",telefono:"3141002003",whatsapp:"3141002003",correo:"operaciones@containerclean.mx",ubicacion_cobertura:"Patios y terminales de Manzanillo",dias_laborales:["L","M","Mi","J","V","S","D"],modalidad_horario:"especifico",hora_inicio:"06:00",hora_fin:"22:00",etiquetas:["Cobro por Trabajo","Lavado a Presión","Sanitización / Desinfección"],tarifa_base:850,detalles:{esquema_cobro:"Por Trabajo",tipos_limpieza:["Lavado Presión","Sanitización"],capacidad_diaria:18},promedio_calificacion:5,total_votos:4},
+  {id:"mock-l-1",categoria:"limpia_contenedores",nombre_comercial:"Container Clean MZO",contacto_principal:"Operaciones",telefono:"3141002003",whatsapp:"3141002003",correo:"operaciones@containerclean.mx",ubicacion_cobertura:"Patios y terminales de Manzanillo",dias_laborales:["L","M","Mi","J","V","S","D"],modalidad_horario:"especifico",hora_inicio:"06:00",hora_fin:"22:00",etiquetas:["Cobro por Trabajo","Lavado a Presión","Sanitización / Desinfección"],tarifa_base:850,detalles:{esquema_cobro:"Por Trabajo",tipos_limpieza:["Lavado Presión","Sanitización"],capacidad_diaria:18},promedio_calificacion:5,total_votos:4},,
+  {id:"mock-gen-1",categoria:"generales",categoria_principal:"Generales",nombre_comercial:"Soluciones Portuarias Integrales",contacto_principal:"Mesa operativa",lada_telefono:"+52",telefono:"3141002010",lada_whatsapp:"+52",whatsapp:"3141002010",whatsapp_url:"https://wa.me/523141002010",correo:"operaciones@spi-mzo.mx",ubicacion_cobertura:"Manzanillo, Colima",latitud:19.049,longitud:-104.32,dias_laborales:["L","M","Mi","J","V","S"],modalidad_horario:"especifico",hora_inicio:"07:00",hora_fin:"19:00",subcategorias:["Logística Y Apoyo Operativo","Seguridad Industrial Y Señalización"],servicios_desglosados:{"Logística Y Apoyo Operativo":["Control de inventarios","Programación de maniobras"],"Seguridad Industrial Y Señalización":["Señalización de áreas de riesgo"]},etiquetas:["Logística Y Apoyo Operativo","Control de inventarios","Programación de maniobras","Señalización de áreas de riesgo"],promedio_calificacion:4.9,total_votos:6}
 ];
 const serviceCategoryLabel=key=>SERVICIOS_CATEGORIAS.find(x=>x.key===key)?.label||key;
 const normalizeServicePhone=value=>String(value||"").replace(/[^0-9]/g,"");
@@ -29493,7 +29732,7 @@ function ServiciosTab({authUser,isAdmin}){
   const cargarServicios=useCallback(async()=>{setLoading(true);setError("");try{const {data,error:e}=await sb.rpc("buscar_servicios",{p_categoria:null,p_busqueda:null,p_etiqueta:null});if(e)throw e;const rows=Array.isArray(data)?data:[];setServicios([...rows,...SERVICIOS_MOCK.filter(m=>!rows.some(r=>r.id===m.id))])}catch(e){const m=String(e?.message||"");if(!/does not exist|schema cache|function/i.test(m))setError(m||"No fue posible actualizar los servicios.")}finally{setLoading(false)}},[]);
   useEffect(()=>{cargarServicios()},[cargarServicios]); useEffect(()=>{setFiltro("Todos");setQuery("")},[categoria]);
   useEffect(()=>{let live=true;(async()=>{if(isAdmin){setCanManage(true);return}try{const {data}=await sb.rpc("puede_gestionar_servicios");if(live)setCanManage(data===true)}catch{if(live)setCanManage(false)}})();return()=>{live=false}},[isAdmin,authUser?.id]);
-  const visibles=useMemo(()=>{const q=query.trim().toLowerCase();return servicios.filter(s=>s.categoria===categoria).filter(s=>(!q||[s.nombre_comercial,s.contacto_principal,s.ubicacion_cobertura,...(s.etiquetas||[])].join(" ").toLowerCase().includes(q))&&(filtro==="Todos"||(s.etiquetas||[]).some(t=>String(t).toLowerCase()===filtro.toLowerCase())))},[servicios,categoria,query,filtro]);
+  const visibles=useMemo(()=>{const q=query.trim().toLowerCase();return servicios.filter(s=>s.categoria===categoria).filter(s=>(!q||[s.nombre_comercial,s.contacto_principal,s.ubicacion_cobertura,...(s.etiquetas||[]),...(s.subcategorias||[]),...Object.values(s.servicios_desglosados||{}).flat()].join(" ").toLowerCase().includes(q))&&(filtro==="Todos"||(s.etiquetas||[]).some(t=>String(t).toLowerCase()===filtro.toLowerCase())))},[servicios,categoria,query,filtro]);
   const guardarServicio=async payload=>{const {data:{user}={}}=await sb.auth.getUser();if(!user)throw new Error("Debes iniciar sesión para registrar un servicio.");const {data,error:e}=await sb.rpc("registrar_servicio",{p_servicio:{...payload,creado_por:user.id,propietario_id:user.id}});if(e)throw e;const row=Array.isArray(data)?data[0]:data;setServicios(prev=>[row,...prev]);return row};
   const calificar=async(service,puntuacion)=>{try{if(String(service.id).startsWith("mock-")){setServicios(prev=>prev.map(s=>s.id===service.id?{...s,promedio_calificacion:((Number(s.promedio_calificacion||0)*Number(s.total_votos||0))+puntuacion)/(Number(s.total_votos||0)+1),total_votos:Number(s.total_votos||0)+1}:s));return}const {data,error:e}=await sb.rpc("registrar_calificacion_servicio",{p_servicio_id:service.id,p_puntuacion:puntuacion,p_token_visitante:getServiceBrowserToken()});if(e)throw e;const result=Array.isArray(data)?data[0]:data;setServicios(prev=>prev.map(s=>s.id===service.id?{...s,promedio_calificacion:Number(result?.promedio_calificacion||s.promedio_calificacion),total_votos:Number(result?.total_votos||s.total_votos)}:s))}catch(e){setError(e?.message||"No fue posible guardar la valoración.")}};
   const eliminar=async()=>{if(!deleteTarget)return;setDeleting(true);setError("");try{if(String(deleteTarget.id).startsWith("mock-"))setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id));else{const {error:e}=await sb.rpc("eliminar_servicio_admin",{p_servicio_id:deleteTarget.id});if(e)throw e;setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id))}setDeleteTarget(null)}catch(e){setError(e?.message||"No fue posible eliminar el servicio.")}finally{setDeleting(false)}};
@@ -29531,17 +29770,20 @@ function ServicioLocationPicker({value,onChange,onClose}){
  return <div className="svc-map-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="svc-map-dialog"><style>{`.svc-location-marker-wrap{background:transparent!important;border:0!important}.svc-location-marker{width:46px;height:46px;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#0099ff,#0061a5);border:2px solid #bdf4ff;box-shadow:0 0 0 6px rgba(0,153,255,.18),0 0 26px rgba(0,153,255,.72),0 12px 24px rgba(0,0,0,.5)}.svc-location-marker .material-symbols-outlined{transform:rotate(45deg);font-size:25px;line-height:1;color:#fff;font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24}`}</style><div className="svc-map-head"><div><MS name="pin_drop" size={23} active/><strong>Seleccionar ubicación</strong></div><button type="button" onClick={onClose}><MS name="close" size={21}/></button></div><div ref={mapEl} className="svc-map-canvas"/><div className="svc-map-foot"><span>{value?.latitud&&value?.longitud?`${Number(value.latitud).toFixed(6)}, ${Number(value.longitud).toFixed(6)}`:"Haz clic en el mapa o arrastra el marcador."}</span><button type="button" onClick={onClose}>Usar ubicación</button></div></div></div>
 }
 function ServicioRegistroModal({authUser,categoria,onClose,onSave}){
- const base={nombre_comercial:"",contacto_principal:"",lada_telefono:"+52",telefono:"",lada_whatsapp:"+52",whatsapp:"",correo:"",ubicacion_cobertura:"",latitud:19.049,longitud:-104.32,dias_laborales:["L","M","Mi","J","V"],modalidad_horario:"24_horas",hora_inicio:"08:00",hora_fin:"18:00",logo_url:"",tipo_grua:"Plataforma",capacidad:"10T",tiempo_respuesta_min:"30",especialidad:"Mecánico General",vehiculos:"Tractocamiones",rescate_vial:"No",esquema_cobro:"Por Trabajo",tarifa_base:"",tipos_limpieza:"Lavado Presión",capacidad_diaria:""};
+ const base={tipo_servicio:categoria||"gruas",nombre_comercial:"",contacto_principal:"",lada_telefono:"+52",telefono:"",lada_whatsapp:"+52",whatsapp:"",correo:"",ubicacion_cobertura:"",latitud:19.049,longitud:-104.32,dias_laborales:["L","M","Mi","J","V"],modalidad_horario:"24_horas",hora_inicio:"08:00",hora_fin:"18:00",logo_url:"",tipo_grua:"Plataforma",capacidad:"10T",tiempo_respuesta_min:"30",especialidad:"Mecánico General",vehiculos:"Tractocamiones",rescate_vial:"No",esquema_cobro:"Por Trabajo",tarifa_base:"",tipos_limpieza:"Lavado Presión",capacidad_diaria:"",subcategorias:[],servicios_desglosados:{}};
  const [form,setForm]=useState(base),[file,setFile]=useState(null),[preview,setPreview]=useState(""),[saving,setSaving]=useState(false),[success,setSuccess]=useState(false),[msg,setMsg]=useState(""),[showMap,setShowMap]=useState(false); const fileRef=useRef(null);
  useEffect(()=>{document.body.style.overflow="hidden";return()=>{document.body.style.overflow="";if(preview?.startsWith("blob:"))URL.revokeObjectURL(preview)}},[]);
- const set=(k,v)=>setForm(p=>({...p,[k]:v})); const toggleDay=k=>setForm(p=>({...p,dias_laborales:p.dias_laborales.includes(k)?p.dias_laborales.filter(x=>x!==k):[...p.dias_laborales,k]}));
+ const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+ const toggleDay=k=>setForm(p=>({...p,dias_laborales:p.dias_laborales.includes(k)?p.dias_laborales.filter(x=>x!==k):[...p.dias_laborales,k]}));
+ const toggleGeneralCategory=title=>setForm(p=>{const selected=p.subcategorias.includes(title);const nextCats=selected?p.subcategorias.filter(x=>x!==title):[...p.subcategorias,title];const nextServices={...p.servicios_desglosados};if(selected)delete nextServices[title];else nextServices[title]=nextServices[title]||[];return {...p,subcategorias:nextCats,servicios_desglosados:nextServices}});
+ const toggleGeneralService=(title,service)=>setForm(p=>{const current=p.servicios_desglosados[title]||[];const next=current.includes(service)?current.filter(x=>x!==service):[...current,service];return {...p,servicios_desglosados:{...p.servicios_desglosados,[title]:next}}});
  const chooseFile=e=>{const f=e.target.files?.[0]||null;if(f&&f.size>2*1024*1024){setMsg("El archivo supera el límite de 2 MB.");e.target.value="";return}setMsg("");setFile(f);if(preview?.startsWith("blob:"))URL.revokeObjectURL(preview);setPreview(f?URL.createObjectURL(f):form.logo_url)};
- const submit=async e=>{e.preventDefault();if(!authUser?.id){setMsg("Debes iniciar sesión para registrar un servicio.");return}if(!form.dias_laborales.length){setMsg("Selecciona al menos un día de operación.");return}setSaving(true);setSuccess(false);setMsg("");try{let logoUrl=form.logo_url.trim();if(file){const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");const path=`${authUser.id}/${crypto.randomUUID?.()||Date.now()}.${ext}`;const {error:upErr}=await sb.storage.from(SERVICIOS_LOGOS_BUCKET).upload(path,file,{upsert:false,contentType:file.type||"image/jpeg"});if(upErr)throw upErr;logoUrl=sb.storage.from(SERVICIOS_LOGOS_BUCKET).getPublicUrl(path).data.publicUrl}let etiquetas=[],detalles={};if(categoria==="gruas"){etiquetas=[form.tipo_grua,form.modalidad_horario==="24_horas"?"Servicio 24/7":null].filter(Boolean);detalles={tipo_grua:[form.tipo_grua],capacidad:form.capacidad,tiempo_respuesta_min:Number(form.tiempo_respuesta_min||0)}}else if(categoria==="mecanicos"){etiquetas=[form.especialidad,`Atiende ${form.vehiculos}`,form.rescate_vial==="Sí"?"Rescate Vial / A domicilio":null].filter(Boolean);detalles={especialidad:[form.especialidad],vehiculos:[form.vehiculos],rescate_vial:form.rescate_vial==="Sí"}}else{etiquetas=[form.esquema_cobro,form.tipos_limpieza].filter(Boolean);detalles={esquema_cobro:form.esquema_cobro,tipos_limpieza:[form.tipos_limpieza],capacidad_diaria:Number(form.capacidad_diaria||0)}}const whatsNumber=buildInternationalPhone(form.lada_whatsapp||form.lada_telefono,form.whatsapp||form.telefono);await onSave({categoria,usuario_id:authUser.id,creado_por:authUser.id,propietario_id:authUser.id,nombre_comercial:form.nombre_comercial.trim(),contacto_principal:form.contacto_principal.trim(),lada_telefono:form.lada_telefono,telefono:normalizeServicePhone(form.telefono),lada_whatsapp:form.lada_whatsapp,whatsapp:normalizeServicePhone(form.whatsapp||form.telefono),whatsapp_url:`https://wa.me/${whatsNumber}`,correo:form.correo.trim()||null,ubicacion_cobertura:form.ubicacion_cobertura.trim(),latitud:Number(form.latitud),longitud:Number(form.longitud),dias_laborales:form.dias_laborales,modalidad_horario:form.modalidad_horario,horario_24h:form.modalidad_horario==="24_horas",hora_inicio:form.modalidad_horario==="especifico"?form.hora_inicio:null,hora_fin:form.modalidad_horario==="especifico"?form.hora_fin:null,logo_url:logoUrl||null,etiquetas,tarifa_base:categoria==="limpia_contenedores"&&form.tarifa_base!==""?Number(form.tarifa_base):null,detalles});setSuccess(true);setTimeout(onClose,900)}catch(e){setMsg(e?.message||"No fue posible guardar el servicio.")}finally{setSaving(false)}};
- const catIcon=categoria==="gruas"?"construction":categoria==="mecanicos"?"home_repair_service":"cleaning_services";
+ const submit=async e=>{e.preventDefault();if(!authUser?.id){setMsg("Debes iniciar sesión para registrar un servicio.");return}if(!form.dias_laborales.length){setMsg("Selecciona al menos un día de operación.");return}if(form.tipo_servicio==="generales"&&!form.subcategorias.length){setMsg("Selecciona al menos una categoría de servicio general.");return}if(form.tipo_servicio==="generales"&&!Object.values(form.servicios_desglosados).flat().length){setMsg("Selecciona al menos un subservicio específico.");return}setSaving(true);setSuccess(false);setMsg("");try{let logoUrl=form.logo_url.trim();if(file){const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");const path=`${authUser.id}/${crypto.randomUUID?.()||Date.now()}.${ext}`;const {error:upErr}=await sb.storage.from(SERVICIOS_LOGOS_BUCKET).upload(path,file,{upsert:false,contentType:file.type||"image/jpeg"});if(upErr)throw upErr;logoUrl=sb.storage.from(SERVICIOS_LOGOS_BUCKET).getPublicUrl(path).data.publicUrl}let etiquetas=[],detalles={};const tipo=form.tipo_servicio;if(tipo==="gruas"){etiquetas=[form.tipo_grua,form.modalidad_horario==="24_horas"?"Servicio 24/7":null].filter(Boolean);detalles={tipo_grua:[form.tipo_grua],capacidad:form.capacidad,tiempo_respuesta_min:Number(form.tiempo_respuesta_min||0)}}else if(tipo==="mecanicos"){etiquetas=[form.especialidad,`Atiende ${form.vehiculos}`,form.rescate_vial==="Sí"?"Rescate Vial / A domicilio":null].filter(Boolean);detalles={especialidad:[form.especialidad],vehiculos:[form.vehiculos],rescate_vial:form.rescate_vial==="Sí"}}else if(tipo==="limpia_contenedores"){etiquetas=[form.esquema_cobro,form.tipos_limpieza].filter(Boolean);detalles={esquema_cobro:form.esquema_cobro,tipos_limpieza:[form.tipos_limpieza],capacidad_diaria:Number(form.capacidad_diaria||0)}}else{const selectedServices=Object.values(form.servicios_desglosados).flat();etiquetas=[...form.subcategorias,...selectedServices];detalles={subcategorias:form.subcategorias,servicios_desglosados:form.servicios_desglosados}}const whatsNumber=buildInternationalPhone(form.lada_whatsapp||form.lada_telefono,form.whatsapp||form.telefono);await onSave({categoria:tipo,categoria_principal:tipo==="generales"?"Generales":serviceCategoryLabel(tipo),subcategorias:tipo==="generales"?form.subcategorias:[],servicios_desglosados:tipo==="generales"?form.servicios_desglosados:{},usuario_id:authUser.id,user_id:authUser.id,creado_por:authUser.id,propietario_id:authUser.id,nombre_comercial:form.nombre_comercial.trim(),contacto_principal:form.contacto_principal.trim(),lada_telefono:form.lada_telefono,telefono:normalizeServicePhone(form.telefono),telefono_completo:buildInternationalPhone(form.lada_telefono,form.telefono),lada_whatsapp:form.lada_whatsapp,whatsapp:normalizeServicePhone(form.whatsapp||form.telefono),whatsapp_url:`https://wa.me/${whatsNumber}`,correo:form.correo.trim()||null,ubicacion_cobertura:form.ubicacion_cobertura.trim(),latitud:Number(form.latitud),longitud:Number(form.longitud),dias_laborales:form.dias_laborales,modalidad_horario:form.modalidad_horario,horario_24h:form.modalidad_horario==="24_horas",hora_inicio:form.modalidad_horario==="especifico"?form.hora_inicio:null,hora_fin:form.modalidad_horario==="especifico"?form.hora_fin:null,horarios:{modalidad:form.modalidad_horario,inicio:form.modalidad_horario==="especifico"?form.hora_inicio:null,fin:form.modalidad_horario==="especifico"?form.hora_fin:null,dias:form.dias_laborales},logo_url:logoUrl||null,etiquetas,tarifa_base:tipo==="limpia_contenedores"&&form.tarifa_base!==""?Number(form.tarifa_base):null,detalles});setSuccess(true);setTimeout(onClose,900)}catch(e){setMsg(e?.message||"No fue posible guardar el servicio.")}finally{setSaving(false)}};
+ const catIcon=form.tipo_servicio==="gruas"?"construction":form.tipo_servicio==="mecanicos"?"home_repair_service":form.tipo_servicio==="limpia_contenedores"?"cleaning_services":"handyman";
  const PhoneField=({label,ladaKey,numberKey,icon,required=false})=><div className="svc-reg-field"><label>{label}{required?" *":""}</label><div className="svc-phone-row"><select className="svc-reg-select svc-lada" value={form[ladaKey]} onChange={e=>set(ladaKey,e.target.value)}>{SERVICIOS_LADAS.map(x=><option key={`${ladaKey}-${x.code}`} value={x.code}>{x.code} {x.label}</option>)}</select><div className="svc-reg-control svc-phone-input"><span><MS name={icon} size={20}/></span><input className="svc-reg-input" inputMode="numeric" value={form[numberKey]} onChange={e=>set(numberKey,e.target.value.replace(/[^0-9\s-]/g,"").slice(0,18))} placeholder="314 123 4567" required={required}/></div></div></div>;
  return <div className="svc-reg-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)onClose()}}><style>{`
-.svc-reg-backdrop{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:clamp(80px,9vh,96px) clamp(16px,3vw,28px) 32px;background:rgba(0,0,0,.72);backdrop-filter:blur(22px);overflow:hidden}.svc-reg-modal{width:min(100%,900px);max-height:min(85vh,820px);overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(63,71,83,.55);border-radius:18px;background:rgba(29,32,34,.94);box-shadow:0 28px 90px rgba(0,0,0,.62);font-family:Inter,sans-serif;color:#e0e3e5}.svc-reg-header,.svc-map-head{display:flex;align-items:center;justify-content:space-between}.svc-reg-header{position:relative;flex:0 0 auto;z-index:5;padding:18px 22px;border-bottom:1px solid rgba(63,71,83,.45);background:rgba(25,28,30,.95);backdrop-filter:blur(18px)}.svc-reg-title{display:flex;align-items:center;gap:12px}.svc-reg-title h2{margin:0;font-size:21px}.svc-reg-title small{color:#89919e;font-size:11px;text-transform:uppercase;letter-spacing:.12em}.svc-reg-icon,.svc-reg-close,.svc-pin-btn{display:flex;align-items:center;justify-content:center;line-height:0}.svc-reg-icon{width:42px;height:42px;border-radius:12px;color:#9fcaff;background:rgba(0,153,255,.12);border:1px solid rgba(159,202,255,.24)}.svc-reg-close,.svc-pin-btn{border:1px solid #3f4753;background:#15191b;color:#bfc7d5;cursor:pointer}.svc-reg-close{width:40px;height:40px;border-radius:10px}.svc-reg-form{display:grid;gap:24px;padding:22px;overflow-y:auto;overscroll-behavior:contain;max-height:calc(min(85vh,820px) - 82px);scrollbar-width:thin;scrollbar-color:#3f4753 #101415}.svc-reg-form::-webkit-scrollbar{width:7px}.svc-reg-form::-webkit-scrollbar-track{background:#101415}.svc-reg-form::-webkit-scrollbar-thumb{background:#3f4753;border-radius:999px}.svc-reg-section{padding:clamp(20px,3vw,30px);border-radius:14px;background:rgba(29,32,34,.76);border:1px solid rgba(63,71,83,.5)}.svc-reg-section-head{display:flex;align-items:center;gap:10px;margin-bottom:24px}.svc-reg-section-head h3{margin:0;font-size:20px}.svc-reg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px}.svc-reg-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.svc-reg-field{display:grid;gap:8px;min-width:0}.svc-reg-field label,.svc-reg-label{font-size:11px;font-weight:800;letter-spacing:.065em;text-transform:uppercase;color:#bfc7d5}.svc-reg-control{position:relative}.svc-reg-control>span{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;line-height:0;color:#89919e;pointer-events:none}.svc-reg-input,.svc-reg-select{width:100%;height:48px;box-sizing:border-box;border:1px solid #3f4753;border-radius:9px;background:#0b0f10;color:#e0e3e5;padding:0 14px;font:500 14px Inter,sans-serif;outline:none}.svc-reg-control .svc-reg-input{padding-left:44px}.svc-reg-input:focus,.svc-reg-select:focus{border-color:#9fcaff;box-shadow:0 0 0 3px rgba(159,202,255,.1)}.svc-phone-row{display:grid;grid-template-columns:minmax(150px,190px) minmax(0,1fr);gap:8px}.svc-lada{padding:0 10px}.svc-location-control{display:grid;grid-template-columns:1fr 48px;gap:8px}.svc-pin-btn{width:48px;height:48px;border-radius:9px;color:#9fcaff}.svc-reg-brand{display:grid;grid-template-columns:104px 1fr;gap:22px;padding-top:24px;margin-top:24px;border-top:1px solid rgba(63,71,83,.35)}.svc-reg-preview{width:96px;height:96px;border-radius:13px;border:2px dashed #3f4753;background:#0b0f10;display:flex;align-items:center;justify-content:center;overflow:hidden}.svc-reg-preview img{width:100%;height:100%;object-fit:cover}.svc-reg-preview-empty{display:grid;justify-items:center;color:#9fcaff}.svc-reg-upload{display:flex;align-items:center;justify-content:space-between;width:100%;height:48px;padding:0 15px;border:1px solid #3f4753;border-radius:9px;background:#0b0f10;color:#bfc7d5}.svc-reg-help{font-size:10px;color:#69717d}.svc-reg-url{position:relative;margin-top:12px}.svc-reg-url strong{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#9fcaff}.svc-reg-url input{padding-left:55px}.svc-reg-days{display:flex;flex-wrap:wrap;gap:11px}.svc-reg-day{width:50px;height:50px;border:1px solid #3f4753;border-radius:9px;background:#0b0f10;color:#e0e3e5;font-weight:800}.svc-reg-day.active{background:#0099ff;color:#001d36;border-color:#9fcaff;box-shadow:0 0 14px rgba(0,153,255,.34)}.svc-reg-schedule{display:grid;gap:20px;margin-top:24px}.svc-reg-modes{display:inline-flex;padding:4px;border:1px solid #3f4753;border-radius:11px;background:#0b0f10}.svc-reg-mode{min-height:42px;padding:0 22px;border:0;border-radius:8px;background:transparent;color:#bfc7d5;font-weight:750}.svc-reg-mode.active{background:#0099ff;color:#fff}.svc-reg-times{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.svc-reg-times.disabled{opacity:.42;filter:grayscale(1);pointer-events:none}.svc-reg-check{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1px solid #3f4753;border-radius:9px;background:#0b0f10}.svc-reg-footer{display:flex;align-items:center;justify-content:space-between;gap:20px}.svc-reg-submit{min-width:245px;height:56px;border:0;border-radius:12px;color:#fff;background:linear-gradient(180deg,#0099ff,#0061a5);display:flex;align-items:center;justify-content:center;gap:11px;font-weight:800}.svc-reg-error{margin:0 24px;padding:12px;border:1px solid rgba(255,180,171,.45);border-radius:10px;background:rgba(147,0,10,.24);color:#ffdad6}.svc-map-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.78);backdrop-filter:blur(18px);display:flex;align-items:center;justify-content:center;padding:18px}.svc-map-dialog{width:min(860px,100%);background:#111517;border:1px solid #3f4753;border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.7)}.svc-map-head{padding:14px 16px;border-bottom:1px solid #3f4753}.svc-map-head>div{display:flex;align-items:center;gap:9px}.svc-map-head button{width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:#1d2022;color:#e0e3e5;border:1px solid #3f4753;border-radius:9px}.svc-map-canvas{height:min(58vh,520px);min-height:360px}.svc-map-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;color:#bfc7d5}.svc-map-foot button{padding:10px 15px;border:0;border-radius:9px;background:#0099ff;color:white;font-weight:800}@media(max-width:720px){.svc-reg-backdrop{padding:72px 12px 20px}.svc-reg-modal{max-height:calc(100vh - 92px)}.svc-reg-form{max-height:calc(100vh - 174px)}.svc-reg-grid,.svc-reg-grid.three,.svc-reg-times,.svc-phone-row{grid-template-columns:1fr}.svc-reg-brand{grid-template-columns:1fr}.svc-reg-form{padding:16px}.svc-reg-footer,.svc-map-foot{flex-direction:column;align-items:stretch}.svc-reg-submit{width:100%}}
-`}</style><div className="svc-reg-modal"><div className="svc-reg-header"><div className="svc-reg-title"><div className="svc-reg-icon"><MS name={catIcon} size={24} active/></div><div><h2>Registrar {serviceCategoryLabel(categoria)}</h2><small>Directorio operativo de servicios</small></div></div><button type="button" className="svc-reg-close" onClick={onClose} disabled={saving}><MS name="close" size={22}/></button></div>{msg&&<div className="svc-reg-error">{msg}</div>}<form className="svc-reg-form" onSubmit={submit}><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="business" size={24} active/><h3>Información de la Entidad</h3></div><div className="svc-reg-grid"><ModalField label="Nombre Comercial / Empresa" value={form.nombre_comercial} onChange={v=>set("nombre_comercial",v)} required/><ModalField label="Nombre del Contacto Principal" value={form.contacto_principal} onChange={v=>set("contacto_principal",v)} required/><PhoneField label="Teléfono" ladaKey="lada_telefono" numberKey="telefono" icon="call" required/><PhoneField label="WhatsApp" ladaKey="lada_whatsapp" numberKey="whatsapp" icon="chat"/><ModalField icon="mail" label="Correo Electrónico" value={form.correo} onChange={v=>set("correo",v)} type="email"/><div className="svc-reg-field"><label>Ubicación Base / Cobertura *</label><div className="svc-location-control"><div className="svc-reg-control"><span><MS name="location_on" size={20}/></span><input className="svc-reg-input" value={form.ubicacion_cobertura} onChange={e=>set("ubicacion_cobertura",e.target.value)} required/></div><button className="svc-pin-btn" type="button" onClick={()=>setShowMap(true)}><MS name="pin_drop" size={23} active/></button></div></div></div><div className="svc-reg-brand"><div className="svc-reg-preview">{preview||form.logo_url?<img src={preview||form.logo_url} alt="Vista previa"/>:<div className="svc-reg-preview-empty"><MS name="image" size={25} active/><small>PREVIEW</small></div>}</div><div><input ref={fileRef} hidden type="file" accept="image/*" onChange={chooseFile}/><button type="button" className="svc-reg-upload" onClick={()=>fileRef.current?.click()}><span>{file?.name||"Seleccionar archivo..."}</span><MS name="cloud_upload" size={22}/></button><p className="svc-reg-help">JPG, PNG, WEBP o SVG. Máximo 2 MB.</p><div className="svc-reg-url"><strong>URL</strong><input className="svc-reg-input" value={form.logo_url} onChange={e=>set("logo_url",e.target.value)} type="url"/></div></div></div></section><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="schedule" size={24} active/><h3>Operatividad y Disponibilidad</h3></div><span className="svc-reg-label">Días que labora</span><div className="svc-reg-days">{SERVICIOS_DIAS.map(d=><button key={d.k} type="button" className={`svc-reg-day ${form.dias_laborales.includes(d.k)?"active":""}`} onClick={()=>toggleDay(d.k)}>{d.t}</button>)}</div><div className="svc-reg-schedule"><span className="svc-reg-label">Horario de Atención</span><div className="svc-reg-modes"><button type="button" className={`svc-reg-mode ${form.modalidad_horario==="24_horas"?"active":""}`} onClick={()=>set("modalidad_horario","24_horas")}>Servicio 24 Horas</button><button type="button" className={`svc-reg-mode ${form.modalidad_horario==="especifico"?"active":""}`} onClick={()=>set("modalidad_horario","especifico")}>Horario Específico</button></div><div className={`svc-reg-times ${form.modalidad_horario!=="especifico"?"disabled":""}`}><ModalField icon="schedule" label="Hora de Apertura" value={form.hora_inicio} onChange={v=>set("hora_inicio",v)} type="time"/><ModalField icon="history" label="Hora de Cierre" value={form.hora_fin} onChange={v=>set("hora_fin",v)} type="time"/></div></div></section><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="build" size={24} active/><h3>Especificaciones Técnicas</h3></div><div className="svc-reg-grid three">{categoria==="gruas"&&<><ModalSelect label="Tipo de Grúa" value={form.tipo_grua} onChange={v=>set("tipo_grua",v)} options={["Plataforma","Arrastre","Pluma","Pesada"]}/><ModalSelect label="Capacidad" value={form.capacidad} onChange={v=>set("capacidad",v)} options={["5T","10T","15T","+40T"]}/><ModalField label="Tiempo de Respuesta" value={form.tiempo_respuesta_min} onChange={v=>set("tiempo_respuesta_min",v)} type="number"/></>}{categoria==="mecanicos"&&<><ModalSelect label="Especialidad" value={form.especialidad} onChange={v=>set("especialidad",v)} options={["Talachero/Llantero","Eléctrico","Mecánico General","Frenos","Escáner","Climas"]}/><ModalSelect label="Vehículos" value={form.vehiculos} onChange={v=>set("vehiculos",v)} options={["Motos","Ligeros","Tractocamiones","Maquinaria","Todos"]}/><label className="svc-reg-check"><input type="checkbox" checked={form.rescate_vial==="Sí"} onChange={e=>set("rescate_vial",e.target.checked?"Sí":"No")}/><span>Rescate Vial</span></label></>}{categoria==="limpia_contenedores"&&<><ModalSelect label="Esquema de Cobro" value={form.esquema_cobro} onChange={v=>set("esquema_cobro",v)} options={["Por Hora","Por Trabajo","Ambos"]}/><ModalField label="Tarifa Base ($ MXN)" value={form.tarifa_base} onChange={v=>set("tarifa_base",v)} type="number"/><ModalSelect label="Tipo de Limpieza" value={form.tipos_limpieza} onChange={v=>set("tipos_limpieza",v)} options={["Barrido","Lavado Presión","Sanitización","Residuos Especiales"]}/><ModalField label="Capacidad Diaria" value={form.capacidad_diaria} onChange={v=>set("capacidad_diaria",v)} type="number"/></>}</div></section><div className="svc-reg-footer"><span>Registro vinculado a tu cuenta autenticada.</span><button className="svc-reg-submit" disabled={saving||success}>{saving?<><MS name="sync" size={22}/><span>Procesando...</span></>:success?<><MS name="check_circle" size={22}/><span>Registro Exitoso</span></>:<><span>Finalizar Registro</span><MS name="rocket_launch" size={22}/></>}</button></div></form></div>{showMap&&<ServicioLocationPicker value={form} onChange={data=>setForm(p=>({...p,...data}))} onClose={()=>setShowMap(false)}/>}</div>
+.svc-reg-backdrop{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:80px clamp(16px,3vw,28px) 32px;background:rgba(0,0,0,.72);backdrop-filter:blur(22px);overflow:hidden}.svc-reg-modal{width:min(100%,980px);max-height:85vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(63,71,83,.55);border-radius:18px;background:rgba(13,20,36,.96);box-shadow:0 28px 90px rgba(0,0,0,.62),0 0 34px rgba(0,102,255,.12);font-family:Inter,sans-serif;color:#e0e3e5}.svc-reg-header,.svc-map-head{display:flex;align-items:center;justify-content:space-between}.svc-reg-header{position:relative;flex:0 0 auto;z-index:5;padding:18px 22px;border-bottom:1px solid rgba(63,71,83,.45);background:rgba(13,20,36,.96);backdrop-filter:blur(18px)}.svc-reg-title{display:flex;align-items:center;gap:12px}.svc-reg-title h2{margin:0;font-size:21px}.svc-reg-title small{color:#89919e;font-size:11px;text-transform:uppercase;letter-spacing:.12em}.svc-reg-icon,.svc-reg-close,.svc-pin-btn,.svc-type-icon{display:flex;align-items:center;justify-content:center;line-height:0}.svc-reg-icon{width:42px;height:42px;border-radius:12px;color:#9fcaff;background:rgba(0,153,255,.12);border:1px solid rgba(159,202,255,.24)}.svc-reg-close,.svc-pin-btn{border:1px solid #3f4753;background:#15191b;color:#bfc7d5;cursor:pointer}.svc-reg-close{width:40px;height:40px;border-radius:10px}.svc-reg-form{display:grid;gap:24px;padding:22px;overflow-y:auto;overscroll-behavior:contain;max-height:calc(85vh - 82px);scrollbar-width:thin;scrollbar-color:#3f4753 #101415}.svc-reg-section{padding:clamp(20px,3vw,30px);border-radius:14px;background:rgba(17,24,39,.72);border:1px solid rgba(63,71,83,.5);backdrop-filter:blur(18px)}.svc-reg-section-head{display:flex;align-items:center;gap:10px;margin-bottom:24px}.svc-reg-section-head h3{margin:0;font-size:20px}.svc-reg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px}.svc-reg-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.svc-reg-field{display:grid;gap:8px;min-width:0}.svc-reg-field label,.svc-reg-label{font-size:11px;font-weight:800;letter-spacing:.065em;text-transform:uppercase;color:#bfc7d5}.svc-reg-control{position:relative}.svc-reg-control>span{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;line-height:0;color:#89919e;pointer-events:none}.svc-reg-input,.svc-reg-select{width:100%;height:48px;box-sizing:border-box;border:1px solid #3f4753;border-radius:9px;background:#080c17;color:#e0e3e5;padding:0 14px;font:500 14px Inter,sans-serif;outline:none}.svc-reg-control .svc-reg-input{padding-left:43px}.svc-reg-input:focus,.svc-reg-select:focus{border-color:#0066ff;box-shadow:0 0 0 4px rgba(0,102,255,.14)}.svc-phone-row{display:grid;grid-template-columns:minmax(150px,.6fr) minmax(0,1.4fr);gap:10px}.svc-logo-row{display:grid;grid-template-columns:100px minmax(0,1fr);gap:18px;align-items:center}.svc-logo-preview{width:100px;height:100px;border-radius:14px;border:1px dashed #3f4753;background:#080c17;display:flex;align-items:center;justify-content:center;overflow:hidden}.svc-logo-preview img{width:100%;height:100%;object-fit:cover}.svc-logo-actions{display:flex;gap:10px;flex-wrap:wrap}.svc-secondary-btn,.svc-pin-btn{min-height:42px;padding:0 14px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:8px;line-height:1;border:1px solid #3f4753;background:#15191b;color:#d8e2f1;font-weight:800;cursor:pointer}.svc-days,.svc-mode,.svc-type-grid,.svc-general-cats,.svc-general-services{display:flex;flex-wrap:wrap;gap:9px}.svc-day,.svc-mode button,.svc-type-card,.svc-general-chip{border:1px solid #3f4753;background:rgba(8,12,23,.9);color:#aeb8c9;font-weight:800;cursor:pointer;transition:.2s ease}.svc-day{width:44px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;line-height:1}.svc-mode button{min-height:42px;padding:0 16px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px}.svc-type-card{flex:1 1 180px;min-height:66px;padding:11px 14px;border-radius:12px;display:flex;align-items:center;gap:11px;text-align:left}.svc-type-icon{width:40px;height:40px;flex:0 0 40px;border-radius:10px;background:rgba(51,133,255,.1);border:1px solid rgba(51,133,255,.2)}.svc-day.active,.svc-mode button.active,.svc-type-card.active,.svc-general-chip.active{background:linear-gradient(180deg,#0d74ff,#0055d4);border-color:#3385ff;color:#fff;box-shadow:0 0 18px rgba(0,102,255,.34)}.svc-general-cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.svc-general-chip{min-height:48px;padding:10px 12px;border-radius:10px;display:flex;align-items:center;justify-content:flex-start;gap:9px;text-align:left;line-height:1.25}.svc-subservice-block{margin-top:16px;padding:16px;border:1px solid rgba(63,71,83,.5);border-radius:12px;background:rgba(5,8,15,.5)}.svc-subservice-title{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-weight:900;color:#dce8f8}.svc-service-chip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:999px;border:1px solid #3f4753;background:#101722;color:#aeb8c9;cursor:pointer}.svc-service-chip.active{border-color:#3385ff;background:rgba(0,102,255,.22);color:#dcecff;box-shadow:0 0 13px rgba(0,102,255,.2)}.svc-service-chip input{position:absolute;opacity:0;pointer-events:none}.svc-reg-check{min-height:48px;border:1px solid #3f4753;border-radius:9px;background:#080c17;display:flex;align-items:center;gap:10px;padding:0 14px}.svc-reg-footer{display:flex;align-items:center;justify-content:space-between;gap:16px}.svc-reg-footer>span{font-size:12px;color:#89919e}.svc-reg-submit{min-height:50px;padding:0 24px;border:0;border-radius:11px;background:linear-gradient(180deg,#087cff,#0057d8);color:#fff;font-weight:900;display:flex;align-items:center;justify-content:center;gap:10px;line-height:1;cursor:pointer;box-shadow:0 0 22px rgba(0,102,255,.38)}.svc-reg-msg{padding:12px 14px;border-radius:10px;border:1px solid rgba(255,180,171,.35);background:rgba(147,0,10,.2);color:#ffb4ab}.svc-map-backdrop{position:fixed;inset:0;z-index:10030;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.78);backdrop-filter:blur(16px)}.svc-map-dialog{width:min(900px,100%);border:1px solid #3f4753;border-radius:16px;overflow:hidden;background:#0d1424}.svc-map-head,.svc-map-foot{padding:14px 16px;background:#111827}.svc-map-head>div{display:flex;align-items:center;gap:9px}.svc-map-head button{width:38px;height:38px;border:1px solid #3f4753;border-radius:9px;background:#080c17;color:#fff;display:flex;align-items:center;justify-content:center}.svc-map-canvas{height:min(62vh,520px)}.svc-map-foot{display:flex;align-items:center;justify-content:space-between;gap:12px}.svc-map-foot button{min-height:42px;padding:0 16px;border:0;border-radius:9px;background:#0066ff;color:#fff;font-weight:900}@media(max-width:760px){.svc-reg-backdrop{padding:72px 10px 20px}.svc-reg-grid,.svc-reg-grid.three,.svc-general-cats{grid-template-columns:1fr}.svc-phone-row,.svc-logo-row{grid-template-columns:1fr}.svc-logo-preview{width:88px;height:88px}.svc-reg-footer{align-items:stretch;flex-direction:column}.svc-reg-submit{width:100%}.svc-map-foot{align-items:stretch;flex-direction:column}}
+`}</style><div className="svc-reg-modal" role="dialog" aria-modal="true"><header className="svc-reg-header"><div className="svc-reg-title"><div className="svc-reg-icon"><MS name={catIcon} size={24} active/></div><div><h2>Registrar Servicio</h2><small>Proveedor vinculado a tu cuenta</small></div></div><button type="button" className="svc-reg-close" onClick={onClose} disabled={saving} aria-label="Cerrar"><MS name="close" size={21}/></button></header><form className="svc-reg-form" onSubmit={submit}>{msg&&<div className="svc-reg-msg">{msg}</div>}<section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="category" size={24} active/><h3>Tipo de Servicio</h3></div><div className="svc-type-grid">{SERVICIOS_CATEGORIAS.map(item=><button key={item.key} type="button" className={`svc-type-card ${form.tipo_servicio===item.key?"active":""}`} onClick={()=>set("tipo_servicio",item.key)}><span className="svc-type-icon"><MS name={item.icon} size={22} active={form.tipo_servicio===item.key}/></span><span>{item.label}</span></button>)}</div></section><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="storefront" size={24} active/><h3>Datos Generales</h3></div><div className="svc-reg-grid"><ModalField label="Nombre Comercial" required value={form.nombre_comercial} onChange={v=>set("nombre_comercial",v)} icon="business" placeholder="Nombre del proveedor"/><ModalField label="Contacto" required value={form.contacto_principal} onChange={v=>set("contacto_principal",v)} icon="badge" placeholder="Persona o área responsable"/><ModalField label="Correo" value={form.correo} onChange={v=>set("correo",v)} type="email" icon="mail" placeholder="contacto@empresa.mx"/><ModalField label="URL de Logotipo" value={form.logo_url} onChange={v=>{set("logo_url",v);setPreview(v)}} icon="link" placeholder="https://..."/><PhoneField label="Teléfono de Atención" ladaKey="lada_telefono" numberKey="telefono" icon="call" required/><PhoneField label="WhatsApp" ladaKey="lada_whatsapp" numberKey="whatsapp" icon="chat"/><div className="svc-reg-field" style={{gridColumn:"1/-1"}}><label>Logotipo o Identidad Visual</label><div className="svc-logo-row"><div className="svc-logo-preview">{preview?<img src={preview} alt="Vista previa"/>:<MS name="image" size={32}/>}</div><div className="svc-logo-actions"><input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={chooseFile}/><button type="button" className="svc-secondary-btn" onClick={()=>fileRef.current?.click()}><MS name="cloud_upload" size={20}/><span>Subir archivo</span></button>{(preview||file)&&<button type="button" className="svc-secondary-btn" onClick={()=>{setFile(null);setPreview("");set("logo_url","");if(fileRef.current)fileRef.current.value=""}}><MS name="delete" size={19}/><span>Quitar</span></button>}</div></div></div></div></section><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="location_on" size={24} active/><h3>Ubicación y Mapa</h3></div><div className="svc-reg-grid"><div className="svc-reg-field" style={{gridColumn:"1/-1"}}><label>Dirección o Cobertura *</label><div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10}}><div className="svc-reg-control"><span><MS name="location_on" size={19}/></span><input className="svc-reg-input" value={form.ubicacion_cobertura} onChange={e=>set("ubicacion_cobertura",e.target.value)} required placeholder="Dirección, zona o cobertura"/></div><button type="button" className="svc-pin-btn" onClick={()=>setShowMap(true)}><MS name="pin_drop" size={21} active/><span>Marcar en mapa</span></button></div></div><ModalField label="Latitud" value={form.latitud} onChange={v=>set("latitud",v)} type="number" disabled/><ModalField label="Longitud" value={form.longitud} onChange={v=>set("longitud",v)} type="number" disabled/></div></section><section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="schedule" size={24} active/><h3>Operatividad</h3></div><div className="svc-reg-field"><label>Días de Operación</label><div className="svc-days">{SERVICIOS_DIAS.map(d=><button key={d.k} type="button" className={`svc-day ${form.dias_laborales.includes(d.k)?"active":""}`} onClick={()=>toggleDay(d.k)}>{d.k}</button>)}</div></div><div className="svc-reg-grid" style={{marginTop:20}}><div className="svc-reg-field"><label>Modalidad de Horario</label><div className="svc-mode"><button type="button" className={form.modalidad_horario==="24_horas"?"active":""} onClick={()=>set("modalidad_horario","24_horas")}><MS name="schedule" size={19}/><span>24 Horas</span></button><button type="button" className={form.modalidad_horario==="especifico"?"active":""} onClick={()=>set("modalidad_horario","especifico")}><MS name="date_range" size={19}/><span>Horario específico</span></button></div></div>{form.modalidad_horario==="especifico"&&<div className="svc-reg-grid"><ModalField icon="schedule" label="Hora de Apertura" value={form.hora_inicio} onChange={v=>set("hora_inicio",v)} type="time"/><ModalField icon="history" label="Hora de Cierre" value={form.hora_fin} onChange={v=>set("hora_fin",v)} type="time"/></div>}</div></section>{form.tipo_servicio==="generales"?<section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="handyman" size={24} active/><h3>Categorías y Subservicios Generales</h3></div><div className="svc-reg-field"><label>Categoría de Servicio General *</label><div className="svc-general-cats">{SERVICIOS_GENERALES_CATALOGO.map(item=><button key={item.id} type="button" className={`svc-general-chip ${form.subcategorias.includes(item.title)?"active":""}`} onClick={()=>toggleGeneralCategory(item.title)}><MS name={form.subcategorias.includes(item.title)?"check_circle":"radio_button_unchecked"} size={19}/><span>{item.title}</span></button>)}</div></div>{SERVICIOS_GENERALES_CATALOGO.filter(item=>form.subcategorias.includes(item.title)).map(item=><div className="svc-subservice-block" key={item.id}><div className="svc-subservice-title"><MS name="list_alt" size={20} active/><span>{item.title}</span></div><div className="svc-general-services">{item.services.map(service=>{const active=(form.servicios_desglosados[item.title]||[]).includes(service);return <label key={service} className={`svc-service-chip ${active?"active":""}`}><input type="checkbox" checked={active} onChange={()=>toggleGeneralService(item.title,service)}/><MS name={active?"check_box":"check_box_outline_blank"} size={18}/><span>{service}</span></label>})}</div></div>)}</section>:<section className="svc-reg-section"><div className="svc-reg-section-head"><MS name="build" size={24} active/><h3>Especificaciones Técnicas</h3></div><div className="svc-reg-grid three">{form.tipo_servicio==="gruas"&&<><ModalSelect label="Tipo de Grúa" value={form.tipo_grua} onChange={v=>set("tipo_grua",v)} options={["Plataforma","Arrastre","Pluma","Pesada"]}/><ModalSelect label="Capacidad" value={form.capacidad} onChange={v=>set("capacidad",v)} options={["5T","10T","15T","+40T"]}/><ModalField label="Tiempo de Respuesta" value={form.tiempo_respuesta_min} onChange={v=>set("tiempo_respuesta_min",v)} type="number"/></>}{form.tipo_servicio==="mecanicos"&&<><ModalSelect label="Especialidad" value={form.especialidad} onChange={v=>set("especialidad",v)} options={["Talachero/Llantero","Eléctrico","Mecánico General","Frenos","Escáner","Climas"]}/><ModalSelect label="Vehículos" value={form.vehiculos} onChange={v=>set("vehiculos",v)} options={["Motos","Ligeros","Tractocamiones","Maquinaria","Todos"]}/><label className="svc-reg-check"><input type="checkbox" checked={form.rescate_vial==="Sí"} onChange={e=>set("rescate_vial",e.target.checked?"Sí":"No")}/><span>Rescate Vial</span></label></>}{form.tipo_servicio==="limpia_contenedores"&&<><ModalSelect label="Esquema de Cobro" value={form.esquema_cobro} onChange={v=>set("esquema_cobro",v)} options={["Por Hora","Por Trabajo","Ambos"]}/><ModalField label="Tarifa Base MXN" value={form.tarifa_base} onChange={v=>set("tarifa_base",v)} type="number"/><ModalSelect label="Tipo de Limpieza" value={form.tipos_limpieza} onChange={v=>set("tipos_limpieza",v)} options={["Barrido","Lavado Presión","Sanitización","Residuos Especiales"]}/><ModalField label="Capacidad Diaria" value={form.capacidad_diaria} onChange={v=>set("capacidad_diaria",v)} type="number"/></>}</div></section>}<div className="svc-reg-footer"><span>Registro vinculado a tu cuenta autenticada.</span><button className="svc-reg-submit" disabled={saving||success}>{saving?<><MS name="sync" size={22}/><span>Procesando</span></>:success?<><MS name="check_circle" size={22}/><span>Registro exitoso</span></>:<><MS name="save" size={22}/><span>Finalizar Registro</span></>}</button></div></form></div>{showMap&&<ServicioLocationPicker value={form} onChange={data=>setForm(p=>({...p,...data}))} onClose={()=>setShowMap(false)}/>}</div>
 }
 
 function ModalField({label,value,onChange,type="text",required=false,icon="",placeholder="",disabled=false}){return <div className="svc-reg-field"><label>{label}{required?" *":""}</label><div className="svc-reg-control">{icon&&<MS name={icon} size={18}/>}<input className="svc-reg-input" style={icon?undefined:{paddingLeft:14}} type={type} value={value} onChange={e=>onChange(e.target.value)} required={required} placeholder={placeholder} disabled={disabled}/></div></div>}
@@ -29569,7 +29811,7 @@ function GuiaConectManzanillo({ setActive, isAdmin, authIntent, onReportBug }) {
       "Modificar estados o administrar registros requiere el permiso operativo correspondiente."
     ]},
     { id:"tutorial", icon:"design_services", title:"Servicios", audience:"Todos / cuenta para registrar", summary:"Directorio operativo y de auxilio vial para la comunidad portuaria y de transporte.", details:[
-      "Incluye las categorías Grúas, Mecánicos y Limpia Contenedores.",
+      "Incluye las categorías Grúas, Mecánicos, Limpia Contenedores y Generales.",
       "Permite búsqueda en tiempo real, filtros por especialidad y consulta de proveedores por categoría.",
       "El registro incorpora geolocalización en mapa Leaflet, LADA internacional y contacto directo mediante WhatsApp.",
       "Las tarjetas admiten valoraciones por estrellas y cada proveedor registrado queda vinculado al ID de la cuenta autenticada."
