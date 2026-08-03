@@ -28227,50 +28227,202 @@ function SectionLabel({ children }) { return <div style={{ fontSize: 11, fontWei
 const ghostButtonStyle = { display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${TOKENS.border}`, borderRadius: 9, background: "rgba(148,163,184,.05)", color: "#8DB0FF", padding: "7px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700 };
 const primaryButtonStyle = { display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 10, background: TOKENS.blue, color: "#fff", padding: "10px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 800, boxShadow: `0 0 18px ${TOKENS.blueGlow}` };
 
+function PatioLocationPicker({ value, onChange, onClose }) {
+  const ready = useLeaflet();
+  const mapEl = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (!ready || !mapEl.current || mapRef.current) return undefined;
+    const LL = window.L;
+    const lat = Number(value?.lat) || 19.049;
+    const lng = Number(value?.lng) || -104.32;
+    const map = LL.map(mapEl.current, { zoomControl: true }).setView([lat, lng], 13);
+    LL.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
+    const pin = LL.divIcon({
+      className: "cm-patio-pin-wrap",
+      html: '<div class="cm-patio-pin"><span class="material-symbols-outlined">location_on</span></div>',
+      iconSize: [46, 54], iconAnchor: [23, 50], popupAnchor: [0, -48]
+    });
+    const marker = LL.marker([lat, lng], { draggable: true, icon: pin }).addTo(map);
+    const apply = async (ll) => {
+      marker.setLatLng(ll);
+      let label = `${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${ll.lat}&lon=${ll.lng}`, { headers: { Accept: "application/json" } });
+        if (response.ok) {
+          const json = await response.json();
+          label = json.display_name || label;
+        }
+      } catch (_) {}
+      const fixedLat = Number(ll.lat.toFixed(7));
+      const fixedLng = Number(ll.lng.toFixed(7));
+      onChange({ lat: fixedLat, lng: fixedLng, zona: label, mapsUrl: `https://maps.google.com/?q=${fixedLat},${fixedLng}` });
+    };
+    map.on("click", (event) => apply(event.latlng));
+    marker.on("dragend", () => apply(marker.getLatLng()));
+    mapRef.current = map;
+    markerRef.current = marker;
+    setTimeout(() => map.invalidateSize(), 90);
+    return () => { map.remove(); mapRef.current = null; };
+  }, [ready]);
+
+  return (
+    <div className="patio-map-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="patio-map-dialog">
+        <div className="patio-map-head">
+          <div><Icon name="pin_drop" size={23} /><strong>Seleccionar ubicación exacta</strong></div>
+          <button type="button" onClick={onClose}><Icon name="close" size={21} /></button>
+        </div>
+        <div ref={mapEl} className="patio-map-canvas" />
+        <div className="patio-map-foot">
+          <span>{value?.lat && value?.lng ? `${Number(value.lat).toFixed(6)}, ${Number(value.lng).toFixed(6)}` : "Haz clic en el mapa o arrastra el marcador."}</span>
+          <button type="button" onClick={onClose}><Icon name="check" size={18} />Usar ubicación</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PatioFormModal({ patio, onClose, onSave, onDelete }) {
   const editing = Boolean(patio?.id);
+  const parseMeta = (notes) => {
+    try { const parsed = JSON.parse(notes || "{}"); return parsed && typeof parsed === "object" ? parsed : {}; }
+    catch { return { notasOperativas: notes || "" }; }
+  };
+  const previousMeta = parseMeta(patio?.notas);
   const [form, setForm] = useState(() => ({
     nombre: patio?.nombre || "",
     empresa: patio?.empresa || "",
     zona: patio?.zona || "",
     mapsUrl: patio?.mapsUrl || "",
-    lat: String(patio?.lat ?? 19.049),
-    lng: String(patio?.lng ?? -104.32),
-    estado: patio?.estado || "activo",
+    lat: Number(patio?.lat ?? 19.049),
+    lng: Number(patio?.lng ?? -104.32),
+    estado: patio?.estado === "cerrado" ? "cierre_temporal" : (patio?.estado || "activo"),
+    capacidad: previousMeta.capacidad || "",
+    fotoUrl: previousMeta.fotoUrl || "",
+    lada: previousMeta.lada || "+52",
+    telefono: previousMeta.telefono || "",
     horario: normalizeHorario(patio?.horario),
-    notas: patio?.notas || "",
+    modalidadHorario: normalizeHorario(patio?.horario).h24 ? "24_horas" : "especifico",
+    notasOperativas: previousMeta.notasOperativas || "",
   }));
-  const setField = (key, value) => setForm((p) => ({ ...p, [key]: value }));
-  const toggleDay = (day) => setForm((p) => ({ ...p, horario: { ...p.horario, dias: p.horario.dias.includes(day) ? p.horario.dias.filter((d) => d !== day) : [...p.horario.dias, day] } }));
-  const submit = async () => {
-    if (!form.nombre.trim() || !form.empresa.trim() || !form.zona.trim()) return;
-    await onSave({ ...patio, ...form, lat: Number(form.lat), lng: Number(form.lng) });
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(previousMeta.fotoUrl || "");
+  const [showMap, setShowMap] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, []);
+
+  const setField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const toggleDay = (day) => setForm((current) => ({
+    ...current,
+    horario: { ...current.horario, dias: current.horario.dias.includes(day) ? current.horario.dias.filter((item) => item !== day) : [...current.horario.dias, day] }
+  }));
+  const chooseFile = (event) => {
+    const selected = event.target.files?.[0] || null;
+    if (selected && !/^image\/(jpeg|png|webp|svg\+xml)$/i.test(selected.type)) { setMessage("Selecciona una imagen JPG, PNG, WEBP o SVG."); return; }
+    if (selected && selected.size > 2 * 1024 * 1024) { setMessage("La imagen supera el límite de 2 MB."); return; }
+    setMessage(""); setFile(selected);
+    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    setPreview(selected ? URL.createObjectURL(selected) : form.fotoUrl);
   };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!form.nombre.trim() || !form.empresa.trim() || !form.zona.trim()) { setMessage("Completa los campos obligatorios del patio."); return; }
+    if (!form.horario.dias.length) { setMessage("Selecciona al menos un día de operación."); return; }
+    setSaving(true); setMessage("");
+    const normalizedEstado = form.estado === "cierre_temporal" || form.estado === "mantenimiento" ? "cerrado" : form.estado;
+    const phone = String(form.telefono || "").replace(/\D/g, "").slice(0, 10);
+    const meta = {
+      capacidad: form.capacidad.trim(), fotoUrl: form.fotoUrl.trim(), lada: form.lada,
+      telefono: phone, whatsappUrl: phone ? `https://wa.me/${String(form.lada).replace(/\D/g, "")}${phone}` : "",
+      estadoDetallado: form.estado, notasOperativas: form.notasOperativas.trim()
+    };
+    try {
+      const ok = await onSave({
+        ...patio, nombre: form.nombre, empresa: form.empresa, zona: form.zona, mapsUrl: form.mapsUrl,
+        lat: Number(form.lat), lng: Number(form.lng), estado: normalizedEstado,
+        horario: { ...form.horario, h24: form.modalidadHorario === "24_horas" }, notas: JSON.stringify(meta)
+      });
+      if (!ok) setMessage("No fue posible guardar el patio. Revisa los datos e intenta nuevamente.");
+    } finally { setSaving(false); }
+  };
+
+  const field = (label, content, full = false) => <div className={`patio-reg-field ${full ? "full" : ""}`}><label>{label}</label>{content}</div>;
+
   return (
-    <ModalShell onClose={onClose} maxWidth={560}>
-      <header style={{ padding: "20px 22px", borderBottom: `1px solid ${TOKENS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 17, fontWeight: 800 }}><Icon name={editing ? "edit_location_alt" : "add_business"} size={22} style={{ color: editing ? "#6FA0FF" : TOKENS.coral }} />{editing ? "Editar patio" : "Registrar patio"}</div>
-        <button type="button" onClick={onClose} title="Cerrar" style={iconButtonStyle}><Icon name="close" size={18} /></button>
-      </header>
-      <div style={{ padding: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Nombre del patio" full><input value={form.nombre} onChange={(e) => setField("nombre", e.target.value)} style={inputStyle} placeholder="Ej. Patio Norte TIMSA" /></Field>
-        <Field label="Empresa"><input value={form.empresa} onChange={(e) => setField("empresa", e.target.value)} style={inputStyle} /></Field>
-        <Field label="Estado"><select value={form.estado} onChange={(e) => setField("estado", e.target.value)} style={inputStyle}>{ESTADOS.map((e) => <option key={e} value={e}>{ESTADO_MAP[e].label}</option>)}</select></Field>
-        <Field label="Ubicación" full><input value={form.zona} onChange={(e) => setField("zona", e.target.value)} style={inputStyle} /></Field>
-        <Field label="Google Maps" full><input value={form.mapsUrl} onChange={(e) => setField("mapsUrl", e.target.value)} style={inputStyle} placeholder="https://maps.google.com/?q=..." /></Field>
-        <Field label="Latitud"><input value={form.lat} onChange={(e) => setField("lat", e.target.value)} style={inputStyle} inputMode="decimal" /></Field>
-        <Field label="Longitud"><input value={form.lng} onChange={(e) => setField("lng", e.target.value)} style={inputStyle} inputMode="decimal" /></Field>
-        <Field label="Días de operación" full><div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{DIAS_ORDEN.map((d) => <button key={d} type="button" title={DIAS_LABEL[d]} onClick={() => toggleDay(d)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${form.horario.dias.includes(d) ? "rgba(37,99,235,.5)" : TOKENS.border}`, background: form.horario.dias.includes(d) ? TOKENS.blue : "rgba(148,163,184,.05)", color: form.horario.dias.includes(d) ? "#fff" : TOKENS.textDim, cursor: "pointer", fontWeight: 800 }}>{d}</button>)}</div></Field>
-        <Field label="Apertura"><input type="time" disabled={form.horario.h24} value={form.horario.apertura} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, apertura: e.target.value } }))} style={inputStyle} /></Field>
-        <Field label="Cierre"><input type="time" disabled={form.horario.h24} value={form.horario.cierre} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, cierre: e.target.value } }))} style={inputStyle} /></Field>
-        <label style={{ gridColumn: "1 / -1", display: "inline-flex", gap: 9, alignItems: "center", color: TOKENS.textDim, fontSize: 12.5, cursor: "pointer" }}><input type="checkbox" checked={form.horario.h24} onChange={(e) => setForm((p) => ({ ...p, horario: { ...p.horario, h24: e.target.checked } }))} />Atención las 24 horas</label>
-        <Field label="Notas operativas" full><textarea value={form.notas} onChange={(e) => setField("notas", e.target.value)} style={{ ...inputStyle, minHeight: 78, resize: "vertical" }} /></Field>
-        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: editing ? "space-between" : "flex-end", gap: 10, marginTop: 4 }}>
-          {editing && <button type="button" onClick={() => onDelete(patio)} style={{ ...ghostButtonStyle, color: "#FF8986", borderColor: "rgba(241,74,71,.35)" }}><Icon name="delete" size={17} />Eliminar patio</button>}
-          <button type="button" onClick={submit} style={primaryButtonStyle}><Icon name="save" size={17} />{editing ? "Guardar cambios" : "Guardar patio"}</button>
-        </div>
+    <div className="patio-reg-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <style>{`
+        .patio-reg-backdrop{position:fixed;inset:0;z-index:10050;padding:80px 16px 28px;display:flex;align-items:flex-start;justify-content:center;background:rgba(2,6,14,.84);backdrop-filter:blur(12px);font-family:Inter,system-ui,sans-serif;color:#e7ecf5;overflow:hidden}
+        .patio-reg-modal{width:min(940px,100%);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(148,163,184,.27);border-radius:24px;background:linear-gradient(155deg,rgba(20,29,48,.98),rgba(8,13,24,.98));box-shadow:0 32px 90px rgba(0,0,0,.68),0 0 42px rgba(37,99,235,.17)}
+        .patio-reg-header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 24px;border-bottom:1px solid rgba(148,163,184,.15);background:linear-gradient(180deg,rgba(37,99,235,.13),rgba(37,99,235,.02))}
+        .patio-reg-title{display:flex;align-items:center;gap:14px;min-width:0}.patio-reg-title-icon,.patio-reg-section-icon{display:flex;align-items:center;justify-content:center;line-height:0;flex:0 0 auto}.patio-reg-title-icon{width:50px;height:50px;border-radius:15px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.36);box-shadow:0 0 24px rgba(37,99,235,.28)}
+        .patio-reg-title h2{margin:0;font-size:20px;line-height:1.2;font-weight:900}.patio-reg-title p{margin:5px 0 0;color:#8b96ac;font-size:12px;line-height:1.4}.patio-reg-close{width:42px;height:42px;flex:0 0 42px;border-radius:12px;border:1px solid rgba(148,163,184,.2);background:rgba(8,12,22,.62);color:#b9c4d8;display:flex;align-items:center;justify-content:center;line-height:0;cursor:pointer;transition:.2s}.patio-reg-close:hover{color:#fff;border-color:rgba(96,165,250,.55);background:rgba(37,99,235,.13)}
+        .patio-reg-form{overflow-y:auto;overscroll-behavior:contain;padding:22px 24px 26px;scrollbar-width:thin;scrollbar-color:#2563eb rgba(148,163,184,.08)}.patio-reg-form::-webkit-scrollbar{width:8px}.patio-reg-form::-webkit-scrollbar-thumb{background:#2563eb;border-radius:99px}
+        .patio-reg-message{margin-bottom:15px;padding:11px 13px;border-radius:11px;border:1px solid rgba(241,74,71,.35);background:rgba(88,20,28,.35);color:#ffaaa7;font-size:12px}
+        .patio-reg-section{padding:20px;border:1px solid rgba(148,163,184,.14);border-radius:18px;background:rgba(22,30,48,.52);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}.patio-reg-section+.patio-reg-section{margin-top:16px}.patio-reg-section-head{display:flex;align-items:center;gap:11px;margin-bottom:18px}.patio-reg-section-icon{width:40px;height:40px;border-radius:12px;background:rgba(37,99,235,.13);border:1px solid rgba(96,165,250,.25)}.patio-reg-section h3{margin:0;font-size:14px;font-weight:850;color:#f3f7ff}
+        .patio-reg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.patio-reg-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.patio-reg-field{min-width:0}.patio-reg-field.full{grid-column:1/-1}.patio-reg-field>label,.patio-reg-label{display:block;margin-bottom:7px;color:#78849c;font-size:10px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+        .patio-reg-control{position:relative;display:flex;align-items:center;min-height:46px;border:1px solid rgba(148,163,184,.17);border-radius:12px;background:rgba(6,10,19,.74);transition:.2s;overflow:hidden}.patio-reg-control:focus-within{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14),0 0 18px rgba(37,99,235,.14)}.patio-reg-control>span{width:44px;height:44px;display:flex;align-items:center;justify-content:center;line-height:0;color:#6fa0ff;flex:0 0 44px}.patio-reg-input,.patio-reg-select{width:100%;min-width:0;box-sizing:border-box;border:0;outline:0;background:transparent;color:#e7ecf5;font:600 13px Inter,sans-serif;padding:13px 13px}.patio-reg-select{min-height:46px;border:1px solid rgba(148,163,184,.17);border-radius:12px;background:#0b1220;color:#e7ecf5}.patio-reg-input::placeholder{color:#4d5970}
+        .patio-location-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:9px}.patio-pin-btn{width:48px;height:48px;border:1px solid rgba(96,165,250,.35);border-radius:12px;background:linear-gradient(145deg,#2563eb,#0e4ec4);color:#fff;display:flex;align-items:center;justify-content:center;line-height:0;cursor:pointer;box-shadow:0 0 18px rgba(37,99,235,.32)}
+        .patio-brand{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center;margin-top:16px}.patio-preview{height:112px;border:1px dashed rgba(96,165,250,.35);border-radius:14px;overflow:hidden;background:rgba(6,10,19,.65);display:flex;align-items:center;justify-content:center}.patio-preview img{width:100%;height:100%;object-fit:cover}.patio-preview-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#6f7d98}.patio-preview-empty small{font-size:9px;font-weight:900;letter-spacing:.15em}.patio-upload{width:100%;min-height:46px;padding:0 14px;border:1px solid rgba(148,163,184,.2);border-radius:12px;background:rgba(8,12,22,.72);color:#cbd6e8;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}.patio-help{margin:7px 0 10px;color:#5f6b82;font-size:10px}
+        .patio-days{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:18px}.patio-day{width:43px;height:43px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(8,12,22,.72);color:#8290aa;font-weight:850;display:flex;align-items:center;justify-content:center;line-height:1;cursor:pointer;transition:.2s}.patio-day.active{background:#2563eb;color:#fff;border-color:#5b8cff;box-shadow:0 0 17px rgba(37,99,235,.42)}
+        .patio-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}.patio-mode{min-height:44px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(8,12,22,.62);color:#8491a8;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1.2;cursor:pointer}.patio-mode.active{border-color:#2563eb;background:rgba(37,99,235,.18);color:#bcd0ff;box-shadow:0 0 17px rgba(37,99,235,.18)}
+        .patio-phone{display:grid;grid-template-columns:180px minmax(0,1fr);gap:9px}.patio-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;padding-top:18px;border-top:1px solid rgba(148,163,184,.14)}.patio-footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-left:auto}.patio-delete,.patio-submit{min-height:46px;padding:0 18px;border-radius:12px;font:850 12px Inter,sans-serif;display:flex;align-items:center;justify-content:center;gap:9px;line-height:1;cursor:pointer}.patio-delete{border:1px solid rgba(241,74,71,.35);background:rgba(241,74,71,.09);color:#ff918e}.patio-submit{border:0;background:linear-gradient(135deg,#2563eb,#0d54d8);color:#fff;box-shadow:0 0 22px rgba(37,99,235,.38)}.patio-submit:disabled{opacity:.55;cursor:wait}.patio-footer-note{color:#69758c;font-size:10px}
+        .patio-map-backdrop{position:fixed;inset:0;z-index:10100;padding:80px 16px 24px;display:flex;align-items:flex-start;justify-content:center;background:rgba(2,6,14,.86);backdrop-filter:blur(10px)}.patio-map-dialog{width:min(850px,100%);overflow:hidden;border:1px solid rgba(148,163,184,.28);border-radius:20px;background:#101827;box-shadow:0 30px 85px rgba(0,0,0,.7)}.patio-map-head,.patio-map-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.17)}.patio-map-head>div,.patio-map-head button,.patio-map-foot button{display:flex;align-items:center;justify-content:center;gap:9px;line-height:0}.patio-map-head button{width:40px;height:40px;border:1px solid rgba(148,163,184,.2);border-radius:10px;background:#171f2f;color:#e7ecf5}.patio-map-canvas{height:min(58vh,520px);min-height:360px}.patio-map-foot{border-top:1px solid rgba(148,163,184,.17);border-bottom:0;color:#8b96ac;font-size:12px}.patio-map-foot button{min-height:42px;padding:0 15px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:850}.cm-patio-pin-wrap{background:transparent!important;border:0!important}.cm-patio-pin{width:46px;height:46px;border-radius:50% 50% 50% 8px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#2563eb,#0e4ec4);border:2px solid #c7dcff;box-shadow:0 0 0 6px rgba(37,99,235,.18),0 0 26px rgba(37,99,235,.72),0 12px 24px rgba(0,0,0,.5)}.cm-patio-pin .material-symbols-outlined{transform:rotate(45deg);font-size:25px!important;color:#fff;line-height:1!important}
+        @media(max-width:720px){.patio-reg-backdrop{padding:72px 10px 18px}.patio-reg-modal{max-height:calc(100vh - 90px);border-radius:18px}.patio-reg-header{padding:16px}.patio-reg-form{padding:15px}.patio-reg-section{padding:15px}.patio-reg-grid,.patio-reg-grid.three,.patio-modes,.patio-phone{grid-template-columns:1fr}.patio-brand{grid-template-columns:1fr}.patio-preview{height:150px}.patio-footer{align-items:stretch;flex-direction:column}.patio-footer-actions{width:100%;margin-left:0;flex-direction:column}.patio-delete,.patio-submit{width:100%}.patio-map-backdrop{padding:72px 10px 18px}.patio-map-foot{align-items:stretch;flex-direction:column}.patio-map-foot button{width:100%}}
+      `}</style>
+      <div className="patio-reg-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="patio-reg-header">
+          <div className="patio-reg-title"><div className="patio-reg-title-icon"><Icon name={editing ? "edit_location_alt" : "domain_add"} size={26} /></div><div><h2>{editing ? "Editar patio" : "Registrar patio"}</h2><p>Directorio operativo y ubicación de patios reguladores</p></div></div>
+          <button type="button" className="patio-reg-close" onClick={onClose} disabled={saving}><Icon name="close" size={22} /></button>
+        </header>
+        <form className="patio-reg-form" onSubmit={submit}>
+          {message && <div className="patio-reg-message">{message}</div>}
+          <section className="patio-reg-section">
+            <div className="patio-reg-section-head"><div className="patio-reg-section-icon"><Icon name="warehouse" size={22} /></div><h3>Datos operativos del patio</h3></div>
+            <div className="patio-reg-grid">
+              {field("Nombre del Patio *", <div className="patio-reg-control"><span><Icon name="domain" size={19} /></span><input className="patio-reg-input" value={form.nombre} onChange={(e) => setField("nombre", e.target.value)} placeholder="Ej. Patio Norte TIMSA" required /></div>, true)}
+              {field("Empresa / Operadora *", <div className="patio-reg-control"><span><Icon name="business" size={19} /></span><input className="patio-reg-input" value={form.empresa} onChange={(e) => setField("empresa", e.target.value)} required /></div>)}
+              {field("Estado Operativo", <select className="patio-reg-select" value={form.estado} onChange={(e) => setField("estado", e.target.value)}><option value="activo">Activo</option><option value="saturado">Saturado</option><option value="mantenimiento">En Mantenimiento</option><option value="cierre_temporal">Cierre Temporal</option></select>)}
+              {field("Capacidad de Recepción", <div className="patio-reg-control"><span><Icon name="inventory_2" size={19} /></span><input className="patio-reg-input" value={form.capacidad} onChange={(e) => setField("capacidad", e.target.value)} placeholder="Ej. 120 TEUs o 45 unidades" /></div>, true)}
+            </div>
+            <div className="patio-brand"><div className="patio-preview">{preview || form.fotoUrl ? <img src={preview || form.fotoUrl} alt="Vista previa del patio" /> : <div className="patio-preview-empty"><Icon name="image" size={27} /><small>PREVIEW</small></div>}</div><div><input ref={fileRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" onChange={chooseFile} /><button type="button" className="patio-upload" onClick={() => fileRef.current?.click()}><span>{file?.name || "Seleccionar archivo local"}</span><Icon name="cloud_upload" size={21} /></button><p className="patio-help">JPG, PNG, WEBP o SVG. Máximo 2 MB.</p><div className="patio-reg-control"><span><Icon name="link" size={19} /></span><input className="patio-reg-input" type="url" value={form.fotoUrl} onChange={(e) => { setField("fotoUrl", e.target.value); if (!file) setPreview(e.target.value); }} placeholder="URL directa de logotipo o fotografía" /></div></div></div>
+          </section>
+          <section className="patio-reg-section">
+            <div className="patio-reg-section-head"><div className="patio-reg-section-icon"><Icon name="location_on" size={22} /></div><h3>Ubicación y mapa interactivo</h3></div>
+            <div className="patio-reg-grid">
+              {field("Ubicación / Dirección *", <div className="patio-location-row"><div className="patio-reg-control"><span><Icon name="location_on" size={19} /></span><input className="patio-reg-input" value={form.zona} onChange={(e) => setField("zona", e.target.value)} required /></div><button className="patio-pin-btn" type="button" onClick={() => setShowMap(true)} title="Seleccionar ubicación en mapa"><Icon name="pin_drop" size={23} /></button></div>, true)}
+              {field("Latitud", <div className="patio-reg-control"><span><Icon name="north" size={18} /></span><input className="patio-reg-input" inputMode="decimal" value={form.lat} onChange={(e) => setField("lat", e.target.value)} /></div>)}
+              {field("Longitud", <div className="patio-reg-control"><span><Icon name="east" size={18} /></span><input className="patio-reg-input" inputMode="decimal" value={form.lng} onChange={(e) => setField("lng", e.target.value)} /></div>)}
+              {field("Enlace de Google Maps", <div className="patio-reg-control"><span><Icon name="map" size={19} /></span><input className="patio-reg-input" type="url" value={form.mapsUrl} onChange={(e) => setField("mapsUrl", e.target.value)} placeholder="Se genera al seleccionar el PIN" /></div>, true)}
+            </div>
+          </section>
+          <section className="patio-reg-section">
+            <div className="patio-reg-section-head"><div className="patio-reg-section-icon"><Icon name="schedule" size={22} /></div><h3>Días de operación y horarios</h3></div>
+            <span className="patio-reg-label">Días que labora</span><div className="patio-days">{DIAS_ORDEN.map((day) => <button key={day} type="button" title={DIAS_LABEL[day]} className={`patio-day ${form.horario.dias.includes(day) ? "active" : ""}`} onClick={() => toggleDay(day)}>{day === "X" ? "Mi" : day}</button>)}</div>
+            <span className="patio-reg-label">Horario de Atención</span><div className="patio-modes"><button type="button" className={`patio-mode ${form.modalidadHorario === "24_horas" ? "active" : ""}`} onClick={() => setField("modalidadHorario", "24_horas")}>Servicio 24 Horas</button><button type="button" className={`patio-mode ${form.modalidadHorario === "especifico" ? "active" : ""}`} onClick={() => setField("modalidadHorario", "especifico")}>Horario Específico</button></div>
+            <div className="patio-reg-grid"><div className="patio-reg-field"><label>Hora de Apertura</label><div className="patio-reg-control"><span><Icon name="schedule" size={19} /></span><input className="patio-reg-input" type="time" disabled={form.modalidadHorario !== "especifico"} value={form.horario.apertura} onChange={(e) => setForm((current) => ({ ...current, horario: { ...current.horario, apertura: e.target.value } }))} /></div></div><div className="patio-reg-field"><label>Hora de Cierre</label><div className="patio-reg-control"><span><Icon name="history" size={19} /></span><input className="patio-reg-input" type="time" disabled={form.modalidadHorario !== "especifico"} value={form.horario.cierre} onChange={(e) => setForm((current) => ({ ...current, horario: { ...current.horario, cierre: e.target.value } }))} /></div></div></div>
+          </section>
+          <section className="patio-reg-section">
+            <div className="patio-reg-section-head"><div className="patio-reg-section-icon"><Icon name="contact_phone" size={22} /></div><h3>Contacto y comunicación directa</h3></div>
+            <div className="patio-reg-grid"><div className="patio-reg-field full"><label>Teléfono de Atención y WhatsApp</label><div className="patio-phone"><select className="patio-reg-select" value={form.lada} onChange={(e) => setField("lada", e.target.value)}>{SERVICIOS_LADAS.map((item) => <option key={`patio-${item.code}`} value={item.code}>{item.code} {item.label}</option>)}</select><div className="patio-reg-control"><span><Icon name="chat" size={19} /></span><input className="patio-reg-input" inputMode="numeric" value={form.telefono} onChange={(e) => setField("telefono", e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10 dígitos" /></div></div></div>{field("Notas operativas", <div className="patio-reg-control"><textarea className="patio-reg-input" style={{ minHeight: 82, resize: "vertical", paddingLeft: 14 }} value={form.notasOperativas} onChange={(e) => setField("notasOperativas", e.target.value)} placeholder="Indicaciones de acceso, restricciones o datos de operación" /></div>, true)}</div>
+          </section>
+          <div className="patio-footer"><span className="patio-footer-note">La ubicación, horarios y contacto se vincularán al directorio operativo.</span><div className="patio-footer-actions">{editing && <button type="button" className="patio-delete" onClick={() => onDelete(patio)} disabled={saving}><Icon name="delete" size={19} />Eliminar patio</button>}<button type="submit" className="patio-submit" disabled={saving}><Icon name={saving ? "sync" : editing ? "save" : "domain_add"} size={20} />{saving ? "Guardando..." : editing ? "Guardar cambios" : "Registrar patio"}</button></div></div>
+        </form>
       </div>
-    </ModalShell>
+      {showMap && <PatioLocationPicker value={form} onChange={(data) => setForm((current) => ({ ...current, ...data }))} onClose={() => setShowMap(false)} />}
+    </div>
   );
 }
 function Field({ label, full, children }) { return <label style={{ gridColumn: full ? "1 / -1" : "auto", minWidth: 0 }}><span style={labelStyle}>{label}</span>{children}</label>; }
