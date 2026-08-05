@@ -20569,7 +20569,49 @@ ${base}`;
             {complementaryPreviews.map((item, index) => (
               <div key={item.id} style={{ position:"relative", borderRadius:"8px", overflow:"hidden", border:"1px solid rgba(148,163,184,.25)", background:"#020b16", aspectRatio:"4 / 3" }}>
                 <img src={item.url} alt={`Foto complementaria ${index + 1}`} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                <button type="button" onClick={() => removeComplementaryFile(index)} aria-label={`Eliminar foto complementaria ${index + 1}`} style={{ position:"absolute", top:"5px", right:"5px", width:"28px", height:"28px", borderRadius:"7px", border:"1px solid rgba(248,113,113,.55)", background:"rgba(69,10,10,.86)", color:"#fecaca", fontSize:"16px", lineHeight:1, cursor:"pointer" }}>×</button>
+                <button
+                  type="button"
+                  onClick={() => removeComplementaryFile(index)}
+                  aria-label={`Eliminar foto complementaria ${index + 1}`}
+                  title="Eliminar foto"
+                  style={{
+                    position:"absolute",
+                    top:"8px",
+                    right:"8px",
+                    width:"36px",
+                    height:"36px",
+                    minWidth:"36px",
+                    minHeight:"36px",
+                    padding:0,
+                    borderRadius:"50%",
+                    border:"1px solid rgba(248,113,113,.62)",
+                    background:"rgba(0,0,0,.64)",
+                    color:"#fff",
+                    cursor:"pointer",
+                    display:"inline-flex",
+                    alignItems:"center",
+                    justifyContent:"center",
+                    backdropFilter:"blur(8px)",
+                    WebkitBackdropFilter:"blur(8px)",
+                    boxShadow:"0 8px 22px rgba(0,0,0,.38), 0 0 0 1px rgba(255,255,255,.04) inset",
+                    transition:"transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease",
+                    zIndex:3
+                  }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.transform = "scale(1.08)";
+                    event.currentTarget.style.background = "rgba(127,29,29,.88)";
+                    event.currentTarget.style.boxShadow = "0 10px 26px rgba(0,0,0,.45), 0 0 18px rgba(248,113,113,.26)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.transform = "scale(1)";
+                    event.currentTarget.style.background = "rgba(0,0,0,.64)";
+                    event.currentTarget.style.boxShadow = "0 8px 22px rgba(0,0,0,.38), 0 0 0 1px rgba(255,255,255,.04) inset";
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style={{ display:"block", flex:"0 0 auto" }}>
+                    <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                  </svg>
+                </button>
               </div>
             ))}
           </div>
@@ -20842,20 +20884,58 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const totalVigentes = vigentes.length;
   const getComunicadoPages = useCallback((comunicado) => {
     if (!comunicado) return [];
-    const rawMedia = parseJsonArray(comunicado.media_urls);
-    const rawPages = parseJsonArray(comunicado.paginas_urls || comunicado.page_urls || comunicado.imagenes_urls);
-    const candidates = [...rawMedia, ...rawPages];
-    const mainUrl = String(comunicado.archivo_url || "").trim();
-    const mainIsPdf = isPdf(mainUrl, comunicado.archivo_tipo);
-    if (mainUrl && (!mainIsPdf || !candidates.length)) candidates.unshift(mainUrl);
-    const urls = [...new Set(candidates.map(value => String(value || "").trim()).filter(Boolean))];
+
+    const extractMediaEntries = (value) => {
+      const parsed = parseJsonArray(value);
+      return parsed.flatMap((entry) => {
+        if (!entry) return [];
+        if (typeof entry === "string") return [entry];
+        if (Array.isArray(entry)) return entry;
+        if (typeof entry === "object") {
+          return [
+            entry.archivo_url,
+            entry.url,
+            entry.publicUrl,
+            entry.public_url,
+            entry.src,
+            entry.path,
+          ].filter(Boolean);
+        }
+        return [];
+      });
+    };
+
+    const candidates = [
+      comunicado.archivo_url,
+      ...extractMediaEntries(comunicado.media_urls),
+      ...extractMediaEntries(comunicado.paginas_urls),
+      ...extractMediaEntries(comunicado.page_urls),
+      ...extractMediaEntries(comunicado.imagenes_urls),
+      ...extractMediaEntries(comunicado.fotos_complementarias),
+      ...extractMediaEntries(comunicado.fotos_complementarias_urls),
+      ...extractMediaEntries(comunicado.complementary_urls),
+      ...extractMediaEntries(comunicado.gallery_urls),
+      ...extractMediaEntries(comunicado.galeria_urls),
+      ...extractMediaEntries(comunicado.attachments),
+      ...extractMediaEntries(comunicado.adjuntos),
+    ];
+
+    const urls = [];
+    const seen = new Set();
+    for (const value of candidates) {
+      const url = String(value || "").trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+    }
+
     return urls.map((url, pageIndex) => ({
       ...comunicado,
       id: `${comunicado.id || "comunicado"}-pagina-${pageIndex + 1}`,
       comunicado_id: comunicado.id,
       archivo_url: url,
-      archivo_tipo: isPdf(url) ? "application/pdf" : "image/jpeg",
-      titulo: `${comunicado.titulo || "Comunicado"} · Página ${pageIndex + 1}`,
+      archivo_tipo: isPdf(url, pageIndex === 0 ? comunicado.archivo_tipo : "") ? "application/pdf" : "image/jpeg",
+      titulo: `${comunicado.titulo || "Comunicado"} · Documento ${pageIndex + 1}`,
       pageIndex,
       pageCount: urls.length,
     }));
@@ -21222,7 +21302,7 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: comunicadosMobile ? "stretch" : "flex-end" }}>
-                      <button onClick={abrirComunicadoActivo} style={{ padding: "9px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>Pantalla completa</button>
+                      <button onClick={abrirComunicadoActivo} style={{ padding: "9px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.35)", borderRadius: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: "pointer" }}>Ver imágenes</button>
                       <a href={paginaActiva?.archivo_url || comunicadoActivo.archivo_url} target="_blank" rel="noopener noreferrer" style={{ padding: "9px 12px", background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: "10px", color: "#fbbf24", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Abrir</a>
                       {onDownloadItem ? (<button onClick={() => onDownloadItem(paginaActiva || comunicadoActivo)} disabled={downloadingItemUrl === (paginaActiva?.archivo_url || comunicadoActivo.archivo_url)} style={{ padding: "9px 12px", background: downloadingItemUrl === (paginaActiva?.archivo_url || comunicadoActivo.archivo_url) ? "rgba(100,116,139,.18)" : "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: downloadingItemUrl === (paginaActiva?.archivo_url || comunicadoActivo.archivo_url) ? "#94a3b8" : "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", cursor: downloadingItemUrl === (paginaActiva?.archivo_url || comunicadoActivo.archivo_url) ? "not-allowed" : "pointer" }}>{downloadingItemUrl === (paginaActiva?.archivo_url || comunicadoActivo.archivo_url) ? "Preparando descarga…" : "Descargar con marca de agua"}</button>) : (<a href={comunicadoActivo.archivo_url} download style={{ padding: "9px 12px", background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.35)", borderRadius: "10px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: "700", textDecoration: "none" }}>Descargar</a>)}
                     </div>
