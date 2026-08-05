@@ -186,11 +186,35 @@ const CM_LEGAL_STYLES = '.cm-legal-footer {\n  position: relative;\n  z-index: 2
 const CM_INTERACTION_STYLES = '\n\n.cm-contact-backdrop,\n.cm-news-viewer {\n  animation: cmOverlayFade .22s ease-out both;\n}\n.cm-contact-dialog,\n.cm-news-viewer__stage {\n  animation: cmOverlayScale .26s cubic-bezier(.2,.8,.2,1) both;\n}\n@keyframes cmOverlayFade { from { opacity: 0; } to { opacity: 1; } }\n@keyframes cmOverlayScale { from { opacity: 0; transform: scale(.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }\n.cm-contact-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483300;\n  display: grid;\n  place-items: center;\n  padding: 20px;\n  background: rgba(1, 7, 16, .78);\n  backdrop-filter: blur(14px);\n  -webkit-backdrop-filter: blur(14px);\n}\n.cm-contact-dialog {\n  width: min(620px, 100%);\n  max-height: min(88dvh, 760px);\n  overflow: auto;\n  border: 1px solid rgba(159,202,255,.24);\n  border-radius: 22px;\n  background: linear-gradient(155deg, rgba(17,38,62,.98), rgba(5,17,31,.98));\n  box-shadow: 0 30px 100px rgba(0,0,0,.66), 0 0 40px rgba(56,189,248,.08);\n  color: #eef6ff;\n  font-family: "DM Sans", sans-serif;\n}\n.cm-contact-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  padding: 20px 22px;\n  border-bottom: 1px solid rgba(159,202,255,.14);\n}\n.cm-contact-head h2 { margin: 3px 0 0; font: 700 clamp(20px,4vw,28px)/1.2 "Space Mono", monospace; }\n.cm-contact-kicker { margin: 0; color:#8ec5ff; font: 700 10px/1.2 "Space Mono", monospace; letter-spacing:.14em; text-transform:uppercase; }\n.cm-contact-close,\n.cm-contact-action,\n.cm-contact-copy {\n  transition: transform .2s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, opacity .2s ease;\n}\n.cm-contact-close {\n  width: 42px; height: 42px; flex:0 0 auto; display:grid; place-items:center;\n  border:1px solid rgba(159,202,255,.25); border-radius:999px;\n  background:rgba(7,23,40,.78); color:#eaf4ff; cursor:pointer;\n}\n.cm-contact-close:hover,\n.cm-contact-close:focus-visible { transform:translateY(-2px); border-color:#8ec5ff; background:rgba(34,74,112,.72); box-shadow:0 0 22px rgba(142,197,255,.2); outline:none; }\n.cm-contact-body { padding:22px; }\n.cm-contact-lead { margin:0 0 18px; color:rgba(232,243,255,.76); font-size:14px; line-height:1.65; }\n.cm-contact-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n.cm-contact-card { padding:16px; border:1px solid rgba(159,202,255,.14); border-radius:16px; background:rgba(8,24,42,.66); }\n.cm-contact-card h3 { margin:0 0 6px; color:#fff; font-size:14px; }\n.cm-contact-card p { margin:0 0 14px; color:rgba(212,228,250,.66); font-size:12px; line-height:1.55; overflow-wrap:anywhere; }\n.cm-contact-action,\n.cm-contact-copy {\n  min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:9px;\n  border:1px solid rgba(159,202,255,.25); border-radius:11px; padding:10px 13px;\n  background:rgba(159,202,255,.09); color:#eaf4ff; text-decoration:none;\n  font:700 12px/1 "DM Sans", sans-serif; cursor:pointer;\n}\n.cm-contact-action:hover,\n.cm-contact-action:focus-visible,\n.cm-contact-copy:hover,\n.cm-contact-copy:focus-visible { transform:translateY(-2px); border-color:#8ec5ff; background:rgba(56,189,248,.16); box-shadow:0 10px 26px rgba(0,0,0,.22),0 0 20px rgba(56,189,248,.12); outline:none; }\n.cm-contact-action.is-whatsapp { border-color:rgba(37,211,102,.36); color:#8ff0b4; background:rgba(37,211,102,.09); }\n.cm-contact-action.is-whatsapp:hover { border-color:#25d366; background:rgba(37,211,102,.15); box-shadow:0 0 22px rgba(37,211,102,.14); }\n.cm-contact-email-actions { display:flex; flex-wrap:wrap; gap:8px; }\n.cm-contact-note { margin:18px 0 0; color:rgba(159,202,255,.56); font-size:11px; line-height:1.55; }\n@media (max-width:620px) {\n  .cm-contact-backdrop { align-items:end; padding:0; }\n  .cm-contact-dialog { width:100%; max-height:94dvh; border-radius:22px 22px 0 0; padding-bottom:env(safe-area-inset-bottom); }\n  .cm-contact-grid { grid-template-columns:1fr; }\n}\n.cm-news-viewer {\n  position:fixed;\n  inset:0;\n  z-index:2147483600;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));\n  overflow:hidden;\n  isolation:isolate;\n  background:rgba(0,0,0,.9);\n  backdrop-filter:blur(12px);\n  -webkit-backdrop-filter:blur(12px);\n}\n.cm-news-viewer__stage {\n  position:relative;\n  width:100%;\n  height:100%;\n  max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  padding:68px 12px 70px;\n  box-sizing:border-box;\n}\n.cm-news-viewer__media { max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; display:block; border-radius:12px; background:#061428; box-shadow:0 24px 90px rgba(0,0,0,.72); }\n.cm-news-viewer__toolbar { position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:9px; align-items:center; }\n.cm-news-viewer__actions { position:absolute; right:8px; bottom:8px; z-index:5; display:flex; gap:9px; align-items:center; }\n.cm-news-viewer__button {\n  width:46px; height:46px; min-width:46px; min-height:46px; display:inline-flex; align-items:center; justify-content:center;\n  border-radius:999px; border:1px solid rgba(255,255,255,.25); background:rgba(10,22,40,.88); color:#fff;\n  cursor:pointer; text-decoration:none; touch-action:manipulation; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);\n  box-shadow:0 12px 36px rgba(0,0,0,.5); transition:transform .2s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease,opacity .2s ease;\n}\n.cm-news-viewer__button:hover,\n.cm-news-viewer__button:focus-visible { transform:translateY(-2px) scale(1.08); background:rgba(18,48,78,.96); border-color:#b8dcff; box-shadow:0 16px 42px rgba(0,0,0,.62),0 0 28px rgba(159,202,255,.28); outline:none; }\n.cm-news-viewer__button:active { transform:scale(.96); background:rgba(31,70,108,.98); }
 .cm-news-viewer__button:disabled { opacity:.48; cursor:not-allowed; transform:none; }\n.cm-news-viewer__nav { position:absolute; top:50%; z-index:4; transform:translateY(-50%); }\n.cm-news-viewer__nav:hover,.cm-news-viewer__nav:focus-visible { transform:translateY(calc(-50% - 2px)); }\n.cm-news-viewer__nav.is-prev { left:8px; }\n.cm-news-viewer__nav.is-next { right:8px; }\n.cm-news-viewer__count { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); padding:7px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(10,22,40,.76); color:rgba(255,255,255,.78); font:700 10px/1 "DM Sans",sans-serif; backdrop-filter:blur(10px); }\n.cm-news-viewer__media-wrap { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; overflow:hidden; }\n.cm-news-viewer__media.is-entering { animation:cmViewerMediaIn .3s ease both; }\n@keyframes cmViewerMediaIn { from { opacity:0; transform:translateX(14px) scale(.985); } to { opacity:1; transform:translateX(0) scale(1); } }\n.cm-news-viewer__loader { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }\n.cm-news-viewer__loader-card { width:min(280px,70vw); height:16px; border-radius:999px; overflow:hidden; border:1px solid rgba(159,202,255,.14); background:rgba(159,202,255,.08); }\n.cm-news-viewer__loader-bar { width:42%; height:100%; border-radius:inherit; background:linear-gradient(90deg,transparent,rgba(159,202,255,.82),transparent); animation:cmViewerSkeleton 1.1s ease-in-out infinite; }\n@keyframes cmViewerSkeleton { from { transform:translateX(-110%); } to { transform:translateX(340%); } }\n.cm-news-viewer__thumbs { position:absolute; left:50%; bottom:8px; z-index:6; transform:translateX(-50%); max-width:min(70vw,720px); display:flex; gap:7px; padding:7px; overflow-x:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:rgba(4,14,27,.76); backdrop-filter:blur(12px); scrollbar-width:thin; }\n.cm-news-viewer__thumb { width:44px; height:44px; flex:0 0 44px; padding:0; overflow:hidden; border-radius:9px; border:1px solid rgba(255,255,255,.18); background:#061428; color:#d8e9ff; cursor:pointer; transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,opacity .2s ease; }\n.cm-news-viewer__thumb:hover,.cm-news-viewer__thumb:focus-visible { transform:translateY(-2px); border-color:#9fcaff; box-shadow:0 0 18px rgba(159,202,255,.2); outline:none; }\n.cm-news-viewer__thumb.is-active { border-color:#38bdf8; box-shadow:0 0 0 1px #38bdf8,0 0 20px rgba(56,189,248,.28); }\n.cm-news-viewer__thumb img { width:100%; height:100%; object-fit:cover; display:block; }\n.cm-news-viewer__thumb span { width:100%; height:100%; display:grid; place-items:center; font:800 10px/1 "DM Sans",sans-serif; }\n@media (max-width:600px) {\n  .cm-news-viewer { padding:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom)); }\n  .cm-news-viewer__stage { padding:62px 2px 68px; }\n  .cm-news-viewer__button { width:56px; height:56px; min-width:56px; min-height:56px; }\n  .cm-news-viewer__nav.is-prev { left:2px; }\n  .cm-news-viewer__nav.is-next { right:2px; }\n}\n@media (prefers-reduced-motion: reduce) {\n  .cm-contact-backdrop,.cm-contact-dialog,.cm-news-viewer,.cm-news-viewer__stage { animation:none; }\n  .cm-contact-close,.cm-contact-action,.cm-contact-copy,.cm-news-viewer__button { transition:none; }\n}\n';
 
+
+const CM_CONTACT_CYBER_STYLES = `
+.cm-contact-backdrop{position:fixed;inset:0;z-index:2147483300;display:grid;place-items:center;padding:clamp(14px,3vw,32px);overflow:auto;background:rgba(4,8,12,.84);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);animation:cmContactFade .24s ease-out both}
+.cm-contact-dialog{position:relative;isolation:isolate;width:min(960px,100%);max-height:min(92dvh,860px);overflow:auto;padding:clamp(22px,3vw,36px);border:1px solid rgba(63,71,83,.48);border-radius:18px;background:rgba(16,20,21,.94);box-shadow:0 30px 100px rgba(0,0,0,.68),inset 0 1px 0 rgba(159,202,255,.08),0 0 55px rgba(0,227,253,.06);color:#e0e3e5;font-family:Inter,"DM Sans",sans-serif;animation:cmContactEnter .3s cubic-bezier(.2,.8,.2,1) both;scrollbar-width:thin;scrollbar-color:rgba(159,202,255,.28) transparent}
+.cm-contact-dialog:before{content:"";position:absolute;inset:0;z-index:-2;pointer-events:none;border-radius:inherit;background-image:radial-gradient(rgba(159,202,255,.12) 1px,transparent 1px);background-size:20px 20px;opacity:.34}
+.cm-contact-ambient{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden;border-radius:inherit;background:radial-gradient(circle at 4% 5%,rgba(0,153,255,.14),transparent 31%),radial-gradient(circle at 95% 94%,rgba(0,227,253,.12),transparent 35%)}
+.cm-contact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:32px;padding:0;border:0;background:none}
+.cm-contact-heading{max-width:760px}.cm-contact-heading h2{margin:0 0 8px;color:#9fcaff;font:700 clamp(27px,4vw,34px)/1.2 Inter,sans-serif;letter-spacing:-.02em}.cm-contact-heading p{margin:0;color:#bfc7d5;font:400 16px/1.5 Inter,sans-serif}
+.cm-contact-close{width:50px;height:50px;min-width:50px;min-height:50px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(137,145,158,.34);border-radius:999px;background:rgba(30,34,40,.64);color:#e0e3e5;cursor:pointer;backdrop-filter:blur(12px);transition:all .2s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.cm-contact-close:hover,.cm-contact-close:focus-visible{transform:translateY(-2px) scale(1.05);border-color:rgba(159,202,255,.62);background:rgba(50,53,55,.88);color:#bdf4ff;box-shadow:0 0 24px rgba(159,202,255,.18);outline:none}.cm-contact-close:active{transform:scale(.96)}
+.cm-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.cm-contact-card{position:relative;overflow:hidden;min-height:238px;display:flex;flex-direction:column;padding:24px;border:1px solid rgba(63,71,83,.56);border-radius:12px;background:rgba(30,34,40,.62);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,.34);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease,background .3s ease}.cm-contact-card:hover{transform:translateY(-4px);border-color:rgba(159,202,255,.4);background:rgba(30,34,40,.76);box-shadow:0 14px 38px rgba(0,0,0,.42),0 0 26px rgba(159,202,255,.12)}
+.cm-contact-accent{position:absolute;top:0;left:0;width:100%;height:4px}.cm-contact-card--whatsapp .cm-contact-accent{background:linear-gradient(90deg,#00ff66,transparent 74%);box-shadow:0 0 18px rgba(0,255,102,.4)}.cm-contact-card--email .cm-contact-accent{background:linear-gradient(90deg,#9fcaff,transparent 74%)}.cm-contact-card--channel .cm-contact-accent{background:linear-gradient(90deg,#9cf0ff,transparent 74%)}.cm-contact-card--facebook .cm-contact-accent{background:linear-gradient(90deg,#1877f2,transparent 74%)}
+.cm-contact-card__head{display:flex;align-items:center;gap:16px;margin-bottom:20px}.cm-contact-card__head--compact{margin-bottom:15px}.cm-contact-card h3{margin:0;color:#e0e3e5;font:600 20px/1.35 Inter,sans-serif}.cm-contact-subtitle,.cm-contact-email{display:block;margin-top:1px;color:#bfc7d5;font:500 13px/1.4 Inter,sans-serif}.cm-contact-email{color:#9fcaff;letter-spacing:.02em;overflow-wrap:anywhere}.cm-contact-card>p{flex:1;margin:0 0 22px;color:#bfc7d5;font:400 14px/1.5 Inter,sans-serif}
+.cm-contact-iconbox{width:48px;height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(63,71,83,.9);border-radius:10px;background:#1d2022;transition:all .25s ease}.cm-contact-iconbox--whatsapp{color:#25d366}.cm-contact-iconbox--primary{color:#9fcaff}.cm-contact-iconbox--cyan{width:42px;height:42px;min-width:42px;border-radius:999px;color:#9cf0ff}.cm-contact-iconbox--facebook{width:42px;height:42px;min-width:42px;border-radius:999px;color:#1877f2}.cm-contact-card:hover .cm-contact-iconbox{border-color:rgba(159,202,255,.48);box-shadow:0 0 20px rgba(159,202,255,.1)}.cm-contact-card--whatsapp:hover .cm-contact-iconbox{border-color:rgba(37,211,102,.5);box-shadow:0 0 20px rgba(37,211,102,.12)}
+.cm-contact-button{position:relative;overflow:hidden;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;border-radius:5px;text-decoration:none;font:600 14px/1 Inter,sans-serif;cursor:pointer;transition:all .25s ease}.cm-contact-button>*{position:relative;z-index:1}.cm-contact-shine:before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.11),transparent);transform:translateX(-115%);transition:transform .7s ease}.cm-contact-shine:hover:before{transform:translateX(115%)}.cm-contact-button:hover,.cm-contact-button:focus-visible{transform:translateY(-2px);outline:none}.cm-contact-button:active{transform:scale(.98)}
+.cm-contact-button--whatsapp{border:1px solid rgba(37,211,102,.62);background:rgba(50,53,55,.72);color:#e0e3e5;box-shadow:0 0 15px rgba(0,255,102,.22)}.cm-contact-button--whatsapp:hover{border-color:#25d366;color:#5aff94;background:rgba(37,211,102,.1);box-shadow:0 0 26px rgba(0,255,102,.38);animation:cmContactPulse 1.8s ease-in-out infinite}
+.cm-contact-email-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-contact-button--primary{border:1px solid rgba(159,202,255,.38);background:rgba(0,153,255,.08);color:#9fcaff}.cm-contact-button--primary:hover{border-color:#9fcaff;background:rgba(0,153,255,.16);box-shadow:0 0 22px rgba(159,202,255,.18)}.cm-contact-button--neutral{border:1px solid rgba(137,145,158,.38);background:rgba(50,53,55,.52);color:#bfc7d5}.cm-contact-button--neutral:hover{border-color:#bfc7d5;color:#e0e3e5;background:rgba(50,53,55,.82);box-shadow:0 0 20px rgba(191,199,213,.12)}
+.cm-contact-button--spread{justify-content:space-between}.cm-contact-button--outline-cyan{border:1px solid rgba(156,240,255,.58);background:transparent;color:#9cf0ff}.cm-contact-button--outline-cyan:hover{background:rgba(156,240,255,.09);box-shadow:0 0 22px rgba(0,218,243,.16)}.cm-contact-button--outline-facebook{border:1px solid rgba(24,119,242,.62);background:transparent;color:#4094ff}.cm-contact-button--outline-facebook:hover{background:rgba(24,119,242,.1);box-shadow:0 0 22px rgba(24,119,242,.18)}.cm-contact-button:hover .cm-contact-arrow{transform:translateX(4px)}.cm-contact-arrow{transition:transform .25s ease}
+@keyframes cmContactFade{from{opacity:0}to{opacity:1}}@keyframes cmContactEnter{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:none}}@keyframes cmContactPulse{0%,100%{box-shadow:0 0 16px rgba(0,255,102,.26)}50%{box-shadow:0 0 28px rgba(0,255,102,.45)}}
+@media(max-width:720px){.cm-contact-backdrop{align-items:end;padding:0}.cm-contact-dialog{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:22px 16px calc(22px + env(safe-area-inset-bottom))}.cm-contact-head{margin-bottom:24px}.cm-contact-heading p{font-size:14px}.cm-contact-grid{grid-template-columns:1fr;gap:16px}.cm-contact-card{min-height:0;padding:20px}.cm-contact-close{width:48px;height:48px;min-width:48px;min-height:48px}}
+@media(max-width:430px){.cm-contact-head{gap:14px}.cm-contact-heading h2{font-size:26px}.cm-contact-email-actions{grid-template-columns:1fr}.cm-contact-card__head{align-items:flex-start}.cm-contact-email{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.cm-contact-backdrop,.cm-contact-dialog{animation:none}.cm-contact-card,.cm-contact-close,.cm-contact-button,.cm-contact-shine:before,.cm-contact-arrow{transition:none}.cm-contact-button--whatsapp:hover{animation:none}}
+`;
+
 (function injectConectLegalStyles() {
   if (typeof document === "undefined" || document.getElementById("cm-legal-styles")) return;
   const style = document.createElement("style");
   style.id = "cm-legal-styles";
-  style.textContent = CM_LEGAL_STYLES + CM_INTERACTION_STYLES;
+  style.textContent = CM_LEGAL_STYLES + CM_INTERACTION_STYLES + CM_CONTACT_CYBER_STYLES;
   document.head.appendChild(style);
 })();
 
@@ -300,14 +324,18 @@ function LegalModal({ document, onClose }) {
 }
 
 
-function ContactIcon({ name, size = 20 }) {
-  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", xmlns:"http://www.w3.org/2000/svg", "aria-hidden":"true", focusable:"false" };
-  const p = { stroke:"currentColor", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round" };
+function ContactIcon({ name, size = 20, className = "" }) {
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", xmlns:"http://www.w3.org/2000/svg", "aria-hidden":"true", focusable:"false", className };
+  const p = { stroke:"currentColor", strokeWidth:2, strokeLinecap:"round", strokeLinejoin:"round" };
   if (name === "close") return <svg {...common}><path d="M6 6l12 12M18 6 6 18" {...p}/></svg>;
-  if (name === "whatsapp") return <svg {...common}><path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.2A8.5 8.5 0 1 1 20.5 11.6Z" {...p}/><path d="M8.4 8.1c.2-.4.5-.4.8-.4h.4c.2 0 .4.1.5.4l.8 1.9c.1.3.1.5-.1.7l-.6.7c-.2.2-.1.4 0 .6.7 1.3 1.7 2.3 3 3 .2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.9c.3.1.4.3.4.6 0 .7-.3 1.4-.8 1.9-.5.5-1.3.7-2.1.5-1.7-.4-3.5-1.3-5-2.8-1.5-1.5-2.5-3.3-2.8-5-.2-.7 0-1.3.4-1.7Z" {...p}/></svg>;
+  if (name === "whatsapp") return <svg {...common} fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>;
   if (name === "mail") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" {...p}/><path d="m4 7 8 6 8-6" {...p}/></svg>;
+  if (name === "edit") return <svg {...common}><path d="M12 20h9" {...p}/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" {...p}/></svg>;
   if (name === "copy") return <svg {...common}><rect x="8" y="8" width="11" height="11" rx="2" {...p}/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" {...p}/></svg>;
-  if (name === "channel") return <svg {...common}><path d="M5 5h14v10H9l-4 4V5Z" {...p}/><path d="M8 9h8M8 12h5" {...p}/></svg>;
+  if (name === "campaign") return <svg {...common}><path d="M3 11v2a2 2 0 0 0 2 2h2l4 4V5L7 9H5a2 2 0 0 0-2 2Z" {...p}/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12" {...p}/></svg>;
+  if (name === "groups") return <svg {...common}><circle cx="9" cy="8" r="3" {...p}/><path d="M3 20c.5-4 2.5-6 6-6s5.5 2 6 6" {...p}/><circle cx="17" cy="9" r="2.3" {...p}/><path d="M15.5 14.5c3.2.1 5 1.8 5.5 5.5" {...p}/></svg>;
+  if (name === "send") return <svg {...common}><path d="m22 2-7 20-4-9-9-4Z" {...p}/><path d="M22 2 11 13" {...p}/></svg>;
+  if (name === "arrow") return <svg {...common}><path d="M5 12h14M13 6l6 6-6 6" {...p}/></svg>;
   if (name === "external") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9" {...p}/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...p}/></svg>;
   return null;
 }
@@ -316,6 +344,7 @@ function ContactModal({ onClose }) {
   const dialogRef = React.useRef(null);
   const closeRef = React.useRef(null);
   const previousFocus = React.useRef(null);
+  const copyTimerRef = React.useRef(null);
   const [copied, setCopied] = React.useState(false);
   const email = "conectmanzanillo@gmail.com";
   const whatsapp = "https://wa.me/5215612463102";
@@ -341,6 +370,7 @@ function ContactModal({ onClose }) {
     document.addEventListener("keydown", keyHandler);
     return () => {
       window.clearTimeout(timer);
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", keyHandler);
       previousFocus.current?.focus?.();
@@ -350,51 +380,79 @@ function ContactModal({ onClose }) {
   const copyEmail = async () => {
     try {
       await navigator.clipboard.writeText(email);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
     } catch {
       const input = document.createElement("textarea");
       input.value = email;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
       document.body.appendChild(input);
       input.select();
       document.execCommand("copy");
       input.remove();
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
     }
+    setCopied(true);
+    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => setCopied(false), 1800);
   };
 
   return createPortal(
     <div className="cm-contact-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section ref={dialogRef} className="cm-contact-dialog" role="dialog" aria-modal="true" aria-labelledby="cm-contact-title">
+      <section ref={dialogRef} className="cm-contact-dialog" role="dialog" aria-modal="true" aria-labelledby="cm-contact-title" aria-describedby="cm-contact-description">
+        <div className="cm-contact-ambient" aria-hidden="true" />
         <header className="cm-contact-head">
-          <div><p className="cm-contact-kicker">Conect Manzanillo</p><h2 id="cm-contact-title">Contacto</h2></div>
-          <button ref={closeRef} type="button" className="cm-contact-close" onClick={onClose} aria-label="Cerrar contacto"><ContactIcon name="close" size={21}/></button>
-        </header>
-        <div className="cm-contact-body">
-          <p className="cm-contact-lead">Selecciona el canal de comunicación más conveniente para recibir orientación o enviar comentarios sobre la plataforma.</p>
-          <div className="cm-contact-grid">
-            <article className="cm-contact-card">
-              <h3>WhatsApp</h3><p>Inicia una conversación directa con Conect Manzanillo.</p>
-              <a className="cm-contact-action is-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer"><ContactIcon name="whatsapp"/><span>Abrir WhatsApp</span></a>
-            </article>
-            <article className="cm-contact-card">
-              <h3>Correo electrónico</h3><p>{email}</p>
-              <div className="cm-contact-email-actions">
-                <a className="cm-contact-action" href={`mailto:${email}`}><ContactIcon name="mail"/><span>Redactar correo</span></a>
-                <button type="button" className="cm-contact-copy" onClick={copyEmail} aria-live="polite"><ContactIcon name="copy"/><span>{copied ? "Correo copiado" : "Copiar correo"}</span></button>
-              </div>
-            </article>
-            <article className="cm-contact-card">
-              <h3>Canal de WhatsApp</h3><p>Consulta comunicados y actualizaciones de la comunidad.</p>
-              <a className="cm-contact-action" href={channel} target="_blank" rel="noopener noreferrer"><ContactIcon name="channel"/><span>Abrir canal</span></a>
-            </article>
-            <article className="cm-contact-card">
-              <h3>Comunidad en Facebook</h3><p>Accede al grupo de Conect Manzanillo.</p>
-              <a className="cm-contact-action" href={facebookGroup} target="_blank" rel="noopener noreferrer"><ContactIcon name="external"/><span>Abrir grupo</span></a>
-            </article>
+          <div className="cm-contact-heading">
+            <h2 id="cm-contact-title">Contacto</h2>
+            <p id="cm-contact-description">Aún tenemos detalles por pulir, y aunque no podemos asegurar cuándo estarán resueltos, estamos disponibles para cualquier duda, sugerencia o comentario que nos quieras hacer llegar.</p>
           </div>
-          <p className="cm-contact-note">Los canales externos se abren en una pestaña nueva. La disponibilidad y los tiempos de respuesta pueden variar.</p>
+          <button ref={closeRef} type="button" className="cm-contact-close" onClick={onClose} aria-label="Cerrar contacto"><ContactIcon name="close" size={23}/></button>
+        </header>
+
+        <div className="cm-contact-grid">
+          <article className="cm-contact-card cm-contact-card--whatsapp">
+            <span className="cm-contact-accent" aria-hidden="true" />
+            <div className="cm-contact-card__head">
+              <span className="cm-contact-iconbox cm-contact-iconbox--whatsapp"><ContactIcon name="whatsapp" size={31}/></span>
+              <div><h3>WhatsApp</h3><span className="cm-contact-subtitle">Mensaje Directo</span></div>
+            </div>
+            <p>Comunícate directamente con nuestro equipo de soporte para asistencia técnica inmediata o reportes urgentes.</p>
+            <a className="cm-contact-button cm-contact-button--whatsapp cm-contact-shine" href={whatsapp} target="_blank" rel="noopener noreferrer">
+              <ContactIcon name="send" size={21}/><span>Enviar Mensaje</span>
+            </a>
+          </article>
+
+          <article className="cm-contact-card cm-contact-card--email">
+            <span className="cm-contact-accent" aria-hidden="true" />
+            <div className="cm-contact-card__head">
+              <span className="cm-contact-iconbox cm-contact-iconbox--primary"><ContactIcon name="mail" size={29}/></span>
+              <div><h3>Correo Electrónico</h3><span className="cm-contact-email">{email}</span></div>
+            </div>
+            <p>Para consultas formales, documentación adjunta o seguimiento de casos complejos.</p>
+            <div className="cm-contact-email-actions">
+              <a className="cm-contact-button cm-contact-button--primary cm-contact-shine" href={`mailto:${email}`}><ContactIcon name="edit" size={19}/><span>Redactar</span></a>
+              <button type="button" className="cm-contact-button cm-contact-button--neutral cm-contact-shine" onClick={copyEmail} aria-label="Copiar correo electrónico" aria-live="polite"><ContactIcon name="copy" size={19}/><span>{copied ? "Copiado" : "Copiar"}</span></button>
+            </div>
+          </article>
+
+          <article className="cm-contact-card cm-contact-card--channel">
+            <span className="cm-contact-accent" aria-hidden="true" />
+            <div className="cm-contact-card__head cm-contact-card__head--compact">
+              <span className="cm-contact-iconbox cm-contact-iconbox--cyan"><ContactIcon name="campaign" size={24}/></span>
+              <h3>Canal de WhatsApp</h3>
+            </div>
+            <p>Únete a nuestro canal oficial para recibir notificaciones en tiempo real, actualizaciones del sistema y avisos importantes sobre el puerto.</p>
+            <a className="cm-contact-button cm-contact-button--outline-cyan cm-contact-button--spread cm-contact-shine" href={channel} target="_blank" rel="noopener noreferrer"><span>Unirse al Canal</span><ContactIcon name="arrow" size={21} className="cm-contact-arrow"/></a>
+          </article>
+
+          <article className="cm-contact-card cm-contact-card--facebook">
+            <span className="cm-contact-accent" aria-hidden="true" />
+            <div className="cm-contact-card__head cm-contact-card__head--compact">
+              <span className="cm-contact-iconbox cm-contact-iconbox--facebook"><ContactIcon name="groups" size={24}/></span>
+              <h3>Comunidad Facebook</h3>
+            </div>
+            <p>Participa en nuestra comunidad en Facebook. Comparte experiencias, resuelve dudas con otros usuarios y mantente al tanto de la comunidad portuaria.</p>
+            <a className="cm-contact-button cm-contact-button--outline-facebook cm-contact-button--spread cm-contact-shine" href={facebookGroup} target="_blank" rel="noopener noreferrer"><span>Visitar Grupo</span><ContactIcon name="external" size={20} className="cm-contact-arrow"/></a>
+          </article>
         </div>
       </section>
     </div>,
