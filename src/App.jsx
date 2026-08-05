@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import LegalFooter from "./LegalFooter";
 import { createClient } from "@supabase/supabase-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -36046,7 +36045,6 @@ function App() {
           </div>
         )}
       </div>
-      <LegalFooter />
     </div>
     </>
     </ThemeContext.Provider>
