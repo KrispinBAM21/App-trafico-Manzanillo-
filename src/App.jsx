@@ -202,12 +202,12 @@ const CM_CONTACT_CYBER_STYLES = `
 .cm-contact-iconbox{width:48px;height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(63,71,83,.9);border-radius:10px;background:#1d2022;transition:all .25s ease}.cm-contact-iconbox--whatsapp{color:#25d366}.cm-contact-iconbox--primary{color:#9fcaff}.cm-contact-iconbox--cyan{width:42px;height:42px;min-width:42px;border-radius:999px;color:#9cf0ff}.cm-contact-iconbox--facebook{width:42px;height:42px;min-width:42px;border-radius:999px;color:#1877f2}.cm-contact-card:hover .cm-contact-iconbox{border-color:rgba(159,202,255,.48);box-shadow:0 0 20px rgba(159,202,255,.1)}.cm-contact-card--whatsapp:hover .cm-contact-iconbox{border-color:rgba(37,211,102,.5);box-shadow:0 0 20px rgba(37,211,102,.12)}
 .cm-contact-button{position:relative;overflow:hidden;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;border-radius:5px;text-decoration:none;font:600 14px/1 Inter,sans-serif;cursor:pointer;transition:all .25s ease}.cm-contact-button>*{position:relative;z-index:1}.cm-contact-shine:before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,rgba(255,255,255,.11),transparent);transform:translateX(-115%);transition:transform .7s ease}.cm-contact-shine:hover:before{transform:translateX(115%)}.cm-contact-button:hover,.cm-contact-button:focus-visible{transform:translateY(-2px);outline:none}.cm-contact-button:active{transform:scale(.98)}
 .cm-contact-button--whatsapp{border:1px solid rgba(37,211,102,.62);background:rgba(50,53,55,.72);color:#e0e3e5;box-shadow:0 0 15px rgba(0,255,102,.22)}.cm-contact-button--whatsapp:hover{border-color:#25d366;color:#5aff94;background:rgba(37,211,102,.1);box-shadow:0 0 26px rgba(0,255,102,.38);animation:cmContactPulse 1.8s ease-in-out infinite}
-.cm-contact-email-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-contact-button--primary{border:1px solid rgba(159,202,255,.38);background:rgba(0,153,255,.08);color:#9fcaff}.cm-contact-button--primary:hover{border-color:#9fcaff;background:rgba(0,153,255,.16);box-shadow:0 0 22px rgba(159,202,255,.18)}.cm-contact-button--neutral{border:1px solid rgba(137,145,158,.38);background:rgba(50,53,55,.52);color:#bfc7d5}.cm-contact-button--neutral:hover{border-color:#bfc7d5;color:#e0e3e5;background:rgba(50,53,55,.82);box-shadow:0 0 20px rgba(191,199,213,.12)}
+.cm-contact-email-actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative}.cm-contact-compose{position:relative;min-width:0}.cm-contact-compose>.cm-contact-button{width:100%}.cm-contact-compose-menu{position:absolute;left:0;bottom:calc(100% + 10px);z-index:30;width:min(310px,calc(100vw - 52px));padding:8px;border:1px solid rgba(63,71,83,.62);border-radius:10px;background:rgba(30,34,40,.96);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 22px 60px rgba(0,0,0,.58),inset 0 1px 0 rgba(159,202,255,.08);transform-origin:bottom left;animation:cmComposeMenuIn .2s cubic-bezier(.2,.8,.2,1) both}.cm-contact-compose-option{width:100%;min-height:48px;display:flex;align-items:center;justify-content:flex-start;gap:12px;padding:10px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#e0e3e5;text-decoration:none;font:600 14px/1.2 Inter,sans-serif;cursor:pointer;transition:all .2s ease}.cm-contact-compose-option:hover,.cm-contact-compose-option:focus-visible{transform:translateX(2px);border-color:rgba(159,202,255,.34);background:rgba(0,153,255,.14);box-shadow:0 0 20px rgba(159,202,255,.1);outline:none}.cm-contact-compose-option__icon{width:30px;height:30px;min-width:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(137,145,158,.25);border-radius:7px;background:rgba(16,20,21,.72);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.cm-contact-compose-option:hover .cm-contact-compose-option__icon,.cm-contact-compose-option:focus-visible .cm-contact-compose-option__icon{transform:translateX(2px) scale(1.04);border-color:rgba(159,202,255,.48);box-shadow:0 0 14px rgba(159,202,255,.13)}.cm-contact-compose-option__text{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}.cm-contact-compose-option__text strong{font:600 14px/1.15 Inter,sans-serif}.cm-contact-compose-option__text small{color:#9aa5b3;font:500 11px/1.2 Inter,sans-serif}.cm-contact-compose-caret{transition:transform .2s ease}.cm-contact-compose-caret.is-open{transform:rotate(180deg)}@keyframes cmComposeMenuIn{from{opacity:0;transform:translateY(7px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}.cm-contact-button--primary{border:1px solid rgba(159,202,255,.38);background:rgba(0,153,255,.08);color:#9fcaff}.cm-contact-button--primary:hover{border-color:#9fcaff;background:rgba(0,153,255,.16);box-shadow:0 0 22px rgba(159,202,255,.18)}.cm-contact-button--neutral{border:1px solid rgba(137,145,158,.38);background:rgba(50,53,55,.52);color:#bfc7d5}.cm-contact-button--neutral:hover{border-color:#bfc7d5;color:#e0e3e5;background:rgba(50,53,55,.82);box-shadow:0 0 20px rgba(191,199,213,.12)}
 .cm-contact-button--spread{justify-content:space-between}.cm-contact-button--outline-cyan{border:1px solid rgba(156,240,255,.58);background:transparent;color:#9cf0ff}.cm-contact-button--outline-cyan:hover{background:rgba(156,240,255,.09);box-shadow:0 0 22px rgba(0,218,243,.16)}.cm-contact-button--outline-facebook{border:1px solid rgba(24,119,242,.62);background:transparent;color:#4094ff}.cm-contact-button--outline-facebook:hover{background:rgba(24,119,242,.1);box-shadow:0 0 22px rgba(24,119,242,.18)}.cm-contact-button:hover .cm-contact-arrow{transform:translateX(4px)}.cm-contact-arrow{transition:transform .25s ease}
 @keyframes cmContactFade{from{opacity:0}to{opacity:1}}@keyframes cmContactEnter{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:none}}@keyframes cmContactPulse{0%,100%{box-shadow:0 0 16px rgba(0,255,102,.26)}50%{box-shadow:0 0 28px rgba(0,255,102,.45)}}
 @media(max-width:720px){.cm-contact-backdrop{align-items:end;padding:0}.cm-contact-dialog{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:22px 16px calc(22px + env(safe-area-inset-bottom))}.cm-contact-head{margin-bottom:24px}.cm-contact-heading p{font-size:14px}.cm-contact-grid{grid-template-columns:1fr;gap:16px}.cm-contact-card{min-height:0;padding:20px}.cm-contact-close{width:48px;height:48px;min-width:48px;min-height:48px}}
 @media(max-width:430px){.cm-contact-head{gap:14px}.cm-contact-heading h2{font-size:26px}.cm-contact-email-actions{grid-template-columns:1fr}.cm-contact-card__head{align-items:flex-start}.cm-contact-email{font-size:12px}}
-@media(prefers-reduced-motion:reduce){.cm-contact-backdrop,.cm-contact-dialog{animation:none}.cm-contact-card,.cm-contact-close,.cm-contact-button,.cm-contact-shine:before,.cm-contact-arrow{transition:none}.cm-contact-button--whatsapp:hover{animation:none}}
+@media(prefers-reduced-motion:reduce){.cm-contact-backdrop,.cm-contact-dialog{animation:none}.cm-contact-card,.cm-contact-close,.cm-contact-button,.cm-contact-shine:before,.cm-contact-arrow,.cm-contact-compose-option,.cm-contact-compose-option__icon,.cm-contact-compose-caret{transition:none}.cm-contact-compose-menu{animation:none}.cm-contact-button--whatsapp:hover{animation:none}}
 `;
 
 (function injectConectLegalStyles() {
@@ -337,6 +337,10 @@ function ContactIcon({ name, size = 20, className = "" }) {
   if (name === "send") return <svg {...common}><path d="m22 2-7 20-4-9-9-4Z" {...p}/><path d="M22 2 11 13" {...p}/></svg>;
   if (name === "arrow") return <svg {...common}><path d="M5 12h14M13 6l6 6-6 6" {...p}/></svg>;
   if (name === "external") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9" {...p}/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...p}/></svg>;
+  if (name === "chevronDown") return <svg {...common}><path d="m7 10 5 5 5-5" {...p}/></svg>;
+  if (name === "gmail") return <svg {...common} viewBox="0 0 24 24"><path fill="#EA4335" d="M3.5 5.4 12 11.8l8.5-6.4v12.2a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9Z"/><path fill="#FBBC04" d="M3.5 5.4v12.2c0 1 .8 1.9 1.9 1.9H7V8Z"/><path fill="#34A853" d="M17 8v11.5h1.6c1 0 1.9-.8 1.9-1.9V5.4Z"/><path fill="#4285F4" d="M3.5 5.4 12 11.8 20.5 5.4 18.3 3.8 12 8.5 5.7 3.8Z"/></svg>;
+  if (name === "outlook") return <svg {...common} viewBox="0 0 24 24"><path fill="#1473E6" d="M2.5 5.2 13 3v18L2.5 18.8Z"/><path fill="#fff" d="M8 8.2c2 0 3.3 1.5 3.3 3.8S10 15.8 8 15.8 4.7 14.3 4.7 12 6 8.2 8 8.2Zm0 1.7c-.8 0-1.3.8-1.3 2.1s.5 2.1 1.3 2.1 1.3-.8 1.3-2.1S8.8 9.9 8 9.9Z"/><path fill="#0A5BD3" d="M13 6h8.5v12H13Z"/><path fill="#fff" d="m13 8 4.2 3.2L21.5 8v2l-4.3 3.2L13 10Z"/></svg>;
+  if (name === "deviceMail") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" {...p}/><path d="m4 7 8 6 8-6" {...p}/><path d="M16.5 3.5h3v3" {...p}/></svg>;
   return null;
 }
 
@@ -346,6 +350,8 @@ function ContactModal({ onClose }) {
   const previousFocus = React.useRef(null);
   const copyTimerRef = React.useRef(null);
   const [copied, setCopied] = React.useState(false);
+  const [composeOpen, setComposeOpen] = React.useState(false);
+  const composeRef = React.useRef(null);
   const email = "conectmanzanillo@gmail.com";
   const whatsapp = "https://wa.me/5215612463102";
   const channel = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
@@ -358,7 +364,7 @@ function ContactModal({ onClose }) {
     body.style.overflow = "hidden";
     const timer = window.setTimeout(() => closeRef.current?.focus(), 0);
     const keyHandler = (event) => {
-      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key === "Escape") { event.preventDefault(); if (composeOpen) { setComposeOpen(false); return; } onClose(); return; }
       if (event.key !== "Tab") return;
       const focusable = Array.from(dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR) || []).filter((el) => !el.hasAttribute("disabled"));
       if (!focusable.length) return;
@@ -375,7 +381,20 @@ function ContactModal({ onClose }) {
       document.removeEventListener("keydown", keyHandler);
       previousFocus.current?.focus?.();
     };
-  }, [onClose]);
+  }, [onClose, composeOpen]);
+
+  React.useEffect(() => {
+    if (!composeOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!composeRef.current?.contains(event.target)) setComposeOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown, { passive:true });
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [composeOpen]);
 
   const copyEmail = async () => {
     try {
@@ -429,7 +448,24 @@ function ContactModal({ onClose }) {
             </div>
             <p>Para consultas formales, documentación adjunta o seguimiento de casos complejos.</p>
             <div className="cm-contact-email-actions">
-              <a className="cm-contact-button cm-contact-button--primary cm-contact-shine" href={`mailto:${email}`}><ContactIcon name="edit" size={19}/><span>Redactar</span></a>
+              <div className="cm-contact-compose" ref={composeRef}>
+                <button type="button" className="cm-contact-button cm-contact-button--primary cm-contact-shine" onClick={() => setComposeOpen((open) => !open)} aria-haspopup="menu" aria-expanded={composeOpen} aria-controls="cm-contact-compose-menu">
+                  <ContactIcon name="edit" size={19}/><span>Redactar</span><ContactIcon name="chevronDown" size={18} className={`cm-contact-compose-caret${composeOpen ? " is-open" : ""}`}/>
+                </button>
+                {composeOpen && (
+                  <div id="cm-contact-compose-menu" className="cm-contact-compose-menu" role="menu" aria-label="Elegir cliente de correo">
+                    <a className="cm-contact-compose-option" role="menuitem" href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`} target="_blank" rel="noopener noreferrer" onClick={() => setComposeOpen(false)}>
+                      <span className="cm-contact-compose-option__icon"><ContactIcon name="gmail" size={22}/></span><span className="cm-contact-compose-option__text"><strong>Gmail</strong><small>Abrir redacción web</small></span>
+                    </a>
+                    <a className="cm-contact-compose-option" role="menuitem" href={`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(email)}`} target="_blank" rel="noopener noreferrer" onClick={() => setComposeOpen(false)}>
+                      <span className="cm-contact-compose-option__icon"><ContactIcon name="outlook" size={22}/></span><span className="cm-contact-compose-option__text"><strong>Outlook</strong><small>Abrir redacción web</small></span>
+                    </a>
+                    <a className="cm-contact-compose-option" role="menuitem" href={`mailto:${email}`} onClick={() => setComposeOpen(false)}>
+                      <span className="cm-contact-compose-option__icon" style={{color:"#9fcaff"}}><ContactIcon name="deviceMail" size={21}/></span><span className="cm-contact-compose-option__text"><strong>Cliente predeterminado</strong><small>Abrir aplicación del dispositivo</small></span>
+                    </a>
+                  </div>
+                )}
+              </div>
               <button type="button" className="cm-contact-button cm-contact-button--neutral cm-contact-shine" onClick={copyEmail} aria-label="Copiar correo electrónico" aria-live="polite"><ContactIcon name="copy" size={19}/><span>{copied ? "Copiado" : "Copiar"}</span></button>
             </div>
           </article>
