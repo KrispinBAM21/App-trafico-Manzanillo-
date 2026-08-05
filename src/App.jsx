@@ -182,11 +182,14 @@ const LEGAL_DOCUMENTS = {
 };
 
 const CM_LEGAL_STYLES = '.cm-legal-footer {\n  position: relative;\n  z-index: 20;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-wrap: wrap;\n  gap: 10px;\n  width: 100%;\n  padding: 22px 16px calc(22px + env(safe-area-inset-bottom));\n  color: rgba(212, 228, 250, 0.64);\n  font-family: "DM Sans", sans-serif;\n  font-size: 12px;\n}\n\n.cm-legal-footer button {\n  appearance: none;\n  border: 0;\n  padding: 4px 2px;\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  text-decoration: underline;\n  text-decoration-color: transparent;\n  text-underline-offset: 4px;\n  cursor: pointer;\n  transition: color 160ms ease, text-decoration-color 160ms ease;\n}\n\n.cm-legal-footer button:hover,\n.cm-legal-footer button:focus-visible {\n  color: #e8f3ff;\n  text-decoration-color: currentColor;\n  outline: 2px solid transparent;\n}\n\n.cm-legal-footer__links,\n.cm-legal-footer__social {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n}\n\n.cm-legal-footer__separator {\n  color: rgba(159, 202, 255, 0.28);\n}\n\n.cm-legal-footer__social { gap: 7px; }\n.cm-legal-footer__social a {\n  width: 30px;\n  height: 30px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  border: 1px solid rgba(159, 202, 255, 0.18);\n  border-radius: 999px;\n  background: rgba(8, 22, 38, 0.58);\n  color: rgba(212, 228, 250, 0.72);\n  text-decoration: none;\n  transition: transform 160ms ease, color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;\n}\n.cm-legal-footer__social a:hover,\n.cm-legal-footer__social a:focus-visible {\n  color: var(--cm-social-accent, #9fcaff);\n  border-color: var(--cm-social-accent, #9fcaff);\n  background: rgba(159, 202, 255, 0.09);\n  box-shadow: 0 0 18px color-mix(in srgb, var(--cm-social-accent, #9fcaff) 28%, transparent);\n  transform: translateY(-1px);\n  outline: none;\n}\n\n@media (max-width: 560px) {\n  .cm-legal-footer { gap: 8px 12px; }\n  .cm-legal-footer__separator { display: none; }\n  .cm-legal-footer__links,\n  .cm-legal-footer__social { width: 100%; }\n}\n\n.cm-legal-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483000;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(2, 8, 18, 0.78);\n  backdrop-filter: blur(10px);\n  -webkit-backdrop-filter: blur(10px);\n}\n\n.cm-legal-dialog {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr) auto;\n  width: min(720px, 100%);\n  max-height: min(88vh, 900px);\n  overflow: hidden;\n  border: 1px solid rgba(159, 202, 255, 0.22);\n  border-radius: 18px;\n  background: linear-gradient(180deg, #10243b 0%, #091728 100%);\n  color: #e8f3ff;\n  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);\n  font-family: "DM Sans", sans-serif;\n}\n\n.cm-legal-dialog__header,\n.cm-legal-dialog__footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 18px;\n  padding: 18px 22px;\n  border-color: rgba(159, 202, 255, 0.14);\n  background: rgba(8, 22, 38, 0.72);\n}\n\n.cm-legal-dialog__header { border-bottom: 1px solid rgba(159, 202, 255, 0.14); }\n.cm-legal-dialog__footer { border-top: 1px solid rgba(159, 202, 255, 0.14); }\n\n.cm-legal-dialog__eyebrow {\n  margin: 0 0 4px;\n  color: #9fcaff;\n  font-family: "Space Mono", monospace;\n  font-size: 10px;\n  letter-spacing: 0.12em;\n  text-transform: uppercase;\n}\n\n.cm-legal-dialog h2 {\n  margin: 0;\n  font-family: "Space Mono", monospace;\n  font-size: clamp(18px, 3vw, 24px);\n  line-height: 1.2;\n}\n\n.cm-legal-close {\n  flex: 0 0 auto;\n  border: 1px solid rgba(159, 202, 255, 0.28);\n  border-radius: 8px;\n  padding: 9px 12px;\n  background: rgba(159, 202, 255, 0.08);\n  color: #e8f3ff;\n  font: 600 12px/1 "DM Sans", sans-serif;\n  cursor: pointer;\n}\n\n.cm-legal-close:hover,\n.cm-legal-close:focus-visible {\n  border-color: rgba(159, 202, 255, 0.66);\n  background: rgba(159, 202, 255, 0.15);\n  outline: 2px solid #9fcaff;\n  outline-offset: 2px;\n}\n\n.cm-legal-dialog__body {\n  overflow-y: auto;\n  overscroll-behavior: contain;\n  padding: 22px;\n  user-select: text;\n  -webkit-user-select: text;\n  scrollbar-width: thin;\n  scrollbar-color: rgba(159, 202, 255, 0.38) transparent;\n}\n\n.cm-legal-intro {\n  margin: 0 0 24px;\n  padding: 14px 16px;\n  border-left: 3px solid #9fcaff;\n  border-radius: 0 8px 8px 0;\n  background: rgba(159, 202, 255, 0.08);\n  color: #d4e4fa;\n  font-size: 13px;\n  line-height: 1.65;\n}\n\n.cm-legal-section + .cm-legal-section { margin-top: 26px; }\n.cm-legal-section h3 {\n  margin: 0 0 10px;\n  color: #ffffff;\n  font-family: "Space Mono", monospace;\n  font-size: 14px;\n  line-height: 1.45;\n}\n.cm-legal-section p {\n  margin: 0 0 10px;\n  color: rgba(232, 243, 255, 0.84);\n  font-size: 14px;\n  line-height: 1.75;\n}\n.cm-legal-section .cm-legal-basis {\n  margin-top: 8px;\n  color: rgba(159, 202, 255, 0.76);\n  font-size: 11px;\n  line-height: 1.55;\n}\n\n.cm-legal-dialog__footer {\n  color: rgba(212, 228, 250, 0.66);\n  font-size: 11px;\n}\n\n@media (max-width: 640px) {\n  .cm-legal-backdrop {\n    align-items: end;\n    padding: 0;\n  }\n  .cm-legal-dialog {\n    width: 100%;\n    height: 100dvh;\n    max-height: none;\n    border-right: 0;\n    border-bottom: 0;\n    border-left: 0;\n    border-radius: 18px 18px 0 0;\n  }\n  .cm-legal-dialog__header,\n  .cm-legal-dialog__footer,\n  .cm-legal-dialog__body { padding-left: 17px; padding-right: 17px; }\n  .cm-legal-dialog__footer {\n    padding-bottom: calc(16px + env(safe-area-inset-bottom));\n  }\n}\n\n@media (prefers-reduced-motion: no-preference) {\n  .cm-legal-backdrop { animation: cmLegalFade 160ms ease-out; }\n  .cm-legal-dialog { animation: cmLegalEnter 220ms ease-out; }\n  @keyframes cmLegalFade { from { opacity: 0; } }\n  @keyframes cmLegalEnter { from { opacity: 0; transform: translateY(14px) scale(0.99); } }\n}\n';
+
+const CM_INTERACTION_STYLES = '\n\n.cm-contact-backdrop,\n.cm-news-viewer {\n  animation: cmOverlayFade .22s ease-out both;\n}\n.cm-contact-dialog,\n.cm-news-viewer__stage {\n  animation: cmOverlayScale .26s cubic-bezier(.2,.8,.2,1) both;\n}\n@keyframes cmOverlayFade { from { opacity: 0; } to { opacity: 1; } }\n@keyframes cmOverlayScale { from { opacity: 0; transform: scale(.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }\n.cm-contact-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483300;\n  display: grid;\n  place-items: center;\n  padding: 20px;\n  background: rgba(1, 7, 16, .78);\n  backdrop-filter: blur(14px);\n  -webkit-backdrop-filter: blur(14px);\n}\n.cm-contact-dialog {\n  width: min(620px, 100%);\n  max-height: min(88dvh, 760px);\n  overflow: auto;\n  border: 1px solid rgba(159,202,255,.24);\n  border-radius: 22px;\n  background: linear-gradient(155deg, rgba(17,38,62,.98), rgba(5,17,31,.98));\n  box-shadow: 0 30px 100px rgba(0,0,0,.66), 0 0 40px rgba(56,189,248,.08);\n  color: #eef6ff;\n  font-family: "DM Sans", sans-serif;\n}\n.cm-contact-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 16px;\n  padding: 20px 22px;\n  border-bottom: 1px solid rgba(159,202,255,.14);\n}\n.cm-contact-head h2 { margin: 3px 0 0; font: 700 clamp(20px,4vw,28px)/1.2 "Space Mono", monospace; }\n.cm-contact-kicker { margin: 0; color:#8ec5ff; font: 700 10px/1.2 "Space Mono", monospace; letter-spacing:.14em; text-transform:uppercase; }\n.cm-contact-close,\n.cm-contact-action,\n.cm-contact-copy {\n  transition: transform .2s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, opacity .2s ease;\n}\n.cm-contact-close {\n  width: 42px; height: 42px; flex:0 0 auto; display:grid; place-items:center;\n  border:1px solid rgba(159,202,255,.25); border-radius:999px;\n  background:rgba(7,23,40,.78); color:#eaf4ff; cursor:pointer;\n}\n.cm-contact-close:hover,\n.cm-contact-close:focus-visible { transform:translateY(-2px); border-color:#8ec5ff; background:rgba(34,74,112,.72); box-shadow:0 0 22px rgba(142,197,255,.2); outline:none; }\n.cm-contact-body { padding:22px; }\n.cm-contact-lead { margin:0 0 18px; color:rgba(232,243,255,.76); font-size:14px; line-height:1.65; }\n.cm-contact-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }\n.cm-contact-card { padding:16px; border:1px solid rgba(159,202,255,.14); border-radius:16px; background:rgba(8,24,42,.66); }\n.cm-contact-card h3 { margin:0 0 6px; color:#fff; font-size:14px; }\n.cm-contact-card p { margin:0 0 14px; color:rgba(212,228,250,.66); font-size:12px; line-height:1.55; overflow-wrap:anywhere; }\n.cm-contact-action,\n.cm-contact-copy {\n  min-height:42px; display:inline-flex; align-items:center; justify-content:center; gap:9px;\n  border:1px solid rgba(159,202,255,.25); border-radius:11px; padding:10px 13px;\n  background:rgba(159,202,255,.09); color:#eaf4ff; text-decoration:none;\n  font:700 12px/1 "DM Sans", sans-serif; cursor:pointer;\n}\n.cm-contact-action:hover,\n.cm-contact-action:focus-visible,\n.cm-contact-copy:hover,\n.cm-contact-copy:focus-visible { transform:translateY(-2px); border-color:#8ec5ff; background:rgba(56,189,248,.16); box-shadow:0 10px 26px rgba(0,0,0,.22),0 0 20px rgba(56,189,248,.12); outline:none; }\n.cm-contact-action.is-whatsapp { border-color:rgba(37,211,102,.36); color:#8ff0b4; background:rgba(37,211,102,.09); }\n.cm-contact-action.is-whatsapp:hover { border-color:#25d366; background:rgba(37,211,102,.15); box-shadow:0 0 22px rgba(37,211,102,.14); }\n.cm-contact-email-actions { display:flex; flex-wrap:wrap; gap:8px; }\n.cm-contact-note { margin:18px 0 0; color:rgba(159,202,255,.56); font-size:11px; line-height:1.55; }\n@media (max-width:620px) {\n  .cm-contact-backdrop { align-items:end; padding:0; }\n  .cm-contact-dialog { width:100%; max-height:94dvh; border-radius:22px 22px 0 0; padding-bottom:env(safe-area-inset-bottom); }\n  .cm-contact-grid { grid-template-columns:1fr; }\n}\n.cm-news-viewer {\n  position:fixed;\n  inset:0;\n  z-index:2147483600;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));\n  overflow:hidden;\n  isolation:isolate;\n  background:rgba(0,0,0,.9);\n  backdrop-filter:blur(12px);\n  -webkit-backdrop-filter:blur(12px);\n}\n.cm-news-viewer__stage {\n  position:relative;\n  width:100%;\n  height:100%;\n  max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  padding:68px 12px 70px;\n  box-sizing:border-box;\n}\n.cm-news-viewer__media { max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; display:block; border-radius:12px; background:#061428; box-shadow:0 24px 90px rgba(0,0,0,.72); }\n.cm-news-viewer__toolbar { position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:9px; align-items:center; }\n.cm-news-viewer__actions { position:absolute; right:8px; bottom:8px; z-index:5; display:flex; gap:9px; align-items:center; }\n.cm-news-viewer__button {\n  width:46px; height:46px; min-width:46px; min-height:46px; display:inline-flex; align-items:center; justify-content:center;\n  border-radius:999px; border:1px solid rgba(255,255,255,.25); background:rgba(10,22,40,.88); color:#fff;\n  cursor:pointer; text-decoration:none; touch-action:manipulation; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);\n  box-shadow:0 12px 36px rgba(0,0,0,.5); transition:transform .2s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease,opacity .2s ease;\n}\n.cm-news-viewer__button:hover,\n.cm-news-viewer__button:focus-visible { transform:translateY(-2px); background:rgba(30,63,98,.96); border-color:#9fcaff; box-shadow:0 14px 38px rgba(0,0,0,.56),0 0 22px rgba(159,202,255,.18); outline:none; }\n.cm-news-viewer__button:disabled { opacity:.48; cursor:not-allowed; transform:none; }\n.cm-news-viewer__nav { position:absolute; top:50%; z-index:4; transform:translateY(-50%); }\n.cm-news-viewer__nav:hover,.cm-news-viewer__nav:focus-visible { transform:translateY(calc(-50% - 2px)); }\n.cm-news-viewer__nav.is-prev { left:8px; }\n.cm-news-viewer__nav.is-next { right:8px; }\n.cm-news-viewer__count { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); padding:7px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(10,22,40,.76); color:rgba(255,255,255,.78); font:700 10px/1 "DM Sans",sans-serif; backdrop-filter:blur(10px); }\n@media (max-width:600px) {\n  .cm-news-viewer { padding:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom)); }\n  .cm-news-viewer__stage { padding:62px 2px 68px; }\n  .cm-news-viewer__button { width:44px; height:44px; min-width:44px; min-height:44px; }\n  .cm-news-viewer__nav.is-prev { left:2px; }\n  .cm-news-viewer__nav.is-next { right:2px; }\n}\n@media (prefers-reduced-motion: reduce) {\n  .cm-contact-backdrop,.cm-contact-dialog,.cm-news-viewer,.cm-news-viewer__stage { animation:none; }\n  .cm-contact-close,.cm-contact-action,.cm-contact-copy,.cm-news-viewer__button { transition:none; }\n}\n';
+
 (function injectConectLegalStyles() {
   if (typeof document === "undefined" || document.getElementById("cm-legal-styles")) return;
   const style = document.createElement("style");
   style.id = "cm-legal-styles";
-  style.textContent = CM_LEGAL_STYLES;
+  style.textContent = CM_LEGAL_STYLES + CM_INTERACTION_STYLES;
   document.head.appendChild(style);
 })();
 
@@ -295,8 +298,112 @@ function LegalModal({ document, onClose }) {
   return createPortal(modal, window.document.body);
 }
 
+
+function ContactIcon({ name, size = 20 }) {
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", xmlns:"http://www.w3.org/2000/svg", "aria-hidden":"true", focusable:"false" };
+  const p = { stroke:"currentColor", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round" };
+  if (name === "close") return <svg {...common}><path d="M6 6l12 12M18 6 6 18" {...p}/></svg>;
+  if (name === "whatsapp") return <svg {...common}><path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.2A8.5 8.5 0 1 1 20.5 11.6Z" {...p}/><path d="M8.4 8.1c.2-.4.5-.4.8-.4h.4c.2 0 .4.1.5.4l.8 1.9c.1.3.1.5-.1.7l-.6.7c-.2.2-.1.4 0 .6.7 1.3 1.7 2.3 3 3 .2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.9c.3.1.4.3.4.6 0 .7-.3 1.4-.8 1.9-.5.5-1.3.7-2.1.5-1.7-.4-3.5-1.3-5-2.8-1.5-1.5-2.5-3.3-2.8-5-.2-.7 0-1.3.4-1.7Z" {...p}/></svg>;
+  if (name === "mail") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" {...p}/><path d="m4 7 8 6 8-6" {...p}/></svg>;
+  if (name === "copy") return <svg {...common}><rect x="8" y="8" width="11" height="11" rx="2" {...p}/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" {...p}/></svg>;
+  if (name === "channel") return <svg {...common}><path d="M5 5h14v10H9l-4 4V5Z" {...p}/><path d="M8 9h8M8 12h5" {...p}/></svg>;
+  if (name === "external") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9" {...p}/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...p}/></svg>;
+  return null;
+}
+
+function ContactModal({ onClose }) {
+  const dialogRef = React.useRef(null);
+  const closeRef = React.useRef(null);
+  const previousFocus = React.useRef(null);
+  const [copied, setCopied] = React.useState(false);
+  const email = "conectmanzanillo@gmail.com";
+  const whatsapp = "https://wa.me/5215612463102";
+  const channel = "https://whatsapp.com/channel/0029VbBN73rId7nJ3RTSsq3s";
+  const facebookGroup = "https://www.facebook.com/groups/conectmanzanillo/";
+
+  React.useEffect(() => {
+    previousFocus.current = document.activeElement;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    const timer = window.setTimeout(() => closeRef.current?.focus(), 0);
+    const keyHandler = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR) || []).filter((el) => !el.hasAttribute("disabled"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      window.clearTimeout(timer);
+      body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", keyHandler);
+      previousFocus.current?.focus?.();
+    };
+  }, [onClose]);
+
+  const copyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = email;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    }
+  };
+
+  return createPortal(
+    <div className="cm-contact-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className="cm-contact-dialog" role="dialog" aria-modal="true" aria-labelledby="cm-contact-title">
+        <header className="cm-contact-head">
+          <div><p className="cm-contact-kicker">Conect Manzanillo</p><h2 id="cm-contact-title">Contacto</h2></div>
+          <button ref={closeRef} type="button" className="cm-contact-close" onClick={onClose} aria-label="Cerrar contacto"><ContactIcon name="close" size={21}/></button>
+        </header>
+        <div className="cm-contact-body">
+          <p className="cm-contact-lead">Selecciona el canal de comunicación más conveniente para recibir orientación o enviar comentarios sobre la plataforma.</p>
+          <div className="cm-contact-grid">
+            <article className="cm-contact-card">
+              <h3>WhatsApp</h3><p>Inicia una conversación directa con Conect Manzanillo.</p>
+              <a className="cm-contact-action is-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer"><ContactIcon name="whatsapp"/><span>Abrir WhatsApp</span></a>
+            </article>
+            <article className="cm-contact-card">
+              <h3>Correo electrónico</h3><p>{email}</p>
+              <div className="cm-contact-email-actions">
+                <a className="cm-contact-action" href={`mailto:${email}`}><ContactIcon name="mail"/><span>Redactar correo</span></a>
+                <button type="button" className="cm-contact-copy" onClick={copyEmail} aria-live="polite"><ContactIcon name="copy"/><span>{copied ? "Correo copiado" : "Copiar correo"}</span></button>
+              </div>
+            </article>
+            <article className="cm-contact-card">
+              <h3>Canal de WhatsApp</h3><p>Consulta comunicados y actualizaciones de la comunidad.</p>
+              <a className="cm-contact-action" href={channel} target="_blank" rel="noopener noreferrer"><ContactIcon name="channel"/><span>Abrir canal</span></a>
+            </article>
+            <article className="cm-contact-card">
+              <h3>Comunidad en Facebook</h3><p>Accede al grupo de Conect Manzanillo.</p>
+              <a className="cm-contact-action" href={facebookGroup} target="_blank" rel="noopener noreferrer"><ContactIcon name="external"/><span>Abrir grupo</span></a>
+            </article>
+          </div>
+          <p className="cm-contact-note">Los canales externos se abren en una pestaña nueva. La disponibilidad y los tiempos de respuesta pueden variar.</p>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 function LegalFooter() {
   const [activeDocument, setActiveDocument] = React.useState(null);
+  const [contactOpen, setContactOpen] = React.useState(false);
   const socialLinks = [
     {
       label: "Facebook de Conect Manzanillo",
@@ -343,6 +450,10 @@ function LegalFooter() {
           <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.terms)}>
             Términos y Condiciones
           </button>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={() => setContactOpen(true)}>
+            Contacto
+          </button>
         </div>
         <span className="cm-legal-footer__separator" aria-hidden="true">|</span>
         <nav className="cm-legal-footer__social" aria-label="Redes sociales de Conect Manzanillo">
@@ -362,6 +473,7 @@ function LegalFooter() {
         </nav>
       </footer>
       {activeDocument ? <LegalModal document={activeDocument} onClose={() => setActiveDocument(null)} /> : null}
+      {contactOpen ? <ContactModal onClose={() => setContactOpen(false)} /> : null}
     </>
   );
 }
@@ -17026,22 +17138,26 @@ function CarrilesTab({ isAdmin = false }) {
 
 // ─── TAB: NOTICIAS ────────────────────────────────────────────────────────────
 // ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
+function ViewerIcon({ name, size = 22 }) {
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", xmlns:"http://www.w3.org/2000/svg", "aria-hidden":"true", focusable:"false" };
+  const p = { stroke:"currentColor", strokeWidth:1.9, strokeLinecap:"round", strokeLinejoin:"round" };
+  if (name === "close") return <svg {...common}><path d="M6 6l12 12M18 6 6 18" {...p}/></svg>;
+  if (name === "external") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9" {...p}/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" {...p}/></svg>;
+  if (name === "download") return <svg {...common}><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M5 20h14" {...p}/></svg>;
+  if (name === "left") return <svg {...common}><path d="m15 18-6-6 6-6" {...p}/></svg>;
+  if (name === "right") return <svg {...common}><path d="m9 18 6-6-6-6" {...p}/></svg>;
+  if (name === "loading") return <svg {...common} style={{animation:"cmViewerSpin .8s linear infinite"}}><path d="M20 12a8 8 0 1 1-2.34-5.66" {...p}/></svg>;
+  return null;
+}
+
 function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNavigate = null, onDownload = null, downloading = false }) {
-  const theme = React.useContext(ThemeContext);
   const closeButtonRef = useRef(null);
   const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
   const canNavigate = Array.isArray(items) && items.length > 1 && typeof onNavigate === "function";
   const safeIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
 
-  const goPrev = useCallback(() => {
-    if (!canNavigate) return;
-    onNavigate((safeIndex - 1 + items.length) % items.length);
-  }, [canNavigate, onNavigate, safeIndex, items.length]);
-
-  const goNext = useCallback(() => {
-    if (!canNavigate) return;
-    onNavigate((safeIndex + 1) % items.length);
-  }, [canNavigate, onNavigate, safeIndex, items.length]);
+  const goPrev = useCallback(() => { if (canNavigate) onNavigate((safeIndex - 1 + items.length) % items.length); }, [canNavigate, onNavigate, safeIndex, items.length]);
+  const goNext = useCallback(() => { if (canNavigate) onNavigate((safeIndex + 1) % items.length); }, [canNavigate, onNavigate, safeIndex, items.length]);
 
   useEffect(() => {
     if (!item) return undefined;
@@ -17053,15 +17169,11 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
     body.style.overflow = "hidden";
     body.style.overscrollBehavior = "none";
     html.style.overflow = "hidden";
-
     const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     const handler = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-      if (canNavigate && event.key === "ArrowLeft") goPrev();
-      if (canNavigate && event.key === "ArrowRight") goNext();
+      if (event.key === "Escape") { event.preventDefault(); onClose(); }
+      else if (canNavigate && event.key === "ArrowLeft") goPrev();
+      else if (canNavigate && event.key === "ArrowRight") goNext();
     };
     document.addEventListener("keydown", handler);
     return () => {
@@ -17074,104 +17186,36 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
   }, [item, onClose, canNavigate, goPrev, goNext]);
 
   if (!item || typeof document === "undefined") return null;
-
-  const iconBtn = {
-    width:"44px",
-    height:"44px",
-    minWidth:"44px",
-    minHeight:"44px",
-    borderRadius:"999px",
-    background:"rgba(10,22,40,0.88)",
-    border:"1px solid rgba(255,255,255,0.28)",
-    color:"#fff",
-    fontSize:"18px",
-    cursor:"pointer",
-    display:"flex",
-    alignItems:"center",
-    justifyContent:"center",
-    backdropFilter:"blur(12px)",
-    WebkitBackdropFilter:"blur(12px)",
-    boxShadow:"0 12px 36px rgba(0,0,0,.55)",
-    textDecoration:"none",
-    touchAction:"manipulation"
-  };
-
-  const modal = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Visor de noticia"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
-      style={{
-        position:"fixed",
-        inset:0,
-        zIndex:2147483600,
-        background:"rgba(0,0,0,0.96)",
-        display:"flex",
-        alignItems:"center",
-        justifyContent:"center",
-        padding:"calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))",
-        overflow:"hidden",
-        isolation:"isolate"
-      }}
-    >
-      <div
-        onMouseDown={(event) => event.stopPropagation()}
-        style={{
-          position:"relative",
-          width:"100%",
-          height:"100%",
-          maxHeight:"calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px)",
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"center",
-          paddingTop:"58px",
-          paddingBottom:"58px",
-          boxSizing:"border-box"
-        }}
-      >
+  return createPortal(
+    <div className="cm-news-viewer" role="dialog" aria-modal="true" aria-label="Visor de noticia" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <style>{`@keyframes cmViewerSpin{to{transform:rotate(360deg)}}`}</style>
+      <div className="cm-news-viewer__stage" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="cm-news-viewer__toolbar">
+          <button ref={closeButtonRef} type="button" className="cm-news-viewer__button" onClick={onClose} aria-label="Cerrar visor" title="Cerrar"><ViewerIcon name="close"/></button>
+        </div>
         {isPdf ? (
-          <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"100%", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
+          <iframe src={item.archivo_url} title="Documento" className="cm-news-viewer__media" style={{ width:"min(1180px,100%)", height:"100%", border:"none", background:"#fff" }}/>
         ) : (
-          <img
-            src={item.archivo_url}
-            alt="Imagen ampliada"
-            referrerPolicy="no-referrer"
-            onError={(event) => {
-              console.error("No se pudo abrir la imagen:", item.archivo_url);
-              event.currentTarget.style.display = "none";
-            }}
-            style={{ maxWidth:"100%", maxHeight:"100%", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }}
-          />
+          <img src={item.archivo_url} alt="Imagen ampliada" referrerPolicy="no-referrer" className="cm-news-viewer__media" onError={(event) => { console.error("No se pudo abrir la imagen:", item.archivo_url); event.currentTarget.style.display="none"; }}/>
         )}
-
-        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Cerrar visor" title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"6px", right:"6px", zIndex:4, fontSize:"25px", fontWeight:400 }}>×</button>
-
-        {canNavigate && (
-          <>
-            <button type="button" onClick={goPrev} aria-label="Noticia anterior" title="Anterior" style={{ ...iconBtn, position:"absolute", left:"6px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px", zIndex:3 }}>‹</button>
-            <button type="button" onClick={goNext} aria-label="Noticia siguiente" title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"6px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px", zIndex:3 }}>›</button>
-            <div style={{ position:"absolute", left:"50%", bottom:"8px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.76)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.78)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
-              {safeIndex + 1} / {items.length}
-            </div>
-          </>
-        )}
-
-        <div style={{ position:"absolute", right:"6px", bottom:"6px", display:"flex", gap:"8px", alignItems:"center", zIndex:4 }}>
-          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" aria-label="Abrir en nueva pestaña" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
+        {canNavigate && <>
+          <button type="button" className="cm-news-viewer__button cm-news-viewer__nav is-prev" onClick={goPrev} aria-label="Noticia anterior" title="Anterior"><ViewerIcon name="left" size={26}/></button>
+          <button type="button" className="cm-news-viewer__button cm-news-viewer__nav is-next" onClick={goNext} aria-label="Noticia siguiente" title="Siguiente"><ViewerIcon name="right" size={26}/></button>
+          <div className="cm-news-viewer__count">{safeIndex + 1} / {items.length}</div>
+        </>}
+        <div className="cm-news-viewer__actions">
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" className="cm-news-viewer__button" aria-label="Abrir en nueva pestaña" title="Abrir en nueva pestaña"><ViewerIcon name="external"/></a>
           {onDownload ? (
-            <button type="button" onClick={() => onDownload(item)} disabled={downloading} aria-label={downloading ? "Preparando descarga" : "Descargar con marca de agua"} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "↓"}</button>
+            <button type="button" className="cm-news-viewer__button" onClick={() => onDownload(item)} disabled={downloading} aria-label={downloading ? "Preparando descarga" : "Descargar con marca de agua"} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"}><ViewerIcon name={downloading ? "loading" : "download"}/></button>
           ) : (
-            <a href={item.archivo_url} download aria-label="Descargar" title="Descargar" style={iconBtn}>↓</a>
+            <a href={item.archivo_url} download className="cm-news-viewer__button" aria-label="Descargar" title="Descargar"><ViewerIcon name="download"/></a>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
-
-  return createPortal(modal, document.body);
 }
-
 
 
 // ─── CAPTURA WEB CON RECORTE (solo admin) ────────────────────────────────────
