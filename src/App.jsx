@@ -10845,6 +10845,27 @@ const getIncidentLatLng = (inc) => {
   return { lat, lng };
 };
 
+const CENTRO_REGULADOR_TERRESTRE = {
+  id: "centro_regulador_terrestre_crt",
+  name: "CENTRO REGULADOR TERRESTRE (CRT)",
+  color: "#2DC0FB",
+  coords: [
+    [19.10513401661132, -104.2681226154853],
+    [19.10537719287939, -104.2685145162643],
+    [19.1052028397735, -104.2686098246267],
+    [19.10530296807828, -104.2687509244526],
+    [19.10499190525753, -104.2689569182752],
+    [19.10518871634079, -104.269228266965],
+    [19.10491227403395, -104.2694349692583],
+    [19.10639003711386, -104.271524573399],
+    [19.10538825834229, -104.2722400962408],
+    [19.10522225186541, -104.2722258322902],
+    [19.1050594589981, -104.2720188082833],
+    [19.10325990247257, -104.2694575053228],
+    [19.10513401661132, -104.2681226154853],
+  ],
+};
+
 function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewCoords = null, previewType = "incidente", cleanReportMap = false, reportTypeFilter = null, myId = null, setIncidents = null, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
   const mapRef    = useRef(null);
@@ -11164,6 +11185,22 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
         poly.bindTooltip(`<b>${line.name}</b>`, { sticky: true, className: "cm-tooltip", direction: "center" });
         layersRef.current[line.id] = poly;
       });
+
+      // Centro Regulador Terrestre (CRT), importado del KML maestro.
+      if (!cleanReportMap) {
+        const crt = L.polygon(CENTRO_REGULADOR_TERRESTRE.coords, {
+          color: CENTRO_REGULADOR_TERRESTRE.color,
+          weight: 4,
+          opacity: 1,
+          fillColor: CENTRO_REGULADOR_TERRESTRE.color,
+          fillOpacity: 0.25,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(map);
+        crt.bindTooltip(`<b>${CENTRO_REGULADOR_TERRESTRE.name}</b>`, { sticky:true, className:"cm-tooltip", direction:"center" });
+        crt.bindPopup(`<div style="min-width:220px;font-family:DM Sans,sans-serif"><div style="font-size:13px;font-weight:900;color:#9fdbff;margin-bottom:8px">${CENTRO_REGULADOR_TERRESTRE.name}</div><div style="font-size:12px;line-height:1.55;color:#dbeafe"><b>Estado:</b> Operativo</div><div style="font-size:12px;line-height:1.55;color:#dbeafe"><b>Función:</b> Regulación terrestre y coordinación logística.</div></div>`, { className:"cm-popup", maxWidth:300 });
+        layersRef.current[CENTRO_REGULADOR_TERRESTRE.id] = crt;
+      }
 
       // Puntos KML con colores exactos del KML (ocultos en el mapa limpio de Reportar)
       if (!cleanReportMap) KML_POINTS.forEach(pt => {
@@ -13778,6 +13815,20 @@ const buildLayerConfig = ({ accesos, vialidades, rutasFiscales }) => ([
     }),
   },
   {
+    id:"crt",
+    label:"Centro Regulador Terrestre (CRT)",
+    checked:true,
+    type:"polygon",
+    items:[{
+      ...CENTRO_REGULADOR_TERRESTRE,
+      color:CENTRO_REGULADOR_TERRESTRE.color,
+      statusLabel:"Operativo",
+      statusIcon:"warehouse",
+      popupTitle:CENTRO_REGULADOR_TERRESTRE.name,
+      popupBody:"Centro de regulación terrestre y coordinación logística de la comunidad portuaria.",
+    }],
+  },
+  {
     id:"terminales",
     label:"Polígonos de terminales",
     checked:true,
@@ -13886,8 +13937,17 @@ function UnifiedMap({ accesos, vialidades, rutasFiscales, incidents = [] }) {
                     );
                   }
                   return (
-                    <Polygon key={`${group.id}-${item.id}`} positions={item.coords} pathOptions={cmMapPolygonStyle(vivid, { key:item.id, weight:3.4, fillOpacity:0.5 })}>
+                    <Polygon key={`${group.id}-${item.id}`} positions={item.coords} pathOptions={cmMapPolygonStyle(vivid, { key:item.id, weight:group.id === "crt" ? 4 : 3.4, fillOpacity:group.id === "crt" ? 0.25 : 0.5 })}>
                       <Tooltip sticky className="cm-tooltip">{tooltip}</Tooltip>
+                      {item.popupTitle && (
+                        <Popup className="cm-popup" maxWidth={320}>
+                          <div style={{ minWidth:220, fontFamily:"DM Sans, sans-serif" }}>
+                            <div style={{ fontSize:13, fontWeight:900, color:"#9fdbff", marginBottom:8 }}>{item.popupTitle}</div>
+                            <div style={{ fontSize:12, lineHeight:1.55, color:"#dbeafe", marginBottom:4 }}><strong>Estado:</strong> {item.statusLabel}</div>
+                            <div style={{ fontSize:12, lineHeight:1.55, color:"#dbeafe" }}>{item.popupBody}</div>
+                          </div>
+                        </Popup>
+                      )}
                     </Polygon>
                   );
                 })}
