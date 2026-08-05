@@ -7,6 +7,313 @@ import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, 
 
 if (typeof window !== "undefined" && !window.L) window.L = L;
 
+
+// ─── AVISO DE PRIVACIDAD Y TÉRMINOS Y CONDICIONES ───────────────────────────
+const LEGAL_DOCUMENTS = {
+  privacy: {
+    id: "privacy",
+    title: "Aviso de Privacidad",
+    version: "v1.0",
+    updatedAt: "5 de agosto de 2026",
+    introductoryNotice:
+      "Este aviso parte del supuesto de que Conect Manzanillo es operado por una persona física o moral de carácter privado. Antes de publicarlo, el área jurídica debe confirmar la identidad, el domicilio y la naturaleza jurídica del responsable. Si la plataforma es operada directamente por un sujeto obligado gubernamental, el documento debe sustituirse por uno ajustado a la Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados.",
+    sections: [
+      {
+        title: "1. Identidad y domicilio del responsable",
+        paragraphs: [
+          "[NOMBRE O RAZÓN SOCIAL DEL RESPONSABLE], con domicilio en [DOMICILIO COMPLETO DEL RESPONSABLE], es responsable del tratamiento de los datos personales recabados mediante Conect Manzanillo. Para asuntos relacionados con privacidad y protección de datos se habilita el correo [CORREO DE PRIVACIDAD]. Estos campos deben completarse y validarse jurídicamente antes de publicar el aviso."
+        ],
+        legalBasis: "Arts. 15 y 16, fracción I, Ley Federal de Protección de Datos Personales en Posesión de los Particulares; Lineamiento Vigésimo, fracción I, Lineamientos del Aviso de Privacidad, DOF 17-01-2013."
+      },
+      {
+        title: "2. Datos personales sujetos a tratamiento",
+        paragraphs: [
+          "Conect Manzanillo podrá recabar datos de identificación y contacto, como nombre, nombre de usuario, correo electrónico y teléfono; datos de cuenta y autenticación; información incluida voluntariamente en reportes, publicaciones, registros de proveedores o solicitudes; datos técnicos de navegación, como dirección IP, tipo de dispositivo, navegador, identificadores de sesión y registros de seguridad; y datos de ubicación únicamente cuando una función los requiera y la persona usuaria autorice su acceso desde el dispositivo.",
+          "La plataforma no solicita de forma ordinaria datos personales sensibles. Si una persona usuaria incorpora voluntariamente información sensible en un campo abierto, deberá evitar hacerlo salvo que sea indispensable. Cualquier tratamiento intencional de datos sensibles requerirá información y consentimiento conforme a la normativa aplicable."
+        ],
+        legalBasis: "Arts. 7, 8, 9, 15 y 16, fracción II, LFPDPPP; Lineamiento Vigésimo, fracciones II y III, Lineamientos del Aviso de Privacidad."
+      },
+      {
+        title: "3. Finalidades primarias y secundarias",
+        paragraphs: [
+          "Finalidades primarias: crear y administrar cuentas; autenticar sesiones; recibir, revisar, publicar y dar seguimiento a reportes; operar módulos de tráfico, terminales, carriles, noticias, servicios, Patio Regulador, Segundo Acceso y funciones administrativas; atender solicitudes; prevenir fraude, abuso y eventos de seguridad; mantener la continuidad técnica; y cumplir obligaciones legales o requerimientos de autoridad competente.",
+          "Finalidades secundarias: generar estadísticas agregadas para mejorar el servicio y, cuando exista una implementación activa y jurídicamente validada, mostrar publicidad o medir audiencia. La persona titular podrá oponerse a las finalidades secundarias mediante el canal de privacidad indicado en este aviso, sin que ello afecte las funciones esenciales de la plataforma."
+        ],
+        legalBasis: "Arts. 6, 7, 8, 9, 12, 13, 15 y 16, fracción III, LFPDPPP; Lineamiento Vigésimo, fracciones IV y V, Lineamientos del Aviso de Privacidad."
+      },
+      {
+        title: "4. Limitación del uso o divulgación",
+        paragraphs: [
+          "La persona titular puede solicitar la limitación del uso o divulgación de sus datos, especialmente respecto de finalidades secundarias, enviando una solicitud al correo [CORREO DE PRIVACIDAD] con su nombre, medio para recibir respuesta y una descripción clara de la limitación solicitada. Cuando sea técnicamente aplicable, también podrá ajustar permisos del navegador, ubicación, cookies o almacenamiento local desde su dispositivo."
+        ],
+        legalBasis: "Art. 16, fracción IV, LFPDPPP; Lineamiento Vigésimo, fracción V, y disposiciones aplicables de los Lineamientos del Aviso de Privacidad."
+      },
+      {
+        title: "5. Derechos ARCO y revocación del consentimiento",
+        paragraphs: [
+          "La persona titular puede ejercer sus derechos de Acceso, Rectificación, Cancelación y Oposición, así como solicitar la revocación del consentimiento, mediante escrito enviado a [CORREO DE PRIVACIDAD]. La solicitud deberá contener el nombre de la persona titular, un medio para comunicar la respuesta, documentos que acrediten identidad o representación, la descripción clara de los datos respecto de los cuales se ejerce el derecho y cualquier elemento que facilite su localización.",
+          "El responsable atenderá la solicitud dentro de los plazos y conforme al procedimiento previstos por la legislación aplicable. La revocación no tendrá efectos retroactivos y podrá no proceder cuando exista una obligación legal de conservar o tratar determinados datos."
+        ],
+        legalBasis: "Arts. 21 a 35, y art. 16, fracción V, LFPDPPP; disposiciones correlativas del Reglamento de la LFPDPPP."
+      },
+      {
+        title: "6. Transferencias y encargados",
+        paragraphs: [
+          "Los datos podrán ser tratados por proveedores que actúen por cuenta del responsable para prestar infraestructura, autenticación, almacenamiento, alojamiento, seguridad, mapas, mensajería, analítica u otros servicios técnicos indispensables. Entre ellos pueden encontrarse Supabase y Vercel, según la configuración vigente de la plataforma. Estos proveedores deberán sujetarse a instrucciones, medidas de seguridad y obligaciones contractuales aplicables.",
+          "No se realizarán transferencias distintas de las necesarias para operar el servicio, cumplir una relación jurídica o atender un mandato de autoridad, salvo que se informe a la persona titular y se obtenga el consentimiento cuando sea exigible. La lista efectiva de proveedores y flujos internacionales debe ser validada por el responsable antes de publicar este aviso."
+        ],
+        legalBasis: "Arts. 36 y 37, y art. 16, fracción VI, LFPDPPP; arts. 50 a 60 del Reglamento de la LFPDPPP, según resulten aplicables."
+      },
+      {
+        title: "7. Cookies y tecnologías de rastreo",
+        paragraphs: [
+          "La aplicación utiliza almacenamiento local y tecnologías equivalentes para conservar preferencias, sesiones, consentimiento de cookies y datos necesarios para el funcionamiento. También puede utilizar servicios de terceros, incluidos Google AdSense o herramientas de medición, que empleen cookies, identificadores o tecnologías semejantes conforme a su propia configuración.",
+          "La persona usuaria puede aceptar únicamente tecnologías esenciales, modificar permisos desde el navegador o eliminar datos almacenados. La desactivación de tecnologías esenciales puede limitar funciones de inicio de sesión, preferencias o seguridad. La configuración real de publicidad y analítica debe verificarse antes de publicar este texto."
+        ],
+        legalBasis: "Arts. 14, 15 y 16 LFPDPPP; arts. 32 y 33 del Reglamento de la LFPDPPP; Lineamientos del Aviso de Privacidad, DOF 17-01-2013, disposiciones sobre cookies, web beacons y tecnologías similares."
+      },
+      {
+        title: "8. Seguridad y conservación",
+        paragraphs: [
+          "El responsable aplicará medidas administrativas, técnicas y físicas razonables para proteger los datos contra daño, pérdida, alteración, destrucción, uso, acceso o tratamiento no autorizado. Los datos se conservarán durante el tiempo necesario para cumplir las finalidades informadas, atender obligaciones legales, resolver controversias y mantener registros de seguridad; después serán bloqueados, suprimidos o anonimizados cuando proceda."
+        ],
+        legalBasis: "Arts. 18, 19 y 20 LFPDPPP; disposiciones correlativas del Reglamento de la LFPDPPP sobre medidas de seguridad y vulneraciones."
+      },
+      {
+        title: "9. Cambios al aviso",
+        paragraphs: [
+          "Las modificaciones a este aviso se comunicarán mediante su publicación dentro de Conect Manzanillo, indicando la fecha de actualización y la versión. Cuando el cambio requiera un nuevo consentimiento, se solicitará antes de aplicar el tratamiento correspondiente."
+        ],
+        legalBasis: "Art. 16, fracción VII, LFPDPPP; Lineamientos del Aviso de Privacidad, disposiciones relativas a modificaciones y comunicación del aviso."
+      },
+      {
+        title: "10. Derecho constitucional y autoridad competente",
+        paragraphs: [
+          "Toda persona tiene derecho a la protección de sus datos personales y al ejercicio de los derechos de acceso, rectificación, cancelación y oposición. La persona titular podrá acudir ante la autoridad mexicana competente en materia de protección de datos cuando considere que su derecho ha sido vulnerado."
+        ],
+        legalBasis: "Art. 16, párrafo segundo, Constitución Política de los Estados Unidos Mexicanos; LFPDPPP vigente."
+      }
+    ]
+  },
+  terms: {
+    id: "terms",
+    title: "Términos y Condiciones",
+    version: "v1.0",
+    updatedAt: "5 de agosto de 2026",
+    introductoryNotice:
+      "Estos términos regulan el uso de Conect Manzanillo bajo el supuesto de una plataforma privada o comunitaria. La identidad del operador, su domicilio, la naturaleza del servicio y la procedencia de la jurisdicción pactada deben ser confirmados por el área jurídica antes de su publicación.",
+    sections: [
+      {
+        title: "1. Aceptación de los términos",
+        paragraphs: [
+          "El acceso, navegación o uso de Conect Manzanillo manifiesta la aceptación de estos términos mediante actos que permiten presumir el consentimiento. Cuando una función requiera una aceptación expresa, la plataforma podrá solicitarla mediante una casilla, botón o mecanismo electrónico equivalente. Si la persona usuaria no está de acuerdo, deberá abstenerse de utilizar las funciones sujetas a estos términos."
+        ],
+        legalBasis: "Arts. 1794, 1795, 1796 y 1803, Código Civil Federal; arts. 89 a 94, Código de Comercio, sobre mensajes de datos y contratación por medios electrónicos."
+      },
+      {
+        title: "2. Objeto y uso permitido",
+        paragraphs: [
+          "Conect Manzanillo facilita la consulta de información de tráfico y operación portuaria, la recepción de reportes, el acceso a directorios y servicios, la difusión de comunicados y el uso de herramientas comunitarias o administrativas autorizadas.",
+          "La persona usuaria deberá utilizar la plataforma de forma lícita y de buena fe. Se prohíbe introducir información falsa de manera deliberada, suplantar identidades, vulnerar controles de acceso, interferir con la disponibilidad del servicio, automatizar consultas abusivas, distribuir código malicioso, extraer datos sin autorización o emplear la plataforma para actos contrarios a la legislación aplicable o a derechos de terceros."
+        ],
+        legalBasis: "Art. 6, Constitución Política de los Estados Unidos Mexicanos, como marco general del acceso a información; arts. 89 a 94 y 1298-A, Código de Comercio, respecto de mensajes de datos y su valor probatorio. Las prohibiciones operativas constituyen condiciones contractuales razonables de uso."
+      },
+      {
+        title: "3. Propiedad intelectual",
+        paragraphs: [
+          "Los textos, diseños, código, interfaces, compilaciones, bases de datos, signos distintivos y demás elementos de Conect Manzanillo pertenecen a sus respectivos titulares o se utilizan con autorización. El acceso a la plataforma no transfiere derechos de propiedad intelectual.",
+          "Salvo autorización expresa o excepción legal, queda prohibida la reproducción, modificación, distribución, comunicación pública, explotación o creación de obras derivadas de los elementos protegidos. Las marcas y nombres de terceros conservan la titularidad que corresponda."
+        ],
+        legalBasis: "Arts. 11, 13, 18, 24, 27 y demás aplicables, Ley Federal del Derecho de Autor; arts. 171, 172, 173 y siguientes aplicables, Ley Federal de Protección a la Propiedad Industrial."
+      },
+      {
+        title: "4. Cuentas y contenido generado por personas usuarias",
+        paragraphs: [
+          "La persona usuaria es responsable de mantener la confidencialidad de sus credenciales y de la actividad realizada desde su cuenta, salvo uso no autorizado que haya sido reportado oportunamente. Los reportes, publicaciones, posturas, perfiles y registros de proveedores deberán ser veraces, pertinentes y respetar derechos de terceros.",
+          "Al publicar contenido necesario para operar una función, la persona usuaria otorga al operador una licencia no exclusiva, gratuita, limitada y revocable cuando jurídicamente proceda, para alojar, reproducir técnicamente, mostrar, moderar y comunicar ese contenido dentro de la plataforma y únicamente para prestar, proteger o mejorar el servicio. La persona usuaria conserva la titularidad de su contenido y declara contar con los derechos necesarios para compartirlo."
+        ],
+        legalBasis: "Arts. 1796 y 1858, Código Civil Federal, respecto de la autonomía contractual y contratos no regulados expresamente; art. 1910, Código Civil Federal, sobre responsabilidad por actos ilícitos; arts. 24 y 27, Ley Federal del Derecho de Autor, cuando el contenido tenga carácter de obra."
+      },
+      {
+        title: "5. Disponibilidad y limitación de responsabilidad",
+        paragraphs: [
+          "La plataforma se ofrece como una herramienta informativa y operativa de apoyo. La información de tráfico, reportes comunitarios, directorios, noticias o estados operativos puede contener retrasos, errores o datos aportados por terceros y no sustituye comunicados oficiales, instrucciones de autoridad, señalización vial ni decisiones profesionales.",
+          "El operador procurará mantener el servicio disponible y corregir fallas razonablemente, pero no garantiza funcionamiento ininterrumpido. La responsabilidad se determinará conforme a la legislación aplicable y no se excluye cuando exista dolo, culpa, negligencia comprobada o una obligación que legalmente no pueda limitarse."
+        ],
+        legalBasis: "Arts. 1910 a 1934, Código Civil Federal, sobre responsabilidad civil y reparación del daño. La delimitación del alcance informativo es una condición contractual y no elimina responsabilidades inderogables."
+      },
+      {
+        title: "6. Enlaces y servicios de terceros",
+        paragraphs: [
+          "Conect Manzanillo puede enlazar o interoperar con WhatsApp, servicios de mapas, proveedores del directorio, plataformas de autenticación, alojamiento, publicidad u otros servicios externos. Cada tercero controla sus propias condiciones, disponibilidad y prácticas de privacidad. El operador no controla el contenido externo, aunque deberá actuar razonablemente cuando tenga conocimiento de riesgos o ilicitudes vinculadas con integraciones bajo su control."
+        ],
+        legalBasis: "Arts. 1910 y siguientes, Código Civil Federal. No existe una obligación legal única y específica para esta cláusula; se trata de una delimitación contractual razonable derivada del régimen general de responsabilidad civil."
+      },
+      {
+        title: "7. Suspensión, moderación y terminación",
+        paragraphs: [
+          "El operador podrá moderar contenido, limitar funciones o suspender cuentas cuando existan indicios razonables de uso ilícito, riesgo de seguridad, suplantación, fraude, afectación a terceros, incumplimiento de estos términos o necesidad de preservar la continuidad del servicio. La medida deberá ser proporcional y, cuando sea viable, se informará a la persona afectada."
+        ],
+        legalBasis: "Arts. 1796 y 1858, Código Civil Federal, como condiciones contractuales de operación; art. 1910, Código Civil Federal, respecto de la prevención y responsabilidad por hechos ilícitos."
+      },
+      {
+        title: "8. Modificaciones",
+        paragraphs: [
+          "El operador podrá actualizar estos términos para reflejar cambios funcionales, técnicos, de seguridad o normativos. La nueva versión se publicará en la plataforma con su fecha de actualización. Los cambios sustanciales aplicarán hacia el futuro y, cuando corresponda por la naturaleza de la relación, se solicitará una nueva aceptación."
+        ],
+        legalBasis: "Art. 1796, Código Civil Federal, sobre fuerza obligatoria y libertad contractual. La facultad de modificación es una práctica contractual general y no una obligación impuesta de manera específica por ese artículo."
+      },
+      {
+        title: "9. Legislación aplicable y jurisdicción",
+        paragraphs: [
+          "Estos términos se interpretarán conforme a las leyes mexicanas. Cualquier controversia se someterá a los tribunales competentes de Manzanillo, Colima, únicamente cuando el pacto de jurisdicción sea válido, exista competencia legal y no resulte aplicable un fuero irrenunciable o una norma protectora de la persona usuaria."
+        ],
+        legalBasis: "Art. 13, Código Civil Federal, sobre aplicación del derecho; arts. 1051 a 1054, Código de Comercio, en materia de procedimiento y competencia mercantil. La validez concreta de la elección de foro debe confirmarse según la naturaleza de cada relación."
+      },
+      {
+        title: "10. Contacto",
+        paragraphs: [
+          "Las dudas, aclaraciones o notificaciones relacionadas con estos términos deberán enviarse a [CORREO DE CONTACTO LEGAL] o al domicilio [DOMICILIO DEL OPERADOR]. Estos datos deben completarse antes de publicar el documento."
+        ],
+        legalBasis: "Práctica contractual general para facilitar comunicaciones y ejercicio de derechos; su inclusión no se atribuye a una obligación legal específica."
+      }
+    ]
+  }
+};
+
+const CM_LEGAL_STYLES = '.cm-legal-footer {\n  position: relative;\n  z-index: 20;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-wrap: wrap;\n  gap: 10px;\n  width: 100%;\n  padding: 22px 16px calc(22px + env(safe-area-inset-bottom));\n  color: rgba(212, 228, 250, 0.64);\n  font-family: "DM Sans", sans-serif;\n  font-size: 12px;\n}\n\n.cm-legal-footer button {\n  appearance: none;\n  border: 0;\n  padding: 4px 2px;\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  text-decoration: underline;\n  text-decoration-color: transparent;\n  text-underline-offset: 4px;\n  cursor: pointer;\n  transition: color 160ms ease, text-decoration-color 160ms ease;\n}\n\n.cm-legal-footer button:hover,\n.cm-legal-footer button:focus-visible {\n  color: #e8f3ff;\n  text-decoration-color: currentColor;\n  outline: 2px solid transparent;\n}\n\n.cm-legal-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483000;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(2, 8, 18, 0.78);\n  backdrop-filter: blur(10px);\n  -webkit-backdrop-filter: blur(10px);\n}\n\n.cm-legal-dialog {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr) auto;\n  width: min(720px, 100%);\n  max-height: min(88vh, 900px);\n  overflow: hidden;\n  border: 1px solid rgba(159, 202, 255, 0.22);\n  border-radius: 18px;\n  background: linear-gradient(180deg, #10243b 0%, #091728 100%);\n  color: #e8f3ff;\n  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);\n  font-family: "DM Sans", sans-serif;\n}\n\n.cm-legal-dialog__header,\n.cm-legal-dialog__footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 18px;\n  padding: 18px 22px;\n  border-color: rgba(159, 202, 255, 0.14);\n  background: rgba(8, 22, 38, 0.72);\n}\n\n.cm-legal-dialog__header { border-bottom: 1px solid rgba(159, 202, 255, 0.14); }\n.cm-legal-dialog__footer { border-top: 1px solid rgba(159, 202, 255, 0.14); }\n\n.cm-legal-dialog__eyebrow {\n  margin: 0 0 4px;\n  color: #9fcaff;\n  font-family: "Space Mono", monospace;\n  font-size: 10px;\n  letter-spacing: 0.12em;\n  text-transform: uppercase;\n}\n\n.cm-legal-dialog h2 {\n  margin: 0;\n  font-family: "Space Mono", monospace;\n  font-size: clamp(18px, 3vw, 24px);\n  line-height: 1.2;\n}\n\n.cm-legal-close {\n  flex: 0 0 auto;\n  border: 1px solid rgba(159, 202, 255, 0.28);\n  border-radius: 8px;\n  padding: 9px 12px;\n  background: rgba(159, 202, 255, 0.08);\n  color: #e8f3ff;\n  font: 600 12px/1 "DM Sans", sans-serif;\n  cursor: pointer;\n}\n\n.cm-legal-close:hover,\n.cm-legal-close:focus-visible {\n  border-color: rgba(159, 202, 255, 0.66);\n  background: rgba(159, 202, 255, 0.15);\n  outline: 2px solid #9fcaff;\n  outline-offset: 2px;\n}\n\n.cm-legal-dialog__body {\n  overflow-y: auto;\n  overscroll-behavior: contain;\n  padding: 22px;\n  user-select: text;\n  -webkit-user-select: text;\n  scrollbar-width: thin;\n  scrollbar-color: rgba(159, 202, 255, 0.38) transparent;\n}\n\n.cm-legal-intro {\n  margin: 0 0 24px;\n  padding: 14px 16px;\n  border-left: 3px solid #9fcaff;\n  border-radius: 0 8px 8px 0;\n  background: rgba(159, 202, 255, 0.08);\n  color: #d4e4fa;\n  font-size: 13px;\n  line-height: 1.65;\n}\n\n.cm-legal-section + .cm-legal-section { margin-top: 26px; }\n.cm-legal-section h3 {\n  margin: 0 0 10px;\n  color: #ffffff;\n  font-family: "Space Mono", monospace;\n  font-size: 14px;\n  line-height: 1.45;\n}\n.cm-legal-section p {\n  margin: 0 0 10px;\n  color: rgba(232, 243, 255, 0.84);\n  font-size: 14px;\n  line-height: 1.75;\n}\n.cm-legal-section .cm-legal-basis {\n  margin-top: 8px;\n  color: rgba(159, 202, 255, 0.76);\n  font-size: 11px;\n  line-height: 1.55;\n}\n\n.cm-legal-dialog__footer {\n  color: rgba(212, 228, 250, 0.66);\n  font-size: 11px;\n}\n\n@media (max-width: 640px) {\n  .cm-legal-backdrop {\n    align-items: end;\n    padding: 0;\n  }\n  .cm-legal-dialog {\n    width: 100%;\n    height: 100dvh;\n    max-height: none;\n    border-right: 0;\n    border-bottom: 0;\n    border-left: 0;\n    border-radius: 18px 18px 0 0;\n  }\n  .cm-legal-dialog__header,\n  .cm-legal-dialog__footer,\n  .cm-legal-dialog__body { padding-left: 17px; padding-right: 17px; }\n  .cm-legal-dialog__footer {\n    padding-bottom: calc(16px + env(safe-area-inset-bottom));\n  }\n}\n\n@media (prefers-reduced-motion: no-preference) {\n  .cm-legal-backdrop { animation: cmLegalFade 160ms ease-out; }\n  .cm-legal-dialog { animation: cmLegalEnter 220ms ease-out; }\n  @keyframes cmLegalFade { from { opacity: 0; } }\n  @keyframes cmLegalEnter { from { opacity: 0; transform: translateY(14px) scale(0.99); } }\n}\n';
+(function injectConectLegalStyles() {
+  if (typeof document === "undefined" || document.getElementById("cm-legal-styles")) return;
+  const style = document.createElement("style");
+  style.id = "cm-legal-styles";
+  style.textContent = CM_LEGAL_STYLES;
+  document.head.appendChild(style);
+})();
+
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])'
+].join(",");
+
+function LegalModal({ document, onClose }) {
+  const titleId = React.useId();
+  const descriptionId = React.useId();
+  const dialogRef = React.useRef(null);
+  const closeButtonRef = React.useRef(null);
+  const previouslyFocusedRef = React.useRef(null);
+
+  React.useEffect(() => {
+    previouslyFocusedRef.current = window.document.activeElement;
+    const previousOverflow = window.document.body.style.overflow;
+    window.document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll(FOCUSABLE_SELECTOR) || []
+      ).filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && window.document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && window.document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.document.removeEventListener("keydown", handleKeyDown);
+      window.document.body.style.overflow = previousOverflow;
+      previouslyFocusedRef.current?.focus?.();
+    };
+  }, [onClose]);
+
+  const modal = (
+    <div className="cm-legal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section
+        ref={dialogRef}
+        className="cm-legal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+      >
+        <header className="cm-legal-dialog__header">
+          <div>
+            <p className="cm-legal-dialog__eyebrow">Conect Manzanillo</p>
+            <h2 id={titleId}>{document.title}</h2>
+          </div>
+          <button ref={closeButtonRef} type="button" className="cm-legal-close" onClick={onClose} aria-label={`Cerrar ${document.title}`}>
+            Cerrar ×
+          </button>
+        </header>
+
+        <div className="cm-legal-dialog__body" id={descriptionId}>
+          <p className="cm-legal-intro">{document.introductoryNotice}</p>
+          {document.sections.map((section) => (
+            <section className="cm-legal-section" key={section.title}>
+              <h3>{section.title}</h3>
+              {section.paragraphs.map((paragraph, index) => <p key={`${section.title}-${index}`}>{paragraph}</p>)}
+              <p className="cm-legal-basis">({section.legalBasis})</p>
+            </section>
+          ))}
+        </div>
+
+        <footer className="cm-legal-dialog__footer">
+          <span>Última actualización: {document.updatedAt}</span>
+          <span>Versión {document.version}</span>
+        </footer>
+      </section>
+    </div>
+  );
+
+  return createPortal(modal, window.document.body);
+}
+
+function LegalFooter() {
+  const [activeDocument, setActiveDocument] = React.useState(null);
+
+  return (
+    <>
+      <footer className="cm-legal-footer" aria-label="Información legal">
+        <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.privacy)}>
+          Aviso de Privacidad
+        </button>
+        <span aria-hidden="true">·</span>
+        <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.terms)}>
+          Términos y Condiciones
+        </button>
+      </footer>
+      {activeDocument ? <LegalModal document={activeDocument} onClose={() => setActiveDocument(null)} /> : null}
+    </>
+  );
+}
+
 // ─── SEGURIDAD ────────────────────────────────────────────────────────────────
 const sanitize = (str) => {
   if (typeof str !== "string") return "";
@@ -36045,6 +36352,7 @@ function App() {
           </div>
         )}
       </div>
+      <LegalFooter />
     </div>
     </>
     </ThemeContext.Provider>
