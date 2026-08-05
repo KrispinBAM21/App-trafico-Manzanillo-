@@ -181,7 +181,7 @@ const LEGAL_DOCUMENTS = {
   }
 };
 
-const CM_LEGAL_STYLES = '.cm-legal-footer {\n  position: relative;\n  z-index: 20;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-wrap: wrap;\n  gap: 10px;\n  width: 100%;\n  padding: 22px 16px calc(22px + env(safe-area-inset-bottom));\n  color: rgba(212, 228, 250, 0.64);\n  font-family: "DM Sans", sans-serif;\n  font-size: 12px;\n}\n\n.cm-legal-footer button {\n  appearance: none;\n  border: 0;\n  padding: 4px 2px;\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  text-decoration: underline;\n  text-decoration-color: transparent;\n  text-underline-offset: 4px;\n  cursor: pointer;\n  transition: color 160ms ease, text-decoration-color 160ms ease;\n}\n\n.cm-legal-footer button:hover,\n.cm-legal-footer button:focus-visible {\n  color: #e8f3ff;\n  text-decoration-color: currentColor;\n  outline: 2px solid transparent;\n}\n\n.cm-legal-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483000;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(2, 8, 18, 0.78);\n  backdrop-filter: blur(10px);\n  -webkit-backdrop-filter: blur(10px);\n}\n\n.cm-legal-dialog {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr) auto;\n  width: min(720px, 100%);\n  max-height: min(88vh, 900px);\n  overflow: hidden;\n  border: 1px solid rgba(159, 202, 255, 0.22);\n  border-radius: 18px;\n  background: linear-gradient(180deg, #10243b 0%, #091728 100%);\n  color: #e8f3ff;\n  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);\n  font-family: "DM Sans", sans-serif;\n}\n\n.cm-legal-dialog__header,\n.cm-legal-dialog__footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 18px;\n  padding: 18px 22px;\n  border-color: rgba(159, 202, 255, 0.14);\n  background: rgba(8, 22, 38, 0.72);\n}\n\n.cm-legal-dialog__header { border-bottom: 1px solid rgba(159, 202, 255, 0.14); }\n.cm-legal-dialog__footer { border-top: 1px solid rgba(159, 202, 255, 0.14); }\n\n.cm-legal-dialog__eyebrow {\n  margin: 0 0 4px;\n  color: #9fcaff;\n  font-family: "Space Mono", monospace;\n  font-size: 10px;\n  letter-spacing: 0.12em;\n  text-transform: uppercase;\n}\n\n.cm-legal-dialog h2 {\n  margin: 0;\n  font-family: "Space Mono", monospace;\n  font-size: clamp(18px, 3vw, 24px);\n  line-height: 1.2;\n}\n\n.cm-legal-close {\n  flex: 0 0 auto;\n  border: 1px solid rgba(159, 202, 255, 0.28);\n  border-radius: 8px;\n  padding: 9px 12px;\n  background: rgba(159, 202, 255, 0.08);\n  color: #e8f3ff;\n  font: 600 12px/1 "DM Sans", sans-serif;\n  cursor: pointer;\n}\n\n.cm-legal-close:hover,\n.cm-legal-close:focus-visible {\n  border-color: rgba(159, 202, 255, 0.66);\n  background: rgba(159, 202, 255, 0.15);\n  outline: 2px solid #9fcaff;\n  outline-offset: 2px;\n}\n\n.cm-legal-dialog__body {\n  overflow-y: auto;\n  overscroll-behavior: contain;\n  padding: 22px;\n  user-select: text;\n  -webkit-user-select: text;\n  scrollbar-width: thin;\n  scrollbar-color: rgba(159, 202, 255, 0.38) transparent;\n}\n\n.cm-legal-intro {\n  margin: 0 0 24px;\n  padding: 14px 16px;\n  border-left: 3px solid #9fcaff;\n  border-radius: 0 8px 8px 0;\n  background: rgba(159, 202, 255, 0.08);\n  color: #d4e4fa;\n  font-size: 13px;\n  line-height: 1.65;\n}\n\n.cm-legal-section + .cm-legal-section { margin-top: 26px; }\n.cm-legal-section h3 {\n  margin: 0 0 10px;\n  color: #ffffff;\n  font-family: "Space Mono", monospace;\n  font-size: 14px;\n  line-height: 1.45;\n}\n.cm-legal-section p {\n  margin: 0 0 10px;\n  color: rgba(232, 243, 255, 0.84);\n  font-size: 14px;\n  line-height: 1.75;\n}\n.cm-legal-section .cm-legal-basis {\n  margin-top: 8px;\n  color: rgba(159, 202, 255, 0.76);\n  font-size: 11px;\n  line-height: 1.55;\n}\n\n.cm-legal-dialog__footer {\n  color: rgba(212, 228, 250, 0.66);\n  font-size: 11px;\n}\n\n@media (max-width: 640px) {\n  .cm-legal-backdrop {\n    align-items: end;\n    padding: 0;\n  }\n  .cm-legal-dialog {\n    width: 100%;\n    height: 100dvh;\n    max-height: none;\n    border-right: 0;\n    border-bottom: 0;\n    border-left: 0;\n    border-radius: 18px 18px 0 0;\n  }\n  .cm-legal-dialog__header,\n  .cm-legal-dialog__footer,\n  .cm-legal-dialog__body { padding-left: 17px; padding-right: 17px; }\n  .cm-legal-dialog__footer {\n    padding-bottom: calc(16px + env(safe-area-inset-bottom));\n  }\n}\n\n@media (prefers-reduced-motion: no-preference) {\n  .cm-legal-backdrop { animation: cmLegalFade 160ms ease-out; }\n  .cm-legal-dialog { animation: cmLegalEnter 220ms ease-out; }\n  @keyframes cmLegalFade { from { opacity: 0; } }\n  @keyframes cmLegalEnter { from { opacity: 0; transform: translateY(14px) scale(0.99); } }\n}\n';
+const CM_LEGAL_STYLES = '.cm-legal-footer {\n  position: relative;\n  z-index: 20;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-wrap: wrap;\n  gap: 10px;\n  width: 100%;\n  padding: 22px 16px calc(22px + env(safe-area-inset-bottom));\n  color: rgba(212, 228, 250, 0.64);\n  font-family: "DM Sans", sans-serif;\n  font-size: 12px;\n}\n\n.cm-legal-footer button {\n  appearance: none;\n  border: 0;\n  padding: 4px 2px;\n  background: transparent;\n  color: inherit;\n  font: inherit;\n  text-decoration: underline;\n  text-decoration-color: transparent;\n  text-underline-offset: 4px;\n  cursor: pointer;\n  transition: color 160ms ease, text-decoration-color 160ms ease;\n}\n\n.cm-legal-footer button:hover,\n.cm-legal-footer button:focus-visible {\n  color: #e8f3ff;\n  text-decoration-color: currentColor;\n  outline: 2px solid transparent;\n}\n\n.cm-legal-footer__links,\n.cm-legal-footer__social {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n}\n\n.cm-legal-footer__separator {\n  color: rgba(159, 202, 255, 0.28);\n}\n\n.cm-legal-footer__social { gap: 7px; }\n.cm-legal-footer__social a {\n  width: 30px;\n  height: 30px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  border: 1px solid rgba(159, 202, 255, 0.18);\n  border-radius: 999px;\n  background: rgba(8, 22, 38, 0.58);\n  color: rgba(212, 228, 250, 0.72);\n  text-decoration: none;\n  transition: transform 160ms ease, color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;\n}\n.cm-legal-footer__social a:hover,\n.cm-legal-footer__social a:focus-visible {\n  color: var(--cm-social-accent, #9fcaff);\n  border-color: var(--cm-social-accent, #9fcaff);\n  background: rgba(159, 202, 255, 0.09);\n  box-shadow: 0 0 18px color-mix(in srgb, var(--cm-social-accent, #9fcaff) 28%, transparent);\n  transform: translateY(-1px);\n  outline: none;\n}\n\n@media (max-width: 560px) {\n  .cm-legal-footer { gap: 8px 12px; }\n  .cm-legal-footer__separator { display: none; }\n  .cm-legal-footer__links,\n  .cm-legal-footer__social { width: 100%; }\n}\n\n.cm-legal-backdrop {\n  position: fixed;\n  inset: 0;\n  z-index: 2147483000;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgba(2, 8, 18, 0.78);\n  backdrop-filter: blur(10px);\n  -webkit-backdrop-filter: blur(10px);\n}\n\n.cm-legal-dialog {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr) auto;\n  width: min(720px, 100%);\n  max-height: min(88vh, 900px);\n  overflow: hidden;\n  border: 1px solid rgba(159, 202, 255, 0.22);\n  border-radius: 18px;\n  background: linear-gradient(180deg, #10243b 0%, #091728 100%);\n  color: #e8f3ff;\n  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);\n  font-family: "DM Sans", sans-serif;\n}\n\n.cm-legal-dialog__header,\n.cm-legal-dialog__footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 18px;\n  padding: 18px 22px;\n  border-color: rgba(159, 202, 255, 0.14);\n  background: rgba(8, 22, 38, 0.72);\n}\n\n.cm-legal-dialog__header { border-bottom: 1px solid rgba(159, 202, 255, 0.14); }\n.cm-legal-dialog__footer { border-top: 1px solid rgba(159, 202, 255, 0.14); }\n\n.cm-legal-dialog__eyebrow {\n  margin: 0 0 4px;\n  color: #9fcaff;\n  font-family: "Space Mono", monospace;\n  font-size: 10px;\n  letter-spacing: 0.12em;\n  text-transform: uppercase;\n}\n\n.cm-legal-dialog h2 {\n  margin: 0;\n  font-family: "Space Mono", monospace;\n  font-size: clamp(18px, 3vw, 24px);\n  line-height: 1.2;\n}\n\n.cm-legal-close {\n  flex: 0 0 auto;\n  border: 1px solid rgba(159, 202, 255, 0.28);\n  border-radius: 8px;\n  padding: 9px 12px;\n  background: rgba(159, 202, 255, 0.08);\n  color: #e8f3ff;\n  font: 600 12px/1 "DM Sans", sans-serif;\n  cursor: pointer;\n}\n\n.cm-legal-close:hover,\n.cm-legal-close:focus-visible {\n  border-color: rgba(159, 202, 255, 0.66);\n  background: rgba(159, 202, 255, 0.15);\n  outline: 2px solid #9fcaff;\n  outline-offset: 2px;\n}\n\n.cm-legal-dialog__body {\n  overflow-y: auto;\n  overscroll-behavior: contain;\n  padding: 22px;\n  user-select: text;\n  -webkit-user-select: text;\n  scrollbar-width: thin;\n  scrollbar-color: rgba(159, 202, 255, 0.38) transparent;\n}\n\n.cm-legal-intro {\n  margin: 0 0 24px;\n  padding: 14px 16px;\n  border-left: 3px solid #9fcaff;\n  border-radius: 0 8px 8px 0;\n  background: rgba(159, 202, 255, 0.08);\n  color: #d4e4fa;\n  font-size: 13px;\n  line-height: 1.65;\n}\n\n.cm-legal-section + .cm-legal-section { margin-top: 26px; }\n.cm-legal-section h3 {\n  margin: 0 0 10px;\n  color: #ffffff;\n  font-family: "Space Mono", monospace;\n  font-size: 14px;\n  line-height: 1.45;\n}\n.cm-legal-section p {\n  margin: 0 0 10px;\n  color: rgba(232, 243, 255, 0.84);\n  font-size: 14px;\n  line-height: 1.75;\n}\n.cm-legal-section .cm-legal-basis {\n  margin-top: 8px;\n  color: rgba(159, 202, 255, 0.76);\n  font-size: 11px;\n  line-height: 1.55;\n}\n\n.cm-legal-dialog__footer {\n  color: rgba(212, 228, 250, 0.66);\n  font-size: 11px;\n}\n\n@media (max-width: 640px) {\n  .cm-legal-backdrop {\n    align-items: end;\n    padding: 0;\n  }\n  .cm-legal-dialog {\n    width: 100%;\n    height: 100dvh;\n    max-height: none;\n    border-right: 0;\n    border-bottom: 0;\n    border-left: 0;\n    border-radius: 18px 18px 0 0;\n  }\n  .cm-legal-dialog__header,\n  .cm-legal-dialog__footer,\n  .cm-legal-dialog__body { padding-left: 17px; padding-right: 17px; }\n  .cm-legal-dialog__footer {\n    padding-bottom: calc(16px + env(safe-area-inset-bottom));\n  }\n}\n\n@media (prefers-reduced-motion: no-preference) {\n  .cm-legal-backdrop { animation: cmLegalFade 160ms ease-out; }\n  .cm-legal-dialog { animation: cmLegalEnter 220ms ease-out; }\n  @keyframes cmLegalFade { from { opacity: 0; } }\n  @keyframes cmLegalEnter { from { opacity: 0; transform: translateY(14px) scale(0.99); } }\n}\n';
 (function injectConectLegalStyles() {
   if (typeof document === "undefined" || document.getElementById("cm-legal-styles")) return;
   const style = document.createElement("style");
@@ -297,17 +297,69 @@ function LegalModal({ document, onClose }) {
 
 function LegalFooter() {
   const [activeDocument, setActiveDocument] = React.useState(null);
+  const socialLinks = [
+    {
+      label: "Facebook de Conect Manzanillo",
+      href: "https://www.facebook.com/conectmanzanillooficial/",
+      accent: "#1877F2",
+      icon: (
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M13.7 22v-8.4h2.8l.4-3.3h-3.2V8.2c0-1 .3-1.6 1.7-1.6h1.8v-3a24 24 0 0 0-2.6-.2c-2.6 0-4.4 1.6-4.4 4.5v2.5H7.3v3.3h2.9V22h3.5Z" />
+        </svg>
+      )
+    },
+    {
+      label: "Instagram de Conect Manzanillo",
+      href: "https://www.instagram.com/conectmanzanillo",
+      accent: "#d62976",
+      icon: (
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false">
+          <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="17.5" cy="6.7" r="1.15" fill="currentColor" />
+        </svg>
+      )
+    },
+    {
+      label: "TikTok de Conect Manzanillo",
+      href: "https://www.tiktok.com/@conectmanzanilloo",
+      accent: "#00f2ea",
+      icon: (
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M15.7 3c.3 2.2 1.5 3.5 3.6 3.7v3.1a8.8 8.8 0 0 1-3.6-.9v6.3a5.8 5.8 0 1 1-5-5.7v3.2a2.7 2.7 0 1 0 1.8 2.5V3h3.2Z" />
+        </svg>
+      )
+    }
+  ];
 
   return (
     <>
-      <footer className="cm-legal-footer" aria-label="Información legal">
-        <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.privacy)}>
-          Aviso de Privacidad
-        </button>
-        <span aria-hidden="true">·</span>
-        <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.terms)}>
-          Términos y Condiciones
-        </button>
+      <footer className="cm-legal-footer" aria-label="Información legal y redes sociales">
+        <div className="cm-legal-footer__links">
+          <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.privacy)}>
+            Aviso de Privacidad
+          </button>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={() => setActiveDocument(LEGAL_DOCUMENTS.terms)}>
+            Términos y Condiciones
+          </button>
+        </div>
+        <span className="cm-legal-footer__separator" aria-hidden="true">|</span>
+        <nav className="cm-legal-footer__social" aria-label="Redes sociales de Conect Manzanillo">
+          {socialLinks.map((social) => (
+            <a
+              key={social.label}
+              href={social.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={social.label}
+              title={social.label}
+              style={{ "--cm-social-accent": social.accent }}
+            >
+              {social.icon}
+            </a>
+          ))}
+        </nav>
       </footer>
       {activeDocument ? <LegalModal document={activeDocument} onClose={() => setActiveDocument(null)} /> : null}
     </>
@@ -16976,6 +17028,7 @@ function CarrilesTab({ isAdmin = false }) {
 // ─── VISOR FULLSCREEN ─────────────────────────────────────────────────────────
 function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNavigate = null, onDownload = null, downloading = false }) {
   const theme = React.useContext(ThemeContext);
+  const closeButtonRef = useRef(null);
   const isPdf = item?.archivo_url?.toLowerCase().includes(".pdf") || item?.archivo_tipo === "application/pdf";
   const canNavigate = Array.isArray(items) && items.length > 1 && typeof onNavigate === "function";
   const safeIndex = Number.isFinite(currentIndex) ? currentIndex : 0;
@@ -16991,81 +17044,132 @@ function VisorFullscreen({ item, onClose, items = [], currentIndex = 0, onNaviga
   }, [canNavigate, onNavigate, safeIndex, items.length]);
 
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const handler = (e) => {
-      if (e.key === "Escape") onClose();
-      if (canNavigate && e.key === "ArrowLeft") goPrev();
-      if (canNavigate && e.key === "ArrowRight") goNext();
+    if (!item) return undefined;
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyOverscroll = body.style.overscrollBehavior;
+    const prevHtmlOverflow = html.style.overflow;
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    html.style.overflow = "hidden";
+
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const handler = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+      if (canNavigate && event.key === "ArrowLeft") goPrev();
+      if (canNavigate && event.key === "ArrowRight") goNext();
     };
     document.addEventListener("keydown", handler);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      window.clearTimeout(focusTimer);
+      body.style.overflow = prevBodyOverflow;
+      body.style.overscrollBehavior = prevBodyOverscroll;
+      html.style.overflow = prevHtmlOverflow;
       document.removeEventListener("keydown", handler);
     };
-  }, [onClose, canNavigate, goPrev, goNext]);
+  }, [item, onClose, canNavigate, goPrev, goNext]);
 
-  if (!item) return null;
+  if (!item || typeof document === "undefined") return null;
 
   const iconBtn = {
-    width:"42px",
-    height:"42px",
+    width:"44px",
+    height:"44px",
+    minWidth:"44px",
+    minHeight:"44px",
     borderRadius:"999px",
-    background:"rgba(10,22,40,0.62)",
-    border:"1px solid rgba(255,255,255,0.20)",
+    background:"rgba(10,22,40,0.88)",
+    border:"1px solid rgba(255,255,255,0.28)",
     color:"#fff",
     fontSize:"18px",
     cursor:"pointer",
     display:"flex",
     alignItems:"center",
     justifyContent:"center",
-    backdropFilter:"blur(10px)",
-    WebkitBackdropFilter:"blur(10px)",
-    boxShadow:"0 12px 36px rgba(0,0,0,.45)",
-    textDecoration:"none"
+    backdropFilter:"blur(12px)",
+    WebkitBackdropFilter:"blur(12px)",
+    boxShadow:"0 12px 36px rgba(0,0,0,.55)",
+    textDecoration:"none",
+    touchAction:"manipulation"
   };
 
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.96)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", overflow:"hidden" }}>
-      <div onClick={e => e.stopPropagation()} style={{ position:"relative", width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+  const modal = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visor de noticia"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      style={{
+        position:"fixed",
+        inset:0,
+        zIndex:2147483600,
+        background:"rgba(0,0,0,0.96)",
+        display:"flex",
+        alignItems:"center",
+        justifyContent:"center",
+        padding:"calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))",
+        overflow:"hidden",
+        isolation:"isolate"
+      }}
+    >
+      <div
+        onMouseDown={(event) => event.stopPropagation()}
+        style={{
+          position:"relative",
+          width:"100%",
+          height:"100%",
+          maxHeight:"calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px)",
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          paddingTop:"58px",
+          paddingBottom:"58px",
+          boxSizing:"border-box"
+        }}
+      >
         {isPdf ? (
-          <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"94vh", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
+          <iframe src={item.archivo_url} title="Documento" style={{ width:"min(1180px, 100%)", height:"100%", border:"none", background:"#fff", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }} />
         ) : (
           <img
             src={item.archivo_url}
             alt="Imagen ampliada"
             referrerPolicy="no-referrer"
-            onError={(e) => {
+            onError={(event) => {
               console.error("No se pudo abrir la imagen:", item.archivo_url);
-              e.currentTarget.style.display = "none";
+              event.currentTarget.style.display = "none";
             }}
-            style={{ maxWidth:"100%", maxHeight:"96vh", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }}
+            style={{ maxWidth:"100%", maxHeight:"100%", width:"auto", height:"auto", objectFit:"contain", display:"block", background:"#061428", borderRadius:"10px", boxShadow:"0 22px 90px rgba(0,0,0,.70)" }}
           />
         )}
 
-        <button onClick={onClose} title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"14px", right:"14px", fontSize:"22px" }}>×</button>
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Cerrar visor" title="Cerrar" style={{ ...iconBtn, position:"absolute", top:"6px", right:"6px", zIndex:4, fontSize:"25px", fontWeight:400 }}>×</button>
 
         {canNavigate && (
           <>
-            <button onClick={goPrev} title="Anterior" style={{ ...iconBtn, position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>‹</button>
-            <button onClick={goNext} title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px" }}>›</button>
-            <div style={{ position:"absolute", left:"50%", bottom:"14px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.46)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.70)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
+            <button type="button" onClick={goPrev} aria-label="Noticia anterior" title="Anterior" style={{ ...iconBtn, position:"absolute", left:"6px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px", zIndex:3 }}>‹</button>
+            <button type="button" onClick={goNext} aria-label="Noticia siguiente" title="Siguiente" style={{ ...iconBtn, position:"absolute", right:"6px", top:"50%", transform:"translateY(-50%)", width:"50px", height:"50px", fontSize:"30px", zIndex:3 }}>›</button>
+            <div style={{ position:"absolute", left:"50%", bottom:"8px", transform:"translateX(-50%)", padding:"7px 12px", borderRadius:"999px", background:"rgba(10,22,40,0.76)", border:"1px solid rgba(255,255,255,.14)", color:"rgba(255,255,255,.78)", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:700, backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)" }}>
               {safeIndex + 1} / {items.length}
             </div>
           </>
         )}
 
-        <div style={{ position:"absolute", right:"14px", bottom:"14px", display:"flex", gap:"8px", alignItems:"center" }}>
-          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
+        <div style={{ position:"absolute", right:"6px", bottom:"6px", display:"flex", gap:"8px", alignItems:"center", zIndex:4 }}>
+          <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" aria-label="Abrir en nueva pestaña" title="Abrir en nueva pestaña" style={iconBtn}>↗</a>
           {onDownload ? (
-            <button onClick={() => onDownload(item)} disabled={downloading} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "⬇"}</button>
+            <button type="button" onClick={() => onDownload(item)} disabled={downloading} aria-label={downloading ? "Preparando descarga" : "Descargar con marca de agua"} title={downloading ? "Preparando descarga" : "Descargar con marca de agua"} style={{ ...iconBtn, opacity: downloading ? 0.55 : 1, cursor: downloading ? "not-allowed" : "pointer" }}>{downloading ? "…" : "↓"}</button>
           ) : (
-            <a href={item.archivo_url} download title="Descargar" style={iconBtn}>⬇</a>
+            <a href={item.archivo_url} download aria-label="Descargar" title="Descargar" style={iconBtn}>↓</a>
           )}
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
 
 
