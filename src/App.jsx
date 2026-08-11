@@ -633,7 +633,7 @@ const saveCookieConsent = (val) => {
 
 // Inject Google Fonts - ahora incluye más opciones para personalización
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Noto+Sans:wght@400;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=Roboto:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Open+Sans:wght@300;400;700&family=Lato:wght@300;400;700&family=Poppins:wght@300;400;700&family=Noto+Sans:wght@400;700;800&family=Inter:wght@400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
@@ -17588,36 +17588,83 @@ function ScreenshotCropModal({ onClose, onApply }) {
 
 
 // ─── COMUNICADO HORIZONTAL ──────────────────────────────────────────────────
-// Toda la geometría vive en esta configuración para que un cambio de plantilla
-// no obligue a modificar la lógica de composición.
+// Generador gráfico horizontal completo. Mantiene la plantilla corporativa,
+// compone texto editable en alta resolución y evita que el contenido invada
+// encabezado, diagonales o pie de página mediante autoajuste tipográfico.
 const COMUNICADO_HORIZONTAL_CONFIG = {
   templatePath: "/formatohorizontal.png",
   templateWidth: 2000,
   templateHeight: 1414,
-  safeZone: {
-    x: 80,
-    // Ampliada hacia arriba hasta el límite visual indicado, sin invadir
-    // el encabezado diagonal ni modificar el pie de la plantilla.
-    y: 400,
-    width: 1840,
-    height: 820,
-  },
   maxUploadSizeMB: 15,
   acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
+  zones: {
+    date: { x: 1110, y: 386, width: 760, height: 96 },
+    title: { x: 760, y: 500, width: 1110, height: 160 },
+    header: { x: 250, y: 672, width: 1500, height: 48 },
+    body: { x: 150, y: 738, width: 1700, height: 405 },
+    movable: { x: 110, y: 350, width: 1780, height: 820 },
+  },
+  fontLimits: {
+    title: { min: 10, max: 60, default: 50 },
+    body: { min: 8, max: 44, default: 36 },
+    date: { min: 18, max: 34, default: 28 },
+  },
 };
+
+const HORIZONTAL_FONT_OPTIONS = [
+  { value: "Inter", label: "Inter" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "sans-serif", label: "Sans-Serif" },
+  { value: "Montserrat", label: "Montserrat" },
+  { value: "Roboto", label: "Roboto" },
+  { value: "Oswald", label: "Oswald" },
+];
+
+const HORIZONTAL_QUICK_TEMPLATES = [
+  {
+    id: "tarifa",
+    label: "Tarifa pública",
+    titulo: "Tarifa pública actualizada",
+    detalle: "Se comparte comunicado oficial con tarifa pública vigente para consulta de la comunidad portuaria.",
+    duracionDias: 30,
+  },
+  {
+    id: "operativo",
+    label: "Aviso operativo",
+    titulo: "Aviso operativo importante",
+    detalle: "Se informa a usuarios y operadores sobre actualización operativa. Favor de revisar el comunicado y tomar previsiones.",
+    duracionDias: 7,
+  },
+  {
+    id: "mantenimiento",
+    label: "Mantenimiento",
+    titulo: "Mantenimiento programado",
+    detalle: "Se informa mantenimiento programado. Considerar posibles ajustes operativos durante el periodo indicado.",
+    duracionDias: 3,
+  },
+  {
+    id: "horario",
+    label: "Horario especial",
+    titulo: "Horario especial de atención",
+    detalle: "Se comunica horario especial de atención. Se recomienda tomar previsiones y consultar las indicaciones vigentes.",
+    duracionDias: 5,
+  },
+  {
+    id: "general",
+    label: "Comunicado general",
+    titulo: "Comunicado oficial",
+    detalle: "Comunicado oficial para conocimiento de usuarios, operadores y comunidad logística.",
+    duracionDias: 10,
+  },
+];
 
 const loadCanvasImage = (src) => new Promise((resolve, reject) => {
   const image = new Image();
   image.crossOrigin = "anonymous";
   image.onload = () => resolve(image);
-  image.onerror = () => reject(new Error("No se pudo cargar la imagen requerida para generar el comunicado."));
+  image.onerror = () => reject(new Error("No se pudo cargar la plantilla horizontal requerida."));
   image.src = src;
 });
-
-const fileToObjectUrl = (file) => {
-  if (!(file instanceof File)) throw new Error("Selecciona una imagen válida.");
-  return URL.createObjectURL(file);
-};
 
 const canvasToPngBlob = (canvas) => new Promise((resolve, reject) => {
   canvas.toBlob((blob) => {
@@ -17645,7 +17692,6 @@ const downloadBrowserBlob = (blob, filename) => {
   window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 };
 
-// PDF mínimo de una sola página que incrusta el JPEG del canvas sin librerías externas.
 const jpegBlobToSinglePagePdf = async (jpegBlob, width, height) => {
   const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
   const encoder = new TextEncoder();
@@ -17679,379 +17725,800 @@ const jpegBlobToSinglePagePdf = async (jpegBlob, width, height) => {
 
 const clampHorizontalValue = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 
-const getHorizontalContainRect = (imageWidth, imageHeight) => {
-  const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
-  const scale = Math.min(safeZone.width / imageWidth, safeZone.height / imageHeight);
-  const width = imageWidth * scale;
-  const height = imageHeight * scale;
-  return {
-    x: safeZone.x + (safeZone.width - width) / 2,
-    y: safeZone.y + (safeZone.height - height) / 2,
-    width,
-    height,
-  };
+const horizontalLocalDateInput = (offsetDays = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
 };
 
-const drawHorizontalComunicado = async ({ canvas, template, uploadedImage, imageRect }) => {
-  const config = COMUNICADO_HORIZONTAL_CONFIG;
-  canvas.width = config.templateWidth;
-  canvas.height = config.templateHeight;
+const horizontalFormatDate = (dateInput) => {
+  const source = dateInput ? new Date(`${dateInput}T12:00:00`) : new Date();
+  const date = Number.isNaN(source.getTime()) ? new Date() : source;
+  const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  return `${String(date.getDate()).padStart(2, "0")} de ${months[date.getMonth()]} del ${date.getFullYear()}`;
+};
 
-  const context = canvas.getContext("2d", { alpha: false });
-  if (!context) throw new Error("Tu navegador no permite generar la vista previa.");
+const horizontalSanitizeFileName = (text) => String(text || "comunicado")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^a-zA-Z0-9]+/g, "_")
+  .replace(/^_+|_+$/g, "")
+  .toLowerCase() || "comunicado";
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(template, 0, 0, config.templateWidth, config.templateHeight);
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.drawImage(
-    uploadedImage,
-    imageRect.x,
-    imageRect.y,
-    imageRect.width,
-    imageRect.height
-  );
+const horizontalFontCss = (family) => family === "sans-serif" ? "sans-serif" : `"${family}"`;
 
-  return canvasToPngBlob(canvas);
+const horizontalSplitLongWord = (ctx, word, maxWidth) => {
+  if (!word || ctx.measureText(word).width <= maxWidth) return [word];
+  const chunks = [];
+  let current = "";
+  for (const char of word) {
+    const candidate = `${current}${char}`;
+    if (current && ctx.measureText(candidate).width > maxWidth) {
+      chunks.push(current);
+      current = char;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : [word];
+};
+
+const horizontalWrapPlainText = (ctx, text, maxWidth) => {
+  const paragraphs = String(text || "").replace(/\r/g, "").split("\n");
+  const lines = [];
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const trimmed = paragraph.trim();
+    if (!trimmed) {
+      if (paragraphIndex < paragraphs.length - 1) lines.push("");
+      return;
+    }
+    const expandedWords = [];
+    trimmed.split(/\s+/).filter(Boolean).forEach((word) => {
+      horizontalSplitLongWord(ctx, word, maxWidth).forEach((part) => expandedWords.push(part));
+    });
+    let current = "";
+    expandedWords.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (current && ctx.measureText(candidate).width > maxWidth) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    });
+    if (current) lines.push(current);
+  });
+  return lines.length ? lines : [""];
+};
+
+const horizontalMeasurePlainText = ({ ctx, text, maxWidth, fontSize, fontFamily, fontWeight = 400, lineHeightRatio = 1.25 }) => {
+  ctx.font = `${fontWeight} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
+  const lines = horizontalWrapPlainText(ctx, String(text || "").replace(/\*\*/g, ""), maxWidth);
+  const lineHeight = Math.max(1, Math.round(fontSize * lineHeightRatio));
+  return { lines, lineHeight, height: Math.max(lineHeight, lines.length * lineHeight) };
+};
+
+const horizontalParseRichParagraph = (paragraph) => {
+  const tokens = [];
+  const source = String(paragraph || "");
+  const regex = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match;
+  const pushSegment = (segment, bold) => {
+    String(segment || "").trim().split(/\s+/).filter(Boolean).forEach((word) => tokens.push({ text: word, bold }));
+  };
+  while ((match = regex.exec(source)) !== null) {
+    if (match.index > cursor) pushSegment(source.slice(cursor, match.index), false);
+    pushSegment(match[1], true);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < source.length) pushSegment(source.slice(cursor), false);
+  return tokens;
+};
+
+const horizontalMeasureToken = (ctx, token, fontSize, fontFamily) => {
+  ctx.font = `${token.bold ? 700 : 400} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
+  return ctx.measureText(token.text).width;
+};
+
+const horizontalLayoutRichText = ({ ctx, text, maxWidth, fontSize, fontFamily, lineHeightRatio = 1.42, paragraphSpacingRatio = 0.52 }) => {
+  const paragraphs = String(text || "").replace(/\r/g, "").split("\n");
+  const lineHeight = Math.max(1, Math.round(fontSize * lineHeightRatio));
+  const paragraphSpacing = Math.max(0, Math.round(lineHeight * paragraphSpacingRatio));
+  const lines = [];
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const tokens = horizontalParseRichParagraph(paragraph);
+    if (!tokens.length) {
+      lines.push({ tokens: [], width: 0, isLastInParagraph: true, blank: true });
+      return;
+    }
+
+    const expanded = [];
+    tokens.forEach((token) => {
+      ctx.font = `${token.bold ? 700 : 400} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
+      if (ctx.measureText(token.text).width <= maxWidth) {
+        expanded.push(token);
+        return;
+      }
+      horizontalSplitLongWord(ctx, token.text, maxWidth).forEach((part) => expanded.push({ ...token, text: part }));
+    });
+
+    let current = [];
+    let currentWidth = 0;
+    const spaceWidth = (() => {
+      ctx.font = `400 ${fontSize}px ${horizontalFontCss(fontFamily)}`;
+      return ctx.measureText(" ").width;
+    })();
+
+    expanded.forEach((token) => {
+      const tokenWidth = horizontalMeasureToken(ctx, token, fontSize, fontFamily);
+      const candidateWidth = current.length ? currentWidth + spaceWidth + tokenWidth : tokenWidth;
+      if (current.length && candidateWidth > maxWidth) {
+        lines.push({ tokens: current, width: currentWidth, isLastInParagraph: false, blank: false });
+        current = [token];
+        currentWidth = tokenWidth;
+      } else {
+        current.push(token);
+        currentWidth = candidateWidth;
+      }
+    });
+
+    if (current.length) lines.push({ tokens: current, width: currentWidth, isLastInParagraph: true, blank: false });
+    if (paragraphIndex < paragraphs.length - 1 && !String(paragraphs[paragraphIndex + 1] || "").trim()) {
+      lines.push({ tokens: [], width: 0, isLastInParagraph: true, blank: true });
+    }
+  });
+
+  let height = 0;
+  lines.forEach((line, index) => {
+    height += lineHeight;
+    if (line.isLastInParagraph && index < lines.length - 1) height += paragraphSpacing;
+  });
+
+  return { lines, lineHeight, paragraphSpacing, height: Math.max(lineHeight, height) };
+};
+
+const horizontalFitPlainFont = ({ ctx, text, maxWidth, maxHeight, preferredSize, minSize, fontFamily, fontWeight, lineHeightRatio }) => {
+  const start = Math.max(minSize, Math.round(preferredSize));
+  const hardMinimum = 2;
+  for (let size = start; size >= hardMinimum; size -= 1) {
+    const measured = horizontalMeasurePlainText({ ctx, text, maxWidth, fontSize: size, fontFamily, fontWeight, lineHeightRatio });
+    if (measured.height <= maxHeight || size === hardMinimum) return { fontSize: size, ...measured };
+  }
+  return { fontSize: hardMinimum, ...horizontalMeasurePlainText({ ctx, text, maxWidth, fontSize: hardMinimum, fontFamily, fontWeight, lineHeightRatio }) };
+};
+
+const horizontalFitRichFont = ({ ctx, text, maxWidth, maxHeight, preferredSize, minSize, fontFamily }) => {
+  const start = Math.max(minSize, Math.round(preferredSize));
+  const hardMinimum = 2;
+  for (let size = start; size >= hardMinimum; size -= 1) {
+    const measured = horizontalLayoutRichText({ ctx, text, maxWidth, fontSize: size, fontFamily });
+    if (measured.height <= maxHeight || size === hardMinimum) return { fontSize: size, ...measured };
+  }
+  return { fontSize: hardMinimum, ...horizontalLayoutRichText({ ctx, text, maxWidth, fontSize: hardMinimum, fontFamily }) };
+};
+
+const horizontalDrawPlainElement = ({ ctx, element }) => {
+  const family = horizontalFontCss(element.fontFamily);
+  ctx.save();
+  ctx.fillStyle = element.fillStyle;
+  ctx.textBaseline = "top";
+  ctx.textAlign = element.textAlign;
+  ctx.font = `${element.fontWeight} ${element.fontSize}px ${family}`;
+  const lines = horizontalWrapPlainText(ctx, String(element.text || "").replace(/\*\*/g, ""), element.width);
+  const anchorX = element.textAlign === "right"
+    ? element.x + element.width
+    : element.textAlign === "center"
+      ? element.x + element.width / 2
+      : element.x;
+  lines.forEach((line, index) => ctx.fillText(line, anchorX, element.y + index * element.lineHeight));
+  ctx.restore();
+};
+
+const horizontalDrawRichElement = ({ ctx, element }) => {
+  const layout = horizontalLayoutRichText({
+    ctx,
+    text: element.text,
+    maxWidth: element.width,
+    fontSize: element.fontSize,
+    fontFamily: element.fontFamily,
+    lineHeightRatio: element.lineHeightRatio,
+    paragraphSpacingRatio: element.paragraphSpacingRatio,
+  });
+  const family = horizontalFontCss(element.fontFamily);
+  ctx.save();
+  ctx.fillStyle = element.fillStyle;
+  ctx.textBaseline = "top";
+
+  let y = element.y;
+  layout.lines.forEach((line, lineIndex) => {
+    if (!line.tokens.length) {
+      y += layout.lineHeight + layout.paragraphSpacing;
+      return;
+    }
+
+    const normalSpaceWidth = (() => {
+      ctx.font = `400 ${element.fontSize}px ${family}`;
+      return ctx.measureText(" ").width;
+    })();
+    const isJustified = element.textAlign === "justify" && !line.isLastInParagraph && line.tokens.length > 1;
+    const naturalWidth = line.tokens.reduce((total, token) => total + horizontalMeasureToken(ctx, token, element.fontSize, element.fontFamily), 0)
+      + normalSpaceWidth * Math.max(0, line.tokens.length - 1);
+    const extraSpace = isJustified ? Math.max(0, (element.width - naturalWidth) / Math.max(1, line.tokens.length - 1)) : 0;
+
+    let startX = element.x;
+    if (element.textAlign === "center") startX = element.x + (element.width - naturalWidth) / 2;
+    if (element.textAlign === "right") startX = element.x + element.width - naturalWidth;
+
+    let x = startX;
+    line.tokens.forEach((token, tokenIndex) => {
+      ctx.font = `${token.bold ? 700 : 400} ${element.fontSize}px ${family}`;
+      ctx.textAlign = "left";
+      ctx.fillText(token.text, x, y);
+      const tokenWidth = ctx.measureText(token.text).width;
+      x += tokenWidth;
+      if (tokenIndex < line.tokens.length - 1) x += normalSpaceWidth + extraSpace;
+    });
+
+    y += layout.lineHeight;
+    if (line.isLastInParagraph && lineIndex < layout.lines.length - 1) y += layout.paragraphSpacing;
+  });
+
+  ctx.restore();
 };
 
 function HorizontalComunicadoPanel({ onSubido }) {
   const theme = React.useContext(ThemeContext);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const editorStageRef = useRef(null);
-  const previewObjectUrlRef = useRef("");
-  const sourceObjectUrlRef = useRef("");
-  const templateImageRef = useRef(null);
-  const uploadedImageRef = useRef(null);
-  const submitLockRef = useRef(false);
-  const compositionSequenceRef = useRef(0);
-  const interactionRef = useRef(null);
+  const templateRef = useRef(null);
+  const canvasWrapRef = useRef(null);
+  const bodyEditorRef = useRef(null);
+  const dragRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
+  const exportTimerRef = useRef(null);
+  const publishLockRef = useRef(false);
 
-  const [sourceFile, setSourceFile] = useState(null);
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [imageRect, setImageRect] = useState(null);
-  const [finalBlob, setFinalBlob] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [titulo, setTitulo] = useState("");
+  const [detalle, setDetalle] = useState("");
+  const [fechaInicio, setFechaInicio] = useState(horizontalLocalDateInput(0));
+  const [fechaFin, setFechaFin] = useState(horizontalLocalDateInput(10));
+  const [fechaFinModo, setFechaFinModo] = useState("fecha");
+  const [fechaFinHora, setFechaFinHora] = useState(`${horizontalLocalDateInput(10)}T23:59`);
+  const [customDateText, setCustomDateText] = useState("");
+  const [titleFontFamily, setTitleFontFamily] = useState("Inter");
+  const [bodyFontFamily, setBodyFontFamily] = useState("Noto Sans");
+  const [titleFontSize, setTitleFontSize] = useState(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default);
+  const [bodyFontSize, setBodyFontSize] = useState(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default);
+  const [bodyAlign, setBodyAlign] = useState("left");
+  const [canvasElements, setCanvasElements] = useState([]);
+  const [canvasMetrics, setCanvasMetrics] = useState(null);
+  const [inlineEditor, setInlineEditor] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [finalBlob, setFinalBlob] = useState(null);
+  const [generatedGraphicFile, setGeneratedGraphicFile] = useState(null);
+  const [attachedGeneratedFile, setAttachedGeneratedFile] = useState(null);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState("");
-  const [activeInteraction, setActiveInteraction] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorTitle, setEditorTitle] = useState("");
+  const [editorBody, setEditorBody] = useState("");
+  const [aiAssistOpen, setAiAssistOpen] = useState(false);
+  const [aiAction, setAiAction] = useState("resumir");
+  const [aiOutput, setAiOutput] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  useEffect(() => () => {
-    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
-    if (sourceObjectUrlRef.current) URL.revokeObjectURL(sourceObjectUrlRef.current);
+  const setHorizontalNotice = useCallback((message, color = "#7dd3fc") => {
+    setNotice({ message, color });
+    window.setTimeout(() => setNotice(null), 3800);
   }, []);
 
-  const replacePreviewUrl = useCallback((blob) => {
-    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
-    const nextUrl = URL.createObjectURL(blob);
-    previewObjectUrlRef.current = nextUrl;
-    setPreviewUrl(nextUrl);
+  const ensureTemplate = useCallback(async () => {
+    if (templateRef.current) return templateRef.current;
+    templateRef.current = await loadCanvasImage(COMUNICADO_HORIZONTAL_CONFIG.templatePath);
+    return templateRef.current;
   }, []);
 
-  const validateHorizontalFile = (file) => {
-    const config = COMUNICADO_HORIZONTAL_CONFIG;
-    if (!file) return "Selecciona una imagen.";
-    if (!config.acceptedFormats.includes(file.type)) {
-      return "Formato no permitido. Usa una imagen JPG, PNG o WEBP.";
-    }
-    const maximumBytes = config.maxUploadSizeMB * 1024 * 1024;
-    if (file.size > maximumBytes) {
-      return `La imagen supera el máximo de ${config.maxUploadSizeMB} MB.`;
-    }
-    return "";
-  };
+  const buildHorizontalElements = useCallback(async ({ preservePositions = true, forceAutoFit = false } = {}) => {
+    const cleanTitle = String(titulo || "").trim();
+    const cleanBody = String(detalle || "").trim();
+    const canvas = canvasRef.current || document.createElement("canvas");
+    canvas.width = COMUNICADO_HORIZONTAL_CONFIG.templateWidth;
+    canvas.height = COMUNICADO_HORIZONTAL_CONFIG.templateHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("No fue posible obtener el contexto gráfico del navegador.");
 
-  const renderComposition = useCallback(async (rect) => {
-    if (!rect || !templateImageRef.current || !uploadedImageRef.current) return;
-    const sequence = compositionSequenceRef.current + 1;
-    compositionSequenceRef.current = sequence;
+    if (document?.fonts?.load) {
+      const fontFamilies = [titleFontFamily, bodyFontFamily].filter((family) => family && family !== "sans-serif");
+      await Promise.allSettled(fontFamilies.flatMap((family) => [
+        document.fonts.load(`400 24px "${family}"`),
+        document.fonts.load(`700 32px "${family}"`),
+      ]));
+    }
+
+    await ensureTemplate();
+
+    const zones = COMUNICADO_HORIZONTAL_CONFIG.zones;
+    const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits;
+    const dateText = customDateText.trim() || horizontalFormatDate(fechaInicio);
+    const preferredTitle = forceAutoFit ? limits.title.max : clampHorizontalValue(Number(titleFontSize) || limits.title.default, limits.title.min, limits.title.max);
+    const preferredBody = forceAutoFit ? limits.body.max : clampHorizontalValue(Number(bodyFontSize) || limits.body.default, limits.body.min, limits.body.max);
+
+    const dateFit = horizontalFitPlainFont({
+      ctx,
+      text: dateText,
+      maxWidth: zones.date.width,
+      maxHeight: zones.date.height,
+      preferredSize: limits.date.default,
+      minSize: limits.date.min,
+      fontFamily: titleFontFamily,
+      fontWeight: 600,
+      lineHeightRatio: 1.2,
+    });
+
+    const titleFit = horizontalFitPlainFont({
+      ctx,
+      text: cleanTitle || "Título del comunicado",
+      maxWidth: zones.title.width,
+      maxHeight: zones.title.height,
+      preferredSize: preferredTitle,
+      minSize: limits.title.min,
+      fontFamily: titleFontFamily,
+      fontWeight: 800,
+      lineHeightRatio: 1.18,
+    });
+
+    const bodyFit = horizontalFitRichFont({
+      ctx,
+      text: cleanBody || "Escribe el contenido del comunicado para generar la vista previa.",
+      maxWidth: zones.body.width,
+      maxHeight: zones.body.height,
+      preferredSize: preferredBody,
+      minSize: limits.body.min,
+      fontFamily: bodyFontFamily,
+    });
+
+    const previousById = new Map((preservePositions ? canvasElements : []).map((item) => [item.id, item]));
+    const withPosition = (element, zone) => {
+      const previous = previousById.get(element.id);
+      if (!previous) return element;
+      const movable = zones.movable;
+      const maxX = movable.x + movable.width - element.width;
+      const maxY = movable.y + movable.height - element.height;
+      return {
+        ...element,
+        x: clampHorizontalValue(previous.x, movable.x, Math.max(movable.x, maxX)),
+        y: clampHorizontalValue(previous.y, movable.y, Math.max(movable.y, maxY)),
+      };
+    };
+
+    const dateElement = withPosition({
+      id: "date",
+      type: "date",
+      text: dateText,
+      x: zones.date.x,
+      y: zones.date.y,
+      width: zones.date.width,
+      height: Math.min(zones.date.height, dateFit.height),
+      fontSize: dateFit.fontSize,
+      fontFamily: titleFontFamily,
+      fontWeight: 600,
+      lineHeight: dateFit.lineHeight,
+      textAlign: "right",
+      fillStyle: "#1f2937",
+    }, zones.date);
+
+    const titleElement = withPosition({
+      id: "title",
+      type: "title",
+      text: cleanTitle || "Título del comunicado",
+      x: zones.title.x,
+      y: zones.title.y,
+      width: zones.title.width,
+      height: Math.min(zones.title.height, titleFit.height),
+      fontSize: titleFit.fontSize,
+      fontFamily: titleFontFamily,
+      fontWeight: 800,
+      lineHeight: titleFit.lineHeight,
+      textAlign: "right",
+      fillStyle: "#151f2e",
+    }, zones.title);
+
+    const bodyNaturalHeight = Math.min(zones.body.height, bodyFit.height);
+    const bodyElement = withPosition({
+      id: "body",
+      type: "body",
+      text: cleanBody || "Escribe el contenido del comunicado para generar la vista previa.",
+      x: zones.body.x,
+      y: zones.body.y + Math.max(0, (zones.body.height - bodyNaturalHeight) / 2),
+      width: zones.body.width,
+      height: bodyNaturalHeight,
+      fontSize: bodyFit.fontSize,
+      fontFamily: bodyFontFamily,
+      fontWeight: 400,
+      lineHeight: bodyFit.lineHeight,
+      lineHeightRatio: 1.42,
+      paragraphSpacingRatio: 0.52,
+      textAlign: bodyAlign,
+      fillStyle: "#202a38",
+    }, zones.body);
+
+    const metrics = {
+      width: COMUNICADO_HORIZONTAL_CONFIG.templateWidth,
+      height: COMUNICADO_HORIZONTAL_CONFIG.templateHeight,
+      template: templateRef.current,
+      zones,
+      headerText: "CONECT MANZANILLO INFORMA:",
+    };
+
+    return { elements: [dateElement, titleElement, bodyElement], metrics, resolvedTitleSize: titleFit.fontSize, resolvedBodySize: bodyFit.fontSize };
+  }, [titulo, detalle, fechaInicio, customDateText, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign, canvasElements, ensureTemplate]);
+
+  const drawHorizontalScene = useCallback(async ({ elements = canvasElements, metrics = canvasMetrics, skipElementId = null } = {}) => {
+    if (!elements?.length || !metrics) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const template = metrics.template || await ensureTemplate();
+    canvas.width = metrics.width;
+    canvas.height = metrics.height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) return;
+    ctx.clearRect(0, 0, metrics.width, metrics.height);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, metrics.width, metrics.height);
+    ctx.drawImage(template, 0, 0, metrics.width, metrics.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    const headerZone = metrics.zones.header;
+    if (headerZone) {
+      ctx.save();
+      ctx.fillStyle = "#113f79";
+      ctx.textBaseline = "top";
+      ctx.textAlign = "center";
+      ctx.font = `800 31px ${horizontalFontCss(titleFontFamily)}`;
+      ctx.fillText(metrics.headerText || "CONECT MANZANILLO INFORMA:", headerZone.x + headerZone.width / 2, headerZone.y);
+      ctx.restore();
+    }
+
+    elements.forEach((element) => {
+      if (skipElementId && element.id === skipElementId) return;
+      if (element.type === "body") horizontalDrawRichElement({ ctx, element });
+      else horizontalDrawPlainElement({ ctx, element });
+    });
+  }, [canvasElements, canvasMetrics, ensureTemplate, titleFontFamily]);
+
+  const exportHorizontalGraphic = useCallback(async ({ silent = true } = {}) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvasElements.length) return null;
+    const blob = await canvasToPngBlob(canvas);
+    const safeTitle = horizontalSanitizeFileName(canvasElements.find((item) => item.id === "title")?.text || titulo);
+    const file = new File([blob], `${safeTitle}_horizontal.png`, { type: "image/png" });
+    setFinalBlob(blob);
+    setGeneratedGraphicFile(file);
+    setAttachedGeneratedFile((current) => current ? file : current);
+    if (!silent) setHorizontalNotice("Imagen horizontal actualizada y lista para descargar o publicar.", "#4ade80");
+    return { blob, file };
+  }, [canvasElements, titulo, setHorizontalNotice]);
+
+  const refreshHorizontalComposition = useCallback(async ({ preservePositions = true, forceAutoFit = false, silent = true } = {}) => {
     setProcessing(true);
-
     try {
-      const canvas = canvasRef.current || document.createElement("canvas");
-      const blob = await drawHorizontalComunicado({
-        canvas,
-        template: templateImageRef.current,
-        uploadedImage: uploadedImageRef.current,
-        imageRect: rect,
-      });
-      if (compositionSequenceRef.current !== sequence) return;
-      setFinalBlob(blob);
-      replacePreviewUrl(blob);
+      const result = await buildHorizontalElements({ preservePositions, forceAutoFit });
+      setCanvasMetrics(result.metrics);
+      setCanvasElements(result.elements);
+      if (forceAutoFit) {
+        setTitleFontSize(result.resolvedTitleSize);
+        setBodyFontSize(result.resolvedBodySize);
+      }
+      if (!silent) setHorizontalNotice("Texto recalibrado dentro del área segura de la plantilla.", "#7dd3fc");
+      return result;
     } catch (compositionError) {
-      if (compositionSequenceRef.current !== sequence) return;
-      setFinalBlob(null);
-      setPreviewUrl("");
       setError(compositionError?.message || "No se pudo generar el comunicado horizontal.");
-    } finally {
-      if (compositionSequenceRef.current === sequence) setProcessing(false);
-    }
-  }, [replacePreviewUrl]);
-
-  useEffect(() => {
-    if (!imageRect || !sourceFile) return undefined;
-    const timer = window.setTimeout(() => renderComposition(imageRect), 70);
-    return () => window.clearTimeout(timer);
-  }, [imageRect, sourceFile, renderComposition]);
-
-  const processFile = async (file) => {
-    const validationError = validateHorizontalFile(file);
-    if (validationError) {
-      setError(validationError);
-      setSourceFile(null);
-      setFinalBlob(null);
-      setPreviewUrl("");
-      setImageRect(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    setProcessing(true);
-    setError("");
-    setSuccess("");
-    setFinalBlob(null);
-    setPreviewUrl("");
-
-    try {
-      if (sourceObjectUrlRef.current) URL.revokeObjectURL(sourceObjectUrlRef.current);
-      const nextSourceUrl = fileToObjectUrl(file);
-      sourceObjectUrlRef.current = nextSourceUrl;
-
-      const [template, uploadedImage] = await Promise.all([
-        loadCanvasImage(COMUNICADO_HORIZONTAL_CONFIG.templatePath),
-        loadCanvasImage(nextSourceUrl),
-      ]);
-
-      const imageWidth = uploadedImage.naturalWidth || uploadedImage.width;
-      const imageHeight = uploadedImage.naturalHeight || uploadedImage.height;
-      if (!imageWidth || !imageHeight) throw new Error("No fue posible leer las dimensiones de la imagen.");
-
-      templateImageRef.current = template;
-      uploadedImageRef.current = uploadedImage;
-      setSourceFile(file);
-      setSourceUrl(nextSourceUrl);
-      setImageRect(getHorizontalContainRect(imageWidth, imageHeight));
-    } catch (compositionError) {
-      setSourceFile(null);
-      setSourceUrl("");
-      setImageRect(null);
-      setError(compositionError?.message || "No se pudo preparar la imagen horizontal.");
+      return null;
     } finally {
       setProcessing(false);
     }
-  };
-
-  const resetImageFit = () => {
-    const image = uploadedImageRef.current;
-    if (!image) return;
-    const width = image.naturalWidth || image.width;
-    const height = image.naturalHeight || image.height;
-    setImageRect(getHorizontalContainRect(width, height));
-  };
-
-  const fillSafeZone = () => {
-    const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
-    setImageRect({ ...safeZone });
-  };
-
-  const beginImageInteraction = (event, mode) => {
-    if (!imageRect || !editorStageRef.current) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const stageBounds = editorStageRef.current.getBoundingClientRect();
-    const pointX = (event.clientX - stageBounds.left) * (COMUNICADO_HORIZONTAL_CONFIG.templateWidth / stageBounds.width);
-    const pointY = (event.clientY - stageBounds.top) * (COMUNICADO_HORIZONTAL_CONFIG.templateHeight / stageBounds.height);
-    interactionRef.current = {
-      mode,
-      startX: pointX,
-      startY: pointY,
-      startRect: { ...imageRect },
-      stageBounds,
-    };
-    setActiveInteraction(mode);
-  };
+  }, [buildHorizontalElements, setHorizontalNotice]);
 
   useEffect(() => {
-    const move = (event) => {
-      const interaction = interactionRef.current;
-      if (!interaction) return;
-      event.preventDefault();
-
-      const { safeZone } = COMUNICADO_HORIZONTAL_CONFIG;
-      const minimumSize = 42;
-      const pointX = (event.clientX - interaction.stageBounds.left) * (COMUNICADO_HORIZONTAL_CONFIG.templateWidth / interaction.stageBounds.width);
-      const pointY = (event.clientY - interaction.stageBounds.top) * (COMUNICADO_HORIZONTAL_CONFIG.templateHeight / interaction.stageBounds.height);
-      const deltaX = pointX - interaction.startX;
-      const deltaY = pointY - interaction.startY;
-      const start = interaction.startRect;
-      let next = { ...start };
-
-      if (interaction.mode === "move") {
-        next.x = clampHorizontalValue(start.x + deltaX, safeZone.x, safeZone.x + safeZone.width - start.width);
-        next.y = clampHorizontalValue(start.y + deltaY, safeZone.y, safeZone.y + safeZone.height - start.height);
-      } else {
-        if (interaction.mode.includes("e")) {
-          next.width = clampHorizontalValue(start.width + deltaX, minimumSize, safeZone.x + safeZone.width - start.x);
-        }
-        if (interaction.mode.includes("s")) {
-          next.height = clampHorizontalValue(start.height + deltaY, minimumSize, safeZone.y + safeZone.height - start.y);
-        }
-        if (interaction.mode.includes("w")) {
-          const maximumX = start.x + start.width - minimumSize;
-          next.x = clampHorizontalValue(start.x + deltaX, safeZone.x, maximumX);
-          next.width = start.width + (start.x - next.x);
-        }
-        if (interaction.mode.includes("n")) {
-          const maximumY = start.y + start.height - minimumSize;
-          next.y = clampHorizontalValue(start.y + deltaY, safeZone.y, maximumY);
-          next.height = start.height + (start.y - next.y);
-        }
-      }
-
-      setImageRect(next);
-    };
-
-    const end = () => {
-      interactionRef.current = null;
-      setActiveInteraction("");
-    };
-
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const result = await refreshHorizontalComposition({ preservePositions: true, forceAutoFit: false, silent: true });
+      if (cancelled || !result) return;
+    }, 90);
     return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
+      cancelled = true;
+      window.clearTimeout(timer);
     };
+  }, [titulo, detalle, fechaInicio, customDateText, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign]);
+
+  useEffect(() => {
+    if (!canvasElements.length || !canvasMetrics) return;
+    drawHorizontalScene({ elements: canvasElements, metrics: canvasMetrics, skipElementId: inlineEditor?.elementId || null }).catch((sceneError) => {
+      console.error("Error renderizando comunicado horizontal:", sceneError);
+    });
+    if (inlineEditor?.elementId) return;
+    if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current);
+    exportTimerRef.current = window.setTimeout(() => {
+      exportHorizontalGraphic({ silent: true }).catch((exportError) => console.error("Error exportando comunicado horizontal:", exportError));
+    }, 160);
+    return () => {
+      if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current);
+    };
+  }, [canvasElements, canvasMetrics, inlineEditor?.elementId, drawHorizontalScene, exportHorizontalGraphic]);
+
+  useEffect(() => () => {
+    if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current);
   }, []);
 
-  const resetHorizontalForm = () => {
-    compositionSequenceRef.current += 1;
-    setSourceFile(null);
-    setSourceUrl("");
-    setImageRect(null);
-    setFinalBlob(null);
-    setPreviewUrl("");
+  const applyQuickTemplate = (template) => {
+    const start = horizontalLocalDateInput(0);
+    const end = horizontalLocalDateInput(template.duracionDias || 7);
+    setTitulo(template.titulo);
+    setDetalle(template.detalle);
+    setFechaInicio(start);
+    setFechaFin(end);
+    setFechaFinModo("fecha");
+    setFechaFinHora(`${end}T23:59`);
+    setCustomDateText("");
+    setAttachedGeneratedFile(null);
     setError("");
     setSuccess("");
-    templateImageRef.current = null;
-    uploadedImageRef.current = null;
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (previewObjectUrlRef.current) {
-      URL.revokeObjectURL(previewObjectUrlRef.current);
-      previewObjectUrlRef.current = "";
-    }
-    if (sourceObjectUrlRef.current) {
-      URL.revokeObjectURL(sourceObjectUrlRef.current);
-      sourceObjectUrlRef.current = "";
-    }
   };
 
-  const publishHorizontal = async () => {
-    if (submitLockRef.current || publishing) return;
-    if (!sourceFile || !finalBlob) {
-      setError("Selecciona una imagen y espera a que termine la vista previa.");
+  const requestHorizontalAI = async (requestedAction = aiAction) => {
+    const inputText = String(detalle || "").trim();
+    const actionLabel = requestedAction === "crear" ? "crear" : "resumir";
+    setAiAction(actionLabel);
+    if (!inputText) {
+      setError("Escribe el texto o las especificaciones antes de usar la asistencia de IA.");
       return;
     }
-
-    submitLockRef.current = true;
-    setPublishing(true);
+    setAiBusy(true);
     setError("");
-    setSuccess("");
-
-    let uploadedPath = "";
+    setAiOutput("");
     try {
-      const now = new Date();
-      const start = new Date(now);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(now);
-      end.setDate(end.getDate() + 30);
-      end.setHours(23, 59, 59, 999);
-
-      uploadedPath = `comunicados/horizontal/${Date.now()}_${crypto.randomUUID()}.png`;
-      const finalFile = new File([finalBlob], `comunicado_horizontal_${Date.now()}.png`, { type: "image/png" });
-      const { error: uploadError } = await sb.storage
-        .from("comunicados")
-        .upload(uploadedPath, finalFile, {
-          contentType: "image/png",
-          cacheControl: "3600",
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-
-      const { data: signedData, error: signedError } = await sb.storage
-        .from("comunicados")
-        .createSignedUrl(uploadedPath, 60 * 60 * 24 * 365);
-      if (signedError) throw signedError;
-      if (!signedData?.signedUrl) throw new Error("No se pudo crear la URL segura del comunicado.");
-
-      const payload = {
-        titulo: "Comunicado horizontal",
-        detalle: null,
-        archivo_url: signedData.signedUrl,
-        archivo_path: uploadedPath,
-        archivo_tipo: "image/png",
-        tipo: "horizontal",
-        fecha_inicio: start.toISOString(),
-        fecha_fin: end.toISOString(),
-        aprobado: true,
-        created_at: now.toISOString(),
-      };
-
-      const { data: comunicadoInsertado, error: insertError } = await sb
-        .from("comunicados")
-        .insert(payload)
-        .select("*")
-        .single();
-      if (insertError) throw insertError;
-
-      if (comunicadoInsertado) {
-        await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
-      }
-
-      setSuccess("Comunicado horizontal publicado correctamente.");
-      resetHorizontalForm();
-      if (onSubido) onSubido();
-    } catch (publishError) {
-      if (uploadedPath) {
-        try { await sb.storage.from("comunicados").remove([uploadedPath]); } catch {}
-      }
-      const message = publishError?.message || "No se pudo publicar el comunicado horizontal.";
-      setError(
-        message.includes("archivo_path") || message.includes("tipo")
-          ? "Faltan las columnas tipo o archivo_path en la tabla comunicados. Ejecuta la migración incluida con el archivo."
-          : message
-      );
+      const emphasisInstruction = "Marca entre dobles asteriscos únicamente fechas completas, horas y alertas logísticas realmente importantes para que el generador las dibuje en negritas. No inventes información.";
+      const prompt = actionLabel === "resumir"
+        ? `Actúa como editor institucional de Conect Manzanillo. Resume el contenido para un comunicado operativo horizontal. Conserva datos indispensables, fechas, horarios, restricciones y acciones. Devuelve únicamente el texto final, formal, claro y compacto. ${emphasisInstruction}\n\n${inputText}`
+        : `Actúa como editor institucional de Conect Manzanillo. Crea un texto listo para un comunicado operativo horizontal a partir de estas especificaciones. Devuelve únicamente el texto final, formal, claro y útil para usuarios del puerto. ${emphasisInstruction}\n\n${inputText}`;
+      const { reply } = await callGeminiChatForComunicados({ prompt, inputText, actionLabel: `horizontal_${actionLabel}` });
+      setAiOutput(String(reply || "").trim());
+      setHorizontalNotice(actionLabel === "resumir" ? "Resumen generado por IA." : "Texto generado por IA.", "#a78bfa");
+    } catch (aiError) {
+      console.error("Error al solicitar IA para comunicado horizontal:", aiError);
+      setError(aiError?.message || "No se pudo generar el texto con IA.");
     } finally {
-      submitLockRef.current = false;
-      setPublishing(false);
+      setAiBusy(false);
     }
   };
 
-  const downloadHorizontal = async (format) => {
-    if (!finalBlob || !canvasRef.current || downloadingFormat) return;
+  const applyAIResult = () => {
+    const nextText = String(aiOutput || "").trim();
+    if (!nextText) return;
+    setDetalle(nextText);
+    setAttachedGeneratedFile(null);
+    setHorizontalNotice("Resultado aplicado al cuerpo del comunicado.", "#4ade80");
+  };
+
+  const adjustFontSize = (target, delta) => {
+    if (target === "title") {
+      const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title;
+      setTitleFontSize((current) => clampHorizontalValue((Number(current) || limits.default) + delta, limits.min, limits.max));
+    } else {
+      const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body;
+      setBodyFontSize((current) => clampHorizontalValue((Number(current) || limits.default) + delta, limits.min, limits.max));
+    }
+    setAttachedGeneratedFile(null);
+  };
+
+  const autoFitToCanvas = async () => {
+    setError("");
+    await refreshHorizontalComposition({ preservePositions: true, forceAutoFit: true, silent: false });
+    setAttachedGeneratedFile(null);
+  };
+
+  const resetElementPositions = async () => {
+    setCanvasElements([]);
+    await refreshHorizontalComposition({ preservePositions: false, forceAutoFit: false, silent: true });
+    setHorizontalNotice("Posiciones restablecidas dentro de la plantilla.", "#7dd3fc");
+  };
+
+  const getCanvasPointer = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const hitHorizontalElement = (x, y) => [...canvasElements].reverse().find((element) => (
+    x >= element.x && x <= element.x + element.width && y >= element.y && y <= element.y + element.height
+  )) || null;
+
+  const openInlineEditor = (element) => {
+    if (!element) return;
+    setInlineEditor({
+      elementId: element.id,
+      value: element.text,
+      multiline: element.id === "body",
+    });
+  };
+
+  const handleCanvasPointerDown = (event) => {
+    const point = getCanvasPointer(event);
+    const element = hitHorizontalElement(point.x, point.y);
+    if (!element) return;
+    event.preventDefault();
+    setInlineEditor(null);
+    dragRef.current = {
+      activeId: element.id,
+      pointerId: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      originX: element.x,
+      originY: element.y,
+      moved: false,
+    };
+    try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch {}
+  };
+
+  const handleCanvasPointerMove = (event) => {
+    const drag = dragRef.current;
+    if (!drag?.activeId) return;
+    const point = getCanvasPointer(event);
+    const dx = point.x - drag.startX;
+    const dy = point.y - drag.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.moved = true;
+    const movable = COMUNICADO_HORIZONTAL_CONFIG.zones.movable;
+    setCanvasElements((current) => current.map((element) => {
+      if (element.id !== drag.activeId) return element;
+      const maxX = movable.x + movable.width - element.width;
+      const maxY = movable.y + movable.height - element.height;
+      return {
+        ...element,
+        x: clampHorizontalValue(drag.originX + dx, movable.x, Math.max(movable.x, maxX)),
+        y: clampHorizontalValue(drag.originY + dy, movable.y, Math.max(movable.y, maxY)),
+      };
+    }));
+    setAttachedGeneratedFile(null);
+  };
+
+  const handleCanvasPointerUp = (event) => {
+    const drag = dragRef.current;
+    if (!drag?.activeId) return;
+    const element = canvasElements.find((item) => item.id === drag.activeId);
+    const shouldEdit = !drag.moved && element;
+    dragRef.current = { activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false };
+    try { event.currentTarget.releasePointerCapture?.(event.pointerId); } catch {}
+    if (shouldEdit) openInlineEditor(element);
+  };
+
+  const commitInlineEditor = async () => {
+    if (!inlineEditor?.elementId) return setInlineEditor(null);
+    const value = String(inlineEditor.value || "").trim();
+    const elementId = inlineEditor.elementId;
+    setInlineEditor(null);
+    if (elementId === "title") setTitulo(value);
+    if (elementId === "body") setDetalle(value);
+    if (elementId === "date") setCustomDateText(value);
+    setAttachedGeneratedFile(null);
+  };
+
+  const getInlineEditorStyle = () => {
+    if (!inlineEditor?.elementId) return null;
+    const element = canvasElements.find((item) => item.id === inlineEditor.elementId);
+    const canvas = canvasRef.current;
+    const wrapper = canvasWrapRef.current;
+    if (!element || !canvas || !wrapper) return null;
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const scaleX = canvasRect.width / canvas.width;
+    const scaleY = canvasRect.height / canvas.height;
+    return {
+      position: "absolute",
+      left: (canvasRect.left - wrapperRect.left) + element.x * scaleX,
+      top: (canvasRect.top - wrapperRect.top) + element.y * scaleY,
+      width: Math.max(140, element.width * scaleX),
+      minHeight: Math.max(38, element.height * scaleY),
+      padding: "8px 10px",
+      borderRadius: "10px",
+      border: "1px solid rgba(56,189,248,.86)",
+      outline: "none",
+      background: "rgba(255,255,255,.96)",
+      color: "#0f172a",
+      boxShadow: "0 12px 34px rgba(0,0,0,.28), 0 0 0 3px rgba(56,189,248,.16)",
+      boxSizing: "border-box",
+      resize: inlineEditor.multiline ? "vertical" : "none",
+      fontFamily: horizontalFontCss(element.fontFamily),
+      fontSize: `${Math.max(12, element.fontSize * scaleY)}px`,
+      lineHeight: 1.35,
+      zIndex: 6,
+    };
+  };
+
+  const copyHorizontalText = async () => {
+    const dateText = canvasElements.find((item) => item.id === "date")?.text || horizontalFormatDate(fechaInicio);
+    const titleText = canvasElements.find((item) => item.id === "title")?.text || titulo;
+    const bodyText = canvasElements.find((item) => item.id === "body")?.text || detalle;
+    const text = [dateText, titleText, "CONECT MANZANILLO INFORMA:", bodyText].map((part) => String(part || "").replace(/\*\*/g, "").trim()).filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setHorizontalNotice("Texto copiado al portapapeles.", "#4ade80");
+    } catch {
+      setError("No se pudo copiar automáticamente el texto.");
+    }
+  };
+
+  const openQuickEditor = () => {
+    setEditorTitle(canvasElements.find((item) => item.id === "title")?.text || titulo);
+    setEditorBody(canvasElements.find((item) => item.id === "body")?.text || detalle);
+    setEditorOpen(true);
+  };
+
+  const applyQuickEditor = () => {
+    setTitulo(String(editorTitle || "").trim());
+    setDetalle(String(editorBody || "").trim());
+    setEditorOpen(false);
+    setAttachedGeneratedFile(null);
+  };
+
+  const toggleBoldInEditor = () => {
+    const textarea = bodyEditorRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    if (start === end) return;
+    const current = editorBody || "";
+    const selected = current.slice(start, end);
+    const next = `${current.slice(0, start)}**${selected.replace(/^\*\*|\*\*$/g, "")}**${current.slice(end)}`;
+    setEditorBody(next);
+    window.setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + 2, start + 2 + selected.replace(/^\*\*|\*\*$/g, "").length);
+    }, 0);
+  };
+
+  const attachGeneratedGraphic = async () => {
+    if (!generatedGraphicFile && finalBlob) {
+      const file = new File([finalBlob], `${horizontalSanitizeFileName(titulo)}_horizontal.png`, { type: "image/png" });
+      setGeneratedGraphicFile(file);
+      setAttachedGeneratedFile(file);
+      setHorizontalNotice("Imagen generada adjuntada al comunicado horizontal.", "#4ade80");
+      return;
+    }
+    if (!generatedGraphicFile) return;
+    setAttachedGeneratedFile(generatedGraphicFile);
+    setHorizontalNotice("Imagen generada adjuntada al comunicado horizontal.", "#4ade80");
+  };
+
+  const downloadHorizontal = async (format = "png") => {
+    if (!canvasRef.current || !finalBlob || downloadingFormat) return;
     setDownloadingFormat(format);
     setError("");
     try {
       const canvas = canvasRef.current;
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const safeTitle = horizontalSanitizeFileName(titulo);
       if (format === "png") {
-        downloadBrowserBlob(finalBlob, `comunicado_horizontal_${stamp}.png`);
+        downloadBrowserBlob(finalBlob, `${safeTitle}_horizontal.png`);
       } else if (format === "jpeg") {
-        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.92);
-        downloadBrowserBlob(jpeg, `comunicado_horizontal_${stamp}.jpg`);
+        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.95);
+        downloadBrowserBlob(jpeg, `${safeTitle}_horizontal.jpg`);
       } else if (format === "pdf") {
-        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.94);
+        const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.96);
         const pdf = await jpegBlobToSinglePagePdf(jpeg, canvas.width, canvas.height);
-        downloadBrowserBlob(pdf, `comunicado_horizontal_${stamp}.pdf`);
+        downloadBrowserBlob(pdf, `${safeTitle}_horizontal.pdf`);
       }
       setDownloadMenuOpen(false);
+      setHorizontalNotice("Archivo generado en alta resolución.", "#4ade80");
     } catch (downloadError) {
       setError(downloadError?.message || "No se pudo descargar el comunicado.");
     } finally {
@@ -18059,170 +18526,480 @@ function HorizontalComunicadoPanel({ onSubido }) {
     }
   };
 
-  const labelStyle = {
-    fontFamily: "'Space Mono', monospace",
-    color: "rgba(203,213,225,.76)",
-    fontSize: "10px",
-    fontWeight: 700,
-    letterSpacing: ".09em",
-    textTransform: "uppercase",
+  const resetHorizontalForm = () => {
+    setTitulo("");
+    setDetalle("");
+    setFechaInicio(horizontalLocalDateInput(0));
+    setFechaFin(horizontalLocalDateInput(10));
+    setFechaFinModo("fecha");
+    setFechaFinHora(`${horizontalLocalDateInput(10)}T23:59`);
+    setCustomDateText("");
+    setTitleFontFamily("Inter");
+    setBodyFontFamily("Noto Sans");
+    setTitleFontSize(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default);
+    setBodyFontSize(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default);
+    setBodyAlign("left");
+    setCanvasElements([]);
+    setCanvasMetrics(null);
+    setFinalBlob(null);
+    setGeneratedGraphicFile(null);
+    setAttachedGeneratedFile(null);
+    setInlineEditor(null);
+    setAiAssistOpen(false);
+    setAiOutput("");
+    setEditorOpen(false);
+    setError("");
+    setSuccess("");
   };
 
-  const handles = [
-    { mode:"nw", left:"0%", top:"0%", cursor:"nwse-resize" },
-    { mode:"n", left:"50%", top:"0%", cursor:"ns-resize" },
-    { mode:"ne", left:"100%", top:"0%", cursor:"nesw-resize" },
-    { mode:"e", left:"100%", top:"50%", cursor:"ew-resize" },
-    { mode:"se", left:"100%", top:"100%", cursor:"nwse-resize" },
-    { mode:"s", left:"50%", top:"100%", cursor:"ns-resize" },
-    { mode:"sw", left:"0%", top:"100%", cursor:"nesw-resize" },
-    { mode:"w", left:"0%", top:"50%", cursor:"ew-resize" },
-  ];
+  const publishHorizontal = async () => {
+    if (publishLockRef.current || publishing) return;
+    const cleanTitle = String(titulo || "").trim();
+    const cleanBody = String(detalle || "").trim();
+    if (!cleanTitle) return setError("Escribe el título del comunicado horizontal.");
+    if (!cleanBody) return setError("Escribe el cuerpo del comunicado horizontal.");
+    if (!fechaInicio || !fechaFin) return setError("Completa la vigencia del comunicado.");
+    if (fechaFinModo === "fecha_hora" && !fechaFinHora) return setError("Completa la fecha y hora de término.");
+    if (!finalBlob) return setError("Espera a que termine de generarse la vista previa.");
+
+    const start = new Date(`${fechaInicio}T00:00:00`);
+    const end = fechaFinModo === "fecha_hora" ? new Date(fechaFinHora) : new Date(`${fechaFin}T23:59:59.999`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return setError("La vigencia contiene una fecha no válida.");
+    if (end < start) return setError("La fecha de término debe ser igual o posterior a la fecha de inicio.");
+
+    publishLockRef.current = true;
+    setPublishing(true);
+    setError("");
+    setSuccess("");
+    let uploadedPath = "";
+    try {
+      const publishFile = attachedGeneratedFile || generatedGraphicFile || new File([finalBlob], `${horizontalSanitizeFileName(cleanTitle)}_horizontal.png`, { type: "image/png" });
+      uploadedPath = `comunicados/horizontal/${Date.now()}_${crypto.randomUUID()}.png`;
+      const { error: uploadError } = await sb.storage.from("comunicados").upload(uploadedPath, publishFile, {
+        contentType: "image/png",
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+
+      const { data: signedData, error: signedError } = await sb.storage.from("comunicados").createSignedUrl(uploadedPath, 60 * 60 * 24 * 365);
+      if (signedError) throw signedError;
+      if (!signedData?.signedUrl) throw new Error("No se pudo crear la URL segura del comunicado.");
+
+      const nowIso = new Date().toISOString();
+      const payload = {
+        titulo: cleanTitle,
+        detalle: cleanBody,
+        archivo_url: signedData.signedUrl,
+        archivo_path: uploadedPath,
+        archivo_tipo: "image/png",
+        tipo: "horizontal",
+        fecha_inicio: start.toISOString(),
+        fecha_fin: end.toISOString(),
+        aprobado: true,
+        created_at: nowIso,
+      };
+
+      const { data: comunicadoInsertado, error: insertError } = await sb.from("comunicados").insert(payload).select("*").single();
+      if (insertError) throw insertError;
+      if (comunicadoInsertado) await syncComunicadoToNoticia(comunicadoInsertado, { processMedia: false });
+
+      setSuccess("Comunicado horizontal publicado correctamente.");
+      if (onSubido) onSubido();
+      window.setTimeout(() => resetHorizontalForm(), 1000);
+    } catch (publishError) {
+      if (uploadedPath) {
+        try { await sb.storage.from("comunicados").remove([uploadedPath]); } catch {}
+      }
+      setError(publishError?.message || "No se pudo publicar el comunicado horizontal.");
+    } finally {
+      publishLockRef.current = false;
+      setPublishing(false);
+    }
+  };
+
+  const inputStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    minHeight: "46px",
+    border: "1px solid rgba(125,211,252,.20)",
+    borderRadius: "11px",
+    background: "rgba(2,8,18,.82)",
+    color: "#f8fafc",
+    padding: "0 14px",
+    outline: "none",
+    fontFamily: getFont(theme, "secondary"),
+    fontSize: "12px",
+  };
+  const textareaStyle = {
+    ...inputStyle,
+    minHeight: "124px",
+    padding: "13px 14px",
+    lineHeight: 1.6,
+    resize: "vertical",
+  };
+  const labelStyle = {
+    display: "block",
+    marginBottom: "7px",
+    color: "rgba(191,219,254,.70)",
+    fontFamily: getFont(theme, "secondary"),
+    fontSize: "10px",
+    fontWeight: 800,
+    letterSpacing: ".08em",
+    textTransform: "uppercase",
+  };
+  const iconButtonStyle = (active = false, disabled = false) => ({
+    minWidth: "42px",
+    minHeight: "42px",
+    padding: "0 11px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
+    gap: "7px",
+    borderRadius: "10px",
+    border: `1px solid ${active ? "rgba(56,189,248,.68)" : "rgba(125,211,252,.20)"}`,
+    background: disabled ? "rgba(30,41,59,.34)" : active ? "rgba(14,165,233,.18)" : "rgba(5,8,15,.72)",
+    color: disabled ? "rgba(148,163,184,.42)" : active ? "#bae6fd" : "#dbeafe",
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: getFont(theme, "secondary"),
+    fontSize: "11px",
+    fontWeight: 850,
+    boxShadow: active ? "0 0 20px rgba(14,165,233,.15)" : "none",
+  });
+  const actionButtonStyle = (accent = "#7dd3fc", disabled = false) => ({
+    minHeight: "46px",
+    padding: "0 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
+    gap: "9px",
+    borderRadius: "10px",
+    border: `1px solid ${disabled ? "rgba(100,116,139,.24)" : `${accent}66`}`,
+    background: disabled ? "rgba(30,41,59,.30)" : "rgba(8,20,34,.80)",
+    color: disabled ? "rgba(148,163,184,.48)" : accent,
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: getFont(theme, "secondary"),
+    fontSize: "11px",
+    fontWeight: 900,
+    boxShadow: disabled ? "none" : `0 0 22px ${accent}12`,
+  });
+
+  const inlineStyle = getInlineEditorStyle();
+  const currentTitleSize = canvasElements.find((item) => item.id === "title")?.fontSize || titleFontSize;
+  const currentBodySize = canvasElements.find((item) => item.id === "body")?.fontSize || bodyFontSize;
 
   return (
-    <div style={{ background:"rgba(18,33,49,.72)", border:"1px solid #2c3a4c", borderRadius:"8px", padding:"20px", boxShadow:"0 18px 44px rgba(0,0,0,.24)", fontFamily:getFont(theme,"secondary") }}>
-      <div style={{ marginBottom:"14px" }}>
-        <div style={{ ...labelStyle, color:"#7dd3fc", marginBottom:"6px" }}>Comunicado Horizontal</div>
-        <div style={{ color:"rgba(226,232,240,.58)", fontSize:"11px", lineHeight:1.55 }}>
-          Adjunta una imagen y ajusta libremente su posición, ancho y alto dentro del área blanca. Arrastra la imagen para moverla y usa cualquiera de los ocho controles para redimensionarla.
+    <div className="cm-horizontal-generator" style={{
+      background: "radial-gradient(circle at 18% 0%, rgba(0,153,255,.12), transparent 28%), radial-gradient(circle at 95% 20%, rgba(0,218,243,.08), transparent 30%), #05080f",
+      border: "1px solid rgba(56,189,248,.20)",
+      borderRadius: "18px",
+      padding: "clamp(16px,2vw,24px)",
+      boxShadow: "0 28px 72px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.035)",
+      fontFamily: getFont(theme, "secondary"),
+      color: "#e2e8f0",
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "18px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px", color: "#7dd3fc", fontFamily: "'Space Mono', monospace", fontSize: "11px", fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>
+            <MS name="view_day" size={19} color="#7dd3fc" />
+            Comunicado Horizontal
+          </div>
+          <p style={{ margin: "7px 0 0", maxWidth: "820px", color: "rgba(203,213,225,.58)", fontSize: "11px", lineHeight: 1.65 }}>
+            Genera el comunicado directamente sobre la plantilla horizontal. El cuerpo reduce su tipografía automáticamente cuando el contenido supera el área segura y mantiene libre el pie de página.
+          </p>
         </div>
+        <button type="button" onClick={resetHorizontalForm} disabled={publishing} className="flex items-center justify-center leading-none" style={actionButtonStyle("#cbd5e1", publishing)}>
+          <MS name="delete_sweep" size={18} color="currentColor" />
+          Limpiar
+        </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={processing || publishing}
-        style={{ width:"100%", minHeight:"112px", border:"2px dashed rgba(56,189,248,.38)", borderRadius:"10px", background:sourceFile?"rgba(34,197,94,.08)":"rgba(1,15,31,.5)", color:sourceFile?"#86efac":"#94a3b8", cursor:(processing||publishing)?"wait":"pointer", padding:"18px", fontFamily:getFont(theme,"secondary"), fontWeight:800 }}
-      >
-        {processing ? "Actualizando vista previa…" : sourceFile ? sourceFile.name : `Seleccionar JPG, PNG o WEBP · máximo ${COMUNICADO_HORIZONTAL_CONFIG.maxUploadSizeMB} MB`}
-      </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={COMUNICADO_HORIZONTAL_CONFIG.acceptedFormats.join(",")}
-        onChange={(event) => processFile(event.target.files?.[0] || null)}
-        style={{ display:"none" }}
-      />
+      <section className="glass-card" style={{ padding: "14px", marginBottom: "14px", border: "1px solid rgba(56,189,248,.18)", borderRadius: "14px", background: "rgba(9,22,38,.62)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "10px", color: "#7dd3fc", fontSize: "10px", fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
+          <MS name="bolt" size={17} color="#7dd3fc" />
+          Plantillas rápidas
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {HORIZONTAL_QUICK_TEMPLATES.map((template) => (
+            <button key={template.id} type="button" onClick={() => applyQuickTemplate(template)} className="flex items-center justify-center leading-none" style={{ ...iconButtonStyle(false, false), minHeight: "38px", borderRadius: "999px", padding: "0 13px", color: "#bae6fd", background: "rgba(14,165,233,.10)" }}>
+              {template.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      {error && <div role="alert" style={{ marginTop:"12px", padding:"10px 12px", borderRadius:"8px", border:"1px solid rgba(239,68,68,.42)", background:"rgba(239,68,68,.09)", color:"#fca5a5", fontSize:"11px" }}>{error}</div>}
-      {success && <div role="status" style={{ marginTop:"12px", padding:"10px 12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.42)", background:"rgba(34,197,94,.09)", color:"#86efac", fontSize:"11px" }}>{success}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: "14px", alignItems: "start" }}>
+        <section className="glass-card" style={{ minWidth: 0, padding: "14px", border: "1px solid rgba(125,211,252,.16)", borderRadius: "14px", background: "rgba(8,18,31,.68)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+          <label style={labelStyle}>Título del comunicado</label>
+          <div style={{ position: "relative", marginBottom: "12px" }}>
+            <span style={{ position: "absolute", left: "13px", top: "50%", transform: "translateY(-50%)", display: "inline-flex", pointerEvents: "none" }}><MS name="title" size={18} color="rgba(125,211,252,.58)" /></span>
+            <input value={titulo} maxLength={160} onChange={(event) => { setTitulo(event.target.value); setAttachedGeneratedFile(null); }} placeholder="Escribe el título del comunicado" style={{ ...inputStyle, paddingLeft: "42px" }} />
+          </div>
 
-      <canvas ref={canvasRef} width={COMUNICADO_HORIZONTAL_CONFIG.templateWidth} height={COMUNICADO_HORIZONTAL_CONFIG.templateHeight} style={{ display:"none" }} />
+          <button type="button" onClick={() => setAiAssistOpen((current) => !current)} className="flex items-center justify-center leading-none" style={{ ...actionButtonStyle("#7dd3fc", false), width: "100%", marginBottom: "12px", background: aiAssistOpen ? "rgba(14,165,233,.16)" : "rgba(8,20,34,.80)" }}>
+            <MS name="auto_awesome" size={19} color="currentColor" />
+            Resumir o crear texto con IA
+          </button>
 
-      {sourceUrl && imageRect && (
-        <div style={{ marginTop:"16px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px", flexWrap:"wrap", marginBottom:"8px" }}>
-            <div style={labelStyle}>Editor de tamaño y posición</div>
-            <div style={{ display:"flex", gap:"7px", flexWrap:"wrap" }}>
-              <button type="button" onClick={resetImageFit} style={{ padding:"7px 10px", borderRadius:"7px", border:"1px solid rgba(125,211,252,.36)", background:"rgba(56,189,248,.10)", color:"#bae6fd", fontSize:"10px", fontWeight:800, cursor:"pointer" }}>Ajuste proporcional</button>
-              <button type="button" onClick={fillSafeZone} style={{ padding:"7px 10px", borderRadius:"7px", border:"1px solid rgba(34,197,94,.36)", background:"rgba(34,197,94,.10)", color:"#86efac", fontSize:"10px", fontWeight:800, cursor:"pointer" }}>Llenar área</button>
+          <label style={labelStyle}>{aiAssistOpen ? "Texto para IA" : "Descripción breve"}</label>
+          <textarea value={detalle} onChange={(event) => { setDetalle(event.target.value); setAttachedGeneratedFile(null); }} placeholder={aiAssistOpen ? "Pega el texto que deseas resumir o escribe las especificaciones del comunicado" : "Escribe el cuerpo del comunicado"} rows={6} style={textareaStyle} />
+
+          {aiAssistOpen && (
+            <div style={{ padding: "12px", borderRadius: "12px", border: "1px solid rgba(167,139,250,.28)", background: "rgba(88,28,135,.08)", marginBottom: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "9px" }}>
+                {[{ id: "resumir", label: "Resumir", icon: "compress" }, { id: "crear", label: "Crear", icon: "edit_square" }].map((option) => (
+                  <button key={option.id} type="button" onClick={() => requestHorizontalAI(option.id)} disabled={aiBusy || !detalle.trim()} className="flex items-center justify-center leading-none" style={{ ...iconButtonStyle(aiAction === option.id, aiBusy || !detalle.trim()), color: aiAction === option.id ? "#d8b4fe" : "#cbd5e1", borderColor: aiAction === option.id ? "rgba(167,139,250,.58)" : "rgba(125,211,252,.18)" }}>
+                    <MS name={option.icon} size={18} color="currentColor" />
+                    {aiBusy && aiAction === option.id ? "Procesando" : option.label}
+                  </button>
+                ))}
+              </div>
+              <textarea value={aiOutput} onChange={(event) => setAiOutput(event.target.value)} placeholder="El resultado de IA aparecerá aquí" rows={5} style={{ ...textareaStyle, minHeight: "104px", marginBottom: "9px" }} />
+              <button type="button" onClick={applyAIResult} disabled={!aiOutput.trim()} className="flex items-center justify-center leading-none" style={{ ...actionButtonStyle("#4ade80", !aiOutput.trim()), width: "100%" }}>
+                <MS name="check_circle" size={18} color="currentColor" />
+                Aplicar resultado al comunicado
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section className="glass-card" style={{ padding: "14px", border: "1px solid rgba(125,211,252,.16)", borderRadius: "14px", background: "rgba(8,18,31,.68)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "11px", color: "#bae6fd", fontSize: "10px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+            <MS name="calendar_month" size={17} color="#7dd3fc" />
+            Vigencia
+          </div>
+          <label style={labelStyle}>Fecha inicio</label>
+          <input type="date" value={fechaInicio} onChange={(event) => { setFechaInicio(event.target.value); setCustomDateText(""); }} style={{ ...inputStyle, marginBottom: "12px", colorScheme: "dark" }} />
+          <label style={labelStyle}>Fecha fin</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7px", marginBottom: "9px" }}>
+            <button type="button" onClick={() => setFechaFinModo("fecha")} className="flex items-center justify-center leading-none" style={iconButtonStyle(fechaFinModo === "fecha", false)}>
+              <MS name="calendar_today" size={17} color="currentColor" />
+              Solo fecha
+            </button>
+            <button type="button" onClick={() => setFechaFinModo("fecha_hora")} className="flex items-center justify-center leading-none" style={iconButtonStyle(fechaFinModo === "fecha_hora", false)}>
+              <MS name="schedule" size={17} color="currentColor" />
+              Fecha y hora
+            </button>
+          </div>
+          {fechaFinModo === "fecha" ? (
+            <input type="date" value={fechaFin} onChange={(event) => setFechaFin(event.target.value)} style={{ ...inputStyle, colorScheme: "dark" }} />
+          ) : (
+            <input type="datetime-local" value={fechaFinHora} onChange={(event) => { setFechaFinHora(event.target.value); setFechaFin(event.target.value.slice(0, 10)); }} style={{ ...inputStyle, colorScheme: "dark" }} />
+          )}
+        </section>
+      </div>
+
+      <section className="glass-card" style={{ marginTop: "14px", padding: "12px", border: "1px solid rgba(56,189,248,.22)", borderRadius: "14px", background: "rgba(6,16,28,.76)", backdropFilter: "blur(22px)", WebkitBackdropFilter: "blur(22px)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#7dd3fc", fontSize: "10px", fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+            <MS name="text_fields" size={18} color="#7dd3fc" />
+            Controles tipográficos
+          </div>
+          <div style={{ color: "rgba(148,163,184,.58)", fontSize: "10px" }}>
+            Título {currentTitleSize}px · Cuerpo {currentBodySize}px
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: "9px", alignItems: "stretch" }}>
+          <div>
+            <div style={{ ...labelStyle, marginBottom: "6px" }}>Tamaño título en px</div>
+            <div style={{ display: "grid", gridTemplateColumns: "42px minmax(54px,1fr) 42px", gap: "6px" }}>
+              <button type="button" aria-label="Reducir tamaño de título" onClick={() => adjustFontSize("title", -2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_decrease" size={20} color="currentColor" /></button>
+              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max} value={titleFontSize} onChange={(event) => setTitleFontSize(clampHorizontalValue(Number(event.target.value) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max))} aria-label="Tamaño del título en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
+              <button type="button" aria-label="Aumentar tamaño de título" onClick={() => adjustFontSize("title", 2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_increase" size={20} color="currentColor" /></button>
             </div>
           </div>
 
-          <div
-            ref={editorStageRef}
-            style={{
-              position:"relative",
-              width:"100%",
-              aspectRatio:`${COMUNICADO_HORIZONTAL_CONFIG.templateWidth} / ${COMUNICADO_HORIZONTAL_CONFIG.templateHeight}`,
-              overflow:"hidden",
-              borderRadius:"10px",
-              border:"1px solid rgba(125,211,252,.34)",
-              background:`#fff url(${COMUNICADO_HORIZONTAL_CONFIG.templatePath}) center / 100% 100% no-repeat`,
-              boxShadow:"0 16px 36px rgba(0,0,0,.28)",
-              touchAction:"none",
-              userSelect:"none",
-            }}
-          >
-            <div style={{
-              position:"absolute",
-              left:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.x / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
-              top:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.y / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
-              width:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.width / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
-              height:`${(COMUNICADO_HORIZONTAL_CONFIG.safeZone.height / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
-              border:"1px dashed rgba(14,165,233,.58)",
-              boxSizing:"border-box",
-              pointerEvents:"none",
-            }} />
+          <div>
+            <div style={{ ...labelStyle, marginBottom: "6px" }}>Tamaño cuerpo en px</div>
+            <div style={{ display: "grid", gridTemplateColumns: "42px minmax(54px,1fr) 42px", gap: "6px" }}>
+              <button type="button" aria-label="Reducir tamaño de cuerpo" onClick={() => adjustFontSize("body", -2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_decrease" size={20} color="currentColor" /></button>
+              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max} value={bodyFontSize} onChange={(event) => setBodyFontSize(clampHorizontalValue(Number(event.target.value) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max))} aria-label="Tamaño del cuerpo en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
+              <button type="button" aria-label="Aumentar tamaño de cuerpo" onClick={() => adjustFontSize("body", 2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_increase" size={20} color="currentColor" /></button>
+            </div>
+          </div>
 
-            <div
-              onPointerDown={(event) => beginImageInteraction(event, "move")}
-              style={{
-                position:"absolute",
-                left:`${(imageRect.x / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
-                top:`${(imageRect.y / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
-                width:`${(imageRect.width / COMUNICADO_HORIZONTAL_CONFIG.templateWidth) * 100}%`,
-                height:`${(imageRect.height / COMUNICADO_HORIZONTAL_CONFIG.templateHeight) * 100}%`,
-                border:"2px solid #22c55e",
-                boxSizing:"border-box",
-                cursor:activeInteraction === "move" ? "grabbing" : "grab",
-                boxShadow:"0 0 0 2px rgba(2,6,23,.48), 0 10px 24px rgba(0,0,0,.24)",
-                touchAction:"none",
-              }}
-            >
-              <img src={sourceUrl} alt="Imagen editable" draggable={false} style={{ width:"100%", height:"100%", display:"block", pointerEvents:"none" }} />
-              <div style={{ position:"absolute", left:"8px", top:"8px", padding:"4px 7px", borderRadius:"999px", background:"rgba(2,6,23,.78)", color:"#dcfce7", fontSize:"9px", fontWeight:900, pointerEvents:"none" }}>ARRASTRA PARA MOVER</div>
-              {handles.map((handle) => (
-                <button
-                  key={handle.mode}
-                  type="button"
-                  aria-label={`Redimensionar ${handle.mode}`}
-                  onPointerDown={(event) => beginImageInteraction(event, handle.mode)}
-                  style={{
-                    position:"absolute",
-                    left:handle.left,
-                    top:handle.top,
-                    transform:"translate(-50%,-50%)",
-                    width:"18px",
-                    height:"18px",
-                    padding:0,
-                    borderRadius:"5px",
-                    border:"2px solid #052e16",
-                    background:"#4ade80",
-                    boxShadow:"0 2px 8px rgba(0,0,0,.4)",
-                    cursor:handle.cursor,
-                    touchAction:"none",
-                  }}
-                />
+          <button type="button" onClick={autoFitToCanvas} disabled={processing} className="flex items-center justify-center leading-none" style={{ ...actionButtonStyle("#7dd3fc", processing), minHeight: "42px" }}>
+            <MS name="fit_screen" size={19} color="currentColor" />
+            Autoajustar a una hoja
+          </button>
+
+          <button type="button" onClick={resetElementPositions} disabled={processing} className="flex items-center justify-center leading-none" style={{ ...actionButtonStyle("#cbd5e1", processing), minHeight: "42px" }}>
+            <MS name="restart_alt" size={19} color="currentColor" />
+            Restablecer posiciones
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "9px", marginTop: "9px" }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
+            Fuente título
+            <select value={titleFontFamily} onChange={(event) => { setTitleFontFamily(event.target.value); setAttachedGeneratedFile(null); }} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
+              {HORIZONTAL_FONT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
+            Fuente cuerpo
+            <select value={bodyFontFamily} onChange={(event) => { setBodyFontFamily(event.target.value); setAttachedGeneratedFile(null); }} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
+              {HORIZONTAL_FONT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <div>
+            <div style={labelStyle}>Alineación del cuerpo</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "6px" }}>
+              {[{ id: "left", icon: "format_align_left", label: "Alinear a la izquierda" }, { id: "center", icon: "format_align_center", label: "Centrar" }, { id: "right", icon: "format_align_right", label: "Alinear a la derecha" }, { id: "justify", icon: "format_align_justify", label: "Justificar" }].map((option) => (
+                <button key={option.id} type="button" aria-label={option.label} onClick={() => setBodyAlign(option.id)} className="flex items-center justify-center leading-none" style={iconButtonStyle(bodyAlign === option.id, false)}>
+                  <MS name={option.icon} size={19} color="currentColor" />
+                </button>
               ))}
             </div>
           </div>
-          <div style={{ marginTop:"7px", color:"rgba(203,213,225,.58)", fontSize:"10px", lineHeight:1.5 }}>
-            El marco verde define la imagen final. Puedes estirarla de forma independiente desde arriba, abajo, los lados o las esquinas. La imagen permanece limitada al área segura.
+        </div>
+      </section>
+
+      {notice && <div role="status" style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "10px", border: `1px solid ${notice.color}55`, background: `${notice.color}10`, color: notice.color, fontSize: "11px", lineHeight: 1.5 }}>{notice.message}</div>}
+      {error && <div role="alert" style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "10px", border: "1px solid rgba(248,113,113,.40)", background: "rgba(127,29,29,.16)", color: "#fca5a5", fontSize: "11px", lineHeight: 1.5 }}>{error}</div>}
+      {success && <div role="status" style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "10px", border: "1px solid rgba(74,222,128,.40)", background: "rgba(20,83,45,.18)", color: "#86efac", fontSize: "11px", lineHeight: 1.5 }}>{success}</div>}
+
+      <section className="glass-card" style={{ marginTop: "14px", padding: "12px", border: "1px solid rgba(56,189,248,.24)", borderRadius: "14px", background: "rgba(4,12,22,.82)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "9px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#7dd3fc", fontFamily: "'Space Mono', monospace", fontSize: "10px", fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
+            <MS name="preview" size={18} color="#7dd3fc" />
+            Vista previa del comunicado gráfico
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", color: "rgba(148,163,184,.58)", fontSize: "10px" }}>
+            <MS name="drag_pan" size={16} color="rgba(148,163,184,.58)" />
+            Haz clic para editar o arrastra título, fecha y cuerpo
           </div>
         </div>
-      )}
 
-      {previewUrl && (
-        <div style={{ marginTop:"16px" }}>
-          <div style={{ ...labelStyle, marginBottom:"8px" }}>Vista previa final para publicar y descargar</div>
-          <div style={{ background:"#fff", borderRadius:"10px", overflow:"hidden", border:"1px solid rgba(125,211,252,.28)", boxShadow:"0 16px 36px rgba(0,0,0,.28)" }}>
-            <img src={previewUrl} alt="Vista previa del comunicado horizontal" style={{ display:"block", width:"100%", height:"auto" }} />
-          </div>
+        <div ref={canvasWrapRef} style={{ position: "relative", width: "100%", overflow: "hidden", borderRadius: "12px", border: "1px solid rgba(125,211,252,.28)", background: "#ffffff", boxShadow: "0 24px 60px rgba(0,0,0,.36)" }}>
+          <canvas
+            ref={canvasRef}
+            width={COMUNICADO_HORIZONTAL_CONFIG.templateWidth}
+            height={COMUNICADO_HORIZONTAL_CONFIG.templateHeight}
+            onPointerDown={handleCanvasPointerDown}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={handleCanvasPointerUp}
+            onPointerCancel={handleCanvasPointerUp}
+            style={{ width: "100%", height: "auto", display: "block", cursor: inlineEditor ? "text" : "grab", touchAction: "none", userSelect: "none" }}
+          />
+          {inlineEditor && inlineStyle && (inlineEditor.multiline ? (
+            <textarea
+              autoFocus
+              value={inlineEditor.value}
+              onChange={(event) => setInlineEditor((current) => ({ ...current, value: event.target.value }))}
+              onBlur={commitInlineEditor}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setInlineEditor(null);
+                if ((event.ctrlKey || event.metaKey) && event.key === "Enter") commitInlineEditor();
+              }}
+              style={inlineStyle}
+            />
+          ) : (
+            <input
+              autoFocus
+              value={inlineEditor.value}
+              onChange={(event) => setInlineEditor((current) => ({ ...current, value: event.target.value }))}
+              onBlur={commitInlineEditor}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setInlineEditor(null);
+                if (event.key === "Enter") commitInlineEditor();
+              }}
+              style={inlineStyle}
+            />
+          ))}
+          {processing && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(2,6,23,.34)", backdropFilter: "blur(2px)", pointerEvents: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "9px", padding: "10px 14px", borderRadius: "999px", border: "1px solid rgba(125,211,252,.30)", background: "rgba(5,8,15,.86)", color: "#bae6fd", fontSize: "11px", fontWeight: 900 }}>
+                <MS name="progress_activity" size={19} color="#7dd3fc" />
+                Recalculando composición
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </section>
 
-      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", marginTop:"16px", alignItems:"stretch" }}>
-        <button type="button" onClick={resetHorizontalForm} disabled={publishing} style={{ flex:"1 1 150px", padding:"12px", borderRadius:"8px", border:"1px solid #2c3a4c", background:"rgba(1,15,31,.5)", color:"#cbd5e1", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:publishing?"not-allowed":"pointer" }}>Limpiar</button>
-        <div style={{ position:"relative", flex:"1 1 190px" }}>
-          <button type="button" onClick={() => setDownloadMenuOpen((open) => !open)} disabled={!finalBlob || processing || publishing || Boolean(downloadingFormat)} aria-haspopup="menu" aria-expanded={downloadMenuOpen} style={{ width:"100%", height:"100%", minHeight:"44px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(56,189,248,.48)", background:(!finalBlob||processing)?"rgba(56,189,248,.08)":"rgba(56,189,248,.14)", color:(!finalBlob||processing)?"rgba(125,211,252,.42)":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(!finalBlob||processing)?"not-allowed":"pointer" }}>
-            {downloadingFormat ? "Preparando archivo…" : "DESCARGAR FORMATO"}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: "9px", marginTop: "14px" }}>
+        <div style={{ position: "relative" }}>
+          <button type="button" onClick={() => setDownloadMenuOpen((current) => !current)} disabled={!finalBlob || processing || Boolean(downloadingFormat)} className="flex items-center justify-center leading-none" style={{ ...actionButtonStyle("#4ade80", !finalBlob || processing || Boolean(downloadingFormat)), width: "100%" }}>
+            <MS name="download" size={19} color="currentColor" />
+            {downloadingFormat ? "Generando archivo" : "Descargar imagen final"}
+            <MS name="expand_more" size={18} color="currentColor" />
           </button>
           {downloadMenuOpen && finalBlob && (
-            <div role="menu" style={{ position:"absolute", left:0, right:0, bottom:"calc(100% + 7px)", zIndex:30, padding:"6px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.34)", background:"#071729", boxShadow:"0 16px 38px rgba(0,0,0,.42)" }}>
-              {[{id:"png",label:"Descargar PNG"},{id:"jpeg",label:"Descargar JPEG"},{id:"pdf",label:"Descargar PDF"}].map((option) => (
-                <button key={option.id} role="menuitem" type="button" onClick={() => downloadHorizontal(option.id)} style={{ width:"100%", padding:"10px 12px", border:0, borderRadius:"7px", background:"transparent", color:"#dbeafe", textAlign:"left", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer" }}>{option.label}</button>
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: "calc(100% + 8px)", zIndex: 30, padding: "7px", borderRadius: "12px", border: "1px solid rgba(74,222,128,.28)", background: "rgba(5,12,22,.98)", boxShadow: "0 22px 48px rgba(0,0,0,.48)", backdropFilter: "blur(18px)" }}>
+              {[{ id: "png", label: "PNG alta resolución", icon: "image" }, { id: "jpeg", label: "JPEG alta resolución", icon: "photo" }, { id: "pdf", label: "PDF de una página", icon: "picture_as_pdf" }].map((option) => (
+                <button key={option.id} type="button" onClick={() => downloadHorizontal(option.id)} className="flex items-center justify-center leading-none" style={{ ...iconButtonStyle(false, false), width: "100%", justifyContent: "flex-start", marginBottom: option.id === "pdf" ? 0 : "5px" }}>
+                  <MS name={option.icon} size={18} color="currentColor" />
+                  {option.label}
+                </button>
               ))}
             </div>
           )}
         </div>
-        <button type="button" onClick={publishHorizontal} disabled={publishing || processing || !finalBlob} style={{ flex:"2 1 260px", padding:"12px", borderRadius:"8px", border:"1px solid rgba(34,197,94,.55)", background:(publishing||processing||!finalBlob)?"rgba(34,197,94,.12)":"linear-gradient(135deg,#22c55e,#4ade80)", color:(publishing||processing||!finalBlob)?"rgba(134,239,172,.55)":"#052e16", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:(publishing||processing||!finalBlob)?"not-allowed":"pointer" }}>
-          {publishing ? "Publicando…" : "PUBLICAR COMUNICADO HORIZONTAL"}
+
+        <button type="button" onClick={copyHorizontalText} disabled={!titulo.trim() && !detalle.trim()} className="flex items-center justify-center leading-none" style={actionButtonStyle("#facc15", !titulo.trim() && !detalle.trim())}>
+          <MS name="content_copy" size={19} color="currentColor" />
+          Copiar Texto
+        </button>
+
+        <button type="button" onClick={openQuickEditor} className="flex items-center justify-center leading-none" style={actionButtonStyle("#f0abfc", false)}>
+          <MS name="edit_note" size={20} color="currentColor" />
+          Editar texto
+        </button>
+
+        <button type="button" onClick={attachGeneratedGraphic} disabled={!generatedGraphicFile} className="flex items-center justify-center leading-none" style={actionButtonStyle(attachedGeneratedFile ? "#4ade80" : "#7dd3fc", !generatedGraphicFile)}>
+          <MS name={attachedGeneratedFile ? "attachment" : "attach_file"} size={19} color="currentColor" />
+          {attachedGeneratedFile ? "Imagen adjuntada" : "Adjuntar imagen generada al comunicado"}
         </button>
       </div>
+
+      <button type="button" onClick={publishHorizontal} disabled={publishing || processing || !finalBlob || !titulo.trim() || !detalle.trim()} className="flex items-center justify-center leading-none" style={{
+        width: "100%",
+        minHeight: "54px",
+        marginTop: "12px",
+        borderRadius: "12px",
+        border: "1px solid rgba(34,197,94,.58)",
+        background: publishing || processing || !finalBlob || !titulo.trim() || !detalle.trim() ? "rgba(21,128,61,.16)" : "linear-gradient(135deg, rgba(34,197,94,.96), rgba(45,212,191,.88))",
+        color: publishing || processing || !finalBlob || !titulo.trim() || !detalle.trim() ? "rgba(134,239,172,.48)" : "#032415",
+        fontFamily: getFont(theme, "secondary"),
+        fontSize: "12px",
+        fontWeight: 950,
+        letterSpacing: ".06em",
+        cursor: publishing || processing || !finalBlob || !titulo.trim() || !detalle.trim() ? "not-allowed" : "pointer",
+        boxShadow: publishing || processing || !finalBlob || !titulo.trim() || !detalle.trim() ? "none" : "0 0 30px rgba(34,197,94,.18)",
+      }}>
+        <MS name={publishing ? "progress_activity" : "publish"} size={21} color="currentColor" />
+        {publishing ? "Publicando comunicado horizontal" : "PUBLICAR COMUNICADO HORIZONTAL"}
+      </button>
+
+      {editorOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Editar texto del comunicado horizontal" style={{ position: "fixed", inset: 0, zIndex: 2147483500, display: "grid", placeItems: "center", padding: "18px", background: "rgba(2,6,14,.82)", backdropFilter: "blur(14px)" }}>
+          <div className="glass-card" style={{ width: "min(760px,100%)", maxHeight: "88dvh", overflow: "auto", padding: "18px", borderRadius: "16px", border: "1px solid rgba(125,211,252,.28)", background: "rgba(5,12,22,.97)", boxShadow: "0 30px 90px rgba(0,0,0,.62)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#bae6fd", fontWeight: 900 }}><MS name="edit_note" size={21} color="#7dd3fc" />Editar texto</div>
+              <button type="button" aria-label="Cerrar editor" onClick={() => setEditorOpen(false)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, false)}><MS name="close" size={20} color="currentColor" /></button>
+            </div>
+            <label style={labelStyle}>Título</label>
+            <input value={editorTitle} onChange={(event) => setEditorTitle(event.target.value)} style={{ ...inputStyle, marginBottom: "12px" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "7px" }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Cuerpo</label>
+              <button type="button" onClick={toggleBoldInEditor} aria-label="Aplicar negritas al texto seleccionado" className="flex items-center justify-center leading-none" style={{ ...iconButtonStyle(false, false), minWidth: "38px", minHeight: "36px" }}><MS name="format_bold" size={19} color="currentColor" /></button>
+            </div>
+            <textarea ref={bodyEditorRef} value={editorBody} onChange={(event) => setEditorBody(event.target.value)} rows={10} style={{ ...textareaStyle, minHeight: "220px" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px", marginTop: "12px" }}>
+              <button type="button" onClick={() => setEditorOpen(false)} className="flex items-center justify-center leading-none" style={actionButtonStyle("#cbd5e1", false)}><MS name="close" size={18} color="currentColor" />Cancelar</button>
+              <button type="button" onClick={applyQuickEditor} className="flex items-center justify-center leading-none" style={actionButtonStyle("#4ade80", false)}><MS name="check_circle" size={18} color="currentColor" />Aplicar cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 
 function ComunicadoAdminComposer({ onSubido, isAdmin }) {
@@ -18248,7 +19025,7 @@ function ComunicadoAdminComposer({ onSubido, isAdmin }) {
     <>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:"8px", padding:"6px", marginBottom:"12px", border:"1px solid #2c3a4c", borderRadius:"10px", background:"rgba(1,15,31,.58)" }}>
         <button type="button" onClick={() => setType("estandar")} style={typeButtonStyle(type === "estandar")}>ESTÁNDAR</button>
-        <button type="button" onClick={() => setType("horizontal")} style={typeButtonStyle(type === "horizontal")}>HORIZONTAL (IMAGEN)</button>
+        <button type="button" onClick={() => setType("horizontal")} style={typeButtonStyle(type === "horizontal")}>HORIZONTAL</button>
       </div>
       {type === "horizontal"
         ? <HorizontalComunicadoPanel onSubido={onSubido} />
@@ -20472,7 +21249,8 @@ ${base}`;
         onClick={() => setAiAssistOpen(prev => !prev)}
         style={{ width:"100%", padding:"10px 12px", borderRadius:"8px", border:`1px solid ${aiAssistOpen ? "#0096ff" : "rgba(0,150,255,.30)"}`, background: aiAssistOpen ? "rgba(0,150,255,.20)" : "rgba(0,150,255,.10)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"12px", fontWeight:800, cursor:"pointer", marginBottom:"12px", display:"flex", justifyContent:"center", alignItems:"center", gap:"8px" }}
       >
-        ✨ Resumir o crear texto con IA
+        <MS name="auto_awesome" size={18} color="currentColor" />
+        Resumir o crear texto con IA
       </button>
 
       <div>
