@@ -17856,85 +17856,106 @@ const horizontalMeasurePlainText = ({ ctx, text, maxWidth, fontSize, fontFamily,
   return { lines, lineHeight, height: Math.max(lineHeight, lines.length * lineHeight) };
 };
 
-const horizontalParseRichParagraph = (paragraph) => {
+const horizontalTokenizeRichText = (text) => {
+  const source = String(text || "").replace(/\r\n?/g, "\n");
   const tokens = [];
-  const source = String(paragraph || "");
-  const regex = /\*\*(.+?)\*\*/g;
+  const richRegex = /\*\*([^*]+?)\*\*/g;
   let cursor = 0;
   let match;
+
   const pushSegment = (segment, bold) => {
-    String(segment || "").trim().split(/\s+/).filter(Boolean).forEach((word) => tokens.push({ text: word, bold }));
+    String(segment || "")
+      .split(/(\n|[^\S\n]+)/)
+      .filter((part) => part !== "")
+      .forEach((part) => {
+        if (part === "\n") tokens.push({ type: "newline", text: "\n", bold: false });
+        else if (/^[^\S\n]+$/.test(part)) tokens.push({ type: "space", text: part, bold });
+        else tokens.push({ type: "word", text: part, bold });
+      });
   };
-  while ((match = regex.exec(source)) !== null) {
+
+  while ((match = richRegex.exec(source)) !== null) {
     if (match.index > cursor) pushSegment(source.slice(cursor, match.index), false);
     pushSegment(match[1], true);
     cursor = match.index + match[0].length;
   }
   if (cursor < source.length) pushSegment(source.slice(cursor), false);
+  if (!tokens.length && source === "") return [];
   return tokens;
 };
 
 const horizontalMeasureToken = (ctx, token, fontSize, fontFamily) => {
+  if (!token?.text || token.type === "newline") return 0;
   ctx.font = `${token.bold ? 700 : 400} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
   return ctx.measureText(token.text).width;
 };
 
-const horizontalLayoutRichText = ({ ctx, text, maxWidth, fontSize, fontFamily, lineHeightRatio = 1.42, paragraphSpacingRatio = 0.52 }) => {
-  const paragraphs = String(text || "").replace(/\r/g, "").split("\n");
+const horizontalExpandRichToken = (ctx, token, maxWidth, fontSize, fontFamily) => {
+  if (!token || token.type === "newline") return [token];
+  ctx.font = `${token.bold ? 700 : 400} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
+  if (ctx.measureText(token.text).width <= maxWidth) return [token];
+  const parts = [];
+  let current = "";
+  for (const char of token.text) {
+    const candidate = `${current}${char}`;
+    if (current && ctx.measureText(candidate).width > maxWidth) {
+      parts.push({ ...token, text: current });
+      current = char;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) parts.push({ ...token, text: current });
+  return parts.length ? parts : [token];
+};
+
+const horizontalLayoutRichText = ({ ctx, text, maxWidth, fontSize, fontFamily, lineHeightRatio = 1.42, paragraphSpacingRatio = 0 }) => {
+  const source = String(text || "").replace(/\r\n?/g, "\n");
   const lineHeight = Math.max(1, Math.round(fontSize * lineHeightRatio));
   const paragraphSpacing = Math.max(0, Math.round(lineHeight * paragraphSpacingRatio));
-  const lines = [];
+  const sourceTokens = horizontalTokenizeRichText(source);
+  const tokens = [];
+  sourceTokens.forEach((token) => {
+    horizontalExpandRichToken(ctx, token, maxWidth, fontSize, fontFamily).forEach((part) => tokens.push(part));
+  });
 
-  paragraphs.forEach((paragraph, paragraphIndex) => {
-    const tokens = horizontalParseRichParagraph(paragraph);
-    if (!tokens.length) {
-      lines.push({ tokens: [], width: 0, isLastInParagraph: true, blank: true });
+  const lines = [];
+  let current = [];
+  let currentWidth = 0;
+  let endedWithNewline = false;
+
+  const pushLine = (explicitBreak = false) => {
+    lines.push({
+      tokens: current,
+      width: Math.max(0, currentWidth),
+      isLastInParagraph: explicitBreak,
+      explicitBreak,
+      blank: current.length === 0,
+    });
+    current = [];
+    currentWidth = 0;
+  };
+
+  tokens.forEach((token) => {
+    if (token.type === "newline") {
+      pushLine(true);
+      endedWithNewline = true;
       return;
     }
-
-    const expanded = [];
-    tokens.forEach((token) => {
-      ctx.font = `${token.bold ? 700 : 400} ${fontSize}px ${horizontalFontCss(fontFamily)}`;
-      if (ctx.measureText(token.text).width <= maxWidth) {
-        expanded.push(token);
-        return;
-      }
-      horizontalSplitLongWord(ctx, token.text, maxWidth).forEach((part) => expanded.push({ ...token, text: part }));
-    });
-
-    let current = [];
-    let currentWidth = 0;
-    const spaceWidth = (() => {
-      ctx.font = `400 ${fontSize}px ${horizontalFontCss(fontFamily)}`;
-      return ctx.measureText(" ").width;
-    })();
-
-    expanded.forEach((token) => {
-      const tokenWidth = horizontalMeasureToken(ctx, token, fontSize, fontFamily);
-      const candidateWidth = current.length ? currentWidth + spaceWidth + tokenWidth : tokenWidth;
-      if (current.length && candidateWidth > maxWidth) {
-        lines.push({ tokens: current, width: currentWidth, isLastInParagraph: false, blank: false });
-        current = [token];
-        currentWidth = tokenWidth;
-      } else {
-        current.push(token);
-        currentWidth = candidateWidth;
-      }
-    });
-
-    if (current.length) lines.push({ tokens: current, width: currentWidth, isLastInParagraph: true, blank: false });
-    if (paragraphIndex < paragraphs.length - 1 && !String(paragraphs[paragraphIndex + 1] || "").trim()) {
-      lines.push({ tokens: [], width: 0, isLastInParagraph: true, blank: true });
+    endedWithNewline = false;
+    const tokenWidth = horizontalMeasureToken(ctx, token, fontSize, fontFamily);
+    if (current.length && currentWidth + tokenWidth > maxWidth) {
+      pushLine(false);
     }
+    current.push(token);
+    currentWidth += tokenWidth;
   });
 
-  let height = 0;
-  lines.forEach((line, index) => {
-    height += lineHeight;
-    if (line.isLastInParagraph && index < lines.length - 1) height += paragraphSpacing;
-  });
+  if (current.length || !lines.length || endedWithNewline) pushLine(true);
+  if (lines.length) lines[lines.length - 1].isLastInParagraph = true;
 
-  return { lines, lineHeight, paragraphSpacing, height: Math.max(lineHeight, height) };
+  const height = Math.max(lineHeight, lines.length * lineHeight + Math.max(0, lines.length - 1) * paragraphSpacing);
+  return { lines, lineHeight, paragraphSpacing, height };
 };
 
 const horizontalFitPlainFont = ({ ctx, text, maxWidth, maxHeight, preferredSize, minSize, fontFamily, fontWeight, lineHeightRatio }) => {
@@ -17992,35 +18013,31 @@ const horizontalDrawRichElement = ({ ctx, element }) => {
   let y = element.y;
   layout.lines.forEach((line, lineIndex) => {
     if (!line.tokens.length) {
-      y += layout.lineHeight + layout.paragraphSpacing;
+      y += layout.lineHeight;
+      if (lineIndex < layout.lines.length - 1) y += layout.paragraphSpacing;
       return;
     }
 
-    const normalSpaceWidth = (() => {
-      ctx.font = `400 ${element.fontSize}px ${family}`;
-      return ctx.measureText(" ").width;
-    })();
-    const isJustified = element.textAlign === "justify" && !line.isLastInParagraph && line.tokens.length > 1;
-    const naturalWidth = line.tokens.reduce((total, token) => total + horizontalMeasureToken(ctx, token, element.fontSize, element.fontFamily), 0)
-      + normalSpaceWidth * Math.max(0, line.tokens.length - 1);
-    const extraSpace = isJustified ? Math.max(0, (element.width - naturalWidth) / Math.max(1, line.tokens.length - 1)) : 0;
+    const spaceTokens = line.tokens.filter((token) => token.type === "space");
+    const naturalWidth = line.width;
+    const isJustified = element.textAlign === "justify" && !line.isLastInParagraph && spaceTokens.length > 0;
+    const extraSpace = isJustified ? Math.max(0, (element.width - naturalWidth) / spaceTokens.length) : 0;
 
     let startX = element.x;
     if (element.textAlign === "center") startX = element.x + (element.width - naturalWidth) / 2;
     if (element.textAlign === "right") startX = element.x + element.width - naturalWidth;
 
     let x = startX;
-    line.tokens.forEach((token, tokenIndex) => {
+    line.tokens.forEach((token) => {
       ctx.font = `${token.bold ? 700 : 400} ${element.fontSize}px ${family}`;
       ctx.textAlign = "left";
       ctx.fillText(token.text, x, y);
-      const tokenWidth = ctx.measureText(token.text).width;
-      x += tokenWidth;
-      if (tokenIndex < line.tokens.length - 1) x += normalSpaceWidth + extraSpace;
+      x += ctx.measureText(token.text).width;
+      if (isJustified && token.type === "space") x += extraSpace;
     });
 
     y += layout.lineHeight;
-    if (line.isLastInParagraph && lineIndex < layout.lines.length - 1) y += layout.paragraphSpacing;
+    if (lineIndex < layout.lines.length - 1) y += layout.paragraphSpacing;
   });
 
   ctx.restore();
@@ -18034,6 +18051,9 @@ function HorizontalComunicadoPanel({ onSubido }) {
   const bodyEditorRef = useRef(null);
   const dragRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
   const exportTimerRef = useRef(null);
+  const liveRenderTimerRef = useRef(null);
+  const renderSequenceRef = useRef(0);
+  const canvasElementsRef = useRef([]);
   const publishLockRef = useRef(false);
   const horizontalDraftSeedRef = useRef(cmReadLocalJson(CM_HORIZONTAL_DRAFT_KEY, {}));
   const horizontalDraftSeed = horizontalDraftSeedRef.current || {};
@@ -18083,20 +18103,38 @@ function HorizontalComunicadoPanel({ onSubido }) {
     return templateRef.current;
   }, []);
 
-  const buildHorizontalElements = useCallback(async ({ preservePositions = true, forceAutoFit = false } = {}) => {
-    const cleanTitle = String(titulo || "").trim();
-    const cleanBody = String(detalle || "").trim();
-    const canvas = canvasRef.current || document.createElement("canvas");
-    canvas.width = COMUNICADO_HORIZONTAL_CONFIG.templateWidth;
-    canvas.height = COMUNICADO_HORIZONTAL_CONFIG.templateHeight;
-    const ctx = canvas.getContext("2d");
+  const buildHorizontalElements = useCallback(async ({
+    preservePositions = true,
+    forceAutoFit = false,
+    titleText = titulo,
+    bodyText = detalle,
+    dateTextOverride = null,
+    titleFamily = titleFontFamily,
+    bodyFamily = bodyFontFamily,
+    requestedTitleFontSize = titleFontSize,
+    requestedBodyFontSize = bodyFontSize,
+    alignMode = bodyAlign,
+  } = {}) => {
+    const cleanTitle = String(titleText || "").trim();
+    const rawBody = String(bodyText || "").replace(/\r\n?/g, "\n");
+    const cleanBody = rawBody.trim() ? rawBody : "";
+    // Siempre medimos en un canvas fuera de pantalla. Nunca se cambia width/height
+    // del canvas visible durante una medición, porque hacerlo borra su contenido.
+    const measureCanvas = document.createElement("canvas");
+    measureCanvas.width = COMUNICADO_HORIZONTAL_CONFIG.templateWidth;
+    measureCanvas.height = COMUNICADO_HORIZONTAL_CONFIG.templateHeight;
+    const ctx = measureCanvas.getContext("2d");
     if (!ctx) throw new Error("No fue posible obtener el contexto gráfico del navegador.");
 
+    const safeTitleFamily = HORIZONTAL_FONT_OPTIONS.some((item) => item.value === titleFamily) ? titleFamily : "Inter";
+    const safeBodyFamily = HORIZONTAL_FONT_OPTIONS.some((item) => item.value === bodyFamily) ? bodyFamily : "Noto Sans";
+
     if (document?.fonts?.load) {
-      const fontFamilies = [titleFontFamily, bodyFontFamily].filter((family) => family && family !== "sans-serif");
+      const fontFamilies = [safeTitleFamily, safeBodyFamily].filter((family) => family && family !== "sans-serif");
       await Promise.allSettled(fontFamilies.flatMap((family) => [
         document.fonts.load(`400 24px "${family}"`),
         document.fonts.load(`700 32px "${family}"`),
+        document.fonts.load(`800 32px "${family}"`),
       ]));
     }
 
@@ -18104,9 +18142,9 @@ function HorizontalComunicadoPanel({ onSubido }) {
 
     const zones = COMUNICADO_HORIZONTAL_CONFIG.zones;
     const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits;
-    const dateText = customDateText.trim() || horizontalFormatDate(fechaInicio);
-    const preferredTitle = forceAutoFit ? limits.title.max : clampHorizontalValue(Number(titleFontSize) || limits.title.default, limits.title.min, limits.title.max);
-    const preferredBody = forceAutoFit ? limits.body.max : clampHorizontalValue(Number(bodyFontSize) || limits.body.default, limits.body.min, limits.body.max);
+    const dateText = String(dateTextOverride ?? customDateText).trim() || horizontalFormatDate(fechaInicio);
+    const preferredTitle = forceAutoFit ? limits.title.max : clampHorizontalValue(Number(requestedTitleFontSize) || limits.title.default, limits.title.min, limits.title.max);
+    const preferredBody = forceAutoFit ? limits.body.max : clampHorizontalValue(Number(requestedBodyFontSize) || limits.body.default, limits.body.min, limits.body.max);
 
     const dateFit = horizontalFitPlainFont({
       ctx,
@@ -18115,7 +18153,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       maxHeight: zones.date.height,
       preferredSize: limits.date.default,
       minSize: limits.date.min,
-      fontFamily: titleFontFamily,
+      fontFamily: safeTitleFamily,
       fontWeight: 600,
       lineHeightRatio: 1.2,
     });
@@ -18127,7 +18165,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       maxHeight: zones.title.height,
       preferredSize: preferredTitle,
       minSize: limits.title.min,
-      fontFamily: titleFontFamily,
+      fontFamily: safeTitleFamily,
       fontWeight: 800,
       lineHeightRatio: 1.18,
     });
@@ -18139,11 +18177,11 @@ function HorizontalComunicadoPanel({ onSubido }) {
       maxHeight: zones.body.height,
       preferredSize: preferredBody,
       minSize: limits.body.min,
-      fontFamily: bodyFontFamily,
+      fontFamily: safeBodyFamily,
     });
 
     const positionSource = preservePositions
-      ? (canvasElements.length ? canvasElements : restoredHorizontalPositionsRef.current)
+      ? (canvasElementsRef.current.length ? canvasElementsRef.current : restoredHorizontalPositionsRef.current)
       : [];
     const previousById = new Map(positionSource.map((item) => [item.id, item]));
     const withPosition = (element, zone) => {
@@ -18168,7 +18206,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       width: zones.date.width,
       height: Math.min(zones.date.height, dateFit.height),
       fontSize: dateFit.fontSize,
-      fontFamily: titleFontFamily,
+      fontFamily: safeTitleFamily,
       fontWeight: 600,
       lineHeight: dateFit.lineHeight,
       textAlign: "right",
@@ -18184,7 +18222,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       width: zones.title.width,
       height: Math.min(zones.title.height, titleFit.height),
       fontSize: titleFit.fontSize,
-      fontFamily: titleFontFamily,
+      fontFamily: safeTitleFamily,
       fontWeight: 800,
       lineHeight: titleFit.lineHeight,
       textAlign: "right",
@@ -18201,12 +18239,12 @@ function HorizontalComunicadoPanel({ onSubido }) {
       width: zones.body.width,
       height: bodyNaturalHeight,
       fontSize: bodyFit.fontSize,
-      fontFamily: bodyFontFamily,
+      fontFamily: safeBodyFamily,
       fontWeight: 400,
       lineHeight: bodyFit.lineHeight,
       lineHeightRatio: 1.42,
-      paragraphSpacingRatio: 0.52,
-      textAlign: bodyAlign,
+      paragraphSpacingRatio: 0,
+      textAlign: ["left", "center", "right", "justify"].includes(alignMode) ? alignMode : "left",
       fillStyle: "#202a38",
     }, zones.body);
 
@@ -18216,10 +18254,11 @@ function HorizontalComunicadoPanel({ onSubido }) {
       template: templateRef.current,
       zones,
       headerText: "CONECT MANZANILLO INFORMA:",
+      headerFontFamily: safeTitleFamily,
     };
 
     return { elements: [dateElement, titleElement, bodyElement], metrics, resolvedTitleSize: titleFit.fontSize, resolvedBodySize: bodyFit.fontSize };
-  }, [titulo, detalle, fechaInicio, customDateText, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign, canvasElements, ensureTemplate]);
+  }, [titulo, detalle, fechaInicio, customDateText, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign, ensureTemplate]);
 
   const drawHorizontalScene = useCallback(async ({ elements = canvasElements, metrics = canvasMetrics, skipElementId = null } = {}) => {
     if (!elements?.length || !metrics) return;
@@ -18243,7 +18282,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       ctx.fillStyle = "#113f79";
       ctx.textBaseline = "top";
       ctx.textAlign = "center";
-      ctx.font = `800 31px ${horizontalFontCss(titleFontFamily)}`;
+      ctx.font = `800 31px ${horizontalFontCss(metrics.headerFontFamily || "Inter")}`;
       ctx.fillText(metrics.headerText || "CONECT MANZANILLO INFORMA:", headerZone.x + headerZone.width / 2, headerZone.y);
       ctx.restore();
     }
@@ -18253,47 +18292,87 @@ function HorizontalComunicadoPanel({ onSubido }) {
       if (element.type === "body") horizontalDrawRichElement({ ctx, element });
       else horizontalDrawPlainElement({ ctx, element });
     });
-  }, [canvasElements, canvasMetrics, ensureTemplate, titleFontFamily]);
+  }, [ensureTemplate]);
 
-  const exportHorizontalGraphic = useCallback(async ({ silent = true } = {}) => {
+  const exportHorizontalGraphic = useCallback(async ({ silent = true, elements = canvasElementsRef.current } = {}) => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvasElements.length) return null;
+    if (!canvas || !elements?.length) return null;
     const blob = await canvasToPngBlob(canvas);
-    const safeTitle = horizontalSanitizeFileName(canvasElements.find((item) => item.id === "title")?.text || titulo);
+    const safeTitle = horizontalSanitizeFileName(elements.find((item) => item.id === "title")?.text || titulo);
     const file = new File([blob], `${safeTitle}_horizontal.png`, { type: "image/png" });
     setFinalBlob(blob);
     setGeneratedGraphicFile(file);
     setAttachedGeneratedFile((current) => current ? file : current);
     if (!silent) setHorizontalNotice("Imagen horizontal actualizada y lista para descargar o publicar.", "#4ade80");
     return { blob, file };
-  }, [canvasElements, titulo, setHorizontalNotice]);
+  }, [titulo, setHorizontalNotice]);
 
-  const refreshHorizontalComposition = useCallback(async ({ preservePositions = true, forceAutoFit = false, silent = true } = {}) => {
-    setProcessing(true);
+  const renderHorizontalGraphicCanvas = useCallback(async ({
+    preservePositions = true,
+    forceAutoFit = false,
+    silent = true,
+    titleText = titulo,
+    bodyText = detalle,
+    dateTextOverride = null,
+    titleFamily = titleFontFamily,
+    bodyFamily = bodyFontFamily,
+    requestedTitleFontSize = titleFontSize,
+    requestedBodyFontSize = bodyFontSize,
+    alignMode = bodyAlign,
+    skipElementId = inlineEditor?.elementId || null,
+  } = {}) => {
+    const sequence = ++renderSequenceRef.current;
+    if (!silent) setProcessing(true);
     try {
-      const result = await buildHorizontalElements({ preservePositions, forceAutoFit });
+      const result = await buildHorizontalElements({
+        preservePositions,
+        forceAutoFit,
+        titleText,
+        bodyText,
+        dateTextOverride,
+        titleFamily,
+        bodyFamily,
+        requestedTitleFontSize,
+        requestedBodyFontSize,
+        alignMode,
+      });
+      if (sequence !== renderSequenceRef.current) return null;
+
+      canvasElementsRef.current = result.elements;
       setCanvasMetrics(result.metrics);
       setCanvasElements(result.elements);
-      if (forceAutoFit) {
-        setTitleFontSize(result.resolvedTitleSize);
-        setBodyFontSize(result.resolvedBodySize);
-      }
+
+      const requestedTitle = clampHorizontalValue(Number(requestedTitleFontSize) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max);
+      const requestedBody = clampHorizontalValue(Number(requestedBodyFontSize) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max);
+      if (forceAutoFit || result.resolvedTitleSize < requestedTitle) setTitleFontSize(result.resolvedTitleSize);
+      if (forceAutoFit || result.resolvedBodySize < requestedBody) setBodyFontSize(result.resolvedBodySize);
+
+      await drawHorizontalScene({ elements: result.elements, metrics: result.metrics, skipElementId });
+      if (sequence !== renderSequenceRef.current) return null;
+      if (!skipElementId) await exportHorizontalGraphic({ silent: true, elements: result.elements });
+
       if (!silent) setHorizontalNotice("Texto recalibrado dentro del área segura de la plantilla.", "#7dd3fc");
       return result;
     } catch (compositionError) {
-      setError(compositionError?.message || "No se pudo generar el comunicado horizontal.");
+      if (sequence === renderSequenceRef.current) setError(compositionError?.message || "No se pudo generar el comunicado horizontal.");
       return null;
     } finally {
-      setProcessing(false);
+      if (!silent && sequence === renderSequenceRef.current) setProcessing(false);
     }
-  }, [buildHorizontalElements, setHorizontalNotice]);
+  }, [buildHorizontalElements, drawHorizontalScene, exportHorizontalGraphic, titulo, detalle, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign, inlineEditor?.elementId, setHorizontalNotice]);
+
+  const refreshHorizontalComposition = renderHorizontalGraphicCanvas;
+
+  useEffect(() => {
+    canvasElementsRef.current = canvasElements;
+  }, [canvasElements]);
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const result = await refreshHorizontalComposition({ preservePositions: true, forceAutoFit: false, silent: true });
+      const result = await renderHorizontalGraphicCanvas({ preservePositions: true, forceAutoFit: false, silent: true });
       if (cancelled || !result) return;
-    }, 90);
+    }, 40);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -18317,6 +18396,8 @@ function HorizontalComunicadoPanel({ onSubido }) {
 
   useEffect(() => () => {
     if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current);
+    if (liveRenderTimerRef.current) window.clearTimeout(liveRenderTimerRef.current);
+    renderSequenceRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -18404,20 +18485,59 @@ function HorizontalComunicadoPanel({ onSubido }) {
     setHorizontalNotice("Resultado aplicado al cuerpo del comunicado.", "#4ade80");
   };
 
-  const adjustFontSize = (target, delta) => {
+  const scheduleHorizontalGraphicRender = (overrides = {}) => {
+    if (liveRenderTimerRef.current) window.clearTimeout(liveRenderTimerRef.current);
+    liveRenderTimerRef.current = window.setTimeout(() => {
+      renderHorizontalGraphicCanvas({
+        preservePositions: true,
+        forceAutoFit: false,
+        silent: true,
+        ...overrides,
+      }).catch((renderError) => console.error("Error actualizando canvas horizontal en vivo:", renderError));
+    }, 16);
+  };
+
+  const setHorizontalFontSizeLive = (target, rawValue) => {
+    const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits[target === "title" ? "title" : "body"];
+    const next = clampHorizontalValue(Number(rawValue) || limits.default, limits.min, limits.max);
     if (target === "title") {
-      const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title;
-      setTitleFontSize((current) => clampHorizontalValue((Number(current) || limits.default) + delta, limits.min, limits.max));
+      setTitleFontSize(next);
+      scheduleHorizontalGraphicRender({ requestedTitleFontSize: next });
     } else {
-      const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body;
-      setBodyFontSize((current) => clampHorizontalValue((Number(current) || limits.default) + delta, limits.min, limits.max));
+      setBodyFontSize(next);
+      scheduleHorizontalGraphicRender({ requestedBodyFontSize: next });
     }
+    setAttachedGeneratedFile(null);
+  };
+
+  const adjustFontSize = (target, delta) => {
+    const limits = COMUNICADO_HORIZONTAL_CONFIG.fontLimits[target === "title" ? "title" : "body"];
+    const current = target === "title" ? titleFontSize : bodyFontSize;
+    setHorizontalFontSizeLive(target, (Number(current) || limits.default) + delta);
+  };
+
+  const setHorizontalFontFamilyLive = (target, family) => {
+    const safeFamily = HORIZONTAL_FONT_OPTIONS.some((item) => item.value === family) ? family : "Inter";
+    if (target === "title") {
+      setTitleFontFamily(safeFamily);
+      scheduleHorizontalGraphicRender({ titleFamily: safeFamily });
+    } else {
+      setBodyFontFamily(safeFamily);
+      scheduleHorizontalGraphicRender({ bodyFamily: safeFamily });
+    }
+    setAttachedGeneratedFile(null);
+  };
+
+  const setHorizontalAlignmentLive = (alignMode) => {
+    const safeAlign = ["left", "center", "right", "justify"].includes(alignMode) ? alignMode : "left";
+    setBodyAlign(safeAlign);
+    scheduleHorizontalGraphicRender({ alignMode: safeAlign });
     setAttachedGeneratedFile(null);
   };
 
   const autoFitToCanvas = async () => {
     setError("");
-    await refreshHorizontalComposition({ preservePositions: true, forceAutoFit: true, silent: false });
+    await renderHorizontalGraphicCanvas({ preservePositions: true, forceAutoFit: true, silent: false, skipElementId: null });
     setAttachedGeneratedFile(null);
   };
 
@@ -18499,15 +18619,45 @@ function HorizontalComunicadoPanel({ onSubido }) {
     if (shouldEdit) openInlineEditor(element);
   };
 
+  const syncHorizontalInlineValue = (value) => {
+    const elementId = inlineEditor?.elementId;
+    setInlineEditor((current) => current ? ({ ...current, value }) : current);
+    if (elementId === "title") {
+      setTitulo(value);
+      setEditorTitle(value);
+      scheduleHorizontalGraphicRender({ titleText: value, skipElementId: "title" });
+    }
+    if (elementId === "body") {
+      const normalized = String(value || "").replace(/\r\n?/g, "\n");
+      setDetalle(normalized);
+      setEditorBody(normalized);
+      scheduleHorizontalGraphicRender({ bodyText: normalized, skipElementId: "body" });
+    }
+    if (elementId === "date") {
+      setCustomDateText(value);
+      scheduleHorizontalGraphicRender({ dateTextOverride: value, skipElementId: "date" });
+    }
+    setAttachedGeneratedFile(null);
+  };
+
   const commitInlineEditor = async () => {
     if (!inlineEditor?.elementId) return setInlineEditor(null);
-    const value = String(inlineEditor.value || "").trim();
+    const rawValue = String(inlineEditor.value || "").replace(/\r\n?/g, "\n");
+    const value = inlineEditor.elementId === "body" ? rawValue : rawValue.trim();
     const elementId = inlineEditor.elementId;
     setInlineEditor(null);
-    if (elementId === "title") setTitulo(value);
-    if (elementId === "body") setDetalle(value);
+    if (elementId === "title") { setTitulo(value); setEditorTitle(value); }
+    if (elementId === "body") { setDetalle(value); setEditorBody(value); }
     if (elementId === "date") setCustomDateText(value);
     setAttachedGeneratedFile(null);
+    await renderHorizontalGraphicCanvas({
+      preservePositions: true,
+      silent: true,
+      titleText: elementId === "title" ? value : titulo,
+      bodyText: elementId === "body" ? value : detalle,
+      dateTextOverride: elementId === "date" ? value : customDateText,
+      skipElementId: null,
+    });
   };
 
   const getInlineEditorStyle = () => {
@@ -18537,7 +18687,9 @@ function HorizontalComunicadoPanel({ onSubido }) {
       resize: inlineEditor.multiline ? "vertical" : "none",
       fontFamily: horizontalFontCss(element.fontFamily),
       fontSize: `${Math.max(12, element.fontSize * scaleY)}px`,
-      lineHeight: 1.35,
+      lineHeight: 1.42,
+      whiteSpace: "pre-wrap",
+      overflowWrap: "break-word",
       zIndex: 6,
     };
   };
@@ -18561,11 +18713,32 @@ function HorizontalComunicadoPanel({ onSubido }) {
     setEditorOpen(true);
   };
 
-  const applyQuickEditor = () => {
-    setTitulo(String(editorTitle || "").trim());
-    setDetalle(String(editorBody || "").trim());
+  const handleHorizontalEditorBodyChange = (value) => {
+    const normalized = String(value || "").replace(/\r\n?/g, "\n");
+    setEditorBody(normalized);
+    scheduleHorizontalGraphicRender({ bodyText: normalized, skipElementId: null });
+  };
+
+  const handleHorizontalEditorTitleChange = (value) => {
+    setEditorTitle(value);
+    scheduleHorizontalGraphicRender({ titleText: value, skipElementId: null });
+  };
+
+  const cancelQuickEditor = () => {
+    setEditorTitle(titulo);
+    setEditorBody(detalle);
+    setEditorOpen(false);
+    scheduleHorizontalGraphicRender({ titleText: titulo, bodyText: detalle, skipElementId: null });
+  };
+
+  const applyQuickEditor = async () => {
+    const nextTitle = String(editorTitle || "").trim();
+    const nextBody = String(editorBody || "").replace(/\r\n?/g, "\n");
+    setTitulo(nextTitle);
+    setDetalle(nextBody);
     setEditorOpen(false);
     setAttachedGeneratedFile(null);
+    await renderHorizontalGraphicCanvas({ titleText: nextTitle, bodyText: nextBody, preservePositions: true, silent: true, skipElementId: null });
   };
 
   const toggleBoldInEditor = () => {
@@ -18906,7 +19079,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
             <div style={{ ...labelStyle, marginBottom: "6px" }}>Tamaño título en px</div>
             <div style={{ display: "grid", gridTemplateColumns: "42px minmax(54px,1fr) 42px", gap: "6px" }}>
               <button type="button" aria-label="Reducir tamaño de título" onClick={() => adjustFontSize("title", -2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_decrease" size={20} color="currentColor" /></button>
-              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max} value={titleFontSize} onChange={(event) => setTitleFontSize(clampHorizontalValue(Number(event.target.value) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max))} aria-label="Tamaño del título en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
+              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max} value={titleFontSize} onChange={(event) => setHorizontalFontSizeLive("title", event.target.value)} aria-label="Tamaño del título en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
               <button type="button" aria-label="Aumentar tamaño de título" onClick={() => adjustFontSize("title", 2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_increase" size={20} color="currentColor" /></button>
             </div>
           </div>
@@ -18915,7 +19088,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
             <div style={{ ...labelStyle, marginBottom: "6px" }}>Tamaño cuerpo en px</div>
             <div style={{ display: "grid", gridTemplateColumns: "42px minmax(54px,1fr) 42px", gap: "6px" }}>
               <button type="button" aria-label="Reducir tamaño de cuerpo" onClick={() => adjustFontSize("body", -2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_decrease" size={20} color="currentColor" /></button>
-              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max} value={bodyFontSize} onChange={(event) => setBodyFontSize(clampHorizontalValue(Number(event.target.value) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max))} aria-label="Tamaño del cuerpo en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
+              <input type="number" min={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min} max={COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max} value={bodyFontSize} onChange={(event) => setHorizontalFontSizeLive("body", event.target.value)} aria-label="Tamaño del cuerpo en píxeles" style={{ ...inputStyle, minHeight: "42px", textAlign: "center", padding: "0 6px" }} />
               <button type="button" aria-label="Aumentar tamaño de cuerpo" onClick={() => adjustFontSize("body", 2)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, processing)} disabled={processing}><MS name="text_increase" size={20} color="currentColor" /></button>
             </div>
           </div>
@@ -18934,13 +19107,13 @@ function HorizontalComunicadoPanel({ onSubido }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "9px", marginTop: "9px" }}>
           <label style={{ ...labelStyle, marginBottom: 0 }}>
             Fuente título
-            <select value={titleFontFamily} onChange={(event) => { setTitleFontFamily(event.target.value); setAttachedGeneratedFile(null); }} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
+            <select value={titleFontFamily} onChange={(event) => setHorizontalFontFamilyLive("title", event.target.value)} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
               {HORIZONTAL_FONT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label style={{ ...labelStyle, marginBottom: 0 }}>
             Fuente cuerpo
-            <select value={bodyFontFamily} onChange={(event) => { setBodyFontFamily(event.target.value); setAttachedGeneratedFile(null); }} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
+            <select value={bodyFontFamily} onChange={(event) => setHorizontalFontFamilyLive("body", event.target.value)} style={{ ...inputStyle, marginTop: "6px", colorScheme: "dark" }}>
               {HORIZONTAL_FONT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
@@ -18948,7 +19121,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
             <div style={labelStyle}>Alineación del cuerpo</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "6px" }}>
               {[{ id: "left", icon: "format_align_left", label: "Alinear a la izquierda" }, { id: "center", icon: "format_align_center", label: "Centrar" }, { id: "right", icon: "format_align_right", label: "Alinear a la derecha" }, { id: "justify", icon: "format_align_justify", label: "Justificar" }].map((option) => (
-                <button key={option.id} type="button" aria-label={option.label} onClick={() => setBodyAlign(option.id)} className="flex items-center justify-center leading-none" style={iconButtonStyle(bodyAlign === option.id, false)}>
+                <button key={option.id} type="button" aria-label={option.label} onClick={() => setHorizontalAlignmentLive(option.id)} className="flex items-center justify-center leading-none" style={iconButtonStyle(bodyAlign === option.id, false)}>
                   <MS name={option.icon} size={19} color="currentColor" />
                 </button>
               ))}
@@ -18988,7 +19161,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
             <textarea
               autoFocus
               value={inlineEditor.value}
-              onChange={(event) => setInlineEditor((current) => ({ ...current, value: event.target.value }))}
+              onChange={(event) => syncHorizontalInlineValue(event.target.value)}
               onBlur={commitInlineEditor}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setInlineEditor(null);
@@ -19000,7 +19173,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
             <input
               autoFocus
               value={inlineEditor.value}
-              onChange={(event) => setInlineEditor((current) => ({ ...current, value: event.target.value }))}
+              onChange={(event) => syncHorizontalInlineValue(event.target.value)}
               onBlur={commitInlineEditor}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setInlineEditor(null);
@@ -19082,14 +19255,14 @@ function HorizontalComunicadoPanel({ onSubido }) {
               <button type="button" aria-label="Cerrar editor" onClick={() => setEditorOpen(false)} className="flex items-center justify-center leading-none" style={iconButtonStyle(false, false)}><MS name="close" size={20} color="currentColor" /></button>
             </div>
             <label style={labelStyle}>Título</label>
-            <input value={editorTitle} onChange={(event) => setEditorTitle(event.target.value)} style={{ ...inputStyle, marginBottom: "12px" }} />
+            <input value={editorTitle} onChange={(event) => handleHorizontalEditorTitleChange(event.target.value)} style={{ ...inputStyle, marginBottom: "12px" }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "7px" }}>
               <label style={{ ...labelStyle, marginBottom: 0 }}>Cuerpo</label>
               <button type="button" onClick={toggleBoldInEditor} aria-label="Aplicar negritas al texto seleccionado" className="flex items-center justify-center leading-none" style={{ ...iconButtonStyle(false, false), minWidth: "38px", minHeight: "36px" }}><MS name="format_bold" size={19} color="currentColor" /></button>
             </div>
-            <textarea ref={bodyEditorRef} value={editorBody} onChange={(event) => setEditorBody(event.target.value)} rows={10} style={{ ...textareaStyle, minHeight: "220px" }} />
+            <textarea ref={bodyEditorRef} value={editorBody} onChange={(event) => handleHorizontalEditorBodyChange(event.target.value)} rows={10} style={{ ...textareaStyle, minHeight: "220px", whiteSpace: "pre-wrap", overflowWrap: "break-word", fontFamily: horizontalFontCss(bodyFontFamily), fontSize: `${Math.max(12, Math.min(22, Math.round(bodyFontSize * 0.45)))}px` }} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px", marginTop: "12px" }}>
-              <button type="button" onClick={() => setEditorOpen(false)} className="flex items-center justify-center leading-none" style={actionButtonStyle("#cbd5e1", false)}><MS name="close" size={18} color="currentColor" />Cancelar</button>
+              <button type="button" onClick={cancelQuickEditor} className="flex items-center justify-center leading-none" style={actionButtonStyle("#cbd5e1", false)}><MS name="close" size={18} color="currentColor" />Cancelar</button>
               <button type="button" onClick={applyQuickEditor} className="flex items-center justify-center leading-none" style={actionButtonStyle("#4ade80", false)}><MS name="check_circle" size={18} color="currentColor" />Aplicar cambios</button>
             </div>
           </div>
@@ -19227,6 +19400,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const canvasTemplateRef = useRef(null);
   const dragStateRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
   const exportDebounceRef = useRef(null);
+  const standardLiveRenderTimerRef = useRef(null);
+  const standardRenderSequenceRef = useRef(0);
+  const standardCanvasElementsRef = useRef([]);
 
   useEffect(() => {
     return () => {
@@ -19236,6 +19412,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
       if (exportDebounceRef.current) {
         clearTimeout(exportDebounceRef.current);
       }
+      if (standardLiveRenderTimerRef.current) {
+        clearTimeout(standardLiveRenderTimerRef.current);
+      }
+      standardRenderSequenceRef.current += 1;
     };
   }, []);
 
@@ -19681,12 +19861,6 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     let currentLineWidth = 0;
 
     const pushLine = (isParagraphBreak = false) => {
-      // Limpia espacios finales para que la alineación no se vea desplazada.
-      while (currentLine.length && currentLine[currentLine.length - 1]?.type === "space") {
-        const removed = currentLine.pop();
-        currentLineWidth -= measureRichToken(ctx, removed, normalFont, boldFont);
-      }
-
       lines.push({
         tokens: currentLine,
         width: Math.max(0, currentLineWidth),
@@ -19703,16 +19877,12 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         return;
       }
 
-      if (token.type === "space" && currentLine.length === 0) return;
-
       const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
       const nextWidth = currentLineWidth + tokenWidth;
 
-      if (token.type !== "space" && currentLine.length > 0 && nextWidth > maxWidth) {
+      if (currentLine.length > 0 && nextWidth > maxWidth) {
         pushLine(false);
       }
-
-      if (token.type === "space" && currentLine.length === 0) return;
 
       currentLine.push(token);
       currentLineWidth += tokenWidth;
@@ -19730,7 +19900,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
     lines.forEach((line, lineIndex) => {
       if (line.isParagraphBreak && line.tokens.length === 0) {
-        currentY += paragraphSpacing || lineHeight;
+        currentY += lineHeight;
         return;
       }
 
@@ -19832,21 +20002,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     let currentLine = [];
     let currentLineWidth = 0;
 
-    const pushLine = (isParagraphBreak = false) => {
-      while (currentLine.length && currentLine[currentLine.length - 1]?.type === "space") {
-        const removed = currentLine.pop();
-        currentLineWidth -= measureRichToken(ctx, removed, normalFont, boldFont);
+      const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
+      const nextWidth = currentLineWidth + tokenWidth;
+
+      if (currentLine.length > 0 && nextWidth > maxWidth) {
+        pushLine(false);
       }
 
-      lines.push({
-        tokens: currentLine,
-        width: Math.max(0, currentLineWidth),
-        isParagraphBreak,
-      });
-
-      currentLine = [];
-      currentLineWidth = 0;
-    };
+      currentLine.push(token);
+      currentLineWidth += tokenWidth;
 
     expandedTokens.forEach((token) => {
       if (token.type === "newline") {
@@ -19854,16 +20018,12 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
         return;
       }
 
-      if (token.type === "space" && currentLine.length === 0) return;
-
       const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
       const nextWidth = currentLineWidth + tokenWidth;
 
-      if (token.type !== "space" && currentLine.length > 0 && nextWidth > maxWidth) {
+      if (currentLine.length > 0 && nextWidth > maxWidth) {
         pushLine(false);
       }
-
-      if (token.type === "space" && currentLine.length === 0) return;
 
       currentLine.push(token);
       currentLineWidth += tokenWidth;
@@ -19877,7 +20037,7 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
 
     lines.forEach((line) => {
       if (line.isParagraphBreak && line.tokens.length === 0) {
-        totalHeight += paragraphSpacing || lineHeight;
+        totalHeight += lineHeight;
         return;
       }
 
@@ -20366,10 +20526,11 @@ ${base}`;
     preferredBodyFontSize = graphicBodyFontSize,
     forceAutoFit = false,
   }) => {
-    const cleanBodyText = String(bodyText || "").trim();
+    const rawBodyText = String(bodyText || "").replace(/\r\n?/g, "\n");
+    const cleanBodyText = rawBodyText.trim() ? rawBodyText : "";
     const cleanTitleText = String(titleText || "").trim();
 
-    if (!cleanBodyText) {
+    if (!cleanBodyText.trim()) {
       throw new Error("Primero extrae o escribe el texto del comunicado antes de crear el formato.");
     }
 
@@ -20391,13 +20552,13 @@ ${base}`;
     }
 
     const template = await ensureCanvasTemplate();
-    const canvas = comunicadoCanvasRef.current || document.createElement("canvas");
+    const measureCanvas = document.createElement("canvas");
     const width = template.naturalWidth || template.width || 1024;
     const height = template.naturalHeight || template.height || 1448;
-    canvas.width = width;
-    canvas.height = height;
+    measureCanvas.width = width;
+    measureCanvas.height = height;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = measureCanvas.getContext("2d");
     if (!ctx) throw new Error("No fue posible obtener el contexto 2D del canvas.");
 
     const scale = width / 1024;
@@ -20417,7 +20578,8 @@ ${base}`;
     const titleLineHeight = Math.round(titleFontSize * 1.28);
     const headerLineHeight = Math.round(headerFontSize * 1.25);
 
-    const restoredDateText = restoredStandardTextRef.current.find((item) => item?.id === "date")?.text;
+    const restoredDateText = standardCanvasElementsRef.current.find((item) => item?.id === "date")?.text
+      || restoredStandardTextRef.current.find((item) => item?.id === "date")?.text;
     const graphicalDate = fechaInicio ? new Date(`${fechaInicio}T12:00:00`) : new Date();
     const dateText = String(restoredDateText || formatearFechaComunicado(Number.isNaN(graphicalDate.getTime()) ? new Date() : graphicalDate));
     const dateMaxWidth = width * 0.30;
@@ -20456,6 +20618,7 @@ ${base}`;
         );
     const maxBodyFontSize = Math.max(1, Math.round(preferredBaseSize * scale));
     const minBodyFontSize = Math.max(1, Math.round(STANDARD_GRAPHIC_FONT_LIMITS.min * scale));
+    const hardMinBodyFontSize = Math.max(1, Math.round(2 * scale));
 
     let selectedBodyFontSize = maxBodyFontSize;
     let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.42);
@@ -20482,12 +20645,36 @@ ${base}`;
       if (measured.height <= availableHeight) break;
     }
 
+    // Si el contenido sigue siendo más alto que el área disponible, continúa
+    // reduciendo por debajo del mínimo manual. El mínimo manual sigue siendo útil
+    // para los controles, pero el autoajuste puede llegar más abajo para proteger
+    // completamente el pie de página y conservar todos los párrafos.
+    if (selectedBodyHeight > availableHeight && minBodyFontSize > hardMinBodyFontSize) {
+      for (let testFontSize = minBodyFontSize - 1; testFontSize >= hardMinBodyFontSize; testFontSize -= 1) {
+        const testLineHeight = Math.max(1, Math.round(testFontSize * 1.28));
+        const measured = calculateRichTextHeight({
+          ctx,
+          text: cleanBodyText,
+          maxWidth: bodyMaxWidth,
+          lineHeight: testLineHeight,
+          normalFont: `400 ${testFontSize}px ${fontCss}`,
+          boldFont: `700 ${testFontSize}px ${fontCss}`,
+          paragraphSpacing: 0,
+        });
+        selectedBodyFontSize = testFontSize;
+        selectedBodyLineHeight = testLineHeight;
+        selectedParagraphSpacing = 0;
+        selectedBodyHeight = measured.height;
+        if (measured.height <= availableHeight) break;
+      }
+    }
+
     // Último nivel de compactación antes de recortar: conserva todo el texto
     // visible siempre que exista espacio físico suficiente en el lienzo.
     if (selectedBodyHeight > availableHeight) {
-      for (let ratio = 1.36; ratio >= 1.08; ratio -= 0.04) {
+      for (let ratio = 1.24; ratio >= 1.0; ratio -= 0.04) {
         const testLineHeight = Math.max(1, Math.round(selectedBodyFontSize * ratio));
-        const testParagraphSpacing = Math.max(0, Math.round(testLineHeight * 0.22));
+        const testParagraphSpacing = 0;
         const measured = calculateRichTextHeight({
           ctx,
           text: cleanBodyText,
@@ -20518,7 +20705,7 @@ ${base}`;
         : leftMargin;
 
     const positionSource = preservePositions
-      ? (canvasElements.length ? canvasElements : restoredStandardPositionsRef.current)
+      ? (standardCanvasElementsRef.current.length ? standardCanvasElementsRef.current : restoredStandardPositionsRef.current)
       : [];
     const previousById = new Map(positionSource.map((item) => [item.id, item]));
     const withPreviousPosition = (element, fallbackX, fallbackY) => {
@@ -20618,7 +20805,7 @@ ${base}`;
       metrics,
       resolvedBodyBaseSize: clampHorizontalValue(
         Math.round(selectedBodyFontSize / Math.max(scale, 0.0001)),
-        STANDARD_GRAPHIC_FONT_LIMITS.min,
+        2,
         STANDARD_GRAPHIC_FONT_LIMITS.max
       ),
       bodyFits: selectedBodyHeight <= availableHeight,
@@ -20713,7 +20900,7 @@ ${base}`;
     });
   };
 
-  const exportCanvasToGraphic = async ({ silent = true } = {}) => {
+  const exportCanvasToGraphic = async ({ silent = true, elements = standardCanvasElementsRef.current } = {}) => {
     const canvas = comunicadoCanvasRef.current;
     if (!canvas) return null;
 
@@ -20732,7 +20919,7 @@ ${base}`;
     generatedGraphicObjectUrlRef.current = objectUrl;
     setGraphicPreviewUrl(objectUrl);
 
-    const titleElement = canvasElements.find((item) => item.id === "title");
+    const titleElement = elements.find((item) => item.id === "title");
     const safeTitle = String(titleElement?.text || titulo || "comunicado")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -20778,20 +20965,41 @@ ${base}`;
     });
   };
 
+  const syncStandardInlineValue = (value) => {
+    const elementId = inlineEditor?.elementId;
+    const normalized = String(value || "").replace(/\r\n?/g, "\n");
+    setInlineEditor((current) => current ? ({ ...current, value: normalized }) : current);
+
+    if (elementId === "title") {
+      setTitulo(normalized);
+      scheduleGraphicCanvasRender({ titleText: normalized, skipElementId: "title" });
+    }
+    if (elementId === "body") {
+      setDetalle(normalized);
+      setGraphicEditorText(normalized);
+      scheduleGraphicCanvasRender({ bodyText: normalized, skipElementId: "body" });
+    }
+    if (elementId === "date") {
+      standardCanvasElementsRef.current = standardCanvasElementsRef.current.map((item) => item.id === "date" ? { ...item, text: normalized } : item);
+      setCanvasElements((prev) => prev.map((item) => item.id === "date" ? { ...item, text: normalized } : item));
+    }
+  };
+
   const commitInlineEditor = async () => {
     if (!inlineEditor?.elementId) {
       setInlineEditor(null);
       return;
     }
 
-    const nextValue = String(inlineEditor.value || "").trim();
+    const rawValue = String(inlineEditor.value || "").replace(/\r\n?/g, "\n");
     const elementId = inlineEditor.elementId;
+    const nextValue = elementId === "body" ? rawValue : rawValue.trim();
     const nextTitle = elementId === "title"
       ? nextValue
-      : (canvasElements.find((item) => item.id === "title")?.text || titulo || "");
+      : (standardCanvasElementsRef.current.find((item) => item.id === "title")?.text || titulo || "");
     const nextBody = elementId === "body"
       ? nextValue
-      : (canvasElements.find((item) => item.id === "body")?.text || detalle || "");
+      : (standardCanvasElementsRef.current.find((item) => item.id === "body")?.text || detalle || "");
 
     setInlineEditor(null);
 
@@ -20802,17 +21010,23 @@ ${base}`;
     }
 
     if (elementId === "date") {
+      standardCanvasElementsRef.current = standardCanvasElementsRef.current.map((item) => item.id === elementId ? { ...item, text: nextValue || item.text } : item);
       setCanvasElements((prev) => prev.map((item) => item.id === elementId ? { ...item, text: nextValue || item.text } : item));
+      await renderCanvasScene({ elements: standardCanvasElementsRef.current, metrics: canvasMetrics, skipElementId: null });
+      await exportCanvasToGraphic({ silent: true, elements: standardCanvasElementsRef.current });
       return;
     }
 
     try {
-      await renderComunicadoCanvas({
+      await renderGraphicCanvas({
         bodyText: nextBody,
         titleText: nextTitle,
         alignMode: textAlignMode,
         silent: true,
         preservePositions: true,
+        fontFamily: graphicFontFamily,
+        preferredBodyFontSize: graphicBodyFontSize,
+        skipElementId: null,
       });
     } catch (e) {
       console.error('No se pudo aplicar la edición in-situ:', e);
@@ -20938,9 +21152,11 @@ ${base}`;
       outline: 'none',
       boxSizing: 'border-box',
       resize: inlineEditor?.multiline ? 'vertical' : 'none',
-      fontFamily: '"Noto Sans", sans-serif',
+      fontFamily: element.fontFamily || horizontalFontCss(graphicFontFamily),
       fontSize: `${Math.max(12, element.fontSize * scaleY)}px`,
-      lineHeight: 1.35,
+      lineHeight: element.type === "body" ? 1.42 : 1.35,
+      whiteSpace: "pre-wrap",
+      overflowWrap: "break-word",
       zIndex: 3,
     };
   };
@@ -20994,33 +21210,48 @@ ${base}`;
     setToolNotice("La imagen generada se adjuntó automáticamente al comunicado actual.", "#22c55e");
   };
 
-  const renderComunicadoCanvas = async ({
-    bodyText,
-    titleText,
+  const renderGraphicCanvas = async ({
+    bodyText = graphicEditorText || detalle,
+    titleText = titulo,
     alignMode = textAlignMode,
     silent = false,
     preservePositions = true,
     forceAutoFit = false,
-  }) => {
+    fontFamily = graphicFontFamily,
+    preferredBodyFontSize = graphicBodyFontSize,
+    skipElementId = inlineEditor?.elementId || null,
+  } = {}) => {
+    const sequence = ++standardRenderSequenceRef.current;
+    const normalizedBody = String(bodyText || "").replace(/\r\n?/g, "\n");
     const result = await buildCanvasElementsState({
-      bodyText,
+      bodyText: normalizedBody,
       titleText,
       alignMode,
       preservePositions,
-      fontFamily: graphicFontFamily,
-      preferredBodyFontSize: graphicBodyFontSize,
+      fontFamily,
+      preferredBodyFontSize,
       forceAutoFit,
     });
 
+    if (sequence !== standardRenderSequenceRef.current) return null;
+    standardCanvasElementsRef.current = result.elements;
     setCanvasMetrics(result.metrics);
     setCanvasElements(result.elements);
 
     if (Number.isFinite(result.resolvedBodyBaseSize)) {
-      const currentRequested = Number(graphicBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default;
+      const currentRequested = Number(preferredBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default;
       if (forceAutoFit || result.resolvedBodyBaseSize < currentRequested) {
         setGraphicBodyFontSize(result.resolvedBodyBaseSize);
       }
     }
+
+    await renderCanvasScene({
+      elements: result.elements,
+      metrics: result.metrics,
+      skipElementId,
+    });
+    if (sequence !== standardRenderSequenceRef.current) return null;
+    if (!skipElementId) await exportCanvasToGraphic({ silent: true, elements: result.elements });
 
     if (!silent) {
       setToolNotice(
@@ -21032,6 +21263,24 @@ ${base}`;
     }
 
     return result;
+  };
+
+  const renderComunicadoCanvas = renderGraphicCanvas;
+
+  const scheduleGraphicCanvasRender = (overrides = {}) => {
+    if (standardLiveRenderTimerRef.current) clearTimeout(standardLiveRenderTimerRef.current);
+    standardLiveRenderTimerRef.current = setTimeout(() => {
+      renderGraphicCanvas({
+        bodyText: graphicEditorText || detalle,
+        titleText: titulo,
+        alignMode: textAlignMode,
+        silent: true,
+        preservePositions: true,
+        fontFamily: graphicFontFamily,
+        preferredBodyFontSize: graphicBodyFontSize,
+        ...overrides,
+      }).catch((renderError) => console.error("Error actualizando el canvas gráfico en vivo:", renderError));
+    }, 16);
   };
 
   const aplicarNegritasEditor = () => {
@@ -21051,6 +21300,8 @@ ${base}`;
 
     const nextText = currentText.slice(0, start) + wrappedText + currentText.slice(end);
     setGraphicEditorText(nextText);
+    setDetalle(nextText);
+    scheduleGraphicCanvasRender({ bodyText: nextText });
 
     setTimeout(() => {
       textarea.focus();
@@ -21058,12 +21309,42 @@ ${base}`;
     }, 0);
   };
 
-  const ajustarTamanoTextoGrafico = (delta) => {
-    setGraphicBodyFontSize((current) => clampHorizontalValue(
-      (Number(current) || STANDARD_GRAPHIC_FONT_LIMITS.default) + delta,
+  const setGraphicBodyFontSizeLive = (rawValue) => {
+    const nextSize = clampHorizontalValue(
+      Number(rawValue) || STANDARD_GRAPHIC_FONT_LIMITS.default,
       STANDARD_GRAPHIC_FONT_LIMITS.min,
       STANDARD_GRAPHIC_FONT_LIMITS.max
-    ));
+    );
+    setGraphicBodyFontSize(nextSize);
+    scheduleGraphicCanvasRender({ preferredBodyFontSize: nextSize });
+  };
+
+  const ajustarTamanoTextoGrafico = (delta) => {
+    const nextSize = clampHorizontalValue(
+      (Number(graphicBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default) + delta,
+      STANDARD_GRAPHIC_FONT_LIMITS.min,
+      STANDARD_GRAPHIC_FONT_LIMITS.max
+    );
+    setGraphicBodyFontSizeLive(nextSize);
+  };
+
+  const setGraphicFontFamilyLive = (family) => {
+    const nextFamily = STANDARD_GRAPHIC_FONT_OPTIONS.some((item) => item.value === family) ? family : "Noto Sans";
+    setGraphicFontFamily(nextFamily);
+    scheduleGraphicCanvasRender({ fontFamily: nextFamily });
+  };
+
+  const setTextAlignModeLive = (alignMode) => {
+    const safeAlign = ["left", "center", "right", "justify"].includes(alignMode) ? alignMode : "left";
+    setTextAlignMode(safeAlign);
+    scheduleGraphicCanvasRender({ alignMode: safeAlign });
+  };
+
+  const handleGraphicEditorTextChange = (value) => {
+    const normalized = String(value || "").replace(/\r\n?/g, "\n");
+    setGraphicEditorText(normalized);
+    setDetalle(normalized);
+    scheduleGraphicCanvasRender({ bodyText: normalized });
   };
 
   const autoAjustarTextoGrafico = async () => {
@@ -21071,13 +21352,16 @@ ${base}`;
     if (!nextText || !String(titulo || "").trim()) return;
     setGraphicBusy(true);
     try {
-      await renderComunicadoCanvas({
+      await renderGraphicCanvas({
         bodyText: nextText,
         titleText: titulo,
         alignMode: textAlignMode,
         silent: false,
         preservePositions: true,
         forceAutoFit: true,
+        fontFamily: graphicFontFamily,
+        preferredBodyFontSize: STANDARD_GRAPHIC_FONT_LIMITS.max,
+        skipElementId: null,
       });
       setToolNotice("Autoajuste aplicado. El texto quedó recalibrado dentro del área segura.", "#7dd3fc");
     } catch (e) {
@@ -21090,12 +21374,13 @@ ${base}`;
 
   const abrirEditorComunicadoGrafico = () => {
     const bodyElement = canvasElements.find((item) => item.id === "body");
-    setGraphicEditorText(String(bodyElement?.text || detalle || "").trim());
+    setGraphicEditorText(String(bodyElement?.text || detalle || "").replace(/\r\n?/g, "\n"));
     setGraphicEditorOpen(true);
   };
 
   const aplicarEdicionComunicadoGrafico = async () => {
-    const nextText = String(graphicEditorText || "").trim();
+    const nextText = String(graphicEditorText || "").replace(/\r\n?/g, "\n");
+    if (!nextText.trim()) return;
     setDetalle(nextText);
     setGraphicEditorOpen(false);
 
@@ -21119,10 +21404,10 @@ ${base}`;
   const crearComunicadoPorFormato = async () => {
     if (!isAdmin) return;
 
-    const bodyText = String(detalle || "").trim();
+    const bodyText = String(detalle || "").replace(/\r\n?/g, "\n");
     const titleText = String(titulo || "").trim();
 
-    if (!bodyText) {
+    if (!bodyText.trim()) {
       setError("Primero extrae o escribe el texto del comunicado antes de crear el formato.");
       return;
     }
@@ -21154,9 +21439,9 @@ ${base}`;
 
   useEffect(() => {
     if (!isAdmin || !standardDraftSeed.graphicGenerated) return;
-    const restoredBody = String(standardDraftSeed.graphicEditorText || standardDraftSeed.detalle || detalle || "").trim();
+    const restoredBody = String(standardDraftSeed.graphicEditorText || standardDraftSeed.detalle || detalle || "").replace(/\r\n?/g, "\n");
     const restoredTitle = String(standardDraftSeed.titulo || titulo || "").trim();
-    if (!restoredBody || !restoredTitle) return;
+    if (!restoredBody.trim() || !restoredTitle) return;
     const timer = window.setTimeout(() => {
       renderComunicadoCanvas({
         bodyText: restoredBody,
@@ -21172,11 +21457,11 @@ ${base}`;
   useEffect(() => {
     if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
 
-    const nextText = String(graphicEditorText || "").trim();
-    if (!nextText) return;
+    const nextText = String(graphicEditorText || "").replace(/\r\n?/g, "\n");
+    if (!nextText.trim()) return;
 
     const debounceId = setTimeout(() => {
-      renderComunicadoCanvas({
+      renderGraphicCanvas({
         bodyText: nextText,
         titleText: titulo,
         alignMode: textAlignMode,
@@ -21185,12 +21470,16 @@ ${base}`;
       }).catch((e) => {
         console.error("Error actualizando vista previa en vivo:", e);
       });
-    }, 280);
+    }, 40);
 
     return () => clearTimeout(debounceId);
   }, [graphicEditorOpen, graphicEditorText, textAlignMode, graphicFontFamily, graphicBodyFontSize, titulo, isAdmin]);
 
 
+
+  useEffect(() => {
+    standardCanvasElementsRef.current = canvasElements;
+  }, [canvasElements]);
 
   useEffect(() => {
     if (!canvasElements.length || !canvasMetrics) return;
@@ -21848,7 +22137,7 @@ ${base}`;
                     <textarea
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
+                      onChange={(e) => syncStandardInlineValue(e.target.value)}
                       onBlur={commitInlineEditor}
                       style={getInlineEditorStyle()}
                     />
@@ -21856,7 +22145,7 @@ ${base}`;
                     <input
                       autoFocus
                       value={inlineEditor.value}
-                      onChange={(e) => setInlineEditor((prev) => ({ ...prev, value: e.target.value }))}
+                      onChange={(e) => syncStandardInlineValue(e.target.value)}
                       onBlur={commitInlineEditor}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -21871,10 +22160,10 @@ ${base}`;
               </div>
 
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:"8px" }}>
-                <button type="button" onClick={descargarComunicadoGenerado} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Descargar imagen final</button>
-                <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
-                <button type="button" onClick={abrirEditorComunicadoGrafico} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer" }}>Editar texto</button>
-                <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} style={{ padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer" }}>Adjuntar imagen generada al comunicado</button>
+                <button type="button" onClick={descargarComunicadoGenerado} className="flex items-center justify-center leading-none" style={{ minHeight:"42px", padding:"10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:"rgba(34,197,94,.12)", color:"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}><MS name="download" size={18} color="currentColor" /><span>Descargar imagen final</span></button>
+                <button type="button" onClick={copiarTextoComunicadoGrafico} className="flex items-center justify-center leading-none" style={{ minHeight:"42px", padding:"10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}><MS name="content_copy" size={18} color="currentColor" /><span>Copiar Texto</span></button>
+                <button type="button" onClick={abrirEditorComunicadoGrafico} className="flex items-center justify-center leading-none" style={{ minHeight:"42px", padding:"10px", borderRadius:"9px", border:"1px solid rgba(236,72,153,.55)", background:"rgba(236,72,153,.12)", color:"#f9a8d4", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}><MS name="edit_note" size={18} color="currentColor" /><span>Editar texto</span></button>
+                <button type="button" onClick={adjuntarComunicadoGenerado} disabled={!generatedGraphicFile} className="flex items-center justify-center leading-none" style={{ minHeight:"42px", padding:"10px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:!generatedGraphicFile?"rgba(100,116,139,.16)":"rgba(56,189,248,.12)", color:!generatedGraphicFile?"#94a3b8":"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, cursor:!generatedGraphicFile?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}><MS name="attach_file" size={18} color="currentColor" /><span>Adjuntar imagen generada al comunicado</span></button>
               </div>
 
               <div style={{ marginTop:"8px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.58)", lineHeight:1.5 }}>
@@ -21941,7 +22230,7 @@ ${base}`;
                           min={STANDARD_GRAPHIC_FONT_LIMITS.min}
                           max={STANDARD_GRAPHIC_FONT_LIMITS.max}
                           value={graphicBodyFontSize}
-                          onChange={(event) => setGraphicBodyFontSize(clampHorizontalValue(Number(event.target.value) || STANDARD_GRAPHIC_FONT_LIMITS.default, STANDARD_GRAPHIC_FONT_LIMITS.min, STANDARD_GRAPHIC_FONT_LIMITS.max))}
+                          onChange={(event) => setGraphicBodyFontSizeLive(event.target.value)}
                           aria-label="Tamaño de fuente del cuerpo en píxeles base"
                           style={{ width:"54px", height:"32px", boxSizing:"border-box", borderRadius:"7px", border:"1px solid rgba(56,189,248,.28)", background:"rgba(2,6,23,.72)", color:"#e0f2fe", textAlign:"center", outline:"none", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:800 }}
                         />
@@ -21975,7 +22264,7 @@ ${base}`;
                       <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:900 }}>Fuente</span>
                       <select
                         value={graphicFontFamily}
-                        onChange={(event) => setGraphicFontFamily(event.target.value)}
+                        onChange={(event) => setGraphicFontFamilyLive(event.target.value)}
                         aria-label="Familia tipográfica"
                         style={{ height:"32px", minWidth:"124px", borderRadius:"7px", border:"1px solid rgba(167,139,250,.30)", background:"#07111f", color:"#ede9fe", outline:"none", fontFamily:horizontalFontCss(graphicFontFamily), fontSize:"10px", fontWeight:700, padding:"0 8px", colorScheme:"dark" }}
                       >
@@ -21994,7 +22283,7 @@ ${base}`;
                       <button
                         key={opt.id}
                         type="button"
-                        onClick={() => setTextAlignMode(opt.id)}
+                        onClick={() => setTextAlignModeLive(opt.id)}
                         className="flex items-center justify-center leading-none"
                         style={{
                           minHeight:"40px",
@@ -22023,10 +22312,10 @@ ${base}`;
                   <textarea
                     ref={graphicEditorTextareaRef}
                     value={graphicEditorText}
-                    onChange={(e) => setGraphicEditorText(e.target.value)}
+                    onChange={(e) => handleGraphicEditorTextChange(e.target.value)}
                     rows={8}
                     placeholder="Edita el texto del comunicado. Usa doble asterisco únicamente para marcar fragmentos en negritas."
-                    style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.82)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"12px 13px", color:"rgba(255,255,255,.94)", fontFamily:horizontalFontCss(graphicFontFamily), fontSize:`${Math.max(12, Math.min(24, Math.round(graphicBodyFontSize * 0.45)))}px`, lineHeight:1.55, resize:"vertical", outline:"none", transition:"font-size .16s ease, font-family .16s ease", boxShadow:"inset 0 1px 0 rgba(255,255,255,.03)" }}
+                    style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.82)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"12px 13px", color:"rgba(255,255,255,.94)", fontFamily:horizontalFontCss(graphicFontFamily), fontSize:`${Math.max(12, Math.min(24, Math.round(graphicBodyFontSize * 0.45)))}px`, lineHeight:1.55, whiteSpace:"pre-wrap", overflowWrap:"break-word", tabSize:4, resize:"vertical", outline:"none", transition:"font-size .16s ease, font-family .16s ease", boxShadow:"inset 0 1px 0 rgba(255,255,255,.03)" }}
                   />
                 </div>
               )}
