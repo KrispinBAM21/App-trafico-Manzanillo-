@@ -3742,7 +3742,7 @@ function useAdminMode() {
 
     const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
       setTimeout(() => {
-        syncAdminFromSession(session, event === "SIGNED_IN");
+        syncAdminFromSession(session, false);
       }, 0);
     });
 
@@ -17587,6 +17587,62 @@ function ScreenshotCropModal({ onClose, onApply }) {
 }
 
 
+
+// ─── PERSISTENCIA DE NAVEGACIÓN Y BORRADORES DE COMUNICADOS ────────────────
+// Mantiene la vista de Noticias/Comunicados, el tipo de formato y el trabajo
+// textual aunque el navegador pierda foco, cambie de pestaña o recargue la UI.
+const CM_ACTIVE_VIEW_KEY = "active_view";
+const CM_NOTICIAS_SECTION_KEY = "cm_noticias_section";
+const CM_COMUNICADOS_SUBTAB_KEY = "cm_comunicados_subtab";
+const CM_COMUNICADO_FORMAT_KEY = "cm_comunicado_format";
+const CM_STANDARD_DRAFT_KEY = "cm_comunicado_standard_draft_v3";
+const CM_HORIZONTAL_DRAFT_KEY = "cm_comunicado_horizontal_draft_v3";
+
+const cmReadLocalJson = (key, fallback = {}) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const cmWriteLocalJson = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+};
+
+const cmRemoveLocal = (key) => {
+  try { localStorage.removeItem(key); } catch {}
+};
+
+const cmSetActiveView = (value) => {
+  try {
+    if (value) localStorage.setItem(CM_ACTIVE_VIEW_KEY, value);
+    else localStorage.removeItem(CM_ACTIVE_VIEW_KEY);
+  } catch {}
+};
+
+const cmGetActiveView = () => {
+  try { return localStorage.getItem(CM_ACTIVE_VIEW_KEY) || ""; } catch { return ""; }
+};
+
+const STANDARD_GRAPHIC_FONT_OPTIONS = [
+  { value: "Inter", label: "Inter" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "sans-serif", label: "Sans-Serif" },
+  { value: "Montserrat", label: "Montserrat" },
+  { value: "Roboto", label: "Roboto" },
+  { value: "Oswald", label: "Oswald" },
+];
+
+const STANDARD_GRAPHIC_FONT_LIMITS = {
+  min: 8,
+  max: 46,
+  default: 40,
+};
+
 // ─── COMUNICADO HORIZONTAL ──────────────────────────────────────────────────
 // Generador gráfico horizontal completo. Mantiene la plantilla corporativa,
 // compone texto editable en alta resolución y evita que el contenido invada
@@ -17979,19 +18035,22 @@ function HorizontalComunicadoPanel({ onSubido }) {
   const dragRef = useRef({ activeId: null, pointerId: null, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
   const exportTimerRef = useRef(null);
   const publishLockRef = useRef(false);
+  const horizontalDraftSeedRef = useRef(cmReadLocalJson(CM_HORIZONTAL_DRAFT_KEY, {}));
+  const horizontalDraftSeed = horizontalDraftSeedRef.current || {};
+  const restoredHorizontalPositionsRef = useRef(Array.isArray(horizontalDraftSeed.canvasPositions) ? horizontalDraftSeed.canvasPositions : []);
 
-  const [titulo, setTitulo] = useState("");
-  const [detalle, setDetalle] = useState("");
-  const [fechaInicio, setFechaInicio] = useState(horizontalLocalDateInput(0));
-  const [fechaFin, setFechaFin] = useState(horizontalLocalDateInput(10));
-  const [fechaFinModo, setFechaFinModo] = useState("fecha");
-  const [fechaFinHora, setFechaFinHora] = useState(`${horizontalLocalDateInput(10)}T23:59`);
-  const [customDateText, setCustomDateText] = useState("");
-  const [titleFontFamily, setTitleFontFamily] = useState("Inter");
-  const [bodyFontFamily, setBodyFontFamily] = useState("Noto Sans");
-  const [titleFontSize, setTitleFontSize] = useState(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default);
-  const [bodyFontSize, setBodyFontSize] = useState(COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default);
-  const [bodyAlign, setBodyAlign] = useState("left");
+  const [titulo, setTitulo] = useState(() => String(horizontalDraftSeed.titulo || ""));
+  const [detalle, setDetalle] = useState(() => String(horizontalDraftSeed.detalle || ""));
+  const [fechaInicio, setFechaInicio] = useState(() => horizontalDraftSeed.fechaInicio || horizontalLocalDateInput(0));
+  const [fechaFin, setFechaFin] = useState(() => horizontalDraftSeed.fechaFin || horizontalLocalDateInput(10));
+  const [fechaFinModo, setFechaFinModo] = useState(() => horizontalDraftSeed.fechaFinModo === "fecha_hora" ? "fecha_hora" : "fecha");
+  const [fechaFinHora, setFechaFinHora] = useState(() => horizontalDraftSeed.fechaFinHora || `${horizontalLocalDateInput(10)}T23:59`);
+  const [customDateText, setCustomDateText] = useState(() => String(horizontalDraftSeed.customDateText || ""));
+  const [titleFontFamily, setTitleFontFamily] = useState(() => HORIZONTAL_FONT_OPTIONS.some((item) => item.value === horizontalDraftSeed.titleFontFamily) ? horizontalDraftSeed.titleFontFamily : "Inter");
+  const [bodyFontFamily, setBodyFontFamily] = useState(() => HORIZONTAL_FONT_OPTIONS.some((item) => item.value === horizontalDraftSeed.bodyFontFamily) ? horizontalDraftSeed.bodyFontFamily : "Noto Sans");
+  const [titleFontSize, setTitleFontSize] = useState(() => clampHorizontalValue(Number(horizontalDraftSeed.titleFontSize) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.title.max));
+  const [bodyFontSize, setBodyFontSize] = useState(() => clampHorizontalValue(Number(horizontalDraftSeed.bodyFontSize) || COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.default, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.min, COMUNICADO_HORIZONTAL_CONFIG.fontLimits.body.max));
+  const [bodyAlign, setBodyAlign] = useState(() => ["left", "center", "right", "justify"].includes(horizontalDraftSeed.bodyAlign) ? horizontalDraftSeed.bodyAlign : "left");
   const [canvasElements, setCanvasElements] = useState([]);
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
@@ -18002,12 +18061,12 @@ function HorizontalComunicadoPanel({ onSubido }) {
   const [attachedGeneratedFile, setAttachedGeneratedFile] = useState(null);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorTitle, setEditorTitle] = useState("");
-  const [editorBody, setEditorBody] = useState("");
-  const [aiAssistOpen, setAiAssistOpen] = useState(false);
-  const [aiAction, setAiAction] = useState("resumir");
-  const [aiOutput, setAiOutput] = useState("");
+  const [editorOpen, setEditorOpen] = useState(() => Boolean(horizontalDraftSeed.editorOpen));
+  const [editorTitle, setEditorTitle] = useState(() => String(horizontalDraftSeed.editorTitle || horizontalDraftSeed.titulo || ""));
+  const [editorBody, setEditorBody] = useState(() => String(horizontalDraftSeed.editorBody || horizontalDraftSeed.detalle || ""));
+  const [aiAssistOpen, setAiAssistOpen] = useState(() => Boolean(horizontalDraftSeed.aiAssistOpen));
+  const [aiAction, setAiAction] = useState(() => horizontalDraftSeed.aiAction === "crear" ? "crear" : "resumir");
+  const [aiOutput, setAiOutput] = useState(() => String(horizontalDraftSeed.aiOutput || ""));
   const [aiBusy, setAiBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState("");
@@ -18083,7 +18142,10 @@ function HorizontalComunicadoPanel({ onSubido }) {
       fontFamily: bodyFontFamily,
     });
 
-    const previousById = new Map((preservePositions ? canvasElements : []).map((item) => [item.id, item]));
+    const positionSource = preservePositions
+      ? (canvasElements.length ? canvasElements : restoredHorizontalPositionsRef.current)
+      : [];
+    const previousById = new Map(positionSource.map((item) => [item.id, item]));
     const withPosition = (element, zone) => {
       const previous = previousById.get(element.id);
       if (!previous) return element;
@@ -18256,6 +18318,41 @@ function HorizontalComunicadoPanel({ onSubido }) {
   useEffect(() => () => {
     if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    const persistTimer = window.setTimeout(() => {
+      cmWriteLocalJson(CM_HORIZONTAL_DRAFT_KEY, {
+        titulo,
+        detalle,
+        fechaInicio,
+        fechaFin,
+        fechaFinModo,
+        fechaFinHora,
+        customDateText,
+        titleFontFamily,
+        bodyFontFamily,
+        titleFontSize,
+        bodyFontSize,
+        bodyAlign,
+        editorOpen,
+        editorTitle,
+        editorBody,
+        aiAssistOpen,
+        aiAction,
+        aiOutput,
+        canvasGenerated: canvasElements.length > 0,
+        canvasPositions: canvasElements.map(({ id, x, y }) => ({ id, x, y })),
+        updatedAt: Date.now(),
+      });
+      try {
+        localStorage.setItem(CM_COMUNICADO_FORMAT_KEY, "horizontal");
+        localStorage.setItem(CM_COMUNICADOS_SUBTAB_KEY, "proponer");
+        localStorage.setItem(CM_NOTICIAS_SECTION_KEY, "comunicados");
+      } catch {}
+      cmSetActiveView("noticias_proponer_comunicado_horizontal");
+    }, 140);
+    return () => window.clearTimeout(persistTimer);
+  }, [titulo, detalle, fechaInicio, fechaFin, fechaFinModo, fechaFinHora, customDateText, titleFontFamily, bodyFontFamily, titleFontSize, bodyFontSize, bodyAlign, editorOpen, editorTitle, editorBody, aiAssistOpen, aiAction, aiOutput, canvasElements]);
 
   const applyQuickTemplate = (template) => {
     const start = horizontalLocalDateInput(0);
@@ -18527,6 +18624,8 @@ function HorizontalComunicadoPanel({ onSubido }) {
   };
 
   const resetHorizontalForm = () => {
+    cmRemoveLocal(CM_HORIZONTAL_DRAFT_KEY);
+    restoredHorizontalPositionsRef.current = [];
     setTitulo("");
     setDetalle("");
     setFechaInicio(horizontalLocalDateInput(0));
@@ -19004,7 +19103,44 @@ function HorizontalComunicadoPanel({ onSubido }) {
 
 function ComunicadoAdminComposer({ onSubido, isAdmin }) {
   const theme = React.useContext(ThemeContext);
-  const [type, setType] = useState("estandar");
+  const [type, setTypeRaw] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CM_COMUNICADO_FORMAT_KEY);
+      if (saved === "horizontal" || saved === "estandar") return saved;
+      return cmGetActiveView().endsWith("_horizontal") ? "horizontal" : "estandar";
+    } catch {
+      return "estandar";
+    }
+  });
+
+  const setType = useCallback((nextType) => {
+    const safeType = nextType === "horizontal" ? "horizontal" : "estandar";
+    setTypeRaw(safeType);
+    try {
+      localStorage.setItem(CM_COMUNICADO_FORMAT_KEY, safeType);
+      localStorage.setItem(CM_NOTICIAS_SECTION_KEY, "comunicados");
+      localStorage.setItem(CM_COMUNICADOS_SUBTAB_KEY, "proponer");
+    } catch {}
+    cmSetActiveView(`noticias_proponer_comunicado_${safeType}`);
+  }, []);
+
+  useEffect(() => {
+    const restoreComposerType = () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const saved = localStorage.getItem(CM_COMUNICADO_FORMAT_KEY);
+        if ((saved === "horizontal" || saved === "estandar") && saved !== type) setTypeRaw(saved);
+      } catch {}
+    };
+    window.addEventListener("focus", restoreComposerType);
+    window.addEventListener("pageshow", restoreComposerType);
+    document.addEventListener("visibilitychange", restoreComposerType);
+    return () => {
+      window.removeEventListener("focus", restoreComposerType);
+      window.removeEventListener("pageshow", restoreComposerType);
+      document.removeEventListener("visibilitychange", restoreComposerType);
+    };
+  }, [type]);
 
   if (!isAdmin) return <SubirComunicadoPanel onSubido={onSubido} isAdmin={false} />;
 
@@ -19037,8 +19173,12 @@ function ComunicadoAdminComposer({ onSubido, isAdmin }) {
 // ─── SUBIR COMUNICADO (con fechas y aprobación) ──────────────────────────────
 function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const theme = React.useContext(ThemeContext);
-  const [titulo, setTitulo] = useState("");
-  const [detalle, setDetalle] = useState("");
+  const standardDraftSeedRef = useRef(cmReadLocalJson(CM_STANDARD_DRAFT_KEY, {}));
+  const standardDraftSeed = standardDraftSeedRef.current || {};
+  const restoredStandardPositionsRef = useRef(Array.isArray(standardDraftSeed.canvasPositions) ? standardDraftSeed.canvasPositions : []);
+  const restoredStandardTextRef = useRef(Array.isArray(standardDraftSeed.canvasTextOverrides) ? standardDraftSeed.canvasTextOverrides : []);
+  const [titulo, setTitulo] = useState(() => String(standardDraftSeed.titulo || ""));
+  const [detalle, setDetalle] = useState(() => String(standardDraftSeed.detalle || ""));
   const [archivo, setArchivo] = useState(null);
   const [preview, setPreview] = useState(null);
   const [pastedCapture, setPastedCapture] = useState(null);
@@ -19046,10 +19186,10 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [pasteOcrError, setPasteOcrError] = useState("");
   const [complementaryFiles, setComplementaryFiles] = useState([]);
   const [complementaryPreviews, setComplementaryPreviews] = useState([]);
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
-  const [fechaFinModo, setFechaFinModo] = useState("fecha"); // "fecha" | "fecha_hora"
-  const [fechaFinHora, setFechaFinHora] = useState("");
+  const [fechaInicio, setFechaInicio] = useState(() => String(standardDraftSeed.fechaInicio || ""));
+  const [fechaFin, setFechaFin] = useState(() => String(standardDraftSeed.fechaFin || ""));
+  const [fechaFinModo, setFechaFinModo] = useState(() => standardDraftSeed.fechaFinModo === "fecha_hora" ? "fecha_hora" : "fecha"); // "fecha" | "fecha_hora"
+  const [fechaFinHora, setFechaFinHora] = useState(() => String(standardDraftSeed.fechaFinHora || ""));
   const [vigenciaNotice, setVigenciaNotice] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState("");
@@ -19059,9 +19199,9 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [vtScanResults, setVtScanResults] = useState([]);
   const [toolBusy, setToolBusy] = useState(false);
   const [toolMsg, setToolMsg] = useState(null);
-  const [aiAssistOpen, setAiAssistOpen] = useState(false);
-  const [aiAction, setAiAction] = useState("resumir"); // "resumir" | "crear"
-  const [aiOutput, setAiOutput] = useState("");
+  const [aiAssistOpen, setAiAssistOpen] = useState(() => Boolean(standardDraftSeed.aiAssistOpen));
+  const [aiAction, setAiAction] = useState(() => standardDraftSeed.aiAction === "crear" ? "crear" : "resumir"); // "resumir" | "crear"
+  const [aiOutput, setAiOutput] = useState(() => String(standardDraftSeed.aiOutput || ""));
   const [aiBusy, setAiBusy] = useState(false);
   const [zonePickerOpen, setZonePickerOpen] = useState(false);
   const [converterOpen, setConverterOpen] = useState(false);
@@ -19069,9 +19209,11 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   const [graphicBusy, setGraphicBusy] = useState(false);
   const [graphicPreviewUrl, setGraphicPreviewUrl] = useState("");
   const [generatedGraphicFile, setGeneratedGraphicFile] = useState(null);
-  const [graphicEditorOpen, setGraphicEditorOpen] = useState(false);
-  const [graphicEditorText, setGraphicEditorText] = useState("");
-  const [textAlignMode, setTextAlignMode] = useState("left"); // "left" | "center" | "right" | "justify"
+  const [graphicEditorOpen, setGraphicEditorOpen] = useState(() => Boolean(standardDraftSeed.graphicEditorOpen));
+  const [graphicEditorText, setGraphicEditorText] = useState(() => String(standardDraftSeed.graphicEditorText || standardDraftSeed.detalle || ""));
+  const [textAlignMode, setTextAlignMode] = useState(() => ["left", "center", "right", "justify"].includes(standardDraftSeed.textAlignMode) ? standardDraftSeed.textAlignMode : "left"); // "left" | "center" | "right" | "justify"
+  const [graphicFontFamily, setGraphicFontFamily] = useState(() => STANDARD_GRAPHIC_FONT_OPTIONS.some((item) => item.value === standardDraftSeed.graphicFontFamily) ? standardDraftSeed.graphicFontFamily : "Noto Sans");
+  const [graphicBodyFontSize, setGraphicBodyFontSize] = useState(() => clampHorizontalValue(Number(standardDraftSeed.graphicBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default, STANDARD_GRAPHIC_FONT_LIMITS.min, STANDARD_GRAPHIC_FONT_LIMITS.max));
   const [canvasElements, setCanvasElements] = useState([]);
   const [canvasMetrics, setCanvasMetrics] = useState(null);
   const [inlineEditor, setInlineEditor] = useState(null);
@@ -19104,6 +19246,38 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
   useEffect(() => () => {
     if (pastedCapture?.url) { try { URL.revokeObjectURL(pastedCapture.url); } catch {} }
   }, [pastedCapture?.url]);
+
+  useEffect(() => {
+    const persistTimer = window.setTimeout(() => {
+      cmWriteLocalJson(CM_STANDARD_DRAFT_KEY, {
+        titulo,
+        detalle,
+        fechaInicio,
+        fechaFin,
+        fechaFinModo,
+        fechaFinHora,
+        aiAssistOpen,
+        aiAction,
+        aiOutput,
+        graphicEditorOpen,
+        graphicEditorText,
+        textAlignMode,
+        graphicFontFamily,
+        graphicBodyFontSize,
+        graphicGenerated: canvasElements.length > 0 || Boolean(graphicPreviewUrl),
+        canvasPositions: canvasElements.map(({ id, x, y }) => ({ id, x, y })),
+        canvasTextOverrides: canvasElements.map(({ id, text }) => ({ id, text })),
+        updatedAt: Date.now(),
+      });
+      try {
+        localStorage.setItem(CM_COMUNICADO_FORMAT_KEY, "estandar");
+        localStorage.setItem(CM_COMUNICADOS_SUBTAB_KEY, "proponer");
+        localStorage.setItem(CM_NOTICIAS_SECTION_KEY, "comunicados");
+      } catch {}
+      cmSetActiveView("noticias_proponer_comunicado_estandar");
+    }, 140);
+    return () => window.clearTimeout(persistTimer);
+  }, [titulo, detalle, fechaInicio, fechaFin, fechaFinModo, fechaFinHora, aiAssistOpen, aiAction, aiOutput, graphicEditorOpen, graphicEditorText, textAlignMode, graphicFontFamily, graphicBodyFontSize, canvasElements, graphicPreviewUrl]);
 
   const acceptClipboardImage = useCallback((event) => {
     const items = Array.from(event?.clipboardData?.items || []);
@@ -20188,6 +20362,9 @@ ${base}`;
     titleText,
     alignMode = textAlignMode,
     preservePositions = true,
+    fontFamily = graphicFontFamily,
+    preferredBodyFontSize = graphicBodyFontSize,
+    forceAutoFit = false,
   }) => {
     const cleanBodyText = String(bodyText || "").trim();
     const cleanTitleText = String(titleText || "").trim();
@@ -20200,11 +20377,16 @@ ${base}`;
       throw new Error("Primero genera o escribe el título del comunicado.");
     }
 
-    if (document?.fonts?.load) {
-      await Promise.all([
-        document.fonts.load('400 20px "Noto Sans"'),
-        document.fonts.load('700 24px "Noto Sans"'),
-        document.fonts.load('700 22px "Noto Sans"'),
+    const safeFontFamily = STANDARD_GRAPHIC_FONT_OPTIONS.some((item) => item.value === fontFamily)
+      ? fontFamily
+      : "Noto Sans";
+    const fontCss = horizontalFontCss(safeFontFamily);
+
+    if (document?.fonts?.load && safeFontFamily !== "sans-serif") {
+      await Promise.allSettled([
+        document.fonts.load(`400 20px ${fontCss}`),
+        document.fonts.load(`700 24px ${fontCss}`),
+        document.fonts.load(`800 22px ${fontCss}`),
       ]);
     }
 
@@ -20235,63 +20417,90 @@ ${base}`;
     const titleLineHeight = Math.round(titleFontSize * 1.28);
     const headerLineHeight = Math.round(headerFontSize * 1.25);
 
-    const dateText = formatearFechaComunicado(new Date());
+    const restoredDateText = restoredStandardTextRef.current.find((item) => item?.id === "date")?.text;
+    const graphicalDate = fechaInicio ? new Date(`${fechaInicio}T12:00:00`) : new Date();
+    const dateText = String(restoredDateText || formatearFechaComunicado(Number.isNaN(graphicalDate.getTime()) ? new Date() : graphicalDate));
     const dateMaxWidth = width * 0.30;
-    ctx.font = `normal ${dateFontSize}px "Noto Sans"`;
+    ctx.font = `400 ${dateFontSize}px ${fontCss}`;
     const dateLines = wrapTextCanvas(ctx, dateText, dateMaxWidth);
     const dateHeight = Math.max(dateLineHeight, dateLines.length * dateLineHeight);
     const dateY = 265 * scale;
     const dateX = rightX - dateMaxWidth;
 
     const titleMaxWidth = width * 0.42;
-    ctx.font = `bold ${titleFontSize}px "Noto Sans"`;
+    ctx.font = `800 ${titleFontSize}px ${fontCss}`;
     const titleLines = wrapTextCanvas(ctx, cleanTitleText, titleMaxWidth);
     const titleHeight = Math.max(titleLineHeight, titleLines.length * titleLineHeight);
     const titleY = dateY + dateHeight + (36 * scale);
     const titleX = rightX - titleMaxWidth;
 
     const headerText = "CONECT MANZANILLO INFORMA:";
-    ctx.font = `bold ${headerFontSize}px "Noto Sans"`;
+    ctx.font = `800 ${headerFontSize}px ${fontCss}`;
     const headerLines = wrapTextCanvas(ctx, headerText, width * 0.70);
     const headerHeight = Math.max(headerLineHeight, headerLines.length * headerLineHeight);
     const headerY = titleY + titleHeight + (60 * scale);
 
-    const bodyYStart = headerY + headerHeight + (50 * scale);
-    const bodyYEnd = height - (170 * scale);
-    const availableHeight = Math.max(120 * scale, bodyYEnd - bodyYStart);
+    const bodyYStart = headerY + headerHeight + (42 * scale);
+    // Reserva explícita para redes, correo, sitio y QR. El texto nunca dibuja
+    // por debajo de este límite, incluso con párrafos excepcionalmente largos.
+    const footerSafety = Math.max(190 * scale, height * 0.20);
+    const bodyYEnd = Math.max(bodyYStart, height - footerSafety);
+    const availableHeight = Math.max(1, bodyYEnd - bodyYStart);
 
-    // Autoescalado más agresivo para textos cortos.
-    const maxBodyFontSize = Math.round(40 * scale);
-    const minBodyFontSize = Math.round(20 * scale);
-    const paragraphSpacingFactor = 0.65;
+    const preferredBaseSize = forceAutoFit
+      ? STANDARD_GRAPHIC_FONT_LIMITS.max
+      : clampHorizontalValue(
+          Number(preferredBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default,
+          STANDARD_GRAPHIC_FONT_LIMITS.min,
+          STANDARD_GRAPHIC_FONT_LIMITS.max
+        );
+    const maxBodyFontSize = Math.max(1, Math.round(preferredBaseSize * scale));
+    const minBodyFontSize = Math.max(1, Math.round(STANDARD_GRAPHIC_FONT_LIMITS.min * scale));
 
     let selectedBodyFontSize = maxBodyFontSize;
-    let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.5);
-    let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * paragraphSpacingFactor);
+    let selectedBodyLineHeight = Math.round(selectedBodyFontSize * 1.42);
+    let selectedParagraphSpacing = Math.round(selectedBodyLineHeight * 0.50);
     let selectedBodyHeight = 0;
 
     for (let testFontSize = maxBodyFontSize; testFontSize >= minBodyFontSize; testFontSize -= 1) {
-      const testLineHeight = Math.round(testFontSize * 1.5);
-      const testParagraphSpacing = Math.round(testLineHeight * paragraphSpacingFactor);
-      const testNormalFont = `normal ${testFontSize}px "Noto Sans"`;
-      const testBoldFont = `bold ${testFontSize}px "Noto Sans"`;
-
+      const testLineHeight = Math.max(1, Math.round(testFontSize * 1.42));
+      const testParagraphSpacing = Math.max(0, Math.round(testLineHeight * 0.50));
       const measured = calculateRichTextHeight({
         ctx,
         text: cleanBodyText,
         maxWidth: bodyMaxWidth,
         lineHeight: testLineHeight,
-        normalFont: testNormalFont,
-        boldFont: testBoldFont,
+        normalFont: `400 ${testFontSize}px ${fontCss}`,
+        boldFont: `700 ${testFontSize}px ${fontCss}`,
         paragraphSpacing: testParagraphSpacing,
       });
 
-      if (measured.height <= availableHeight || testFontSize === minBodyFontSize) {
-        selectedBodyFontSize = testFontSize;
+      selectedBodyFontSize = testFontSize;
+      selectedBodyLineHeight = testLineHeight;
+      selectedParagraphSpacing = testParagraphSpacing;
+      selectedBodyHeight = measured.height;
+      if (measured.height <= availableHeight) break;
+    }
+
+    // Último nivel de compactación antes de recortar: conserva todo el texto
+    // visible siempre que exista espacio físico suficiente en el lienzo.
+    if (selectedBodyHeight > availableHeight) {
+      for (let ratio = 1.36; ratio >= 1.08; ratio -= 0.04) {
+        const testLineHeight = Math.max(1, Math.round(selectedBodyFontSize * ratio));
+        const testParagraphSpacing = Math.max(0, Math.round(testLineHeight * 0.22));
+        const measured = calculateRichTextHeight({
+          ctx,
+          text: cleanBodyText,
+          maxWidth: bodyMaxWidth,
+          lineHeight: testLineHeight,
+          normalFont: `400 ${selectedBodyFontSize}px ${fontCss}`,
+          boldFont: `700 ${selectedBodyFontSize}px ${fontCss}`,
+          paragraphSpacing: testParagraphSpacing,
+        });
         selectedBodyLineHeight = testLineHeight;
         selectedParagraphSpacing = testParagraphSpacing;
         selectedBodyHeight = measured.height;
-        break;
+        if (measured.height <= availableHeight) break;
       }
     }
 
@@ -20299,7 +20508,8 @@ ${base}`;
       ? alignMode
       : "left";
 
-    const verticalExtraSpace = Math.max(0, availableHeight - selectedBodyHeight);
+    const visibleBodyHeight = Math.min(selectedBodyHeight, availableHeight);
+    const verticalExtraSpace = Math.max(0, availableHeight - visibleBodyHeight);
     const bodyRenderY = bodyYStart + (verticalExtraSpace / 2);
     const bodyX = safeAlignMode === "center"
       ? centerX - (bodyMaxWidth / 2)
@@ -20307,11 +20517,22 @@ ${base}`;
         ? width - rightMargin - bodyMaxWidth
         : leftMargin;
 
-    const previousById = new Map((preservePositions ? canvasElements : []).map((item) => [item.id, item]));
+    const positionSource = preservePositions
+      ? (canvasElements.length ? canvasElements : restoredStandardPositionsRef.current)
+      : [];
+    const previousById = new Map(positionSource.map((item) => [item.id, item]));
     const withPreviousPosition = (element, fallbackX, fallbackY) => {
       const previous = previousById.get(element.id);
       if (!previous) return { ...element, x: fallbackX, y: fallbackY };
-      return { ...element, x: previous.x, y: previous.y };
+      if (element.id === "body") {
+        const maxY = Math.max(bodyYStart, bodyYEnd - visibleBodyHeight);
+        return {
+          ...element,
+          x: clampHorizontalValue(Number(previous.x) || fallbackX, leftMargin, Math.max(leftMargin, width - rightMargin - element.width)),
+          y: clampHorizontalValue(Number(previous.y) || fallbackY, bodyYStart, maxY),
+        };
+      }
+      return { ...element, x: Number(previous.x) || fallbackX, y: Number(previous.y) || fallbackY };
     };
 
     const elements = [
@@ -20325,7 +20546,7 @@ ${base}`;
         height: dateHeight,
         maxWidth: dateMaxWidth,
         fontSize: dateFontSize,
-        fontFamily: '"Noto Sans"',
+        fontFamily: fontCss,
         fontWeight: 400,
         lineHeight: dateLineHeight,
         fillStyle: textDark,
@@ -20341,8 +20562,8 @@ ${base}`;
         height: titleHeight,
         maxWidth: titleMaxWidth,
         fontSize: titleFontSize,
-        fontFamily: '"Noto Sans"',
-        fontWeight: 700,
+        fontFamily: fontCss,
+        fontWeight: 800,
         lineHeight: titleLineHeight,
         fillStyle: "#111827",
         textAlign: "right",
@@ -20354,10 +20575,13 @@ ${base}`;
         x: bodyX,
         y: bodyRenderY,
         width: bodyMaxWidth,
-        height: selectedBodyHeight,
+        height: visibleBodyHeight,
+        measuredHeight: selectedBodyHeight,
+        clipHeight: availableHeight,
+        clipBottom: bodyYEnd,
         maxWidth: bodyMaxWidth,
         fontSize: selectedBodyFontSize,
-        fontFamily: '"Noto Sans"',
+        fontFamily: fontCss,
         fontWeight: 400,
         lineHeight: selectedBodyLineHeight,
         paragraphSpacing: selectedParagraphSpacing,
@@ -20375,6 +20599,9 @@ ${base}`;
       centerX,
       rightX,
       bodyMaxWidth,
+      bodyYStart,
+      bodyYEnd,
+      availableHeight,
       corporateBlue,
       textDark,
       headerText,
@@ -20382,12 +20609,21 @@ ${base}`;
       headerHeight,
       headerMaxWidth: width * 0.70,
       headerLineHeight,
+      headerFontFamily: fontCss,
       template,
     };
 
-    return { elements, metrics };
+    return {
+      elements,
+      metrics,
+      resolvedBodyBaseSize: clampHorizontalValue(
+        Math.round(selectedBodyFontSize / Math.max(scale, 0.0001)),
+        STANDARD_GRAPHIC_FONT_LIMITS.min,
+        STANDARD_GRAPHIC_FONT_LIMITS.max
+      ),
+      bodyFits: selectedBodyHeight <= availableHeight,
+    };
   };
-
   const drawCanvasElement = ({ ctx, element }) => {
     if (!element) return;
 
@@ -20398,6 +20634,11 @@ ${base}`;
           ? element.x + element.width
           : element.x;
 
+      ctx.save();
+      const clipHeight = Math.max(0, Number(element.clipBottom || (element.y + (element.clipHeight || element.height))) - element.y);
+      ctx.beginPath();
+      ctx.rect(element.x, element.y, element.width, clipHeight);
+      ctx.clip();
       drawRichText({
         ctx,
         text: element.text,
@@ -20407,13 +20648,15 @@ ${base}`;
         lineHeight: element.lineHeight,
         textAlign: element.textAlign || "left",
         fillStyle: element.fillStyle || "#1f2937",
-        normalFont: `normal ${element.fontSize}px ${element.fontFamily || '"Noto Sans"'}`,
-        boldFont: `bold ${element.fontSize}px ${element.fontFamily || '"Noto Sans"'}`,
-        paragraphSpacing: element.paragraphSpacing || Math.round(element.lineHeight * 0.65),
+        normalFont: `400 ${element.fontSize}px ${element.fontFamily || '"Noto Sans"'}`,
+        boldFont: `700 ${element.fontSize}px ${element.fontFamily || '"Noto Sans"'}`,
+        paragraphSpacing: element.paragraphSpacing || Math.round(element.lineHeight * 0.50),
       });
+      ctx.restore();
       return;
     }
 
+    ctx.font = `${element.fontWeight || 400} ${element.fontSize}px ${element.fontFamily || '"Noto Sans"'}`;
     const drawX = element.textAlign === "right"
       ? element.x + element.width
       : element.textAlign === "center"
@@ -20452,7 +20695,7 @@ ${base}`;
     ctx.clearRect(0, 0, metrics.width, metrics.height);
     ctx.drawImage(template, 0, 0, metrics.width, metrics.height);
 
-    ctx.font = `bold ${Math.round(22 * metrics.scale)}px "Noto Sans"`;
+    ctx.font = `800 ${Math.round(22 * metrics.scale)}px ${metrics.headerFontFamily || '"Noto Sans"'}`;
     drawWrappedTextCanvas({
       ctx,
       text: metrics.headerText,
@@ -20757,22 +21000,38 @@ ${base}`;
     alignMode = textAlignMode,
     silent = false,
     preservePositions = true,
+    forceAutoFit = false,
   }) => {
-    const { elements, metrics } = await buildCanvasElementsState({
+    const result = await buildCanvasElementsState({
       bodyText,
       titleText,
       alignMode,
       preservePositions,
+      fontFamily: graphicFontFamily,
+      preferredBodyFontSize: graphicBodyFontSize,
+      forceAutoFit,
     });
 
-    setCanvasMetrics(metrics);
-    setCanvasElements(elements);
+    setCanvasMetrics(result.metrics);
+    setCanvasElements(result.elements);
 
-    if (!silent) {
-      setToolNotice("Comunicado gráfico generado correctamente. Ya puedes arrastrar, editar o descargar.", "#22c55e");
+    if (Number.isFinite(result.resolvedBodyBaseSize)) {
+      const currentRequested = Number(graphicBodyFontSize) || STANDARD_GRAPHIC_FONT_LIMITS.default;
+      if (forceAutoFit || result.resolvedBodyBaseSize < currentRequested) {
+        setGraphicBodyFontSize(result.resolvedBodyBaseSize);
+      }
     }
 
-    return { elements, metrics };
+    if (!silent) {
+      setToolNotice(
+        result.bodyFits
+          ? "Comunicado gráfico actualizado dentro del área segura."
+          : "El texto se redujo al mínimo disponible y permanece protegido del pie de página.",
+        result.bodyFits ? "#22c55e" : "#fbbf24"
+      );
+    }
+
+    return result;
   };
 
   const aplicarNegritasEditor = () => {
@@ -20797,6 +21056,36 @@ ${base}`;
       textarea.focus();
       textarea.setSelectionRange(start, start + wrappedText.length);
     }, 0);
+  };
+
+  const ajustarTamanoTextoGrafico = (delta) => {
+    setGraphicBodyFontSize((current) => clampHorizontalValue(
+      (Number(current) || STANDARD_GRAPHIC_FONT_LIMITS.default) + delta,
+      STANDARD_GRAPHIC_FONT_LIMITS.min,
+      STANDARD_GRAPHIC_FONT_LIMITS.max
+    ));
+  };
+
+  const autoAjustarTextoGrafico = async () => {
+    const nextText = String(graphicEditorText || detalle || "").trim();
+    if (!nextText || !String(titulo || "").trim()) return;
+    setGraphicBusy(true);
+    try {
+      await renderComunicadoCanvas({
+        bodyText: nextText,
+        titleText: titulo,
+        alignMode: textAlignMode,
+        silent: false,
+        preservePositions: true,
+        forceAutoFit: true,
+      });
+      setToolNotice("Autoajuste aplicado. El texto quedó recalibrado dentro del área segura.", "#7dd3fc");
+    } catch (e) {
+      console.error("Error al autoajustar texto gráfico:", e);
+      setToolNotice(`No se pudo autoajustar el texto: ${e?.message || e}`, "#ef4444");
+    } finally {
+      setGraphicBusy(false);
+    }
   };
 
   const abrirEditorComunicadoGrafico = () => {
@@ -20864,6 +21153,23 @@ ${base}`;
   };
 
   useEffect(() => {
+    if (!isAdmin || !standardDraftSeed.graphicGenerated) return;
+    const restoredBody = String(standardDraftSeed.graphicEditorText || standardDraftSeed.detalle || detalle || "").trim();
+    const restoredTitle = String(standardDraftSeed.titulo || titulo || "").trim();
+    if (!restoredBody || !restoredTitle) return;
+    const timer = window.setTimeout(() => {
+      renderComunicadoCanvas({
+        bodyText: restoredBody,
+        titleText: restoredTitle,
+        alignMode: ["left", "center", "right", "justify"].includes(standardDraftSeed.textAlignMode) ? standardDraftSeed.textAlignMode : textAlignMode,
+        silent: true,
+        preservePositions: true,
+      }).catch((e) => console.error("No se pudo restaurar el lienzo del comunicado:", e));
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!graphicEditorOpen || !isAdmin || !titulo.trim()) return;
 
     const nextText = String(graphicEditorText || "").trim();
@@ -20882,7 +21188,7 @@ ${base}`;
     }, 280);
 
     return () => clearTimeout(debounceId);
-  }, [graphicEditorOpen, graphicEditorText, textAlignMode, titulo, isAdmin]);
+  }, [graphicEditorOpen, graphicEditorText, textAlignMode, graphicFontFamily, graphicBodyFontSize, titulo, isAdmin]);
 
 
 
@@ -21161,8 +21467,19 @@ ${base}`;
 
       setExito(true);
       if (!isAdmin) setToolNotice("Propuesta enviada. Permanecerá pendiente y no será visible hasta que un administrador la apruebe.", "#fbbf24");
+      cmRemoveLocal(CM_STANDARD_DRAFT_KEY);
+      restoredStandardPositionsRef.current = [];
+      restoredStandardTextRef.current = [];
       setTitulo("");
       setDetalle("");
+      setGraphicEditorOpen(false);
+      setGraphicEditorText("");
+      setTextAlignMode("left");
+      setGraphicFontFamily("Noto Sans");
+      setGraphicBodyFontSize(STANDARD_GRAPHIC_FONT_LIMITS.default);
+      setCanvasElements([]);
+      setCanvasMetrics(null);
+      setInlineEditor(null);
       setArchivo(null);
       setPreview(null);
       discardPastedCapture();
@@ -21396,7 +21713,7 @@ ${base}`;
         {preview && preview !== "pdf" && (
           <img src={preview} alt="preview" style={{ maxWidth: "100%", maxHeight: "160px", objectFit: "contain", borderRadius: "6px", marginBottom: "8px", display: "block", margin: "0 auto 8px" }} />
         )}
-        {preview === "pdf" && <div style={{ fontSize: "40px", marginBottom: "6px" }}>📄</div>}
+        {preview === "pdf" && <div style={{ marginBottom:"6px", display:"flex", alignItems:"center", justifyContent:"center", color:"#93c5fd" }}><MS name="picture_as_pdf" size={40} color="currentColor" /></div>}
         <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: archivo ? "#22c55e" : "rgba(255,255,255,0.35)" }}>
           {archivo ? `✓ ${archivo.name}` : "Seleccionar JPG, PNG o PDF (máx. 10 MB)"}
         </div>
@@ -21565,32 +21882,123 @@ ${base}`;
               </div>
 
               {graphicEditorOpen && (
-                <div style={{ marginTop:"12px", background:"rgba(2,6,23,.58)", border:"1px solid rgba(236,72,153,.25)", borderRadius:"12px", padding:"12px" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px", flexWrap:"wrap" }}>
+                <div className="glass-card" style={{ marginTop:"12px", background:"rgba(5,8,15,.76)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", border:"1px solid rgba(236,72,153,.28)", borderRadius:"14px", padding:"13px", boxShadow:"0 16px 42px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.04)" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"12px", flexWrap:"wrap" }}>
                     <div>
                       <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"10px", color:"#f9a8d4", fontWeight:900, letterSpacing:".8px" }}>EDICIÓN MANUAL DEL TEXTO</div>
-                      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.50)", marginTop:"3px" }}>Selecciona texto y usa negritas. La vista previa del canvas se actualiza en vivo.</div>
+                      <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(226,232,240,.56)", marginTop:"3px" }}>Tipografía, tamaño, negritas y alineación se reflejan en el canvas en tiempo real.</div>
                     </div>
-                    <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                      <button type="button" onClick={copiarTextoComunicadoGrafico} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer" }}>Copiar Texto</button>
-                      <button type="button" onClick={aplicarEdicionComunicadoGrafico} disabled={graphicBusy || !graphicEditorText.trim()} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(graphicBusy || !graphicEditorText.trim())?"rgba(100,116,139,.16)":"rgba(34,197,94,.12)", color:(graphicBusy || !graphicEditorText.trim())?"#94a3b8":"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer" }}>Guardar / aplicar</button>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", flexWrap:"wrap" }}>
+                      <button
+                        type="button"
+                        onClick={copiarTextoComunicadoGrafico}
+                        className="flex items-center justify-center leading-none"
+                        style={{ minHeight:"38px", padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}
+                      >
+                        <MS name="content_copy" size={17} color="currentColor" />
+                        <span>Copiar Texto</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={aplicarEdicionComunicadoGrafico}
+                        disabled={graphicBusy || !graphicEditorText.trim()}
+                        className="flex items-center justify-center leading-none"
+                        style={{ minHeight:"38px", padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(34,197,94,.55)", background:(graphicBusy || !graphicEditorText.trim())?"rgba(100,116,139,.16)":"rgba(34,197,94,.12)", color:(graphicBusy || !graphicEditorText.trim())?"#94a3b8":"#86efac", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}
+                      >
+                        <MS name="check_circle" size={17} color="currentColor" />
+                        <span>Guardar y aplicar</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
-                    <button type="button" onClick={aplicarNegritasEditor} style={{ padding:"8px 10px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer" }}>B Negritas</button>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
+                    <button
+                      type="button"
+                      onClick={aplicarNegritasEditor}
+                      aria-label="Aplicar negritas al texto seleccionado"
+                      className="flex items-center justify-center leading-none"
+                      style={{ minHeight:"40px", padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(250,204,21,.55)", background:"rgba(250,204,21,.12)", color:"#fde68a", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1 }}
+                    >
+                      <MS name="format_bold" size={19} color="currentColor" />
+                      <span>Negritas</span>
+                    </button>
+
+                    <div style={{ minHeight:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"4px", padding:"3px", borderRadius:"10px", border:"1px solid rgba(56,189,248,.28)", background:"rgba(15,23,42,.64)" }}>
+                      <button
+                        type="button"
+                        onClick={() => ajustarTamanoTextoGrafico(-2)}
+                        disabled={graphicBusy || graphicBodyFontSize <= STANDARD_GRAPHIC_FONT_LIMITS.min}
+                        aria-label="Reducir tamaño de fuente"
+                        className="flex items-center justify-center leading-none"
+                        style={{ width:"34px", height:"34px", padding:0, borderRadius:"8px", border:"1px solid rgba(148,163,184,.18)", background:"rgba(2,6,23,.54)", color:"#7dd3fc", cursor:graphicBusy?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}
+                      >
+                        <MS name="text_decrease" size={19} color="currentColor" />
+                      </button>
+                      <label style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", color:"rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:800, lineHeight:1 }}>
+                        <span>Tamaño</span>
+                        <input
+                          type="number"
+                          min={STANDARD_GRAPHIC_FONT_LIMITS.min}
+                          max={STANDARD_GRAPHIC_FONT_LIMITS.max}
+                          value={graphicBodyFontSize}
+                          onChange={(event) => setGraphicBodyFontSize(clampHorizontalValue(Number(event.target.value) || STANDARD_GRAPHIC_FONT_LIMITS.default, STANDARD_GRAPHIC_FONT_LIMITS.min, STANDARD_GRAPHIC_FONT_LIMITS.max))}
+                          aria-label="Tamaño de fuente del cuerpo en píxeles base"
+                          style={{ width:"54px", height:"32px", boxSizing:"border-box", borderRadius:"7px", border:"1px solid rgba(56,189,248,.28)", background:"rgba(2,6,23,.72)", color:"#e0f2fe", textAlign:"center", outline:"none", fontFamily:"Inter, sans-serif", fontSize:"11px", fontWeight:800 }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => ajustarTamanoTextoGrafico(2)}
+                        disabled={graphicBusy || graphicBodyFontSize >= STANDARD_GRAPHIC_FONT_LIMITS.max}
+                        aria-label="Aumentar tamaño de fuente"
+                        className="flex items-center justify-center leading-none"
+                        style={{ width:"34px", height:"34px", padding:0, borderRadius:"8px", border:"1px solid rgba(148,163,184,.18)", background:"rgba(2,6,23,.54)", color:"#7dd3fc", cursor:graphicBusy?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}
+                      >
+                        <MS name="text_increase" size={19} color="currentColor" />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={autoAjustarTextoGrafico}
+                      disabled={graphicBusy || !graphicEditorText.trim()}
+                      aria-label="Autoajustar texto dentro del área segura"
+                      className="flex items-center justify-center leading-none"
+                      style={{ minHeight:"40px", padding:"8px 11px", borderRadius:"9px", border:"1px solid rgba(56,189,248,.55)", background:"rgba(56,189,248,.11)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:900, cursor:(graphicBusy || !graphicEditorText.trim())?"not-allowed":"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", lineHeight:1, opacity:(graphicBusy || !graphicEditorText.trim()) ? 0.55 : 1 }}
+                    >
+                      <MS name="fit_screen" size={19} color="currentColor" />
+                      <span>Autoajustar</span>
+                    </button>
+
+                    <label style={{ minHeight:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", padding:"4px 8px", borderRadius:"9px", border:"1px solid rgba(167,139,250,.34)", background:"rgba(15,23,42,.58)", color:"#c4b5fd", lineHeight:1 }}>
+                      <MS name="font_download" size={18} color="currentColor" />
+                      <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:900 }}>Fuente</span>
+                      <select
+                        value={graphicFontFamily}
+                        onChange={(event) => setGraphicFontFamily(event.target.value)}
+                        aria-label="Familia tipográfica"
+                        style={{ height:"32px", minWidth:"124px", borderRadius:"7px", border:"1px solid rgba(167,139,250,.30)", background:"#07111f", color:"#ede9fe", outline:"none", fontFamily:horizontalFontCss(graphicFontFamily), fontSize:"10px", fontWeight:700, padding:"0 8px", colorScheme:"dark" }}
+                      >
+                        {STANDARD_GRAPHIC_FONT_OPTIONS.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", gap:"8px", flexWrap:"wrap", marginBottom:"10px" }}>
                     {[
-                      { id:"left", label:"Izquierda" },
-                      { id:"center", label:"Centro" },
-                      { id:"right", label:"Derecha" },
-                      { id:"justify", label:"Justificado" },
+                      { id:"left", label:"Izquierda", icon:"format_align_left" },
+                      { id:"center", label:"Centro", icon:"format_align_center" },
+                      { id:"right", label:"Derecha", icon:"format_align_right" },
+                      { id:"justify", label:"Justificado", icon:"format_align_justify" },
                     ].map(opt => (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => setTextAlignMode(opt.id)}
+                        className="flex items-center justify-center leading-none"
                         style={{
-                          padding:"8px 10px",
+                          minHeight:"40px",
+                          padding:"8px 11px",
                           borderRadius:"9px",
                           border:`1px solid ${textAlignMode === opt.id ? "rgba(56,189,248,.75)" : "rgba(148,163,184,.25)"}`,
                           background:textAlignMode === opt.id ? "rgba(56,189,248,.16)" : "rgba(15,23,42,.55)",
@@ -21598,10 +22006,16 @@ ${base}`;
                           fontFamily:getFont(theme,"secondary"),
                           fontSize:"9px",
                           fontWeight:900,
-                          cursor:"pointer"
+                          cursor:"pointer",
+                          display:"inline-flex",
+                          alignItems:"center",
+                          justifyContent:"center",
+                          gap:"7px",
+                          lineHeight:1,
                         }}
                       >
-                        {opt.label}
+                        <MS name={opt.icon} size={18} color="currentColor" />
+                        <span>{opt.label}</span>
                       </button>
                     ))}
                   </div>
@@ -21611,8 +22025,8 @@ ${base}`;
                     value={graphicEditorText}
                     onChange={(e) => setGraphicEditorText(e.target.value)}
                     rows={8}
-                    placeholder="Edita el texto del comunicado. Usa **texto** para negritas."
-                    style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.78)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"11px 12px", color:"rgba(255,255,255,.92)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.55, resize:"vertical", outline:"none" }}
+                    placeholder="Edita el texto del comunicado. Usa doble asterisco únicamente para marcar fragmentos en negritas."
+                    style={{ width:"100%", boxSizing:"border-box", background:"rgba(2,6,23,.82)", border:"1px solid rgba(236,72,153,.32)", borderRadius:"10px", padding:"12px 13px", color:"rgba(255,255,255,.94)", fontFamily:horizontalFontCss(graphicFontFamily), fontSize:`${Math.max(12, Math.min(24, Math.round(graphicBodyFontSize * 0.45)))}px`, lineHeight:1.55, resize:"vertical", outline:"none", transition:"font-size .16s ease, font-family .16s ease", boxShadow:"inset 0 1px 0 rgba(255,255,255,.03)" }}
                   />
                 </div>
               )}
@@ -21631,8 +22045,9 @@ ${base}`;
       )}
       
       {error && (
-        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#f87171", marginBottom: "8px", padding: "8px 12px", background: "#ef444411", borderRadius: "7px" }}>
-          ⚠️ {error}
+        <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "11px", color: "#f87171", marginBottom: "8px", padding: "8px 12px", background: "#ef444411", borderRadius: "7px", display:"flex", alignItems:"center", gap:"7px" }}>
+          <MS name="warning" size={17} color="currentColor" />
+          <span>{error}</span>
         </div>
       )}
       {exito && (
@@ -21669,7 +22084,15 @@ ${base}`;
 function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDownloadItem, downloadingItemUrl, timeAgo, isPdf }) {
   const theme = React.useContext(ThemeContext);
   const comunicadosMobile = useWindowWidth() < 720;
-  const [subTab, setSubTab] = useState("ver"); // "ver" | "proponer"
+  const [subTab, setSubTabRaw] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CM_COMUNICADOS_SUBTAB_KEY);
+      if (saved === "ver" || saved === "proponer") return saved;
+      return cmGetActiveView().startsWith("noticias_proponer_comunicado") ? "proponer" : "ver";
+    } catch {
+      return "ver";
+    }
+  }); // "ver" | "proponer"
   const [pendientes, setPendientes] = useState([]);
   const [misPropuestas, setMisPropuestas] = useState([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -21679,6 +22102,40 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
   const [selectedIndex, setSelectedIndex] = useState(0); // comunicado destacado en vista grande
   const [documentPageIndex, setDocumentPageIndex] = useState(0);
   const [documentPageLoading, setDocumentPageLoading] = useState(true);
+
+  const setSubTab = useCallback((nextSubTab) => {
+    const safeSubTab = nextSubTab === "proponer" ? "proponer" : "ver";
+    setSubTabRaw(safeSubTab);
+    try {
+      localStorage.setItem(CM_COMUNICADOS_SUBTAB_KEY, safeSubTab);
+      localStorage.setItem(CM_NOTICIAS_SECTION_KEY, "comunicados");
+    } catch {}
+    if (safeSubTab === "proponer") {
+      let format = "estandar";
+      try { format = localStorage.getItem(CM_COMUNICADO_FORMAT_KEY) === "horizontal" ? "horizontal" : "estandar"; } catch {}
+      cmSetActiveView(`noticias_proponer_comunicado_${format}`);
+    } else {
+      cmSetActiveView("noticias_comunicados_ver");
+    }
+  }, []);
+
+  useEffect(() => {
+    const restoreComunicadoSubTab = () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const saved = localStorage.getItem(CM_COMUNICADOS_SUBTAB_KEY);
+        if ((saved === "ver" || saved === "proponer") && saved !== subTab) setSubTabRaw(saved);
+      } catch {}
+    };
+    window.addEventListener("focus", restoreComunicadoSubTab);
+    window.addEventListener("pageshow", restoreComunicadoSubTab);
+    document.addEventListener("visibilitychange", restoreComunicadoSubTab);
+    return () => {
+      window.removeEventListener("focus", restoreComunicadoSubTab);
+      window.removeEventListener("pageshow", restoreComunicadoSubTab);
+      document.removeEventListener("visibilitychange", restoreComunicadoSubTab);
+    };
+  }, [subTab]);
   const COMUNICADOS_VER_ICON = "data:image/png;base64,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";
   const COMUNICADOS_PROPONER_ICON = "data:image/png;base64,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";
   const comunicadoTabButtonStyle = (active, accent) => ({
@@ -23369,7 +23826,40 @@ function NoticiasTab({ isAdmin }) {
   const [visorItems,    setVisorItems]    = useState([]);
   const [visorIndex,    setVisorIndex]    = useState(0);
   const [downloadingItemUrl, setDownloadingItemUrl] = useState("");
-  const [seccion,       setSeccion]       = useState("noticias"); // "noticias" | "comunicados"
+  const [seccion, setSeccionRaw] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CM_NOTICIAS_SECTION_KEY);
+      if (saved === "noticias" || saved === "comunicados") return saved;
+      return cmGetActiveView().startsWith("noticias_comunicados") ? "comunicados" : "noticias";
+    } catch {
+      return "noticias";
+    }
+  }); // "noticias" | "comunicados"
+
+  const setSeccion = useCallback((nextSection) => {
+    const safeSection = nextSection === "comunicados" ? "comunicados" : "noticias";
+    setSeccionRaw(safeSection);
+    try { localStorage.setItem(CM_NOTICIAS_SECTION_KEY, safeSection); } catch {}
+    cmSetActiveView(safeSection === "comunicados" ? "noticias_comunicados" : "noticias");
+  }, []);
+
+  useEffect(() => {
+    const restoreNoticiasSection = () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const saved = localStorage.getItem(CM_NOTICIAS_SECTION_KEY);
+        if ((saved === "noticias" || saved === "comunicados") && saved !== seccion) setSeccionRaw(saved);
+      } catch {}
+    };
+    window.addEventListener("focus", restoreNoticiasSection);
+    window.addEventListener("pageshow", restoreNoticiasSection);
+    document.addEventListener("visibilitychange", restoreNoticiasSection);
+    return () => {
+      window.removeEventListener("focus", restoreNoticiasSection);
+      window.removeEventListener("pageshow", restoreNoticiasSection);
+      document.removeEventListener("visibilitychange", restoreNoticiasSection);
+    };
+  }, [seccion]);
 
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
@@ -35824,16 +36314,51 @@ function App() {
     if (fromUrl) return fromUrl;
     try {
       const stored = localStorage.getItem("puerto_active_tab");
+      const rememberedView = cmGetActiveView();
       if (stored === "feed") sessionStorage.setItem("cm_open_posturas_subtab", "feed");
-      return normalizeTabKey(stored) || "inicio";
+      const rememberedTab = rememberedView.startsWith("noticias") ? "noticias" : normalizeTabKey(rememberedView);
+      return normalizeTabKey(stored) || rememberedTab || "inicio";
     } catch { return "inicio"; }
   });
   const setActive = (tab, opts = {}) => {
     const safeTab = normalizeTabKey(tab) || "inicio";
-    try { localStorage.setItem("puerto_active_tab", safeTab); } catch {}
+    try {
+      localStorage.setItem("puerto_active_tab", safeTab);
+      if (safeTab !== "noticias") localStorage.setItem(CM_ACTIVE_VIEW_KEY, safeTab);
+    } catch {}
     setActiveRaw(safeTab);
     updateUrlForTab(safeTab, !!opts.replace);
   };
+
+  // Restaura la vista principal cuando el navegador vuelve a estar activo.
+  // La URL tiene prioridad; si no contiene una sección válida se usa el estado persistido.
+  useEffect(() => {
+    const restoreActiveLocation = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      let storedTab = null;
+      try {
+        storedTab = normalizeTabKey(localStorage.getItem("puerto_active_tab"));
+        if (!storedTab) {
+          const rememberedView = cmGetActiveView();
+          storedTab = rememberedView.startsWith("noticias") ? "noticias" : normalizeTabKey(rememberedView);
+        }
+      } catch {}
+      const urlTab = getTabFromUrl();
+      const nextTab = urlTab || storedTab;
+      if (!nextTab || nextTab === active) return;
+      setActiveRaw(nextTab);
+      if (!urlTab) updateUrlForTab(nextTab, true);
+    };
+
+    window.addEventListener("focus", restoreActiveLocation);
+    window.addEventListener("pageshow", restoreActiveLocation);
+    document.addEventListener("visibilitychange", restoreActiveLocation);
+    return () => {
+      window.removeEventListener("focus", restoreActiveLocation);
+      window.removeEventListener("pageshow", restoreActiveLocation);
+      document.removeEventListener("visibilitychange", restoreActiveLocation);
+    };
+  }, [active]);
 
   // El acceso mediante cinco pulsaciones valida la sesión dentro de useAdminMode.
   // Al concluir, este listener abre el dashboard sin recargar la aplicación.
