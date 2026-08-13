@@ -3563,7 +3563,8 @@ const PEZ_VELA_CONTINGENCIA_CARRILES = [
     tipo: "impo",
     contingency: true,
     contingencyBadge: "SALIDA / CONTINGENCIA",
-    flowDescription: "Importación habilitada temporalmente para flujo de entrada y salida",
+    flujo: "Importación · Salida / Contingencia",
+    flowDescription: "Importación habilitada temporalmente para flujo de entrada y salida.",
   },
   {
     id: "ac_pv_ferromex",
@@ -3571,7 +3572,8 @@ const PEZ_VELA_CONTINGENCIA_CARRILES = [
     tipo: "impo",
     contingency: true,
     operacionContinua: true,
-    flowDescription: "Importación con operación continua durante la contingencia",
+    flujo: "Importación · Puertas Abiertas",
+    flowDescription: "Importación con puertas abiertas y flujo continuo durante la contingencia.",
   },
 ];
 
@@ -3612,12 +3614,30 @@ const mkCarrilesState = () => {
   PEZ_VELA_CONTINGENCIA_CARRILES.forEach(c => {
     s[c.id] = { abierto: true, lastUpdate: now, updatedBy: "Sistema" };
   });
-  s[CARRILES_CONTINGENCY_KEY] = {
-    activo: false,
-    lastUpdate: now,
-    updatedBy: "Sistema",
-  };
+  s[CARRILES_CONTINGENCY_KEY] = { activo: false, lastUpdate: now, updatedBy: "Sistema" };
   return s;
+};
+
+const isPezVelaContingenciaActiva = (state) => state?.[CARRILES_CONTINGENCY_KEY]?.activo === true;
+
+const getAccesoCarrilesVisibles = (acc, state) => {
+  if (!acc) return [];
+  const contingenciaActiva = acc.id === "pezvela" && isPezVelaContingenciaActiva(state);
+  const base = acc.carriles.map(c => {
+    if (contingenciaActiva && c.id === "ac_pv_c6") {
+      return { ...c, flujo: "Importación · Puertas Abiertas", reportBadge: "Puertas Abiertas" };
+    }
+    return c;
+  });
+  return contingenciaActiva ? [...base, ...PEZ_VELA_CONTINGENCIA_CARRILES] : base;
+};
+
+const getAccesoCarrilReportDetail = (carril, state) => {
+  const contingenciaActiva = isPezVelaContingenciaActiva(state);
+  if (contingenciaActiva && carril?.id === "ac_pv_c6") return "Puertas Abiertas · Operación continua";
+  if (carril?.id === "ac_pv_c4_cont") return "Salida / Contingencia · Importación temporal";
+  if (carril?.id === "ac_pv_ferromex") return "Puertas Abiertas · Importación · Flujo continuo";
+  return carril?.flujo || "";
 };
 
 // ─── ADMIN MODE ───────────────────────────────────────────────────────────────
@@ -10122,9 +10142,16 @@ function TrafficStatusReport({ accesos, vialidades, rutasFiscales }) {
     if (include.carriles) {
       const state = remote.carrilesExpo || mkCarrilesState();
       const items = [];
-      ACCESOS_CARRILES.forEach(acc => acc.carriles.forEach(c => {
+      ACCESOS_CARRILES.forEach(acc => getAccesoCarrilesVisibles(acc, state).forEach(c => {
         const st = state[c.id] || { abierto: true };
-        items.push({ tipo: "Carril", nombre: `${acc.label} · ${c.label}`, zona: c.tipo === "expo" ? "Exportación" : "Importación", estatus: st.abierto === false ? "Cerrado" : "Abierto", detalle: c.flujo || "", color: st.abierto === false ? "#ef4444" : "#22c55e" });
+        items.push({
+          tipo: "Carril",
+          nombre: `${acc.label} · ${c.label}`,
+          zona: c.tipo === "expo" ? "Exportación" : "Importación",
+          estatus: st.abierto === false ? "Cerrado" : "Abierto",
+          detalle: getAccesoCarrilReportDetail(c, state),
+          color: st.abierto === false ? "#ef4444" : "#22c55e"
+        });
       }));
       groups.push({ id: "carriles", title: "Carriles Expo / Impo", items });
     }
@@ -17047,146 +17074,53 @@ function CarrilesTab({ isAdmin = false }) {
   const modoAutomaticoGlobal = useModoAutomaticoTrafico();
   const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   const carrilesMobile = useWindowWidth() < 720;
-  const TABLA = "carriles";
-  const ROW_ID = "expo_impo";
-
-  const [estado, setEstado] = useState(() =>
-    mergeCarrilesRowByLatest(
-      ROW_ID,
-      mkCarrilesState(),
-      getPersistedCarrilesRow(ROW_ID) || {}
-    )
-  );
+  const [estado,  setEstado]  = useState(mkCarrilesState);
   const [accView, setAccView] = useState(() => {
     try { return sessionStorage.getItem("carriles_acc") || "pezvela"; } catch { return "pezvela"; }
   });
-  const setAccViewPersist = (value) => {
-    try { sessionStorage.setItem("carriles_acc", value); } catch {}
-    setAccView(value);
+  const setAccViewPersist = (v) => {
+    try { sessionStorage.setItem("carriles_acc", v); } catch {}
+    setAccView(v);
   };
-  const [toast, setToast] = useState(null);
-  const notify = (msg, color = "#38bdf8") => {
-    setToast({ msg, color });
-    setTimeout(() => setToast(null), 2500);
-  };
+  const [toast,   setToast]   = useState(null);
+  const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2500); };
 
+  const TABLA  = "carriles";
+  const ROW_ID = "expo_impo";
   const contingencyMeta = estado?.[CARRILES_CONTINGENCY_KEY] || {};
   const contingenciaActiva = contingencyMeta.activo === true;
 
-  const normalizeState = useCallback((remote = {}) => {
-    return mergeCarrilesRowByLatest(ROW_ID, mkCarrilesState(), remote || {});
-  }, []);
-
   const saveToSupa = async (newState) => {
-    persistCarrilesRow(ROW_ID, newState);
-    const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
-    if (error) throw error;
+    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
   };
 
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      const { data } = await sb.from(TABLA).select("*").eq("id", ROW_ID).maybeSingle();
-      if (!mounted) return;
-      if (data?.data) setEstado(normalizeState(data.data));
-      else setEstado(prev => normalizeState(prev));
-    };
-    load();
-
-    const chan = sb.channel(`carriles-rt-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: row }) => {
-        if (row?.id === ROW_ID && row?.data) setEstado(normalizeState(row.data));
-      })
-      .subscribe();
-
-    const handleCache = (event) => {
-      if (event?.detail?.scope === `carriles:${ROW_ID}`) {
-        const cached = getPersistedCarrilesRow(ROW_ID);
-        if (cached) setEstado(normalizeState(cached));
-      }
-    };
-    window.addEventListener("cm-status-cache-updated", handleCache);
-
-    return () => {
-      mounted = false;
-      window.removeEventListener("cm-status-cache-updated", handleCache);
-      sb.removeChannel(chan);
-    };
-  }, [normalizeState]);
-
-  const commitState = async ({ next, rollback, successMessage, successColor = "#22c55e" }) => {
-    setEstado(next);
-    try {
-      await saveToSupa(next);
-      if (successMessage) notify(successMessage, successColor);
-      return true;
-    } catch (error) {
-      console.error("No se pudo guardar el estado de carriles", error);
-      setEstado(rollback);
-      persistCarrilesRow(ROW_ID, rollback);
-      notify("No se pudo guardar el cambio. Intenta de nuevo.", "#ef4444");
-      return false;
-    }
-  };
+    sb.from(TABLA).select("*").eq("id", ROW_ID).single().then(({ data }) => {
+      if (data?.data) setEstado({ ...mkCarrilesState(), ...data.data });
+    });
+    const chan = sb.channel("carriles-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: TABLA }, ({ new: r }) => {
+        if (r?.id === ROW_ID && r?.data) setEstado({ ...mkCarrilesState(), ...r.data });
+      }).subscribe();
+    return () => sb.removeChannel(chan);
+  }, []);
 
   const toggle = async (cid, value) => {
     if (bloqueadoPorModoAutomatico) {
-      const result = await submitTrafficVoteForValidation({
-        section: "accesos",
-        itemId: cid,
-        status: value ? "abierto" : "cerrado",
-        field: "abierto",
-        value,
-        userId: getDeviceId(),
-      });
+      const result = await submitTrafficVoteForValidation({ section:"accesos", itemId:cid, status:value ? "abierto" : "cerrado", field:"abierto", value, userId:getDeviceId() });
       if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
       return;
     }
-
-    const previous = estado;
-    const previousLane = estado[cid] || {};
-    const nextLane = {
-      ...previousLane,
-      abierto: value,
-      lastUpdate: Date.now(),
-      updatedBy: "Tú",
-    };
-    const next = { ...estado, [cid]: nextLane };
-    const ok = await commitState({
-      next,
-      rollback: previous,
-      successMessage: value ? "Carril abierto" : "Carril cerrado",
-      successColor: value ? "#22c55e" : "#94a3b8",
-    });
-    if (!ok) return;
-
-    await auditLog({
-      action: "modificar_carril_expo_impo",
-      section: "carriles",
-      entityId: cid,
-      before: previousLane,
-      after: {
-        carril: cid,
-        campo: "abierto",
-        value,
-        valor_label: value ? "Abierto" : "Cerrado",
-        summary: `${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}`,
-      },
-      actor: `Usuario_${getDeviceId().slice(-4)}`,
-    });
-
-    await publicarNoticia({
-      tipo: "carril",
-      icono: value ? "lock_open" : "lock",
-      color: value ? "#22c55e" : "#64748b",
-      titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`,
-      detalle: "Estado de carril expo/impo actualizado",
-    });
+    const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    setEstado(next);
+    await saveToSupa(next);
+    await auditLog({ action:"modificar_carril_expo_impo", section:"carriles", entityId:cid, before:estado[cid], after:{ carril:cid, campo:"abierto", value, valor_label:value ? "Abierto" : "Cerrado", summary:`${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}` }, actor:`Usuario_${getDeviceId().slice(-4)}` });
+    notify(value ? "✓ Carril abierto" : "⛔ Carril cerrado", value ? "#22c55e" : "#6b7280");
+    await publicarNoticia({ tipo: "carril", icono: "🚦", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
   };
 
   const setContingencia = async (activo) => {
     if (!isAdmin) return;
-    const previous = estado;
     const now = Date.now();
     const next = {
       ...estado,
@@ -17197,301 +17131,191 @@ function CarrilesTab({ isAdmin = false }) {
         updatedBy: "Admin",
       },
     };
-
-    PEZ_VELA_CONTINGENCIA_CARRILES.forEach((lane) => {
-      if (!next[lane.id]) {
-        next[lane.id] = { abierto: true, lastUpdate: now, updatedBy: "Admin" };
-      }
+    PEZ_VELA_CONTINGENCIA_CARRILES.forEach(c => {
+      next[c.id] = {
+        ...(next[c.id] || {}),
+        abierto: next[c.id]?.abierto !== false,
+        lastUpdate: next[c.id]?.lastUpdate || now,
+        updatedBy: next[c.id]?.updatedBy || "Admin",
+      };
     });
-
-    const ok = await commitState({
-      next,
-      rollback: previous,
-      successMessage: activo ? "Contingencia por trabajos activada" : "Contingencia por trabajos desactivada",
-      successColor: activo ? "#f59e0b" : "#38bdf8",
-    });
-    if (!ok) return;
-
+    setEstado(next);
+    await saveToSupa(next);
     await auditLog({
-      action: "modificar_carril_expo_impo",
-      section: "carriles",
-      entityId: CARRILES_CONTINGENCY_KEY,
-      before: contingencyMeta,
-      after: {
-        carril: "Acceso Pez Vela",
-        campo: "contingencia_trabajos",
-        value: activo,
-        valor_label: activo ? "Activa" : "Inactiva",
-        summary: `${getDeviceId()} ${activo ? "activó" : "desactivó"} la contingencia por trabajos en Acceso Pez Vela`,
+      action:"modificar_contingencia_pezvela",
+      section:"carriles",
+      entityId:CARRILES_CONTINGENCY_KEY,
+      before:contingencyMeta,
+      after:{
+        carril:"Acceso Pez Vela",
+        campo:"contingencia_trabajos",
+        value:activo,
+        valor_label:activo ? "Activa" : "Inactiva",
+        summary:`${getDeviceId()} ${activo ? "activó" : "desactivó"} la contingencia por trabajos en Acceso Pez Vela`
       },
-      actor: `Admin_${getDeviceId().slice(-4)}`,
+      actor:`Admin_${getDeviceId().slice(-4)}`
     });
-
+    notify(activo ? "Contingencia por trabajos activada" : "Contingencia por trabajos desactivada", activo ? "#f59e0b" : "#38bdf8");
     await publicarNoticia({
-      tipo: "carril",
-      icono: activo ? "engineering" : "restart_alt",
-      color: activo ? "#f59e0b" : "#38bdf8",
-      titulo: activo ? "Acceso Pez Vela — Contingencia por trabajos" : "Acceso Pez Vela — Operación regular",
-      detalle: activo
+      tipo:"carril",
+      icono:activo ? "engineering" : "restart_alt",
+      color:activo ? "#f59e0b" : "#38bdf8",
+      titulo:activo ? "Acceso Pez Vela — Contingencia por trabajos" : "Acceso Pez Vela — Operación regular",
+      detalle:activo
         ? "Se habilitó el esquema temporal de seis carriles durante los trabajos operativos."
-        : "Finalizó la contingencia por trabajos y se restableció el esquema regular de cuatro carriles.",
+        : "Finalizó la contingencia y se restableció el esquema regular de cuatro carriles."
     });
   };
 
   const resetAcceso = async (acc) => {
     if (bloqueadoPorModoAutomatico) return;
-    const previous = estado;
     const next = { ...estado };
-    const lanes = [
-      ...acc.carriles,
-      ...(acc.id === "pezvela" && contingenciaActiva ? PEZ_VELA_CONTINGENCIA_CARRILES : []),
-    ];
-    const now = Date.now();
-    lanes.forEach((lane) => {
-      next[lane.id] = { ...(next[lane.id] || {}), abierto: true, lastUpdate: now, updatedBy: "Reset" };
-    });
-    await commitState({ next, rollback: previous, successMessage: "Acceso restablecido", successColor: "#22c55e" });
+    const lanes = getAccesoCarrilesVisibles(acc, estado);
+    lanes.forEach(c => { next[c.id] = { ...(next[c.id] || {}), abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
+    setEstado(next);
+    await saveToSupa(next);
+    notify("✓ Acceso restablecido", "#22c55e");
   };
 
   const resetAll = async () => {
     if (bloqueadoPorModoAutomatico) return;
-    const previous = estado;
     const next = mkCarrilesState();
     next[CARRILES_CONTINGENCY_KEY] = {
       ...next[CARRILES_CONTINGENCY_KEY],
       ...contingencyMeta,
       activo: contingenciaActiva,
-      lastUpdate: contingencyMeta.lastUpdate || Date.now(),
     };
-    await commitState({ next, rollback: previous, successMessage: "Todos los carriles fueron restablecidos", successColor: "#22c55e" });
+    setEstado(next);
+    await saveToSupa(next);
+    notify("✓ Todo restablecido", "#22c55e");
   };
 
-  const currentAcc = ACCESOS_CARRILES.find(acc => acc.id === accView);
+  const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
   const expoCarriles = currentAcc?.carriles.filter(c => c.tipo === "expo") || [];
   const impoCarriles = currentAcc?.carriles.filter(c => c.tipo === "impo") || [];
-  const contingencyCarriles = currentAcc?.id === "pezvela" && contingenciaActiva
-    ? PEZ_VELA_CONTINGENCIA_CARRILES
-    : [];
+  const contingencyCarriles = currentAcc?.id === "pezvela" && contingenciaActiva ? PEZ_VELA_CONTINGENCIA_CARRILES : [];
+  const getVisibleCarriles = (acc) => getAccesoCarrilesVisibles(acc, estado);
   const EXPO_COLOR = "#f59e0b";
   const IMPO_COLOR = "#60a5fa";
-  const ALERT_COLOR = "#f59e0b";
-
-  const getVisibleCarriles = (acc) => {
-    if (acc.id === "pezvela" && contingenciaActiva) {
-      return [...acc.carriles, ...PEZ_VELA_CONTINGENCIA_CARRILES];
-    }
-    return acc.carriles;
-  };
-
-  const centerButtonStyle = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    lineHeight: 1,
-    gap: "8px",
-  };
-
-  const pillStyle = (accent, background = `${accent}14`) => ({
-    ...centerButtonStyle,
-    minHeight: "28px",
-    padding: "0 10px",
-    borderRadius: "999px",
-    border: `1px solid ${accent}55`,
-    background,
-    color: accent,
-    fontFamily: getFont(theme, "secondary"),
-    fontSize: "10px",
-    fontWeight: "900",
-    letterSpacing: ".06em",
-    textTransform: "uppercase",
-    whiteSpace: "nowrap",
-  });
+  const ACCESS_CONTROL_ICON = "data:image/png;base64,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";
 
   const laneCardShell = (accent) => ({
-    background: "linear-gradient(180deg, rgba(10,16,29,0.88), rgba(5,8,15,0.98))",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    border: `1px solid ${accent}52`,
-    borderRadius: "18px",
-    padding: "14px",
-    boxShadow: `0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`,
+    background:"linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
+    backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
+    border:`1px solid ${accent}52`, borderRadius:"18px", padding:"14px",
+    boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`
   });
-  const laneMiniLabelStyle = {
-    fontSize: "9px",
-    color: "rgba(226,232,240,0.48)",
-    fontFamily: getFont(theme, "secondary"),
-    letterSpacing: "1.2px",
-    textTransform: "uppercase",
-  };
-  const laneHeroTitleStyle = {
-    color: "#f8fafc",
-    fontFamily: getFont(theme, "title"),
-    fontWeight: "800",
-    fontSize: "17px",
-    letterSpacing: "-.01em",
-  };
-  const laneFieldTitleStyle = {
-    fontSize: "10px",
-    color: "rgba(226,232,240,0.54)",
-    fontFamily: getFont(theme, "secondary"),
-    letterSpacing: "1.1px",
-    textTransform: "uppercase",
-  };
+  const laneMiniLabelStyle = { fontSize:"9px", color:"rgba(255,255,255,0.46)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.2px", textTransform:"uppercase" };
+  const laneHeroTitleStyle = { color:"#f8fafc", fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"-.01em" };
+  const laneFieldTitleStyle = { fontSize:"10px", color:"rgba(255,255,255,0.54)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.1px", textTransform:"uppercase" };
   const laneBlockStyle = (accent, soft = true) => ({
-    background: soft ? `linear-gradient(180deg, ${accent}10, rgba(5,8,15,0.94))` : "rgba(5,8,15,0.94)",
-    border: `1px solid ${accent}3f`,
-    borderRadius: "14px",
-    padding: "12px",
-    boxShadow: `0 8px 22px ${accent}16`,
+    background: soft ? `linear-gradient(180deg, ${accent}10, rgba(7,17,31,0.92))` : "rgba(7,17,31,0.92)",
+    border:`1px solid ${accent}3f`, borderRadius:"14px", padding:"12px", boxShadow:`0 8px 22px ${accent}16`
   });
-
   const laneHeaderNode = (iconName, title, subtitle, accent, iconSize = 26) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
       <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="carriles de accesos" />
-      <div style={{ width: "44px", height: "44px", borderRadius: "12px", ...centerButtonStyle, flex: "0 0 44px", background: `linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border: `1px solid ${accent}44`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
-        <MS name={iconName} size={iconSize} active color={accent} />
+      <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
+        <AppIcon name={iconName} size={iconSize} active />
       </div>
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth:0 }}>
         <div style={laneFieldTitleStyle}>{title}</div>
-        <div style={{ color: "#f8fafc", fontFamily: getFont(theme, "secondary"), fontWeight: "800", fontSize: "13px", lineHeight: 1.15 }}>{subtitle}</div>
+        <div style={{ color:"#f8fafc", fontFamily:getFont(theme, "secondary"), fontWeight:"800", fontSize:"13px", lineHeight:1.15 }}>{subtitle}</div>
       </div>
     </div>
   );
-
   const selectorButtonStyle = (active, accent) => ({
-    ...centerButtonStyle,
-    width: "100%",
-    minHeight: "62px",
-    padding: "10px 14px",
-    background: active
-      ? `linear-gradient(180deg, ${accent}18, rgba(5,8,15,0.98))`
-      : "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(5,8,15,0.98))",
-    border: `1px solid ${active ? accent : "rgba(148,163,184,0.22)"}`,
-    borderRadius: "14px",
-    boxShadow: active ? `0 10px 22px ${accent}1f, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
+    width:"100%",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"space-between",
+    gap:"12px",
+    padding:"11px 14px",
+    background: active ? `linear-gradient(180deg, ${accent}14, rgba(2,12,27,0.96))` : "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(2,12,27,0.96))",
+    border:`1px solid ${active ? accent : "rgba(56,189,248,0.26)"}`,
+    borderRadius:"14px",
+    boxShadow: active ? `0 10px 22px ${accent}16, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
     color: active ? "#f8fafc" : "#cbd5e1",
-    cursor: "pointer",
-    transition: "all 0.18s ease",
-    textAlign: "center",
-    fontFamily: getFont(theme, "secondary"),
+    cursor:"pointer",
+    transition:"all 0.18s ease",
+    textAlign:"left"
   });
-
-  const compactActionButton = (accent = "#22c55e") => ({
-    ...centerButtonStyle,
-    minHeight: "38px",
-    padding: "0 13px",
-    borderRadius: "10px",
-    border: `1px solid ${accent}55`,
-    background: `${accent}12`,
-    color: accent,
-    fontFamily: getFont(theme, "secondary"),
-    fontSize: "10px",
-    fontWeight: "900",
-    letterSpacing: ".05em",
-    cursor: "pointer",
-    boxShadow: `0 0 20px ${accent}12`,
-  });
-
+  const selectorMenuIcon = (active, accent) => (
+    <div style={{ color: active ? accent : "rgba(148,163,184,0.72)", fontSize:"22px", lineHeight:1, paddingLeft:"8px" }}>≡</div>
+  );
   const renderCarrilVoteCard = (carril, accent, tipoLabel, iconName) => {
     const st = estado[carril.id] || {};
     const abierto = st.abierto !== false;
     const baseType = tipoLabel.toUpperCase();
-    const showDoorState = contingenciaActiva && (carril.operacionContinua || carril.puertasAbiertasContingencia);
-    const isContingencyLane = carril.contingency === true;
-    const cardAccent = abierto ? (isContingencyLane ? ALERT_COLOR : accent) : "#64748b";
-
     return (
-      <div key={carril.id} className="glass-card" style={laneCardShell(cardAccent)}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <div style={{ ...pillStyle(isContingencyLane ? ALERT_COLOR : accent), fontSize: "11px" }}>
-                <MS name="route" size={16} color={isContingencyLane ? ALERT_COLOR : accent} />
-                <span>{carril.label}</span>
-              </div>
-              <div style={pillStyle(accent)}>
-                <MS name={tipoLabel === "Exportación" ? "logout" : "login"} size={15} color={accent} />
-                <span>{baseType}</span>
-              </div>
-              {carril.contingencyBadge && (
-                <div style={pillStyle(ALERT_COLOR)}>
-                  <MS name="engineering" size={15} color={ALERT_COLOR} />
-                  <span>{carril.contingencyBadge}</span>
-                </div>
+      <div key={carril.id} style={laneCardShell(abierto ? accent : "#6b7280")}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ background:`${accent}18`, border:`1px solid ${accent}44`, borderRadius:"999px", padding:"4px 10px", color:accent, fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{carril.label}</div>
+              <Badge color={accent} small>{baseType}</Badge>
+              {carril.contingency && (
+                <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"24px", padding:"4px 9px", borderRadius:"999px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.30)", color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", lineHeight:1 }}>
+                  <MS name="engineering" size={15} color="#f59e0b" />
+                  <span>{carril.contingencyBadge || "CONTINGENCIA"}</span>
+                </span>
               )}
-              {showDoorState && (
-                <div style={pillStyle(abierto ? "#22c55e" : "#94a3b8", abierto ? "rgba(34,197,94,.10)" : "rgba(148,163,184,.10)")}>
-                  <MS name={abierto ? "lock_open" : "lock"} size={15} color={abierto ? "#22c55e" : "#94a3b8"} />
-                  <span>{abierto ? "PUERTAS ABIERTAS" : "PUERTAS CERRADAS"}</span>
-                </div>
+              {currentAcc?.id === "pezvela" && contingenciaActiva && carril.id === "ac_pv_c6" && (
+                <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"24px", padding:"4px 9px", borderRadius:"999px", background:"rgba(34,197,94,.10)", border:"1px solid rgba(34,197,94,.30)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", lineHeight:1 }}>
+                  <MS name="lock_open" size={15} color="#22c55e" />
+                  <span>PUERTAS ABIERTAS</span>
+                </span>
+              )}
+              {carril.operacionContinua && (
+                <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"24px", padding:"4px 9px", borderRadius:"999px", background:"rgba(34,197,94,.10)", border:"1px solid rgba(34,197,94,.30)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", lineHeight:1 }}>
+                  <MS name="lock_open" size={15} color="#22c55e" />
+                  <span>PUERTAS ABIERTAS</span>
+                </span>
               )}
             </div>
-            <div style={{ color: "rgba(226,232,240,0.45)", fontSize: "10px", fontFamily: getFont(theme, "secondary"), marginTop: "7px" }}>
-              {timeAgo(st.lastUpdate)} · {st.updatedBy || "Tú"}
-            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy || "Tú"}</div>
           </div>
-          <div style={pillStyle(abierto ? "#22c55e" : "#94a3b8")}>
-            <MS name={abierto ? "lock_open" : "lock"} size={15} color={abierto ? "#22c55e" : "#94a3b8"} />
-            <span>{abierto ? "ABIERTO" : "CERRADO"}</span>
-          </div>
+          <Badge color={abierto ? "#22c55e" : "#6b7280"} small>{abierto ? "ABIERTO" : "CERRADO"}</Badge>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: carrilesMobile ? "1fr" : "repeat(auto-fit,minmax(240px,1fr))", gap: "12px" }}>
-          <div style={laneBlockStyle(isContingencyLane ? ALERT_COLOR : accent)}>
-            {laneHeaderNode(
-              iconName,
-              `Control de ${tipoLabel.toLowerCase()}`,
-              abierto ? `${tipoLabel} habilitada` : `${tipoLabel} detenida`,
-              isContingencyLane ? ALERT_COLOR : accent,
-              30
-            )}
-            <div style={{ ...laneMiniLabelStyle, marginBottom: "4px" }}>Acceso asignado</div>
-            <div style={{ ...laneHeroTitleStyle, color: isContingencyLane ? ALERT_COLOR : accent, fontSize: "16px", marginBottom: "2px" }}>
-              {currentAcc?.label || "Acceso actual"}
-            </div>
-            <div style={{ color: "rgba(226,232,240,0.48)", fontSize: "11px", marginBottom: carril.flowDescription ? "6px" : "10px" }}>
-              Zona {currentAcc?.zona || "—"} · {tipoLabel}
-            </div>
-            {carril.flowDescription && (
-              <div style={{ color: "rgba(226,232,240,0.66)", fontFamily: getFont(theme, "secondary"), fontSize: "10px", lineHeight: 1.5, marginBottom: "10px" }}>
-                {carril.flowDescription}
-              </div>
-            )}
-            <div style={{ ...centerButtonStyle, minHeight: "38px", padding: "8px 10px", background: abierto ? "rgba(34,197,94,.10)" : "rgba(100,116,139,.12)", border: `1px solid ${abierto ? "rgba(34,197,94,.30)" : "rgba(148,163,184,.22)"}`, borderRadius: "10px", color: abierto ? "#22c55e" : "#cbd5e1", fontSize: "10px", fontFamily: getFont(theme, "secondary"), fontWeight: "900", letterSpacing: ".05em", textTransform: "uppercase", textAlign: "center" }}>
-              <MS name={abierto ? "check_circle" : "block"} size={17} color={abierto ? "#22c55e" : "#cbd5e1"} />
-              <span>{abierto ? "OPERANDO CON NORMALIDAD" : "TEMPORALMENTE CERRADO"}</span>
+        <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
+          <div style={laneBlockStyle(accent)}>
+            {laneHeaderNode(iconName, `Control de ${tipoLabel.toLowerCase()}`, abierto ? `${tipoLabel} habilitada` : `${tipoLabel} detenida`, accent, 30)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Acceso asignado</div>
+            <div style={{ ...laneHeroTitleStyle, color:accent, fontSize:"16px", marginBottom:"2px" }}>{currentAcc?.label || "Acceso actual"}</div>
+            <div style={{ color:"rgba(255,255,255,0.46)", fontSize:"11px", marginBottom:carril.flowDescription ? "5px" : "10px" }}>Zona {currentAcc?.zona || "—"} · {tipoLabel}</div>
+            {carril.flowDescription && <div style={{ color:"rgba(255,255,255,0.50)", fontSize:"10px", lineHeight:1.5, fontFamily:getFont(theme,"secondary"), marginBottom:"10px" }}>{carril.flowDescription}</div>}
+            <div style={{ padding:"8px 10px", background: abierto ? "rgba(34,197,94,.10)" : "rgba(107,114,128,.12)", border:`1px solid ${abierto ? "rgba(34,197,94,.28)" : "rgba(148,163,184,.20)"}`, borderRadius:"10px", color: abierto ? "#22c55e" : "#9ca3af", fontSize:"11px", fontFamily:getFont(theme, "secondary"), fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase" }}>
+              {abierto ? "Operando con normalidad" : "Temporalmente cerrado"}
             </div>
           </div>
 
           <div style={laneBlockStyle(abierto ? "#14b8a6" : "#64748b")}>
-            {laneHeaderNode("tune", "Sistema de selección", abierto ? "Carril abierto" : "Carril cerrado", abierto ? "#14b8a6" : "#64748b", 28)}
-            <div style={{ ...laneMiniLabelStyle, marginBottom: "8px", textAlign: "center" }}>Selecciona el estado del carril</div>
-            <div style={{ display: "grid", gridTemplateColumns: carrilesMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-              <button
-                type="button"
-                className="flex items-center justify-center leading-none"
-                onClick={() => toggle(carril.id, true)}
-                style={selectorButtonStyle(abierto, "#22c55e")}
-                aria-pressed={abierto}
-              >
-                <MS name="lock_open" size={20} color={abierto ? "#22c55e" : "#94a3b8"} />
-                <span style={{ fontSize: "13px", fontWeight: "900", lineHeight: 1 }}>ABIERTO</span>
+            {laneHeaderNode(iconName, "Sistema de selección", abierto ? "Carril abierto" : "Carril cerrado", abierto ? "#14b8a6" : "#64748b", 28)}
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px" }}>Selecciona el estado del carril</div>
+            <div style={{ display:"grid", gap:"10px", marginBottom:"10px" }}>
+              <button onClick={() => toggle(carril.id, true)} style={selectorButtonStyle(abierto, "#22c55e")}>
+                <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+                  <div style={{ width:"28px", height:"28px", borderRadius:"10px", display:"grid", placeItems:"center", background: abierto ? "rgba(34,197,94,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${abierto ? "rgba(34,197,94,.35)" : "rgba(255,255,255,.10)"}` }}><span style={{ color: abierto ? "#22c55e" : "#94a3b8", fontWeight:"900", fontSize:"18px", lineHeight:1 }}>✓</span></div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:"10px", color: abierto ? "#22c55e" : "rgba(148,163,184,0.78)", letterSpacing:".12em", textTransform:"uppercase", fontWeight:"800", marginBottom:"2px" }}>Estado seleccionado</div>
+                    <div style={{ fontSize:"14px", color: abierto ? "#f8fafc" : "#cbd5e1", fontWeight:"800" }}>Abierto</div>
+                  </div>
+                </div>
+                {selectorMenuIcon(abierto, "#22c55e")}
               </button>
-              <button
-                type="button"
-                className="flex items-center justify-center leading-none"
-                onClick={() => toggle(carril.id, false)}
-                style={selectorButtonStyle(!abierto, "#ef4444")}
-                aria-pressed={!abierto}
-              >
-                <MS name="lock" size={20} color={!abierto ? "#ef4444" : "#94a3b8"} />
-                <span style={{ fontSize: "13px", fontWeight: "900", lineHeight: 1 }}>CERRADO</span>
+              <button onClick={() => toggle(carril.id, false)} style={selectorButtonStyle(!abierto, "#ef4444")}>
+                <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
+                  <div style={{ width:"28px", height:"28px", borderRadius:"10px", display:"grid", placeItems:"center", background: !abierto ? "rgba(239,68,68,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${!abierto ? "rgba(239,68,68,.35)" : "rgba(255,255,255,.10)"}` }}><span style={{ color: !abierto ? "#ef4444" : "#94a3b8", fontWeight:"900", fontSize:"18px", lineHeight:1 }}>⛔</span></div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:"10px", color: !abierto ? "#ef4444" : "rgba(148,163,184,0.78)", letterSpacing:".12em", textTransform:"uppercase", fontWeight:"800", marginBottom:"2px" }}>Estado seleccionado</div>
+                    <div style={{ fontSize:"14px", color: !abierto ? "#f8fafc" : "#cbd5e1", fontWeight:"800" }}>Cerrado</div>
+                  </div>
+                </div>
+                {selectorMenuIcon(!abierto, "#ef4444")}
               </button>
             </div>
-            <div style={{ ...centerButtonStyle, color: "rgba(226,232,240,0.45)", fontSize: "10px", fontFamily: getFont(theme, "secondary"), textAlign: "center" }}>
-              <MS name="schedule" size={14} color="rgba(226,232,240,.45)" />
-              <span>Última actualización: {timeAgo(st.lastUpdate)} · {st.updatedBy || "Tú"}</span>
-            </div>
+            <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary") }}>Última actualización: {timeAgo(st.lastUpdate)}</div>
           </div>
         </div>
       </div>
@@ -17499,229 +17323,161 @@ function CarrilesTab({ isAdmin = false }) {
   };
 
   return (
-    <div style={{ padding: carrilesMobile ? "12px" : "16px", paddingBottom: "96px", minHeight: "100vh", overflowX: "hidden", background: "radial-gradient(circle at 50% 0, rgba(14,165,233,.08), transparent 36%), #05080f" }}>
-      <div className="glass-card" style={{ background: "rgba(8,12,23,0.78)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(148,163,184,0.22)", borderRadius: "16px", padding: "14px", marginBottom: "14px", boxShadow: "0 18px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.04)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: "10px", color: "#38bdf8", fontFamily: getFont(theme, "secondary"), letterSpacing: "2px", marginBottom: "4px" }}>CARRILES — PUERTO MANZANILLO</div>
-            <div style={{ color: "rgba(226,232,240,0.7)", fontSize: "12px" }}>Estado de carriles de exportación e importación por acceso.</div>
-          </div>
-          <button
-            type="button"
-            className="flex items-center justify-center leading-none"
-            onClick={resetAll}
-            style={compactActionButton("#22c55e")}
-          >
-            <MS name="restart_alt" size={18} color="#22c55e" />
-            <span>TODO ABIERTO</span>
-          </button>
-        </div>
+    <div style={{ padding:carrilesMobile ? "12px" : "16px", paddingBottom:"96px", minHeight:"100vh", overflowX:"hidden" }}>
+      <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"#38bdf8", fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"4px" }}>CARRILES — PUERTO MANZANILLO</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:"12px" }}>Estado de carriles de exportación e importación por acceso.</div>
       </div>
-
-      <div className="glass-card" style={{ background: "rgba(8,12,23,0.70)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(148,163,184,0.18)", borderRadius: "16px", padding: "13px", marginBottom: "14px", boxShadow: "inset 0 1px 0 rgba(255,255,255,.035)" }}>
-        <div style={{ ...centerButtonStyle, justifyContent: "flex-start", fontSize: "10px", color: "rgba(226,232,240,0.52)", fontFamily: getFont(theme, "secondary"), letterSpacing: "1px", marginBottom: "11px" }}>
-          <MS name="monitoring" size={17} color="#38bdf8" />
-          <span>RESUMEN GENERAL</span>
-        </div>
+      <div style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
+        <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1px", marginBottom:"10px" }}>RESUMEN GENERAL</div>
         {ACCESOS_CARRILES.map(acc => {
           const visibleCarriles = getVisibleCarriles(acc);
-          const total = visibleCarriles.length;
+          const total    = visibleCarriles.length;
           const abiertos = visibleCarriles.filter(c => estado[c.id]?.abierto !== false).length;
-          const pct = total ? Math.round((abiertos / total) * 100) : 0;
-          const isPezVelaContingency = acc.id === "pezvela" && contingenciaActiva;
+          const pct      = total ? Math.round((abiertos / total) * 100) : 0;
           return (
-            <div key={acc.id} style={{ marginBottom: "10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "5px", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
-                  <span style={{ fontSize: "11px", color: acc.color, fontFamily: getFont(theme, "secondary"), fontWeight: "800" }}>{acc.label}</span>
-                  {isPezVelaContingency && (
-                    <span style={{ ...pillStyle(ALERT_COLOR), minHeight: "22px", padding: "0 7px", fontSize: "8px" }}>
-                      <MS name="engineering" size={13} color={ALERT_COLOR} />
+            <div key={acc.id} style={{ marginBottom:"8px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap" }}>
+                  <span style={{ fontSize:"11px", color:acc.color, fontFamily:getFont(theme, "secondary"), fontWeight:"700" }}>{acc.label}</span>
+                  {acc.id === "pezvela" && contingenciaActiva && (
+                    <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"4px", minHeight:"20px", padding:"3px 7px", borderRadius:"999px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.30)", color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"8px", fontWeight:"900", lineHeight:1 }}>
+                      <MS name="engineering" size={13} color="#f59e0b" />
                       <span>CONTINGENCIA</span>
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: "10px", color: "rgba(226,232,240,0.52)", fontFamily: getFont(theme, "secondary") }}>{abiertos}/{total} abiertos</span>
+                <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{abiertos}/{total} abiertos</span>
               </div>
-              <div style={{ background: "#172033", borderRadius: "999px", height: "6px", overflow: "hidden", border: "1px solid rgba(148,163,184,.12)" }}>
-                <div style={{ width: `${pct}%`, height: "100%", background: pct === 100 ? "#22c55e" : pct > 50 ? acc.color : "#ef4444", transition: "width 0.4s ease", borderRadius: "999px", boxShadow: pct === 100 ? "0 0 12px rgba(34,197,94,.35)" : "none" }} />
+              <div style={{ background:"#1e3a5f", borderRadius:"3px", height:"5px", overflow:"hidden" }}>
+                <div style={{ width:`${pct}%`, height:"100%", background: pct===100?"#22c55e": pct>50? acc.color:"#ef4444", transition:"width 0.4s", borderRadius:"3px" }} />
               </div>
             </div>
           );
         })}
-        <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "12px", flexWrap: "wrap" }}>
-          {[
-            ["#f59e0b", "logout", "EXPORTACIÓN"],
-            ["#60a5fa", "login", "IMPORTACIÓN"],
-            ["#22c55e", "lock_open", "ABIERTO"],
-            ["#94a3b8", "lock", "CERRADO"],
-          ].map(([color, icon, label]) => (
-            <div key={label} style={{ ...centerButtonStyle, color, fontFamily: getFont(theme, "secondary"), fontSize: "8px", fontWeight: "800" }}>
-              <MS name={icon} size={14} color={color} />
-              <span>{label}</span>
+        <div style={{ display:"flex", justifyContent:"center", gap:"12px", marginTop:"10px", flexWrap:"wrap" }}>
+          {[["#f59e0b","EXPORTACIÓN"],["#60a5fa","IMPORTACIÓN"],["#22c55e","ABIERTO"],["#ef4444","CERRADO"]].map(([c,l]) => (
+            <div key={l} style={{ display:"flex", alignItems:"center", gap:"3px" }}>
+              <div style={{ width:"8px", height:"8px", background:c, borderRadius:"2px" }} />
+              <span style={{ fontSize:"8px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{l}</span>
             </div>
           ))}
         </div>
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: carrilesMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: "12px", marginBottom: "16px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap:"12px", marginBottom:"16px" }}>
         {ACCESOS_CARRILES.map(acc => {
-          const active = accView === acc.id;
-          const isContingency = acc.id === "pezvela" && contingenciaActiva;
+          const active = accView===acc.id;
           return (
             <button
               key={acc.id}
-              type="button"
-              className="flex items-center justify-center leading-none"
               onClick={() => setAccViewPersist(acc.id)}
               style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "12px",
-                minHeight: "72px",
-                padding: "12px 16px",
-                background: active ? `linear-gradient(180deg, ${acc.color}14, rgba(5,8,15,0.98))` : "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(5,8,15,0.98))",
-                border: `1px solid ${active ? acc.color : "rgba(148,163,184,0.18)"}`,
-                borderRadius: "18px",
+                width:"100%",
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"space-between",
+                gap:"12px",
+                minHeight:"72px",
+                padding:"12px 16px",
+                background: active ? `linear-gradient(180deg, ${acc.color}14, rgba(2,12,27,0.96))` : "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(2,12,27,0.96))",
+                border:`1px solid ${active ? acc.color : "rgba(56,189,248,0.24)"}`,
+                borderRadius:"18px",
                 color: active ? "#f8fafc" : "#dbe7f5",
-                fontFamily: getFont(theme, "secondary"),
-                cursor: "pointer",
-                transition: "all 0.18s ease",
+                fontFamily:getFont(theme, "secondary"),
+                cursor:"pointer",
+                transition:"all 0.18s ease",
                 boxShadow: active ? `0 12px 28px ${acc.color}18, inset 0 1px 0 rgba(255,255,255,0.08)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
-                textAlign: "center",
-                lineHeight: 1,
+                textAlign:"left"
               }}
             >
-              <MS name="sensor_door" size={28} color={active ? acc.color : "#94a3b8"} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "9px", color: active ? acc.color : "rgba(148,163,184,0.8)", letterSpacing: ".14em", textTransform: "uppercase", marginBottom: "5px", fontWeight: "800" }}>Control de acceso</div>
-                <div style={{ fontSize: "14px", lineHeight: 1.15, fontWeight: "900", color: active ? "#f8fafc" : "#dbe7f5" }}>{acc.label}</div>
-                {isContingency && <div style={{ color: ALERT_COLOR, fontSize: "9px", lineHeight: 1, marginTop: "5px", fontWeight: "900" }}>CONTINGENCIA ACTIVA</div>}
+              <div style={{ display:"flex", alignItems:"center", gap:"12px", minWidth:0, flex:1 }}>
+                <img src={ACCESS_CONTROL_ICON} alt="Acceso" style={{ width:"30px", height:"30px", objectFit:"contain", opacity: active ? 1 : 0.88, filter: active ? `drop-shadow(0 0 8px ${acc.color}55)` : "none" }} />
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:"10px", color: active ? acc.color : "rgba(148,163,184,0.8)", letterSpacing:".14em", textTransform:"uppercase", marginBottom:"4px", fontWeight:"800" }}>Control de acceso</div>
+                  <div style={{ fontSize:"14px", lineHeight:1.15, fontWeight:"800", color: active ? "#f8fafc" : "#dbe7f5" }}>{acc.label}</div>
+                </div>
               </div>
+              <div style={{ flex:"0 0 auto", color: active ? acc.color : "rgba(148,163,184,0.72)", fontSize:"24px", lineHeight:1 }}>≡</div>
             </button>
           );
         })}
       </div>
-
       {currentAcc && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: carrilesMobile ? "flex-start" : "center", marginBottom: "14px", gap: "10px", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <MS name="sensor_door" size={22} color={currentAcc.color} />
-              <span style={{ color: currentAcc.color, fontFamily: getFont(theme, "secondary"), fontWeight: "800", fontSize: "14px" }}>{currentAcc.label}</span>
-              <Badge color={currentAcc.zona === "Norte" ? "#38bdf8" : "#a78bfa"} small>ZONA {currentAcc.zona.toUpperCase()}</Badge>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:carrilesMobile ? "flex-start" : "center", marginBottom:"14px", gap:"10px", flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <div style={{ width:"10px", height:"10px", background:currentAcc.color, borderRadius:"50%", boxShadow:`0 0 8px ${currentAcc.color}` }} />
+              <span style={{ color:currentAcc.color, fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"14px" }}>{currentAcc.label}</span>
+              <Badge color={currentAcc.zona==="Norte"?"#38bdf8":"#a78bfa"} small>ZONA {currentAcc.zona.toUpperCase()}</Badge>
             </div>
-            <button
-              type="button"
-              className="flex items-center justify-center leading-none"
-              onClick={() => resetAcceso(currentAcc)}
-              style={compactActionButton("#22c55e")}
-            >
-              <MS name="restart_alt" size={18} color="#22c55e" />
-              <span>TODO ABIERTO</span>
-            </button>
+            <NormalBtn onClick={() => resetAcceso(currentAcc)} label="TODO ABIERTO" />
           </div>
 
-          {currentAcc.id === "pezvela" && (
-            <div className="glass-card" style={{ marginBottom: "16px", padding: carrilesMobile ? "14px" : "16px", borderRadius: "18px", border: `1px solid ${contingenciaActiva ? "rgba(245,158,11,.42)" : "rgba(148,163,184,.20)"}`, background: contingenciaActiva ? "linear-gradient(135deg, rgba(245,158,11,.10), rgba(5,8,15,.94))" : "rgba(8,12,23,.76)", backdropFilter: "blur(22px)", WebkitBackdropFilter: "blur(22px)", boxShadow: contingenciaActiva ? "0 0 34px rgba(245,158,11,.12), inset 0 1px 0 rgba(255,255,255,.05)" : "inset 0 1px 0 rgba(255,255,255,.04)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "11px", minWidth: 0, flex: "1 1 320px" }}>
-                  <div style={{ width: "46px", height: "46px", flex: "0 0 46px", borderRadius: "13px", ...centerButtonStyle, background: contingenciaActiva ? "rgba(245,158,11,.12)" : "rgba(148,163,184,.08)", border: `1px solid ${contingenciaActiva ? "rgba(245,158,11,.36)" : "rgba(148,163,184,.18)"}`, boxShadow: contingenciaActiva ? "0 0 22px rgba(245,158,11,.16)" : "none" }}>
-                    <MS name="engineering" size={27} color={contingenciaActiva ? ALERT_COLOR : "#94a3b8"} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ color: contingenciaActiva ? ALERT_COLOR : "#cbd5e1", fontFamily: getFont(theme, "title"), fontSize: "13px", fontWeight: "900", letterSpacing: ".08em" }}>CONTINGENCIA POR TRABAJOS</div>
-                    <div style={{ color: "rgba(226,232,240,.58)", fontFamily: getFont(theme, "secondary"), fontSize: "11px", lineHeight: 1.5, marginTop: "4px" }}>
-                      {contingenciaActiva
-                        ? "Esquema temporal activo. Acceso Pez Vela opera con seis carriles visibles."
-                        : "Esquema regular activo. Acceso Pez Vela opera con cuatro carriles visibles."}
-                    </div>
-                  </div>
+          {currentAcc.id === "pezvela" && isAdmin && (
+            <div className="glass-card" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"14px", flexWrap:"wrap", marginBottom:"14px", padding:"13px 14px", borderRadius:"12px", background:contingenciaActiva ? "rgba(245,158,11,.09)" : "rgba(255,255,255,.045)", border:`1px solid ${contingenciaActiva ? "rgba(245,158,11,.34)" : "rgba(255,255,255,.14)"}`, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0, flex:"1 1 280px" }}>
+                <div className="flex items-center justify-center leading-none" style={{ width:"38px", height:"38px", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"10px", background:contingenciaActiva ? "rgba(245,158,11,.12)" : "rgba(56,189,248,.08)", border:`1px solid ${contingenciaActiva ? "rgba(245,158,11,.32)" : "rgba(56,189,248,.22)"}` }}>
+                  <MS name="engineering" size={22} color={contingenciaActiva ? "#f59e0b" : "#38bdf8"} />
                 </div>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ color:contingenciaActiva ? "#f59e0b" : "#f8fafc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".08em" }}>CONTINGENCIA POR TRABAJOS</div>
+                  <div style={{ color:"rgba(255,255,255,.48)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"3px", lineHeight:1.45 }}>{contingenciaActiva ? "Esquema temporal activo: seis carriles visibles en Pez Vela." : "Esquema regular activo: cuatro carriles visibles en Pez Vela."}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="flex items-center justify-center leading-none"
+                onClick={() => setContingencia(!contingenciaActiva)}
+                aria-pressed={contingenciaActiva}
+                style={{ minWidth:"170px", minHeight:"42px", display:"flex", alignItems:"center", justifyContent:"center", gap:"9px", borderRadius:"999px", border:`1px solid ${contingenciaActiva ? "rgba(245,158,11,.52)" : "rgba(148,163,184,.28)"}`, background:contingenciaActiva ? "rgba(245,158,11,.14)" : "rgba(15,23,42,.72)", color:contingenciaActiva ? "#f59e0b" : "#cbd5e1", cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", lineHeight:1, boxShadow:contingenciaActiva ? "0 0 22px rgba(245,158,11,.13)" : "none" }}
+              >
+                <span style={{ position:"relative", width:"38px", height:"20px", borderRadius:"999px", background:contingenciaActiva ? "#f59e0b" : "#334155", boxShadow:contingenciaActiva ? "0 0 14px rgba(245,158,11,.45)" : "none", transition:"all .2s ease" }}>
+                  <span style={{ position:"absolute", top:"3px", left:contingenciaActiva ? "21px" : "3px", width:"14px", height:"14px", borderRadius:"50%", background:"#ffffff", transition:"left .2s ease" }} />
+                </span>
+                <MS name={contingenciaActiva ? "toggle_on" : "toggle_off"} size={20} color={contingenciaActiva ? "#f59e0b" : "#94a3b8"} />
+                <span>{contingenciaActiva ? "CONTINGENCIA ACTIVA" : "ACTIVAR CONTINGENCIA"}</span>
+              </button>
+            </div>
+          )}
 
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={contingenciaActiva}
-                    className="flex items-center justify-center leading-none"
-                    onClick={() => setContingencia(!contingenciaActiva)}
-                    style={{
-                      ...centerButtonStyle,
-                      minHeight: "48px",
-                      minWidth: carrilesMobile ? "100%" : "250px",
-                      padding: "0 14px",
-                      borderRadius: "14px",
-                      border: `1px solid ${contingenciaActiva ? "rgba(245,158,11,.62)" : "rgba(148,163,184,.26)"}`,
-                      background: contingenciaActiva ? "rgba(245,158,11,.12)" : "rgba(15,23,42,.72)",
-                      color: contingenciaActiva ? "#fbbf24" : "#cbd5e1",
-                      fontFamily: getFont(theme, "secondary"),
-                      fontSize: "10px",
-                      fontWeight: "900",
-                      letterSpacing: ".05em",
-                      cursor: "pointer",
-                      boxShadow: contingenciaActiva ? "0 0 26px rgba(245,158,11,.18)" : "none",
-                      transition: "all .2s ease",
-                    }}
-                  >
-                    <MS name={contingenciaActiva ? "warning" : "engineering"} size={19} color={contingenciaActiva ? "#fbbf24" : "#cbd5e1"} />
-                    <span>{contingenciaActiva ? "CONTINGENCIA ACTIVA" : "ACTIVAR CONTINGENCIA"}</span>
-                    <span aria-hidden="true" style={{ width: "42px", height: "23px", flex: "0 0 42px", borderRadius: "999px", padding: "2px", display: "flex", alignItems: "center", justifyContent: contingenciaActiva ? "flex-end" : "flex-start", background: contingenciaActiva ? "rgba(245,158,11,.34)" : "rgba(100,116,139,.28)", border: `1px solid ${contingenciaActiva ? "rgba(251,191,36,.58)" : "rgba(148,163,184,.28)"}`, transition: "all .2s ease" }}>
-                      <span style={{ width: "17px", height: "17px", borderRadius: "50%", background: contingenciaActiva ? "#fbbf24" : "#cbd5e1", boxShadow: contingenciaActiva ? "0 0 12px rgba(251,191,36,.7)" : "none", transition: "all .2s ease" }} />
-                    </span>
-                  </button>
-                ) : contingenciaActiva ? (
-                  <div style={{ ...pillStyle(ALERT_COLOR), minHeight: "34px", padding: "0 12px" }}>
-                    <MS name="warning" size={18} color={ALERT_COLOR} />
-                    <span>CONTINGENCIA ACTIVA</span>
-                  </div>
-                ) : null}
+          {currentAcc.id === "pezvela" && contingenciaActiva && (
+            <div className="glass-card" style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px", padding:"11px 13px", borderRadius:"12px", background:"rgba(245,158,11,.08)", border:"1px solid rgba(245,158,11,.30)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}>
+              <div className="flex items-center justify-center leading-none" style={{ width:"34px", height:"34px", display:"flex", alignItems:"center", justifyContent:"center", flex:"0 0 auto", borderRadius:"9px", background:"rgba(245,158,11,.12)", border:"1px solid rgba(245,158,11,.28)" }}>
+                <MS name="warning" size={21} color="#f59e0b" />
+              </div>
+              <div style={{ minWidth:0 }}>
+                <div style={{ color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em" }}>CONTINGENCIA POR TRABAJOS</div>
+                <div style={{ color:"rgba(255,255,255,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"3px", lineHeight:1.45 }}>Carril 4 de Salida y Carril Ferromex habilitados temporalmente. Carril 6 opera con Puertas Abiertas.</div>
               </div>
             </div>
           )}
 
           {expoCarriles.length > 0 && (
             <>
-              <div style={{ ...centerButtonStyle, justifyContent: "flex-start", fontSize: "10px", color: EXPO_COLOR, fontFamily: getFont(theme, "secondary"), letterSpacing: "2px", marginBottom: "10px" }}>
-                <MS name="logout" size={18} color={EXPO_COLOR} />
-                <span>EXPORTACIÓN</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: carrilesMobile || expoCarriles.length === 1 ? "1fr" : "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                {expoCarriles.map(carril => renderCarrilVoteCard(carril, EXPO_COLOR, "Exportación", "logout"))}
+              <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>EXPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: carrilesMobile || expoCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"16px" }}>
+                {expoCarriles.map(carril => renderCarrilVoteCard(carril, EXPO_COLOR, "Exportación", "truck-export"))}
               </div>
             </>
           )}
-
           {impoCarriles.length > 0 && (
             <>
-              <div style={{ ...centerButtonStyle, justifyContent: "flex-start", fontSize: "10px", color: IMPO_COLOR, fontFamily: getFont(theme, "secondary"), letterSpacing: "2px", marginBottom: "10px" }}>
-                <MS name="login" size={18} color={IMPO_COLOR} />
-                <span>IMPORTACIÓN</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: carrilesMobile || impoCarriles.length === 1 ? "1fr" : "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                {impoCarriles.map(carril => renderCarrilVoteCard(carril, IMPO_COLOR, "Importación", "login"))}
+              <div style={{ fontSize:"10px", color:IMPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>IMPORTACIÓN</div>
+              <div style={{ display:"grid", gridTemplateColumns: carrilesMobile || impoCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px" }}>
+                {impoCarriles.map(carril => renderCarrilVoteCard(carril, IMPO_COLOR, "Importación", "truck-import"))}
               </div>
             </>
           )}
-
-          {contingenciaActiva && currentAcc.id === "pezvela" && (
-            <section className="glass-card" style={{ marginTop: "2px", marginBottom: "16px", padding: carrilesMobile ? "14px" : "16px", borderRadius: "18px", border: "1px solid rgba(245,158,11,.32)", background: "linear-gradient(180deg, rgba(245,158,11,.08), rgba(5,8,15,.96))", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", boxShadow: "0 0 34px rgba(245,158,11,.10), inset 0 1px 0 rgba(255,255,255,.04)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "14px" }}>
-                <div style={{ ...pillStyle(ALERT_COLOR), minHeight: "36px", padding: "0 13px", fontSize: "11px", background: "rgba(245,158,11,.10)" }}>
-                  <MS name="warning" size={19} color={ALERT_COLOR} />
-                  <span>CONTINGENCIA POR TRABAJOS</span>
-                </div>
-                <div style={{ ...centerButtonStyle, color: "rgba(226,232,240,.58)", fontFamily: getFont(theme, "secondary"), fontSize: "10px" }}>
-                  <MS name="sync_alt" size={17} color="#fbbf24" />
-                  <span>Flujo temporal de importación y salida</span>
-                </div>
+          {contingencyCarriles.length > 0 && (
+            <>
+              <div className="flex items-center justify-center leading-none" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", width:"100%", minHeight:"36px", margin:"4px 0 10px", padding:"8px 12px", borderRadius:"10px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.30)", color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", lineHeight:1 }}>
+                <MS name="engineering" size={18} color="#f59e0b" />
+                <span>CONTINGENCIA POR TRABAJOS</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: carrilesMobile || contingencyCarriles.length === 1 ? "1fr" : "1fr 1fr", gap: "12px" }}>
-                {contingencyCarriles.map(carril => renderCarrilVoteCard(carril, IMPO_COLOR, "Importación", carril.id === "ac_pv_ferromex" ? "local_shipping" : "sync_alt"))}
+              <div style={{ display:"grid", gridTemplateColumns:carrilesMobile || contingencyCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px" }}>
+                {contingencyCarriles.map(carril => renderCarrilVoteCard(carril, "#f59e0b", "Importación", "truck-import"))}
               </div>
-            </section>
+            </>
           )}
         </>
       )}
@@ -24221,9 +23977,14 @@ function NoticiasAutoJpegReport() {
         const st = patioMap[p.id] || { status:"libre" };
         return { name:p.name, status:optLabel(PATIO_STATUS_OPTIONS, st.status, st.status || "Sin dato"), detail:"", color:optColor(PATIO_STATUS_OPTIONS, st.status) };
       })},
-      { title:"Carriles Expo / Impo", rows: ACCESOS_CARRILES.flatMap(acc => acc.carriles.map(c => {
+      { title:"Carriles Expo / Impo", rows: ACCESOS_CARRILES.flatMap(acc => getAccesoCarrilesVisibles(acc, carrilesExpo).map(c => {
         const st = carrilesExpo[c.id] || { abierto:true };
-        return { name:`${acc.label} · ${c.label}`, status:st.abierto === false ? "Cerrado" : "Abierto", detail:c.flujo || "", color:st.abierto === false ? "#ef4444" : "#22c55e" };
+        return {
+          name:`${acc.label} · ${c.label}`,
+          status:st.abierto === false ? "Cerrado" : "Abierto",
+          detail:getAccesoCarrilReportDetail(c, carrilesExpo),
+          color:st.abierto === false ? "#ef4444" : "#22c55e"
+        };
       }))},
       { title:"2° Acceso, confinada y fases", rows: [
         ...buildSegundoCarrilReportRows(segundo, terminalName),
