@@ -16969,7 +16969,8 @@ function CarrilesTab({ isAdmin = false }) {
     backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
     border:`1px solid ${accent}52`, borderRadius:"18px", padding:"14px",
     boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`,
-    minWidth:0, width:"100%", height:"100%", boxSizing:"border-box"
+    minWidth:0, width:"100%", height:"100%", boxSizing:"border-box",
+    position:"relative", overflow:"hidden", isolation:"isolate"
   });
   const laneMiniLabelStyle = { fontSize:"9px", color:"rgba(255,255,255,0.46)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.2px", textTransform:"uppercase" };
   const laneHeroTitleStyle = { color:"#f8fafc", fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"-.01em" };
@@ -17085,6 +17086,157 @@ function CarrilesTab({ isAdmin = false }) {
           </div>
         </div>
       </div>
+    );
+  };
+
+
+  const renderContingencyLaneCard = (carril) => {
+    const st = estado[carril.id] || {};
+    const abierto = st.abierto !== false;
+    const accent = "#f59e0b";
+    const statusColor = abierto ? "#22c55e" : "#94a3b8";
+    const statusBg = abierto ? "rgba(34,197,94,.10)" : "rgba(100,116,139,.13)";
+    const statusBorder = abierto ? "rgba(34,197,94,.38)" : "rgba(148,163,184,.24)";
+    return (
+      <article
+        key={carril.id}
+        className="carril-card glass-card cm-pezvela-contingencia-card rounded-2xl p-6 relative flex flex-col justify-between"
+        style={{
+          minWidth:0,
+          width:"100%",
+          height:"100%",
+          boxSizing:"border-box",
+          display:"flex",
+          flexDirection:"column",
+          justifyContent:"space-between",
+          position:"relative",
+          overflow:"hidden",
+          isolation:"isolate",
+          contain:"layout paint",
+          borderRadius:"18px",
+          padding:carrilesMobile ? "14px" : "16px",
+          background:"linear-gradient(180deg, rgba(28,49,76,.96) 0%, rgba(7,17,31,.985) 100%)",
+          border:`1px solid ${abierto ? "rgba(245,158,11,.42)" : "rgba(148,163,184,.28)"}`,
+          boxShadow:abierto ? "0 14px 34px rgba(245,158,11,.10), inset 0 1px 0 rgba(255,255,255,.06)" : "0 14px 34px rgba(2,8,23,.26), inset 0 1px 0 rgba(255,255,255,.04)",
+        }}
+      >
+        <header
+          className="cm-pezvela-contingencia-card__header"
+          style={{
+            display:"grid",
+            gridTemplateColumns:carrilesMobile ? "minmax(0,1fr)" : "minmax(0,1fr) auto",
+            alignItems:"start",
+            gap:"10px 12px",
+            width:"100%",
+            minWidth:0,
+            marginBottom:"12px",
+          }}
+        >
+          <div style={{ minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", minWidth:0 }}>
+              <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", minHeight:"27px", padding:"5px 10px", borderRadius:"999px", background:"rgba(245,158,11,.12)", border:"1px solid rgba(245,158,11,.40)", color:accent, fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".05em", lineHeight:1, whiteSpace:"nowrap" }}>
+                {carril.label.toUpperCase()}
+              </span>
+              <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", minHeight:"25px", padding:"4px 9px", borderRadius:"6px", background:"rgba(245,158,11,.08)", border:"1px solid rgba(245,158,11,.30)", color:accent, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", letterSpacing:".05em", lineHeight:1, whiteSpace:"nowrap" }}>
+                IMPORTACIÓN
+              </span>
+              <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"25px", padding:"4px 9px", borderRadius:"999px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.30)", color:accent, fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", lineHeight:1, whiteSpace:"nowrap" }}>
+                <MS name="engineering" size={15} color={accent} />
+                <span>{carril.contingencyBadge || "CONTINGENCIA"}</span>
+              </span>
+              {carril.operacionContinua && (
+                <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"25px", padding:"4px 9px", borderRadius:"999px", background:"rgba(34,197,94,.10)", border:"1px solid rgba(34,197,94,.30)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:"900", lineHeight:1, whiteSpace:"nowrap" }}>
+                  <MS name="lock_open" size={15} color="#22c55e" />
+                  <span>PUERTAS ABIERTAS</span>
+                </span>
+              )}
+            </div>
+            <div style={{ color:"rgba(255,255,255,.42)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), marginTop:"6px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy || "Tú"}</div>
+          </div>
+
+          <span
+            className="flex items-center justify-center leading-none cm-pezvela-contingencia-card__status"
+            style={{
+              display:"inline-flex",
+              alignItems:"center",
+              justifyContent:"center",
+              justifySelf:carrilesMobile ? "start" : "end",
+              alignSelf:"start",
+              gap:"6px",
+              minHeight:"28px",
+              padding:"5px 10px",
+              borderRadius:"7px",
+              background:statusBg,
+              border:`1px solid ${statusBorder}`,
+              color:statusColor,
+              fontFamily:getFont(theme,"secondary"),
+              fontSize:"9px",
+              fontWeight:900,
+              letterSpacing:".06em",
+              whiteSpace:"nowrap",
+              lineHeight:1,
+              position:"static",
+              inset:"auto",
+              transform:"none",
+              margin:0,
+            }}
+          >
+            <MS name={abierto ? "lock_open" : "lock"} size={15} color={statusColor} />
+            <span>{abierto ? "ABIERTO" : "CERRADO"}</span>
+          </span>
+        </header>
+
+        <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "minmax(0,1fr)" : "repeat(2,minmax(0,1fr))", gap:"12px", width:"100%", minWidth:0, alignItems:"stretch" }}>
+          <section style={{ minWidth:0, overflow:"hidden", borderRadius:"14px", padding:"12px", background:"linear-gradient(180deg, rgba(245,158,11,.07), rgba(7,17,31,.94))", border:"1px solid rgba(245,158,11,.25)", boxShadow:"none", position:"relative" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", minWidth:0 }}>
+              <span className="flex items-center justify-center leading-none" style={{ width:"44px", height:"44px", flex:"0 0 auto", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"12px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.28)", lineHeight:1 }}><AppIcon name="truck-import" size={29} active /></span>
+              <div style={{ minWidth:0 }}>
+                <div style={laneFieldTitleStyle}>Control de importación</div>
+                <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontWeight:"800", fontSize:"13px", lineHeight:1.2 }}>{abierto ? "Importación habilitada" : "Importación detenida"}</div>
+              </div>
+            </div>
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"4px" }}>Acceso asignado</div>
+            <div style={{ ...laneHeroTitleStyle, color:accent, fontSize:"16px", marginBottom:"2px" }}>{currentAcc?.label || "Acceso Pez Vela"}</div>
+            <div style={{ color:"rgba(255,255,255,.46)", fontSize:"11px", marginBottom:"6px" }}>Zona {currentAcc?.zona || "Sur"} · Importación</div>
+            {carril.flowDescription && <div style={{ color:"rgba(255,255,255,.52)", fontSize:"10px", lineHeight:1.5, fontFamily:getFont(theme,"secondary"), marginBottom:"10px" }}>{carril.flowDescription}</div>}
+            <div className="flex items-center justify-center leading-none" style={{ width:"100%", minHeight:"36px", display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 10px", background:abierto ? "rgba(34,197,94,.10)" : "rgba(100,116,139,.12)", border:`1px solid ${abierto ? "rgba(34,197,94,.28)" : "rgba(148,163,184,.20)"}`, borderRadius:"10px", color:abierto ? "#22c55e" : "#9ca3af", fontSize:"11px", fontFamily:getFont(theme,"secondary"), fontWeight:"800", letterSpacing:".04em", textTransform:"uppercase", lineHeight:1 }}>
+              {abierto ? "OPERANDO CON NORMALIDAD" : "TEMPORALMENTE CERRADO"}
+            </div>
+          </section>
+
+          <section style={{ minWidth:0, overflow:"hidden", borderRadius:"14px", padding:"12px", background:`linear-gradient(180deg, ${abierto ? "rgba(20,184,166,.07)" : "rgba(100,116,139,.07)"}, rgba(7,17,31,.94))`, border:`1px solid ${abierto ? "rgba(20,184,166,.25)" : "rgba(100,116,139,.25)"}`, boxShadow:"none", position:"relative" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px", minWidth:0 }}>
+              <span className="flex items-center justify-center leading-none" style={{ width:"44px", height:"44px", flex:"0 0 auto", display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:"12px", background:abierto ? "rgba(20,184,166,.10)" : "rgba(100,116,139,.10)", border:`1px solid ${abierto ? "rgba(20,184,166,.28)" : "rgba(100,116,139,.28)"}`, lineHeight:1 }}><AppIcon name="truck-import" size={28} active /></span>
+              <div style={{ minWidth:0 }}>
+                <div style={laneFieldTitleStyle}>Sistema de selección</div>
+                <div style={{ color:"#f8fafc", fontFamily:getFont(theme,"secondary"), fontWeight:"800", fontSize:"13px", lineHeight:1.2 }}>{abierto ? "Carril abierto" : "Carril cerrado"}</div>
+              </div>
+            </div>
+            <div style={{ ...laneMiniLabelStyle, marginBottom:"8px", textAlign:"center" }}>Selecciona el estado del carril</div>
+            <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr)", gap:"10px", marginBottom:"10px" }}>
+              <button
+                type="button"
+                className="flex items-center justify-center leading-none"
+                onClick={() => toggle(carril.id, true)}
+                style={{ width:"100%", minHeight:"58px", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", padding:"10px 14px", borderRadius:"14px", border:`1px solid ${abierto ? "#22c55e" : "rgba(56,189,248,.26)"}`, background:abierto ? "linear-gradient(180deg, rgba(34,197,94,.12), rgba(2,12,27,.96))" : "linear-gradient(180deg, rgba(255,255,255,.04), rgba(2,12,27,.96))", color:abierto ? "#22c55e" : "#94a3b8", boxShadow:abierto ? "0 8px 20px rgba(34,197,94,.10), inset 0 1px 0 rgba(255,255,255,.06)" : "inset 0 1px 0 rgba(255,255,255,.04)", cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:"900", lineHeight:1, textAlign:"center" }}
+              >
+                <MS name="check_circle" size={20} color={abierto ? "#22c55e" : "#94a3b8"} />
+                <span>ABIERTO</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center justify-center leading-none"
+                onClick={() => toggle(carril.id, false)}
+                style={{ width:"100%", minHeight:"58px", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", padding:"10px 14px", borderRadius:"14px", border:`1px solid ${!abierto ? "#ef4444" : "rgba(56,189,248,.26)"}`, background:!abierto ? "linear-gradient(180deg, rgba(239,68,68,.12), rgba(2,12,27,.96))" : "linear-gradient(180deg, rgba(255,255,255,.04), rgba(2,12,27,.96))", color:!abierto ? "#ef4444" : "#94a3b8", boxShadow:!abierto ? "0 8px 20px rgba(239,68,68,.10), inset 0 1px 0 rgba(255,255,255,.06)" : "inset 0 1px 0 rgba(255,255,255,.04)", cursor:"pointer", fontFamily:getFont(theme,"secondary"), fontWeight:"900", lineHeight:1, textAlign:"center" }}
+              >
+                <MS name="block" size={20} color={!abierto ? "#ef4444" : "#94a3b8"} />
+                <span>CERRADO</span>
+              </button>
+            </div>
+            <div style={{ color:"rgba(255,255,255,.42)", fontSize:"10px", fontFamily:getFont(theme,"secondary"), textAlign:"center" }}>Última actualización: {timeAgo(st.lastUpdate)}</div>
+          </section>
+        </div>
+      </article>
     );
   };
 
@@ -17206,18 +17358,6 @@ function CarrilesTab({ isAdmin = false }) {
             </div>
           )}
 
-          {currentAcc.id === "pezvela" && contingenciaActiva && (
-            <div className="glass-card" style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px", padding:"11px 13px", borderRadius:"12px", background:"rgba(245,158,11,.08)", border:"1px solid rgba(245,158,11,.30)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)" }}>
-              <div className="flex items-center justify-center leading-none" style={{ width:"34px", height:"34px", display:"flex", alignItems:"center", justifyContent:"center", flex:"0 0 auto", borderRadius:"9px", background:"rgba(245,158,11,.12)", border:"1px solid rgba(245,158,11,.28)" }}>
-                <MS name="warning" size={21} color="#f59e0b" />
-              </div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".10em" }}>CONTINGENCIA POR TRABAJOS</div>
-                <div style={{ color:"rgba(255,255,255,.58)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"3px", lineHeight:1.45 }}>Carril 4 de Salida y Carril Ferromex habilitados temporalmente. Carril 6 opera con Puertas Abiertas.</div>
-              </div>
-            </div>
-          )}
-
           {expoCarriles.length > 0 && (
             <>
               <div style={{ fontSize:"10px", color:EXPO_COLOR, fontFamily:getFont(theme, "secondary"), letterSpacing:"2px", marginBottom:"10px" }}>EXPORTACIÓN</div>
@@ -17234,16 +17374,46 @@ function CarrilesTab({ isAdmin = false }) {
               </div>
             </>
           )}
-          {contingencyCarriles.length > 0 && (
-            <>
-              <div className="flex items-center justify-center leading-none" style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", width:"100%", minHeight:"36px", margin:"4px 0 10px", padding:"8px 12px", borderRadius:"10px", background:"rgba(245,158,11,.10)", border:"1px solid rgba(245,158,11,.30)", color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", lineHeight:1 }}>
-                <MS name="engineering" size={18} color="#f59e0b" />
+          {currentAcc.id === "pezvela" && contingenciaActiva && contingencyCarriles.length > 0 && (
+            <section className="cm-pezvela-contingencia-section" style={{ width:"100%", minWidth:0, position:"relative", isolation:"isolate", overflow:"hidden", marginTop:"4px", marginBottom:"14px" }}>
+              <style>{`
+                .cm-pezvela-contingencia-section::before,
+                .cm-pezvela-contingencia-section::after,
+                .cm-pezvela-contingencia-grid::before,
+                .cm-pezvela-contingencia-grid::after,
+                .cm-pezvela-contingencia-card::before,
+                .cm-pezvela-contingencia-card::after { content:none !important; display:none !important; }
+                .cm-pezvela-contingencia-grid {
+                  display:grid !important;
+                  grid-template-columns:minmax(0,1fr) !important;
+                  gap:24px !important;
+                  width:100% !important;
+                  align-items:stretch !important;
+                  position:relative !important;
+                  isolation:isolate !important;
+                }
+                .cm-pezvela-contingencia-grid > .cm-pezvela-contingencia-card {
+                  min-width:0 !important;
+                  width:100% !important;
+                  margin:0 !important;
+                  overflow:hidden !important;
+                  position:relative !important;
+                  inset:auto !important;
+                  transform:none !important;
+                }
+                .cm-pezvela-contingencia-card__status { position:static !important; inset:auto !important; transform:none !important; }
+                @media (min-width:1024px) {
+                  .cm-pezvela-contingencia-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+                }
+              `}</style>
+              <div className="glass-card flex items-center justify-center leading-none" style={{ width:"100%", minHeight:"44px", display:"flex", alignItems:"center", justifyContent:"center", gap:"9px", marginBottom:"14px", padding:"10px 14px", borderRadius:"12px", background:"rgba(245,158,11,.09)", border:"1px solid rgba(245,158,11,.32)", color:"#f59e0b", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:"900", letterSpacing:".10em", lineHeight:1, position:"relative", overflow:"hidden", isolation:"isolate" }}>
+                <MS name="engineering" size={19} color="#f59e0b" />
                 <span>CONTINGENCIA POR TRABAJOS</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch" style={{ display:"grid", gridTemplateColumns:carrilesMobile || contingencyCarriles.length===1 ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"24px", width:"100%", alignItems:"stretch", marginBottom:"14px" }}>
-                {contingencyCarriles.map(carril => renderCarrilVoteCard(carril, "#f59e0b", "Importación", "truck-import"))}
+              <div className="contingencia-container cm-pezvela-contingencia-grid grid grid-cols-1 lg:grid-cols-2 gap-6 w-full items-stretch">
+                {contingencyCarriles.map(carril => renderContingencyLaneCard(carril))}
               </div>
-            </>
+            </section>
           )}
         </>
       )}
