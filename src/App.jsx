@@ -6029,449 +6029,411 @@ function FluidAdSenseSection({ sectionKey = "fluid" }) {
   );
 }
 
-function AnunciosBanner({ isAdmin }) {
+const CM_AD_METRICS_KEY = "cm_ad_metrics_v2";
+
+const cmAdMetricId = (ad) => {
+  if (!ad) return "";
+  if (ad._feed_id) return `feed:${ad._feed_id}`;
+  const rawId = String(ad.id || "");
+  if (ad._source === "feed") return rawId.startsWith("feed:") ? rawId : `feed:${rawId}`;
+  return rawId ? `anuncios:${rawId}` : "";
+};
+
+const cmReadAdMetricsMap = () => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(CM_AD_METRICS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const cmGetAdMetrics = (ad) => {
+  const key = cmAdMetricId(ad);
+  const local = key ? (cmReadAdMetricsMap()[key] || {}) : {};
+  const remoteImpressions = Number(ad?.impresiones ?? ad?.impressions ?? 0) || 0;
+  const remoteClicks = Number(ad?.clics ?? ad?.clicks ?? 0) || 0;
+  return {
+    impresiones: remoteImpressions + (Number(local.impresiones) || 0),
+    clics: remoteClicks + (Number(local.clics) || 0),
+  };
+};
+
+const cmBumpAdMetric = (ad, field) => {
+  if (typeof window === "undefined") return;
+  const key = cmAdMetricId(ad);
+  if (!key || !["impresiones", "clics"].includes(field)) return;
+  try {
+    const map = cmReadAdMetricsMap();
+    const current = map[key] || { impresiones:0, clics:0 };
+    map[key] = {
+      impresiones:Number(current.impresiones || 0) + (field === "impresiones" ? 1 : 0),
+      clics:Number(current.clics || 0) + (field === "clics" ? 1 : 0),
+      updated_at:new Date().toISOString(),
+    };
+    localStorage.setItem(CM_AD_METRICS_KEY, JSON.stringify(map));
+    window.dispatchEvent(new CustomEvent("cm:ad-metrics", { detail:{ key, field, value:map[key][field] } }));
+  } catch {}
+};
+
+function AnunciosBanner() {
   const theme = React.useContext(ThemeContext);
   const vw = useWindowWidth();
   const isMobile = vw < 480;
-  const isTablet = vw >= 480 && vw < 768;
   const [anuncios, setAnuncios] = useState([]);
   const [current, setCurrent] = useState(0);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const intervalRef = useRef(null);
+  const lastImpressionRef = useRef("");
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const ahora = new Date().toISOString();
+    try {
+      const [{ data:banners }, { data:feedRows }] = await Promise.all([
+        sb.from("anuncios")
+          .select("*")
+          .eq("activo", true)
+          .lte("fecha_inicio", ahora)
+          .gte("fecha_fin", ahora)
+          .order("orden", { ascending:false })
+          .order("created_at", { ascending:false }),
+        sb.from("feed_anuncios")
+          .select("*")
+          .eq("estatus", "aprobado")
+          .lte("fecha_inicio", ahora)
+          .gt("fecha_fin", ahora)
+          .order("created_at", { ascending:false })
+      ]);
 
-    // `anuncios` continúa siendo la fuente histórica de AnunciosBanner.
-    // `feed_anuncios` complementa esa fuente con anuncios aprobados desde Feed.
-    // Ambos consumidores comparten así la misma publicación sin duplicar el flujo
-    // de captura: una propuesta aprobada en Feed también se muestra en el banner.
-    const [{ data: banners }, { data: feedRows }] = await Promise.all([
-      sb.from("anuncios")
-        .select("*")
-        .eq("activo", true)
-        .lte("fecha_inicio", ahora)
-        .gte("fecha_fin", ahora)
-        .order("orden", { ascending: false })
-        .order("created_at", { ascending: false }),
-      sb.from("feed_anuncios")
-        .select("*")
-        .eq("estatus", "aprobado")
-        .lte("fecha_inicio", ahora)
-        .gt("fecha_fin", ahora)
-        .order("created_at", { ascending: false })
-    ]);
+      const feedMapped = await Promise.all((feedRows || []).map(async row => {
+        let url = row.imagen_url || "";
+        if (row.imagen_path) {
+          try {
+            const { data } = await sb.storage.from(FEED_BUCKET).createSignedUrl(row.imagen_path, 3600);
+            url = data?.signedUrl || url;
+          } catch {}
+        }
+        return {
+          id:`feed:${row.id}`,
+          _feed_id:row.id,
+          _source:"feed",
+          titulo:row.titulo || "Anuncio de la comunidad portuaria",
+          empresa:row.empresa || "Comunidad CONECT MANZANILLO",
+          texto:row.descripcion || "",
+          enlace:row.enlace || null,
+          whatsapp:row.contacto_whatsapp || null,
+          imagen_url:url,
+          fecha_inicio:row.fecha_inicio,
+          fecha_fin:row.fecha_fin,
+          activo:true,
+          orden:0,
+          created_at:row.created_at,
+        };
+      }));
 
-    const feedMapped = await Promise.all((feedRows || []).map(async (row) => {
-      let url = row.imagen_url || "";
-      if (row.imagen_path) {
-        const { data } = await sb.storage.from(FEED_BUCKET).createSignedUrl(row.imagen_path, 3600);
-        url = data?.signedUrl || url;
-      }
-      return {
-        id: `feed:${row.id}`,
-        _feed_id: row.id,
-        _source: "feed",
-        titulo: row.titulo || "Anuncio de la comunidad portuaria",
-        empresa: row.empresa || "Comunidad CONECT MANZANILLO",
-        texto: row.descripcion || "",
-        enlace: row.enlace || null,
-        whatsapp: row.contacto_whatsapp || null,
-        imagen_url: url,
-        fecha_inicio: row.fecha_inicio,
-        fecha_fin: row.fecha_fin,
-        activo: true,
-        orden: 0,
-        created_at: row.created_at,
-      };
-    }));
-
-    const merged = [...(banners || []).map(row => ({ ...row, _source:"anuncios" })), ...feedMapped]
-      .sort((a,b) => (Number(b.orden || 0) - Number(a.orden || 0)) || (toMs(b.created_at) - toMs(a.created_at)));
-    setAnuncios(merged);
-    setCurrent(v => merged.length ? Math.min(v, merged.length - 1) : 0);
-  };
+      const merged = [...(banners || []).map(row => ({ ...row, _source:"anuncios" })), ...feedMapped]
+        .sort((a,b) => (Number(b.orden || 0) - Number(a.orden || 0)) || (toMs(b.created_at) - toMs(a.created_at)));
+      setAnuncios(merged);
+      setCurrent(v => merged.length ? Math.min(v, merged.length - 1) : 0);
+    } catch {
+      setAnuncios([]);
+      setCurrent(0);
+    }
+  }, []);
 
   useEffect(() => {
     cargar();
-    // Suscripción realtime
-    const chan = sb.channel("anuncios-rt")
+    const chan = sb.channel("anuncios-banner-public-rt")
       .on("postgres_changes", { event:"*", schema:"public", table:"anuncios" }, cargar)
+      .on("postgres_changes", { event:"*", schema:"public", table:"feed_anuncios" }, cargar)
       .subscribe();
-    // Limpieza automática de anuncios expirados cada minuto
-    const limpia = setInterval(async () => {
-      const ahora = new Date().toISOString();
-      await sb.from("anuncios").delete().lt("fecha_fin", ahora);
-      cargar();
-    }, 60000);
-    return () => { sb.removeChannel(chan); clearInterval(limpia); };
-  }, []);
+    return () => sb.removeChannel(chan);
+  }, [cargar]);
 
-  // Auto-slide cada 10 minutos
   useEffect(() => {
-    if (anuncios.length <= 1) return;
-    intervalRef.current = setInterval(() => {
-      setCurrent(v => (v + 1) % anuncios.length);
-    }, 600000);
+    if (anuncios.length <= 1) return undefined;
+    intervalRef.current = setInterval(() => setCurrent(v => (v + 1) % anuncios.length), 600000);
     return () => clearInterval(intervalRef.current);
   }, [anuncios.length]);
 
-  const handleGuardar = async () => {
-    const tieneImagen = !!form.imagen_url.trim();
-    const tieneTexto  = !!form.texto.trim();
-    if (!form.titulo.trim() || !form.empresa.trim() || !form.inicio || !form.fin) {
-      setMsg({ type:"err", text:"Completa título, empresa, fecha inicio y fecha fin." }); return;
+  const a = anuncios[current] || null;
+  useEffect(() => {
+    if (!a) return;
+    const key = cmAdMetricId(a);
+    if (!key || lastImpressionRef.current === key) return;
+    lastImpressionRef.current = key;
+    cmBumpAdMetric(a, "impresiones");
+  }, [a]);
+
+  if (!a) return null;
+
+  const trackClick = () => cmBumpAdMetric(a, "clics");
+  const goPrev = () => {
+    setCurrent(v => (v - 1 + anuncios.length) % anuncios.length);
+    clearInterval(intervalRef.current);
+    lastImpressionRef.current = "";
+  };
+  const goNext = () => {
+    setCurrent(v => (v + 1) % anuncios.length);
+    clearInterval(intervalRef.current);
+    lastImpressionRef.current = "";
+  };
+
+  return (
+    <div style={{ borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(10,22,50,0.6)", position:"relative", overflow:"hidden" }}>
+      <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:0 }}>
+        {a.imagen_url && (
+          <button type="button" onClick={() => { trackClick(); setPreviewImage(a.imagen_url); }} title="Ver anuncio completo" className="flex items-center justify-center leading-none" style={{ width:"100%", padding:0, border:0, background:"#061224", display:"flex", justifyContent:"center", alignItems:"center", cursor:"zoom-in", overflow:"hidden" }}>
+            <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"auto", maxHeight:isMobile ? "none" : "72vh", objectFit:"contain", objectPosition:"center", display:"block", background:"#061224" }} onError={e => { e.currentTarget.style.display = "none"; }} />
+          </button>
+        )}
+        <div style={{ padding:isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"10px", marginBottom:"6px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", minWidth:0, flexWrap:"wrap" }}>
+              <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"24px", fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"#fbbf24", fontWeight:800, letterSpacing:"1.2px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"999px", padding:"3px 8px", lineHeight:1 }}><MS name="campaign" size={15} color="#fbbf24" /><span>ANUNCIO</span></span>
+              <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,0.42)" }}>{a.empresa}</span>
+            </div>
+            {anuncios.length > 1 && <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", whiteSpace:"nowrap" }}>{current + 1} de {anuncios.length}</span>}
+          </div>
+          <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:isMobile ? "12px" : "14px", fontWeight:700, color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
+          {a.texto && (a.imagen_url ? (
+            <div style={{ fontFamily:getFont(theme,"secondary"), fontSize:isMobile ? "10px" : "11px", color:"rgba(255,255,255,0.7)", lineHeight:1.6, marginBottom:(a.enlace || a.whatsapp) ? "10px" : 0, whiteSpace:"pre-wrap" }}>{a.texto}</div>
+          ) : (
+            <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom:(a.enlace || a.whatsapp) ? "10px" : "4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"12px 0", background:"rgba(251,191,36,0.04)" }}>
+              <span style={{ display:"inline-block", fontFamily:getFont(theme,"secondary"), fontSize:isMobile ? "16px" : "20px", fontWeight:700, color:"rgba(255,255,255,0.95)", animation:"marqueeScroll 45s linear infinite", paddingLeft:"100%", willChange:"transform" }}>{[a.texto,a.texto,a.texto,a.texto,a.texto].join("     ")}</span>
+            </div>
+          ))}
+          {(a.enlace || a.whatsapp) && <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
+            {a.whatsapp && <a href={`https://wa.me/${String(a.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer" onClick={trackClick} className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", minHeight:"38px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#22c55e", fontWeight:700, textDecoration:"none", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:"8px", padding:"7px 14px", lineHeight:1 }}><MS name="chat" size={18} color="#22c55e" /><span>WhatsApp</span></a>}
+            {a.enlace && <a href={a.enlace.startsWith("http") ? a.enlace : `https://${a.enlace}`} target="_blank" rel="noopener noreferrer" onClick={trackClick} className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", minHeight:"38px", fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#38bdf8", fontWeight:700, textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"7px 14px", lineHeight:1 }}><MS name="language" size={18} color="#38bdf8" /><span>Ver sitio</span></a>}
+          </div>}
+        </div>
+        {anuncios.length > 1 && <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:"12px", paddingBottom:"12px" }}>
+          <button type="button" onClick={goPrev} aria-label="Anuncio anterior" className="flex items-center justify-center leading-none" style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", flexShrink:0, lineHeight:1 }}><MS name="chevron_left" size={20} /></button>
+          <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>{anuncios.map((_,i) => <button key={i} type="button" aria-label={`Mostrar anuncio ${i + 1}`} onClick={() => { setCurrent(i); clearInterval(intervalRef.current); lastImpressionRef.current = ""; }} style={{ width:i === current ? "18px" : "6px", height:"6px", padding:0, border:0, borderRadius:"3px", background:i === current ? "#fbbf24" : "rgba(255,255,255,0.2)", cursor:"pointer", transition:"all 0.3s" }} />)}</div>
+          <button type="button" onClick={goNext} aria-label="Anuncio siguiente" className="flex items-center justify-center leading-none" style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", flexShrink:0, lineHeight:1 }}><MS name="chevron_right" size={20} /></button>
+        </div>}
+      </div>
+      {previewImage && <div onClick={() => setPreviewImage(null)} style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", cursor:"zoom-out" }}>
+        <button type="button" onClick={() => setPreviewImage(null)} aria-label="Cerrar anuncio" className="flex items-center justify-center leading-none" style={{ position:"absolute", top:"14px", right:"14px", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", borderRadius:"999px", width:"40px", height:"40px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", lineHeight:1 }}><MS name="close" size={23} /></button>
+        <img src={previewImage} alt="Anuncio completo" onClick={e => e.stopPropagation()} style={{ maxWidth:"100%", maxHeight:"92vh", objectFit:"contain", borderRadius:"10px", boxShadow:"0 20px 80px rgba(0,0,0,0.8)" }} />
+      </div>}
+      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
+    </div>
+  );
+}
+
+function AdminBannerManager() {
+  const theme = React.useContext(ThemeContext);
+  const vw = useWindowWidth();
+  const isMobile = vw < 720;
+  const blankForm = () => ({ id:null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true, _imgMode:"upload", _imgPreview:"", _uploading:false });
+  const [form, setForm] = useState(blankForm);
+  const [showEditor, setShowEditor] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState([]);
+  const [msg, setMsg] = useState(null);
+  const [metricsVersion, setMetricsVersion] = useState(0);
+
+  const inputStyle = { width:"100%", minHeight:"42px", background:"rgba(5,8,15,.74)", border:"1px solid rgba(159,202,255,.22)", borderRadius:"8px", padding:"10px 12px", color:"#e0e3e5", fontFamily:getFont(theme,"secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none" };
+  const labelStyle = { display:"grid", gap:"6px", color:"#9aa6b2", fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800, letterSpacing:".06em", textTransform:"uppercase" };
+
+  const load = useCallback(async () => {
+    const { data, error } = await sb.from("anuncios").select("*").order("orden", { ascending:false }).order("created_at", { ascending:false });
+    if (error) {
+      setMsg({ type:"err", text:error.message || "No se pudieron cargar los anuncios." });
+      return;
     }
-    if (!tieneImagen && !tieneTexto) {
-      setMsg({ type:"err", text:"Debes agregar al menos imagen o texto al anuncio." }); return;
+    setRows(data || []);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const channel = sb.channel("admin-banners-dashboard-rt").on("postgres_changes", { event:"*", schema:"public", table:"anuncios" }, load).subscribe();
+    const onMetric = () => setMetricsVersion(v => v + 1);
+    const onStorage = e => { if (!e.key || e.key === CM_AD_METRICS_KEY) onMetric(); };
+    window.addEventListener("cm:ad-metrics", onMetric);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      sb.removeChannel(channel);
+      window.removeEventListener("cm:ad-metrics", onMetric);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [load]);
+
+  const toLocal = value => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const p = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  const editRow = row => {
+    setForm({
+      id:row.id,
+      titulo:row.titulo || "",
+      empresa:row.empresa || "",
+      texto:row.texto || "",
+      enlace:row.enlace || "",
+      whatsapp:row.whatsapp || "",
+      imagen_url:row.imagen_url || "",
+      inicio:toLocal(row.fecha_inicio),
+      fin:toLocal(row.fecha_fin),
+      activo:row.activo !== false,
+      _imgMode:row.imagen_url ? "url" : "upload",
+      _imgPreview:row.imagen_url || "",
+      _uploading:false,
+    });
+    setShowEditor(true);
+    setMsg(null);
+    try { window.scrollTo({ top:0, behavior:"smooth" }); } catch {}
+  };
+
+  const save = async () => {
+    const title = form.titulo.trim();
+    const company = form.empresa.trim();
+    const text = form.texto.trim();
+    const image = form.imagen_url.trim();
+    if (!title || !company || !form.inicio || !form.fin) {
+      setMsg({ type:"err", text:"Completa título, empresa, inicio y fin de vigencia." });
+      return;
     }
-    if (new Date(form.fin) <= new Date(form.inicio)) {
-      setMsg({ type:"err", text:"La fecha de fin debe ser posterior a la de inicio." }); return;
+    if (!text && !image) {
+      setMsg({ type:"err", text:"Agrega texto o una imagen al anuncio." });
+      return;
     }
-    setSaving(true); setMsg(null);
+    const start = new Date(form.inicio);
+    const end = new Date(form.fin);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setMsg({ type:"err", text:"Define una vigencia válida." });
+      return;
+    }
+    setSaving(true);
+    setMsg(null);
+    const payload = {
+      titulo:title,
+      empresa:company,
+      texto:text,
+      enlace:form.enlace.trim() || null,
+      whatsapp:String(form.whatsapp || "").replace(/\D/g,"") || null,
+      imagen_url:image || null,
+      fecha_inicio:start.toISOString(),
+      fecha_fin:end.toISOString(),
+      activo:form.activo !== false,
+    };
     try {
-      const fechaInicio = new Date(form.inicio);
-      const fechaFin    = new Date(form.fin);
-      if (isNaN(fechaInicio.getTime()) || isNaN(fechaFin.getTime())) {
-        setMsg({ type:"err", text:"Las fechas ingresadas no son válidas." });
-        setSaving(false); return;
-      }
-
-      const payload = {
-        titulo: form.titulo.trim(),
-        empresa: form.empresa.trim(),
-        texto: form.texto.trim(),
-        enlace: form.enlace.trim() || null,
-        whatsapp: form.whatsapp.trim() || null,
-        imagen_url: form.imagen_url.trim() || null,
-        fecha_inicio: fechaInicio.toISOString(),
-        fecha_fin:    fechaFin.toISOString(),
-        activo: form.activo,
-      };
-
-      let error;
-      if (form.id) {
-        // Modo edición: actualizar anuncio existente
-        const result = await sb.from("anuncios").update(payload).eq("id", form.id);
-        error = result.error;
-      } else {
-        // Modo creación: insertar nuevo anuncio
-        const result = await sb.from("anuncios").insert(payload);
-        error = result.error;
-      }
-
-      if (error) { setMsg({ type:"err", text:"Error al guardar: " + error.message }); }
-      else {
-        setMsg({ type:"ok", text: form.id ? "Anuncio actualizado correctamente." : "Anuncio publicado correctamente." });
-        setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true });
-        setTimeout(() => { setShowForm(false); setMsg(null); }, 1500);
-        cargar();
-      }
-    } catch (ex) {
-      setMsg({ type:"err", text:"Error inesperado: " + (ex?.message || ex) });
+      const result = form.id ? await sb.from("anuncios").update(payload).eq("id", form.id) : await sb.from("anuncios").insert(payload);
+      if (result.error) throw result.error;
+      setMsg({ type:"ok", text:form.id ? "Anuncio actualizado correctamente." : "Anuncio creado correctamente." });
+      setForm(blankForm());
+      setShowEditor(false);
+      await load();
+    } catch (e) {
+      setMsg({ type:"err", text:e?.message || "No se pudo guardar el anuncio." });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleToggle = async (id, activo) => {
-    await sb.from("anuncios").update({ activo: !activo }).eq("id", id);
-    cargar();
-  };
-
-  const handleEliminar = async (id) => {
-    if (!window.confirm("¿Eliminar este anuncio?")) return;
-    await sb.from("anuncios").delete().eq("id", id);
-    cargar();
-  };
-
-  const handleEditar = async (id) => {
-    const { data } = await sb.from("anuncios").select("*").eq("id", id).single();
-    if (data) {
-      // Convertir las fechas ISO a formato datetime-local
-      const fechaInicio = new Date(data.fecha_inicio);
-      const fechaFin = new Date(data.fecha_fin);
-      
-      const formatoLocal = (fecha) => {
-        const year = fecha.getFullYear();
-        const month = String(fecha.getMonth() + 1).padStart(2, '0');
-        const day = String(fecha.getDate()).padStart(2, '0');
-        const hours = String(fecha.getHours()).padStart(2, '0');
-        const minutes = String(fecha.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-      };
-
-      setForm({
-        id: data.id,
-        titulo: data.titulo || "",
-        empresa: data.empresa || "",
-        texto: data.texto || "",
-        enlace: data.enlace || "",
-        whatsapp: data.whatsapp || "",
-        imagen_url: data.imagen_url || "",
-        inicio: formatoLocal(fechaInicio),
-        fin: formatoLocal(fechaFin),
-        activo: data.activo ?? true,
-        _imgPreview: data.imagen_url || null,
-      });
-      setShowForm(true);
+  const setActive = async (id, activo) => {
+    const { error } = await sb.from("anuncios").update({ activo:Boolean(activo) }).eq("id", id);
+    if (error) setMsg({ type:"err", text:error.message || "No se pudo actualizar el estado." });
+    else {
+      setMsg({ type:"ok", text:activo ? "Anuncio aprobado y activado." : "Anuncio pausado." });
+      await load();
     }
   };
 
-  const [adminTab, setAdminTab] = useState("anuncios");
-  const inp = { width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"10px", padding:"10px 12px", color:"rgba(255,255,255,0.9)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", boxSizing:"border-box", outline:"none", marginBottom:"10px" };
+  const remove = async id => {
+    if (!window.confirm("Eliminar este anuncio de forma permanente?")) return;
+    const { error } = await sb.from("anuncios").delete().eq("id", id);
+    if (error) setMsg({ type:"err", text:error.message || "No se pudo eliminar el anuncio." });
+    else {
+      setMsg({ type:"ok", text:"Anuncio eliminado." });
+      if (form.id === id) { setForm(blankForm()); setShowEditor(false); }
+      await load();
+    }
+  };
 
-  // Panel admin de gestión
-  if (isAdmin && showForm) return (
-    <div style={{ margin:"0 0 0 0", background:"rgba(10,22,50,0.95)", borderTop:"2px solid rgba(251,191,36,0.4)", padding:"0" }}>
-      {/* Tabs del panel admin */}
-      <div style={{ display:"flex", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
-        {[
-          { id:"anuncios", label:"📢 Anuncios", color:"#fbbf24" },
-          { id:"usuarios", label:"👥 Usuarios", color:"#818cf8" },
-          { id:"registros", label:"🧾 Registros", color:"#22c55e" },
-        ].map(t => (
-          <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ flex:1, padding:"12px 16px", background: adminTab===t.id ? "rgba(255,255,255,0.05)" : "transparent", border:"none", borderBottom: adminTab===t.id ? `2px solid ${t.color}` : "2px solid transparent", color: adminTab===t.id ? t.color : "rgba(255,255,255,0.4)", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px", transition:"all 0.2s", marginBottom:"-1px" }}>
-            {t.label}
-          </button>
-        ))}
-        <button onClick={() => { setShowForm(false); setForm({ id: null, titulo:"", empresa:"", texto:"", enlace:"", whatsapp:"", imagen_url:"", inicio:"", fin:"", activo:true }); }} style={{ padding:"12px 16px", background:"transparent", border:"none", borderBottom:"2px solid transparent", color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:"16px", transition:"color 0.2s" }} onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.3)"}>✕</button>
-      </div>
+  const uploadImage = async file => {
+    if (!file) return;
+    setForm(f => ({ ...f, _uploading:true, _imgPreview:URL.createObjectURL(file) }));
+    try {
+      const validation = await validateStaticAttachment(file, { maxBytes:10 * 1024 * 1024 });
+      const detected = validation.detectedType || file.type;
+      if (!validation.ok || !["image/jpeg","image/png","image/webp"].includes(detected)) throw new Error(validation.error || "Solo se permiten imágenes JPEG, PNG o WEBP reales.");
+      const ext = detected === "image/png" ? "png" : detected === "image/webp" ? "webp" : "jpg";
+      const path = `dashboard/${Date.now()}_${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await sb.storage.from("anuncios-imagenes").upload(path, file, { upsert:false, contentType:detected });
+      if (error) throw error;
+      const { data:urlData } = sb.storage.from("anuncios-imagenes").getPublicUrl(data.path);
+      setForm(f => ({ ...f, imagen_url:urlData.publicUrl || "", _imgPreview:urlData.publicUrl || f._imgPreview, _uploading:false }));
+    } catch (e) {
+      setForm(f => ({ ...f, _uploading:false }));
+      setMsg({ type:"err", text:e?.message || "No se pudo subir la imagen." });
+    }
+  };
 
-      {/* Tab: Usuarios */}
-      {adminTab === "usuarios" && <AdminUsuariosPanel />}
-
-      {adminTab === "registros" && <AdminRegistrosPanel />}
-
-      {/* Tab: Anuncios */}
-      {adminTab === "anuncios" && <div style={{ padding:"16px", background:"rgba(251,191,36,0.04)" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
-        <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", fontWeight:"700", color:"#fbbf24", letterSpacing:"1px" }}>
-          {form.id ? "✏️ EDITAR ANUNCIO" : "📢 NUEVO ANUNCIO"}
-        </span>
-      </div>
-      {msg && <div style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"10px", fontSize:"11px", fontFamily:getFont(theme, "secondary"), background: msg.type==="ok"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", border:`1px solid ${msg.type==="ok"?"#22c55e55":"#ef444455"}`, color: msg.type==="ok"?"#22c55e":"#ef4444" }}>{msg.text}</div>}
-      <AdminAdTemplates onUseTemplate={(tpl) => {
-        setForm(f => ({
-          ...f,
-          titulo: tpl.titulo || f.titulo || "Invita a anunciarse con nosotros",
-          empresa: tpl.empresa || f.empresa || "Conect Manzanillo",
-          texto: tpl.mensaje || tpl.texto || f.texto || "",
-          imagen_url: tpl.imagen_url || f.imagen_url || "",
-          enlace: tpl.enlace || f.enlace || "",
-          whatsapp: tpl.whatsapp || f.whatsapp || "",
-          _imgTab: tpl.imagen_url ? "url" : (f._imgTab || "subir"),
-          _imgPreview: tpl.imagen_url || f._imgPreview || null,
-        }));
-        setMsg({ type:"ok", text:"Plantilla cargada en el formulario. Ajusta fechas y publica cuando quieras." });
-      }} />
-      <input style={inp} placeholder="Título del anuncio *" value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} />
-      <input style={inp} placeholder="Empresa / Organización *" value={form.empresa} onChange={e=>setForm(f=>({...f,empresa:e.target.value}))} />
-      <textarea style={{...inp, minHeight:"80px", resize:"vertical"}} placeholder="Texto del anuncio (obligatorio si no hay imagen — se mostrará como ticker deslizante)" value={form.texto} onChange={e=>setForm(f=>({...f,texto:e.target.value}))} />
-      <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>BOTONES DE CONTACTO (OPCIONALES)</div>
-      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-        <div style={{ position:"relative", isolation:"isolate" }}>
-          <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="whatsapp" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="WhatsApp (ej: 3141234567)" value={form.whatsapp} onChange={e=>setForm(f=>({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} />
-        </div>
-        <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}><AppIcon name="web" size={18} /></span>
-          <input style={{...inp, paddingLeft:"32px", marginBottom:0}} placeholder="Sitio web (https://...)" value={form.enlace} onChange={e=>setForm(f=>({...f,enlace:e.target.value}))} />
-        </div>
-      </div>
-      {/* ── Imagen: subir archivo O pegar URL ── */}
-      <div style={{ marginBottom:"10px" }}>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1px", marginBottom:"6px" }}>IMAGEN (OPCIONAL)</div>
-        {/* Tabs: Subir / URL */}
-        <div style={{ display:"flex", gap:"6px", marginBottom:"8px" }}>
-          {["subir","url"].map(opt => (
-            <button key={opt} onClick={()=>setForm(f=>({...f,_imgTab:opt, imagen_url:"", _imgFile:null}))}
-              style={{ padding:"5px 14px", borderRadius:"7px", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", border:"none",
-                background: (form._imgTab||"subir")===opt ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)",
-                color: (form._imgTab||"subir")===opt ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
-              {opt==="subir" ? "📁 Subir archivo" : "Enlace Pegar URL"}
-            </button>
-          ))}
-        </div>
-        {(form._imgTab||"subir")==="subir" ? (
-          <div>
-            <label style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", border:"2px dashed rgba(251,191,36,0.3)", borderRadius:"10px", padding:"16px", cursor:"pointer", background:"rgba(251,191,36,0.04)", minHeight:"80px" }}>
-              <input type="file" accept="image/*" style={{ display:"none" }} onChange={async(e)=>{
-                const file = e.target.files[0];
-                if (!file) return;
-                setForm(f=>({...f,_imgFile:file,_imgUploading:true,_imgPreview:URL.createObjectURL(file)}));
-                const ext = file.name.split(".").pop();
-                const nombre = `anuncio_${Date.now()}.${ext}`;
-                const { data, error } = await sb.storage.from("anuncios-imagenes").upload(nombre, file, { upsert:true });
-                if (error) { setMsg({type:"err",text:"Error al subir imagen: "+error.message}); setForm(f=>({...f,_imgUploading:false})); return; }
-                const { data: urlData } = sb.storage.from("anuncios-imagenes").getPublicUrl(data.path);
-                setForm(f=>({...f, imagen_url: urlData.publicUrl, _imgUploading:false}));
-              }} />
-              {form._imgPreview ? (
-                <img src={form._imgPreview} alt="preview" style={{ width:"100%", maxHeight:"120px", objectFit:"cover", borderRadius:"8px" }} />
-              ) : (
-                <>
-                  <span style={{ fontSize:"28px" }}>🖼️</span>
-                  <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"rgba(255,255,255,0.4)", textAlign:"center" }}>Toca para seleccionar imagen<br/>JPG, PNG, WEBP</span>
-                </>
-              )}
-              {form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"10px", color:"#fbbf24" }}>Subiendo...</span>}
-              {form.imagen_url && !form._imgUploading && <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#22c55e" }}>Validado Imagen subida</span>}
-            </label>
-          </div>
-        ) : (
-          <input style={inp} placeholder="https://... URL de imagen" value={form.imagen_url} onChange={e=>setForm(f=>({...f,imagen_url:e.target.value}))} />
-        )}
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)", marginTop:"5px" }}>📐 Recomendado: <strong style={{color:"#fbbf24"}}>800 × 200 px</strong> (ratio 4:1) · móvil se adapta automáticamente</div>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"8px", marginBottom:"10px" }}>
-        <div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA INICIO *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.inicio} onChange={e=>setForm(f=>({...f,inicio:e.target.value}))} />
-        </div>
-        <div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", marginBottom:"4px" }}>FECHA Y HORA FIN *</div>
-          <input type="datetime-local" style={{...inp, marginBottom:0}} value={form.fin} onChange={e=>setForm(f=>({...f,fin:e.target.value}))} />
-        </div>
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
-        <div onClick={()=>setForm(f=>({...f,activo:!f.activo}))} style={{ width:"16px", height:"16px", borderRadius:"4px", border:`2px solid ${form.activo?"#22c55e":"rgba(255,255,255,0.2)"}`, background:form.activo?"#22c55e":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
-          {form.activo && <span style={{ color:"#0a1628", fontSize:"10px", fontWeight:"900" }}>✓</span>}
-        </div>
-        <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"rgba(255,255,255,0.6)" }}>Publicar inmediatamente (activo)</span>
-      </div>
-      <button onClick={handleGuardar} disabled={saving} style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#fbbf24,#f59e0b)", border:"none", borderRadius:"10px", color:"#0a0f1e", fontFamily:getFont(theme, "secondary"), fontWeight:"700", fontSize:"12px", cursor:"pointer", letterSpacing:"0.5px", opacity:saving?0.7:1 }}>
-        {saving ? (form.id ? "Actualizando..." : "Publicando...") : (form.id ? "💾 GUARDAR CAMBIOS" : "📢 PUBLICAR ANUNCIO")}
-      </button>
-
-      {/* Lista de anuncios existentes para admin */}
-      <AdminAnunciosList onToggle={handleToggle} onDelete={handleEliminar} onEdit={handleEditar} onRefresh={cargar} />
-      </div>}
-    </div>
-  );
-
-  // Botón admin para abrir panel (siempre visible si admin)
-  const BtnAdmin = isAdmin ? (
-    <div style={{ display:"flex", justifyContent:"flex-end", padding:"6px 12px 0", background:"rgba(251,191,36,0.04)", borderTop:"1px solid rgba(251,191,36,0.15)" }}>
-      <button onClick={() => setShowForm(true)} style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:"8px", padding:"5px 12px", color:"#fbbf24", fontFamily:getFont(theme, "secondary"), fontSize:"10px", fontWeight:"700", cursor:"pointer", letterSpacing:"0.5px" }}>
-        ＋ GESTIONAR ANUNCIOS · USUARIOS
-      </button>
-    </div>
-  ) : null;
-
-  // Sin anuncios activos
-  if (anuncios.length === 0) {
-    if (!isAdmin) return null;
-    return (
-      <div style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        {BtnAdmin}
-      </div>
-    );
-  }
-
-  const a = anuncios[current];
+  const totals = rows.reduce((acc,row) => {
+    const metric = cmGetAdMetrics(row);
+    acc.impresiones += metric.impresiones;
+    acc.clics += metric.clics;
+    return acc;
+  }, { impresiones:0, clics:0 });
+  void metricsVersion;
 
   return (
-    <div style={{ borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(10,22,50,0.6)", position:"relative", overflow:"hidden" }}>
-      {/* Slide animado */}
-      <div key={current} style={{ animation:"slideInFromRight 0.5s ease", padding:"0" }}>
-        {a.imagen_url && (
-          <div onClick={() => setPreviewImage(a.imagen_url)} title="Ver anuncio completo" style={{ width:"100%", background:"#061224", display:"flex", justifyContent:"center", alignItems:"center", cursor:"zoom-in", overflow:"hidden" }}>
-            <img src={a.imagen_url} alt={a.titulo} style={{ width:"100%", height:"auto", maxHeight: isMobile ? "none" : "72vh", objectFit:"contain", objectPosition:"center", display:"block", background:"#061224" }} onError={e=>e.target.style.display="none"} />
-          </div>
-        )}
-        <div style={{ padding: isMobile ? "10px 12px 8px" : "14px 20px 10px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
-            <div>
-              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"#fbbf24", fontWeight:"700", letterSpacing:"1.5px", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:"4px", padding:"2px 7px", marginRight:"8px" }}>📢 ANUNCIO</span>
-              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>{a.empresa}</span>
-            </div>
-            {anuncios.length > 1 && (
-              <span style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.3)" }}>{current+1}/{anuncios.length}</span>
-            )}
-          </div>
-          <div style={{ fontFamily:getFont(theme, "secondary"), fontSize: isMobile ? "12px" : "14px", fontWeight:"700", color:"#ffffff", marginBottom:"6px" }}>{a.titulo}</div>
-          {a.texto && (
-            a.imagen_url ? (
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize: isMobile?"10px":"11px", color:"rgba(255,255,255,0.7)", lineHeight:"1.6", marginBottom: a.enlace?"10px":"0" }}>
-                {a.texto}
-              </div>
-            ) : (
-              <div style={{ overflow:"hidden", whiteSpace:"nowrap", marginBottom: a.enlace?"10px":"4px", borderTop:"1px solid rgba(251,191,36,0.12)", borderBottom:"1px solid rgba(251,191,36,0.12)", padding:"12px 0", background:"rgba(251,191,36,0.04)" }}>
-                <span style={{
-                  display:"inline-block",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize: isMobile?"16px":"20px",
-                  fontWeight:"700",
-                  color:"rgba(255,255,255,0.95)",
-                  animation:"marqueeScroll 45s linear infinite",
-                  paddingLeft:"100%",
-                  willChange:"transform",
-                }}>
-                  {a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{a.texto}
-                </span>
-              </div>
-            )
-          )}
-          {(a.enlace || a.whatsapp) && (
-            <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"10px" }}>
-              {a.whatsapp && (
-                <a
-                  href={`https://wa.me/${a.whatsapp.replace(/\D/g,"")}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#22c55e", fontWeight:"700", textDecoration:"none", background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.35)", borderRadius:"8px", padding:"7px 14px" }}
-                >
-                  <AppIcon name="whatsapp" size={17} /> WhatsApp
-                </a>
-              )}
-              {a.enlace && (
-                <a
-                  href={a.enlace.startsWith("http") ? a.enlace : `https://${a.enlace}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display:"inline-flex", alignItems:"center", gap:"6px", fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#38bdf8", fontWeight:"700", textDecoration:"none", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.25)", borderRadius:"8px", padding:"7px 14px" }}
-                >
-                  <span style={{ fontSize:"14px" }}>🌐</span> Ver sitio
-                </a>
-              )}
-            </div>
-          )}
+    <section className="cm-admin-banners glass-card" style={{ background:"linear-gradient(180deg,rgba(8,12,23,.94),rgba(5,8,15,.96))", border:"1px solid rgba(159,202,255,.22)", borderRadius:"16px", boxShadow:"0 18px 50px rgba(0,0,0,.28),0 0 28px rgba(0,218,243,.06)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", overflow:"hidden" }}>
+      <div style={{ padding:isMobile ? "16px" : "18px 20px", borderBottom:"1px solid rgba(159,202,255,.12)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"14px", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"11px", minWidth:0 }}>
+          <span className="flex items-center justify-center leading-none" style={{ width:"44px", height:"44px", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"12px", background:"rgba(0,218,243,.10)", border:"1px solid rgba(0,218,243,.28)", color:"#9cf0ff", boxShadow:"0 0 20px rgba(0,218,243,.10)", lineHeight:1 }}><MS name="campaign" size={25} active /></span>
+          <div><h3 style={{ margin:0, color:"#e0e3e5", fontFamily:getFont(theme,"secondary"), fontSize:"18px" }}>Gestión de banners publicados</h3><p style={{ margin:"4px 0 0", color:"#89919e", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>Alta, aprobación, pausa, edición, eliminación y métricas por anuncio.</p></div>
         </div>
-        {/* Navegación: flechas + dots */}
-        {anuncios.length > 1 && (
-          <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:"12px", paddingBottom:"12px" }}>
-            <button
-              onClick={() => { setCurrent(v => (v - 1 + anuncios.length) % anuncios.length); clearInterval(intervalRef.current); }}
-              style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", fontSize:"16px", fontWeight:"700", flexShrink:0, transition:"background 0.2s", lineHeight:1 }}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.3)"}
-              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}
-            >‹</button>
-            <div style={{ display:"flex", gap:"5px", alignItems:"center" }}>
-              {anuncios.map((_,i) => (
-                <div key={i} onClick={() => { setCurrent(i); clearInterval(intervalRef.current); }} style={{ width: i===current?"18px":"6px", height:"6px", borderRadius:"3px", background: i===current?"#fbbf24":"rgba(255,255,255,0.2)", cursor:"pointer", transition:"all 0.3s" }} />
-              ))}
-            </div>
-            <button
-              onClick={() => { setCurrent(v => (v + 1) % anuncios.length); clearInterval(intervalRef.current); }}
-              style={{ background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.25)", borderRadius:"50%", width:"32px", height:"32px", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#ffffff", fontSize:"16px", fontWeight:"700", flexShrink:0, transition:"background 0.2s", lineHeight:1 }}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(251,191,36,0.3)"}
-              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}
-            >›</button>
-          </div>
-        )}
+        <button type="button" onClick={() => { setForm(blankForm()); setShowEditor(v => !v); setMsg(null); }} className="flex items-center justify-center leading-none" style={{ minHeight:"42px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"10px 14px", borderRadius:"8px", border:"1px solid rgba(0,218,243,.38)", background:"rgba(0,218,243,.10)", color:"#9cf0ff", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer", lineHeight:1 }}><MS name={showEditor ? "close" : "add_circle"} size={20} active /><span>{showEditor ? "Cerrar alta" : "Nuevo anuncio"}</span></button>
       </div>
-      {BtnAdmin}
-      {previewImage && (
-        <div onClick={() => setPreviewImage(null)} style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:"18px", cursor:"zoom-out" }}>
-          <button onClick={() => setPreviewImage(null)} style={{ position:"absolute", top:"14px", right:"14px", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.25)", color:"#fff", borderRadius:"999px", width:"38px", height:"38px", fontSize:"20px", cursor:"pointer" }}>×</button>
-          <img src={previewImage} alt="Anuncio completo" style={{ maxWidth:"100%", maxHeight:"92vh", objectFit:"contain", borderRadius:"10px", boxShadow:"0 20px 80px rgba(0,0,0,0.8)" }} />
+
+      <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "repeat(3,minmax(0,1fr))", gap:"10px", padding:isMobile ? "14px 16px" : "16px 20px", borderBottom:"1px solid rgba(159,202,255,.10)" }}>
+        <div style={{ padding:"13px", borderRadius:"10px", background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.08)" }}><span style={{ display:"block", color:"#89919e", fontSize:"10px", textTransform:"uppercase", letterSpacing:".08em" }}>Anuncios registrados</span><strong style={{ display:"block", marginTop:"5px", color:"#e0e3e5", fontSize:"22px" }}>{rows.length}</strong></div>
+        <div style={{ padding:"13px", borderRadius:"10px", background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.08)" }}><span style={{ display:"block", color:"#89919e", fontSize:"10px", textTransform:"uppercase", letterSpacing:".08em" }}>Impresiones</span><strong style={{ display:"block", marginTop:"5px", color:"#9fcaff", fontSize:"22px" }}>{totals.impresiones.toLocaleString("es-MX")}</strong></div>
+        <div style={{ padding:"13px", borderRadius:"10px", background:"rgba(255,255,255,.035)", border:"1px solid rgba(255,255,255,.08)" }}><span style={{ display:"block", color:"#89919e", fontSize:"10px", textTransform:"uppercase", letterSpacing:".08em" }}>Clics</span><strong style={{ display:"block", marginTop:"5px", color:"#7ee7bd", fontSize:"22px" }}>{totals.clics.toLocaleString("es-MX")}</strong></div>
+      </div>
+
+      {msg && <div style={{ margin:"14px 20px 0", padding:"10px 12px", borderRadius:"8px", background:msg.type === "ok" ? "rgba(34,197,94,.08)" : "rgba(239,68,68,.08)", border:`1px solid ${msg.type === "ok" ? "rgba(34,197,94,.28)" : "rgba(239,68,68,.28)"}`, color:msg.type === "ok" ? "#7ee7bd" : "#ffb4ab", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{msg.text}</div>}
+
+      {showEditor && <div style={{ padding:isMobile ? "16px" : "18px 20px", borderBottom:"1px solid rgba(159,202,255,.12)", background:"rgba(0,218,243,.025)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px", color:"#9fcaff", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:900, letterSpacing:".08em" }}><MS name={form.id ? "edit" : "add_photo_alternate"} size={19} active /><span>{form.id ? "EDITAR ANUNCIO" : "ALTA DE ANUNCIO O BANNER"}</span></div>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile ? "1fr" : "1fr 1fr", gap:"12px" }}>
+          <label style={{...labelStyle, gridColumn:isMobile ? "auto" : "1 / -1"}}>Título<input style={inputStyle} value={form.titulo} onChange={e => setForm(f => ({...f,titulo:e.target.value}))} /></label>
+          <label style={labelStyle}>Empresa u organización<input style={inputStyle} value={form.empresa} onChange={e => setForm(f => ({...f,empresa:e.target.value}))} /></label>
+          <label style={labelStyle}>WhatsApp<input style={inputStyle} inputMode="tel" value={form.whatsapp} onChange={e => setForm(f => ({...f,whatsapp:e.target.value.replace(/\D/g,"")}))} /></label>
+          <label style={{...labelStyle, gridColumn:isMobile ? "auto" : "1 / -1"}}>Texto<textarea style={{...inputStyle,minHeight:"96px",resize:"vertical"}} value={form.texto} onChange={e => setForm(f => ({...f,texto:e.target.value}))} /></label>
+          <label style={{...labelStyle, gridColumn:isMobile ? "auto" : "1 / -1"}}>Sitio web<input style={inputStyle} value={form.enlace} onChange={e => setForm(f => ({...f,enlace:e.target.value}))} placeholder="https://" /></label>
+          <div style={{ gridColumn:isMobile ? "auto" : "1 / -1", display:"grid", gap:"9px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+              <button type="button" onClick={() => setForm(f => ({...f,_imgMode:"upload"}))} className="flex items-center justify-center leading-none" style={{ minHeight:"36px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", borderRadius:"8px", padding:"8px 11px", border:`1px solid ${form._imgMode === "upload" ? "rgba(0,218,243,.45)" : "rgba(255,255,255,.12)"}`, background:form._imgMode === "upload" ? "rgba(0,218,243,.10)" : "rgba(255,255,255,.03)", color:form._imgMode === "upload" ? "#9cf0ff" : "#89919e", cursor:"pointer", lineHeight:1 }}><MS name="upload_file" size={18} /><span>Subir imagen</span></button>
+              <button type="button" onClick={() => setForm(f => ({...f,_imgMode:"url"}))} className="flex items-center justify-center leading-none" style={{ minHeight:"36px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", borderRadius:"8px", padding:"8px 11px", border:`1px solid ${form._imgMode === "url" ? "rgba(0,218,243,.45)" : "rgba(255,255,255,.12)"}`, background:form._imgMode === "url" ? "rgba(0,218,243,.10)" : "rgba(255,255,255,.03)", color:form._imgMode === "url" ? "#9cf0ff" : "#89919e", cursor:"pointer", lineHeight:1 }}><MS name="link" size={18} /><span>Usar URL</span></button>
+            </div>
+            {form._imgMode === "upload" ? <label className="flex items-center justify-center leading-none" style={{ minHeight:"92px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", border:"1px dashed rgba(0,218,243,.32)", borderRadius:"10px", background:"rgba(0,218,243,.035)", color:"#9cf0ff", cursor:"pointer", lineHeight:1 }}><input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e => uploadImage(e.target.files?.[0] || null)} />{form._imgPreview ? <img src={form._imgPreview} alt="Vista previa" style={{ width:"100%", maxHeight:"180px", objectFit:"contain", borderRadius:"8px" }} /> : <><MS name="add_photo_alternate" size={28} active /><span style={{ fontSize:"11px", fontWeight:700 }}>{form._uploading ? "Subiendo imagen" : "Seleccionar imagen"}</span></>}</label> : <input style={inputStyle} value={form.imagen_url} onChange={e => setForm(f => ({...f,imagen_url:e.target.value,_imgPreview:e.target.value}))} placeholder="https://..." />}
+          </div>
+          <label style={labelStyle}>Inicio de vigencia<input type="datetime-local" style={inputStyle} value={form.inicio} onChange={e => setForm(f => ({...f,inicio:e.target.value}))} /></label>
+          <label style={labelStyle}>Fin de vigencia<input type="datetime-local" style={inputStyle} value={form.fin} onChange={e => setForm(f => ({...f,fin:e.target.value}))} /></label>
+          <div style={{ gridColumn:isMobile ? "auto" : "1 / -1", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginTop:"2px" }}>
+            <button type="button" aria-pressed={form.activo} onClick={() => setForm(f => ({...f,activo:!f.activo}))} className="flex items-center justify-center leading-none" style={{ minHeight:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", borderRadius:"999px", padding:"8px 12px", border:`1px solid ${form.activo ? "rgba(34,197,94,.36)" : "rgba(148,163,184,.24)"}`, background:form.activo ? "rgba(34,197,94,.10)" : "rgba(148,163,184,.06)", color:form.activo ? "#7ee7bd" : "#94a3b8", cursor:"pointer", lineHeight:1 }}><MS name={form.activo ? "toggle_on" : "toggle_off"} size={22} active={form.activo} /><span>{form.activo ? "Publicar activo" : "Guardar pausado"}</span></button>
+            <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+              <button type="button" onClick={() => { setForm(blankForm()); setShowEditor(false); }} className="flex items-center justify-center leading-none" style={{ minHeight:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", borderRadius:"8px", padding:"9px 13px", border:"1px solid rgba(148,163,184,.24)", background:"rgba(148,163,184,.06)", color:"#cbd5e1", cursor:"pointer", lineHeight:1 }}><MS name="close" size={19} /><span>Cancelar</span></button>
+              <button type="button" onClick={save} disabled={saving || form._uploading} className="flex items-center justify-center leading-none" style={{ minHeight:"40px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", borderRadius:"8px", padding:"9px 14px", border:"1px solid rgba(0,218,243,.44)", background:"linear-gradient(135deg,rgba(0,218,243,.20),rgba(0,153,255,.16))", color:"#bdf4ff", cursor:saving ? "wait" : "pointer", opacity:saving ? .65 : 1, boxShadow:"0 0 18px rgba(0,218,243,.08)", lineHeight:1 }}><MS name={saving ? "sync" : "save"} size={19} active /><span>{saving ? "Guardando" : form.id ? "Guardar cambios" : "Crear anuncio"}</span></button>
+            </div>
+          </div>
         </div>
-      )}
-      <style>{`@keyframes slideInFromRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes marqueeScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}`}</style>
-    </div>
+      </div>}
+
+      <div style={{ padding:isMobile ? "16px" : "18px 20px" }}>
+        <AdminAnunciosList rows={rows} onSetActive={setActive} onDelete={remove} onEdit={editRow} onRefresh={load} metricsVersion={metricsVersion} />
+      </div>
+    </section>
   );
 }
 
@@ -6655,253 +6617,56 @@ function AdminAdTemplates({ onUseTemplate }) {
   );
 }
 
-function AdminAnunciosList({ onToggle, onDelete, onEdit, onRefresh }) {
+function AdminAnunciosList({ rows = [], onSetActive, onDelete, onEdit, onRefresh, metricsVersion = 0 }) {
   const theme = React.useContext(ThemeContext);
-  const [lista, setLista] = useState([]);
-  const [isReordering, setIsReordering] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  void metricsVersion;
+  const list = Array.isArray(rows) ? rows : [];
 
-  useEffect(() => {
-    sb.from("anuncios")
-      .select("*")
-      .order("orden", { ascending: false })
-      .order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setLista(data); });
-  }, []);
+  if (!list.length) return (
+    <div style={{ minHeight:"170px", display:"grid", placeItems:"center", alignContent:"center", gap:"8px", border:"1px dashed rgba(159,202,255,.22)", borderRadius:"12px", color:"#89919e", textAlign:"center" }}>
+      <MS name="view_carousel" size={34} />
+      <strong style={{ color:"#e0e3e5", fontFamily:getFont(theme,"secondary") }}>No hay banners registrados</strong>
+      <span style={{ fontSize:"11px", fontFamily:getFont(theme,"secondary") }}>Crea el primer anuncio desde el botón Nuevo anuncio.</span>
+    </div>
+  );
 
-  const handleDragStart = (e, index) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  };
-
-  const handleDrop = async (e, dropIndex) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    const reordered = [...lista];
-    const [draggedItem] = reordered.splice(draggedIndex, 1);
-    reordered.splice(dropIndex, 0, draggedItem);
-
-    // Actualizar orden en base de datos (mayor número = mayor prioridad)
-    const updates = reordered.map((item, idx) => ({
-      id: item.id,
-      orden: reordered.length - idx
-    }));
-
-    for (const update of updates) {
-      await sb.from("anuncios").update({ orden: update.orden }).eq("id", update.id);
-    }
-
-    setLista(reordered);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    if (onRefresh) setTimeout(onRefresh, 300);
-  };
-
-  const handleSetPrincipal = async (id) => {
-    // Establecer el anuncio con el orden más alto
-    const maxOrden = Math.max(...lista.map(a => a.orden || 0), 0);
-    await sb.from("anuncios").update({ orden: maxOrden + 100 }).eq("id", id);
-    
-    // Recargar lista
-    const { data } = await sb.from("anuncios")
-      .select("*")
-      .order("orden", { ascending: false })
-      .order("created_at", { ascending: false });
-    if (data) setLista(data);
-    if (onRefresh) setTimeout(onRefresh, 300);
-  };
-
-  if (lista.length === 0) return null;
+  const buttonStyle = (color) => ({ minWidth:"38px", minHeight:"36px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"6px", padding:"7px 9px", borderRadius:"8px", border:`1px solid ${color}55`, background:`${color}12`, color, cursor:"pointer", lineHeight:1, fontFamily:getFont(theme,"secondary"), fontSize:"10px", fontWeight:800 });
 
   return (
-    <div style={{ marginTop:"16px", borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:"12px" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
-        <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.4)", letterSpacing:"1.5px" }}>
-          ANUNCIOS EXISTENTES ({lista.length})
-        </div>
-        <button
-          onClick={() => setIsReordering(!isReordering)}
-          style={{
-            background: isReordering ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.07)",
-            border: `1px solid ${isReordering ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.15)"}`,
-            borderRadius:"6px",
-            padding:"4px 10px",
-            color: isReordering ? "#fbbf24" : "rgba(255,255,255,0.6)",
-            fontFamily:getFont(theme, "secondary"),
-            fontSize:"9px",
-            cursor:"pointer",
-            fontWeight:"700",
-            letterSpacing:"0.5px"
-          }}
-        >
-          {isReordering ? "✓ GUARDAR ORDEN" : "↕ REORDENAR"}
-        </button>
-      </div>
-
-      {lista.map((a, idx) => (
-        <div
-          key={a.id}
-          draggable={isReordering}
-          onDragStart={(e) => handleDragStart(e, idx)}
-          onDragOver={(e) => handleDragOver(e, idx)}
-          onDrop={(e) => handleDrop(e, idx)}
-          style={{
-            background: dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${dragOverIndex === idx && isReordering ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.08)"}`,
-            borderRadius:"8px",
-            padding:"10px 12px",
-            marginBottom:"8px",
-            display:"flex",
-            justifyContent:"space-between",
-            alignItems:"center",
-            gap:"8px",
-            cursor: isReordering ? "move" : "default",
-            opacity: draggedIndex === idx ? 0.5 : 1,
-            transition:"all 0.2s"
-          }}
-        >
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"4px" }}>
-              {isReordering && (
-                <span style={{ fontSize:"14px", color:"rgba(255,255,255,0.3)", cursor:"move" }}>⋮⋮</span>
-              )}
-              <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"11px", color:"#fff", fontWeight:"700", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {a.titulo}
-              </div>
-              {idx === 0 && !isReordering && (
-                <span style={{
-                  background:"rgba(251,191,36,0.15)",
-                  border:"1px solid rgba(251,191,36,0.35)",
-                  borderRadius:"4px",
-                  padding:"1px 5px",
-                  fontSize:"8px",
-                  color:"#fbbf24",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontWeight:"700",
-                  letterSpacing:"0.5px"
-                }}>
-                  ★ PRINCIPAL
-                </span>
-              )}
-            </div>
-            <div style={{ fontFamily:getFont(theme, "secondary"), fontSize:"9px", color:"rgba(255,255,255,0.35)" }}>
-              {a.empresa} · fin: {new Date(a.fecha_fin).toLocaleString("es-MX",{dateStyle:"short",timeStyle:"short"})}
-            </div>
-          </div>
-
-          {!isReordering && (
-            <div style={{ display:"flex", gap:"6px", flexShrink:0 }}>
-              {idx !== 0 && (
-                <button
-                  onClick={() => handleSetPrincipal(a.id)}
-                  title="Establecer como principal"
-                  style={{
-                    background:"rgba(251,191,36,0.12)",
-                    border:"1px solid rgba(251,191,36,0.3)",
-                    borderRadius:"6px",
-                    padding:"5px 9px",
-                    color:"#fbbf24",
-                    fontFamily:getFont(theme, "secondary"),
-                    fontSize:"9px",
-                    cursor:"pointer",
-                    fontWeight:"700"
-                  }}
-                >
-                  ★
-                </button>
-              )}
-              <button
-                onClick={() => onEdit(a.id)}
-                title="Editar anuncio"
-                style={{
-                  background:"rgba(56,189,248,0.12)",
-                  border:"1px solid rgba(56,189,248,0.3)",
-                  borderRadius:"6px",
-                  padding:"5px 9px",
-                  color:"#38bdf8",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"9px",
-                  cursor:"pointer",
-                  fontWeight:"700"
-                }}
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => {
-                  onToggle(a.id, a.activo);
-                  setTimeout(() => {
-                    sb.from("anuncios")
-                      .select("*")
-                      .order("orden", { ascending: false })
-                      .order("created_at", { ascending: false })
-                      .then(({ data }) => { if (data) setLista(data); });
-                  }, 300);
-                }}
-                style={{
-                  background: a.activo ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
-                  border: `1px solid ${a.activo ? "#22c55e55" : "rgba(255,255,255,0.15)"}`,
-                  borderRadius:"6px",
-                  padding:"5px 9px",
-                  color: a.activo ? "#22c55e" : "rgba(255,255,255,0.4)",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"9px",
-                  cursor:"pointer",
-                  fontWeight:"700"
-                }}
-              >
-                {a.activo ? "ON" : "OFF"}
-              </button>
-              <button
-                onClick={() => {
-                  onDelete(a.id);
-                  setLista(l => l.filter(x => x.id !== a.id));
-                }}
-                style={{
-                  background:"rgba(239,68,68,0.1)",
-                  border:"1px solid rgba(239,68,68,0.25)",
-                  borderRadius:"6px",
-                  padding:"5px 9px",
-                  color:"#ef4444",
-                  fontFamily:getFont(theme, "secondary"),
-                  fontSize:"9px",
-                  cursor:"pointer"
-                }}
-              >
-                Eliminar
-              </button>
-            </div>
-          )}
-        </div>
-      ))}
-
-      {isReordering && (
-        <div style={{
-          marginTop:"8px",
-          padding:"8px 12px",
-          background:"rgba(251,191,36,0.08)",
-          border:"1px solid rgba(251,191,36,0.2)",
-          borderRadius:"8px",
-          fontFamily:getFont(theme, "secondary"),
-          fontSize:"9px",
-          color:"rgba(255,255,255,0.5)",
-          textAlign:"center"
-        }}>
-          Tip: Arrastra los anuncios para cambiar su orden. El primero será el principal.
-        </div>
-      )}
+    <div style={{ overflowX:"auto", border:"1px solid rgba(159,202,255,.12)", borderRadius:"12px", background:"rgba(5,8,15,.50)" }}>
+      <table style={{ width:"100%", minWidth:"920px", borderCollapse:"collapse", fontFamily:getFont(theme,"secondary") }}>
+        <thead>
+          <tr style={{ background:"rgba(159,202,255,.045)", color:"#89919e", textTransform:"uppercase", letterSpacing:".07em", fontSize:"9px" }}>
+            <th style={{ padding:"11px 12px", textAlign:"left", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Anuncio</th>
+            <th style={{ padding:"11px 12px", textAlign:"center", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Estado</th>
+            <th style={{ padding:"11px 12px", textAlign:"left", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Vigencia</th>
+            <th style={{ padding:"11px 12px", textAlign:"right", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Impresiones</th>
+            <th style={{ padding:"11px 12px", textAlign:"right", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Clics</th>
+            <th style={{ padding:"11px 12px", textAlign:"center", borderBottom:"1px solid rgba(159,202,255,.12)" }}>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map(row => {
+            const metrics = cmGetAdMetrics(row);
+            const active = row.activo !== false;
+            const expired = toMs(row.fecha_fin) > 0 && toMs(row.fecha_fin) <= Date.now();
+            return <tr key={row.id} style={{ borderBottom:"1px solid rgba(255,255,255,.055)" }}>
+              <td style={{ padding:"12px", verticalAlign:"middle" }}><div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>{row.imagen_url ? <img src={row.imagen_url} alt="" style={{ width:"54px", height:"38px", objectFit:"cover", borderRadius:"7px", border:"1px solid rgba(159,202,255,.16)", background:"#080c17" }} /> : <span className="flex items-center justify-center leading-none" style={{ width:"54px", height:"38px", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:"7px", border:"1px solid rgba(159,202,255,.16)", color:"#9fcaff", background:"rgba(159,202,255,.05)", lineHeight:1 }}><MS name="campaign" size={20} /></span>}<div style={{ minWidth:0 }}><strong style={{ display:"block", maxWidth:"280px", color:"#e0e3e5", fontSize:"11px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{row.titulo || "Anuncio"}</strong><span style={{ display:"block", marginTop:"3px", color:"#89919e", fontSize:"9px" }}>{row.empresa || "Sin empresa"}</span></div></div></td>
+              <td style={{ padding:"12px", textAlign:"center" }}><span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", minHeight:"28px", padding:"5px 9px", borderRadius:"999px", background:expired ? "rgba(148,163,184,.08)" : active ? "rgba(34,197,94,.10)" : "rgba(245,158,11,.10)", border:`1px solid ${expired ? "rgba(148,163,184,.24)" : active ? "rgba(34,197,94,.30)" : "rgba(245,158,11,.30)"}`, color:expired ? "#94a3b8" : active ? "#7ee7bd" : "#fbbf24", fontSize:"9px", fontWeight:900, lineHeight:1 }}><MS name={expired ? "history" : active ? "verified" : "pause_circle"} size={16} /><span>{expired ? "EXPIRADO" : active ? "APROBADO" : "PAUSADO"}</span></span></td>
+              <td style={{ padding:"12px", color:"#bfc7d5", fontSize:"9px", lineHeight:1.5 }}><div>{row.fecha_inicio ? new Date(row.fecha_inicio).toLocaleString("es-MX", { dateStyle:"short", timeStyle:"short" }) : "Sin inicio"}</div><div style={{ color:"#89919e" }}>{row.fecha_fin ? new Date(row.fecha_fin).toLocaleString("es-MX", { dateStyle:"short", timeStyle:"short" }) : "Sin fin"}</div></td>
+              <td style={{ padding:"12px", textAlign:"right", color:"#9fcaff", fontWeight:900, fontSize:"12px" }}>{metrics.impresiones.toLocaleString("es-MX")}</td>
+              <td style={{ padding:"12px", textAlign:"right", color:"#7ee7bd", fontWeight:900, fontSize:"12px" }}>{metrics.clics.toLocaleString("es-MX")}</td>
+              <td style={{ padding:"12px" }}><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", flexWrap:"wrap" }}>
+                {!active && <button type="button" title="Aprobar" aria-label="Aprobar anuncio" onClick={() => onSetActive?.(row.id,true)} className="flex items-center justify-center leading-none" style={buttonStyle("#22c55e")}><MS name="verified" size={18} /><span>Aprobar</span></button>}
+                {active && <button type="button" title="Pausar" aria-label="Pausar anuncio" onClick={() => onSetActive?.(row.id,false)} className="flex items-center justify-center leading-none" style={buttonStyle("#f59e0b")}><MS name="pause_circle" size={18} /><span>Pausar</span></button>}
+                <button type="button" title="Editar" aria-label="Editar anuncio" onClick={() => onEdit?.(row)} className="flex items-center justify-center leading-none" style={buttonStyle("#38bdf8")}><MS name="edit" size={18} /></button>
+                <button type="button" title="Eliminar" aria-label="Eliminar anuncio" onClick={() => onDelete?.(row.id)} className="flex items-center justify-center leading-none" style={buttonStyle("#ef4444")}><MS name="delete" size={18} /></button>
+              </div></td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+      <div style={{ display:"flex", justifyContent:"flex-end", padding:"10px 12px", borderTop:"1px solid rgba(159,202,255,.10)" }}><button type="button" onClick={onRefresh} className="flex items-center justify-center leading-none" style={{ minHeight:"36px", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"7px", padding:"8px 11px", borderRadius:"8px", border:"1px solid rgba(159,202,255,.24)", background:"rgba(159,202,255,.06)", color:"#9fcaff", cursor:"pointer", lineHeight:1 }}><MS name="refresh" size={18} /><span>Actualizar tabla</span></button></div>
     </div>
   );
 }
@@ -16223,9 +15988,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const isChanged = getCarrilEstadoId(st) !== "libre" || st.retornos || st.terminal !== carril.defaultTerminal || (st.expo && st.expo !== "libre") || (st.impo && st.impo !== "libre") || !!st.expo_contenedor;
     return (
       <div key={carril.id} style={laneCardShell(laneOpt.id !== "libre" ? laneOpt.color : zonaColor)}>
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"12px", flexWrap:"wrap", marginBottom:"12px" }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}>
+        <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "minmax(0,1fr) auto", alignItems:"start", gap:"12px", marginBottom:"12px", minWidth:0 }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap", minWidth:0 }}>
               <div style={{ background:`${zonaColor}18`, border:`1px solid ${zonaColor}44`, borderRadius:"999px", padding:"4px 10px", color:zonaColor, fontFamily:getFont(theme, "secondary"), fontSize:"12px", fontWeight:"800", letterSpacing:".05em", textTransform:"uppercase" }}>{carril.label}</div>
               <Badge color="#22c55e" small>INGRESO</Badge>
             </div>
@@ -17115,8 +16880,8 @@ function CarrilesTab({ isAdmin = false }) {
     setEstado(next);
     await saveToSupa(next);
     await auditLog({ action:"modificar_carril_expo_impo", section:"carriles", entityId:cid, before:estado[cid], after:{ carril:cid, campo:"abierto", value, valor_label:value ? "Abierto" : "Cerrado", summary:`${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}` }, actor:`Usuario_${getDeviceId().slice(-4)}` });
-    notify(value ? "✓ Carril abierto" : "⛔ Carril cerrado", value ? "#22c55e" : "#6b7280");
-    await publicarNoticia({ tipo: "carril", icono: "🚦", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
+    notify(value ? "Carril abierto" : "Carril cerrado", value ? "#22c55e" : "#6b7280");
+    await publicarNoticia({ tipo: "carril", icono: "traffic", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
   };
 
   const setContingencia = async (activo) => {
@@ -17174,7 +16939,7 @@ function CarrilesTab({ isAdmin = false }) {
     lanes.forEach(c => { next[c.id] = { ...(next[c.id] || {}), abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
     setEstado(next);
     await saveToSupa(next);
-    notify("✓ Acceso restablecido", "#22c55e");
+    notify("Acceso restablecido", "#22c55e");
   };
 
   const resetAll = async () => {
@@ -17187,7 +16952,7 @@ function CarrilesTab({ isAdmin = false }) {
     };
     setEstado(next);
     await saveToSupa(next);
-    notify("✓ Todo restablecido", "#22c55e");
+    notify("Todo restablecido", "#22c55e");
   };
 
   const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
@@ -17203,7 +16968,8 @@ function CarrilesTab({ isAdmin = false }) {
     background:"linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
     backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)",
     border:`1px solid ${accent}52`, borderRadius:"18px", padding:"14px",
-    boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`
+    boxShadow:`0 18px 40px ${accent}14, inset 0 1px 0 rgba(255,255,255,0.07)`,
+    minWidth:0, width:"100%", height:"100%", boxSizing:"border-box"
   });
   const laneMiniLabelStyle = { fontSize:"9px", color:"rgba(255,255,255,0.46)", fontFamily:getFont(theme, "secondary"), letterSpacing:"1.2px", textTransform:"uppercase" };
   const laneHeroTitleStyle = { color:"#f8fafc", fontFamily:getFont(theme, "title"), fontWeight:"800", fontSize:"17px", letterSpacing:"-.01em" };
@@ -17241,7 +17007,7 @@ function CarrilesTab({ isAdmin = false }) {
     textAlign:"left"
   });
   const selectorMenuIcon = (active, accent) => (
-    <div style={{ color: active ? accent : "rgba(148,163,184,0.72)", fontSize:"22px", lineHeight:1, paddingLeft:"8px" }}>≡</div>
+    <span className="flex items-center justify-center leading-none" style={{ width:"26px", height:"26px", display:"inline-flex", alignItems:"center", justifyContent:"center", color:active ? accent : "rgba(148,163,184,0.72)", lineHeight:1, flex:"0 0 auto" }}><MS name="unfold_more" size={20} color={active ? accent : "#94a3b8"} /></span>
   );
   const renderCarrilVoteCard = (carril, accent, tipoLabel, iconName) => {
     const st = estado[carril.id] || {};
@@ -17275,7 +17041,7 @@ function CarrilesTab({ isAdmin = false }) {
             </div>
             <div style={{ color:"rgba(255,255,255,0.42)", fontSize:"10px", fontFamily:getFont(theme, "secondary"), marginTop:"5px" }}>{timeAgo(st.lastUpdate)} · {st.updatedBy || "Tú"}</div>
           </div>
-          <Badge color={abierto ? "#22c55e" : "#6b7280"} small>{abierto ? "ABIERTO" : "CERRADO"}</Badge>
+          <span className="flex items-center justify-center leading-none" style={{ justifySelf:carrilesMobile ? "start" : "end", alignSelf:"start", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"6px", minHeight:"28px", padding:"5px 9px", borderRadius:"7px", background:abierto ? "rgba(34,197,94,.10)" : "rgba(107,114,128,.12)", border:`1px solid ${abierto ? "rgba(34,197,94,.38)" : "rgba(148,163,184,.24)"}`, color:abierto ? "#22c55e" : "#9ca3af", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:900, letterSpacing:".06em", whiteSpace:"nowrap", lineHeight:1 }}><MS name={abierto ? "lock_open" : "lock"} size={15} color={abierto ? "#22c55e" : "#9ca3af"} /><span>{abierto ? "ABIERTO" : "CERRADO"}</span></span>
         </div>
 
         <div style={{ display:"grid", gridTemplateColumns:carrilesMobile ? "1fr" : "repeat(auto-fit,minmax(240px,1fr))", gap:"12px" }}>
@@ -17296,7 +17062,7 @@ function CarrilesTab({ isAdmin = false }) {
             <div style={{ display:"grid", gap:"10px", marginBottom:"10px" }}>
               <button onClick={() => toggle(carril.id, true)} style={selectorButtonStyle(abierto, "#22c55e")}>
                 <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
-                  <div style={{ width:"28px", height:"28px", borderRadius:"10px", display:"grid", placeItems:"center", background: abierto ? "rgba(34,197,94,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${abierto ? "rgba(34,197,94,.35)" : "rgba(255,255,255,.10)"}` }}><span style={{ color: abierto ? "#22c55e" : "#94a3b8", fontWeight:"900", fontSize:"18px", lineHeight:1 }}>✓</span></div>
+                  <div className="flex items-center justify-center leading-none" style={{ width:"28px", height:"28px", borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", background:abierto ? "rgba(34,197,94,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${abierto ? "rgba(34,197,94,.35)" : "rgba(255,255,255,.10)"}`, lineHeight:1 }}><MS name="check_circle" size={19} color={abierto ? "#22c55e" : "#94a3b8"} /></div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:"10px", color: abierto ? "#22c55e" : "rgba(148,163,184,0.78)", letterSpacing:".12em", textTransform:"uppercase", fontWeight:"800", marginBottom:"2px" }}>Estado seleccionado</div>
                     <div style={{ fontSize:"14px", color: abierto ? "#f8fafc" : "#cbd5e1", fontWeight:"800" }}>Abierto</div>
@@ -17306,7 +17072,7 @@ function CarrilesTab({ isAdmin = false }) {
               </button>
               <button onClick={() => toggle(carril.id, false)} style={selectorButtonStyle(!abierto, "#ef4444")}>
                 <div style={{ display:"flex", alignItems:"center", gap:"10px", minWidth:0 }}>
-                  <div style={{ width:"28px", height:"28px", borderRadius:"10px", display:"grid", placeItems:"center", background: !abierto ? "rgba(239,68,68,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${!abierto ? "rgba(239,68,68,.35)" : "rgba(255,255,255,.10)"}` }}><span style={{ color: !abierto ? "#ef4444" : "#94a3b8", fontWeight:"900", fontSize:"18px", lineHeight:1 }}>⛔</span></div>
+                  <div className="flex items-center justify-center leading-none" style={{ width:"28px", height:"28px", borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center", background:!abierto ? "rgba(239,68,68,.12)" : "rgba(255,255,255,.04)", border:`1px solid ${!abierto ? "rgba(239,68,68,.35)" : "rgba(255,255,255,.10)"}`, lineHeight:1 }}><MS name="block" size={19} color={!abierto ? "#ef4444" : "#94a3b8"} /></div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:"10px", color: !abierto ? "#ef4444" : "rgba(148,163,184,0.78)", letterSpacing:".12em", textTransform:"uppercase", fontWeight:"800", marginBottom:"2px" }}>Estado seleccionado</div>
                     <div style={{ fontSize:"14px", color: !abierto ? "#f8fafc" : "#cbd5e1", fontWeight:"800" }}>Cerrado</div>
@@ -17397,7 +17163,7 @@ function CarrilesTab({ isAdmin = false }) {
                   <div style={{ fontSize:"14px", lineHeight:1.15, fontWeight:"800", color: active ? "#f8fafc" : "#dbe7f5" }}>{acc.label}</div>
                 </div>
               </div>
-              <div style={{ flex:"0 0 auto", color: active ? acc.color : "rgba(148,163,184,0.72)", fontSize:"24px", lineHeight:1 }}>≡</div>
+              <span className="flex items-center justify-center leading-none" style={{ width:"28px", height:"28px", display:"inline-flex", alignItems:"center", justifyContent:"center", flex:"0 0 auto", color:active ? acc.color : "rgba(148,163,184,0.72)", lineHeight:1 }}><MS name="unfold_more" size={21} color={active ? acc.color : "#94a3b8"} /></span>
             </button>
           );
         })}
@@ -17474,7 +17240,7 @@ function CarrilesTab({ isAdmin = false }) {
                 <MS name="engineering" size={18} color="#f59e0b" />
                 <span>CONTINGENCIA POR TRABAJOS</span>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:carrilesMobile || contingencyCarriles.length===1 ? "1fr" : "1fr 1fr", gap:"12px", marginBottom:"14px" }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full items-stretch" style={{ display:"grid", gridTemplateColumns:carrilesMobile || contingencyCarriles.length===1 ? "1fr" : "repeat(2,minmax(0,1fr))", gap:"24px", width:"100%", alignItems:"stretch", marginBottom:"14px" }}>
                 {contingencyCarriles.map(carril => renderCarrilVoteCard(carril, "#f59e0b", "Importación", "truck-import"))}
               </div>
             </>
@@ -34731,6 +34497,13 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
   const [resolvedUrls, setResolvedUrls] = useState({});
   const [resolvedFormats, setResolvedFormats] = useState({});
   const [reviewDates, setReviewDates] = useState({});
+  const [adMetricsVersion, setAdMetricsVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setAdMetricsVersion(v => v + 1);
+    window.addEventListener("cm:ad-metrics", bump);
+    window.addEventListener("storage", bump);
+    return () => { window.removeEventListener("cm:ad-metrics", bump); window.removeEventListener("storage", bump); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -34815,7 +34588,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
         formato: row.formato || null,
       }));
       setItems(feedList);
-      setLegacyItems(legacyList);
+      setLegacyItems(adminMode ? [] : legacyList);
 
       const nextDates = {};
       feedList.forEach(row => {
@@ -35062,6 +34835,8 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
     const url = resolvedUrls[key] || item.imagen_url || "";
     const fmt = resolvedFormats[key] || item.formato || "horizontal";
     const isOwnPending = item.user_id === authUser?.id && item.estatus === "pendiente";
+    const adMetrics = cmGetAdMetrics(item);
+    void adMetricsVersion;
     return <article key={key} className={`cm-feed-card cm-feed-card--${fmt} ${adminCard ? "is-admin" : ""}`}>
       <div className="cm-feed-card__media">
         {url ? <img src={url} alt={item.titulo || "Anuncio"} loading="lazy" /> : <div className="cm-feed-card__missing"><MS name="image" size={36} /><span>Imagen no disponible</span></div>}
@@ -35076,6 +34851,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
         {(item.contacto_whatsapp || item.whatsapp) && item.estatus === "aprobado" && <a className="cm-feed-contact" href={`https://wa.me/${String(item.contacto_whatsapp || item.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"><AppIcon name="whatsapp" size={19} /><span>Contactar por WhatsApp</span></a>}
         {!adminCard && item.estatus === "aprobado" && <div className="cm-feed-reactions">{FEED_REACTION_TYPES.map(r => <button key={r.id} type="button" disabled={item._legacy || !authUser?.id} title={item._legacy ? "Reacciones disponibles para anuncios del Feed" : r.label} className={`cm-feed-reaction ${mine[item.id]===r.id?"is-active":""}`} onClick={() => react(item,r.id)}><MS name={r.icon} size={19} active={mine[item.id]===r.id} /><span>{reactions[item.id]?.[r.id] || 0}</span></button>)}</div>}
         {adminCard && <div className="cm-feed-review">
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}><div style={{padding:"9px 10px",border:"1px solid rgba(159,202,255,.16)",borderRadius:"7px",background:"rgba(159,202,255,.04)"}}><span style={{display:"flex",alignItems:"center",gap:"6px",color:"#89919e",fontSize:"9px",textTransform:"uppercase",fontWeight:800}}><MS name="visibility" size={16}/>Impresiones</span><strong style={{display:"block",marginTop:"4px",color:"#9fcaff",fontSize:"16px"}}>{adMetrics.impresiones.toLocaleString("es-MX")}</strong></div><div style={{padding:"9px 10px",border:"1px solid rgba(126,231,189,.16)",borderRadius:"7px",background:"rgba(126,231,189,.04)"}}><span style={{display:"flex",alignItems:"center",gap:"6px",color:"#89919e",fontSize:"9px",textTransform:"uppercase",fontWeight:800}}><MS name="ads_click" size={16}/>Clics</span><strong style={{display:"block",marginTop:"4px",color:"#7ee7bd",fontSize:"16px"}}>{adMetrics.clics.toLocaleString("es-MX")}</strong></div></div>
           <div className="cm-feed-review__identity"><span><MS name="badge" size={17} />Autor</span><code>{item.user_id || "AnunciosBanner"}</code></div>
           {!item._legacy && item.estatus === "pendiente" && <>
             <div className="cm-feed-review__dates"><label><span>Inicio aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.inicio || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),inicio:e.target.value}}))} /></label><label><span>Fin aprobado</span><input type="datetime-local" value={reviewDates[item.id]?.fin || ""} onChange={e => setReviewDates(v => ({...v,[item.id]:{...(v[item.id]||{}),fin:e.target.value}}))} /></label></div>
@@ -35092,7 +34868,7 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
       .cm-feed-root{font-family:Inter,sans-serif;color:#e0e3e5;max-width:1200px;margin:0 auto;padding:32px 24px 72px;background:#0b0f10;min-height:72vh}.cm-feed-root *{box-sizing:border-box}.cm-feed-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}.cm-feed-head h2{font-size:32px;line-height:40px;margin:0;color:#e0e3e5}.cm-feed-head p{margin:8px 0 0;color:#bfc7d5;line-height:24px;max-width:760px}.cm-feed-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.cm-feed-btn{min-height:42px;border:1px solid rgba(159,202,255,.36);border-radius:4px;background:rgba(29,32,34,.72);color:#9fcaff;padding:10px 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer;transition:all .3s ease}.cm-feed-btn:hover{transform:translateY(-1px);border-color:rgba(159,202,255,.7);box-shadow:0 0 20px rgba(159,202,255,.15)}.cm-feed-btn--primary{background:linear-gradient(180deg,#9fcaff,#00e3fd);color:#003259;border-color:#9fcaff}.cm-feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;padding:12px 14px;border:1px solid rgba(63,71,83,.3);border-radius:8px;background:rgba(29,32,34,.7);backdrop-filter:blur(12px)}.cm-feed-tabs{display:flex;gap:8px;flex-wrap:wrap}.cm-feed-tab{border:1px solid transparent;border-radius:4px;background:transparent;color:#bfc7d5;padding:9px 12px;display:flex;align-items:center;gap:7px;font-weight:700;cursor:pointer;transition:.3s}.cm-feed-tab:hover,.cm-feed-tab.is-active{color:#9fcaff;border-color:rgba(159,202,255,.42);background:rgba(159,202,255,.08);box-shadow:0 0 18px rgba(159,202,255,.1)}.cm-feed-count{font-size:13px;color:#89919e}.cm-feed-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}.cm-feed-card{grid-column:span 6;background:rgba(29,32,34,.72);border:1px solid rgba(63,71,83,.38);border-radius:8px;overflow:hidden;backdrop-filter:blur(12px);transition:transform .3s ease,border-color .3s ease,box-shadow .3s ease;animation:cmFeedIn .38s ease both}.cm-feed-card:hover{transform:translateY(-3px);border-color:rgba(159,202,255,.5);box-shadow:0 14px 34px rgba(0,0,0,.25),0 0 20px rgba(159,202,255,.12)}.cm-feed-card--horizontal{grid-column:span 12}.cm-feed-card--vertical{grid-column:span 4}.cm-feed-card--cuadrado{grid-column:span 6}.cm-feed-card.is-admin{grid-column:span 6}.cm-feed-card__media{position:relative;background:#101415;overflow:hidden}.cm-feed-card--horizontal .cm-feed-card__media{aspect-ratio:16/6}.cm-feed-card--cuadrado .cm-feed-card__media{aspect-ratio:1/1}.cm-feed-card--vertical .cm-feed-card__media{aspect-ratio:9/14}.cm-feed-card__media img{width:100%;height:100%;display:block;object-fit:contain;background:#101415}.cm-feed-card__missing{min-height:230px;display:grid;place-items:center;align-content:center;gap:8px;color:#89919e}.cm-feed-card__format,.cm-feed-card__pending{position:absolute;top:12px;display:flex;align-items:center;gap:6px;border:1px solid rgba(159,202,255,.3);border-radius:999px;background:rgba(11,15,16,.82);backdrop-filter:blur(10px);padding:6px 9px;color:#9fcaff;font-size:11px;font-weight:700}.cm-feed-card__format{left:12px}.cm-feed-card__pending{right:12px;color:#bdf4ff}.cm-feed-card__body{padding:20px}.cm-feed-card__top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.cm-feed-card__dates{display:flex;align-items:center;gap:6px;color:#89919e;font-size:12px}.cm-feed-card h3{font-size:20px;line-height:28px;margin:16px 0 5px;color:#e0e3e5}.cm-feed-card__company{margin:0 0 12px;color:#9fcaff;font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}.cm-feed-card__description{margin:0 0 18px;color:#bfc7d5;line-height:21px;white-space:pre-wrap}.cm-feed-contact{width:max-content;max-width:100%;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(37,211,102,.45);border-radius:4px;background:rgba(37,211,102,.1);color:#8ff0ad;padding:10px 13px;text-decoration:none;font-weight:700;transition:.3s}.cm-feed-contact:hover{transform:translateY(-2px);box-shadow:0 0 20px rgba(37,211,102,.16);border-color:#25d366}.cm-feed-reactions{display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid rgba(63,71,83,.28)}.cm-feed-reaction{min-width:60px;border:1px solid rgba(63,71,83,.5);border-radius:4px;background:#191c1e;color:#bfc7d5;padding:8px 10px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-reaction:hover,.cm-feed-reaction.is-active{color:#bdf4ff;border-color:#00daf3;box-shadow:0 0 16px rgba(0,218,243,.14);transform:translateY(-2px)}.cm-feed-reaction:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}.cm-feed-empty,.cm-feed-loading{min-height:260px;border:1px dashed rgba(63,71,83,.7);border-radius:8px;display:grid;place-items:center;align-content:center;gap:10px;color:#89919e;text-align:center}.cm-feed-empty strong{font-size:18px;color:#e0e3e5}.cm-feed-pulse{width:18px;height:18px;border-radius:50%;background:#00daf3;box-shadow:0 0 0 0 rgba(0,218,243,.4);animation:cmFeedPulse 1.35s infinite}.cm-feed-notice{margin-bottom:18px;padding:12px 14px;border-radius:4px;border:1px solid rgba(159,202,255,.35);background:rgba(159,202,255,.08);color:#bdf4ff}.cm-feed-error{border-color:rgba(255,180,171,.45);color:#ffb4ab;background:rgba(255,180,171,.08)}.cm-feed-admin-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}.cm-feed-stat{padding:16px;border:1px solid rgba(63,71,83,.35);border-radius:8px;background:rgba(29,32,34,.7)}.cm-feed-stat span{display:block;color:#89919e;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}.cm-feed-stat strong{display:block;margin-top:5px;color:#e0e3e5;font-size:24px}.cm-feed-review{margin-top:18px;padding-top:16px;border-top:1px solid rgba(63,71,83,.35)}.cm-feed-review__identity{display:grid;gap:6px;margin-bottom:12px}.cm-feed-review__identity span{display:flex;align-items:center;gap:6px;color:#89919e;font-size:11px;text-transform:uppercase;font-weight:700}.cm-feed-review__identity code{font:500 12px/18px Inter,sans-serif;color:#9fcaff;word-break:break-all}.cm-feed-review__dates{display:grid;grid-template-columns:1fr 1fr;gap:10px}.cm-feed-review__dates label{display:grid;gap:6px;color:#89919e;font-size:11px;font-weight:700}.cm-feed-review__dates input,.cm-feed-form input,.cm-feed-form textarea{width:100%;border:1px solid rgba(63,71,83,.75);border-radius:4px;background:#101415;color:#e0e3e5;padding:11px 12px;outline:none;transition:.3s}.cm-feed-review__dates input:focus,.cm-feed-form input:focus,.cm-feed-form textarea:focus{border-color:#9fcaff;box-shadow:0 0 0 4px rgba(159,202,255,.1)}.cm-feed-admin-actions{display:flex;gap:10px;margin-top:13px}.cm-feed-admin-actions button{border-radius:4px;background:#191c1e;padding:10px 13px;font-weight:700;display:flex;align-items:center;gap:7px;cursor:pointer;transition:.3s}.cm-feed-admin-actions .approve{border:1px solid rgba(126,231,189,.45);color:#7ee7bd}.cm-feed-admin-actions .reject{border:1px solid rgba(255,180,171,.45);color:#ffb4ab}.cm-feed-admin-actions button:hover{transform:translateY(-2px);box-shadow:0 0 18px rgba(159,202,255,.12)}.cm-feed-legacy-note{display:flex;align-items:center;gap:8px;color:#9fcaff;font-size:12px}.cm-feed-composer-backdrop{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.74);display:grid;place-items:center;padding:20px}.cm-feed-form{width:min(760px,100%);max-height:92vh;overflow:auto;border:1px solid rgba(159,202,255,.35);border-radius:8px;background:rgba(25,28,30,.97);box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 30px rgba(159,202,255,.1);padding:22px}.cm-feed-form-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.cm-feed-form-head h3{margin:0;font-size:24px}.cm-feed-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cm-feed-form label{display:grid;gap:7px;color:#bfc7d5;font-size:12px;font-weight:700}.cm-feed-form label.is-wide{grid-column:1/-1}.cm-feed-form textarea{min-height:110px;resize:vertical}.cm-feed-drop{grid-column:1/-1;border:1px dashed rgba(159,202,255,.45);border-radius:8px;background:#101415;padding:16px}.cm-feed-drop input{padding:8px}.cm-feed-preview{display:grid;place-items:center;margin-top:12px;border:1px solid rgba(63,71,83,.5);border-radius:8px;overflow:hidden;background:#0b0f10}.cm-feed-preview img{max-width:100%;max-height:360px;object-fit:contain}.cm-feed-preview__meta{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:#9fcaff}.cm-feed-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}@keyframes cmFeedPulse{70%{box-shadow:0 0 0 12px rgba(0,218,243,0)}100%{box-shadow:0 0 0 0 rgba(0,218,243,0)}}@keyframes cmFeedIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@media(max-width:880px){.cm-feed-card,.cm-feed-card--horizontal,.cm-feed-card--vertical,.cm-feed-card--cuadrado,.cm-feed-card.is-admin{grid-column:span 12}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}}@media(max-width:620px){.cm-feed-root{padding:24px 14px 60px}.cm-feed-head{display:block}.cm-feed-head-actions{justify-content:flex-start;margin-top:16px}.cm-feed-toolbar{align-items:flex-start;flex-direction:column}.cm-feed-form-grid,.cm-feed-review__dates{grid-template-columns:1fr}.cm-feed-admin-summary{grid-template-columns:1fr 1fr}.cm-feed-card__body{padding:16px}}
     `}</style>
 
-    <div className="cm-feed-head"><div><h2>{adminMode ? "Anuncios" : "Feed"}</h2><p>{adminMode ? "Gestión unificada de propuestas del Feed, anuncios publicados y contenido compartido con el Feed de Posturas." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p></div><div className="cm-feed-head-actions"><button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} /><span>Actualizar</span></button>{canPublish && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</span></button>}</div></div>
+    <div className="cm-feed-head"><div><h2>{adminMode ? "Moderación de propuestas" : "Feed"}</h2><p>{adminMode ? "Revisión de propuestas del Feed. Los banners publicados se administran en el bloque superior de Anuncios y Banners." : "Anuncios vigentes de la comunidad portuaria, publicados con aprobación administrativa."}</p></div><div className="cm-feed-head-actions"><button type="button" className="cm-feed-btn" onClick={loadFeed}><MS name="refresh" size={20} /><span>Actualizar</span></button>{canPublish && <button type="button" className="cm-feed-btn cm-feed-btn--primary" onClick={() => setShowComposer(true)}><MS name="add_photo_alternate" size={21} active /><span>{isAdmin && adminMode ? "Publicar anuncio" : "Proponer anuncio"}</span></button>}</div></div>
 
     {notice && <div className="cm-feed-notice">{notice}</div>}
     {error && <div className="cm-feed-notice cm-feed-error">{error}</div>}
@@ -36461,7 +36237,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"support", permission:["gestionar_soporte"], title:"Soporte", subtitle:"Atención y seguimiento de solicitudes de soporte", icon:"support_agent" },
     { id:"users", permission:["gestionar_roles"], title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
     { id:"news", permission:["publicar_comunicados"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
-    { id:"feed", permission:["publicar_anuncios"], title:"Anuncios", subtitle:"Aprobación, rechazo y seguimiento del Feed", icon:"campaign" },
+    { id:"feed", permission:["publicar_anuncios"], title:"Anuncios y Banners", subtitle:"Alta, moderación, publicación y métricas centralizadas de anuncios", icon:"campaign" },
     { id:"traffic", permission:["actualizar_trafico"], title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
     { id:"incidents", permission:["moderar_reportes"], title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
     { id:"terminals", permission:["actualizar_terminales","actualizar_patios"], title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
@@ -36687,7 +36463,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
             <section className="csp-quick" aria-labelledby="csp-quick-label">
               <p id="csp-quick-label" className="csp-label-caps">Acciones rápidas</p>
               <div className="csp-quick__row">
-                {hasPermission("publicar_anuncios") && <button type="button" className="csp-action" onClick={() => openSection("feed")}><MS name="campaign" size={24} active /><span>Publicar anuncio</span></button>}
+                {hasPermission("publicar_anuncios") && <button type="button" className="csp-action" onClick={() => openSection("feed")}><MS name="campaign" size={24} active /><span>Gestionar anuncios</span></button>}
                 {hasPermission("publicar_comunicados") && <button type="button" className="csp-action csp-action--error" onClick={() => openSection("news", { newsTool:"publish" })}><MS name="campaign" size={24} active /><span>Publicar comunicado</span></button>}
                 {hasPermission("publicar_comunicados") && <button type="button" className="csp-action" onClick={() => openSection("news", { newsTool:"propose" })}><MS name="edit_note" size={24} active /><span>Proponer comunicado</span></button>}
                 {hasPermission("gestionar_roles") && <button type="button" className="csp-action" onClick={() => openSection("users")}><MS name="save_as" size={24} active /><span>Gestionar roles</span></button>}
@@ -36740,7 +36516,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                   {newsTool === "publish" ? <NoticiasAdminPublisher isAdmin={true} /> : <ComunicadoAdminComposer isAdmin={true} />}
                   <div style={{height:16}} /><NoticiasAdminCleanup />
                 </>}
-                {activeDashboardSection === "feed" && <FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} />}
+                {activeDashboardSection === "feed" && <div style={{display:"grid",gap:"24px"}}><AdminBannerManager /><FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} /></div>}
                 {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
@@ -37862,7 +37638,7 @@ function App() {
         {active !== "inicio" && (
           <section className="cm-monetization-zone" aria-label="Contenido patrocinado">
             <HorizontalAdSenseSection sectionKey={`high-value-${active}`} />
-            <AnunciosBanner isAdmin={isAdmin} />
+            <AnunciosBanner />
             {["noticias", "donativos", "tutorial"].includes(active) && (
               <FluidAdSenseSection sectionKey={`high-value-fluid-${active}`} />
             )}
