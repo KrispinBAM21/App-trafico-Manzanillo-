@@ -3409,13 +3409,14 @@ const persistStatusEntry = (scope, id, entry) => {
 };
 const mergeStatusMapsByLatest = (scope, defaults = {}, remote = {}) => {
   const cached = readStatusCache(scope);
-  const merged = { ...(defaults || {}), ...(remote || {}) };
+  const merged = { ...(defaults || {}) };
   Object.entries(cached || {}).forEach(([id, entry]) => {
+    if (Object.prototype.hasOwnProperty.call(remote || {}, id)) return;
     const cachedTime = statusTimeValue(entry?.lastUpdate || entry?.last_update || entry?.updated_at || 0);
-    const remoteTime = statusTimeValue(merged?.[id]?.lastUpdate || merged?.[id]?.last_update || merged?.[id]?.updated_at || 0);
-    if (!merged[id] || cachedTime >= remoteTime) merged[id] = entry;
+    const currentTime = statusTimeValue(merged?.[id]?.lastUpdate || merged?.[id]?.last_update || merged?.[id]?.updated_at || 0);
+    if (!merged[id] || cachedTime >= currentTime) merged[id] = entry;
   });
-  return merged;
+  return { ...merged, ...(remote || {}) };
 };
 const statusTimeValue = (v) => {
   if (!v) return 0;
@@ -4591,7 +4592,7 @@ const syncComunicadoToNoticia = async (comunicado, { processMedia = false } = {}
 
 const publicarNoticia = async ({ tipo, titulo, detalle, icono, color, origen, ocultar_en_feed, ...extra }) => {
   const tipoNorm = String(tipo || "").toLowerCase();
-  const autoOculta = NOTICIAS_TIPOS_AUTO_OCULTOS.includes(tipoNorm);
+  const autoOculta = NOTICIAS_TIPOS_OPERATIVOS_OCULTOS.includes(tipoNorm);
   const payload = {
     tipo, titulo, detalle, icono, color,
     origen: origen || (autoOculta ? "auto_estado_carril" : "sistema"),
@@ -5764,20 +5765,22 @@ function AdminRegistrosPanel() {
     if (type === "warning") {
       revokeResult = await revokeDeviceVotes({ deviceId:deviceId.trim(), log:selectedLog, mode:selectedLog ? "selected" : "all", actor:"Admin" });
     }
-    await sb.from("admin_user_messages").insert({ device_id:deviceId.trim(), message, type, read:false, created_at:new Date().toISOString() });
+    const { error:messageError } = await sb.from("admin_user_messages").insert({ device_id:deviceId.trim(), message, type, read:false, created_at:new Date().toISOString() });
+    if (messageError) { alert("No se pudo enviar el mensaje: " + messageError.message); return; }
     await auditLog({ action:type === "warning" ? "advertencia_anula_voto" : "mensaje_usuario", section:"admin_registros", entityId:deviceId.trim(), after:{ message, type, revokeResult, subsection:type }, actor:"Admin" });
     setMessage(""); alert(type === "warning" ? "Advertencia enviada y voto(s) anulado(s)." : "Mensaje enviado.");
-    load();
+    await load();
   };
   const sanction = async (type) => {
     if (!deviceId.trim() && !targetUserId.trim()) return alert("Selecciona o escribe el ID de cuenta o el device_id del usuario.");
     const effectiveDeviceId = deviceId.trim() || targetUserId.trim();
     const revokeResult = await revokeDeviceVotes({ deviceId:effectiveDeviceId, log:null, mode:"all", actor:"Admin" });
     const until = type === "temp_block" ? new Date(Date.now() + Number(hours || 1) * 3600000).toISOString() : null;
-    await sb.from("admin_user_sanctions").insert({ device_id:effectiveDeviceId, user_id:targetUserId.trim() || null, type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
+    const { error:sanctionError } = await sb.from("admin_user_sanctions").insert({ device_id:effectiveDeviceId, user_id:targetUserId.trim() || null, type, reason:reason || (type === "ban" ? "Baneo indefinido" : "Bloqueo temporal"), actions:selectedActions(), until_at:until, active:true, created_at:new Date().toISOString() });
+    if (sanctionError) { alert("No se pudo aplicar la sanción: " + sanctionError.message); return; }
     await auditLog({ action:type === "ban" ? "ban_anula_votos" : "bloqueo_anula_votos", section:"admin_registros", entityId:targetUserId.trim() || effectiveDeviceId, after:{ reason, actions:selectedActions(), until, revokeResult, subsection:type, target_user_id:targetUserId.trim() || null, target_device_id:effectiveDeviceId }, actor:"Admin" });
     alert(type === "ban" ? "Usuario baneado y votos anulados." : "Bloqueo temporal aplicado y votos anulados.");
-    load();
+    await load();
   };
   const revokeSelected = async () => {
     if (!deviceId.trim()) return alert("Escribe o selecciona un device_id.");
@@ -6764,8 +6767,10 @@ function AdminAdTemplates({ onUseTemplate }) {
 
   const eliminar = async (id) => {
     if (!window.confirm("¿Eliminar esta plantilla?")) return;
-    await sb.from("anuncio_plantillas").delete().eq("id", id);
-    cargar();
+    const { error } = await sb.from("anuncio_plantillas").delete().eq("id", id);
+    if (error) { setMsg({ type:"err", text:"No se pudo eliminar la plantilla: " + error.message }); return; }
+    setMsg({ type:"ok", text:"Plantilla eliminada." });
+    await cargar();
   };
 
   const usar = (tpl) => {
@@ -7523,6 +7528,7 @@ async function saveThemeToDatabase(newTheme) {
 // PANEL DE CONFIGURACIÓN DE TEMA
 // ─────────────────────────────────────────────────────────────────────────────
 function ThemeConfigPanel({ theme, previewMode, onPreview, onApplyToAll, onCancel, onClose }) {
+  const navTabs = TABS;
   const [config, setConfig] = useState(theme);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("background");
@@ -9344,6 +9350,13 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const [toast, setToast] = useState(null);
   const [modoAutomatico, setModoAutomaticoState] = useState({ activo: false, updatedBy: null, updatedAt: null });
   const [togglingModo, setTogglingModo] = useState(false);
+  const trafficWriteLocksRef = useRef(new Set());
+  const beginTrafficWrite = (key) => {
+    if (trafficWriteLocksRef.current.has(key)) { notify("Actualización en curso. Espera a que termine.", "#f97316"); return false; }
+    trafficWriteLocksRef.current.add(key);
+    return true;
+  };
+  const endTrafficWrite = (key) => trafficWriteLocksRef.current.delete(key);
   const initialView = defaultSection === "accesos" ? "accesos" : (defaultSection || "vialidades");
   const [activeView, setActiveView] = useState(() => {
     if (defaultSection) return initialView;
@@ -9506,16 +9519,27 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       const rl = rateLimiter.check(`acceso_${myId}_${id}`, 20000);
       if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-    const entry = { ...(accesos?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
-    setAccesos(prev => ({ ...prev, [id]: entry }));
-    persistStatusEntry("accesos", id, entry);
-    await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: Date.now(), updated_by: actor, pending_voters: {} });
-    await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app", metadata:{ retornos: acc.retornos || "none" } });
-    await auditLog({ action:isAdmin ? "actualizar_acceso" : "votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor });
-    const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
-    notify(`Actualizado: ${accLabel} · ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado", detalle: `${accLabel}: ${label}` });
+    const lockKey = `acceso:${id}`;
+    if (!beginTrafficWrite(lockKey)) return;
+    const stamp = Date.now();
+    const entry = { ...(acc || {}), status: newStatus, lastUpdate: stamp, updatedBy: actor };
+    setAccesos(prev => ({ ...(prev || {}), [id]: entry }));
+    try {
+      const { error } = await sb.from("accesos").upsert({ id, status: newStatus, retornos: acc.retornos, last_update: stamp, updated_by: actor, pending_voters: {} });
+      if (error) throw error;
+      persistStatusEntry("accesos", id, entry);
+      await upsertOperationalStatus({ section:"accesos", itemId:id, itemName:ACCESOS_PRINCIPALES.find(a => a.id === id)?.label || id, status:newStatus, zone:ACCESOS_PRINCIPALES.find(a => a.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app", metadata:{ retornos: acc.retornos || "none" } });
+      await auditLog({ action:isAdmin ? "actualizar_acceso" : "votar_acceso", section:"trafico", entityId:id, before:acc, after:{ status:newStatus }, actor });
+      const label = ACCESO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+      const accLabel = ACCESOS_PRINCIPALES.find(a => a.id === id)?.label;
+      notify(`Actualizado: ${accLabel} · ${label}`, "#22c55e");
+      await publicarNoticia({ tipo: "acceso", icono: "access", color: "#38bdf8", titulo: "Acceso actualizado", detalle: `${accLabel}: ${label}` });
+    } catch (error) {
+      setAccesos(prev => prev?.[id]?.lastUpdate === stamp ? { ...(prev || {}), [id]:acc } : prev);
+      notify(`No se pudo guardar el acceso: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endTrafficWrite(lockKey);
+    }
   };
 
   const voteVialidad = async (id, newStatus) => {
@@ -9525,24 +9549,35 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       return;
     }
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
-    const v = vialidades?.[id];
-    if (!v) return;
-    if (v.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const previous = vialidades?.[id];
+    if (!previous) return;
+    if (previous.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
     if (!isAdmin) {
       const rl = rateLimiter.check(`vialidad_${myId}_${id}`, 20000);
       if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-    const entry = { ...(vialidades?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
-    setVialidades(prev => ({ ...prev, [id]: entry }));
-    persistStatusEntry("vialidades", id, entry);
-    await sb.from("vialidades").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor, pending_voters: {} });
-    await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
-    await auditLog({ action:isAdmin ? "actualizar_vialidad" : "votar_vialidad", section:"trafico", entityId:id, before:v, after:{ status:newStatus }, actor });
-    const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const vName = VIALIDADES.find(x => x.id === id)?.name;
-    notify(`Actualizado: ${vName} · ${label}`, "#22c55e");
-    await publicarNoticia({ tipo: "vialidad", icono: "road", color: "#38bdf8", titulo: "Vialidad actualizada", detalle: `${vName}: ${label}` });
+    const lockKey = `vialidad:${id}`;
+    if (!beginTrafficWrite(lockKey)) return;
+    const stamp = Date.now();
+    const entry = { ...previous, status:newStatus, lastUpdate:stamp, updatedBy:actor };
+    setVialidades(prev => ({ ...(prev || {}), [id]:entry }));
+    try {
+      const { error } = await sb.from("vialidades").upsert({ id, status:newStatus, last_update:stamp, updated_by:actor, pending_voters:{} });
+      if (error) throw error;
+      persistStatusEntry("vialidades", id, entry);
+      await upsertOperationalStatus({ section:"vialidades", itemId:id, itemName:VIALIDADES.find(x => x.id === id)?.name || id, status:newStatus, zone:null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+      await auditLog({ action:isAdmin ? "actualizar_vialidad" : "votar_vialidad", section:"trafico", entityId:id, before:previous, after:{ status:newStatus }, actor });
+      const label = VIALIDAD_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+      const vName = VIALIDADES.find(x => x.id === id)?.name;
+      notify(`Actualizado: ${vName} · ${label}`, "#22c55e");
+      await publicarNoticia({ tipo:"vialidad", icono:"road", color:"#38bdf8", titulo:"Vialidad actualizada", detalle:`${vName}: ${label}` });
+    } catch (error) {
+      setVialidades(prev => prev?.[id]?.lastUpdate === stamp ? { ...(prev || {}), [id]:previous } : prev);
+      notify(`No se pudo guardar la vialidad: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endTrafficWrite(lockKey);
+    }
   };
 
   const voteRutaFiscal = async (id, newStatus) => {
@@ -9552,24 +9587,35 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       return;
     }
     if (!isAdmin && await notifyIfBlocked("vote", (m)=>alert(m))) return;
-    const ruta = rutasFiscales?.[id];
-    if (!ruta) return;
-    if (ruta.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
+    const previous = rutasFiscales?.[id];
+    if (!previous) return;
+    if (previous.status === newStatus) return notify("Ya tiene ese estado", "#f97316");
     const actor = isAdmin ? "Admin" : `Usuario_${myId.slice(-4)}`;
     if (!isAdmin) {
       const rl = rateLimiter.check(`ruta_fiscal_${myId}_${id}`, 20000);
       if (!rl.allowed) return notify(`Espera ${rl.remaining}s`, "#f97316");
     }
-    const entry = { ...(rutasFiscales?.[id] || {}), status: newStatus, lastUpdate: Date.now(), updatedBy: actor };
-    setRutasFiscales(prev => ({ ...prev, [id]: entry }));
-    persistStatusEntry("rutas_fiscales", id, entry);
-    await sb.from("rutas_fiscales").upsert({ id, status: newStatus, last_update: Date.now(), updated_by: actor });
-    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
-    await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:ruta, after:{ status:newStatus }, actor });
-    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
-    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
-    notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
-    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: "Ruta fiscal actualizada", detalle: `${rutaName}: ${label}` });
+    const lockKey = `ruta:${id}`;
+    if (!beginTrafficWrite(lockKey)) return;
+    const stamp = Date.now();
+    const entry = { ...previous, status:newStatus, lastUpdate:stamp, updatedBy:actor };
+    setRutasFiscales(prev => ({ ...(prev || {}), [id]:entry }));
+    try {
+      const { error } = await sb.from("rutas_fiscales").upsert({ id, status:newStatus, last_update:stamp, updated_by:actor });
+      if (error) throw error;
+      persistStatusEntry("rutas_fiscales", id, entry);
+      await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:newStatus, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:actor, source:isAdmin ? "admin" : "app" });
+      await auditLog({ action:isAdmin ? "actualizar_ruta_fiscal" : "votar_ruta_fiscal", section:"trafico", entityId:id, before:previous, after:{ status:newStatus }, actor });
+      const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label;
+      const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name;
+      notify(`Actualizado: ${rutaName} · ${label}`, newStatus === "libre" ? "#22c55e" : newStatus === "moderado" ? "#f97316" : "#ef4444");
+      await publicarNoticia({ tipo:"ruta_fiscal", icono:"road", color:"#38bdf8", titulo:"Ruta fiscal actualizada", detalle:`${rutaName}: ${label}` });
+    } catch (error) {
+      setRutasFiscales(prev => prev?.[id]?.lastUpdate === stamp ? { ...(prev || {}), [id]:previous } : prev);
+      notify(`No se pudo guardar la ruta fiscal: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endTrafficWrite(lockKey);
+    }
   };
 
   const [zonaRutaActiva, setZonaRutaActiva] = useState("Norte");
@@ -11011,7 +11057,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
     if (kind === "confirm") {
       if (votes[uid] === 1) return;
       const nextVotes = { ...votes, [uid]: 1 };
-      await sb.from("incidents").update({ votes: nextVotes }).eq("id", inc.id);
+      const { error } = await sb.from("incidents").update({ votes: nextVotes }).eq("id", inc.id);
+      if (error) { window.alert("No se pudo registrar la validación del evento."); return; }
       if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: nextVotes } : i));
       try { await auditLog({ action:"votar_evento_confirmo_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"sigue", votos:Object.values(nextVotes).filter(v => v === 1).length, summary:`${uid} confirmó evento en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
       return;
@@ -11022,11 +11069,13 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       const nextFalse = { ...falseVotes, [uid]: 1 };
       const count = Object.values(nextFalse).length;
       if (count >= 3) {
-        await sb.from("incidents").delete().eq("id", inc.id);
+        const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+        if (error) { window.alert("No se pudo retirar el evento."); return; }
         if (typeof setIncidents === "function") setIncidents(prev => prev.filter(i => i.id !== inc.id));
         try { await auditLog({ action:"eliminar_evento_por_votos_no_coincide_mapa", section:"mapa_reportes", entityId:inc.id, after:{ votos:count, summary:"Evento eliminado por votos de no coincide desde mapa" }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
       } else {
-        await sb.from("incidents").update({ false_votes: nextFalse }).eq("id", inc.id);
+        const { error } = await sb.from("incidents").update({ false_votes: nextFalse }).eq("id", inc.id);
+        if (error) { window.alert("No se pudo registrar el voto de no coincidencia."); return; }
         if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: nextFalse } : i));
         try { await auditLog({ action:"votar_evento_no_coincide_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"no_coincide", votos:count, summary:`${uid} marcó no coincide en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
       }
@@ -11038,7 +11087,8 @@ function MapaTrafico({ incidents, accesos, vialidades, compact = false, previewC
       const nextResolve = { ...resolveVotes, [uid]: 1 };
       const count = Object.values(nextResolve).length;
       const patch = count >= 3 ? { resolve_votes: nextResolve, resolved: true } : { resolve_votes: nextResolve };
-      await sb.from("incidents").update(patch).eq("id", inc.id);
+      const { error } = await sb.from("incidents").update(patch).eq("id", inc.id);
+      if (error) { window.alert("No se pudo registrar que el evento quedó libre."); return; }
       if (typeof setIncidents === "function") setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, ...patch } : i));
       try { await auditLog({ action:"votar_evento_ya_libre_mapa", section:"mapa_reportes", entityId:inc.id, after:{ vote:"ya_libre", votos:count, cerrado:count >= 3, summary:`${uid} marcó ya libre en mapa` }, actor:`Usuario_${String(uid).slice(-4)}` }); } catch {}
     }
@@ -12929,6 +12979,17 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   const [confirmDelete,  setConfirmDelete]  = useState(null);
   const [tacticalPanelOpen, setTacticalPanelOpen] = useState(false);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 3000); };
+  const runIncidentWrite = async (query, failureMessage) => {
+    try {
+      const { error } = await query;
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.warn("[incidents] escritura rechazada", error);
+      notify(failureMessage || "No se pudo guardar el cambio.", "#ef4444");
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -13041,7 +13102,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
           const conf = Object.values(inc.votes || {}).filter(v => v === 1).length;
           const edad = ahora - (inc.ts || 0);
           if (edad >= 3600000 && conf < 3) {
-            await sb.from("incidents").delete().eq("id", inc.id);
+            const { error } = await sb.from("incidents").delete().eq("id", inc.id);
+            if (error) console.warn("[incidents] no se pudo aplicar la auto-expiración", error);
           }
         });
     }, 30000);
@@ -13049,16 +13111,16 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
   }, [incidents]);
 
   const submit = async () => {
-    if (await notifyIfBlocked("report", notify)) return;
-    if (!subcat)          return notify("Selecciona el tipo específico", "#ef4444");
-    if (!location.trim()) return notify("Selecciona o escribe la ubicación", "#ef4444");
-    if (!coords)          return notify("Pega un enlace de Google Maps válido con coordenadas", "#ef4444");
+    if (await notifyIfBlocked("report", notify)) return false;
+    if (!subcat)          { notify("Selecciona el tipo específico", "#ef4444"); return false; }
+    if (!location.trim()) { notify("Selecciona o escribe la ubicación", "#ef4444"); return false; }
+    if (!coords)          { notify("Pega un enlace de Google Maps válido con coordenadas", "#ef4444"); return false; }
     const rl = rateLimiter.check(`report_${myId}`, 120000);
-    if (!rl.allowed) return notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316");
+    if (!rl.allowed) { notify(`Espera ${rl.remaining}s para reportar de nuevo`, "#f97316"); return false; }
     const labelFull = `${subcatObj?.icon || ""} ${subcatObj?.label || subcat}`;
     const safeLoc   = sanitize(acceso ? `${acceso} — ${location}` : location);
     const safeDesc  = sanitize(labelFull);
-    if (!safeLoc.trim()) return notify("Ubicación inválida", "#ef4444");
+    if (!safeLoc.trim()) { notify("Ubicación inválida", "#ef4444"); return false; }
     const newIncident = {
       type: categoria, location: safeLoc, description: safeDesc,
       votes: {}, resolve_votes: {}, false_votes: {},
@@ -13070,7 +13132,8 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
       .insert(newIncident)
       .select();
     if (insertError) {
-      return notify("Error Error al enviar el reporte: " + insertError.message, "#ef4444");
+      notify("Error al enviar el reporte: " + insertError.message, "#ef4444");
+      return false;
     }
     if (insertedRows && insertedRows[0]) {
       const r = insertedRows[0];
@@ -13094,6 +13157,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
     });
     setSubcat(""); setLocation(""); setAcceso(""); setGmapsLink(""); setCoords(null);
     notify("📍 Reporte enviado — pin agregado al mapa", "#22c55e");
+    return true;
   };
 
   const approveAiEventDraft = async (draft) => {
@@ -13340,7 +13404,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                   </div>
                 )}
 
-                <button onClick={async () => { await submit(); if (subcat && location && coords) closeTacticalPanel(); }} disabled={!(subcat && location && coords)} style={{ width:"100%", padding:"15px", borderRadius:"14px", border:"none", background:(subcat && location && coords) ? "#00f2ea" : "rgba(255,255,255,.08)", color:(subcat && location && coords) ? "#020617" : "rgba(255,255,255,.32)", fontFamily:"JetBrains Mono, monospace", fontSize:"12px", fontWeight:900, letterSpacing:"0.16em", textTransform:"uppercase", cursor:(subcat && location && coords) ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px" }}>
+                <button onClick={async () => { if (await submit()) closeTacticalPanel(); }} disabled={!(subcat && location && coords)} style={{ width:"100%", padding:"15px", borderRadius:"14px", border:"none", background:(subcat && location && coords) ? "#00f2ea" : "rgba(255,255,255,.08)", color:(subcat && location && coords) ? "#020617" : "rgba(255,255,255,.32)", fontFamily:"JetBrains Mono, monospace", fontSize:"12px", fontWeight:900, letterSpacing:"0.16em", textTransform:"uppercase", cursor:(subcat && location && coords) ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"10px" }}>
                   <MaterialIcon color={(subcat && location && coords) ? "#020617" : "rgba(255,255,255,.32)"} size={20}>send</MaterialIcon>
                   Transmitir Reporte
                 </button>
@@ -13585,7 +13649,7 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           if (myVote === 1) return notify("Ya validaste este evento", "#38bdf8");
                           const newVotes = { ...votes, [myId]: 1 };
                           const newConf  = Object.values(newVotes).filter(v => v === 1).length;
-                          await sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id);
+                          if (!await runIncidentWrite(sb.from("incidents").update({ votes: newVotes }).eq("id", inc.id), "No se pudo registrar la validación.")) return;
                           setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, votes: newVotes } : i));
                           await auditLog({ action:"votar_evento_confirmo", section:"reporte_eventos", entityId:inc.id, after:{ vote:"confirmo", votos:newConf, subsection:"eventos_confirmados", summary:`${getDeviceId()} confirmó evento ${inc.subcategory || inc.type} en ${inc.location || "sin ubicación"}` }, actor:`Usuario_${myId.slice(-4)}` });
                           notify(`✓ Validado (${newConf}/3)`, "#22c55e");
@@ -13602,11 +13666,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           const newFalse = { ...falseV, [myId]: 1 };
                           const count    = Object.values(newFalse).length;
                           if (count >= 3) {
-                            await sb.from("incidents").delete().eq("id", inc.id);
+                            if (!await runIncidentWrite(sb.from("incidents").delete().eq("id", inc.id), "No se pudo retirar el evento.")) return;
                             setIncidents(prev => prev.filter(i => i.id !== inc.id));
                             notify("Error Evento eliminado — 3 reportes no coinciden", "#ef4444");
                           } else {
-                            await sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id);
+                            if (!await runIncidentWrite(sb.from("incidents").update({ false_votes: newFalse }).eq("id", inc.id), "No se pudo registrar el voto de no coincidencia.")) return;
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, false_votes: newFalse } : i));
                             await auditLog({ action:"votar_reporte_falso", section:"reporte_eventos", entityId:inc.id, after:{ vote:"falso", votos:count, summary:`${getDeviceId()} marcó falso reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify(`Aviso no coincide (${count}/3)`, "#ef4444");
@@ -13624,11 +13688,11 @@ function ReporteTab({ myId, incidents, setIncidents, setActiveTab, isAdmin }) {
                           const newResolve = { ...resolveV, [myId]: 1 };
                           const count      = Object.values(newResolve).length;
                           if (count >= 3) {
-                            await sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id);
+                            if (!await runIncidentWrite(sb.from("incidents").update({ resolve_votes: newResolve, resolved: true }).eq("id", inc.id), "No se pudo cerrar el evento.")) return;
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve, resolved: true } : i));
                             notify("🏁 Evento cerrado: ya quedó libre", "#6b7280");
                           } else {
-                            await sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id);
+                            if (!await runIncidentWrite(sb.from("incidents").update({ resolve_votes: newResolve }).eq("id", inc.id), "No se pudo registrar que el evento quedó libre.")) return;
                             setIncidents(prev => prev.map(i => i.id === inc.id ? { ...i, resolve_votes: newResolve } : i));
                             await auditLog({ action:"votar_reporte_resuelto", section:"reporte_eventos", entityId:inc.id, after:{ vote:"resuelto", votos:count, summary:`${getDeviceId()} votó resuelto reporte ${inc.subcategory || inc.type}` }, actor:`Usuario_${myId.slice(-4)}` });
                       notify(`🏁 Ya quedó libre (${count}/3)`, "#6b7280");
@@ -14654,6 +14718,16 @@ function TerminalesTab({ myId, isAdmin = false }) {
   const [changeModal, setChangeModal] = useState(null);
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const terminalWriteLocksRef = useRef(new Set());
+  const beginTerminalWrite = (key) => {
+    if (terminalWriteLocksRef.current.has("*") || terminalWriteLocksRef.current.has(key) || (key === "*" && terminalWriteLocksRef.current.size > 0)) {
+      notify("Hay una actualización en curso. Espera a que termine.", "#f97316");
+      return false;
+    }
+    terminalWriteLocksRef.current.add(key);
+    return true;
+  };
+  const endTerminalWrite = (key) => terminalWriteLocksRef.current.delete(key);
   const setZonaPersist = (z) => { try { sessionStorage.setItem("term_zona", z); } catch {} setZona(z); };
   const zonaLabel = zona === "norte" ? "Norte" : "Sur";
   const terminals = zona === "norte" ? TERMINALS_NORTE : TERMINALS_SUR;
@@ -14728,8 +14802,8 @@ function TerminalesTab({ myId, isAdmin = false }) {
     });
     const chan = sb.channel("rutas-fiscales-terminales-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "rutas_fiscales" }, () => {
-        sb.from("rutas_fiscales").select("*").then(({ data }) => {
-          if (!data) return;
+        sb.from("rutas_fiscales").select("*").then(({ data, error }) => {
+          if (error || !data) { if (error) console.warn("[rutas_fiscales] realtime refresh falló", error); return; }
           const map = {};
           data.forEach(r => { map[r.id] = { status: r.status, lastUpdate: r.last_update, updatedBy: r.updated_by }; });
           setRutasFiscales(prev => mergeStatusMapsByLatest("rutas_fiscales", prev || mkRutasFiscales(), map));
@@ -14747,29 +14821,63 @@ function TerminalesTab({ myId, isAdmin = false }) {
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`terminal_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "terminal", id: termId, newStatus, label });
-      return;
+    const lockKey = `terminal:${termId}`;
+    if (!beginTerminalWrite(lockKey)) return;
+    let previousVote = null;
+    let insertedVoteId = null;
+    let voteMutated = false;
+    try {
+      const ownResult = await sb.from("votos").select("id,status,key").eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal").limit(1);
+      if (ownResult.error) throw ownResult.error;
+      const existingVote = ownResult.data?.[0] || null;
+      if (existingVote && !forceChange) {
+        const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+        setChangeModal({ type:"terminal", id:termId, newStatus, label });
+        return;
+      }
+
+      const key = `terminal_${termId}_${newStatus}`;
+      if (existingVote) {
+        previousVote = { ...existingVote };
+        const updateVote = await sb.from("votos").update({ status:newStatus, key }).eq("id", existingVote.id).select("id").maybeSingle();
+        if (updateVote.error) throw updateVote.error;
+        voteMutated = true;
+      } else {
+        const insertVote = await sb.from("votos").insert({ key, user_id:myId, terminal_id:termId, status:newStatus, tipo:"terminal" }).select("id").single();
+        if (insertVote.error) throw insertVote.error;
+        insertedVoteId = insertVote.data?.id || null;
+        voteMutated = true;
+      }
+
+      const tallyResult = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
+      if (tallyResult.error) throw tallyResult.error;
+      const conteo = {};
+      (tallyResult.data || []).forEach(v => { if (v?.status) conteo[v.status] = (conteo[v.status] || 0) + 1; });
+      const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+      const stamp = Date.now();
+      const saveResult = await sb.from("terminals").upsert({ id:termId, status:statusGanador, pending_voters:conteo, last_update:stamp, updated_by:`${votosGanador} votos` });
+      if (saveResult.error) throw saveResult.error;
+
+      const entry = { ...(stMap?.[termId] || {}), status:statusGanador, lastUpdate:stamp, updatedBy:`${votosGanador} votos`, pendingVoters:conteo };
+      setSt(prev => ({ ...(prev || {}), [termId]:entry }));
+      persistStatusEntry("terminals", termId, entry);
+      try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
+      await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+      const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label || statusGanador;
+      notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+      const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
+      await publicarNoticia({ tipo:"terminal", icono:"access", color:"#38bdf8", titulo:`Terminal ${termNombre} — ${label}`, detalle:`Actualizado por consenso de ${votosGanador} voto(s)` });
+    } catch (error) {
+      if (voteMutated) {
+        try {
+          if (previousVote?.id) await sb.from("votos").update({ status:previousVote.status, key:previousVote.key }).eq("id", previousVote.id);
+          else if (insertedVoteId) await sb.from("votos").delete().eq("id", insertedVoteId);
+        } catch (rollbackError) { console.warn("[terminales] no se pudo revertir el voto fallido", rollbackError); }
+      }
+      notify(`No se pudo guardar el estado de la terminal: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endTerminalWrite(lockKey);
     }
-    if (yaVoto && yaVoto.length > 0 && forceChange) await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", termId).eq("tipo", "terminal");
-    const key = `terminal_${termId}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, terminal_id: termId, status: newStatus, tipo: "terminal" });
-    try { localStorage.setItem(`last_vote_terminal_${termId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", termId).eq("tipo", "terminal");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
-    const entry = { ...(stMap?.[termId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
-    setSt(prev => ({ ...(prev || {}), [termId]: entry }));
-    persistStatusEntry("terminals", termId, entry);
-    await sb.from("terminals").upsert({ id: termId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    await auditLog({ action:"votar_terminal", section:"terminales", entityId:termId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
-    const label = TERMINAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    const termNombre = TODAS_TERMINALES.find(t => t.id === termId)?.name || termId.toUpperCase();
-    await publicarNoticia({ tipo: "terminal", icono: "access", color: "#38bdf8", titulo: `Terminal ${termNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const voteRutaFiscal = async (id, newStatus, forceChange = false) => {
@@ -14783,64 +14891,125 @@ function TerminalesTab({ myId, isAdmin = false }) {
     if (!ruta) return;
     const rl = rateLimiter.check(`ruta_fiscal_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("terminal_id", id).eq("tipo", "ruta_fiscal");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "ruta_fiscal", id, newStatus, label });
-      return;
+    const lockKey = `ruta:${id}`;
+    if (!beginTerminalWrite(lockKey)) return;
+    let previousVote = null;
+    let insertedVoteId = null;
+    let voteMutated = false;
+    try {
+      const ownResult = await sb.from("votos").select("id,status,key").eq("user_id", myId).eq("terminal_id", id).eq("tipo", "ruta_fiscal").limit(1);
+      if (ownResult.error) throw ownResult.error;
+      const existingVote = ownResult.data?.[0] || null;
+      if (existingVote && !forceChange) {
+        const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+        setChangeModal({ type:"ruta_fiscal", id, newStatus, label });
+        return;
+      }
+      const key = `ruta_fiscal_${id}_${newStatus}`;
+      if (existingVote) {
+        previousVote = { ...existingVote };
+        const updateVote = await sb.from("votos").update({ status:newStatus, key }).eq("id", existingVote.id).select("id").maybeSingle();
+        if (updateVote.error) throw updateVote.error;
+        voteMutated = true;
+      } else {
+        const insertVote = await sb.from("votos").insert({ key, user_id:myId, terminal_id:id, status:newStatus, tipo:"ruta_fiscal" }).select("id").single();
+        if (insertVote.error) throw insertVote.error;
+        insertedVoteId = insertVote.data?.id || null;
+        voteMutated = true;
+      }
+      const tallyResult = await sb.from("votos").select("status").eq("terminal_id", id).eq("tipo", "ruta_fiscal");
+      if (tallyResult.error) throw tallyResult.error;
+      const conteo = {};
+      (tallyResult.data || []).forEach(v => { if (v?.status) conteo[v.status] = (conteo[v.status] || 0) + 1; });
+      const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+      const stamp = Date.now();
+      const saveResult = await sb.from("rutas_fiscales").upsert({ id, status:statusGanador, pending_voters:conteo, last_update:stamp, updated_by:`${votosGanador} votos` });
+      if (saveResult.error) throw saveResult.error;
+      const entry = { ...(rutasFiscales?.[id] || {}), status:statusGanador, lastUpdate:stamp, updatedBy:`${votosGanador} votos`, pendingVoters:conteo };
+      setRutasFiscales(prev => ({ ...(prev || {}), [id]:entry }));
+      persistStatusEntry("rutas_fiscales", id, entry);
+      try { localStorage.setItem(`last_vote_ruta_fiscal_${id}_${myId}`, newStatus); } catch {}
+      await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:statusGanador, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:`${votosGanador} votos`, source:"app" });
+      await auditLog({ action:"votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+      const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label || statusGanador;
+      const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name || id;
+      notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, statusGanador === "libre" ? "#22c55e" : statusGanador === "moderado" ? "#f97316" : "#ef4444");
+      await publicarNoticia({ tipo:"ruta_fiscal", icono:"road", color:"#38bdf8", titulo:`${rutaName} — ${label}`, detalle:`Actualizado por consenso de ${votosGanador} voto(s)` });
+    } catch (error) {
+      if (voteMutated) {
+        try {
+          if (previousVote?.id) await sb.from("votos").update({ status:previousVote.status, key:previousVote.key }).eq("id", previousVote.id);
+          else if (insertedVoteId) await sb.from("votos").delete().eq("id", insertedVoteId);
+        } catch (rollbackError) { console.warn("[rutas_fiscales] no se pudo revertir el voto fallido", rollbackError); }
+      }
+      notify(`No se pudo guardar la ruta fiscal: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endTerminalWrite(lockKey);
     }
-    if (yaVoto && yaVoto.length > 0 && forceChange) await sb.from("votos").delete().eq("user_id", myId).eq("terminal_id", id).eq("tipo", "ruta_fiscal");
-    const key = `ruta_fiscal_${id}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, terminal_id: id, status: newStatus, tipo: "ruta_fiscal" });
-    try { localStorage.setItem(`last_vote_ruta_fiscal_${id}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("terminal_id", id).eq("tipo", "ruta_fiscal");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
-    const entry = { ...(rutasFiscales?.[id] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos` };
-    setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
-    persistStatusEntry("rutas_fiscales", id, entry);
-    await sb.from("rutas_fiscales").upsert({ id, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    await upsertOperationalStatus({ section:"rutas_fiscales", itemId:id, itemName:RUTAS_FISCALES.find(x => x.id === id)?.name || id, status:statusGanador, zone:RUTAS_FISCALES.find(x => x.id === id)?.zona || null, updatedBy:`${votosGanador} votos`, source:"app" });
-    await auditLog({ action:"votar_ruta_fiscal", section:"terminales", entityId:id, before:ruta, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
-    const label = RUTA_FISCAL_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    const rutaName = RUTAS_FISCALES.find(x => x.id === id)?.name || id;
-    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, statusGanador === "libre" ? "#22c55e" : statusGanador === "moderado" ? "#f97316" : "#ef4444");
-    await publicarNoticia({ tipo: "ruta_fiscal", icono: "road", color: "#38bdf8", titulo: `${rutaName} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const resetAll = async () => {
-    const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
-    const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
-    const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" }]));
-    setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
-    await sb.from("terminals").upsert(allTerms.map(t => ({ id: t.id, status: "libre", last_update: Date.now(), updated_by: "Reset" })));
-    notify("Todas las terminales marcadas como Libres", "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla las terminales en este momento.", "#f97316"); return; }
+    if (!beginTerminalWrite("*")) return;
+    try {
+      const allTerms = [...TERMINALS_NORTE, ...TERMINALS_SUR];
+      const now = Date.now();
+      const result = await sb.from("terminals").upsert(allTerms.map(t => ({ id:t.id, status:"libre", last_update:now, updated_by:"Reset", pending_voters:{} })));
+      if (result.error) throw result.error;
+      const nextN = Object.fromEntries(TERMINALS_NORTE.map(t => [t.id, { status:"libre", lastUpdate:now, updatedBy:"Reset", pendingVoters:{} }]));
+      const nextS = Object.fromEntries(TERMINALS_SUR.map(t => [t.id, { status:"libre", lastUpdate:now, updatedBy:"Reset", pendingVoters:{} }]));
+      setStN(nextN); setStS(nextS); persistStatusMap("terminals", { ...nextN, ...nextS });
+      notify("Todas las terminales marcadas como Libres", "#22c55e");
+    } catch (error) { notify(`No se pudieron restablecer las terminales: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endTerminalWrite("*"); }
   };
 
   const resetRutasZona = async () => {
-    const now = Date.now();
-    const next = { ...(rutasFiscales || {}) };
-    rutasZona.forEach(r => { next[r.id] = { status:"libre", lastUpdate:now, updatedBy:"Reset" }; persistStatusEntry("rutas_fiscales", r.id, next[r.id]); });
-    setRutasFiscales(next);
-    await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id:r.id, status:"libre", last_update:now, updated_by:"Reset" })));
-    notify(`Rutas fiscales de Zona ${zonaLabel} marcadas como Libres`, "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla las rutas fiscales en este momento.", "#f97316"); return; }
+    const lockKey = `rutas:${zonaLabel}`;
+    if (!beginTerminalWrite(lockKey)) return;
+    try {
+      const now = Date.now();
+      const result = await sb.from("rutas_fiscales").upsert(rutasZona.map(r => ({ id:r.id, status:"libre", last_update:now, updated_by:"Reset", pending_voters:{} })));
+      if (result.error) throw result.error;
+      const next = { ...(rutasFiscales || {}) };
+      rutasZona.forEach(r => { next[r.id] = { ...(next[r.id] || {}), status:"libre", lastUpdate:now, updatedBy:"Reset", pendingVoters:{} }; persistStatusEntry("rutas_fiscales", r.id, next[r.id]); });
+      setRutasFiscales(next);
+      notify(`Rutas fiscales de Zona ${zonaLabel} marcadas como Libres`, "#22c55e");
+    } catch (error) { notify(`No se pudieron restablecer las rutas: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endTerminalWrite(lockKey); }
   };
 
   const resetOneRutaFiscal = async (id) => {
-    const entry = { ...(rutasFiscales?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
-    setRutasFiscales(prev => ({ ...(prev || {}), [id]: entry }));
-    persistStatusEntry("rutas_fiscales", id, entry);
-    await sb.from("rutas_fiscales").upsert({ id, status:"libre", last_update:Date.now(), updated_by:"Reset" });
-    notify("Ruta fiscal marcada como Libre", "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla las rutas fiscales en este momento.", "#f97316"); return; }
+    const lockKey = `ruta:${id}`;
+    if (!beginTerminalWrite(lockKey)) return;
+    try {
+      const stamp = Date.now();
+      const result = await sb.from("rutas_fiscales").upsert({ id, status:"libre", last_update:stamp, updated_by:"Reset", pending_voters:{} });
+      if (result.error) throw result.error;
+      const entry = { ...(rutasFiscales?.[id] || {}), status:"libre", lastUpdate:stamp, updatedBy:"Reset", pendingVoters:{} };
+      setRutasFiscales(prev => ({ ...(prev || {}), [id]:entry }));
+      persistStatusEntry("rutas_fiscales", id, entry);
+      notify("Ruta fiscal marcada como Libre", "#22c55e");
+    } catch (error) { notify(`No se pudo restablecer la ruta: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endTerminalWrite(lockKey); }
   };
 
   const resetOne = async (id) => {
-    const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset" };
-    setSt(prev => ({ ...(prev || {}), [id]: entry }));
-    persistStatusEntry("terminals", id, entry);
-    await sb.from("terminals").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset" });
-    notify("Terminal marcada como Libre", "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla las terminales en este momento.", "#f97316"); return; }
+    const lockKey = `terminal:${id}`;
+    if (!beginTerminalWrite(lockKey)) return;
+    try {
+      const stamp = Date.now();
+      const result = await sb.from("terminals").upsert({ id, status:"libre", last_update:stamp, updated_by:"Reset", pending_voters:{} });
+      if (result.error) throw result.error;
+      const entry = { ...(stMap?.[id] || {}), status:"libre", lastUpdate:stamp, updatedBy:"Reset", pendingVoters:{} };
+      setSt(prev => ({ ...(prev || {}), [id]:entry }));
+      persistStatusEntry("terminals", id, entry);
+      notify("Terminal marcada como Libre", "#22c55e");
+    } catch (error) { notify(`No se pudo restablecer la terminal: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endTerminalWrite(lockKey); }
   };
 
   const getTerminalOpt = (id) => TERMINAL_STATUS_OPTIONS.find(o => o.id === id) || TERMINAL_STATUS_OPTIONS[0];
@@ -15316,6 +15485,8 @@ function TrafficMapSegundo({ theme, myId }) {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [activeVote, setActiveVote] = useState({ fase: null, tipo: null });
   const [mapStyle, setMapStyle]     = useState("streets");
+  const [saveError, setSaveError]   = useState("");
+  const savingVoteRef = useRef(false);
 
   const TABLA  = "carriles";
   const ROW_ID = "trafico_mapa_votos";
@@ -15404,31 +15575,41 @@ function TrafficMapSegundo({ theme, myId }) {
   // ── Votar y guardar en Supabase ────────────────────────────────────────────
   const votar = async (fase, tipo) => {
     const faseKey = String(fase);
-
-    // Modo tipo "Segundo Acceso": un toque cambia el estado operativo de la fase.
-    // No pide confirmación ni acumula consenso; el último estado reportado queda activo.
     const rl = rateLimiter.check(`trafico_fase_${myId}_${fase}`, 2500);
-    if (!rl.allowed) return;
+    if (!rl.allowed || savingVoteRef.current) return;
 
+    savingVoteRef.current = true;
+    setSaveError("");
     setActiveVote({ fase, tipo });
     setTimeout(() => setActiveVote({ fase: null, tipo: null }), 600);
 
-    const nextUserVotes = {
-      ...userVotes,
-      [faseKey]: { [myId || "ultimo"]: tipo },
-    };
+    const prevUserVotes = userVotes;
+    const prevVotos = votos;
+    const prevStatus = statusMapa;
+    const nextUserVotes = { ...userVotes, [faseKey]: { [myId || "ultimo"]: tipo } };
     const nextCounts = contarVotosFases(nextUserVotes);
 
     setUserVotes(nextUserVotes);
     setVotos(nextCounts);
     setStatusMapa(recalcAllStatus(nextCounts));
 
-    const now = new Date();
-    setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
-
-    const paquete = paqueteVotosFases(nextUserVotes);
-    writeStatusCache(`carriles:${ROW_ID}`, paquete);
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: paquete });
+    try {
+      const paquete = paqueteVotosFases(nextUserVotes);
+      const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: paquete }, { onConflict:"id" });
+      if (error) throw error;
+      writeStatusCache(`carriles:${ROW_ID}`, paquete);
+      const now = new Date();
+      setLastUpdate(`${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}:${now.getSeconds().toString().padStart(2,"0")}`);
+    } catch (error) {
+      console.warn("[trafico_mapa_votos] no se pudo guardar", error);
+      setUserVotes(prevUserVotes);
+      setVotos(prevVotos);
+      setStatusMapa(prevStatus);
+      setSaveError("No se pudo guardar el estado del mapa. Se restauró el valor anterior.");
+      setTimeout(() => setSaveError(""), 3500);
+    } finally {
+      savingVoteRef.current = false;
+    }
   };
 
   const totalVotos = (fase) => Object.values(votos[fase] || {}).reduce((a, b) => a + b, 0);
@@ -15448,6 +15629,8 @@ function TrafficMapSegundo({ theme, myId }) {
           </span>
         )}
       </div>
+
+      {saveError && <div role="alert" style={{ margin:"0 0 10px", padding:"9px 12px", borderRadius:"9px", border:"1px solid rgba(239,68,68,.45)", background:"rgba(239,68,68,.10)", color:"#fecaca", fontFamily:getFont(theme,"secondary"), fontSize:"11px" }}>{saveError}</div>}
 
       {/* Selector de estilo de mapa */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
@@ -15919,9 +16102,6 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   const [toast, setToast] = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
 
-  const carrilesSyncTimersRef = useRef(new Map());
-  const carrilesSyncAttemptsRef = useRef(new Map());
-
   const writeCarrilesSnapshotRemote = useCallback(async (rowId, newState) => {
     let updateError = null;
 
@@ -15956,54 +16136,14 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     }
   }, []);
 
-  const queueCarrilesSnapshotRetry = useCallback((rowId) => {
-    const existingTimer = carrilesSyncTimersRef.current.get(rowId);
-    if (existingTimer) clearTimeout(existingTimer);
-
-    const attempt = carrilesSyncAttemptsRef.current.get(rowId) || 0;
-    const delay = Math.min(30000, 1800 * Math.pow(2, Math.min(attempt, 4)));
-    const timer = setTimeout(async () => {
-      carrilesSyncTimersRef.current.delete(rowId);
-      const latestLocal = getPersistedCarrilesRow(rowId);
-      if (!latestLocal) return;
-
-      const retryError = await writeCarrilesSnapshotRemote(rowId, latestLocal);
-      if (retryError) {
-        carrilesSyncAttemptsRef.current.set(rowId, attempt + 1);
-        if (attempt < 5) queueCarrilesSnapshotRetry(rowId);
-        else console.warn(`[${rowId}] estado aplicado localmente, pero Supabase sigue rechazando la sincronización`, retryError);
-        return;
-      }
-
-      carrilesSyncAttemptsRef.current.delete(rowId);
-      persistCarrilesRow(rowId, latestLocal);
-    }, delay);
-
-    carrilesSyncTimersRef.current.set(rowId, timer);
-  }, [writeCarrilesSnapshotRemote]);
-
-  useEffect(() => () => {
-    carrilesSyncTimersRef.current.forEach(timer => clearTimeout(timer));
-    carrilesSyncTimersRef.current.clear();
-  }, []);
-
   const saveCarrilesSnapshot = async (rowId, newState) => {
-    // El cambio local es la fuente inmediata de verdad. Así un error de red/RLS
-    // nunca hace que el control visual salte al valor anterior.
-    persistCarrilesRow(rowId, newState);
-
     const error = await writeCarrilesSnapshotRemote(rowId, newState);
-    if (!error) {
-      carrilesSyncAttemptsRef.current.delete(rowId);
-      const timer = carrilesSyncTimersRef.current.get(rowId);
-      if (timer) clearTimeout(timer);
-      carrilesSyncTimersRef.current.delete(rowId);
-      return null;
+    if (error) {
+      console.warn(`[${rowId}] no se pudo confirmar el cambio en Supabase`, error);
+      return error;
     }
-
-    console.warn(`[${rowId}] cambio conservado localmente; sincronización remota pendiente`, error);
-    queueCarrilesSnapshotRetry(rowId);
-    return error;
+    persistCarrilesRow(rowId, newState);
+    return null;
   };
   const saveToSupa = (newState) => saveCarrilesSnapshot(ROW_ID, newState);
   const saveConfinada = (newState) => saveCarrilesSnapshot(ROW_ID_CF, newState);
@@ -16115,44 +16255,46 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       return;
     }
     if (!carriles) return;
-    const prev = carriles;
     const key = `${id}:${field}`;
+    if (pendingKeys[key]) return;
+    const prev = carriles;
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // Feedback instantáneo, sin esperar al servidor
+    setCarriles(next);
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      // No revertir: el snapshot local ya contiene el cambio y se reintentará sincronizar.
-      setCarriles(next);
-      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
+      setCarriles(prev);
+      notify("No se pudo guardar el cambio. Se restauró el estado anterior.", "#ef4444");
       return;
     }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
-    await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
+    await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
+
   const updateSalida = async (field, value) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:"c4", field, value, userId:myId });
       if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
       return;
     }
-    const prev = carriles;
+    if (!carriles?.c4) return;
     const key = `c4:${field}`;
+    if (pendingKeys[key]) return;
+    const prev = carriles;
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // Feedback instantáneo, sin esperar al servidor
+    setCarriles(next);
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      // No revertir: el snapshot local ya contiene el cambio y se reintentará sincronizar.
-      setCarriles(next);
-      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
+      setCarriles(prev);
+      notify("No se pudo guardar el cambio. Se restauró el estado anterior.", "#ef4444");
       return;
     }
     await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -16166,6 +16308,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       "Actualizado";
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#22c55e", titulo: `2do Acceso Carril 4 — ${fieldLabel}`, detalle: "Estado de carril de salida actualizado" });
   };
+
   const updateIngresoEstado = async (id, estadoId) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:id, status:estadoId, field:"estado_carril", value:estadoId, userId:myId });
@@ -16173,20 +16316,23 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       return;
     }
     if (!carriles) return;
+    const key = `${id}:estado_carril`;
+    if (pendingKeys[key]) return;
     const prev = carriles;
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
     const current = carriles[id] || {};
     const nextTerminal = opt.id === "sin_uso" ? "sin_uso" : (current.terminal === "sin_uso" ? (def?.defaultTerminal || "ssa") : current.terminal);
-    const next = {
-      ...carriles,
-      [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" }
-    };
+    const next = { ...carriles, [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next);
-    setPending(`${id}:estado_carril`, true);
+    setPending(key, true);
     const error = await saveToSupa(next);
-    setPending(`${id}:estado_carril`, false);
-    if (error) { setCarriles(next); notify("Cambio aplicado; sincronización pendiente", "#f59e0b"); return; }
+    setPending(key, false);
+    if (error) {
+      setCarriles(prev);
+      notify("No se pudo guardar el estado. Se restauró el valor anterior.", "#ef4444");
+      return;
+    }
     await auditLog({ action:"modificar_estado_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Estado del carril actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
@@ -16199,36 +16345,54 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       return;
     }
     if (!carriles?.c4) return;
+    const key = "c4:estado_carril";
+    if (pendingKeys[key]) return;
     const prev = carriles;
     const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
     const next = { ...carriles, c4: { ...carriles.c4, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" } };
     setCarriles(next);
-    setPending("c4:estado_carril", true);
+    setPending(key, true);
     const error = await saveToSupa(next);
-    setPending("c4:estado_carril", false);
-    if (error) { setCarriles(next); notify("Cambio aplicado; sincronización pendiente", "#f59e0b"); return; }
+    setPending(key, false);
+    if (error) {
+      setCarriles(prev);
+      notify("No se pudo guardar el estado. Se restauró el valor anterior.", "#ef4444");
+      return;
+    }
     await auditLog({ action:"modificar_estado_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó Carril 4 como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Estado del carril de salida actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso Carril 4 — ${opt.label}`, detalle: "Estado de carril de salida actualizado" });
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El restablecimiento está bloqueado mientras el modo automático está activo.", "#f59e0b"); return; }
+    const key = "segundo:reset-all";
+    if (pendingKeys[key]) return;
+    const prev = carriles;
     const next = mkSegundoIngreso();
     setCarriles(next);
-    await saveToSupa(next);
+    setPending(key, true);
+    const error = await saveToSupa(next);
+    setPending(key, false);
+    if (error) { setCarriles(prev); notify("No se pudieron restablecer los carriles.", "#ef4444"); return; }
     notify("Todos los carriles restablecidos", "#22c55e");
   };
+
   const resetOne = async (id) => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El restablecimiento está bloqueado mientras el modo automático está activo.", "#f59e0b"); return; }
+    const key = `${id}:reset`;
+    if (pendingKeys[key]) return;
+    const prev = carriles;
     const def = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
-    await saveToSupa(next);
+    setPending(key, true);
+    const error = await saveToSupa(next);
+    setPending(key, false);
+    if (error) { setCarriles(prev); notify("No se pudo restablecer el carril.", "#ef4444"); return; }
     notify("Carril restablecido", "#22c55e");
   };
 
-  // Handlers CONFINADA
   const updateConfinada = async (id, field, value) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"confinados", itemId:id, field, value, userId:myId });
@@ -16237,26 +16401,27 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     }
     if (!confinada) return;
     const key = `${id}:${field}`;
-    const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    if (pendingKeys[key]) return;
     const prev = confinada;
+    const next = { ...confinada, [id]: { ...confinada[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
     setConfinada(next);
     setPending(key, true);
     const error = await saveConfinada(next);
     setPending(key, false);
     if (error) {
-      // Mantener el voto/cambio visible y persistido localmente; no volver al snapshot anterior.
-      setConfinada(next);
-      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
+      setConfinada(prev);
+      notify("No se pudo guardar el cambio. Se restauró el estado anterior.", "#ef4444");
       return;
     }
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
-    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
+    await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "lock", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
+
   const updateConfinadaEstado = async (id, estadoId) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"confinados", itemId:id, status:estadoId, field:"estado_carril", value:estadoId, userId:myId });
@@ -16264,23 +16429,21 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
       return;
     }
     if (!confinada) return;
+    const key = `${id}:estado_carril`;
+    if (pendingKeys[key]) return;
     const prev = confinada;
     const def = CONFINADA_CARRILES.find(c => c.id === id);
     const opt = CARRIL_ESTADO_OPTS.find(o => o.id === estadoId) || CARRIL_ESTADO_OPTS[0];
     const current = confinada[id] || {};
     const nextTerminal = estadoId === "sin_uso" ? "sin_uso" : (current.terminal === "sin_uso" ? (def?.defaultTerminal || "general") : current.terminal);
-    const next = {
-      ...confinada,
-      [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" }
-    };
+    const next = { ...confinada, [id]: { ...current, terminal: nextTerminal, estado_carril: opt.id, saturado: carrilEstadoIsSaturado(opt.id), lastUpdate: Date.now(), updatedBy: "Tú" } };
     setConfinada(next);
-    setPending(`${id}:estado_carril`, true);
+    setPending(key, true);
     const error = await saveConfinada(next);
-    setPending(`${id}:estado_carril`, false);
+    setPending(key, false);
     if (error) {
-      // Mantener el voto/cambio visible y persistido localmente; no volver al snapshot anterior.
-      setConfinada(next);
-      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
+      setConfinada(prev);
+      notify("No se pudo guardar el estado. Se restauró el valor anterior.", "#ef4444");
       return;
     }
     await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -16289,18 +16452,31 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   };
 
   const resetAllConfinada = async () => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El restablecimiento está bloqueado mientras el modo automático está activo.", "#f59e0b"); return; }
+    const key = "confinada:reset-all";
+    if (pendingKeys[key]) return;
+    const prev = confinada;
     const next = mkConfinadaState();
     setConfinada(next);
-    await saveConfinada(next);
+    setPending(key, true);
+    const error = await saveConfinada(next);
+    setPending(key, false);
+    if (error) { setConfinada(prev); notify("No se pudo restablecer Confinada.", "#ef4444"); return; }
     notify("Confinada restablecida", "#a78bfa");
   };
+
   const resetOneConfinada = async (id) => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El restablecimiento está bloqueado mientras el modo automático está activo.", "#f59e0b"); return; }
+    const key = `${id}:reset`;
+    if (pendingKeys[key]) return;
+    const prev = confinada;
     const def = CONFINADA_CARRILES.find(c => c.id === id);
     const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
-    await saveConfinada(next);
+    setPending(key, true);
+    const error = await saveConfinada(next);
+    setPending(key, false);
+    if (error) { setConfinada(prev); notify("No se pudo restablecer el carril.", "#ef4444"); return; }
     notify("Carril restablecido", "#a78bfa");
   };
 
@@ -17232,7 +17408,14 @@ function CarrilesTab({ isAdmin = false }) {
     setAccView(v);
   };
   const [toast,   setToast]   = useState(null);
+  const carrilesWriteRef = useRef(false);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2500); };
+  const beginCarrilesWrite = () => {
+    if (carrilesWriteRef.current) { notify("Guardado en curso. Espera antes de realizar otro cambio.", "#f97316"); return false; }
+    carrilesWriteRef.current = true;
+    return true;
+  };
+  const endCarrilesWrite = () => { carrilesWriteRef.current = false; };
 
   const TABLA  = "carriles";
   const ROW_ID = "expo_impo";
@@ -17240,7 +17423,12 @@ function CarrilesTab({ isAdmin = false }) {
   const contingenciaActiva = contingencyMeta.activo === true;
 
   const saveToSupa = async (newState) => {
-    await sb.from(TABLA).upsert({ id: ROW_ID, data: newState });
+    try {
+      const { error } = await sb.from(TABLA).upsert({ id:ROW_ID, data:newState }, { onConflict:"id" });
+      return error || null;
+    } catch (error) {
+      return error instanceof Error ? error : new Error("No se pudo guardar el estado de carriles.");
+    }
   };
 
   useEffect(() => {
@@ -17260,83 +17448,80 @@ function CarrilesTab({ isAdmin = false }) {
       if (!result.ok) notify("No se pudo registrar tu voto. Intenta de nuevo.", "#ef4444");
       return;
     }
-    const next = { ...estado, [cid]: { ...estado[cid], abierto: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
+    if (!beginCarrilesWrite()) return;
+    const previous = estado;
+    const next = { ...estado, [cid]: { ...estado[cid], abierto:value, lastUpdate:Date.now(), updatedBy:"Tú" } };
     setEstado(next);
-    await saveToSupa(next);
-    await auditLog({ action:"modificar_carril_expo_impo", section:"carriles", entityId:cid, before:estado[cid], after:{ carril:cid, campo:"abierto", value, valor_label:value ? "Abierto" : "Cerrado", summary:`${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}` }, actor:`Usuario_${getDeviceId().slice(-4)}` });
-    notify(value ? "Carril abierto" : "Carril cerrado", value ? "#22c55e" : "#6b7280");
-    await publicarNoticia({ tipo: "carril", icono: "traffic", color: value ? "#22c55e" : "#6b7280", titulo: `Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle: "Estado de carril expo/impo actualizado" });
+    try {
+      const error = await saveToSupa(next);
+      if (error) throw error;
+      await auditLog({ action:"modificar_carril_expo_impo", section:"carriles", entityId:cid, before:previous[cid], after:{ carril:cid, campo:"abierto", value, valor_label:value ? "Abierto" : "Cerrado", summary:`${getDeviceId()} marcó ${cid.toUpperCase()} como ${value ? "Abierto" : "Cerrado"}` }, actor:`Usuario_${getDeviceId().slice(-4)}` });
+      notify(value ? "Carril abierto" : "Carril cerrado", value ? "#22c55e" : "#6b7280");
+      await publicarNoticia({ tipo:"carril", icono:"traffic", color:value ? "#22c55e" : "#6b7280", titulo:`Carril ${cid.toUpperCase()} — ${value ? "Abierto" : "Cerrado"}`, detalle:"Estado de carril expo/impo actualizado" });
+    } catch (error) {
+      setEstado(current => current === next ? previous : current);
+      notify(`No se pudo guardar el carril: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally { endCarrilesWrite(); }
   };
 
   const setContingencia = async (activo) => {
     if (!isAdmin) return;
+    if (!beginCarrilesWrite()) return;
+    const previous = estado;
     const now = Date.now();
     const next = {
       ...estado,
-      [CARRILES_CONTINGENCY_KEY]: {
-        ...contingencyMeta,
-        activo,
-        lastUpdate: now,
-        updatedBy: "Admin",
-      },
+      [CARRILES_CONTINGENCY_KEY]: { ...contingencyMeta, activo, lastUpdate:now, updatedBy:"Admin" },
     };
     PEZ_VELA_CONTINGENCIA_CARRILES.forEach(c => {
-      next[c.id] = {
-        ...(next[c.id] || {}),
-        abierto: next[c.id]?.abierto !== false,
-        lastUpdate: next[c.id]?.lastUpdate || now,
-        updatedBy: next[c.id]?.updatedBy || "Admin",
-      };
+      next[c.id] = { ...(next[c.id] || {}), abierto:next[c.id]?.abierto !== false, lastUpdate:next[c.id]?.lastUpdate || now, updatedBy:next[c.id]?.updatedBy || "Admin" };
     });
     setEstado(next);
-    await saveToSupa(next);
-    await auditLog({
-      action:"modificar_contingencia_pezvela",
-      section:"carriles",
-      entityId:CARRILES_CONTINGENCY_KEY,
-      before:contingencyMeta,
-      after:{
-        carril:"Acceso Pez Vela",
-        campo:"contingencia_trabajos",
-        value:activo,
-        valor_label:activo ? "Activa" : "Inactiva",
-        summary:`${getDeviceId()} ${activo ? "activó" : "desactivó"} la contingencia por trabajos en Acceso Pez Vela`
-      },
-      actor:`Admin_${getDeviceId().slice(-4)}`
-    });
-    notify(activo ? "Contingencia por trabajos activada" : "Contingencia por trabajos desactivada", activo ? "#f59e0b" : "#38bdf8");
-    await publicarNoticia({
-      tipo:"carril",
-      icono:activo ? "engineering" : "restart_alt",
-      color:activo ? "#f59e0b" : "#38bdf8",
-      titulo:activo ? "Acceso Pez Vela — Contingencia por trabajos" : "Acceso Pez Vela — Operación regular",
-      detalle:activo
-        ? "Se habilitó el esquema temporal de seis carriles durante los trabajos operativos."
-        : "Finalizó la contingencia y se restableció el esquema regular de cuatro carriles."
-    });
+    try {
+      const error = await saveToSupa(next);
+      if (error) throw error;
+      await auditLog({ action:"modificar_contingencia_pezvela", section:"carriles", entityId:CARRILES_CONTINGENCY_KEY, before:contingencyMeta, after:{ carril:"Acceso Pez Vela", campo:"contingencia_trabajos", value:activo, valor_label:activo ? "Activa" : "Inactiva", summary:`${getDeviceId()} ${activo ? "activó" : "desactivó"} la contingencia por trabajos en Acceso Pez Vela` }, actor:`Admin_${getDeviceId().slice(-4)}` });
+      notify(activo ? "Contingencia por trabajos activada" : "Contingencia por trabajos desactivada", activo ? "#f59e0b" : "#38bdf8");
+      await publicarNoticia({ tipo:"carril", icono:activo ? "engineering" : "restart_alt", color:activo ? "#f59e0b" : "#38bdf8", titulo:activo ? "Acceso Pez Vela — Contingencia por trabajos" : "Acceso Pez Vela — Operación regular", detalle:activo ? "Se habilitó el esquema temporal de seis carriles durante los trabajos operativos." : "Finalizó la contingencia y se restableció el esquema regular de cuatro carriles." });
+    } catch (error) {
+      setEstado(current => current === next ? previous : current);
+      notify(`No se pudo guardar la contingencia: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally { endCarrilesWrite(); }
   };
 
   const resetAcceso = async (acc) => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla los carriles en este momento.", "#f97316"); return; }
+    if (!beginCarrilesWrite()) return;
+    const previous = estado;
     const next = { ...estado };
     const lanes = getAccesoCarrilesVisibles(acc, estado);
-    lanes.forEach(c => { next[c.id] = { ...(next[c.id] || {}), abierto: true, lastUpdate: Date.now(), updatedBy: "Reset" }; });
+    lanes.forEach(c => { next[c.id] = { ...(next[c.id] || {}), abierto:true, lastUpdate:Date.now(), updatedBy:"Reset" }; });
     setEstado(next);
-    await saveToSupa(next);
-    notify("Acceso restablecido", "#22c55e");
+    try {
+      const error = await saveToSupa(next);
+      if (error) throw error;
+      notify("Acceso restablecido", "#22c55e");
+    } catch (error) {
+      setEstado(current => current === next ? previous : current);
+      notify(`No se pudo restablecer el acceso: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally { endCarrilesWrite(); }
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return;
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla los carriles en este momento.", "#f97316"); return; }
+    if (!beginCarrilesWrite()) return;
+    const previous = estado;
     const next = mkCarrilesState();
-    next[CARRILES_CONTINGENCY_KEY] = {
-      ...next[CARRILES_CONTINGENCY_KEY],
-      ...contingencyMeta,
-      activo: contingenciaActiva,
-    };
+    next[CARRILES_CONTINGENCY_KEY] = { ...next[CARRILES_CONTINGENCY_KEY], ...contingencyMeta, activo:contingenciaActiva };
     setEstado(next);
-    await saveToSupa(next);
-    notify("Todo restablecido", "#22c55e");
+    try {
+      const error = await saveToSupa(next);
+      if (error) throw error;
+      notify("Todo restablecido", "#22c55e");
+    } catch (error) {
+      setEstado(current => current === next ? previous : current);
+      notify(`No se pudo restablecer el control de carriles: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally { endCarrilesWrite(); }
   };
 
   const currentAcc   = ACCESOS_CARRILES.find(a => a.id === accView);
@@ -18027,7 +18212,7 @@ function ScreenshotCropModal({ onClose, onApply }) {
     setLoading(true);
     setError("");
     try {
-      const img = await loadImage(imageDataUrl);
+      const img = await loadCanvasImage(imageDataUrl);
       const sx = Math.round(zone.x * img.width);
       const sy = Math.round(zone.y * img.height);
       const sw = Math.max(1, Math.round(zone.w * img.width));
@@ -18559,6 +18744,35 @@ const horizontalDrawRichElement = ({ ctx, element }) => {
   ctx.restore();
 };
 
+const callHorizontalGeminiChat = async ({ prompt, inputText, actionLabel }) => {
+  const extractReply = (data) => {
+    if (!data) return "";
+    if (typeof data === "string") return data.trim();
+    for (const key of ["reply","text","message","output","content","answer","result","response","respuesta"]) {
+      const value = data?.[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (value && typeof value === "object") {
+        const nested = extractReply(value);
+        if (nested) return nested;
+      }
+    }
+    return String(data?.candidates?.[0]?.content?.parts?.map(part => part?.text || "").join(" ") || data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || "").trim();
+  };
+  const attempts = [
+    { prompt, inputText, action:actionLabel },
+    { prompt, text:inputText, action:actionLabel },
+    { message:`${prompt}\n\n${inputText}`, action:actionLabel },
+  ];
+  let lastError = null;
+  for (const body of attempts) {
+    const { data, error } = await sb.functions.invoke("gemini-chat", { body });
+    if (error) { lastError = error; continue; }
+    const reply = extractReply(data);
+    if (reply) return { reply };
+  }
+  throw lastError || new Error("La función gemini-chat no devolvió una respuesta utilizable.");
+};
+
 function HorizontalComunicadoPanel({ onSubido }) {
   const theme = React.useContext(ThemeContext);
   const canvasRef = useRef(null);
@@ -18982,7 +19196,7 @@ function HorizontalComunicadoPanel({ onSubido }) {
       const prompt = actionLabel === "resumir"
         ? `Actúa como editor institucional de Conect Manzanillo. Resume el contenido para un comunicado operativo horizontal. Conserva datos indispensables, fechas, horarios, restricciones y acciones. Devuelve únicamente el texto final, formal, claro y compacto. ${emphasisInstruction}\n\n${inputText}`
         : `Actúa como editor institucional de Conect Manzanillo. Crea un texto listo para un comunicado operativo horizontal a partir de estas especificaciones. Devuelve únicamente el texto final, formal, claro y útil para usuarios del puerto. ${emphasisInstruction}\n\n${inputText}`;
-      const { reply } = await callGeminiChatForComunicados({ prompt, inputText, actionLabel: `horizontal_${actionLabel}` });
+      const { reply } = await callHorizontalGeminiChat({ prompt, inputText, actionLabel: `horizontal_${actionLabel}` });
       setAiOutput(String(reply || "").trim());
       setHorizontalNotice(actionLabel === "resumir" ? "Resumen generado por IA." : "Texto generado por IA.", "#a78bfa");
     } catch (aiError) {
@@ -20518,15 +20732,15 @@ function SubirComunicadoPanel({ onSubido, isAdmin }) {
     let currentLine = [];
     let currentLineWidth = 0;
 
-      const tokenWidth = measureRichToken(ctx, token, normalFont, boldFont);
-      const nextWidth = currentLineWidth + tokenWidth;
-
-      if (currentLine.length > 0 && nextWidth > maxWidth) {
-        pushLine(false);
-      }
-
-      currentLine.push(token);
-      currentLineWidth += tokenWidth;
+    const pushLine = (isParagraphBreak = false) => {
+      lines.push({
+        tokens: currentLine,
+        width: Math.max(0, currentLineWidth),
+        isParagraphBreak,
+      });
+      currentLine = [];
+      currentLineWidth = 0;
+    };
 
     expandedTokens.forEach((token) => {
       if (token.type === "newline") {
@@ -24824,6 +25038,13 @@ function NoticiasTab({ isAdmin }) {
           return sorted;
         });
       })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "noticias" }, ({ old: r }) => {
+        if (r?.id) setNoticias(prev => {
+          const next = prev.filter(x => x.id !== r.id);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, next, 2500);
+          return next;
+        });
+      })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
         const aprobado = isComunicadoAprobado(r?.aprobado);
         if (r && aprobado) {
@@ -24857,6 +25078,12 @@ function NoticiasTab({ isAdmin }) {
             const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 2500);
             cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 2500);
             return sorted;
+          });
+        } else if (r?.id) {
+          setComunicados(prev => {
+            const next = prev.filter(c => c.id !== r.id);
+            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, next, 2500);
+            return next;
           });
         }
       })
@@ -26264,9 +26491,10 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     });
     if (error) { setMsg({type:"err", text:error.message}); return; }
     const reviewedRow = Array.isArray(linkedProfile) ? linkedProfile[0] : (linkedProfile || row);
+    let notificationSent = true;
     if (reviewedRow.user_id || reviewedRow.submitted_by_uid || reviewedRow.device_id) {
       try {
-        await sb.from("posturas_notificaciones").insert({
+        const { error: notificationError } = await sb.from("posturas_notificaciones").insert({
           user_id:reviewedRow.user_id || reviewedRow.submitted_by_uid || null,
           device_id:reviewedRow.device_id || myId,
           type:"validacion_perfil",
@@ -26275,10 +26503,15 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
           read:false,
           created_at:new Date().toISOString()
         });
-      } catch {}
+        if (notificationError) throw notificationError;
+      } catch (notificationError) {
+        notificationSent = false;
+        console.warn("[posturas] perfil actualizado pero no se pudo crear la notificación", notificationError);
+      }
     }
     setProfileApprovalComment(prev=>({...prev,[approvalKey(type,row.id)]:""}));
-    setMsg({type:"ok", text:nextState === "validado" ? "Perfil validado y publicado." : "Perfil marcado como no validado; se notificó la corrección."});
+    const okText = nextState === "validado" ? "Perfil validado y publicado." : "Perfil marcado como no validado.";
+    setMsg({type:notificationSent?"ok":"err", text:notificationSent ? okText : `${okText} No se pudo enviar la notificación.`});
     loadPosturas();
   };
 
@@ -26708,7 +26941,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (error) setMsg({type:"err", text:error.message}); else { setMsg({type:"ok", text:"Reporte enviado al administrador para revisión."}); setPosturasReportTarget(null); loadPosturas(); }
   };
   const sendQueja = (empresa) => openPosturasReport("empresa", empresa);
-  const approveQueja = async (id, aprobado=true) => { await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); loadPosturas(); };
+  const approveQueja = async (id, aprobado=true) => { const { error } = await sb.from("posturas_quejas").update({ aprobado }).eq("id", id); if (error) { setMsg({type:"err", text:error.message || "No se pudo actualizar la queja."}); return; } setMsg({type:"ok", text:aprobado ? "Queja aprobada." : "Queja rechazada."}); await loadPosturas(); };
   const loadTickets = useCallback(async () => {
     if (!authUser?.id && !isAdmin) { setTickets([]); return; }
     setTicketsLoading(true); setTicketsError("");
@@ -26841,7 +27074,11 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     else {
       if (sanctionType === "ban") {
         const table = type === "trabajador" ? "posturas_trabajadores" : "posturas_empresas";
-        await sb.from(table).update({ perfil_estado:"baneado", banned:true, activo:false, updated_at:new Date().toISOString() }).eq("id", row.id);
+        const { error: profileBanError } = await sb.from(table).update({ perfil_estado:"baneado", banned:true, activo:false, updated_at:new Date().toISOString() }).eq("id", row.id);
+        if (profileBanError) {
+          setMsg({type:"err", text:`La sanción se registró, pero no se pudo ocultar el perfil: ${profileBanError.message}`});
+          return;
+        }
       }
       setMsg({type:"ok", text:`${sanctionType === "ban" ? "Baneo" : "Bloqueo"} aplicado a ${name}.`});
       auditLog({ action:sanctionType === "ban" ? "posturas_baneo" : "posturas_bloqueo", section:`posturas_${type}`, entityId:row.id, after:{ summary:`Admin aplicó ${sanctionType === "ban" ? "baneo" : "bloqueo"} a ${name}`, profile_type:type, target_device_id:row.device_id || null, target_user_id:row.user_id || null, until_at }, actor:"Admin" });
@@ -27729,30 +27966,30 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   };
 
 
-  const ProfileEditorView = () => {
-    const openBaseProfile = (kind) => {
-      if (!authUser && !isAdmin) {
-        requestProtectedProfileAccess("login");
-        return;
-      }
-      setAccessPrompt(null);
-      const isWorker = kind === "trabajador";
-      const row = isWorker ? myLatestTrabajador : myLatestEmpresa;
-      setSub("posturas");
-      setPosturasMode("form");
-      if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
-      if (isWorker) {
-        setVista("postular");
-        if (row) { loadPrivateProfileForEdit("trabajador", row); }
-        else { setTrabForm(emptyTrab); setEditingTrabId(null); }
-      } else {
-        setVista("empresario");
-        if (row) { loadPrivateProfileForEdit("empresa", row); }
-        else { setEmpForm(emptyEmp); setEditingEmpId(null); }
-      }
-      setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
-    };
+  const openBaseProfile = (kind) => {
+    if (!authUser && !isAdmin) {
+      requestProtectedProfileAccess("login");
+      return;
+    }
+    setAccessPrompt(null);
+    const isWorker = kind === "trabajador";
+    const row = isWorker ? myLatestTrabajador : myLatestEmpresa;
+    setSub("posturas");
+    setPosturasMode("form");
+    if (isAdmin) setAdminPosturasProfileView(isWorker ? "postulante" : "empresa");
+    if (isWorker) {
+      setVista("postular");
+      if (row) { loadPrivateProfileForEdit("trabajador", row); }
+      else { setTrabForm(emptyTrab); setEditingTrabId(null); }
+    } else {
+      setVista("empresario");
+      if (row) { loadPrivateProfileForEdit("empresa", row); }
+      else { setEmpForm(emptyEmp); setEditingEmpId(null); }
+    }
+    setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 0);
+  };
 
+  const ProfileEditorView = () => {
     const UserEditCard = ({ type, row }) => {
       const isWorker = type === "trabajador";
       const title = row ? (isWorker ? row.nombre_completo : row.razon_social) : (isWorker ? "Perfil de trabajador" : "Perfil de empresario");
@@ -28237,6 +28474,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
   `}</style>;
 
   const DashboardHub = () => {
+    const [dashboardFiltersOpen, setDashboardFiltersOpen] = useState(false);
     const normalizeRatingType = (value) => String(value || "").toLowerCase();
     const ratingRowsFor = (type, profileId, source = ratings) => source.filter(r =>
       normalizeRatingType(r.profile_type) === type && String(r.profile_id) === String(profileId)
@@ -28344,7 +28582,12 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
         <StatCard icon="star" accent="#bec6e0" label="Promedio Talento" value={`${avgTrab ? avgTrab.toFixed(1) : "0.0"} / 5`} trend={talentAvgTrend} spin>{progressCircle(avgTrab,"#bec6e0")}</StatCard>
         <StatCard icon="work" accent="#ffb4ab" label="Promedio Empresas" value={`${avgEmp ? avgEmp.toFixed(1) : "0.0"} / 5`} trend={companyAvgTrend} spin>{progressCircle(avgEmp,"#ffb4ab")}</StatCard>
       </div>
-      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn"><MS name="filter_list" size={18} active />Filtros</button></div>
+      <div className="cm-talent-search"><div className="cm-talent-search-box"><span className="cm-talent-search-icon"><MS name="search" size={20} /></span><input value={q} onChange={e=>{setQ(e.target.value);setDashboardPage(1);}} placeholder="Buscar talento, empresa o palabra clave..." /></div><button type="button" className="cm-talent-filter-btn" onClick={()=>setDashboardFiltersOpen(v=>!v)} aria-expanded={dashboardFiltersOpen}><MS name="filter_list" size={18} active={dashboardFiltersOpen} />Filtros</button></div>
+      {dashboardFiltersOpen && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:"10px", margin:"-10px 16px 24px", padding:"14px", borderRadius:"14px", border:"1px solid rgba(255,255,255,.08)", background:"rgba(1,15,31,.52)" }}>
+        <select value={filtroEstatus} onChange={e=>{setFiltroEstatus(e.target.value);setDashboardPage(1);}} style={input}><option value="todos">Todos los estatus</option><option value="true">Trabajador disponible</option><option value="false">Trabajador no disponible</option><option value="tiene_trabajo">Empresa con trabajo</option><option value="lleno">Empresa llena</option></select>
+        <select value={filtroAlcance} onChange={e=>{setFiltroAlcance(e.target.value);setDashboardPage(1);}} style={input}><option value="todos">Local / foráneo</option>{POSTURAS_ALCANCE.map(x=><option key={x} value={x}>{x}</option>)}</select>
+        <select value={filtroEstrellas} onChange={e=>{setFiltroEstrellas(e.target.value);setDashboardPage(1);}} style={input}><option value="todos">Todas las estrellas</option><option value="5">5 estrellas</option><option value="4">4+ estrellas</option><option value="3">3+ estrellas</option></select>
+      </div>}
       <section className="cm-talent-ranking">
         <div className="cm-talent-ranking-head"><h2>Ranking de Reputación</h2><div className="cm-talent-tabs"><button className={`cm-talent-tab ${dashboardTarget === "perfiles" ? "active" : ""}`} onClick={()=>{setDashboardTarget("perfiles");setDashboardPage(1);}}>TALENTO</button><button className={`cm-talent-tab ${dashboardTarget === "empresas" ? "active" : ""}`} onClick={()=>{setDashboardTarget("empresas");setDashboardPage(1);}}>EMPRESAS</button></div></div>
         <div className="cm-talent-table-wrap"><table className="cm-talent-table"><thead><tr><th>Ranking</th><th>Usuario / Empresa</th><th>Reputación</th><th>Estado</th><th style={{textAlign:"right"}}>Acciones</th></tr></thead><tbody>
@@ -28373,9 +28616,17 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
     if (isAdmin && quejas.filter(q => !q.aprobado).length) systemItems.push({ id:"pending-complaints", titulo:"Quejas pendientes de revisión", mensaje:`Hay ${quejas.filter(q => !q.aprobado).length} reporte(s) pendientes en Posturas.`, tipo:"queja", created_at:new Date().toISOString(), leida:false });
     const items = [...notificaciones, ...systemItems].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
     const markRead = async (row) => {
-      if (!row?.id || String(row.id).includes("-") || row.leida || row.read_at) return;
-      try { await sb.from("posturas_notificaciones").update({ leida:true, read_at:new Date().toISOString() }).eq("id", row.id); } catch {}
-      setNotificaciones(prev => prev.map(n => n.id === row.id ? { ...n, leida:true, read_at:new Date().toISOString() } : n));
+      if (!row?.id || row.leida || row.read_at) return;
+      if (!notificaciones.some(n => n.id === row.id)) return;
+      const readAt = new Date().toISOString();
+      try {
+        const { error } = await sb.from("posturas_notificaciones").update({ leida:true, read_at:readAt }).eq("id", row.id);
+        if (error) throw error;
+        setNotificaciones(prev => prev.map(n => n.id === row.id ? { ...n, leida:true, read_at:readAt } : n));
+      } catch (error) {
+        console.warn("[posturas_notificaciones] no se pudo marcar como leída", error);
+        setMsg?.({ type:"err", text:"No se pudo marcar la notificación como leída." });
+      }
     };
     const typeIcon = (row) => row.tipo === "contacto" ? "call" : row.tipo === "postulacion" ? "person_add" : row.tipo === "queja" ? "report" : row.tipo === "valoracion" ? "star" : "notifications";
     return <section style={{ maxWidth:"1040px", margin:"0 auto", ...posturasGlass, borderRadius:"18px", padding:posturasMobile?"18px":"28px", minHeight:"calc(100vh - 144px)" }}>
@@ -28584,7 +28835,7 @@ function PosturasTab({ authUser, myId, setActive, isAdmin=false, onLogin, onRegi
       <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
         <button type="button" onClick={()=>setTalentView("perfiles")} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 16px", borderRadius:"12px", border:`1px solid ${talentView === "perfiles" ? "rgba(161,201,255,.55)" : "rgba(63,71,83,.45)"}`, background:talentView === "perfiles" ? "rgba(161,201,255,.14)" : "rgba(18,33,49,.72)", color:talentView === "perfiles" ? "#a1c9ff" : "#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer" }}><MS name="groups" size={18} active={talentView === "perfiles"} /> Ver perfiles</button>
         <button type="button" onClick={()=>setTalentView("busquedas")} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 16px", borderRadius:"12px", border:`1px solid ${talentView === "busquedas" ? "rgba(161,201,255,.55)" : "rgba(63,71,83,.45)"}`, background:talentView === "busquedas" ? "rgba(161,201,255,.14)" : "rgba(18,33,49,.72)", color:talentView === "busquedas" ? "#a1c9ff" : "#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer" }}><MS name="apartment" size={18} active={talentView === "busquedas"} /> Ver empresas</button>
-        <button type="button" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 20px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.72)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"default" }}><MS name="filter_list" size={18} /> Filtros</button>
+        <button type="button" onClick={()=>setPosturasFilterOpen(v=>!v)} aria-expanded={posturasFilterOpen} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"8px", padding:"14px 20px", borderRadius:"12px", border:"1px solid rgba(63,71,83,.45)", background:"rgba(18,33,49,.72)", color:"#d4e4fa", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"900", letterSpacing:".12em", textTransform:"uppercase", cursor:"pointer" }}><MS name="filter_list" size={18} active={posturasFilterOpen} /> Filtros</button>
       </div>
     </div>
   );
@@ -30718,6 +30969,16 @@ function PatioReguladorOperativoTab({ myId, isAdmin = false }) {
   };
 
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
+  const patioWriteLocksRef = useRef(new Set());
+  const beginPatioWrite = (key) => {
+    if (patioWriteLocksRef.current.has("*") || patioWriteLocksRef.current.has(key) || (key === "*" && patioWriteLocksRef.current.size > 0)) {
+      notify("Hay una actualización en curso. Espera a que termine.", "#f97316");
+      return false;
+    }
+    patioWriteLocksRef.current.add(key);
+    return true;
+  };
+  const endPatioWrite = (key) => patioWriteLocksRef.current.delete(key);
   const getOpt = (id) => PATIO_STATUS_OPTIONS.find(o => o.id === id) || PATIO_STATUS_OPTIONS[0];
 
   useEffect(() => {
@@ -30752,50 +31013,89 @@ function PatioReguladorOperativoTab({ myId, isAdmin = false }) {
     if (await notifyIfBlocked("vote", (m)=>alert(m))) return;
     const rl = rateLimiter.check(`patio_vote_${myId}`, 30000);
     if (!rl.allowed && !forceChange) return notify(`Espera ${rl.remaining}s antes de votar de nuevo`, "#f97316");
-    const { data: yaVoto } = await sb.from("votos").select("id").eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio");
-    if (yaVoto && yaVoto.length > 0 && !forceChange) {
-      const label = PATIO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
-      setChangeModal({ type: "patio", id: patioId, newStatus, label });
-      return;
+    const lockKey = `patio:${patioId}`;
+    if (!beginPatioWrite(lockKey)) return;
+    let previousVote = null;
+    let insertedVoteId = null;
+    let voteMutated = false;
+    try {
+      const ownResult = await sb.from("votos").select("id,status,key").eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio").limit(1);
+      if (ownResult.error) throw ownResult.error;
+      const existingVote = ownResult.data?.[0] || null;
+      if (existingVote && !forceChange) {
+        const label = PATIO_STATUS_OPTIONS.find(o => o.id === newStatus)?.label || newStatus;
+        setChangeModal({ type:"patio", id:patioId, newStatus, label });
+        return;
+      }
+      const key = `patio_${patioId}_${newStatus}`;
+      if (existingVote) {
+        previousVote = { ...existingVote };
+        const updateVote = await sb.from("votos").update({ status:newStatus, key }).eq("id", existingVote.id).select("id").maybeSingle();
+        if (updateVote.error) throw updateVote.error;
+        voteMutated = true;
+      } else {
+        const insertVote = await sb.from("votos").insert({ key, user_id:myId, patio_id:patioId, status:newStatus, tipo:"patio" }).select("id").single();
+        if (insertVote.error) throw insertVote.error;
+        insertedVoteId = insertVote.data?.id || null;
+        voteMutated = true;
+      }
+      const tallyResult = await sb.from("votos").select("status").eq("patio_id", patioId).eq("tipo", "patio");
+      if (tallyResult.error) throw tallyResult.error;
+      const conteo = {};
+      (tallyResult.data || []).forEach(v => { if (v?.status) conteo[v.status] = (conteo[v.status] || 0) + 1; });
+      const [statusGanador, votosGanador] = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0] || [newStatus, 1];
+      const stamp = Date.now();
+      const saveResult = await sb.from("patios").upsert({ id:patioId, status:statusGanador, pending_voters:conteo, last_update:stamp, updated_by:`${votosGanador} votos` });
+      if (saveResult.error) throw saveResult.error;
+      const entry = { ...(patios?.[patioId] || {}), status:statusGanador, lastUpdate:stamp, updatedBy:`${votosGanador} votos`, pendingVoters:conteo };
+      setPatios(prev => ({ ...(prev || {}), [patioId]:entry }));
+      persistStatusEntry("patios", patioId, entry);
+      try { localStorage.setItem(`last_vote_patio_${patioId}_${myId}`, newStatus); } catch {}
+      await auditLog({ action:"votar_patio", section:"patios", entityId:patioId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
+      const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label || statusGanador;
+      notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
+      const patioNombre = PATIOS_REGULADORES.find(p => p.id === patioId)?.name || patioId.toUpperCase();
+      await publicarNoticia({ tipo:"patio", icono:"warehouse", color:"#fb923c", titulo:`Patio ${patioNombre} — ${label}`, detalle:`Actualizado por consenso de ${votosGanador} voto(s)` });
+    } catch (error) {
+      if (voteMutated) {
+        try {
+          if (previousVote?.id) await sb.from("votos").update({ status:previousVote.status, key:previousVote.key }).eq("id", previousVote.id);
+          else if (insertedVoteId) await sb.from("votos").delete().eq("id", insertedVoteId);
+        } catch (rollbackError) { console.warn("[patios] no se pudo revertir el voto fallido", rollbackError); }
+      }
+      notify(`No se pudo guardar el estado del patio: ${error?.message || "error de Supabase"}`, "#ef4444");
+    } finally {
+      endPatioWrite(lockKey);
     }
-    if (yaVoto && yaVoto.length > 0 && forceChange) {
-      await sb.from("votos").delete().eq("user_id", myId).eq("patio_id", patioId).eq("tipo", "patio");
-    }
-    const key = `patio_${patioId}_${newStatus}`;
-    await sb.from("votos").insert({ key, user_id: myId, patio_id: patioId, status: newStatus, tipo: "patio" });
-    // Persistir voto en localStorage para sobrevivir la limpieza de 15 min
-    try { localStorage.setItem(`last_vote_patio_${patioId}_${myId}`, newStatus); } catch {}
-    const { data: todosVotos } = await sb.from("votos").select("status").eq("patio_id", patioId).eq("tipo", "patio");
-    const conteo = {};
-    (todosVotos || []).forEach(v => { conteo[v.status] = (conteo[v.status] || 0) + 1; });
-    const ganadora = Object.entries(conteo).sort((a,b) => b[1]-a[1])[0];
-    const [statusGanador, votosGanador] = ganadora;
-    // Optimistic update
-    const entry = { ...(patios?.[patioId] || {}), status: statusGanador, lastUpdate: Date.now(), updatedBy: `${votosGanador} votos`, pendingVoters: conteo };
-    setPatios(prev => ({ ...prev, [patioId]: entry }));
-    persistStatusEntry("patios", patioId, entry);
-    await sb.from("patios").upsert({ id: patioId, status: statusGanador, pending_voters: conteo, last_update: Date.now(), updated_by: `${votosGanador} votos` });
-    await auditLog({ action:"votar_patio", section:"patios", entityId:patioId, after:{ status:statusGanador, votos:conteo }, actor:`Usuario_${myId.slice(-4)}` });
-    const label = PATIO_STATUS_OPTIONS.find(o => o.id === statusGanador)?.label;
-    notify(`Validado ${label} lidera con ${votosGanador} voto(s)`, "#22c55e");
-    const patioNombre = PATIOS_REGULADORES.find(p => p.id === patioId)?.name || patioId.toUpperCase();
-    await publicarNoticia({ tipo: "patio", icono: "🏭", color: "#fb923c", titulo: `Patio ${patioNombre} — ${label}`, detalle: `Actualizado por consenso de ${votosGanador} voto(s)` });
   };
 
   const resetAll = async () => {
-    if (bloqueadoPorModoAutomatico) return;
-    const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} }]));
-    setPatios(next); persistStatusMap("patios", next);
-    await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id: p.id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} })));
-    notify("✓ Todos los patios marcados como Libres", "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla los patios en este momento.", "#f97316"); return; }
+    if (!beginPatioWrite("*")) return;
+    try {
+      const now = Date.now();
+      const result = await sb.from("patios").upsert(PATIOS_REGULADORES.map(p => ({ id:p.id, status:"libre", last_update:now, updated_by:"Reset", pending_voters:{} })));
+      if (result.error) throw result.error;
+      const next = Object.fromEntries(PATIOS_REGULADORES.map(p => [p.id, { status:"libre", lastUpdate:now, updatedBy:"Reset", pendingVoters:{} }]));
+      setPatios(next); persistStatusMap("patios", next);
+      notify("Todos los patios marcados como Libres", "#22c55e");
+    } catch (error) { notify(`No se pudieron restablecer los patios: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endPatioWrite("*"); }
   };
 
   const resetOne = async (id) => {
-    if (bloqueadoPorModoAutomatico) return;
-    const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:Date.now(), updatedBy:"Reset", pendingVoters:{} };
-    setPatios(prev => ({ ...(prev || {}), [id]: entry })); persistStatusEntry("patios", id, entry);
-    await sb.from("patios").upsert({ id, status: "libre", last_update: Date.now(), updated_by: "Reset", pending_voters: {} });
-    notify("✓ Patio marcado como Libre", "#22c55e");
+    if (bloqueadoPorModoAutomatico) { notify("El modo automático controla los patios en este momento.", "#f97316"); return; }
+    const lockKey = `patio:${id}`;
+    if (!beginPatioWrite(lockKey)) return;
+    try {
+      const stamp = Date.now();
+      const result = await sb.from("patios").upsert({ id, status:"libre", last_update:stamp, updated_by:"Reset", pending_voters:{} });
+      if (result.error) throw result.error;
+      const entry = { ...(patios?.[id] || {}), status:"libre", lastUpdate:stamp, updatedBy:"Reset", pendingVoters:{} };
+      setPatios(prev => ({ ...(prev || {}), [id]:entry })); persistStatusEntry("patios", id, entry);
+      notify("Patio marcado como Libre", "#22c55e");
+    } catch (error) { notify(`No se pudo restablecer el patio: ${error?.message || "error de Supabase"}`, "#ef4444"); }
+    finally { endPatioWrite(lockKey); }
   };
 
   const patioTickerItems = !patios ? [] : PATIOS_REGULADORES.map(p => {
@@ -32803,18 +33103,18 @@ function ComidaRegistroModal({authUser,onClose,onSaved}){
  const [logoFile,setLogoFile]=useState(null),[platillos,setPlatillos]=useState([{id:"p1",nombre:"",descripcion:"",precio:"",foto_url:"",foto_file:null}]),[map,setMap]=useState(false),[busy,setBusy]=useState(false);const set=(k,v)=>setF(x=>({...x,[k]:v}));
  useEffect(()=>{const prev=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{document.body.style.overflow=prev}},[]);
  const updateDish=(i,patch)=>setPlatillos(a=>a.map((x,j)=>j===i?{...x,...patch}:x));
- const save=async()=>{if(!authUser?.id)return alert("Debes iniciar sesión.");if(!f.nombre_cocina.trim())return alert("Captura el nombre comercial.");if(f.modo_horario==="personalizado"&&!cmValidateDetailedSchedule(f.horarios_detallados))return alert("Revisa los horarios personalizados.");setBusy(true);try{
+ const save=async()=>{if(!authUser?.id)return alert("Debes iniciar sesión.");if(!f.nombre_cocina.trim())return alert("Captura el nombre comercial.");if(f.modo_horario==="personalizado"&&!cmValidateDetailedSchedule(f.horarios_detallados))return alert("Revisa los horarios personalizados.");setBusy(true);let createdServiceId=null;try{
    let logoUrl=f.logo_url.trim();if(logoFile)logoUrl=await cmUploadServiceAsset({authUser,file:logoFile,folder:"comida-identidad"});
    const dias=cmLegacyDaysFromDetailedSchedule(f.horarios_detallados);const firstActive=CM_SERVICE_DAY_CONFIG.map(d=>f.horarios_detallados?.[d.key]).find(r=>r?.activo);
-   const {data,error}=await sb.from("servicios_comida").insert({usuario_id:authUser.id,nombre_cocina:f.nombre_cocina.trim(),logo_url:logoUrl||null,tipo_vehiculo:f.tipo_vehiculo,placas:f.placas,precio_gasolina_km:cmSafeRate(f.tipo_vehiculo,f.precio_gasolina_km),latitud:f.latitud,longitud:f.longitud,telefono_whatsapp:buildInternationalPhone(f.lada,f.telefono),zonas:f.zonas,dias_operacion:f.modo_horario==="24_horas"?["L","M","Mi","J","V","S","D"]:dias,horario_24h:f.modo_horario==="24_horas",hora_inicio:f.modo_horario==="24_horas"?null:firstActive?.inicio||null,hora_fin:f.modo_horario==="24_horas"?null:firstActive?.fin||null,modalidad_horario:f.modo_horario,horarios_detallados:f.horarios_detallados}).select().single();if(error)throw error;
+   const {data,error}=await sb.from("servicios_comida").insert({usuario_id:authUser.id,nombre_cocina:f.nombre_cocina.trim(),logo_url:logoUrl||null,tipo_vehiculo:f.tipo_vehiculo,placas:f.placas,precio_gasolina_km:cmSafeRate(f.tipo_vehiculo,f.precio_gasolina_km),latitud:f.latitud,longitud:f.longitud,telefono_whatsapp:buildInternationalPhone(f.lada,f.telefono),zonas:f.zonas,dias_operacion:f.modo_horario==="24_horas"?["L","M","Mi","J","V","S","D"]:dias,horario_24h:f.modo_horario==="24_horas",hora_inicio:f.modo_horario==="24_horas"?null:firstActive?.inicio||null,hora_fin:f.modo_horario==="24_horas"?null:firstActive?.fin||null,modalidad_horario:f.modo_horario,horarios_detallados:f.horarios_detallados}).select().single();if(error)throw error;createdServiceId=data?.id||null;
    const rows=[];for(const p of platillos.filter(p=>p.nombre&&p.precio)){let fotoUrl=(p.foto_url||"").trim();if(p.foto_file)fotoUrl=await cmUploadServiceAsset({authUser,file:p.foto_file,folder:`platillos/${data.id}`});rows.push({servicio_comida_id:data.id,nombre:p.nombre.trim(),descripcion:p.descripcion.trim(),precio:Number(p.precio),foto_url:fotoUrl||null})}if(rows.length){const {error:e2}=await sb.from("platillos_comida").insert(rows);if(e2)throw e2}onSaved?.();onClose()
- }catch(e){alert(e.message||"No fue posible guardar.")}finally{setBusy(false)}};
+ }catch(e){if(createdServiceId){try{const {error:rollbackError}=await sb.from("servicios_comida").delete().eq("id",createdServiceId);if(rollbackError)console.warn("[servicios_comida] rollback incompleto",rollbackError)}catch(rollbackError){console.warn("[servicios_comida] rollback incompleto",rollbackError)}}alert(e.message||"No fue posible guardar.")}finally{setBusy(false)}};
  return <div className="cm-adv-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><CMServiceFormEnhancementStyles/><div className="cm-adv-dialog"><div className="cm-adv-head"><div><b>Alta de Comida a Domicilio</b><small>Proveedor, identidad, catálogo y horarios</small></div><button type="button" onClick={onClose} aria-label="Cerrar" className="cm-icon-btn-content"><MS name="close" size={26}/></button></div><div className="cm-adv-body cm-adv-form"><label>Nombre comercial / Cocina<input value={f.nombre_cocina} onChange={e=>set("nombre_cocina",e.target.value)}/></label><label>WhatsApp<div className="cm-phone"><select value={f.lada} onChange={e=>set("lada",e.target.value)}>{SERVICIOS_LADAS.map(x=><option key={`comida-${x.code}`} value={x.code}>{x.code} {x.label}</option>)}</select><input value={f.telefono} onChange={e=>set("telefono",e.target.value.replace(/[^0-9]/g,"").slice(0,15))}/></div></label><CMVisualIdentityField url={f.logo_url} onUrlChange={v=>set("logo_url",v)} file={logoFile} onFileChange={setLogoFile}/><label>Vehículo<select value={f.tipo_vehiculo} onChange={e=>{set("tipo_vehiculo",e.target.value);set("precio_gasolina_km",CM_VEHICLE_RATES[e.target.value])}}><option value="moto">Moto</option><option value="auto">Auto</option><option value="bicicleta">Bicicleta</option><option value="camioneta">Camioneta</option></select></label><label>Placa<input value={f.placas} onChange={e=>set("placas",e.target.value.toUpperCase())}/></label><label>Zonas<input value={f.zonas} onChange={e=>set("zonas",e.target.value)}/></label><label>Tarifa combustible por km<input type="number" step="0.1" value={f.precio_gasolina_km} onChange={e=>set("precio_gasolina_km",e.target.value)}/></label><div className="full"><button type="button" className="cm-adv-outline" onClick={()=>setMap(true)}><MS name="pin_drop" size={22}/><span>Marcar ubicación base</span></button></div><div className="full"><b className="cm-form-title">Catálogo de platillos</b>{platillos.map((p,i)=><div className="cm-dish-card" key={p.id}><div><CMDishPhotoPicker item={p} onChange={patch=>updateDish(i,patch)}/></div><div className="cm-dish-fields"><input className="wide" placeholder="Nombre del platillo" value={p.nombre} onChange={e=>updateDish(i,{nombre:e.target.value})}/><input className="wide" placeholder="Descripción" value={p.descripcion} onChange={e=>updateDish(i,{descripcion:e.target.value})}/><input type="number" min="0" step="0.01" placeholder="Precio MXN" value={p.precio} onChange={e=>updateDish(i,{precio:e.target.value})}/></div><button type="button" className="cm-dish-delete" onClick={()=>setPlatillos(a=>a.filter((_,j)=>j!==i))} aria-label="Eliminar platillo"><MS name="delete" size={22}/></button></div>)}<button type="button" className="cm-adv-outline" onClick={()=>setPlatillos(a=>[...a,{id:crypto.randomUUID?.()||String(Date.now()),nombre:"",descripcion:"",precio:"",foto_url:"",foto_file:null}])}><MS name="add_circle" size={20}/><span>Agregar platillo</span></button></div><CMDetailedScheduleEditor mode={f.modo_horario} onModeChange={v=>set("modo_horario",v)} schedule={f.horarios_detallados} onScheduleChange={v=>set("horarios_detallados",v)}/><div className="full cm-adv-actions"><button type="button" className="cm-adv-primary" onClick={save} disabled={busy}><MS name={busy?"sync":"save"} size={22}/><span>{busy?"Guardando":"Publicar servicio"}</span></button></div></div>{map&&<ServicioLocationPicker value={f} onChange={v=>setF(x=>({...x,...v}))} onClose={()=>setMap(false)}/>}</div></div>;
 }
 
 function ManiobraSolicitudModal({service,authUser,onClose}){
  const [docs,setDocs]=useState(1),[dest,setDest]=useState({lat:Number(service.latitud)+.008,lng:Number(service.longitud)+.008}),[files,setFiles]=useState([]),[busy,setBusy]=useState(false);const km=cmHaversineKm({lat:service.latitud,lng:service.longitud},dest);const rate=cmSafeRate(service.tipo_vehiculo,service.precio_gasolina_km||CM_VEHICLE_RATES[service.tipo_vehiculo]);const total=Number(docs)*Number(service.precio_por_doc||0)+km*rate+Number(service.tarifa_base_traslado||0);
- const send=async()=>{if(!authUser?.id)return alert("Debes iniciar sesión.");setBusy(true);try{const {data,error}=await sb.from("solicitudes_maniobras").insert({maniobra_id:service.id,cliente_id:authUser.id,cant_docs:Number(docs),costo_total:Number(total.toFixed(2)),estado:"pendiente",lat_destino:dest.lat,lng_destino:dest.lng,distancia_km:Number(km.toFixed(3))}).select().single();if(error)throw error;for(const file of files){const path=`${authUser.id}/${data.id}/${crypto.randomUUID?.()||Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const {error:up}=await sb.storage.from("documentos-maniobra").upload(path,file,{contentType:"application/pdf"});if(up)throw up;const url=sb.storage.from("documentos-maniobra").getPublicUrl(path).data.publicUrl;const {error:de}=await sb.from("documentos_maniobra").insert({solicitud_id:data.id,nombre_archivo:file.name,archivo_url:url,tamano_bytes:file.size});if(de)throw de}alert("Solicitud enviada.");onClose()}catch(e){alert(e.message||"No fue posible enviar.")}finally{setBusy(false)}};
+ const send=async()=>{if(!authUser?.id)return alert("Debes iniciar sesión.");setBusy(true);let createdRequestId=null;const uploadedPaths=[];try{const {data,error}=await sb.from("solicitudes_maniobras").insert({maniobra_id:service.id,cliente_id:authUser.id,cant_docs:Number(docs),costo_total:Number(total.toFixed(2)),estado:"pendiente",lat_destino:dest.lat,lng_destino:dest.lng,distancia_km:Number(km.toFixed(3))}).select().single();if(error)throw error;createdRequestId=data?.id||null;for(const file of files){const path=`${authUser.id}/${data.id}/${crypto.randomUUID?.()||Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const {error:up}=await sb.storage.from("documentos-maniobra").upload(path,file,{contentType:"application/pdf"});if(up)throw up;uploadedPaths.push(path);const url=sb.storage.from("documentos-maniobra").getPublicUrl(path).data.publicUrl;const {error:de}=await sb.from("documentos_maniobra").insert({solicitud_id:data.id,nombre_archivo:file.name,archivo_url:url,tamano_bytes:file.size});if(de)throw de}alert("Solicitud enviada.");onClose()}catch(e){if(uploadedPaths.length){try{await sb.storage.from("documentos-maniobra").remove(uploadedPaths)}catch(rollbackError){console.warn("[documentos-maniobra] rollback incompleto",rollbackError)}}if(createdRequestId){try{const {error:rollbackError}=await sb.from("solicitudes_maniobras").delete().eq("id",createdRequestId);if(rollbackError)console.warn("[solicitudes_maniobras] rollback incompleto",rollbackError)}catch(rollbackError){console.warn("[solicitudes_maniobras] rollback incompleto",rollbackError)}}alert(e.message||"No fue posible enviar.")}finally{setBusy(false)}};
  return <div className="cm-adv-modal"><div className="cm-adv-dialog"><div className="cm-adv-head"><div><b>Solicitar Maniobra / Impresión</b><small>{service.nombre_proveedor}</small></div><button onClick={onClose}><MS name="close" size={26}/></button></div><div className="cm-adv-body"><div className="cm-adv-form"><label>Cantidad de documentos<input type="number" min="1" max={service.capacidad_docs||999} value={docs} onChange={e=>setDocs(Math.max(1,Number(e.target.value)||1))}/></label><label>PDF a imprimir / tramitar<input type="file" accept="application/pdf" multiple onChange={e=>setFiles([...e.target.files])}/></label></div><ServiciosRouteMap origin={{lat:service.latitud,lng:service.longitud}} destination={dest} onDestinationChange={setDest}/><div className="cm-costs"><span>Documentos <b>{docs} x {cmMoney(service.precio_por_doc)}</b></span><span>Distancia <b>{km.toFixed(2)} km</b></span><span>Traslado <b>{cmMoney(km*rate+Number(service.tarifa_base_traslado||0))}</b></span><span className="total">Total <b>{cmMoney(total)}</b></span></div><button className="cm-adv-primary" onClick={send} disabled={busy}><MS name="upload_file" size={24}/><span>{busy?"Enviando":"Enviar solicitud segura"}</span></button></div></div></div>;
 }
 
@@ -32825,9 +33125,103 @@ function ManiobraRegistroModal({authUser,onClose,onSaved}){
  return <div className="cm-adv-modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><CMServiceFormEnhancementStyles/><div className="cm-adv-dialog"><div className="cm-adv-head"><div><b>Alta de Maniobras a Domicilio</b><small>Impresión, traslado e identidad del proveedor</small></div><button type="button" onClick={onClose} aria-label="Cerrar"><MS name="close" size={26}/></button></div><div className="cm-adv-body cm-adv-form"><label>Proveedor<input value={f.nombre_proveedor} onChange={e=>set("nombre_proveedor",e.target.value)}/></label><label>WhatsApp<div className="cm-phone"><select value={f.lada} onChange={e=>set("lada",e.target.value)}>{SERVICIOS_LADAS.map(x=><option key={`maniobra-${x.code}`} value={x.code}>{x.code} {x.label}</option>)}</select><input value={f.telefono} onChange={e=>set("telefono",e.target.value.replace(/[^0-9]/g,"").slice(0,15))}/></div></label><CMVisualIdentityField url={f.logo_url} onUrlChange={v=>set("logo_url",v)} file={logoFile} onFileChange={setLogoFile}/><label>Vehículo<select value={f.tipo_vehiculo} onChange={e=>{set("tipo_vehiculo",e.target.value);set("precio_gasolina_km",CM_VEHICLE_RATES[e.target.value])}}><option value="moto">Moto</option><option value="auto">Auto</option><option value="bicicleta">Bicicleta</option><option value="camioneta">Camioneta</option></select></label><label>Placas<input value={f.placas} onChange={e=>set("placas",e.target.value.toUpperCase())}/></label><label>Capacidad documentos<input type="number" value={f.capacidad_docs} onChange={e=>set("capacidad_docs",e.target.value)}/></label><label>Precio por documento<input type="number" step="0.1" value={f.precio_por_doc} onChange={e=>set("precio_por_doc",e.target.value)}/></label><label>Tarifa base traslado<input type="number" step="0.1" value={f.tarifa_base_traslado} onChange={e=>set("tarifa_base_traslado",e.target.value)}/></label><label>Zonas<input value={f.zonas} onChange={e=>set("zonas",e.target.value)}/></label><div className="full"><button type="button" className="cm-adv-outline" onClick={()=>setMap(true)}><MS name="pin_drop" size={22}/><span>Marcar ubicación base</span></button></div><CMDetailedScheduleEditor mode={f.modo_horario} onModeChange={v=>set("modo_horario",v)} schedule={f.horarios_detallados} onScheduleChange={v=>set("horarios_detallados",v)}/><div className="full"><button type="button" className="cm-adv-primary" onClick={save} disabled={busy}><MS name={busy?"sync":"save"} size={22}/><span>{busy?"Guardando":"Publicar servicio"}</span></button></div>{map&&<ServicioLocationPicker value={f} onChange={v=>setF(x=>({...x,...v}))} onClose={()=>setMap(false)}/>}</div></div></div>;
 }
 
-function CentroDocumentalManiobra({service,onClose}){const [rows,setRows]=useState([]),[busy,setBusy]=useState(true);useEffect(()=>{(async()=>{setBusy(true);const {data}=await sb.from("solicitudes_maniobras").select("*, documentos_maniobra(*)").eq("maniobra_id",service.id).order("created_at",{ascending:false});setRows(data||[]);setBusy(false)})()},[service.id]);const state=async(r,estado)=>{await sb.from("solicitudes_maniobras").update({estado}).eq("id",r.id);setRows(a=>a.map(x=>x.id===r.id?{...x,estado}:x))};return <div className="cm-adv-modal"><div className="cm-adv-dialog"><div className="cm-adv-head"><div><b>Centro de Documentación de la Maniobra</b><small>{service.nombre_proveedor}</small></div><button onClick={onClose}><MS name="close" size={26}/></button></div><div className="cm-adv-body">{busy?<div className="cm-loading">Cargando solicitudes</div>:rows.length?rows.map(r=><article className="cm-doc-order" key={r.id}><header><b>Orden {String(r.id).slice(0,8)}</b><span>{r.estado}</span></header><div className="cm-costs"><span>Documentos <b>{r.cant_docs}</b></span><span>Total <b>{cmMoney(r.costo_total)}</b></span></div><div className="cm-doc-list">{(r.documentos_maniobra||[]).map(d=><div key={d.id}><MS name="picture_as_pdf" size={28}/><span><b>{d.nombre_archivo}</b><small>{Math.round((d.tamano_bytes||0)/1024)} KB</small></span><a href={d.archivo_url} target="_blank" rel="noopener noreferrer" aria-label="Visualizar PDF"><MS name="visibility" size={22}/></a><a href={d.archivo_url} download aria-label="Descargar PDF"><MS name="download" size={22}/></a></div>)}</div><div className="cm-adv-actions"><button className="cm-adv-outline" onClick={()=>state(r,"aceptada")}><MS name="check_circle" size={20}/><span>Aceptar</span></button><button className="cm-adv-outline" onClick={()=>state(r,"en_camino")}><MS name="local_shipping" size={20}/><span>En camino</span></button><button className="cm-adv-outline" onClick={()=>state(r,"completada")}><MS name="task_alt" size={20}/><span>Completar</span></button></div></article>):<div className="cm-empty">Sin solicitudes todavía.</div>}</div></div></div>}
+function CentroDocumentalManiobra({ service, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [updatingId, setUpdatingId] = useState(null);
 
-function AdvancedServicesMarketplace({type,authUser,isAdmin,canManage,onRequireAuth}){const [rows,setRows]=useState([]),[busy,setBusy]=useState(true),[register,setRegister]=useState(false),[active,setActive]=useState(null),[docs,setDocs]=useState(null);const load=useCallback(async()=>{setBusy(true);if(type==="comida"){const {data}=await sb.from("servicios_comida").select("*, platillos_comida(*)").order("created_at",{ascending:false});setRows((data||[]).map(x=>({...x,platillos:x.platillos_comida||[]})))}else{const {data}=await sb.from("servicios_maniobras").select("*").order("created_at",{ascending:false});setRows(data||[])}setBusy(false)},[type]);useEffect(()=>{load()},[load]);const mine=r=>authUser?.id&&r.usuario_id===authUser.id;return <><div className="cm-advanced-top"><div><h2>{type==="comida"?"Comida a Domicilio":"Maniobras a Domicilio"}</h2><p>{type==="comida"?"Menús locales con entrega calculada por ruta y tipo de vehículo.":"Impresión, traslado y gestión segura de documentos con costos transparentes."}</p></div><button onClick={()=>authUser?setRegister(true):onRequireAuth()}><MS name="add_business" size={22}/><span>Registrar proveedor</span></button></div>{busy?<div className="cm-loading">Cargando servicios</div>:<div className="cm-adv-grid">{rows.map(r=>type==="comida"?<article className="cm-adv-card" key={r.id}><div className="cm-adv-card-head">{r.logo_url?<img src={r.logo_url} alt=""/>:<span><MS name="restaurant" size={30}/></span>}<div><h3>{r.nombre_cocina}</h3><small>{r.tipo_vehiculo} · {r.zonas||"Manzanillo"}</small></div></div><div className="cm-card-schedule"><span><MS name="schedule" size={18}/></span><span>{cmScheduleSummary(r)}</span></div><div className="cm-dishes">{(r.platillos||[]).slice(0,4).map(p=><div key={p.id}><span>{p.foto_url?<img src={p.foto_url} alt=""/>:<MS name="lunch_dining" size={22}/>}</span><div><b>{p.nombre}</b><small>{p.descripcion}</small></div><strong>{cmMoney(p.precio)}</strong></div>)}</div><button className="cm-adv-primary" onClick={()=>setActive(r)}><MS name="route" size={22}/><span>Pedir / Generar Ruta</span></button></article>:<article className="cm-adv-card" key={r.id}><div className="cm-adv-card-head">{r.logo_url?<img src={r.logo_url} alt={`Logotipo de ${r.nombre_proveedor}`}/>:<span><MS name="print" size={30}/></span>}<div><h3>{r.nombre_proveedor}</h3><small>{r.tipo_vehiculo} · {r.zonas||"Manzanillo"}</small></div></div><div className="cm-card-schedule"><span><MS name="schedule" size={18}/></span><span>{cmScheduleSummary(r)}</span></div><div className="cm-costs"><span>Precio por documento <b>{cmMoney(r.precio_por_doc)}</b></span><span>Capacidad por viaje <b>{r.capacidad_docs}</b></span><span>Tarifa base <b>{cmMoney(r.tarifa_base_traslado)}</b></span></div><button className="cm-adv-primary" onClick={()=>authUser?setActive(r):onRequireAuth()}><MS name="description" size={22}/><span>Solicitar Maniobra / Impresión</span></button>{(mine(r)||canManage||isAdmin)&&<button className="cm-adv-outline" onClick={()=>setDocs(r)}><MS name="folder_managed" size={22}/><span>Centro documental</span></button>}</article>)}</div>}{register&&(type==="comida"?<ComidaRegistroModal authUser={authUser} onClose={()=>setRegister(false)} onSaved={load}/>:<ManiobraRegistroModal authUser={authUser} onClose={()=>setRegister(false)} onSaved={load}/>)}{active&&(type==="comida"?<ComidaPedidoModal service={active} onClose={()=>setActive(null)}/>:<ManiobraSolicitudModal service={active} authUser={authUser} onClose={()=>setActive(null)}/>)}{docs&&<CentroDocumentalManiobra service={docs} onClose={()=>setDocs(null)}/>}</>}
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setBusy(true);
+      setError("");
+      try {
+        const { data, error: loadError } = await sb
+          .from("solicitudes_maniobras")
+          .select("*, documentos_maniobra(*)")
+          .eq("maniobra_id", service.id)
+          .order("created_at", { ascending:false });
+        if (loadError) throw loadError;
+        if (active) setRows(data || []);
+      } catch (loadError) {
+        console.warn("[servicios] no se pudieron cargar las solicitudes de maniobra", loadError);
+        if (active) setError("No se pudieron cargar las solicitudes. Intenta nuevamente.");
+      } finally {
+        if (active) setBusy(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [service.id]);
+
+  const state = async (row, estado) => {
+    if (updatingId) return;
+    setUpdatingId(row.id);
+    setError("");
+    try {
+      const { data, error: updateError } = await sb
+        .from("solicitudes_maniobras")
+        .update({ estado })
+        .eq("id", row.id)
+        .select("id,estado")
+        .single();
+      if (updateError) throw updateError;
+      setRows(current => current.map(item => item.id === row.id ? { ...item, estado:data?.estado || estado } : item));
+    } catch (updateError) {
+      console.warn("[servicios] no se pudo actualizar la solicitud", updateError);
+      setError("No se pudo actualizar el estado de la solicitud.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return <div className="cm-adv-modal"><div className="cm-adv-dialog"><div className="cm-adv-head"><div><b>Centro de Documentación de la Maniobra</b><small>{service.nombre_proveedor}</small></div><button onClick={onClose}><MS name="close" size={26}/></button></div><div className="cm-adv-body">
+    {error && <div role="alert" className="cm-empty" style={{color:"#fecaca"}}>{error}</div>}
+    {busy?<div className="cm-loading">Cargando solicitudes</div>:rows.length?rows.map(r=><article className="cm-doc-order" key={r.id}><header><b>Orden {String(r.id).slice(0,8)}</b><span>{r.estado}</span></header><div className="cm-costs"><span>Documentos <b>{r.cant_docs}</b></span><span>Total <b>{cmMoney(r.costo_total)}</b></span></div><div className="cm-doc-list">{(r.documentos_maniobra||[]).map(d=><div key={d.id}><MS name="picture_as_pdf" size={28}/><span><b>{d.nombre_archivo}</b><small>{Math.round((d.tamano_bytes||0)/1024)} KB</small></span><a href={d.archivo_url} target="_blank" rel="noopener noreferrer" aria-label="Visualizar PDF"><MS name="visibility" size={22}/></a><a href={d.archivo_url} download aria-label="Descargar PDF"><MS name="download" size={22}/></a></div>)}</div><div className="cm-adv-actions"><button className="cm-adv-outline" disabled={updatingId===r.id} onClick={()=>state(r,"aceptada")}><MS name="check_circle" size={20}/><span>Aceptar</span></button><button className="cm-adv-outline" disabled={updatingId===r.id} onClick={()=>state(r,"en_camino")}><MS name="local_shipping" size={20}/><span>En camino</span></button><button className="cm-adv-outline" disabled={updatingId===r.id} onClick={()=>state(r,"completada")}><MS name="task_alt" size={20}/><span>Completar</span></button></div></article>):<div className="cm-empty">Sin solicitudes todavía.</div>}
+  </div></div></div>;
+}
+
+function AdvancedServicesMarketplace({ type, authUser, isAdmin, canManage, onRequireAuth }) {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [register, setRegister] = useState(false);
+  const [active, setActive] = useState(null);
+  const [docs, setDocs] = useState(null);
+
+  const load = useCallback(async () => {
+    setBusy(true);
+    setLoadError("");
+    try {
+      if (type === "comida") {
+        const { data, error } = await sb.from("servicios_comida").select("*, platillos_comida(*)").order("created_at", { ascending:false });
+        if (error) throw error;
+        setRows((data || []).map(row => ({ ...row, platillos:row.platillos_comida || [] })));
+      } else {
+        const { data, error } = await sb.from("servicios_maniobras").select("*").order("created_at", { ascending:false });
+        if (error) throw error;
+        setRows(data || []);
+      }
+    } catch (error) {
+      console.warn("[servicios] no se pudo cargar el marketplace", error);
+      setLoadError("No se pudieron cargar los servicios. Revisa tu conexión e intenta nuevamente.");
+    } finally {
+      setBusy(false);
+    }
+  }, [type]);
+
+  useEffect(() => { void load(); }, [load]);
+  const mine = row => authUser?.id && row.usuario_id === authUser.id;
+
+  return <>
+    <div className="cm-advanced-top"><div><h2>{type==="comida"?"Comida a Domicilio":"Maniobras a Domicilio"}</h2><p>{type==="comida"?"Menús locales con entrega calculada por ruta y tipo de vehículo.":"Impresión, traslado y gestión segura de documentos con costos transparentes."}</p></div><button onClick={()=>authUser?setRegister(true):onRequireAuth()}><MS name="add_business" size={22}/><span>Registrar proveedor</span></button></div>
+    {loadError && <div role="alert" className="cm-empty" style={{color:"#fecaca"}}>{loadError} <button type="button" onClick={()=>void load()} className="cm-adv-outline">Reintentar</button></div>}
+    {busy?<div className="cm-loading">Cargando servicios</div>:<div className="cm-adv-grid">{rows.map(r=>type==="comida"?<article className="cm-adv-card" key={r.id}><div className="cm-adv-card-head">{r.logo_url?<img src={r.logo_url} alt=""/>:<span><MS name="restaurant" size={30}/></span>}<div><h3>{r.nombre_cocina}</h3><small>{r.tipo_vehiculo} · {r.zonas||"Manzanillo"}</small></div></div><div className="cm-card-schedule"><span><MS name="schedule" size={18}/></span><span>{cmScheduleSummary(r)}</span></div><div className="cm-dishes">{(r.platillos||[]).slice(0,4).map(p=><div key={p.id}><span>{p.foto_url?<img src={p.foto_url} alt=""/>:<MS name="lunch_dining" size={22}/>}</span><div><b>{p.nombre}</b><small>{p.descripcion}</small></div><strong>{cmMoney(p.precio)}</strong></div>)}</div><button className="cm-adv-primary" onClick={()=>setActive(r)}><MS name="route" size={22}/><span>Pedir / Generar Ruta</span></button></article>:<article className="cm-adv-card" key={r.id}><div className="cm-adv-card-head">{r.logo_url?<img src={r.logo_url} alt={`Logotipo de ${r.nombre_proveedor}`}/>:<span><MS name="print" size={30}/></span>}<div><h3>{r.nombre_proveedor}</h3><small>{r.tipo_vehiculo} · {r.zonas||"Manzanillo"}</small></div></div><div className="cm-card-schedule"><span><MS name="schedule" size={18}/></span><span>{cmScheduleSummary(r)}</span></div><div className="cm-costs"><span>Precio por documento <b>{cmMoney(r.precio_por_doc)}</b></span><span>Capacidad por viaje <b>{r.capacidad_docs}</b></span><span>Tarifa base <b>{cmMoney(r.tarifa_base_traslado)}</b></span></div><button className="cm-adv-primary" onClick={()=>authUser?setActive(r):onRequireAuth()}><MS name="description" size={22}/><span>Solicitar Maniobra / Impresión</span></button>{(mine(r)||canManage||isAdmin)&&<button className="cm-adv-outline" onClick={()=>setDocs(r)}><MS name="folder_managed" size={22}/><span>Centro documental</span></button>}</article>)}</div>}
+    {register&&(type==="comida"?<ComidaRegistroModal authUser={authUser} onClose={()=>setRegister(false)} onSaved={load}/>:<ManiobraRegistroModal authUser={authUser} onClose={()=>setRegister(false)} onSaved={load}/>)}
+    {active&&(type==="comida"?<ComidaPedidoModal service={active} onClose={()=>setActive(null)}/>:<ManiobraSolicitudModal service={active} authUser={authUser} onClose={()=>setActive(null)}/>)}
+    {docs&&<CentroDocumentalManiobra service={docs} onClose={()=>setDocs(null)}/>} 
+  </>;
+}
 
 function ServiciosTab({authUser,isAdmin}){
   const [categoria,setCategoria]=useState("gruas"),[query,setQuery]=useState(""),[filtro,setFiltro]=useState("Todos");
@@ -32838,7 +33232,7 @@ function ServiciosTab({authUser,isAdmin}){
   const visibles=useMemo(()=>{const q=query.trim().toLowerCase();return servicios.filter(s=>s.categoria===categoria).filter(s=>(!q||[s.nombre_comercial,s.contacto_principal,s.ubicacion_cobertura,...(s.etiquetas||[])].join(" ").toLowerCase().includes(q))&&(filtro==="Todos"||(s.etiquetas||[]).some(t=>String(t).toLowerCase()===filtro.toLowerCase())))},[servicios,categoria,query,filtro]);
   const guardarServicio=async payload=>{const {data:{user}={}}=await sb.auth.getUser();if(!user)throw new Error("Debes iniciar sesión para registrar un servicio.");const {data,error:e}=await sb.rpc("registrar_servicio",{p_servicio:{...payload,creado_por:user.id,propietario_id:user.id}});if(e)throw e;const row=Array.isArray(data)?data[0]:data;setServicios(prev=>[row,...prev]);return row};
   const calificar=async(service,puntuacion)=>{try{if(String(service.id).startsWith("mock-")){setServicios(prev=>prev.map(s=>s.id===service.id?{...s,promedio_calificacion:((Number(s.promedio_calificacion||0)*Number(s.total_votos||0))+puntuacion)/(Number(s.total_votos||0)+1),total_votos:Number(s.total_votos||0)+1}:s));return}const {data,error:e}=await sb.rpc("registrar_calificacion_servicio",{p_servicio_id:service.id,p_puntuacion:puntuacion,p_token_visitante:getServiceBrowserToken()});if(e)throw e;const result=Array.isArray(data)?data[0]:data;setServicios(prev=>prev.map(s=>s.id===service.id?{...s,promedio_calificacion:Number(result?.promedio_calificacion||s.promedio_calificacion),total_votos:Number(result?.total_votos||s.total_votos)}:s))}catch(e){setError(e?.message||"No fue posible guardar la valoración.")}};
-  const eliminar=async()=>{if(!deleteTarget)return;setDeleting(true);try{if(String(deleteTarget.id).startsWith("mock-"))setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id));else{const {error:e}=await sb.rpc("eliminar_servicio_admin",{p_servicio_id:deleteTarget.id});if(e)throw e;setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id))}setDeleteTarget(null)}finally{setDeleting(false)}};
+  const eliminar=async()=>{if(!deleteTarget)return;setDeleting(true);setError("");try{if(String(deleteTarget.id).startsWith("mock-"))setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id));else{const {error:e}=await sb.rpc("eliminar_servicio_admin",{p_servicio_id:deleteTarget.id});if(e)throw e;setServicios(prev=>prev.filter(s=>s.id!==deleteTarget.id))}setDeleteTarget(null)}catch(e){setError(e?.message||"No fue posible eliminar el servicio.")}finally{setDeleting(false)}};
   const requireAuth=()=>{window.dispatchEvent(new CustomEvent("cm:request-auth",{detail:{mode:"login",reason:"services"}}));setError("Debes iniciar sesión para continuar.")};
   const advanced=categoria==="comida"||categoria==="maniobras";
   return <div className="cm-secure-services"><style>{`
@@ -35469,9 +35863,11 @@ function FeedTab({ authUser, isAdmin = false, subAdmin = null, adminMode = false
   const react = async (item, type) => {
     if (!authUser?.id || item._legacy || item.estatus !== "aprobado") return;
     const current = mine[item.id];
-    if (current === type) await sb.from("feed_reacciones").delete().eq("anuncio_id", item.id).eq("user_id", authUser.id);
-    else await sb.from("feed_reacciones").upsert({ anuncio_id:item.id, user_id:authUser.id, tipo_reaccion:type }, { onConflict:"anuncio_id,user_id" });
-    loadFeed();
+    const result = current === type
+      ? await sb.from("feed_reacciones").delete().eq("anuncio_id", item.id).eq("user_id", authUser.id)
+      : await sb.from("feed_reacciones").upsert({ anuncio_id:item.id, user_id:authUser.id, tipo_reaccion:type }, { onConflict:"anuncio_id,user_id" });
+    if (result?.error) { setNotice(result.error.message || "No se pudo guardar la reacción."); return; }
+    await loadFeed();
   };
 
   const allItems = useMemo(() => [...items, ...legacyItems].sort((a,b) => toMs(b.created_at) - toMs(a.created_at)), [items, legacyItems]);
@@ -37360,6 +37756,7 @@ function App() {
   const [consent,   setConsent]   = useState(getCookieConsent); // null, "accepted", o "essential"
   const [incidents, setIncidents] = useState([]);
   const [dbReady,   setDbReady]   = useState(false);
+  const [incidentsLoadError, setIncidentsLoadError] = useState("");
   // Intención de autenticación disparada desde el header (login/registro)
   const [authIntent, setAuthIntent] = useState(null);
   const [authQuickMode, setAuthQuickMode] = useState(null); // "login" | "registro" para modal sin redirigir
@@ -38044,69 +38441,47 @@ function App() {
     setConsent("essential");
   };
 
-  // Limpiar votos expirados cada minuto y re-insertar votos del usuario para no perder su selección
-  useEffect(() => {
-    const limpiar = async () => {
-      const expiry = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      await sb.from("votos").delete().lt("created_at", expiry);
-      // Reenviar votos guardados del usuario para que su selección persista
-      try {
-        const reinserts = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k || !k.startsWith("last_vote_")) continue;
-          const parts = k.replace("last_vote_", "").split("_");
-          // formato: last_vote_terminal_{termId}_{myId} o last_vote_patio_{patioId}_{myId}
-          const tipo = parts[0];
-          const userId = parts[parts.length - 1];
-          if (userId !== myId) continue;
-          const entityId = parts.slice(1, -1).join("_");
-          const status = localStorage.getItem(k);
-          if (!status) continue;
-          const key = `${tipo}_${entityId}_${status}`;
-          const col = tipo === "terminal" ? "terminal_id" : "patio_id";
-          reinserts.push(sb.from("votos").insert({ key, user_id: userId, [col]: entityId, status, tipo }).then(() => {}).catch(() => {}));
-        }
-        await Promise.all(reinserts);
-      } catch {}
-    };
-    limpiar();
-    const interval = setInterval(limpiar, 60000);
-    return () => clearInterval(interval);
-  }, [myId]);
+  // La expiración de votos se gestiona en Supabase; el cliente no elimina votos globales.
 
   // Cargar incidentes
-  useEffect(() => {
-    sb.from("incidents").select("*").order("ts", { ascending: false }).then(({ data }) => {
-      if (data) setIncidents(data.map(r => ({
-        id: r.id, type: r.type, location: r.location,
-        desc: r.description, votes: r.votes || {},
-        false_votes: r.false_votes || {},
-        resolve_votes: r.resolve_votes || {},
-        resolveVotes: r.resolve_votes || {},
-        visible: r.visible, resolved: r.resolved, ts: r.ts,
-        coords: r.coords || null,
+  const reloadIncidents = useCallback(async () => {
+    try {
+      const { data, error } = await sb.from("incidents").select("*").order("ts", { ascending:false });
+      if (error) throw error;
+      setIncidents((data || []).map(r => ({
+        id:r.id, type:r.type, location:r.location,
+        desc:r.description, votes:r.votes || {},
+        false_votes:r.false_votes || {},
+        resolve_votes:r.resolve_votes || {},
+        resolveVotes:r.resolve_votes || {},
+        visible:r.visible, resolved:r.resolved, ts:r.ts,
+        coords:r.coords || null,
       })));
+      setIncidentsLoadError("");
+      return true;
+    } catch (error) {
+      console.warn("[incidents] no se pudieron cargar los eventos", error);
+      setIncidentsLoadError("No se pudieron sincronizar los incidentes en tiempo real. Revisa tu conexión e intenta nuevamente.");
+      return false;
+    } finally {
       setDbReady(true);
-    });
-
-    const chan = sb.channel("incidents-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "incidents" }, () => {
-        sb.from("incidents").select("*").order("ts", { ascending: false }).then(({ data }) => {
-          if (data) setIncidents(data.map(r => ({
-            id: r.id, type: r.type, location: r.location,
-            desc: r.description, votes: r.votes || {},
-            false_votes: r.false_votes || {},
-            resolve_votes: r.resolve_votes || {},
-            resolveVotes: r.resolve_votes || {},
-            visible: r.visible, resolved: r.resolved, ts: r.ts,
-            coords: r.coords || null,
-          })));
-        });
-      }).subscribe();
-
-    return () => sb.removeChannel(chan);
+    }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => { if (active) await reloadIncidents(); };
+    refresh();
+    const chan = sb.channel("incidents-rt")
+      .on("postgres_changes", { event:"*", schema:"public", table:"incidents" }, refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setIncidentsLoadError("La conexión en tiempo real de incidentes se interrumpió. Reintentando...");
+        }
+      });
+    return () => { active = false; sb.removeChannel(chan); };
+  }, [reloadIncidents]);
   
   // Validado Aplicar fondo según configuración
   const getBackgroundStyle = () => {
@@ -38216,6 +38591,7 @@ function App() {
         }} />
       )}
       <div style={{ position:"relative", zIndex:2 }}>
+        {incidentsLoadError && <div role="alert" style={{ position:"sticky", top:0, zIndex:10020, display:"flex", alignItems:"center", justifyContent:"center", gap:"10px", padding:"10px 14px", background:"rgba(127,29,29,.96)", borderBottom:"1px solid rgba(254,202,202,.35)", color:"#fee2e2", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:"800" }}><span>{incidentsLoadError}</span><button type="button" onClick={reloadIncidents} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", minHeight:"30px", padding:"6px 10px", borderRadius:"8px", border:"1px solid rgba(254,202,202,.45)", background:"rgba(255,255,255,.08)", color:"#fff", cursor:"pointer", fontWeight:"900" }}>Reintentar</button></div>}
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
           *{box-sizing:border-box;margin:0;padding:0;}
@@ -38733,7 +39109,7 @@ function App() {
           <div style={{ position:"absolute", bottom:"72px", right:"0", width:"320px", maxWidth:"calc(100vw - 40px)", background:"rgba(13,31,60,.97)", border:"1px solid rgba(251,191,36,.45)", borderRadius:"18px", padding:"16px", boxShadow:"0 12px 40px rgba(0,0,0,.7)", animation:"slideUp .25s ease-out" }}>
             <div style={{ color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"13px", fontWeight:"800", marginBottom:"10px", display:"flex", alignItems:"center", gap:"8px" }}><SvgBell size={16} color="#fbbf24" /> Mensaje del administrador</div>
             {adminMessages.map(m => <div key={m.id} style={{ color:"rgba(255,255,255,.85)", fontFamily:getFont(theme,"secondary"), fontSize:"12px", lineHeight:1.45, background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.1)", borderRadius:"10px", padding:"10px", marginBottom:"8px", whiteSpace:"pre-wrap" }}>{m.message}</div>)}
-            <button onClick={async()=>{ try { await Promise.all(adminMessages.map(m => sb.from("admin_user_messages").update({ read:true }).eq("id", m.id))); } catch {} setAdminMessages([]); setShowQRPanel(null); }} style={{ width:"100%", padding:"10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.4)", background:"rgba(251,191,36,.14)", color:"#fbbf24", fontWeight:800, cursor:"pointer" }}>Entendido</button>
+            <button onClick={async()=>{ try { const results = await Promise.all(adminMessages.map(m => sb.from("admin_user_messages").update({ read:true }).eq("id", m.id))); const failed = results.find(result => result?.error); if (failed?.error) throw failed.error; setAdminMessages([]); setShowQRPanel(null); } catch (error) { console.warn("[admin_user_messages] no se pudieron marcar como leídos", error); window.alert("No se pudieron confirmar los mensajes como leídos. Intenta nuevamente."); } }} style={{ width:"100%", padding:"10px", borderRadius:"10px", border:"1px solid rgba(251,191,36,.4)", background:"rgba(251,191,36,.14)", color:"#fbbf24", fontWeight:800, cursor:"pointer" }}>Entendido</button>
           </div>
         )}
 
