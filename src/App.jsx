@@ -3894,15 +3894,68 @@ const isNoticiaVisibleEnFeed = (n) => {
   const titulo = String(n.titulo || "").toLowerCase();
   const detalle = String(n.detalle || "").toLowerCase();
 
-  // La sección Noticias queda reservada para comunicados/noticias publicadas.
+  // Toda publicación editorial creada por administración o sincronizada desde
+  // Comunicados debe prevalecer sobre los filtros de eventos operativos. Antes,
+  // una noticia manual tipo acceso/terminal/patio/carril era descartada por tipo.
+  const publicacionEditorial = origen.includes("admin_noticias") || origen.includes("comunicados");
+  if (publicacionEditorial) return true;
+
   // Los movimientos automáticos de votos, gráficas, accesos, vialidades, rutas,
   // terminales, patios y carriles se consultan desde administración, no en el feed público.
   if (NOTICIAS_TIPOS_OPERATIVOS_OCULTOS.includes(tipo)) return false;
   if (NOTICIAS_ORIGENES_OPERATIVOS_OCULTOS.some(k => origen.includes(k))) return false;
   if (/actualizad[oa]|vot[óo]|voto|gr[aá]fica|confirm[óo]|marc[óo] falso|resuelt[oa]|anul[óo]/i.test(`${titulo} ${detalle}`)) return false;
-  if (tipo && !NOTICIAS_TIPOS_VISIBLES.includes(tipo) && !origen.includes("admin_noticias") && !origen.includes("comunicados")) return false;
+  if (tipo && !NOTICIAS_TIPOS_VISIBLES.includes(tipo)) return false;
   return true;
 };
+
+const CM_NOTICIAS_CACHE_KEY = "cm:noticias-feed-cache:v3";
+const CM_COMUNICADOS_CACHE_KEY = "cm:comunicados-feed-cache:v3";
+
+const cmReadArrayCache = (key) => {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const cmWriteArrayCache = (key, rows, maxRows = 1000) => {
+  if (typeof window === "undefined") return;
+  try {
+    const safeRows = Array.isArray(rows) ? rows.slice(0, maxRows) : [];
+    localStorage.setItem(key, JSON.stringify(safeRows));
+  } catch {}
+};
+
+const cmMergeRowsById = (...groups) => {
+  const map = new Map();
+  groups.flat().filter(Boolean).forEach((row, index) => {
+    const key = row?.id != null ? `id:${row.id}` : `idx:${index}:${JSON.stringify(row).slice(0, 120)}`;
+    const prev = map.get(key);
+    map.set(key, prev ? { ...prev, ...row } : row);
+  });
+  return [...map.values()];
+};
+
+const cmDateOnlyToLocalMs = (value) => {
+  if (!value) return 0;
+  const raw = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (match) {
+    const [, y, m, d] = match;
+    return new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0).getTime();
+  }
+  return toMs(value);
+};
+
+const cmNoticiaPublicationMs = (row) =>
+  cmDateOnlyToLocalMs(row?.fecha_publicacion || row?.publicar_at || row?.published_at || row?.created_at);
+
+const cmComunicadoStartMs = (row) =>
+  toMs(row?.fecha_inicio || row?.fecha_inicio_propuesta || row?.created_at);
 
 const parseJsonArray = (value) => {
   if (!value) return [];
@@ -22746,17 +22799,21 @@ function ComunicadosSection({ isAdmin, comunicados, onReload, setVisorItem, onDo
     return isComunicadoAprobado(row?.aprobado) ? "aprobado" : "pendiente";
   };
 
-  // Filtrar comunicados para mostrar
+  // Filtrar comunicados para mostrar. El administrador conserva acceso a todo
+  // comunicado aprobado, incluso si está programado para iniciar después o ya venció.
+  // El público solo ve la ventana de vigencia activa.
   const ahora = Date.now();
-  const vigentes = comunicados.filter(c => {
-    if (!isComunicadoAprobado(c.aprobado)) return false;
-    // Si no hay fecha_fin, mostrar siempre
-    if (!c.fecha_fin) return true;
-    const fin = toMs(c.fecha_fin);
-    // Si no se puede parsear la fecha, mostrar de todas formas
-    if (!fin || isNaN(fin)) return true;
-    return fin > ahora;
-  });
+  const vigentes = comunicados
+    .filter(c => {
+      if (!isComunicadoAprobado(c.aprobado)) return false;
+      if (isAdmin) return true;
+      const inicio = toMs(c.fecha_inicio || c.fecha_inicio_propuesta);
+      const fin = toMs(c.fecha_fin || c.fecha_fin_aprobada || c.fecha_fin_propuesta);
+      if (inicio && Number.isFinite(inicio) && inicio > ahora) return false;
+      if (fin && Number.isFinite(fin) && fin <= ahora) return false;
+      return true;
+    })
+    .sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at)));
 
   useEffect(() => {
     if (!vigentes.length) {
@@ -24381,6 +24438,7 @@ function NoticiasTab({ isAdmin }) {
   const [noticias,      setNoticias]      = useState([]);
   const [comunicados,   setComunicados]   = useState([]);
   const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState("");
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
@@ -24426,13 +24484,43 @@ function NoticiasTab({ isAdmin }) {
 
   const cargarNoticias = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
-      const { data, error } = await sb.from("noticias").select("*").order("created_at", { ascending:false }).limit(150);
-      if (error) throw error;
-      setNoticias(Array.isArray(data) ? data : []);
-      return { ok:true };
+      // No limitar primero a los últimos 150 registros. La tabla también recibe
+      // eventos operativos automáticos y esos registros podían desplazar del rango
+      // a las noticias editoriales, dejando el feed vacío después del filtrado.
+      const consultas = await Promise.allSettled([
+        sb.from("noticias").select("*").in("origen", ["admin_noticias", "comunicados"]).order("created_at", { ascending:false }).limit(1000),
+        sb.from("noticias").select("*").in("tipo", ["comunicado", "admin", "incidente", "accidente"]).order("created_at", { ascending:false }).limit(1000),
+        sb.from("noticias").select("*").order("created_at", { ascending:false }).limit(600),
+      ]);
+
+      const rows = [];
+      let firstError = null;
+      for (const result of consultas) {
+        if (result.status !== "fulfilled") {
+          firstError = firstError || result.reason;
+          continue;
+        }
+        const { data, error } = result.value || {};
+        if (error) {
+          firstError = firstError || error;
+          continue;
+        }
+        if (Array.isArray(data)) rows.push(...data);
+      }
+
+      if (!rows.length && firstError) throw firstError;
+
+      const merged = cmMergeRowsById(rows)
+        .sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)));
+      setNoticias(merged);
+      cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, merged, 1500);
+      return { ok:true, count:merged.length };
     } catch (error) {
-      setNoticias(prev => Array.isArray(prev) ? prev : []);
+      const cached = cmReadArrayCache(CM_NOTICIAS_CACHE_KEY);
+      if (cached.length) setNoticias(cached);
+      setLoadError("No se pudo actualizar Noticias desde el servidor. Se conserva la última copia disponible.");
       return { ok:false, error };
     } finally {
       setLoading(false);
@@ -24441,24 +24529,54 @@ function NoticiasTab({ isAdmin }) {
 
   const cargarComunicados = useCallback(async () => {
     try {
-      const { data, error } = await sb.from("comunicados")
-        .select("*")
-        .order("created_at", { ascending:false })
-        .limit(100);
-      if (error) throw error;
+      // Igual que en Noticias, no filtrar después de una ventana demasiado corta.
+      // Con muchas propuestas recientes, los comunicados aprobados antiguos podían
+      // quedar fuera del LIMIT 100 aunque siguieran vigentes o programados.
+      const consultas = await Promise.allSettled([
+        sb.from("comunicados").select("*").eq("aprobado", true).order("created_at", { ascending:false }).limit(1000),
+        sb.from("comunicados").select("*").order("created_at", { ascending:false }).limit(1000),
+      ]);
 
-      const aprobados = (Array.isArray(data) ? data : []).filter(c => isComunicadoAprobado(c.aprobado));
+      const rows = [];
+      let firstError = null;
+      for (const result of consultas) {
+        if (result.status !== "fulfilled") {
+          firstError = firstError || result.reason;
+          continue;
+        }
+        const { data, error } = result.value || {};
+        if (error) {
+          firstError = firstError || error;
+          continue;
+        }
+        if (Array.isArray(data)) rows.push(...data);
+      }
+
+      if (!rows.length && firstError) throw firstError;
+
+      const aprobados = cmMergeRowsById(rows)
+        .filter(c => isComunicadoAprobado(c.aprobado))
+        .sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at)));
       setComunicados(aprobados);
+      cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, aprobados, 1200);
+
       const syncResults = await Promise.allSettled(
-        aprobados.slice(0, 25).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
+        aprobados.slice(0, 40).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
       );
       syncResults.forEach(result => {
         const n = result.status === "fulfilled" ? result.value : null;
-        if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
+        if (n) setNoticias(prev => {
+          const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
+          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+          return sorted;
+        });
       });
-      return { ok:true };
+      return { ok:true, count:aprobados.length };
     } catch (error) {
-      setComunicados(prev => Array.isArray(prev) ? prev : []);
+      const cached = cmReadArrayCache(CM_COMUNICADOS_CACHE_KEY);
+      if (cached.length) setComunicados(cached);
+      setLoadError(prev => prev || "No se pudo actualizar Comunicados desde el servidor. Se conserva la última copia disponible.");
       return { ok:false, error };
     }
   }, []);
@@ -24468,29 +24586,63 @@ function NoticiasTab({ isAdmin }) {
     cargarComunicados();
     const chan = sb.channel("noticias-comunicados-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => prev.some(x => x.id === r.id) ? prev : [r, ...prev].slice(0, 150));
+        if (r) setNoticias(prev => {
+          const next = prev.some(x => x.id === r.id) ? prev.map(x => x.id === r.id ? { ...x, ...r } : x) : [r, ...prev];
+          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+          return sorted;
+        });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
-        if (r) setNoticias(prev => prev.map(x => x.id === r.id ? r : x));
+        if (r) setNoticias(prev => {
+          const next = prev.some(x => x.id === r.id) ? prev.map(x => x.id === r.id ? { ...x, ...r } : x) : [r, ...prev];
+          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+          return sorted;
+        });
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "comunicados" }, async ({ new: r }) => {
         const aprobado = isComunicadoAprobado(r?.aprobado);
         if (r && aprobado) {
-          setComunicados(prev => prev.some(c => c.id === r.id) ? prev : [r, ...prev].slice(0, 80));
+          setComunicados(prev => {
+            const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? { ...c, ...r } : c) : [r, ...prev];
+            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 1200);
+            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 1200);
+            return sorted;
+          });
           const n = await syncComunicadoToNoticia(r, { processMedia: true });
-          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+          if (n) setNoticias(prev => {
+            const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
+            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
+            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+            return sorted;
+          });
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "comunicados" }, async ({ new: r }) => {
         const aprobado = isComunicadoAprobado(r?.aprobado);
         if (r && aprobado) {
-          setComunicados(prev => prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? r : c) : [r, ...prev].slice(0, 80));
+          setComunicados(prev => {
+            const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? { ...c, ...r } : c) : [r, ...prev];
+            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 1200);
+            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 1200);
+            return sorted;
+          });
           const n = await syncComunicadoToNoticia(r, { processMedia: true });
-          if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 150));
+          if (n) setNoticias(prev => {
+            const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
+            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
+            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+            return sorted;
+          });
         }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
-        if (r?.id) setComunicados(prev => prev.filter(c => c.id !== r.id));
+        if (r?.id) setComunicados(prev => {
+          const next = prev.filter(c => c.id !== r.id);
+          cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, next, 1200);
+          return next;
+        });
       })
       .subscribe();
     return () => sb.removeChannel(chan);
@@ -24506,8 +24658,6 @@ function NoticiasTab({ isAdmin }) {
 
   const isNoticiaListaParaMostrar = (n) => {
     if (!isNoticiaVisibleEnFeed(n)) return false;
-    const created = new Date(n?.created_at).getTime();
-    if (!Number.isFinite(created)) return false;
     const hasContent = Boolean(
       String(n?.titulo || "").trim() ||
       String(n?.detalle || "").trim() ||
@@ -24515,11 +24665,20 @@ function NoticiasTab({ isAdmin }) {
       parseJsonArray(n?.media_urls).length ||
       parseJsonArray(n?.pdf_urls).length
     );
-    return hasContent;
+    if (!hasContent) return false;
+
+    // El administrador siempre ve publicaciones programadas para poder verificar
+    // que siguen guardadas. Para el público, fecha_publicacion sí actúa como agenda.
+    const publicationMs = cmNoticiaPublicationMs(n);
+    if (!isAdmin && publicationMs && publicationMs > Date.now()) return false;
+    return true;
   };
 
-  const noticiasVisibles = noticias.filter(isNoticiaListaParaMostrar);
-  const filtered = filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "admin" && String(n.origen || "").toLowerCase().includes("admin_noticias")));
+  const noticiasVisibles = noticias
+    .filter(isNoticiaListaParaMostrar)
+    .sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)));
+  const filtered = (filtro === "todos" ? noticiasVisibles : noticiasVisibles.filter(n => n.tipo === filtro || (filtro === "admin" && String(n.origen || "").toLowerCase().includes("admin_noticias"))))
+    .sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)));
 
   const timeAgo = (ts) => {
     const t = new Date(ts).getTime();
@@ -24912,7 +25071,13 @@ function NoticiasTab({ isAdmin }) {
         <>
           <NoticiasAutoJpegReport />
           {isAdmin && <NoticiasAdminCleanup onCleaned={cargarNoticias} />}
-          {isAdmin && <NoticiasAdminPublisher isAdmin={true} onPublished={(n)=>setNoticias(prev=>[n,...prev].slice(0,150))} />}
+          {isAdmin && <NoticiasAdminPublisher isAdmin={true} onPublished={(n)=>setNoticias(prev=>{
+            const next = cmMergeRowsById([n, ...prev]).sort((a,b)=>(cmNoticiaPublicationMs(b)||toMs(b?.created_at))-(cmNoticiaPublicationMs(a)||toMs(a?.created_at))).slice(0,1500);
+            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, next, 1500);
+            return next;
+          })} />}
+
+          {loadError && <div style={{ marginBottom:"12px", padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(245,158,11,.35)", background:"rgba(245,158,11,.08)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"11px", display:"flex", alignItems:"center", gap:"8px" }}><MS name="warning" size={17} color="currentColor" /><span>{loadError}</span></div>}
 
           <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginBottom:"16px" }}>
             {FILTROS.map(f => (
@@ -24923,7 +25088,7 @@ function NoticiasTab({ isAdmin }) {
           </div>
 
           {loading && <div style={{ textAlign:"center", padding:"40px", color:"rgba(255,255,255,0.3)", fontFamily:getFont(theme, "secondary"), fontSize:"12px" }}>Cargando noticias...</div>}
-          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.35)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>Sin noticias visibles para este filtro.</div>}
+          {!loading && filtered.length === 0 && <div style={{ textAlign:"center", padding:"40px", border:"1px dashed rgba(148,163,184,.26)", borderRadius:"16px", color:"rgba(255,255,255,0.45)", fontFamily:getFont(theme, "secondary"), fontSize:"12px", background:"rgba(255,255,255,.03)" }}>{loadError ? "No fue posible recuperar el contenido del servidor." : noticias.length ? "No hay publicaciones que coincidan con este filtro." : "No se encontraron publicaciones guardadas en Noticias."}</div>}
           {!loading && filtered.length > 0 && (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"14px", alignItems:"start" }}>
               {filtered.map((n) => {
@@ -24932,6 +25097,8 @@ function NoticiasTab({ isAdmin }) {
                 const origen = n.origen || (n.tipo === "comunicado" ? "comunicados" : "sistema");
                 const leadVisuals = media.slice(0, 2);
                 const accent = n.color || "#38bdf8";
+                const publicationMs = cmNoticiaPublicationMs(n) || toMs(n.created_at);
+                const programada = Boolean(publicationMs && publicationMs > Date.now());
                 return (
                   <article key={n.id} style={{ background:"rgba(18,33,49,0.90)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:`1px solid ${accent}33`, borderRadius:"18px", overflow:"hidden", display:"flex", flexDirection:"column", alignSelf:"start", boxShadow:"0 14px 34px rgba(2,6,23,.22)" }}>
                     <div style={{ position:"relative", display:"flex", gap:"2px", height:"188px", overflow:"hidden", background:"linear-gradient(135deg, rgba(5,15,28,.94), rgba(9,25,44,.92))", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
@@ -24957,7 +25124,10 @@ function NoticiasTab({ isAdmin }) {
                             <AppIcon name={n.icono || "news"} size={14} active={true} /> {n.tipo}
                           </span>
                         </div>
-                        <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.created_at)}</span>
+                        <div style={{ display:"flex", alignItems:"center", gap:"7px", flexWrap:"wrap", justifyContent:"flex-end" }}>
+                          {isAdmin && programada && <span className="flex items-center justify-center leading-none" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:"5px", lineHeight:1, padding:"5px 8px", borderRadius:"999px", border:"1px solid rgba(251,191,36,.32)", background:"rgba(251,191,36,.10)", color:"#fbbf24", fontFamily:getFont(theme,"secondary"), fontSize:"9px", fontWeight:900, letterSpacing:".06em" }}><MS name="schedule" size={13} color="currentColor" />PROGRAMADA</span>}
+                          <span style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", fontFamily:getFont(theme, "secondary") }}>{timeAgo(n.fecha_publicacion || n.created_at)}</span>
+                        </div>
                       </div>
 
                       <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
@@ -24969,7 +25139,7 @@ function NoticiasTab({ isAdmin }) {
 
                       <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", marginTop:"auto" }}>
                         {n.detalle && <details style={{ flex:"1 1 100%", alignSelf:"flex-start" }}><summary style={{ listStyle:"none", cursor:"pointer", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(148,163,184,.24)", background:"rgba(5,15,28,.72)", color:"#dbeafe", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>Ver descripción</summary><div style={{ whiteSpace:"pre-wrap", color:"rgba(255,255,255,0.68)", fontSize:"11px", lineHeight:1.55, marginTop:"8px", padding:"10px 12px", borderRadius:"12px", background:"rgba(6,20,40,.72)", border:"1px solid rgba(148,163,184,.16)", maxHeight:"180px", overflowY:"auto", wordBreak:"break-word" }}>{n.detalle}</div></details>}
-                        {media.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:media[0], archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(56,189,248,.10)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}><span>👁</span> Ver imagen{media.length > 1 ? "es" : ""}</button>}
+                        {media.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:media[0], archivo_tipo:"image/jpeg" }, media.slice(0, 8).map((mu)=>({ ...n, archivo_url:mu, archivo_tipo:"image/jpeg" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(56,189,248,.10)", border:"1px solid rgba(56,189,248,.28)", color:"#7dd3fc", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}><MS name="visibility" size={16} color="currentColor" />Ver imagen{media.length > 1 ? "es" : ""}</button>}
                         {pdfs.length > 0 && <button onClick={()=>openVisor({ ...n, archivo_url:pdfs[0], archivo_tipo:"application/pdf" }, pdfs.map((pu)=>({ ...n, archivo_url:pu, archivo_tipo:"application/pdf" })), 0)} style={{ flex:1, minWidth:"140px", padding:"10px 12px", borderRadius:"12px", background:"rgba(37,99,235,.10)", border:"1px solid rgba(37,99,235,.28)", color:"#93c5fd", fontFamily:getFont(theme,"secondary"), fontSize:"11px", fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}>Ver PDF{pdfs.length > 1 ? ` (${pdfs.length})` : ""}</button>}
                       </div>
 
