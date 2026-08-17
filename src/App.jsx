@@ -3909,8 +3909,86 @@ const isNoticiaVisibleEnFeed = (n) => {
   return true;
 };
 
-const CM_NOTICIAS_CACHE_KEY = "cm:noticias-feed-cache:v3";
-const CM_COMUNICADOS_CACHE_KEY = "cm:comunicados-feed-cache:v3";
+const CM_NOTICIAS_CACHE_KEY = "cm:noticias-feed-cache:v4";
+const CM_COMUNICADOS_CACHE_KEY = "cm:comunicados-feed-cache:v4";
+const CM_NOTICIAS_LEGACY_CACHE_KEYS = ["cm:noticias-feed-cache:v3", "cm:noticias-feed-cache:v2"];
+const CM_COMUNICADOS_LEGACY_CACHE_KEYS = ["cm:comunicados-feed-cache:v3", "cm:comunicados-feed-cache:v2"];
+
+const cmReadFirstArrayCache = (keys) => {
+  for (const key of keys || []) {
+    const rows = cmReadArrayCache(key);
+    if (rows.length) return rows;
+  }
+  return [];
+};
+
+const cmDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const cmSupabaseErrorInfo = (error) => ({
+  message: error?.message || String(error || "Error desconocido"),
+  code: error?.code || null,
+  details: error?.details || null,
+  hint: error?.hint || null,
+  status: error?.status || error?.statusCode || null,
+});
+
+// Espera la restauración de Auth antes de leer tablas protegidas por RLS.
+// En la carga anterior Noticias podía consultar como anon durante unos milisegundos,
+// obtener [] y quedarse vacío aunque el panel ADMIN se activara inmediatamente después.
+const cmEnsureSupabaseReadSession = async () => {
+  try {
+    let { data, error } = await sb.auth.getSession();
+    if (error) console.warn("[Noticias/Auth] getSession:", cmSupabaseErrorInfo(error));
+    let session = data?.session || null;
+
+    if (session?.refresh_token) {
+      const expiresAtMs = Number(session.expires_at || 0) * 1000;
+      if (expiresAtMs && expiresAtMs <= Date.now() + 60000) {
+        const refreshed = await sb.auth.refreshSession();
+        if (!refreshed.error && refreshed.data?.session) session = refreshed.data.session;
+      }
+    }
+
+    // Si Supabase todavía está hidratando localStorage, conceder una ventana corta.
+    if (!session) {
+      await cmDelay(180);
+      const retry = await sb.auth.getSession();
+      if (!retry.error) session = retry.data?.session || null;
+    }
+    return session;
+  } catch (error) {
+    console.warn("[Noticias/Auth] No se pudo restaurar la sesión antes de leer:", cmSupabaseErrorInfo(error));
+    return null;
+  }
+};
+
+const cmRunSupabaseQuery = async (factory, label) => {
+  try {
+    const result = await factory();
+    if (result?.error) throw result.error;
+    return { ok:true, data:Array.isArray(result?.data) ? result.data : [] };
+  } catch (error) {
+    console.warn(`[Noticias] Consulta ${label} no disponible:`, cmSupabaseErrorInfo(error));
+    return { ok:false, data:[], error };
+  }
+};
+
+const cmFetchTablePages = async (table, { pageSize = 500, maxRows = 3000 } = {}) => {
+  const rows = [];
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, maxRows - 1);
+    const { data, error } = await sb
+      .from(table)
+      .select("*")
+      .order("created_at", { ascending:false })
+      .range(from, to);
+    if (error) throw error;
+    const page = Array.isArray(data) ? data : [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+};
 
 const cmReadArrayCache = (key) => {
   if (typeof window === "undefined") return [];
@@ -24435,10 +24513,14 @@ function NoticiasTab({ isAdmin }) {
     document.head.appendChild(style);
   }, []);
   const theme = React.useContext(ThemeContext);
-  const [noticias,      setNoticias]      = useState([]);
-  const [comunicados,   setComunicados]   = useState([]);
+  const [noticias,      setNoticias]      = useState(() => cmReadFirstArrayCache([CM_NOTICIAS_CACHE_KEY, ...CM_NOTICIAS_LEGACY_CACHE_KEYS]));
+  const [comunicados,   setComunicados]   = useState(() => cmReadFirstArrayCache([CM_COMUNICADOS_CACHE_KEY, ...CM_COMUNICADOS_LEGACY_CACHE_KEYS]));
   const [loading,       setLoading]       = useState(true);
   const [loadError,     setLoadError]     = useState("");
+  const noticiasRef = useRef(noticias);
+  const comunicadosRef = useRef(comunicados);
+  useEffect(() => { noticiasRef.current = noticias; }, [noticias]);
+  useEffect(() => { comunicadosRef.current = comunicados; }, [comunicados]);
   const [filtro,        setFiltro]        = useState("todos");
   const [visorItem,     setVisorItem]     = useState(null);
   const [visorItems,    setVisorItems]    = useState([]);
@@ -24482,44 +24564,56 @@ function NoticiasTab({ isAdmin }) {
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const cargarNoticias = useCallback(async () => {
+  const cargarNoticias = useCallback(async ({ preserve = true } = {}) => {
     setLoading(true);
-    setLoadError("");
     try {
-      // No limitar primero a los últimos 150 registros. La tabla también recibe
-      // eventos operativos automáticos y esos registros podían desplazar del rango
-      // a las noticias editoriales, dejando el feed vacío después del filtrado.
-      const consultas = await Promise.allSettled([
-        sb.from("noticias").select("*").in("origen", ["admin_noticias", "comunicados"]).order("created_at", { ascending:false }).limit(1000),
-        sb.from("noticias").select("*").in("tipo", ["comunicado", "admin", "incidente", "accidente"]).order("created_at", { ascending:false }).limit(1000),
-        sb.from("noticias").select("*").order("created_at", { ascending:false }).limit(600),
+      await cmEnsureSupabaseReadSession();
+
+      // Compatibilidad de esquema: "tipo" existe incluso en la tabla histórica.
+      // "origen" es opcional y por eso su consulta jamás debe bloquear todo el feed.
+      const [porTipo, porOrigen, recientes] = await Promise.all([
+        cmRunSupabaseQuery(
+          () => sb.from("noticias")
+            .select("*")
+            .in("tipo", ["comunicado", "admin", "incidente", "accidente", "noticia"])
+            .order("created_at", { ascending:false })
+            .limit(2000),
+          "noticias/por-tipo"
+        ),
+        cmRunSupabaseQuery(
+          () => sb.from("noticias")
+            .select("*")
+            .in("origen", ["admin_noticias", "comunicados"])
+            .order("created_at", { ascending:false })
+            .limit(2000),
+          "noticias/por-origen"
+        ),
+        cmRunSupabaseQuery(
+          () => cmFetchTablePages("noticias", { pageSize:500, maxRows:3000 }).then(data => ({ data, error:null })),
+          "noticias/paginada"
+        ),
       ]);
 
-      const rows = [];
-      let firstError = null;
-      for (const result of consultas) {
-        if (result.status !== "fulfilled") {
-          firstError = firstError || result.reason;
-          continue;
-        }
-        const { data, error } = result.value || {};
-        if (error) {
-          firstError = firstError || error;
-          continue;
-        }
-        if (Array.isArray(data)) rows.push(...data);
+      const successfulQueries = [porTipo, porOrigen, recientes].filter(r => r.ok);
+      if (!successfulQueries.length) {
+        throw porTipo.error || porOrigen.error || recientes.error || new Error("No fue posible leer la tabla noticias");
       }
 
-      if (!rows.length && firstError) throw firstError;
+      const merged = cmMergeRowsById(
+        porTipo.data,
+        porOrigen.data,
+        recientes.data,
+        preserve ? noticiasRef.current : []
+      ).sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)));
 
-      const merged = cmMergeRowsById(rows)
-        .sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)));
       setNoticias(merged);
-      cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, merged, 1500);
+      cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, merged, 2500);
+      setLoadError("");
       return { ok:true, count:merged.length };
     } catch (error) {
-      const cached = cmReadArrayCache(CM_NOTICIAS_CACHE_KEY);
-      if (cached.length) setNoticias(cached);
+      console.error("[Noticias] Error definitivo cargando noticias:", cmSupabaseErrorInfo(error));
+      const cached = cmReadFirstArrayCache([CM_NOTICIAS_CACHE_KEY, ...CM_NOTICIAS_LEGACY_CACHE_KEYS]);
+      if (cached.length) setNoticias(prev => cmMergeRowsById(prev, cached));
       setLoadError("No se pudo actualizar Noticias desde el servidor. Se conserva la última copia disponible.");
       return { ok:false, error };
     } finally {
@@ -24527,77 +24621,87 @@ function NoticiasTab({ isAdmin }) {
     }
   }, []);
 
-  const cargarComunicados = useCallback(async () => {
+  const cargarComunicados = useCallback(async ({ preserve = true } = {}) => {
     try {
-      // Igual que en Noticias, no filtrar después de una ventana demasiado corta.
-      // Con muchas propuestas recientes, los comunicados aprobados antiguos podían
-      // quedar fuera del LIMIT 100 aunque siguieran vigentes o programados.
-      const consultas = await Promise.allSettled([
-        sb.from("comunicados").select("*").eq("aprobado", true).order("created_at", { ascending:false }).limit(1000),
-        sb.from("comunicados").select("*").order("created_at", { ascending:false }).limit(1000),
-      ]);
+      await cmEnsureSupabaseReadSession();
 
-      const rows = [];
-      let firstError = null;
-      for (const result of consultas) {
-        if (result.status !== "fulfilled") {
-          firstError = firstError || result.reason;
-          continue;
-        }
-        const { data, error } = result.value || {};
-        if (error) {
-          firstError = firstError || error;
-          continue;
-        }
-        if (Array.isArray(data)) rows.push(...data);
-      }
+      // No usar eq(aprobado,true) en servidor: instalaciones antiguas pueden tener
+      // aprobado como text/boolean y el filtro PostgREST no es portable entre ambas.
+      const result = await cmRunSupabaseQuery(
+        () => cmFetchTablePages("comunicados", { pageSize:400, maxRows:3200 }).then(data => ({ data, error:null })),
+        "comunicados/paginada"
+      );
+      if (!result.ok) throw result.error || new Error("No fue posible leer la tabla comunicados");
 
-      if (!rows.length && firstError) throw firstError;
-
-      const aprobados = cmMergeRowsById(rows)
+      const aprobados = cmMergeRowsById(result.data, preserve ? comunicadosRef.current : [])
         .filter(c => isComunicadoAprobado(c.aprobado))
         .sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at)));
-      setComunicados(aprobados);
-      cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, aprobados, 1200);
 
-      const syncResults = await Promise.allSettled(
-        aprobados.slice(0, 40).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
-      );
-      syncResults.forEach(result => {
-        const n = result.status === "fulfilled" ? result.value : null;
-        if (n) setNoticias(prev => {
-          const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
-          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
-          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
-          return sorted;
+      setComunicados(aprobados);
+      cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, aprobados, 2500);
+      setLoadError(prev => prev.startsWith("No se pudo actualizar Comunicados") ? "" : prev);
+
+      // La lectura del feed no depende de que la sincronización escriba en Noticias.
+      // Esto evita que una política RLS de INSERT haga parecer que los comunicados no existen.
+      if (isAdmin && aprobados.length) {
+        Promise.allSettled(
+          aprobados.slice(0, 20).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
+        ).then(syncResults => {
+          syncResults.forEach(result => {
+            const n = result.status === "fulfilled" ? result.value : null;
+            if (!n) return;
+            setNoticias(prev => {
+              const next = cmMergeRowsById(prev, [n])
+                .sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at)))
+                .slice(0, 2500);
+              cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, next, 2500);
+              return next;
+            });
+          });
         });
-      });
+      }
+
       return { ok:true, count:aprobados.length };
     } catch (error) {
-      const cached = cmReadArrayCache(CM_COMUNICADOS_CACHE_KEY);
-      if (cached.length) setComunicados(cached);
+      console.error("[Noticias] Error definitivo cargando comunicados:", cmSupabaseErrorInfo(error));
+      const cached = cmReadFirstArrayCache([CM_COMUNICADOS_CACHE_KEY, ...CM_COMUNICADOS_LEGACY_CACHE_KEYS]);
+      if (cached.length) setComunicados(prev => cmMergeRowsById(prev, cached));
       setLoadError(prev => prev || "No se pudo actualizar Comunicados desde el servidor. Se conserva la última copia disponible.");
       return { ok:false, error };
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
-    cargarNoticias();
-    cargarComunicados();
+    let disposed = false;
+    const reloadFromServer = () => {
+      if (disposed) return;
+      cargarNoticias({ preserve:true });
+      cargarComunicados({ preserve:true });
+    };
+
+    reloadFromServer();
+
+    // Reintentar automáticamente cuando Supabase termine de restaurar/iniciar sesión.
+    // Esta es la corrección principal para el feed vacío al recargar estando en ADMIN.
+    const { data: authListener } = sb.auth.onAuthStateChange((event) => {
+      if (!["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) return;
+      setTimeout(() => { if (!disposed) reloadFromServer(); }, event === "INITIAL_SESSION" ? 80 : 0);
+    });
+
     const chan = sb.channel("noticias-comunicados-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "noticias" }, ({ new: r }) => {
         if (r) setNoticias(prev => {
           const next = prev.some(x => x.id === r.id) ? prev.map(x => x.id === r.id ? { ...x, ...r } : x) : [r, ...prev];
-          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
-          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 2500);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 2500);
           return sorted;
         });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "noticias" }, ({ new: r }) => {
         if (r) setNoticias(prev => {
           const next = prev.some(x => x.id === r.id) ? prev.map(x => x.id === r.id ? { ...x, ...r } : x) : [r, ...prev];
-          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
-          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+          const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 2500);
+          cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 2500);
           return sorted;
         });
       })
@@ -24606,15 +24710,15 @@ function NoticiasTab({ isAdmin }) {
         if (r && aprobado) {
           setComunicados(prev => {
             const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? { ...c, ...r } : c) : [r, ...prev];
-            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 1200);
-            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 1200);
+            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 2500);
+            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 2500);
             return sorted;
           });
           const n = await syncComunicadoToNoticia(r, { processMedia: true });
           if (n) setNoticias(prev => {
             const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
-            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
-            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 2500);
+            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 2500);
             return sorted;
           });
         }
@@ -24624,15 +24728,15 @@ function NoticiasTab({ isAdmin }) {
         if (r && aprobado) {
           setComunicados(prev => {
             const next = prev.some(c => c.id === r.id) ? prev.map(c => c.id === r.id ? { ...c, ...r } : c) : [r, ...prev];
-            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 1200);
-            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 1200);
+            const sorted = next.sort((a, b) => (cmComunicadoStartMs(b) || toMs(b?.created_at)) - (cmComunicadoStartMs(a) || toMs(a?.created_at))).slice(0, 2500);
+            cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, sorted, 2500);
             return sorted;
           });
           const n = await syncComunicadoToNoticia(r, { processMedia: true });
           if (n) setNoticias(prev => {
             const next = prev.some(x => x.id === n.id) ? prev.map(x => x.id === n.id ? { ...x, ...n } : x) : [n, ...prev];
-            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 1500);
-            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 1500);
+            const sorted = next.sort((a, b) => (cmNoticiaPublicationMs(b) || toMs(b?.created_at)) - (cmNoticiaPublicationMs(a) || toMs(a?.created_at))).slice(0, 2500);
+            cmWriteArrayCache(CM_NOTICIAS_CACHE_KEY, sorted, 2500);
             return sorted;
           });
         }
@@ -24640,12 +24744,16 @@ function NoticiasTab({ isAdmin }) {
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "comunicados" }, ({ old: r }) => {
         if (r?.id) setComunicados(prev => {
           const next = prev.filter(c => c.id !== r.id);
-          cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, next, 1200);
+          cmWriteArrayCache(CM_COMUNICADOS_CACHE_KEY, next, 2500);
           return next;
         });
       })
       .subscribe();
-    return () => sb.removeChannel(chan);
+    return () => {
+      disposed = true;
+      authListener?.subscription?.unsubscribe?.();
+      sb.removeChannel(chan);
+    };
   }, [cargarNoticias, cargarComunicados]);
 
   const FILTROS = [
