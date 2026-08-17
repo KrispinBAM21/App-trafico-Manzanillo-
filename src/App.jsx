@@ -15670,15 +15670,91 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   const [toast, setToast] = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
 
-  const saveCarrilesSnapshot = async (rowId, newState) => {
+  const carrilesSyncTimersRef = useRef(new Map());
+  const carrilesSyncAttemptsRef = useRef(new Map());
+
+  const writeCarrilesSnapshotRemote = useCallback(async (rowId, newState) => {
+    let updateError = null;
+
+    // UPDATE primero. En instalaciones con RLS es frecuente permitir UPDATE
+    // sobre las filas existentes y bloquear INSERT; un UPSERT exigiría ambas políticas.
     try {
-      const { error } = await sb.from(TABLA).upsert({ id: rowId, data: newState }, { onConflict: "id" });
-      if (error) return error;
-      persistCarrilesRow(rowId, newState);
-      return null;
+      const updateResult = await sb
+        .from(TABLA)
+        .update({ data: newState })
+        .eq("id", rowId)
+        .select("id")
+        .maybeSingle();
+
+      if (!updateResult.error && updateResult.data?.id === rowId) return null;
+      updateError = updateResult.error || new Error(`No se encontró la fila ${rowId} para actualizar`);
     } catch (error) {
-      return error instanceof Error ? error : new Error("No se pudo guardar el estado de carriles");
+      updateError = error instanceof Error ? error : new Error("Falló la actualización remota de carriles");
     }
+
+    // Solo si la fila realmente no pudo actualizarse, intenta crearla/recuperarla.
+    try {
+      const upsertResult = await sb
+        .from(TABLA)
+        .upsert({ id: rowId, data: newState }, { onConflict: "id" })
+        .select("id")
+        .maybeSingle();
+
+      if (!upsertResult.error && upsertResult.data?.id === rowId) return null;
+      return upsertResult.error || updateError || new Error(`No se pudo sincronizar ${rowId}`);
+    } catch (error) {
+      return error instanceof Error ? error : (updateError || new Error("No se pudo sincronizar el estado de carriles"));
+    }
+  }, []);
+
+  const queueCarrilesSnapshotRetry = useCallback((rowId) => {
+    const existingTimer = carrilesSyncTimersRef.current.get(rowId);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const attempt = carrilesSyncAttemptsRef.current.get(rowId) || 0;
+    const delay = Math.min(30000, 1800 * Math.pow(2, Math.min(attempt, 4)));
+    const timer = setTimeout(async () => {
+      carrilesSyncTimersRef.current.delete(rowId);
+      const latestLocal = getPersistedCarrilesRow(rowId);
+      if (!latestLocal) return;
+
+      const retryError = await writeCarrilesSnapshotRemote(rowId, latestLocal);
+      if (retryError) {
+        carrilesSyncAttemptsRef.current.set(rowId, attempt + 1);
+        if (attempt < 5) queueCarrilesSnapshotRetry(rowId);
+        else console.warn(`[${rowId}] estado aplicado localmente, pero Supabase sigue rechazando la sincronización`, retryError);
+        return;
+      }
+
+      carrilesSyncAttemptsRef.current.delete(rowId);
+      persistCarrilesRow(rowId, latestLocal);
+    }, delay);
+
+    carrilesSyncTimersRef.current.set(rowId, timer);
+  }, [writeCarrilesSnapshotRemote]);
+
+  useEffect(() => () => {
+    carrilesSyncTimersRef.current.forEach(timer => clearTimeout(timer));
+    carrilesSyncTimersRef.current.clear();
+  }, []);
+
+  const saveCarrilesSnapshot = async (rowId, newState) => {
+    // El cambio local es la fuente inmediata de verdad. Así un error de red/RLS
+    // nunca hace que el control visual salte al valor anterior.
+    persistCarrilesRow(rowId, newState);
+
+    const error = await writeCarrilesSnapshotRemote(rowId, newState);
+    if (!error) {
+      carrilesSyncAttemptsRef.current.delete(rowId);
+      const timer = carrilesSyncTimersRef.current.get(rowId);
+      if (timer) clearTimeout(timer);
+      carrilesSyncTimersRef.current.delete(rowId);
+      return null;
+    }
+
+    console.warn(`[${rowId}] cambio conservado localmente; sincronización remota pendiente`, error);
+    queueCarrilesSnapshotRetry(rowId);
+    return error;
   };
   const saveToSupa = (newState) => saveCarrilesSnapshot(ROW_ID, newState);
   const saveConfinada = (newState) => saveCarrilesSnapshot(ROW_ID_CF, newState);
@@ -15798,8 +15874,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      setCarriles(prev); // Revertir si el guardado falló
-      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
+      // No revertir: el snapshot local ya contiene el cambio y se reintentará sincronizar.
+      setCarriles(next);
+      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
       return;
     }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
@@ -15824,8 +15901,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      setCarriles(prev); // Revertir si el guardado falló
-      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
+      // No revertir: el snapshot local ya contiene el cambio y se reintentará sincronizar.
+      setCarriles(next);
+      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
       return;
     }
     await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
@@ -15859,7 +15937,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending(`${id}:estado_carril`, true);
     const error = await saveToSupa(next);
     setPending(`${id}:estado_carril`, false);
-    if (error) { setCarriles(prev); notify("No se pudo guardar; se revirtió el cambio", "#ef4444"); return; }
+    if (error) { setCarriles(next); notify("Cambio aplicado; sincronización pendiente", "#f59e0b"); return; }
     await auditLog({ action:"modificar_estado_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Estado del carril actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
@@ -15879,7 +15957,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending("c4:estado_carril", true);
     const error = await saveToSupa(next);
     setPending("c4:estado_carril", false);
-    if (error) { setCarriles(prev); notify("No se pudo guardar; se revirtió el cambio", "#ef4444"); return; }
+    if (error) { setCarriles(next); notify("Cambio aplicado; sincronización pendiente", "#f59e0b"); return; }
     await auditLog({ action:"modificar_estado_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó Carril 4 como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
     notify("Estado del carril de salida actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso Carril 4 — ${opt.label}`, detalle: "Estado de carril de salida actualizado" });
@@ -15917,8 +15995,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const error = await saveConfinada(next);
     setPending(key, false);
     if (error) {
-      setConfinada(prev);
-      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
+      // Mantener el voto/cambio visible y persistido localmente; no volver al snapshot anterior.
+      setConfinada(next);
+      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
       return;
     }
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
@@ -15950,8 +16029,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const error = await saveConfinada(next);
     setPending(`${id}:estado_carril`, false);
     if (error) {
-      setConfinada(prev);
-      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
+      // Mantener el voto/cambio visible y persistido localmente; no volver al snapshot anterior.
+      setConfinada(next);
+      notify("Cambio aplicado; sincronización pendiente", "#f59e0b");
       return;
     }
     await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
