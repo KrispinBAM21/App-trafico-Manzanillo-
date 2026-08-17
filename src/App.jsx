@@ -4377,7 +4377,8 @@ const publicarNoticia = async ({ tipo, titulo, detalle, icono, color, origen, oc
 function Badge({ color, children, small }) {
   const theme = React.useContext(ThemeContext);
   return (
-    <span style={{
+    <span className="flex items-center justify-center leading-none" style={{
+      display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1,
       background: color + "22", border: `1px solid ${color}55`, color,
       padding: small ? "2px 7px" : "3px 9px",
       borderRadius: "4px", fontSize: small ? "10px" : "11px",
@@ -4447,11 +4448,12 @@ function SectionLabel({ text, rightBtn }) {
 function NormalBtn({ onClick, label = "TODO NORMAL" }) {
   const theme = React.useContext(ThemeContext);
   return (
-    <button onClick={onClick} style={{
+    <button className="flex items-center justify-center leading-none" type="button" onClick={onClick} style={{
+      display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1, gap:"6px",
       padding: "5px 10px", background: "#22c55e15", border: "1px solid #22c55e44",
       borderRadius: "6px", color: "#22c55e", fontFamily: getFont(theme, "secondary"), fontSize: "10px",
       cursor: "pointer", fontWeight: "700", letterSpacing: "0.5px",
-    }}>✓ {label}</button>
+    }}><MS name="check_circle" size={15} color="#22c55e" /><span>{label}</span></button>
   );
 }
 
@@ -15434,13 +15436,23 @@ function QuickSelectDropdown({ value, options, onChange, placeholder = "— Sin 
 // ─── UI: Selector de Rueda compacto ──────────────────────────────────────────
 // Reduce espacio en listas largas: muestra un botón compacto y abre un wheel picker
 // con scroll-snap, selección central y confirmación explícita.
-function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin especificar —", allowClear = false, pending = false, theme, title = "Seleccionar opción" }) {
+function WheelPickerSelect({ value, options, onChange, placeholder = "Sin especificar", allowClear = false, pending = false, theme, title = "Seleccionar opción" }) {
   const [open, setOpen] = useState(false);
   const listRef = React.useRef(null);
   const scrollTimerRef = React.useRef(null);
   const lastInteractionRef = React.useRef("wheel");
   const current = options.find(o => o.id === value) || null;
   const [draft, setDraft] = useState(value ?? null);
+  const materialOptionIcon = (icon) => ({
+    bolt:"bolt",
+    "port-terminal":"anchor",
+    "terminal-crane":"factory",
+    "lane-status-monitor":"traffic",
+    "truck-export":"local_shipping",
+    "truck-import":"local_shipping",
+    "container-expo-open":"inventory_2",
+    turnover:"sync_alt",
+  }[icon] || "tune");
 
   const syncDraftFromWheelCenter = useCallback(() => {
     const list = listRef.current;
@@ -15536,7 +15548,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
             <div style={{ color:"#e2e8f0", fontFamily:getFont(theme,"secondary"), fontWeight:900, fontSize:"13px" }}>{title}</div>
             <div style={{ color:"rgba(255,255,255,.38)", fontFamily:getFont(theme,"secondary"), fontSize:"10px", marginTop:"2px" }}>Desliza la rueda o toca una opción y confirma</div>
           </div>
-          <button onClick={() => setOpen(false)} style={{ width:"32px", height:"32px", borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#94a3b8", cursor:"pointer" }}>✕</button>
+          <button className="flex items-center justify-center leading-none" type="button" onClick={() => setOpen(false)} aria-label="Cerrar selector" style={{ width:"32px", height:"32px", display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1, borderRadius:"999px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.06)", color:"#94a3b8", cursor:"pointer" }}><MS name="close" size={18} color="#94a3b8" /></button>
         </div>
 
         <div style={{ position:"relative", padding:"10px 14px" }}>
@@ -15564,10 +15576,11 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
                   key={o.id}
                   data-wheel-id={o.id}
                   onClick={(e) => chooseDraftByTap(o.id, e.currentTarget)}
-                  style={{ scrollSnapAlign:"center", width:"100%", minHeight:"48px", margin:"4px 0", padding:"9px 14px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "14px" : "13px", fontWeight: active ? 900 : 650, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", transition:"all .14s" }}
+                  className="flex items-center justify-center leading-none"
+                  style={{ scrollSnapAlign:"center", width:"100%", minHeight:"48px", margin:"4px 0", padding:"9px 14px", borderRadius:"12px", border:"none", background: active ? o.color + "22" : "transparent", color: active ? o.color : "rgba(226,232,240,.68)", fontFamily:getFont(theme,"secondary"), fontSize: active ? "14px" : "13px", fontWeight: active ? 900 : 650, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, gap:"10px", transition:"all .14s" }}
                 >
                   <span>{o.label}</span>
-                  {active && <span style={{ color:o.color, fontWeight:900 }}>✓</span>}
+                  {active && <MS name="check_circle" size={17} color={o.color} />}
                 </button>
               );
             })}
@@ -15575,8 +15588,8 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
         </div>
 
         <div style={{ padding:"12px 14px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", borderTop:"1px solid rgba(255,255,255,.08)" }}>
-          <button type="button" onClick={() => setOpen(false)} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer" }}>Cancelar</button>
-          <button type="button" onClick={applyWheelSelection} style={{ padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.45)", background:"rgba(34,197,94,.16)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:"pointer" }}>Aplicar</button>
+          <button className="flex items-center justify-center leading-none" type="button" onClick={() => setOpen(false)} style={{ display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, gap:"6px", padding:"11px", borderRadius:"10px", border:"1px solid rgba(255,255,255,.12)", background:"rgba(255,255,255,.05)", color:"#94a3b8", fontFamily:getFont(theme,"secondary"), fontWeight:800, cursor:"pointer" }}><MS name="close" size={17} color="#94a3b8" /><span>Cancelar</span></button>
+          <button className="flex items-center justify-center leading-none" type="button" onClick={applyWheelSelection} style={{ display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, gap:"6px", padding:"11px", borderRadius:"10px", border:"1px solid rgba(34,197,94,.45)", background:"rgba(34,197,94,.16)", color:"#22c55e", fontFamily:getFont(theme,"secondary"), fontWeight:900, cursor:"pointer" }}><MS name="check" size={17} color="#22c55e" /><span>Aplicar</span></button>
         </div>
       </div>
     </div>,
@@ -15588,10 +15601,12 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
       <button
         type="button"
         onClick={() => setOpen(true)}
-        style={{ width:"100%", minHeight:"44px", padding:"11px 14px", background:"linear-gradient(180deg, rgba(10,22,40,.98), rgba(8,18,34,.98))", border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"10px", color: current ? color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer", fontWeight: current ? 900 : 650, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", boxShadow: current ? `inset 0 0 0 1px ${color}22` : "none" }}
+        className="flex items-center justify-center leading-none"
+        style={{ width:"100%", minHeight:"44px", padding:"11px 14px", background:"linear-gradient(180deg, rgba(10,22,40,.98), rgba(8,18,34,.98))", border:`1px solid ${current ? color : "#1e3a5f"}`, borderRadius:"10px", color: current ? color : "#64748b", fontFamily:getFont(theme,"secondary"), fontSize:"13px", cursor:"pointer", fontWeight: current ? 900 : 650, display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1, gap:"8px", boxShadow: current ? `inset 0 0 0 1px ${color}22` : "none" }}
       >
-        <span style={{ minWidth:0, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"flex", alignItems:"center", justifyContent:"center", gap:"7px" }}>{current ? <IconText icon={current.icon} label={display} size={16} /> : display}</span>
-        <span style={{ color: current ? color : "#64748b", fontSize:"16px", lineHeight:1 }}>☰</span>
+        {current && <MS name={materialOptionIcon(current.icon)} size={17} color={color} />}
+        <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{display}</span>
+        <MS name="tune" size={17} color={current ? color : "#64748b"} />
       </button>
       {modal}
     </div>
@@ -15602,10 +15617,7 @@ function WheelPickerSelect({ value, options, onChange, placeholder = "— Sin es
 function TerminalSearchBox({ value, onChange, theme }) {
   return (
     <div style={{ position:"relative", marginBottom:"10px" }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}>
-        <circle cx="10.5" cy="10.5" r="6.5" stroke="#64748b" strokeWidth="2" fill="none"/>
-        <path d="M15.5 15.5L20 20" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/>
-      </svg>
+      <span style={{ position:"absolute", left:"9px", top:"50%", transform:"translateY(-50%)", pointerEvents:"none", display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}><MS name="search" size={16} color="#64748b" /></span>
       <input
         type="text"
         value={value}
@@ -15619,10 +15631,13 @@ function TerminalSearchBox({ value, onChange, theme }) {
       />
       {value && (
         <button
+          className="flex items-center justify-center leading-none"
+          type="button"
+          aria-label="Limpiar búsqueda"
           onClick={() => onChange("")}
-          style={{ position:"absolute", right:"8px", top:"50%", transform:"translateY(-50%)", background:"transparent", border:"none", color:"#64748b", fontSize:"14px", cursor:"pointer", lineHeight:1, padding:"2px 4px" }}
+          style={{ position:"absolute", right:"8px", top:"50%", transform:"translateY(-50%)", display:"inline-flex", alignItems:"center", justifyContent:"center", lineHeight:1, background:"transparent", border:"none", color:"#64748b", cursor:"pointer", padding:"2px 4px" }}
         >
-          ✕
+          <MS name="close" size={17} color="#64748b" />
         </button>
       )}
     </div>
@@ -15631,6 +15646,7 @@ function TerminalSearchBox({ value, onChange, theme }) {
 
 function SegundoAccesoTab({ myId, isAdmin = false }) {
   const theme = React.useContext(ThemeContext);
+  const carrilesMobile = useWindowWidth() < 720;
   const modoAutomaticoGlobal = useModoAutomaticoTrafico();
   const bloqueadoPorModoAutomatico = modoAutomaticoGlobal.activo && !isAdmin;
   const [subTab, setSubTab] = useState("segundo");
@@ -15649,23 +15665,25 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   const initialConfinadaSnapshot = getPersistedCarrilesRow(ROW_ID_CF);
   const [carriles, setCarriles] = useState(() => initialSegundoSnapshot || mkSegundoIngreso());
   const [confinada, setConfinada] = useState(() => initialConfinadaSnapshot || mkConfinadaState());
-  const [snapshotReady, setSnapshotReady] = useState(() => !!initialSegundoSnapshot && !!initialConfinadaSnapshot);
+  const [snapshotReady, setSnapshotReady] = useState(true);
 
   const [toast, setToast] = useState(null);
   const notify = (msg, color = "#38bdf8") => { setToast({ msg, color }); setTimeout(() => setToast(null), 2800); };
 
-  const saveToSupa = async (newState) => {
-    const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: newState }, { onConflict: "id" });
-    if (!error) persistCarrilesRow(ROW_ID, newState);
-    return error;
+  const saveCarrilesSnapshot = async (rowId, newState) => {
+    try {
+      const { error } = await sb.from(TABLA).upsert({ id: rowId, data: newState }, { onConflict: "id" });
+      if (error) return error;
+      persistCarrilesRow(rowId, newState);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error : new Error("No se pudo guardar el estado de carriles");
+    }
   };
-  const saveConfinada = async (newState) => {
-    const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: newState }, { onConflict: "id" });
-    if (!error) persistCarrilesRow(ROW_ID_CF, newState);
-    return error;
-  };
+  const saveToSupa = (newState) => saveCarrilesSnapshot(ROW_ID, newState);
+  const saveConfinada = (newState) => saveCarrilesSnapshot(ROW_ID_CF, newState);
 
-  // ── Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
+  // Helper: marca/desmarca una clave como "pendiente de confirmación" (feedback optimista) ──
   const setPending = (key, on) => setPendingKeys(prev => {
     if (on) return { ...prev, [key]: true };
     const { [key]: _omit, ...rest } = prev;
@@ -15685,36 +15703,57 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   }, []);
 
   const loadCurrentSnapshots = useCallback(async ({ silent = false } = {}) => {
-    const [segundoResult, confinadaResult] = await Promise.all([
-      sb.from(TABLA).select("id,data").eq("id", ROW_ID).maybeSingle(),
-      sb.from(TABLA).select("id,data").eq("id", ROW_ID_CF).maybeSingle(),
-    ]);
+    const definitions = [
+      { rowId:ROW_ID, createDefault:mkSegundoIngreso, apply:applySegundoSnapshot },
+      { rowId:ROW_ID_CF, createDefault:mkConfinadaState, apply:applyConfinadaSnapshot },
+    ];
 
-    if (!segundoResult.error) {
-      if (segundoResult.data?.data) applySegundoSnapshot(segundoResult.data.data);
-      else {
-        const fallback = getPersistedCarrilesRow(ROW_ID) || mkSegundoIngreso();
-        const { error } = await sb.from(TABLA).upsert({ id: ROW_ID, data: fallback }, { onConflict: "id" });
-        if (!error) applySegundoSnapshot(fallback);
+    const loadOne = async ({ rowId, createDefault, apply }) => {
+      const fallback = getPersistedCarrilesRow(rowId) || createDefault();
+      try {
+        const { data, error } = await sb.from(TABLA).select("id,data").eq("id", rowId).maybeSingle();
+        if (error) {
+          apply(fallback);
+          return { ok:false, error, fallback:true };
+        }
+        if (data?.data && typeof data.data === "object") {
+          apply(data.data);
+          return { ok:true, fallback:false };
+        }
+
+        apply(fallback);
+        try {
+          const { error:bootstrapError } = await sb.from(TABLA).upsert({ id:rowId, data:fallback }, { onConflict:"id" });
+          if (!bootstrapError) persistCarrilesRow(rowId, fallback);
+          return { ok:!bootstrapError, error:bootstrapError || null, fallback:true };
+        } catch (bootstrapError) {
+          return { ok:false, error:bootstrapError, fallback:true };
+        }
+      } catch (error) {
+        apply(fallback);
+        return { ok:false, error, fallback:true };
       }
-    } else if (!silent) console.warn("[segundo_acceso] no se pudo recuperar el snapshot", segundoResult.error);
+    };
 
-    if (!confinadaResult.error) {
-      if (confinadaResult.data?.data) applyConfinadaSnapshot(confinadaResult.data.data);
-      else {
-        const fallback = getPersistedCarrilesRow(ROW_ID_CF) || mkConfinadaState();
-        const { error } = await sb.from(TABLA).upsert({ id: ROW_ID_CF, data: fallback }, { onConflict: "id" });
-        if (!error) applyConfinadaSnapshot(fallback);
+    try {
+      const results = await Promise.allSettled(definitions.map(loadOne));
+      if (!silent && typeof console !== "undefined" && typeof console.debug === "function") {
+        const usingFallback = results.some(result => result.status === "rejected" || result.value?.fallback);
+        if (usingFallback) console.debug("[confinados] estado local de respaldo activo mientras se recupera Supabase");
       }
-    } else if (!silent) console.warn("[confinada_acceso] no se pudo recuperar el snapshot", confinadaResult.error);
-
-    setSnapshotReady(true);
+    } finally {
+      setSnapshotReady(true);
+    }
   }, [applySegundoSnapshot, applyConfinadaSnapshot]);
 
   useEffect(() => {
     let active = true;
     let refreshTimer = null;
-    const refresh = async (options) => { if (active) await loadCurrentSnapshots(options); };
+    const refresh = async (options) => {
+      if (!active) return;
+      try { await loadCurrentSnapshots(options); }
+      catch { if (active) setSnapshotReady(true); }
+    };
 
     refresh();
     const chan = sb.channel(`segundo-confinada-rt-${Math.random().toString(36).slice(2)}`)
@@ -15743,7 +15782,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     };
   }, [loadCurrentSnapshots]);
 
-  // ── Handlers 2DO ACCESO ──
+  // Handlers 2DO ACCESO
   const updateIngreso = async (id, field, value) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"segundo", itemId:id, field, value, userId:myId });
@@ -15754,19 +15793,19 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const prev = carriles;
     const key = `${id}:${field}`;
     const next = { ...carriles, [id]: { ...carriles[id], [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
+    setCarriles(next); // Feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      setCarriles(prev); // Revertir si el guardado falló
+      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
       return;
     }
     const carrilDefForAudit = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : String(value);
     await auditLog({ action:"modificar_carril_segundo", section:"segundo", entityId:id, before:carriles[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Carril actualizado", "#22c55e");
+    notify("Carril actualizado", "#22c55e");
     const carrilDef = SEGUNDO_CARRILES_INGRESO.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : (value ? "Con Retornos" : "Sin Retornos");
     await publicarNoticia({ tipo: "segundo", icono: "road", color: "#34d399", titulo: `2do Acceso ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
@@ -15780,17 +15819,17 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const prev = carriles;
     const key = `c4:${field}`;
     const next = { ...carriles, c4: { ...carriles.c4, [field]: value, lastUpdate: Date.now(), updatedBy: "Tú" } };
-    setCarriles(next); // ✓ feedback instantáneo, sin esperar al servidor
+    setCarriles(next); // Feedback instantáneo, sin esperar al servidor
     setPending(key, true);
     const error = await saveToSupa(next);
     setPending(key, false);
     if (error) {
-      setCarriles(prev); // ↩ revertir si el guardado falló
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      setCarriles(prev); // Revertir si el guardado falló
+      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
       return;
     }
     await auditLog({ action:"modificar_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:field, value, valor_label:String(value), summary:`${getDeviceId()} modificó Carril 4 · ${field}: ${String(value)}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Carril de salida actualizado", "#22c55e");
+    notify("Carril de salida actualizado", "#22c55e");
     const fieldLabel =
       field === "saturado" ? (value ? "Saturado" : "Libre") :
       field === "retornos" ? (value ? "Con retornos" : "Sin retornos") :
@@ -15820,9 +15859,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending(`${id}:estado_carril`, true);
     const error = await saveToSupa(next);
     setPending(`${id}:estado_carril`, false);
-    if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
+    if (error) { setCarriles(prev); notify("No se pudo guardar; se revirtió el cambio", "#ef4444"); return; }
     await auditLog({ action:"modificar_estado_carril_segundo", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Estado del carril actualizado", opt.color);
+    notify("Estado del carril actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
   };
 
@@ -15840,9 +15879,9 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending("c4:estado_carril", true);
     const error = await saveToSupa(next);
     setPending("c4:estado_carril", false);
-    if (error) { setCarriles(prev); notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444"); return; }
+    if (error) { setCarriles(prev); notify("No se pudo guardar; se revirtió el cambio", "#ef4444"); return; }
     await auditLog({ action:"modificar_estado_carril_salida", section:"segundo", entityId:"c4", before:prev.c4, after:{ carril:"Carril 4", campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó Carril 4 como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Estado del carril de salida actualizado", opt.color);
+    notify("Estado del carril de salida actualizado", opt.color);
     await publicarNoticia({ tipo: "segundo", icono: "road", color: opt.color, titulo: `2do Acceso Carril 4 — ${opt.label}`, detalle: "Estado de carril de salida actualizado" });
   };
 
@@ -15851,7 +15890,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const next = mkSegundoIngreso();
     setCarriles(next);
     await saveToSupa(next);
-    notify("✓ Todos los carriles restablecidos", "#22c55e");
+    notify("Todos los carriles restablecidos", "#22c55e");
   };
   const resetOne = async (id) => {
     if (bloqueadoPorModoAutomatico) return;
@@ -15859,10 +15898,10 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const next = { ...carriles, [id]: { terminal: def?.defaultTerminal || "ssa", estado_carril: "libre", saturado: false, retornos: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setCarriles(next);
     await saveToSupa(next);
-    notify("✓ Carril restablecido", "#22c55e");
+    notify("Carril restablecido", "#22c55e");
   };
 
-  // ── Handlers CONFINADA ──
+  // Handlers CONFINADA
   const updateConfinada = async (id, field, value) => {
     if (bloqueadoPorModoAutomatico) {
       const result = await submitTrafficVoteForValidation({ section:"confinados", itemId:id, field, value, userId:myId });
@@ -15879,16 +15918,16 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending(key, false);
     if (error) {
       setConfinada(prev);
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
       return;
     }
     const carrilDefForAudit = CONFINADA_CARRILES.find(c => c.id === id);
     const valorLabelAudit = field === "retornos" ? (value ? "Con retornos" : "Sin retornos") : field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : String(value);
     await auditLog({ action:"modificar_carril_confinada", section:"segundo", entityId:id, before:confinada[id], after:{ carril:carrilDefForAudit?.label || id, campo:field, value, valor_label:valorLabelAudit, summary:`${getDeviceId()} votó ${valorLabelAudit} en ${carrilDefForAudit?.label || id}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Carril Confinada actualizado", "#a78bfa");
+    notify("Carril Confinada actualizado", "#a78bfa");
     const carrilDef = CONFINADA_CARRILES.find(c => c.id === id);
     const fieldLabel = field === "saturado" ? (value ? "Saturado" : "Libre") : field === "transferencia" ? (value ? "Segundo Acceso" : "Normal") : (value ? "Con Retornos" : "Sin Retornos");
-    await publicarNoticia({ tipo: "segundo", icono: "🔒", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
+    await publicarNoticia({ tipo: "segundo", icono: "lock", color: "#a78bfa", titulo: `Confinada ${carrilDef?.label || id} — ${fieldLabel}`, detalle: "Estado de carril actualizado" });
   };
   const updateConfinadaEstado = async (id, estadoId) => {
     if (bloqueadoPorModoAutomatico) {
@@ -15912,12 +15951,12 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     setPending(`${id}:estado_carril`, false);
     if (error) {
       setConfinada(prev);
-      notify("✗ No se pudo guardar, se revirtió el cambio", "#ef4444");
+      notify("No se pudo guardar; se revirtió el cambio", "#ef4444");
       return;
     }
     await auditLog({ action:"modificar_estado_carril_confinada", section:"segundo", entityId:id, before:prev[id], after:{ carril:def?.label || id, campo:"estado_carril", value:opt.id, valor_label:opt.label, summary:`${getDeviceId()} marcó ${def?.label || id} como ${opt.label}` }, actor:`Usuario_${myId.slice(-4)}` });
-    notify("✓ Estado del carril Confinada actualizado", opt.color);
-    await publicarNoticia({ tipo: "segundo", icono: "🔒", color: opt.color, titulo: `Confinada ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
+    notify("Estado del carril Confinada actualizado", opt.color);
+    await publicarNoticia({ tipo: "segundo", icono: "lock", color: opt.color, titulo: `Confinada ${def?.label || id} — ${opt.label}`, detalle: "Estado de carril actualizado" });
   };
 
   const resetAllConfinada = async () => {
@@ -15925,7 +15964,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const next = mkConfinadaState();
     setConfinada(next);
     await saveConfinada(next);
-    notify("✓ Confinada restablecida", "#a78bfa");
+    notify("Confinada restablecida", "#a78bfa");
   };
   const resetOneConfinada = async (id) => {
     if (bloqueadoPorModoAutomatico) return;
@@ -15933,7 +15972,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     const next = { ...confinada, [id]: { terminal: def?.defaultTerminal || "timsa", estado_carril: "libre", saturado: false, retornos: false, transferencia: false, expo: "libre", expo_contenedor: null, impo: "libre", lastUpdate: Date.now(), updatedBy: "Reset" } };
     setConfinada(next);
     await saveConfinada(next);
-    notify("✓ Carril restablecido", "#a78bfa");
+    notify("Carril restablecido", "#a78bfa");
   };
 
   const getTermName = (id) => id === "sin_uso" ? "SIN USO" : TODAS_TERMINALES.find(t => t.id === id)?.name || id?.toUpperCase() || "—";
@@ -15949,6 +15988,20 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     { id:"general", label:"GENERAL · todas las terminales", color:getTerminalBrandColor("general"), icon:"bolt" },
     ...termsSur.map(t => ({ id:t.id, label:`Sur · ${t.name}`, color:getTerminalBrandColor(t.id), icon:"port-terminal" })),
   ];
+  const secureMaterialIcon = (name) => ({
+    "route-road":"route",
+    lock:"lock",
+    "status-live":"sensors",
+    "freight-truck":"local_shipping",
+    "terminal-crane":"factory",
+    "lane-status-monitor":"traffic",
+    "truck-export":"local_shipping",
+    "truck-import":"local_shipping",
+    "container-expo-open":"inventory_2",
+    turnover:"sync_alt",
+    xmark:"close",
+    info:"info",
+  }[name] || "info");
 
   const laneCardShell = (accent) => ({
     background:"linear-gradient(180deg, rgba(255,255,255,0.08), rgba(8,15,30,0.96))",
@@ -15967,7 +16020,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
     <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"10px" }}>
       <AutomaticTrafficNotice modo={modoAutomaticoGlobal} isAdmin={isAdmin} label="carriles del Segundo Acceso y Confinada" />
       <div style={{ width:"44px", height:"44px", borderRadius:"12px", display:"grid", placeItems:"center", background:`linear-gradient(180deg, ${accent}24, rgba(255,255,255,0.03))`, border:`1px solid ${accent}44`, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px ${accent}22` }}>
-        <AppIcon name={iconName} size={iconSize} active />
+        <MS name={secureMaterialIcon(iconName)} size={iconSize} color={accent} />
       </div>
       <div style={{ minWidth:0 }}>
         <div style={laneFieldTitleStyle}>{title}</div>
@@ -16071,7 +16124,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               value={st.expo_contenedor}
               options={SEGUNDO_CONTENEDOR_OPTS}
               onChange={(v) => updateIngreso(carril.id,"expo_contenedor", v)}
-              placeholder="— Sin especificar —"
+              placeholder="Sin especificar"
               allowClear
               pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
               theme={theme}
@@ -16170,7 +16223,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               value={st.expo_contenedor}
               options={SEGUNDO_CONTENEDOR_OPTS}
               onChange={(v) => updateSalida("expo_contenedor", v)}
-              placeholder="— Sin especificar —"
+              placeholder="Sin especificar"
               allowClear
               pending={!!pendingKeys["c4:expo_contenedor"]}
               theme={theme}
@@ -16297,7 +16350,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               value={st.expo_contenedor}
               options={SEGUNDO_CONTENEDOR_OPTS}
               onChange={(v) => updateConfinada(carril.id,"expo_contenedor", v)}
-              placeholder="— Sin especificar —"
+              placeholder="Sin especificar"
               allowClear
               pending={!!pendingKeys[`${carril.id}:expo_contenedor`]}
               theme={theme}
@@ -16343,7 +16396,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
 
   if (!snapshotReady) {
     return (
-      <div style={{ padding:"28px 16px 100px", maxWidth:"1400px", margin:"0 auto" }}>
+      <div className="cm-secure-core" style={{ padding:"28px 16px 100px", maxWidth:"1400px", margin:"0 auto" }}>
         <div style={{ minHeight:"280px", display:"grid", placeItems:"center", border:"1px solid rgba(56,189,248,.18)", borderRadius:"18px", background:"rgba(5,16,31,.72)" }}>
           <div style={{ color:"#94a3b8", fontFamily:getFont(theme, "secondary"), fontSize:"13px", fontWeight:700 }}>Sincronizando estado actual de carriles…</div>
         </div>
@@ -16352,7 +16405,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
   }
 
   return (
-    <div style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
+    <div className="cm-secure-core" style={{ padding:"16px", paddingBottom:"80px", minHeight:"100vh" }}>
 
       {/* ── Header principal ── */}
       <div style={{ background:"rgba(255,255,255,0.08)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:"12px", padding:"12px", marginBottom:"14px" }}>
@@ -16367,6 +16420,8 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
           { id:"confinada", label:"CONFINADA",    icon:"lock", color:"#a78bfa" },
         ].map(tab => (
           <button
+            className="flex items-center justify-center leading-none"
+            type="button"
             key={tab.id}
             onClick={() => setSubTab(tab.id)}
             style={{
@@ -16381,7 +16436,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               display:"flex", alignItems:"center", justifyContent:"center", gap:"6px",
             }}
           >
-            <AppIcon name={tab.icon} size={18} active={subTab===tab.id} />{tab.label}
+            <MS name={secureMaterialIcon(tab.icon)} size={18} color={subTab===tab.id ? tab.color : "rgba(255,255,255,0.45)"} /><span>{tab.label}</span>
           </button>
         ))}
       </div>
@@ -16457,7 +16512,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               <div className="cm-2do-sub">Vista 3D operativa basada en el diseño industrial propuesto, manteniendo la lógica actual de carriles.</div>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 10px", borderRadius:"999px", border:"1px solid rgba(52,211,153,.30)", background:"rgba(52,211,153,.10)", color:"#34d399", fontSize:"10px", fontWeight:900, letterSpacing:".12em" }}>
-              <AppIcon name="status-live" size={14} active /> EN VIVO
+              <MS name="sensors" size={14} color="#34d399" /><span>EN VIVO</span>
             </div>
           </div>
 
@@ -16480,7 +16535,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                     id: "c4",
                     label: "C4",
                     direction: "SALIDA",
-                    arrow: "↓",
+                    arrow: "south",
                     color: c4Opt.color,
                     status: c4Opt.label,
                     brief: statusBrief[c4Opt.id] || c4Opt.label,
@@ -16499,7 +16554,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                       id: c.id,
                       label: c.label.replace("Carril ", "C"),
                       direction: getTermName(st?.terminal),
-                      arrow: "↑",
+                      arrow: "north",
                       color: opt.id === "libre" ? "#14b8a6" : opt.color,
                       status: opt.label,
                       brief: statusBrief[opt.id] || opt.label,
@@ -16515,22 +16570,22 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                   <button
                     key={lane.id}
                     type="button"
-                    className={`cm-2do-lane ${selectedSecondLane === lane.id ? "is-selected" : ""}`}
+                    className={`cm-2do-lane flex items-center justify-center leading-none ${selectedSecondLane === lane.id ? "is-selected" : ""}`}
                     onClick={() => setSelectedSecondLane(lane.id)}
                     style={{ "--lane-color": lane.color, "--terminal-color": lane.terminalColor }}
                     title={`${lane.label} · ${lane.status}`}
                   >
                     <div className="cm-2do-lane-chip">{lane.label}</div>
-                    <div className="cm-2do-arrow"><span>{lane.arrow}</span></div>
+                    <div className="cm-2do-arrow flex items-center justify-center leading-none"><MS name={lane.arrow} size={40} color={lane.color} /></div>
                     <div className="cm-2do-dir">{lane.direction}</div>
                     <div className="cm-2do-status">
-                      <div className="cm-2do-status-pill">{lane.status}</div>
+                      <div className="cm-2do-status-pill flex items-center justify-center leading-none">{lane.status}</div>
                       <div className="cm-2do-trucks" aria-hidden="true">
                         {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => (
                           <span key={i} className="cm-2do-truck-icon" style={{ color: lane.color }}>
-                            <AppIcon name="freight-truck" size={22} active />
+                            <MS name="local_shipping" size={22} color={lane.color} />
                           </span>
-                        )) : <span style={{ color:"rgba(226,232,240,.36)", fontSize:"18px", fontWeight:900 }}>—</span>}
+                        )) : <span className="flex items-center justify-center leading-none" style={{ color:"rgba(226,232,240,.36)" }}><MS name="block" size={19} color="rgba(226,232,240,.36)" /></span>}
                       </div>
                     </div>
                   </button>
@@ -16542,14 +16597,14 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
           <div className="cm-2do-bottom-row">
             <div className="cm-2do-left-controls">
               <div className="cm-2do-direction-row">
-                <span style={{ color:"#f97316" }}>↓ Hacia ciudad</span>
+                <span className="flex items-center justify-center leading-none" style={{ color:"#f97316", display:"inline-flex", gap:"4px" }}><MS name="south" size={15} color="#f97316" /><span>Hacia ciudad</span></span>
                 <div
                   className="cm-2do-legend-area"
                   onMouseEnter={() => setSegundoLegendOpen(true)}
                   onMouseLeave={() => setSegundoLegendOpen(false)}
                 >
                   <button
-                    className="cm-2do-legend-btn"
+                    className="cm-2do-legend-btn flex items-center justify-center leading-none"
                     type="button"
                     onClick={() => setSegundoLegendOpen(v => !v)}
                     onFocus={() => setSegundoLegendOpen(true)}
@@ -16557,7 +16612,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                     onTouchStart={() => setSegundoLegendOpen(true)}
                     title="Mostrar índice del diagrama"
                   >
-                    <AppIcon name={segundoLegendOpen ? "xmark" : "info"} size={20} active />
+                    <MS name={segundoLegendOpen ? "close" : "info"} size={20} color="#67e8f9" />
                   </button>
                   {segundoLegendOpen && (
                     <div className="cm-2do-legend-panel">
@@ -16577,7 +16632,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
               </div>
             </div>
             <div className="cm-2do-direction-row is-right">
-              <span style={{ color:"#14b8a6" }}>↑ Hacia el puerto</span>
+              <span className="flex items-center justify-center leading-none" style={{ color:"#14b8a6", display:"inline-flex", gap:"4px" }}><MS name="north" size={15} color="#14b8a6" /><span>Hacia el puerto</span></span>
             </div>
           </div>
         </div>
@@ -16593,7 +16648,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
             <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
             <div style={{ display:"flex", alignItems:"center", gap:"6px", padding:"5px 12px", background:"rgba(52,211,153,0.08)", border:"1px solid rgba(52,211,153,0.25)", borderRadius:"20px" }}>
-              <span style={{ fontSize:"13px" }}>🗺️</span>
+              <MS name="map" size={18} color="#34d399" />
               <span style={{ fontFamily:getFont(theme,"secondary"), fontSize:"11px", color:"#34d399", fontWeight:"800", letterSpacing:"1px" }}>SEGUNDO ACCESO POR FASES</span>
             </div>
             <div style={{ flex:1, height:"1px", background:"rgba(52,211,153,0.2)" }} />
@@ -16620,7 +16675,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
           const truckCount = (id) => ({ libre:1, lento:2, moderado:2, saturado:3, bloqueo:3, cerrado:0, sin_uso:0 }[id] ?? 1);
           const getTermShort = (id) => {
             const st = confinada[id];
-            if (!st) return "—";
+            if (!st) return "SIN DATO";
             if (getCarrilEstadoId(st) === "sin_uso" || st.terminal === "sin_uso") return "SIN USO";
             if (st.terminal === "general") return "GENERAL";
             const found = TODAS_TERMINALES.find(t => t.id === st.terminal);
@@ -16741,7 +16796,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                     <div className="cm-conf-title">Diagrama de carriles</div>
                     <div className="cm-conf-sub">Real-time status monitor · Terminal North Entrance</div>
                   </div>
-                  <div className="cm-conf-live"><AppIcon name="status-live" size={14} active /> En vivo</div>
+                  <div className="cm-conf-live flex items-center justify-center leading-none"><MS name="sensors" size={14} color="#34d399" /><span>En vivo</span></div>
                 </div>
 
                 <div className="cm-conf-stage">
@@ -16750,7 +16805,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                       <button
                         key={lane.id}
                         type="button"
-                        className={`cm-conf-lane ${lane.selected ? "is-selected" : ""}`}
+                        className={`cm-conf-lane flex items-center justify-center leading-none ${lane.selected ? "is-selected" : ""}`}
                         onClick={() => setSelectedConfinadaLane(lane.id)}
                         style={{ "--lane-color": lane.color }}
                         title={`${lane.label} · ${lane.status}`}
@@ -16761,13 +16816,13 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                           <div className="cm-conf-trucks" aria-hidden="true">
                             {lane.trucks > 0 ? Array.from({ length: lane.trucks }).map((_, i) => (
                               <span key={i} className="cm-conf-truck">
-                                <AppIcon name="freight-truck" size={32} active />
+                                <MS name="local_shipping" size={32} color={lane.color} />
                               </span>
-                            )) : <span style={{ color:"rgba(226,232,240,.36)", fontSize:"20px", fontWeight:900 }}>—</span>}
+                            )) : <span className="flex items-center justify-center leading-none" style={{ color:"rgba(226,232,240,.36)" }}><MS name="block" size={21} color="rgba(226,232,240,.36)" /></span>}
                           </div>
                         </div>
                         <div className="cm-conf-status-wrap">
-                          <div className="cm-conf-status">{lane.status}</div>
+                          <div className="cm-conf-status flex items-center justify-center leading-none">{lane.status}</div>
                         </div>
                       </button>
                     ))}
@@ -16775,14 +16830,14 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                 </div>
 
                 <div className="cm-conf-footer">
-                  <div className="cm-conf-route"><strong>←</strong> Conexión segundo acceso</div>
+                  <div className="cm-conf-route flex items-center justify-center leading-none" style={{ display:"inline-flex", gap:"5px" }}><MS name="west" size={16} color="#22d3ee" /><span>Conexión segundo acceso</span></div>
                   <div
                     className="cm-conf-legend-wrap"
                     onMouseEnter={() => setConfinadaLegendOpen(true)}
                     onMouseLeave={() => setConfinadaLegendOpen(false)}
                   >
                     <button
-                      className="cm-conf-legend-btn"
+                      className="cm-conf-legend-btn flex items-center justify-center leading-none"
                       type="button"
                       onClick={() => setConfinadaLegendOpen(v => !v)}
                       onFocus={() => setConfinadaLegendOpen(true)}
@@ -16790,7 +16845,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                       onTouchStart={() => setConfinadaLegendOpen(true)}
                       title="Mostrar índice del diagrama"
                     >
-                      <AppIcon name={confinadaLegendOpen ? "xmark" : "info"} size={22} active />
+                      <MS name={confinadaLegendOpen ? "close" : "info"} size={22} color="#22d3ee" />
                     </button>
                     {confinadaLegendOpen && (
                       <div className="cm-conf-legend-panel">
@@ -16809,7 +16864,7 @@ function SegundoAccesoTab({ myId, isAdmin = false }) {
                       </div>
                     )}
                   </div>
-                  <div className="cm-conf-route right"><strong>→</strong> Entrada puerto zona sur</div>
+                  <div className="cm-conf-route right flex items-center justify-center leading-none" style={{ display:"inline-flex", gap:"5px" }}><span>Entrada puerto zona sur</span><MS name="east" size={16} color="#f0abfc" /></div>
                 </div>
               </div>
 
@@ -24289,33 +24344,43 @@ function NoticiasTab({ isAdmin }) {
   const isComunicadoAprobado = (value) =>
     value === true || value === "true" || value === 1 || value === "1";
 
-  const cargarNoticias = useCallback(() => {
+  const cargarNoticias = useCallback(async () => {
     setLoading(true);
-    return sb.from("noticias").select("*").order("created_at", { ascending: false }).limit(150)
-      .then(({ data, error }) => {
-        if (error) console.error("Error cargando noticias:", error);
-        if (data) setNoticias(data);
-        setLoading(false);
-      });
+    try {
+      const { data, error } = await sb.from("noticias").select("*").order("created_at", { ascending:false }).limit(150);
+      if (error) throw error;
+      setNoticias(Array.isArray(data) ? data : []);
+      return { ok:true };
+    } catch (error) {
+      setNoticias(prev => Array.isArray(prev) ? prev : []);
+      return { ok:false, error };
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const cargarComunicados = useCallback(() => {
-    sb.from("comunicados")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100)
-      .then(async ({ data, error }) => {
-        if (error) console.error("Error cargando comunicados:", error);
-        if (data) {
-          const aprobados = data.filter(c => isComunicadoAprobado(c.aprobado));
-          setComunicados(aprobados);
-          // Sincronización idempotente hacia Noticias.
-          for (const c of aprobados.slice(0, 25)) {
-            const n = await syncComunicadoToNoticia(c, { processMedia: false });
-            if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
-          }
-        }
+  const cargarComunicados = useCallback(async () => {
+    try {
+      const { data, error } = await sb.from("comunicados")
+        .select("*")
+        .order("created_at", { ascending:false })
+        .limit(100);
+      if (error) throw error;
+
+      const aprobados = (Array.isArray(data) ? data : []).filter(c => isComunicadoAprobado(c.aprobado));
+      setComunicados(aprobados);
+      const syncResults = await Promise.allSettled(
+        aprobados.slice(0, 25).map(c => syncComunicadoToNoticia(c, { processMedia:false }))
+      );
+      syncResults.forEach(result => {
+        const n = result.status === "fulfilled" ? result.value : null;
+        if (n) setNoticias(prev => prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 120));
       });
+      return { ok:true };
+    } catch (error) {
+      setComunicados(prev => Array.isArray(prev) ? prev : []);
+      return { ok:false, error };
+    }
   }, []);
 
   useEffect(() => {
@@ -37799,7 +37864,7 @@ function App() {
         {active === "trafico"    && <TraficoTab    myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "reporte"    && <ReporteTab    myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActive} isAdmin={isAdmin} />}
         {active === "terminales" && <TerminalesPatiosTab myId={myId} isAdmin={isAdmin} subAdmin={subAdmin} />}
-        {active === "segundo"    && <SegundoAccesoTab myId={myId} isAdmin={isAdmin} />}
+        {active === "segundo"    && <SegundoAccesoTab key="confinados" myId={myId} isAdmin={isAdmin} />}
         {active === "accesos"    && <AccesosTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={isAdmin} />}
         {active === "noticias"   && <NoticiasTab isAdmin={isAdmin} />}
         {active === "donativos"  && <PosturasTab authUser={authUser} myId={myId} setActive={setActive} isAdmin={isAdmin} onLogin={() => setAuthQuickMode("login")} onRegister={() => setAuthQuickMode("registro")} />}
