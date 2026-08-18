@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, LayersControl, LayerGroup, Polygon, Polyline, Tooltip, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip } from "recharts";
 
 if (typeof window !== "undefined" && !window.L) window.L = L;
 
@@ -9349,7 +9350,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
   const [rutasFiscales, setRutasFiscales] = useState(null);
   const [toast, setToast] = useState(null);
   const [modoAutomatico, setModoAutomaticoState] = useState({ activo: false, updatedBy: null, updatedAt: null });
-  const [togglingModo, setTogglingModo] = useState(false);
   const trafficWriteLocksRef = useRef(new Set());
   const beginTrafficWrite = (key) => {
     if (trafficWriteLocksRef.current.has(key)) { notify("Actualización en curso. Espera a que termine.", "#f97316"); return false; }
@@ -9485,20 +9485,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
       }).subscribe();
     return () => sb.removeChannel(chan);
   }, []);
-
-  const toggleModoAutomatico = async () => {
-    if (!isAdmin || togglingModo) return;
-    setTogglingModo(true);
-    const nuevoValor = !modoAutomatico.activo;
-    const ok = await setModoAutomatico(nuevoValor, "Admin");
-    setTogglingModo(false);
-    if (ok) {
-      setModoAutomaticoState({ activo: nuevoValor, updatedBy: "Admin", updatedAt: new Date().toISOString() });
-      notify(nuevoValor ? "Modo automático (TomTom) activado — sincronizando…" : "Modo manual restaurado", nuevoValor ? "#38bdf8" : "#22c55e");
-    } else {
-      notify("No se pudo cambiar el modo. Intenta de nuevo.", "#ef4444");
-    }
-  };
 
   // Durante el modo automático, los votos de usuarios se validan en backend antes de aplicarse.
   // El admin conserva la opción de forzar un cambio manual en cualquier momento.
@@ -9650,40 +9636,6 @@ function TraficoTab({ myId, incidents, setIncidents, isAdmin, defaultSection = n
         </div>
         <div className="cm-command-live">EN VIVO</div>
       </div>
-
-      {isAdmin && (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px",
-          margin: "10px 0", padding: "10px 12px", borderRadius: "10px",
-          background: modoAutomatico.activo ? "rgba(56,189,248,0.08)" : "rgba(148,163,184,0.06)",
-          border: `1px solid ${modoAutomatico.activo ? "rgba(56,189,248,0.35)" : "rgba(148,163,184,0.2)"}`,
-        }}>
-          <div>
-            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "12px", fontWeight: 800, color: modoAutomatico.activo ? "#38bdf8" : "rgba(212,228,250,.78)" }}>
-              {modoAutomatico.activo ? "Modo automático activo (TomTom)" : "Modo manual (votos de usuarios)"}
-            </div>
-            <div style={{ fontFamily: getFont(theme, "secondary"), fontSize: "10px", color: "rgba(148,163,184,.75)", marginTop: "2px" }}>
-              {modoAutomatico.activo
-                ? "El estatus de accesos, vialidades y rutas se actualiza vía TomTom Traffic API. Puedes seguir forzando cambios manuales como admin."
-                : "Método de prueba: activa para que TomTom actualice el estatus automáticamente."}
-            </div>
-          </div>
-          <button
-            onClick={toggleModoAutomatico}
-            disabled={togglingModo}
-            style={{
-              flexShrink: 0, padding: "9px 14px", borderRadius: "8px",
-              border: `1px solid ${modoAutomatico.activo ? "#ef4444" : "#38bdf8"}`,
-              background: modoAutomatico.activo ? "rgba(239,68,68,.12)" : "rgba(56,189,248,.12)",
-              color: modoAutomatico.activo ? "#ef4444" : "#38bdf8",
-              fontFamily: getFont(theme, "secondary"), fontSize: "11px", fontWeight: 800,
-              cursor: togglingModo ? "wait" : "pointer",
-            }}
-          >
-            {togglingModo ? "Aplicando…" : modoAutomatico.activo ? "Volver a modo manual" : "Activar monitoreo automático"}
-          </button>
-        </div>
-      )}
 
       <div key={`map-${activeView}`} className="cm-active-map-slot">
         {renderActiveMap()}
@@ -37300,6 +37252,736 @@ function AdminImageToolsModule({ onBack }) {
 
 function AdminServiciosMetrics(){const [data,setData]=useState({food:[],moves:[],requests:[]}),[loading,setLoading]=useState(true);useEffect(()=>{(async()=>{setLoading(true);const [{data:food},{data:moves},{data:requests}]=await Promise.all([sb.from("servicios_comida").select("id,precio_gasolina_km"),sb.from("servicios_maniobras").select("id,precio_por_doc,precio_gasolina_km"),sb.from("solicitudes_maniobras").select("id,costo_total,distancia_km,lat_destino,lng_destino,created_at")]);setData({food:food||[],moves:moves||[],requests:requests||[]});setLoading(false)})()},[]);const avg=(a,k)=>a.length?a.reduce((t,x)=>t+Number(x[k]||0),0)/a.length:0;const totalServices=data.food.length+data.moves.length;return <div style={{display:"grid",gap:18}}><div className="csp-overview"><article className="csp-glass csp-metric"><h3>Servicios avanzados activos</h3><strong>{loading?"…":totalServices}</strong><small>Comida: {data.food.length} · Maniobras: {data.moves.length}</small></article><article className="csp-glass csp-metric"><h3>Tarifa promedio comida / km</h3><strong>{cmMoney(avg(data.food,"precio_gasolina_km"))}</strong><small>Tarifa de ruta registrada y acotada por vehículo</small></article><article className="csp-glass csp-metric"><h3>Maniobra promedio / documento</h3><strong>{cmMoney(avg(data.moves,"precio_por_doc"))}</strong><small>{data.requests.length} solicitudes registradas</small></article></div><section className="csp-glass" style={{padding:18}}><h3 style={{marginTop:0}}>Actividad de rutas</h3><div style={{display:"grid",gap:8}}>{data.requests.slice(0,12).map(r=><div key={r.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(159,202,255,.12)"}}><span>{new Date(r.created_at).toLocaleString("es-MX")}</span><b>{Number(r.distancia_km||0).toFixed(2)} km · {cmMoney(r.costo_total)}</b></div>)}</div></section></div>}
 
+// ─── ADMIN: MONITOREO DE TRÁFICO TOMTOM ─────────────────────────────────────
+const TRAFFIC_MONITOR_SYNC_FUNCTION = "tomtom-traffic-sync";
+const TRAFFIC_MONITOR_HISTORY_HOURS = 24;
+const TRAFFIC_MONITOR_CHART_HOURS = 3;
+const TRAFFIC_MONITOR_DECISION_LIMIT = 1200;
+const TRAFFIC_MONITOR_OBSERVATION_LIMIT = 4000;
+const TRAFFIC_MONITOR_SECTION_LABELS = {
+  accesos: "Accesos",
+  segundo: "Segundo Acceso",
+  terminales: "Terminales",
+};
+
+const normalizeTrafficMonitorSection = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (["terminal", "terminals", "terminales"].includes(raw)) return "terminales";
+  if (["segundo", "segundo_acceso", "segundo acceso", "2do", "2do_acceso"].includes(raw)) return "segundo";
+  if (["acceso", "accesos"].includes(raw)) return "accesos";
+  return raw;
+};
+
+const trafficMonitorKey = (section, itemId) => `${normalizeTrafficMonitorSection(section)}:${String(itemId || "").trim().toLowerCase()}`;
+
+const trafficMonitorStatusColor = (status) => {
+  const value = String(status || "sin_datos").trim().toLowerCase();
+  if (value === "libre") return "#22c55e";
+  if (value === "lento" || value === "moderado") return "#fbbf24";
+  if (value === "saturado") return "#f97316";
+  if (value === "detenido" || value === "cerrado") return "#ef4444";
+  if (value === "llena" || value === "lleno") return "#a855f7";
+  if (value === "retorno_terminal") return "#f97316";
+  if (value === "retorno_asipona") return "#8b5cf6";
+  return "#64748b";
+};
+
+const trafficMonitorRatioNumber = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const trafficMonitorRatioColor = (value) => {
+  const ratio = trafficMonitorRatioNumber(value);
+  if (ratio === null) return "#64748b";
+  const normalized = Math.max(0, Math.min(1, ratio));
+  const hue = Math.round(normalized * 120);
+  return `hsl(${hue} 88% 48%)`;
+};
+
+const trafficMonitorColor = (status, ratio, mode) => mode === "ratio"
+  ? trafficMonitorRatioColor(ratio)
+  : trafficMonitorStatusColor(status);
+
+const trafficMonitorFormatDate = (value) => {
+  const ms = toMs(value);
+  if (!ms) return "Sin dato";
+  try {
+    return new Date(ms).toLocaleString("es-MX", { dateStyle:"short", timeStyle:"medium" });
+  } catch {
+    return new Date(ms).toLocaleString("es-MX");
+  }
+};
+
+const trafficMonitorFormatConfidence = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "Sin dato";
+  const pct = n <= 1 ? n * 100 : n;
+  return `${Math.max(0, Math.min(100, pct)).toFixed(0)}%`;
+};
+
+const trafficMonitorFormatRatio = (value) => {
+  const n = trafficMonitorRatioNumber(value);
+  return n === null ? "Sin dato" : n.toFixed(3);
+};
+
+const trafficMonitorIsMultiAI = (model) => /multi\s*[-_]?\s*ia/i.test(String(model || ""));
+
+const trafficMonitorPointIsValid = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+
+const trafficMonitorExtractCoordinates = (value, contextKey = "", depth = 0, output = []) => {
+  if (value == null || depth > 9 || output.length >= 64) return output;
+
+  if (Array.isArray(value)) {
+    const keyLooksGeographic = /(coord|point|path|poly|line|geometry|route|sample|trace|track)/i.test(contextKey);
+    if (keyLooksGeographic && value.length >= 2 && typeof value[0] !== "object" && typeof value[1] !== "object") {
+      const lat = Number(value[0]);
+      const lng = Number(value[1]);
+      if (trafficMonitorPointIsValid(lat, lng)) output.push([lat, lng]);
+    }
+    value.forEach(item => trafficMonitorExtractCoordinates(item, contextKey, depth + 1, output));
+    return output;
+  }
+
+  if (typeof value !== "object") return output;
+
+  const lat = Number(value.lat ?? value.latitude);
+  const lng = Number(value.lng ?? value.lon ?? value.longitude);
+  if (trafficMonitorPointIsValid(lat, lng)) output.push([lat, lng]);
+
+  Object.entries(value).forEach(([key, nested]) => {
+    trafficMonitorExtractCoordinates(nested, key, depth + 1, output);
+  });
+  return output;
+};
+
+const trafficMonitorCompactPolyline = (...sources) => {
+  const collected = [];
+  sources.forEach(source => trafficMonitorExtractCoordinates(source, "geometry", 0, collected));
+  const unique = [];
+  const seen = new Set();
+  collected.forEach(([lat, lng]) => {
+    const key = `${lat.toFixed(7)},${lng.toFixed(7)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push([lat, lng]);
+    }
+  });
+  if (unique.length <= 3) return unique;
+  return [unique[0], unique[Math.floor((unique.length - 1) / 2)], unique[unique.length - 1]];
+};
+
+const trafficMonitorBearing = (points = []) => {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  const [lat1, lon1] = points[0];
+  const [lat2, lon2] = points[points.length - 1];
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const delta = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(delta) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(delta);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+};
+
+const trafficMonitorMarkerIcon = (color, kind = "place") => L.divIcon({
+  className: "cm-traffic-monitor-marker-host",
+  html: `<span class="cm-traffic-monitor-marker" style="--tm-color:${String(color || "#64748b")}"><span class="material-symbols-outlined">${kind === "terminal" ? "warehouse" : "location_on"}</span></span>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 30],
+  popupAnchor: [0, -28],
+});
+
+const trafficMonitorDirectionIcon = (color, bearing) => L.divIcon({
+  className: "cm-traffic-monitor-direction-host",
+  html: `<span class="cm-traffic-monitor-direction" style="--tm-color:${String(color || "#38bdf8")};--tm-bearing:${Number(bearing || 0)}deg"><span class="material-symbols-outlined">arrow_upward</span></span>`,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
+
+function TrafficMonitorPopup({ target, observation, decision }) {
+  const status = target?.status || "sin_datos";
+  return (
+    <div className="tm-popup">
+      <div className="tm-popup__title">{target?.name || target?.id || "Target"}</div>
+      <div className="tm-popup__status"><span style={{ background:trafficMonitorStatusColor(status) }} />{String(status).replaceAll("_", " ")}</div>
+      <dl>
+        <div><dt>Ratio congestión</dt><dd>{trafficMonitorFormatRatio(observation?.congestion_ratio)}</dd></div>
+        <div><dt>Velocidad</dt><dd>{Number.isFinite(Number(observation?.current_speed_kmh)) ? `${Number(observation.current_speed_kmh).toFixed(1)} km/h` : "Sin dato"}</dd></div>
+        <div><dt>Flujo libre</dt><dd>{Number.isFinite(Number(observation?.free_flow_speed_kmh)) ? `${Number(observation.free_flow_speed_kmh).toFixed(1)} km/h` : "Sin dato"}</dd></div>
+        <div><dt>Confianza TomTom</dt><dd>{trafficMonitorFormatConfidence(observation?.confidence)}</dd></div>
+        <div><dt>Modelo decisión</dt><dd>{decision?.model || "Sin decisión reciente"}</dd></div>
+        <div><dt>Razón</dt><dd>{decision?.reason || "Sin razón registrada"}</dd></div>
+        <div><dt>Última actualización</dt><dd>{trafficMonitorFormatDate(observation?.observed_at || decision?.created_at)}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
+function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
+  const theme = React.useContext(ThemeContext);
+  const [observations, setObservations] = useState([]);
+  const [decisions, setDecisions] = useState([]);
+  const [accessRows, setAccessRows] = useState({});
+  const [terminalRows, setTerminalRows] = useState({});
+  const [routeRows, setRouteRows] = useState({});
+  const [patioRows, setPatioRows] = useState({});
+  const [segundoData, setSegundoData] = useState({});
+  const [modoAutomatico, setModoAutomaticoState] = useState({ activo:false, updatedBy:null, updatedAt:null });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [realtimeStatus, setRealtimeStatus] = useState("CONNECTING");
+  const [colorMode, setColorMode] = useState("status");
+  const [freshnessMinutes, setFreshnessMinutes] = useState(20);
+  const [sectionFilter, setSectionFilter] = useState("all");
+  const [targetFilter, setTargetFilter] = useState("all");
+  const [chartTargetKey, setChartTargetKey] = useState("accesos:pezvela");
+  const [runBusy, setRunBusy] = useState(false);
+  const [runResult, setRunResult] = useState(null);
+  const [toggleBusy, setToggleBusy] = useState(false);
+  const [controlMessage, setControlMessage] = useState(null);
+
+  const loadMonitorData = useCallback(async ({ silent = false } = {}) => {
+    if (!isAdmin) return;
+    if (!silent) setLoading(true);
+    setLoadError("");
+    const historySince = new Date(Date.now() - TRAFFIC_MONITOR_HISTORY_HOURS * 3600000).toISOString();
+    try {
+      const [observationResult, decisionResult] = await Promise.all([
+        sb.from("traffic_observations")
+          .select("section,item_id,current_speed_kmh,free_flow_speed_kmh,current_travel_time_sec,free_flow_travel_time_sec,confidence,road_closure,congestion_ratio,raw,observed_at")
+          .gte("observed_at", historySince)
+          .order("observed_at", { ascending:false })
+          .limit(TRAFFIC_MONITOR_OBSERVATION_LIMIT),
+        sb.from("traffic_ai_decisions")
+          .select("section,item_id,previous_status,decided_status,confidence,reason,evidence,model,guardrail_applied,created_at")
+          .gte("created_at", historySince)
+          .order("created_at", { ascending:false })
+          .limit(TRAFFIC_MONITOR_DECISION_LIMIT),
+      ]);
+      if (observationResult.error) throw observationResult.error;
+      if (decisionResult.error) throw decisionResult.error;
+      setObservations(observationResult.data || []);
+      setDecisions(decisionResult.data || []);
+
+      const [accessResult, terminalResult, carrilesResult, routeResult, patioResult, modeResult] = await Promise.all([
+        sb.from("accesos").select("*"),
+        sb.from("terminals").select("*"),
+        sb.from("carriles").select("id,data").eq("id", "segundo_acceso").maybeSingle(),
+        sb.from("rutas_fiscales").select("*"),
+        sb.from("patios").select("*"),
+        getModoAutomatico(),
+      ]);
+      const hardErrors = [accessResult.error, terminalResult.error, carrilesResult.error].filter(Boolean);
+      if (hardErrors.length) throw hardErrors[0];
+      setAccessRows(Object.fromEntries((accessResult.data || []).map(row => [row.id, row])));
+      setTerminalRows(Object.fromEntries((terminalResult.data || []).map(row => [row.id, row])));
+      setSegundoData(carrilesResult.data?.data && typeof carrilesResult.data.data === "object" ? carrilesResult.data.data : {});
+      setRouteRows(Object.fromEntries((routeResult.data || []).map(row => [row.id, row])));
+      setPatioRows(Object.fromEntries((patioResult.data || []).map(row => [row.id, row])));
+      setModoAutomaticoState(modeResult || { activo:false, updatedBy:null, updatedAt:null });
+    } catch (error) {
+      console.warn("[Monitoreo Tráfico] no se pudo cargar", error);
+      setLoadError(error?.message || "No se pudo cargar el monitoreo de tráfico.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    let alive = true;
+    loadMonitorData();
+
+    const prependObservation = (row) => {
+      if (!alive || !row?.section || !row?.item_id) return;
+      setObservations(prev => {
+        const identity = `${row.section}|${row.item_id}|${row.observed_at || ""}`;
+        const next = [row, ...prev.filter(item => `${item.section}|${item.item_id}|${item.observed_at || ""}` !== identity)];
+        return next.slice(0, TRAFFIC_MONITOR_OBSERVATION_LIMIT);
+      });
+    };
+    const prependDecision = (row) => {
+      if (!alive || !row?.section || !row?.item_id) return;
+      setDecisions(prev => {
+        const identity = `${row.section}|${row.item_id}|${row.created_at || ""}|${row.model || ""}`;
+        const next = [row, ...prev.filter(item => `${item.section}|${item.item_id}|${item.created_at || ""}|${item.model || ""}` !== identity)];
+        return next.slice(0, TRAFFIC_MONITOR_DECISION_LIMIT);
+      });
+    };
+
+    const channel = sb.channel(`admin-traffic-monitor-${authUser?.id || "admin"}`)
+      .on("postgres_changes", { event:"*", schema:"public", table:"traffic_observations" }, payload => {
+        if (payload.eventType !== "DELETE") prependObservation(payload.new);
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"traffic_ai_decisions" }, payload => {
+        if (payload.eventType !== "DELETE") prependDecision(payload.new);
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"accesos" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setAccessRows(prev => {
+          if (payload.eventType === "DELETE") { const next = { ...prev }; delete next[row.id]; return next; }
+          return { ...prev, [row.id]:row };
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"terminals" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setTerminalRows(prev => {
+          if (payload.eventType === "DELETE") { const next = { ...prev }; delete next[row.id]; return next; }
+          return { ...prev, [row.id]:row };
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"carriles", filter:"id=eq.segundo_acceso" }, payload => {
+        if (payload.eventType === "DELETE") { setSegundoData({}); return; }
+        if (payload.new?.id === "segundo_acceso") setSegundoData(payload.new?.data && typeof payload.new.data === "object" ? payload.new.data : {});
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"rutas_fiscales" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setRouteRows(prev => {
+          if (payload.eventType === "DELETE") { const next = { ...prev }; delete next[row.id]; return next; }
+          return { ...prev, [row.id]:row };
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"patios" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setPatioRows(prev => {
+          if (payload.eventType === "DELETE") { const next = { ...prev }; delete next[row.id]; return next; }
+          return { ...prev, [row.id]:row };
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:CONFIG_TABLE, filter:`clave=eq.${CONFIG_KEY_MODO_AUTOMATICO}` }, payload => {
+        if (payload.eventType === "DELETE") {
+          setModoAutomaticoState({ activo:false, updatedBy:null, updatedAt:null });
+          return;
+        }
+        const row = payload.new || {};
+        setModoAutomaticoState({ activo:!!row.valor?.activo, updatedBy:row.valor?.updatedBy || null, updatedAt:row.updated_at || null });
+      })
+      .subscribe(status => { if (alive) setRealtimeStatus(status); });
+
+    return () => {
+      alive = false;
+      sb.removeChannel(channel);
+    };
+  }, [isAdmin, authUser?.id, loadMonitorData]);
+
+  const latestObservationByKey = useMemo(() => {
+    const map = {};
+    observations.forEach(row => {
+      const key = trafficMonitorKey(row.section, row.item_id);
+      if (!map[key] || toMs(row.observed_at) > toMs(map[key].observed_at)) map[key] = row;
+    });
+    return map;
+  }, [observations]);
+
+  const latestDecisionByKey = useMemo(() => {
+    const map = {};
+    decisions.forEach(row => {
+      const key = trafficMonitorKey(row.section, row.item_id);
+      if (!map[key] || toMs(row.created_at) > toMs(map[key].created_at)) map[key] = row;
+    });
+    return map;
+  }, [decisions]);
+
+  const accessTargets = useMemo(() => RUTA_FISCAL_REFERENCIAS
+    .filter(ref => ref.tipo === "acceso")
+    .map(ref => {
+      const id = MASTER_REFERENCE_TO_ACCESO_ID[ref.id];
+      if (!id) return null;
+      const row = accessRows[id] || {};
+      return { section:"accesos", id, name:ACCESOS_PRINCIPALES.find(item => item.id === id)?.label || ref.name || id, coords:ref.coords, status:row.status || "sin_datos", kind:"access" };
+    }).filter(Boolean), [accessRows]);
+
+  const terminalTargets = useMemo(() => RUTA_FISCAL_REFERENCIAS
+    .filter(ref => ref.tipo === "terminal")
+    .map(ref => {
+      const id = MASTER_REFERENCE_TO_TERMINAL_ID[ref.id];
+      if (!id) return null;
+      const row = terminalRows[id] || {};
+      return { section:"terminales", id, name:TODAS_TERMINALES.find(item => item.id === id)?.name || ref.name || id, coords:ref.coords, status:row.status || "sin_datos", kind:"terminal" };
+    }).filter(Boolean), [terminalRows]);
+
+  const secondTargets = useMemo(() => SEGUNDO_REPORTE_CARRILES.map(def => {
+    const lane = segundoData?.[def.id] && typeof segundoData[def.id] === "object" ? segundoData[def.id] : {};
+    const observation = latestObservationByKey[trafficMonitorKey("segundo", def.id)];
+    const coords = trafficMonitorCompactPolyline(lane.trafficEvidence, observation?.raw);
+    return { section:"segundo", id:def.id, name:`Segundo Acceso · ${def.label}`, coords, status:lane.estado_carril || (lane.saturado ? "saturado" : "sin_datos"), kind:"lane", lane };
+  }), [segundoData, latestObservationByKey]);
+
+  const primaryTargets = useMemo(() => [...accessTargets, ...secondTargets, ...terminalTargets], [accessTargets, secondTargets, terminalTargets]);
+  const targetByKey = useMemo(() => Object.fromEntries(primaryTargets.map(target => [trafficMonitorKey(target.section, target.id), target])), [primaryTargets]);
+
+  useEffect(() => {
+    if (targetByKey[chartTargetKey]) return;
+    const firstKey = Object.keys(targetByKey)[0];
+    if (firstKey) setChartTargetKey(firstKey);
+  }, [targetByKey, chartTargetKey]);
+
+  useEffect(() => {
+    if (targetFilter === "all") return;
+    if (targetByKey[targetFilter] && (sectionFilter === "all" || targetByKey[targetFilter].section === sectionFilter)) return;
+    setTargetFilter("all");
+  }, [sectionFilter, targetFilter, targetByKey]);
+
+  const visibleDecisions = useMemo(() => decisions.filter(row => {
+    const section = normalizeTrafficMonitorSection(row.section);
+    if (!TRAFFIC_MONITOR_SECTION_LABELS[section]) return false;
+    if (sectionFilter !== "all" && section !== sectionFilter) return false;
+    if (targetFilter !== "all" && trafficMonitorKey(section, row.item_id) !== targetFilter) return false;
+    return true;
+  }).slice(0, 120), [decisions, sectionFilter, targetFilter]);
+
+  const chartData = useMemo(() => {
+    const cutoff = Date.now() - TRAFFIC_MONITOR_CHART_HOURS * 3600000;
+    return observations
+      .filter(row => trafficMonitorKey(row.section, row.item_id) === chartTargetKey && toMs(row.observed_at) >= cutoff)
+      .sort((a, b) => toMs(a.observed_at) - toMs(b.observed_at))
+      .map(row => ({
+        timestamp:toMs(row.observed_at),
+        time:new Date(toMs(row.observed_at)).toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }),
+        ratio:trafficMonitorRatioNumber(row.congestion_ratio),
+        speed:Number.isFinite(Number(row.current_speed_kmh)) ? Number(row.current_speed_kmh) : null,
+      }))
+      .filter(row => row.ratio !== null);
+  }, [observations, chartTargetKey]);
+
+  const freshness = useMemo(() => {
+    const thresholdMs = freshnessMinutes * 60000;
+    return primaryTargets.map(target => {
+      const key = trafficMonitorKey(target.section, target.id);
+      const observation = latestObservationByKey[key];
+      const observedAt = toMs(observation?.observed_at);
+      const ageMs = observedAt ? Date.now() - observedAt : Infinity;
+      return { ...target, key, observation, observedAt, ageMs, stale:!observedAt || ageMs > thresholdMs };
+    });
+  }, [primaryTargets, latestObservationByKey, freshnessMinutes]);
+
+  const staleTargets = useMemo(() => freshness.filter(item => item.stale), [freshness]);
+  const freshTargets = freshness.length - staleTargets.length;
+
+  const runSummary = useMemo(() => {
+    const ordered = decisions.filter(row => TRAFFIC_MONITOR_SECTION_LABELS[normalizeTrafficMonitorSection(row.section)]).sort((a, b) => toMs(b.created_at) - toMs(a.created_at));
+    const latestMs = toMs(ordered[0]?.created_at);
+    const batch = latestMs ? ordered.filter(row => latestMs - toMs(row.created_at) <= 5 * 60000) : [];
+    const ai = batch.filter(row => trafficMonitorIsMultiAI(row.model)).length;
+    const deterministic = batch.length - ai;
+    const cutoff24h = Date.now() - 24 * 3600000;
+    const last24h = ordered.filter(row => toMs(row.created_at) >= cutoff24h);
+    const ai24h = last24h.filter(row => trafficMonitorIsMultiAI(row.model)).length;
+    return {
+      latestMs,
+      batchTotal:batch.length,
+      ai,
+      deterministic,
+      ai24h,
+      total24h:last24h.length,
+      aiRate:last24h.length ? (ai24h / last24h.length) * 100 : 0,
+    };
+  }, [decisions]);
+
+  const handleToggleAutomatic = async () => {
+    if (!isAdmin || toggleBusy) return;
+    setToggleBusy(true);
+    setControlMessage(null);
+    const next = !modoAutomatico.activo;
+    try {
+      const ok = await setModoAutomatico(next, authUser?.email || "Admin");
+      if (!ok) throw new Error("Supabase rechazó la actualización de config_sistema.");
+      setModoAutomaticoState(prev => ({ ...prev, activo:next, updatedBy:authUser?.email || "Admin", updatedAt:new Date().toISOString() }));
+      setControlMessage({ type:"ok", text:next ? "Modo automático activo (TomTom)." : "Modo manual restaurado." });
+    } catch (error) {
+      setControlMessage({ type:"error", text:error?.message || "No se pudo cambiar el modo automático." });
+    } finally {
+      setToggleBusy(false);
+    }
+  };
+
+  const handleRunNow = async () => {
+    if (!isAdmin || runBusy) return;
+    setRunBusy(true);
+    setRunResult(null);
+    setControlMessage(null);
+    try {
+      const { data, error } = await sb.functions.invoke(TRAFFIC_MONITOR_SYNC_FUNCTION, {
+        body:{ trigger:"admin_monitoring_manual", requestedAt:new Date().toISOString() },
+      });
+      if (error) throw error;
+      const meta = data?.meta || {};
+      setRunResult({
+        ok:true,
+        total:Number(meta.total || 0),
+        successful:Number(meta.ok || 0),
+        failed:Number(meta.failed || 0),
+        aiInvoked:Number(meta.aiInvoked || 0),
+        finishedAt:new Date().toISOString(),
+      });
+      await loadMonitorData({ silent:true });
+    } catch (error) {
+      setRunResult({ ok:false, error:error?.message || "La Edge Function no pudo ejecutarse.", finishedAt:new Date().toISOString() });
+    } finally {
+      setRunBusy(false);
+    }
+  };
+
+  if (!isAdmin) return null;
+
+  const realtimeLive = realtimeStatus === "SUBSCRIBED";
+  const selectedChartTarget = targetByKey[chartTargetKey] || null;
+  const missingSecondGeometry = secondTargets.filter(target => !Array.isArray(target.coords) || target.coords.length < 2);
+
+  return (
+    <div className="tm-shell">
+      <style>{`
+        .tm-shell{font-family:'DM Sans',sans-serif;color:#eaf3ff;display:grid;gap:18px;min-width:0}.tm-shell *{box-sizing:border-box}.tm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}.tm-kicker{font:800 10px/1.2 'Space Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:#67e8f9}.tm-head h2{margin:7px 0 5px;font:800 clamp(24px,3vw,34px)/1.08 'Space Mono',monospace;color:#f8fbff}.tm-head p{margin:0;max-width:780px;color:#91a4bd;font-size:13px;line-height:1.55}.tm-live{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 11px;border:1px solid rgba(34,197,94,.34);border-radius:999px;background:rgba(34,197,94,.08);color:#86efac;font:900 10px/1 'Space Mono',monospace;letter-spacing:.08em}.tm-live i{width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 12px currentColor;animation:tmPulse 1.6s ease-in-out infinite}.tm-live.is-off{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08);color:#fbbf24}.tm-card{border:1px solid rgba(148,163,184,.16);border-radius:18px;background:linear-gradient(160deg,rgba(13,27,48,.88),rgba(6,16,31,.92));box-shadow:0 20px 54px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.035);overflow:hidden}.tm-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:16px 18px}.tm-control__state{display:flex;align-items:flex-start;gap:12px}.tm-control__icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:12px;border:1px solid rgba(56,189,248,.24);background:rgba(56,189,248,.08);color:#67e8f9}.tm-control__copy strong{display:block;color:#fff;font:800 14px/1.3 'Space Mono',monospace}.tm-control__copy small{display:block;margin-top:5px;color:#91a4bd;font-size:11px;line-height:1.45}.tm-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}.tm-btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;padding:10px 14px;border:1px solid rgba(56,189,248,.32);background:rgba(56,189,248,.09);color:#9edfff;font:900 11px/1 'DM Sans',sans-serif;cursor:pointer;transition:.18s ease}.tm-btn:hover{transform:translateY(-1px);border-color:#67e8f9;background:rgba(56,189,248,.15)}.tm-btn:disabled{opacity:.48;cursor:wait;transform:none}.tm-btn.is-danger{border-color:rgba(248,113,113,.38);background:rgba(239,68,68,.08);color:#fca5a5}.tm-btn.is-primary{border-color:rgba(34,197,94,.38);background:rgba(34,197,94,.08);color:#86efac}.tm-control-msg{grid-column:1/-1;padding:10px 12px;border-radius:10px;font-size:11px;font-weight:800}.tm-control-msg.ok{border:1px solid rgba(34,197,94,.28);background:rgba(34,197,94,.07);color:#86efac}.tm-control-msg.error{border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#fca5a5}.tm-run-result{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.tm-run-result div{padding:10px;border-radius:11px;background:rgba(2,8,23,.42);border:1px solid rgba(148,163,184,.12);text-align:center}.tm-run-result strong{display:block;font:900 18px/1 'Space Mono',monospace;color:#f8fbff}.tm-run-result span{display:block;margin-top:5px;color:#7f93ad;font-size:9px;text-transform:uppercase;letter-spacing:.08em}.tm-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.75fr);gap:18px;align-items:stretch}.tm-map-card{min-height:560px;position:relative}.tm-map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:13px 14px;border-bottom:1px solid rgba(148,163,184,.12)}.tm-map-toolbar strong{font:800 12px/1 'Space Mono',monospace}.tm-segment{display:inline-flex;gap:4px;padding:4px;border:1px solid rgba(148,163,184,.14);border-radius:11px;background:rgba(2,8,23,.38)}.tm-segment button{border:0;border-radius:8px;background:transparent;color:#8092a9;padding:8px 10px;font:800 10px/1 'DM Sans',sans-serif;cursor:pointer}.tm-segment button.is-active{background:rgba(56,189,248,.15);color:#8edcff;box-shadow:inset 0 0 0 1px rgba(56,189,248,.2)}.tm-map{height:510px;width:100%;background:#06111f}.tm-map .leaflet-tile-pane{filter:invert(.9) hue-rotate(178deg) brightness(.62) saturate(.72) contrast(1.12)}.tm-map .leaflet-control-layers,.tm-map .leaflet-control-zoom a{background:rgba(5,16,30,.92)!important;color:#dcecff!important;border-color:rgba(148,163,184,.18)!important}.tm-map .leaflet-control-layers-expanded{font-family:'DM Sans',sans-serif;font-size:11px}.tm-map .leaflet-popup-content-wrapper,.tm-map .leaflet-popup-tip{background:#091827;color:#eaf3ff}.tm-map .leaflet-popup-content{margin:12px 14px}.cm-traffic-monitor-marker-host,.cm-traffic-monitor-direction-host{background:transparent!important;border:0!important}.cm-traffic-monitor-marker{width:34px;height:34px;display:grid;place-items:center;border-radius:999px;background:rgba(3,10,20,.94);border:2px solid var(--tm-color);color:var(--tm-color);box-shadow:0 0 0 3px rgba(3,10,20,.8),0 0 18px var(--tm-color)}.cm-traffic-monitor-marker .material-symbols-outlined{font-size:18px;line-height:1}.cm-traffic-monitor-direction{width:28px;height:28px;display:grid;place-items:center;border-radius:999px;background:rgba(3,10,20,.92);border:1px solid var(--tm-color);color:var(--tm-color);box-shadow:0 0 12px rgba(0,0,0,.55)}.cm-traffic-monitor-direction .material-symbols-outlined{font-size:18px;line-height:1;transform:rotate(var(--tm-bearing));transform-origin:center}.tm-popup{min-width:220px;font-family:'DM Sans',sans-serif}.tm-popup__title{font:900 13px/1.3 'Space Mono',monospace;color:#fff}.tm-popup__status{display:flex;align-items:center;gap:7px;margin:7px 0 9px;text-transform:uppercase;font-size:10px;font-weight:900;color:#c7d7e8}.tm-popup__status span{width:8px;height:8px;border-radius:999px;box-shadow:0 0 10px currentColor}.tm-popup dl{display:grid;gap:6px;margin:0}.tm-popup dl div{display:grid;grid-template-columns:1fr 1.2fr;gap:9px;border-top:1px solid rgba(148,163,184,.12);padding-top:6px}.tm-popup dt{color:#7890aa;font-size:9px;font-weight:800}.tm-popup dd{margin:0;color:#e7f2ff;font-size:9px;font-weight:700;text-align:right;overflow-wrap:anywhere}.tm-side{display:grid;gap:12px;align-content:start}.tm-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px}.tm-summary{padding:13px;border:1px solid rgba(148,163,184,.12);border-radius:13px;background:rgba(2,8,23,.34)}.tm-summary span{display:block;color:#7890aa;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.tm-summary strong{display:block;margin-top:7px;color:#f8fbff;font:900 22px/1 'Space Mono',monospace}.tm-summary small{display:block;margin-top:6px;color:#8da0b6;font-size:9px;line-height:1.35}.tm-side-title{padding:13px 14px 0;font:800 11px/1 'Space Mono',monospace;color:#dcecff}.tm-stale-list{max-height:180px;overflow:auto;padding:10px 14px 14px;display:grid;gap:6px}.tm-stale{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 9px;border-radius:9px;background:rgba(239,68,68,.055);border:1px solid rgba(239,68,68,.12)}.tm-stale strong{font-size:10px;color:#eaf3ff}.tm-stale span{font-size:9px;color:#fca5a5;font-weight:900}.tm-select{min-height:38px;border:1px solid rgba(148,163,184,.18)!important;border-radius:10px!important;background:#0a1a2d!important;color:#e7f2ff!important;padding:7px 10px;font:800 10px/1 'DM Sans',sans-serif}.tm-fresh-settings{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px 13px}.tm-chart-card{padding:15px}.tm-chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.tm-chart-head h3,.tm-audit-head h3{margin:0;color:#fff;font:800 13px/1.25 'Space Mono',monospace}.tm-chart-head p,.tm-audit-head p{margin:5px 0 0;color:#7f93ad;font-size:10px}.tm-chart{height:240px}.tm-chart-empty{height:220px;display:grid;place-items:center;color:#6f8299;font-size:11px;text-align:center}.tm-audit-card{overflow:hidden}.tm-audit-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:15px 16px;border-bottom:1px solid rgba(148,163,184,.12)}.tm-filters{display:flex;gap:8px;flex-wrap:wrap}.tm-table-wrap{overflow:auto;max-height:560px}.tm-table{width:100%;border-collapse:collapse;min-width:900px}.tm-table th{position:sticky;top:0;z-index:2;background:#0b1a2c;color:#7187a0;text-align:left;padding:10px 12px;font:900 9px/1 'Space Mono',monospace;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid rgba(148,163,184,.14)}.tm-table td{padding:11px 12px;border-bottom:1px solid rgba(148,163,184,.09);color:#cbd9e8;font-size:10px;vertical-align:top}.tm-table tr{cursor:pointer}.tm-table tbody tr:hover{background:rgba(56,189,248,.045)}.tm-target-name{display:block;color:#fff;font-weight:900}.tm-target-section{display:block;margin-top:3px;color:#72859c;font-size:8px;text-transform:uppercase;letter-spacing:.07em}.tm-transition{display:flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-weight:800}.tm-status-dot{width:7px;height:7px;border-radius:999px;flex:0 0 7px}.tm-badge{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 7px;border-radius:999px;border:1px solid rgba(148,163,184,.16);background:rgba(148,163,184,.06);color:#a7b8cb;font-size:8px;font-weight:900;text-transform:uppercase}.tm-badge.ai{border-color:rgba(168,85,247,.3);background:rgba(168,85,247,.08);color:#d8b4fe}.tm-badge.guard{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08);color:#fde68a}.tm-reason{max-width:360px;white-space:normal;line-height:1.45;color:#aebed0}.tm-open-question{margin:0 14px 14px;padding:10px 11px;border-radius:10px;border:1px solid rgba(251,191,36,.18);background:rgba(251,191,36,.045);color:#c9b780;font-size:9px;line-height:1.45}.tm-error{padding:12px 14px;border-radius:12px;border:1px solid rgba(239,68,68,.28);background:rgba(239,68,68,.08);color:#fca5a5;font-size:11px;font-weight:800}.tm-loading{min-height:240px;display:grid;place-items:center;color:#8edcff;font:800 11px/1 'Space Mono',monospace}.tm-spinner{display:inline-block;width:16px;height:16px;border-radius:999px;border:2px solid rgba(142,220,255,.25);border-top-color:#8edcff;animation:tmSpin .8s linear infinite}@keyframes tmSpin{to{transform:rotate(360deg)}}@keyframes tmPulse{50%{opacity:.35;transform:scale(.76)}}
+        @media(max-width:1100px){.tm-grid{grid-template-columns:1fr}.tm-map-card{min-height:500px}.tm-map{height:460px}.tm-side{grid-template-columns:1fr 1fr}.tm-side>.tm-card:last-child{grid-column:1/-1}}
+        @media(max-width:720px){.tm-control{grid-template-columns:1fr}.tm-actions{justify-content:stretch}.tm-btn{flex:1 1 160px}.tm-run-result{grid-template-columns:repeat(2,minmax(0,1fr))}.tm-side{grid-template-columns:1fr}.tm-side>.tm-card:last-child{grid-column:auto}.tm-map{height:420px}.tm-map-card{min-height:460px}.tm-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tm-audit-head{align-items:flex-start}.tm-filters{width:100%}.tm-filters .tm-select{flex:1 1 150px}.tm-chart-head .tm-select{width:100%}}
+      `}</style>
+
+      <div className="tm-head">
+        <div>
+          <div className="tm-kicker">CCTT · TELEMETRÍA OPERATIVA</div>
+          <h2>Monitoreo Tráfico</h2>
+          <p>Validación visual de TomTom, decisiones automáticas y estados operativos con actualización directa por Supabase Realtime.</p>
+        </div>
+        <div className={`tm-live ${realtimeLive ? "" : "is-off"}`}><i />{realtimeLive ? "EN VIVO" : realtimeStatus || "CONECTANDO"}</div>
+      </div>
+
+      <section className="tm-card tm-control">
+        <div className="tm-control__state">
+          <span className="tm-control__icon"><MS name={modoAutomatico.activo ? "sensors" : "pan_tool"} size={24} active /></span>
+          <div className="tm-control__copy">
+            <strong>{modoAutomatico.activo ? "Modo automático activo (TomTom)" : "Modo manual (votos de usuarios)"}</strong>
+            <small>{modoAutomatico.activo ? "TomTom ejecuta la supervisión automática; CCTT conserva este panel para validar el resultado." : "Los estados permanecen bajo operación manual hasta volver a activar TomTom."}</small>
+          </div>
+        </div>
+        <div className="tm-actions">
+          <button type="button" className={`tm-btn ${modoAutomatico.activo ? "is-danger" : "is-primary"}`} onClick={handleToggleAutomatic} disabled={toggleBusy || runBusy}>
+            {toggleBusy ? <span className="tm-spinner" /> : <MS name={modoAutomatico.activo ? "pan_tool" : "sensors"} size={18} />}
+            {toggleBusy ? "Aplicando" : modoAutomatico.activo ? "Volver a modo manual" : "Activar monitoreo automático"}
+          </button>
+          <button type="button" className="tm-btn" onClick={handleRunNow} disabled={runBusy || toggleBusy}>
+            {runBusy ? <span className="tm-spinner" /> : <MS name="play_arrow" size={19} />}
+            {runBusy ? "Ejecutando" : "Ejecutar ahora"}
+          </button>
+        </div>
+        {controlMessage && <div className={`tm-control-msg ${controlMessage.type}`}>{controlMessage.text}</div>}
+        {runResult?.ok && <div className="tm-run-result">
+          <div><strong>{runResult.total}</strong><span>Total</span></div>
+          <div><strong>{runResult.successful}</strong><span>OK</span></div>
+          <div><strong>{runResult.failed}</strong><span>Fallidos</span></div>
+          <div><strong>{runResult.aiInvoked}</strong><span>IA invocada</span></div>
+        </div>}
+        {runResult && !runResult.ok && <div className="tm-control-msg error">{runResult.error}</div>}
+      </section>
+
+      {loadError && <div className="tm-error">{loadError} <button type="button" className="tm-btn" style={{marginLeft:10,minHeight:32,padding:"7px 10px"}} onClick={() => loadMonitorData()}>Reintentar</button></div>}
+
+      {loading ? <div className="tm-card tm-loading"><span><span className="tm-spinner" style={{marginRight:9,verticalAlign:"middle"}} />Cargando telemetría</span></div> : <>
+        <div className="tm-grid">
+          <section className="tm-card tm-map-card">
+            <div className="tm-map-toolbar">
+              <strong>Mapa operativo</strong>
+              <div className="tm-segment" role="group" aria-label="Color del mapa">
+                <button type="button" className={colorMode === "status" ? "is-active" : ""} onClick={() => setColorMode("status")}>Por estatus</button>
+                <button type="button" className={colorMode === "ratio" ? "is-active" : ""} onClick={() => setColorMode("ratio")}>Ratio continuo</button>
+              </div>
+            </div>
+            <MapContainer className="tm-map" center={[19.0776, -104.2925]} zoom={13} minZoom={11} maxZoom={19} scrollWheelZoom attributionControl>
+              <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <LayersControl position="topright">
+                <LayersControl.Overlay checked name="Accesos">
+                  <LayerGroup>
+                    {accessTargets.map(target => {
+                      const key = trafficMonitorKey(target.section, target.id);
+                      const observation = latestObservationByKey[key];
+                      const decision = latestDecisionByKey[key];
+                      const color = trafficMonitorColor(target.status, observation?.congestion_ratio, colorMode);
+                      return <Marker key={key} position={target.coords} icon={trafficMonitorMarkerIcon(color, "access")} eventHandlers={{ click:() => setChartTargetKey(key) }}>
+                        <Tooltip direction="top" offset={[0,-22]}>{target.name} · {String(target.status).replaceAll("_", " ")}</Tooltip>
+                        <Popup><TrafficMonitorPopup target={target} observation={observation} decision={decision} /></Popup>
+                      </Marker>;
+                    })}
+                  </LayerGroup>
+                </LayersControl.Overlay>
+
+                <LayersControl.Overlay checked name="Segundo Acceso">
+                  <LayerGroup>
+                    {secondTargets.filter(target => target.coords?.length >= 2).map(target => {
+                      const key = trafficMonitorKey(target.section, target.id);
+                      const observation = latestObservationByKey[key];
+                      const decision = latestDecisionByKey[key];
+                      const color = trafficMonitorColor(target.status, observation?.congestion_ratio, colorMode);
+                      const middle = target.coords[Math.floor(target.coords.length / 2)];
+                      return <React.Fragment key={key}>
+                        <Polyline positions={target.coords} pathOptions={{ color, weight:8, opacity:.86, lineCap:"round", lineJoin:"round" }} eventHandlers={{ click:() => setChartTargetKey(key) }}>
+                          <Tooltip sticky>{target.name} · {String(target.status).replaceAll("_", " ")}</Tooltip>
+                          <Popup><TrafficMonitorPopup target={target} observation={observation} decision={decision} /></Popup>
+                        </Polyline>
+                        {middle && <Marker position={middle} icon={trafficMonitorDirectionIcon(color, trafficMonitorBearing(target.coords))} interactive={false} />}
+                      </React.Fragment>;
+                    })}
+                  </LayerGroup>
+                </LayersControl.Overlay>
+
+                <LayersControl.Overlay checked name="Terminales">
+                  <LayerGroup>
+                    {terminalTargets.map(target => {
+                      const key = trafficMonitorKey(target.section, target.id);
+                      const observation = latestObservationByKey[key];
+                      const decision = latestDecisionByKey[key];
+                      const color = trafficMonitorColor(target.status, observation?.congestion_ratio, colorMode);
+                      return <Marker key={key} position={target.coords} icon={trafficMonitorMarkerIcon(color, "terminal")} eventHandlers={{ click:() => setChartTargetKey(key) }}>
+                        <Tooltip direction="top" offset={[0,-22]}>{target.name} · {String(target.status).replaceAll("_", " ")}</Tooltip>
+                        <Popup><TrafficMonitorPopup target={target} observation={observation} decision={decision} /></Popup>
+                      </Marker>;
+                    })}
+                  </LayerGroup>
+                </LayersControl.Overlay>
+
+                <LayersControl.Overlay name="Rutas fiscales">
+                  <LayerGroup>
+                    {RUTAS_FISCALES.map(route => {
+                      const row = routeRows[route.id] || {};
+                      const status = row.status || "sin_datos";
+                      const key = trafficMonitorKey("rutas_fiscales", route.id);
+                      const observation = latestObservationByKey[key];
+                      const decision = latestDecisionByKey[key];
+                      const color = trafficMonitorColor(status, observation?.congestion_ratio, colorMode);
+                      const target = { section:"rutas_fiscales", id:route.id, name:route.name, status, coords:route.coords, kind:"route" };
+                      return <Polyline key={route.id} positions={route.coords} pathOptions={{ color, weight:5, opacity:.72 }}>
+                        <Tooltip sticky>{route.name} · {String(status).replaceAll("_", " ")}</Tooltip>
+                        <Popup><TrafficMonitorPopup target={target} observation={observation} decision={decision} /></Popup>
+                      </Polyline>;
+                    })}
+                  </LayerGroup>
+                </LayersControl.Overlay>
+
+                <LayersControl.Overlay name="Patios · referencia KML">
+                  <LayerGroup>
+                    {PATIOS_KML_REFERENCIA.map(feature => <Polygon key={feature.id} positions={feature.coords} pathOptions={{ color:"#22d3ee", weight:2, opacity:.72, fillColor:"#0891b2", fillOpacity:.12 }}>
+                      <Tooltip sticky>{feature.name}</Tooltip>
+                      <Popup><div className="tm-popup"><div className="tm-popup__title">{feature.name}</div><div style={{marginTop:8,color:"#91a4bd",fontSize:10,lineHeight:1.5}}>Polígono de referencia KML. El esquema de monitoreo suministrado no define una relación entre estos IDs KML y los IDs de la tabla patios.</div></div></Popup>
+                    </Polygon>)}
+                  </LayerGroup>
+                </LayersControl.Overlay>
+              </LayersControl>
+            </MapContainer>
+            {missingSecondGeometry.length > 0 && <div className="tm-open-question">Segundo Acceso: {missingSecondGeometry.map(item => item.id).join(", ")} aún no expone coordenadas utilizables dentro de trafficEvidence/raw. El panel no inventa geometría; las polilíneas aparecen automáticamente cuando esos datos contienen los puntos operativos.</div>}
+          </section>
+
+          <aside className="tm-side">
+            <section className="tm-card">
+              <div className="tm-side-title">Resumen de la corrida más reciente</div>
+              <div className="tm-summary-grid">
+                <div className="tm-summary"><span>Determinista</span><strong>{runSummary.deterministic}</strong><small>Decisiones sin ensamble IA</small></div>
+                <div className="tm-summary"><span>Multi-IA</span><strong>{runSummary.ai}</strong><small>Targets ambiguos revisados</small></div>
+                <div className="tm-summary"><span>IA últimas 24 h</span><strong>{runSummary.aiRate.toFixed(1)}%</strong><small>{runSummary.ai24h} de {runSummary.total24h} decisiones</small></div>
+                <div className="tm-summary"><span>Targets frescos</span><strong>{freshTargets}/{freshness.length}</strong><small>Umbral actual: {freshnessMinutes} min</small></div>
+              </div>
+            </section>
+
+            <section className="tm-card">
+              <div className="tm-side-title">Frescura de datos</div>
+              <div className="tm-fresh-settings">
+                <span style={{color:"#8296ad",fontSize:9}}>Marcar sin actualizar después de</span>
+                <select className="tm-select" value={freshnessMinutes} onChange={event => setFreshnessMinutes(Number(event.target.value))}>
+                  {[10,15,20,30,45,60].map(value => <option key={value} value={value}>{value} min</option>)}
+                </select>
+              </div>
+              <div className="tm-stale-list">
+                {staleTargets.length ? staleTargets.map(target => <button key={target.key} type="button" className="tm-stale" style={{cursor:"pointer"}} onClick={() => setChartTargetKey(target.key)}>
+                  <strong>{target.name}</strong><span>{target.observedAt ? `${Math.round(target.ageMs / 60000)} min` : "Sin datos"}</span>
+                </button>) : <div style={{padding:"8px 0",color:"#86efac",fontSize:10,fontWeight:800}}>Todos los targets están dentro del umbral.</div>}
+              </div>
+            </section>
+
+            <section className="tm-card">
+              <div className="tm-side-title">Fuentes conectadas</div>
+              <div style={{padding:"12px 14px 14px",display:"grid",gap:7,color:"#91a4bd",fontSize:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12}}><span>Observaciones 24 h</span><strong style={{color:"#eaf3ff"}}>{observations.length}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12}}><span>Decisiones 24 h</span><strong style={{color:"#eaf3ff"}}>{decisions.length}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12}}><span>Rutas fiscales</span><strong style={{color:"#eaf3ff"}}>{Object.keys(routeRows).length}</strong></div>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12}}><span>Patios</span><strong style={{color:"#eaf3ff"}}>{Object.keys(patioRows).length}</strong></div>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <section className="tm-card tm-chart-card">
+          <div className="tm-chart-head">
+            <div><h3>Congestion ratio · últimas {TRAFFIC_MONITOR_CHART_HOURS} horas</h3><p>{selectedChartTarget?.name || "Selecciona un target"}</p></div>
+            <select className="tm-select" value={chartTargetKey} onChange={event => setChartTargetKey(event.target.value)}>
+              {primaryTargets.map(target => {
+                const key = trafficMonitorKey(target.section, target.id);
+                return <option key={key} value={key}>{TRAFFIC_MONITOR_SECTION_LABELS[target.section]} · {target.name}</option>;
+              })}
+            </select>
+          </div>
+          {chartData.length ? <div className="tm-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top:8, right:14, bottom:0, left:-16 }}>
+                <CartesianGrid stroke="rgba(148,163,184,.12)" strokeDasharray="3 5" />
+                <XAxis dataKey="time" stroke="#6f8299" tick={{ fill:"#8296ad", fontSize:9 }} minTickGap={24} />
+                <YAxis dataKey="ratio" stroke="#6f8299" tick={{ fill:"#8296ad", fontSize:9 }} domain={[0, dataMax => Math.max(1, Number(dataMax || 1))]} />
+                <ChartTooltip contentStyle={{ background:"#071827", border:"1px solid rgba(148,163,184,.2)", borderRadius:10, color:"#eaf3ff", fontSize:10 }} formatter={(value) => [Number(value).toFixed(3), "Ratio"]} labelStyle={{ color:"#8edcff" }} />
+                <Line type="monotone" dataKey="ratio" stroke="#38bdf8" strokeWidth={2.4} dot={false} activeDot={{ r:4 }} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div> : <div className="tm-chart-empty">No hay observaciones con congestion_ratio para este target durante las últimas {TRAFFIC_MONITOR_CHART_HOURS} horas.</div>}
+        </section>
+
+        <section className="tm-card tm-audit-card">
+          <div className="tm-audit-head">
+            <div><h3>Validación y auditoría de decisiones</h3><p>Últimas decisiones registradas en traffic_ai_decisions.</p></div>
+            <div className="tm-filters">
+              <select className="tm-select" value={sectionFilter} onChange={event => setSectionFilter(event.target.value)}>
+                <option value="all">Todas las secciones</option>
+                <option value="accesos">Accesos</option>
+                <option value="segundo">Segundo Acceso</option>
+                <option value="terminales">Terminales</option>
+              </select>
+              <select className="tm-select" value={targetFilter} onChange={event => setTargetFilter(event.target.value)}>
+                <option value="all">Todos los targets</option>
+                {primaryTargets.filter(target => sectionFilter === "all" || target.section === sectionFilter).map(target => {
+                  const key = trafficMonitorKey(target.section, target.id);
+                  return <option key={key} value={key}>{target.name}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+          <div className="tm-table-wrap">
+            <table className="tm-table">
+              <thead><tr><th>Target</th><th>Cambio</th><th>Confianza</th><th>Modelo</th><th>Guardrail</th><th>Razón</th><th>Fecha</th></tr></thead>
+              <tbody>
+                {visibleDecisions.length ? visibleDecisions.map((row, index) => {
+                  const section = normalizeTrafficMonitorSection(row.section);
+                  const key = trafficMonitorKey(section, row.item_id);
+                  const target = targetByKey[key];
+                  const previous = String(row.previous_status || "sin_datos");
+                  const decided = String(row.decided_status || "sin_datos");
+                  const changed = previous !== decided;
+                  return <tr key={`${key}-${row.created_at || index}-${index}`} onClick={() => setChartTargetKey(key)}>
+                    <td><span className="tm-target-name">{target?.name || row.item_id}</span><span className="tm-target-section">{TRAFFIC_MONITOR_SECTION_LABELS[section] || section}</span></td>
+                    <td><span className="tm-transition"><span className="tm-status-dot" style={{background:trafficMonitorStatusColor(previous)}} />{previous}<MS name={changed ? "arrow_forward" : "horizontal_rule"} size={15} /><span className="tm-status-dot" style={{background:trafficMonitorStatusColor(decided)}} />{decided}</span></td>
+                    <td>{trafficMonitorFormatConfidence(row.confidence)}</td>
+                    <td><span className={`tm-badge ${trafficMonitorIsMultiAI(row.model) ? "ai" : ""}`}><MS name={trafficMonitorIsMultiAI(row.model) ? "psychology" : "rule"} size={13} />{row.model || "Sin modelo"}</span></td>
+                    <td>{row.guardrail_applied ? <span className="tm-badge guard"><MS name="shield" size={13} />Aplicado</span> : <span className="tm-badge">No</span>}</td>
+                    <td className="tm-reason">{row.reason || "Sin razón registrada"}</td>
+                    <td>{trafficMonitorFormatDate(row.created_at)}</td>
+                  </tr>;
+                }) : <tr><td colSpan={7} style={{padding:26,textAlign:"center",color:"#71859c"}}>No hay decisiones para los filtros seleccionados.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </>}
+    </div>
+  );
+}
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -37333,6 +38015,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"users", permission:["gestionar_roles"], title:"Usuarios y roles", subtitle:"Altas, permisos y administración de subadministradores", icon:"groups" },
     { id:"news", permission:["publicar_comunicados"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
     { id:"feed", permission:["publicar_anuncios"], title:"Anuncios y Banners", subtitle:"Alta, moderación, publicación y métricas centralizadas de anuncios", icon:"campaign" },
+    { id:"traffic_monitor", permission:[], adminOnly:true, title:"Monitoreo Tráfico", subtitle:"TomTom en vivo, frescura, decisiones IA y auditoría operativa", icon:"monitor_heart" },
     { id:"traffic", permission:["actualizar_trafico"], title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
     { id:"incidents", permission:["moderar_reportes"], title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
     { id:"terminals", permission:["actualizar_terminales","actualizar_patios"], title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
@@ -37345,7 +38028,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"services", permission:["gestionar_servicios","rol_servicios_admin","editor_servicios"], title:"Servicios", subtitle:"KPIs, tarifas y actividad de Comida y Maniobras", icon:"design_services" },
     { id:"tools", permission:["herramientas_admin"], title:"Herramientas administrativas", subtitle:"Conversión de documentos y configuración global", icon:"construction" },
   ];
-  const cards = allCards.filter(card => hasPermission(...card.permission));
+  const cards = allCards.filter(card => (!card.adminOnly || isAdmin) && hasPermission(...card.permission));
   const adminNavigationGroups = useMemo(() => ([
     {
       id:"general",
@@ -37612,6 +38295,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                   <div style={{height:16}} /><NoticiasAdminCleanup />
                 </>}
                 {activeDashboardSection === "feed" && <div style={{display:"grid",gap:"24px"}}><AdminBannerManager /><FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} /></div>}
+                {activeDashboardSection === "traffic_monitor" && isAdmin && <AdminTrafficMonitoring isAdmin={isAdmin} authUser={authUser} />}
                 {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
