@@ -37312,6 +37312,8 @@ const trafficMonitorFormatDate = (value) => {
   }
 };
 
+const trafficMonitorDecisionDate = (row) => row?.decided_at || row?.created_at || null;
+
 const trafficMonitorFormatConfidence = (value) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return "Sin dato";
@@ -37459,7 +37461,7 @@ function TrafficMonitorPopup({ target, observation, decision }) {
         <div><dt>Confianza TomTom</dt><dd>{trafficMonitorFormatConfidence(observation?.confidence)}</dd></div>
         <div><dt>Modelo decisión</dt><dd>{decision?.model || "Sin decisión reciente"}</dd></div>
         <div><dt>Razón</dt><dd>{decision?.reason || "Sin razón registrada"}</dd></div>
-        <div><dt>Última actualización</dt><dd>{trafficMonitorFormatDate(observation?.observed_at || decision?.created_at)}</dd></div>
+        <div><dt>Última actualización</dt><dd>{trafficMonitorFormatDate(observation?.observed_at || trafficMonitorDecisionDate(decision))}</dd></div>
       </dl>
     </div>
   );
@@ -37501,9 +37503,9 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
           .order("observed_at", { ascending:false })
           .limit(TRAFFIC_MONITOR_OBSERVATION_LIMIT),
         sb.from("traffic_ai_decisions")
-          .select("section,item_id,previous_status,decided_status,confidence,reason,evidence,model,guardrail_applied,created_at")
-          .gte("created_at", historySince)
-          .order("created_at", { ascending:false })
+          .select("section,item_id,previous_status,decided_status,confidence,reason,evidence,model,guardrail_applied,decided_at,created_at")
+          .gte("decided_at", historySince)
+          .order("decided_at", { ascending:false })
           .limit(TRAFFIC_MONITOR_DECISION_LIMIT),
       ]);
       if (observationResult.error) throw observationResult.error;
@@ -37551,8 +37553,8 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
     const prependDecision = (row) => {
       if (!alive || !row?.section || !row?.item_id) return;
       setDecisions(prev => {
-        const identity = `${row.section}|${row.item_id}|${row.created_at || ""}|${row.model || ""}`;
-        const next = [row, ...prev.filter(item => `${item.section}|${item.item_id}|${item.created_at || ""}|${item.model || ""}` !== identity)];
+        const identity = `${row.section}|${row.item_id}|${trafficMonitorDecisionDate(row) || ""}|${row.model || ""}`;
+        const next = [row, ...prev.filter(item => `${item.section}|${item.item_id}|${trafficMonitorDecisionDate(item) || ""}|${item.model || ""}` !== identity)];
         return next.slice(0, TRAFFIC_MONITOR_DECISION_LIMIT);
       });
     };
@@ -37629,7 +37631,7 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
     const map = {};
     decisions.forEach(row => {
       const key = trafficMonitorKey(row.section, row.item_id);
-      if (!map[key] || toMs(row.created_at) > toMs(map[key].created_at)) map[key] = row;
+      if (!map[key] || toMs(trafficMonitorDecisionDate(row)) > toMs(trafficMonitorDecisionDate(map[key]))) map[key] = row;
     });
     return map;
   }, [decisions]);
@@ -37711,13 +37713,13 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
   const freshTargets = freshness.length - staleTargets.length;
 
   const runSummary = useMemo(() => {
-    const ordered = decisions.filter(row => TRAFFIC_MONITOR_SECTION_LABELS[normalizeTrafficMonitorSection(row.section)]).sort((a, b) => toMs(b.created_at) - toMs(a.created_at));
-    const latestMs = toMs(ordered[0]?.created_at);
-    const batch = latestMs ? ordered.filter(row => latestMs - toMs(row.created_at) <= 5 * 60000) : [];
+    const ordered = decisions.filter(row => TRAFFIC_MONITOR_SECTION_LABELS[normalizeTrafficMonitorSection(row.section)]).sort((a, b) => toMs(trafficMonitorDecisionDate(b)) - toMs(trafficMonitorDecisionDate(a)));
+    const latestMs = toMs(trafficMonitorDecisionDate(ordered[0]));
+    const batch = latestMs ? ordered.filter(row => latestMs - toMs(trafficMonitorDecisionDate(row)) <= 5 * 60000) : [];
     const ai = batch.filter(row => trafficMonitorIsMultiAI(row.model)).length;
     const deterministic = batch.length - ai;
     const cutoff24h = Date.now() - 24 * 3600000;
-    const last24h = ordered.filter(row => toMs(row.created_at) >= cutoff24h);
+    const last24h = ordered.filter(row => toMs(trafficMonitorDecisionDate(row)) >= cutoff24h);
     const ai24h = last24h.filter(row => trafficMonitorIsMultiAI(row.model)).length;
     return {
       latestMs,
@@ -38003,14 +38005,14 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
                   const previous = String(row.previous_status || "sin_datos");
                   const decided = String(row.decided_status || "sin_datos");
                   const changed = previous !== decided;
-                  return <tr key={`${key}-${row.created_at || index}-${index}`} onClick={() => setChartTargetKey(key)}>
+                  return <tr key={`${key}-${trafficMonitorDecisionDate(row) || index}-${index}`} onClick={() => setChartTargetKey(key)}>
                     <td><span className="tm-target-name">{target?.name || row.item_id}</span><span className="tm-target-section">{TRAFFIC_MONITOR_SECTION_LABELS[section] || section}</span></td>
                     <td><span className="tm-transition"><span className="tm-status-dot" style={{background:trafficMonitorStatusColor(previous)}} />{previous}<MS name={changed ? "arrow_forward" : "horizontal_rule"} size={15} /><span className="tm-status-dot" style={{background:trafficMonitorStatusColor(decided)}} />{decided}</span></td>
                     <td>{trafficMonitorFormatConfidence(row.confidence)}</td>
                     <td><span className={`tm-badge ${trafficMonitorIsMultiAI(row.model) ? "ai" : ""}`}><MS name={trafficMonitorIsMultiAI(row.model) ? "psychology" : "rule"} size={13} />{row.model || "Sin modelo"}</span></td>
                     <td>{row.guardrail_applied ? <span className="tm-badge guard"><MS name="shield" size={13} />Aplicado</span> : <span className="tm-badge">No</span>}</td>
                     <td className="tm-reason">{row.reason || "Sin razón registrada"}</td>
-                    <td>{trafficMonitorFormatDate(row.created_at)}</td>
+                    <td>{trafficMonitorFormatDate(trafficMonitorDecisionDate(row))}</td>
                   </tr>;
                 }) : <tr><td colSpan={7} style={{padding:26,textAlign:"center",color:"#71859c"}}>No hay decisiones para los filtros seleccionados.</td></tr>}
               </tbody>
